@@ -1,0 +1,16 @@
+# Graphica の実行に必要な依存パッケージ。
+# venv上で `pip install -r requirements.txt` すれば同じ環境を再現できる。
+#
+# バージョンは開発時に動作確認済みのものを固定 (pip freeze の結果を反映)。
+# 依存パッケージの依存パッケージ (fonttools, kiwisolver, pytz など) は
+# 明示的にバージョン指定していないため、pip が自動的に解決する。
+
+PySide6==6.9.1
+matplotlib==3.10.7
+numpy==2.3.1
+pandas==2.3.1
+scipy==1.16.0
+openpyxl==3.1.5
+
+# --- .exe化 (PyInstaller) を行う場合のみ必要 ---
+pyinstaller==6.16.0
