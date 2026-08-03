@@ -1,8 +1,9 @@
 import sys
 import os
 import logging
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QGuiApplication
 
 # 複数プロジェクトタブ(項目40)に対応した最上位ウィンドウ。
 # 内部で PlotterApp を各タブとして生成する。
@@ -32,6 +33,14 @@ def _setup_logging():
 
 def main():
     _setup_logging()
+    # マルチモニターでDPI(拡大率)が異なる環境(例: メイン100%・サブ125%)で、
+    # ボタン等の見た目上の描画位置と実際のクリック判定位置がずれ、「ボタンが
+    # 反応しない」ように見える既知のQt/Windowsの問題への対策。
+    # PassThroughは実際のスケール係数をそのまま使い、モニター間の切り替え時の
+    # 丸め誤差によるジオメトリ不整合を避ける。QApplication生成前に設定する必要がある。
+    QGuiApplication.setHighDpiScaleFactorRoundingPolicy(
+        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+    )
     # 未処理の例外発生時、ログの場所とオートセーブ復元手順を案内するダイアログを表示する
     install_crash_handler()
     app = QApplication(sys.argv)
