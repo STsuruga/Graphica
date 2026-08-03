@@ -258,6 +258,39 @@ def test_unmasking_restores_full_x_data_y_data():
     np.testing.assert_array_equal(ds.x_data, [1.0, 2.0, 3.0])
 
 
+def test_rename_column_updates_dataframe_and_x_col_name():
+    ds = make_dataset()  # x_col_name='x', y_col_name='y'
+    ds.rename_column('x', 'time')
+    assert 'time' in ds.df.columns
+    assert 'x' not in ds.df.columns
+    assert ds.x_col_name == 'time'
+    assert ds.y_col_name == 'y'  # 無関係の列は変化しない
+
+
+def test_rename_column_updates_err_and_point_label_col_names():
+    df = pd.DataFrame({'x': [1.0, 2.0], 'y': [10.0, 20.0], 'yerr': [0.1, 0.2]})
+    ds = Dataset(name="D", df=df, x_col_name='x', y_col_name='y', y_err_col_name='yerr',
+                 point_label_col_name='yerr')
+    ds.rename_column('yerr', 'y_error')
+    assert ds.y_err_col_name == 'y_error'
+    assert ds.point_label_col_name == 'y_error'
+    np.testing.assert_array_equal(ds.y_err_data, [0.1, 0.2])
+
+
+def test_rename_column_missing_column_is_noop():
+    ds = make_dataset()
+    columns_before = list(ds.df.columns)
+    ds.rename_column('does_not_exist', 'new_name')
+    assert list(ds.df.columns) == columns_before
+
+
+def test_rename_column_same_name_is_noop():
+    ds = make_dataset()
+    ds.rename_column('x', 'x')
+    assert ds.x_col_name == 'x'
+    assert list(ds.df.columns) == ['x', 'y']
+
+
 def test_deepcopy_produces_independent_dataframe():
     """データセット複製機能 (_on_duplicate_dataset) が依拠する deepcopy の挙動を確認する"""
     ds = make_dataset()

@@ -9,7 +9,7 @@ from core.commands import (
     EditCellCommand, AddRowCommand, DeleteRowsCommand,
     AddColumnCommand, DeleteColumnCommand,
     SetDatasetPropertiesCommand, ReorderDatasetsCommand,
-    SetAnnotationsCommand, SetMaskedRowsCommand,
+    SetAnnotationsCommand, SetMaskedRowsCommand, RenameColumnCommand,
 )
 
 
@@ -184,6 +184,19 @@ def test_set_annotations_command_does_not_alias_input_lists():
     new_list.append({'id': 'y', 'type': 'text', 'text': 'b', 'xy': (0, 0), 'xytext': (0, 0), 'color': '#000000'})
     cmd.redo()
     assert len(project.all_plot_settings[0]['annotations']) == 1
+
+
+def test_rename_column_command_redo_undo():
+    ds = make_dataset()  # x_col_name='x', y_col_name='y'
+    cmd = RenameColumnCommand(ds, 'x', 'time')
+    cmd.redo()
+    assert 'time' in ds.df.columns
+    assert ds.x_col_name == 'time'
+
+    cmd.undo()
+    assert 'x' in ds.df.columns
+    assert 'time' not in ds.df.columns
+    assert ds.x_col_name == 'x'
 
 
 def test_set_masked_rows_command_redo_undo():
