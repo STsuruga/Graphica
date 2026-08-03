@@ -191,6 +191,113 @@ class Dataset:
         if col_name not in self.df.columns:
             self.df[col_name] = column_data
 
+    # --- JSON形式でのプロジェクト保存(.graphica)対応 (models/project.py から利用) ---
+    # pickleの__getstate__/__setstate__と同様の役割を、JSONでも往復できる
+    # プレーンなdict形式で提供する。
+
+    def to_dict(self) -> dict:
+        """
+        このDatasetをJSONシリアライズ可能なdictに変換する。
+        artist (matplotlibのArtistへの生参照) は__getstate__同様に除外する。
+        df はdtype情報を失わないよう専用の形式(_df_to_dict)に変換する。
+        """
+        result = {}
+        for f in fields(self):
+            if f.name in ('artist', 'df'):
+                continue
+            value = getattr(self, f.name)
+            if f.name == 'masked_row_indices':
+                # numpy.int64 が紛れ込むことがあるため、素のintに揃えておく
+                # (JSONEncoder側の安全網に頼らず、発生源で明示的に変換する)
+                value = [int(v) for v in value]
+            result[f.name] = value
+        result['df'] = self._df_to_dict(self.df)
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Dataset':
+        """to_dict() で得たdictからDatasetを復元する。
+
+        古いスキーマ(このメソッド/フィールドが追加される前)のJSONファイルでも
+        クラッシュしないよう、__setstate__ と同じ「dataclassのデフォルト値で
+        不足分を補う」方式を踏襲する。
+        """
+        obj = cls.__new__(cls)
+        state = {}
+        df_data = data.get('df')
+        state['df'] = cls._df_from_dict(df_data) if df_data is not None else pd.DataFrame()
+        state['artist'] = None
+        for f in fields(cls):
+            if f.name in ('df', 'artist'):
+                continue
+            if f.name in data:
+                value = data[f.name]
+                if f.name == 'masked_row_indices' and value is not None:
+                    value = [int(v) for v in value]
+                state[f.name] = value
+            elif f.default is not MISSING:
+                state[f.name] = f.default
+            elif f.default_factory is not MISSING:
+                state[f.name] = f.default_factory()
+        obj.__dict__.update(state)
+        return obj
+
+    @staticmethod
+    def _df_to_dict(df: pd.DataFrame) -> dict:
+        """
+        DataFrameを、dtypeフィデリティを保ったままJSON化できるdictに変換する。
+        datetime64列はTimestampがJSON非対応のため、ISO8601文字列(NaTはNone)に
+        変換してから格納する。それ以外の列は素のリストに変換する(float列の
+        NaNはPythonのfloat('nan')のまま残り、json.dumpのデフォルト挙動で
+        `NaN`トークンとして出力され、json.loadで読み戻すとfloat('nan')に
+        戻るため、NaNがnull等の別の値に化けることはない)。
+        """
+        dtypes = {col: str(dtype) for col, dtype in df.dtypes.items()}
+        data = {}
+        for col in df.columns:
+            series = df[col]
+            if pd.api.types.is_datetime64_any_dtype(series):
+                data[col] = [
+                    None if pd.isna(v) else pd.Timestamp(v).isoformat()
+                    for v in series
+                ]
+            else:
+                data[col] = series.tolist()
+        return {
+            'columns': list(df.columns),
+            'index': list(df.index),
+            'data': data,
+            'dtypes': dtypes,
+        }
+
+    @staticmethod
+    def _df_from_dict(d: dict) -> pd.DataFrame:
+        """_df_to_dict() の逆変換。dtypes情報を使って元の型に復元する。"""
+        columns = d.get('columns', [])
+        index = d.get('index', [])
+        data = d.get('data', {})
+        dtypes = d.get('dtypes', {})
+
+        df = pd.DataFrame(index=index)
+        for col in columns:
+            col_data = data.get(col, [])
+            dtype_str = dtypes.get(col)
+            if dtype_str and dtype_str.startswith('datetime64'):
+                series = pd.to_datetime(pd.Series(col_data, index=index))
+            else:
+                series = pd.Series(col_data, index=index)
+                if dtype_str:
+                    try:
+                        series = series.astype(dtype_str)
+                    except (TypeError, ValueError):
+                        # 未知/変換不能なdtype文字列の場合は推定された型のまま使う
+                        pass
+            df[col] = series
+        # 列の並び順を元の順序に揃える(dictのキー順に依存しないように)
+        if columns:
+            df = df[columns]
+        return df
+
     def __getstate__(self):
         """
         pickle保存時、artist (matplotlibのArtistへの生参照) は除外する。

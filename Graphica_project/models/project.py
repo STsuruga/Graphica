@@ -1,7 +1,11 @@
 import pickle
 import io
+import json
 import os
 import logging
+
+from core.dataset import Dataset
+from core.json_utils import GraphicaJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +73,42 @@ class ProjectModel:
         self.layout_mode = 'grid'
 
     def save_project(self, filepath):
+        """
+        現在のアプリケーション状態を保存する。
+        拡張子によって保存形式を振り分ける:
+          - .pkl      : 従来通りpickleで保存(挙動は変更なし)
+          - .graphica : 新形式。JSONとして保存する(信頼できないファイルを
+                        開いても任意コード実行が起きないよう、データ専用の
+                        フォーマットにするための移行先)
+        """
+        ext = os.path.splitext(filepath)[1].lower()
+        if ext == '.pkl':
+            self._save_project_pickle(filepath)
+        elif ext == '.graphica':
+            self._save_project_json(filepath)
+        else:
+            raise ValueError(f"サポートされていない拡張子です: {ext}")
+
+        self.current_filepath = filepath
+
+    def load_project(self, filepath):
+        """保存形式(拡張子)に応じてプロジェクトファイルを読み込む"""
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"ファイルが見つかりません: {filepath}")
+
+        ext = os.path.splitext(filepath)[1].lower()
+        if ext == '.pkl':
+            self._load_project_pickle(filepath)
+        elif ext == '.graphica':
+            self._load_project_json(filepath)
+        else:
+            raise ValueError(f"サポートされていない拡張子です: {ext}")
+
+        self.current_filepath = filepath
+
+    # --- .pkl (pickle) 形式 ---
+
+    def _save_project_pickle(self, filepath):
         """現在のアプリケーション状態を丸ごとpickleで保存"""
         data = {
             'datasets': self.datasets,
@@ -82,13 +122,8 @@ class ProjectModel:
         with open(filepath, 'wb') as f:
             pickle.dump(data, f)
 
-        self.current_filepath = filepath
-
-    def load_project(self, filepath):
+    def _load_project_pickle(self, filepath):
         """pickleファイルから状態を復元(信頼できるオブジェクトのみ許可)"""
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"ファイルが見つかりません: {filepath}")
-
         with open(filepath, 'rb') as f:
             try:
                 data = _restricted_loads(f)
@@ -109,4 +144,78 @@ class ProjectModel:
         self.layout_cols = data.get('layout_cols', 1)
         self.layout_mode = data.get('layout_mode', 'grid')
 
-        self.current_filepath = filepath
+    # --- .graphica (JSON) 形式 ---
+
+    @staticmethod
+    def _tree_to_json(node):
+        """dataset_group_tree を、Datasetの生参照を dataset_id 文字列に
+        置き換えたJSON化可能な形に変換する(再帰)。"""
+        if 'dataset' in node:
+            return {'dataset_id': node['dataset'].dataset_id}
+        return {
+            'name': node.get('name', ''),
+            'children': [ProjectModel._tree_to_json(child) for child in node.get('children', [])],
+        }
+
+    @staticmethod
+    def _tree_from_json(node, dataset_map):
+        """_tree_to_json() の逆変換。dataset_id を、読み込み済みdatasetsの
+        中から見つけた実際のDatasetオブジェクト(同一インスタンス)に
+        再リンクする。存在しないIDの場合は警告してそのリーフを除外する
+        (壊れた/手編集されたファイルでも読み込みがクラッシュしないように)。"""
+        if 'dataset_id' in node:
+            ds = dataset_map.get(node['dataset_id'])
+            if ds is None:
+                logger.warning(
+                    "dataset_group_tree内に存在しないdataset_idがあるため、"
+                    "このリーフをスキップします: %s", node['dataset_id']
+                )
+                return None
+            return {'dataset': ds}
+
+        children = []
+        for child in node.get('children', []):
+            converted = ProjectModel._tree_from_json(child, dataset_map)
+            if converted is not None:
+                children.append(converted)
+        return {'name': node.get('name', ''), 'children': children}
+
+    def _save_project_json(self, filepath):
+        """現在のアプリケーション状態をJSON(.graphica)として保存する"""
+        data = {
+            'datasets': [ds.to_dict() for ds in self.datasets],
+            'dataset_group_tree': self._tree_to_json(self.dataset_group_tree),
+            'all_plot_settings': self.all_plot_settings,
+            'active_axis_index': self.active_axis_index,
+            'layout_rows': self.layout_rows,
+            'layout_cols': self.layout_cols,
+            'layout_mode': self.layout_mode,
+        }
+        # ensure_ascii=False: データセット名/フォルダ名に日本語が使われることが
+        # 多いため、\uXXXXエスケープではなく読める形でファイルに残す。
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, cls=GraphicaJSONEncoder, indent=2, ensure_ascii=False)
+
+    def _load_project_json(self, filepath):
+        """JSON(.graphica)ファイルから状態を復元する"""
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        self.datasets = [Dataset.from_dict(d) for d in data.get('datasets', [])]
+        dataset_map = {ds.dataset_id: ds for ds in self.datasets}
+
+        tree_data = data.get('dataset_group_tree')
+        if tree_data:
+            self.dataset_group_tree = self._tree_from_json(tree_data, dataset_map)
+        else:
+            # dataset_group_tree キーが無い場合(将来この形式が変わった場合等)は、
+            # pickle側の後方互換処理と同様に、全データセットをルート直下に置く。
+            self.dataset_group_tree = {
+                'name': '', 'children': [{'dataset': ds} for ds in self.datasets]
+            }
+
+        self.all_plot_settings = data.get('all_plot_settings', [])
+        self.active_axis_index = data.get('active_axis_index', 0)
+        self.layout_rows = data.get('layout_rows', 1)
+        self.layout_cols = data.get('layout_cols', 1)
+        self.layout_mode = data.get('layout_mode', 'grid')
