@@ -6,7 +6,11 @@
 QSS (Qtスタイルシート) でツールバー・ボタン・入力欄・リスト等の見た目を
 角丸/フラットに統一し、よりモダンな印象にしている。
 """
-from PySide6.QtGui import QColor, QPalette
+import os
+import tempfile
+
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QProxyStyle, QStyle, QStyleFactory
 
 from gui.icon_utils import icon as _svg_icon
@@ -16,6 +20,58 @@ _original_palette = None
 _original_style_name = None
 _wheel_value_change_disabled = False
 _current_proxy_style = None  # QApplication.setStyle()に渡したオブジェクトへの参照を保持
+
+# スピンボックスの上下矢印アイコンのキャッシュ先。
+# ★ QSpinBox::up-button/down-buttonにQSSで何かプロパティを指定すると
+#   ウィジェット自体もQSSで角丸枠にしている都合上(QLineEdit等と共有の
+#   入力欄スタイル)、Qtの内部実装(QStyleSheetStyle)がCC_SpinBoxの描画を
+#   丸ごと引き取ってしまい、QProxyStyle側でdrawPrimitive/drawComplexControlを
+#   オーバーライドしても矢印の描画に一貫して反映されないことを検証の上で確認した
+#   (呼ばれたり呼ばれなかったりする再現性の低い挙動だった)。
+#   一方 QSS の `::up-arrow`/`::down-arrow` に `image: url(...)` で
+#   実ファイルの矢印画像を指定する方式は確実に反映される。このため、
+#   矢印だけは小さなPNGとして生成しキャッシュし、QSSから参照する。
+_ARROW_ICON_CACHE_DIR = os.path.join(tempfile.gettempdir(), "graphica_theme_icons")
+
+
+def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
+    """
+    上向き/下向きの三角矢印PNGを(未生成なら)描画してキャッシュし、
+    QSSの `url(...)` にそのまま埋め込める形式のパス文字列を返す。
+    """
+    os.makedirs(_ARROW_ICON_CACHE_DIR, exist_ok=True)
+    safe_color = color.lstrip("#")
+    filename = f"spin_arrow_{direction}_{safe_color}.png"
+    path = os.path.join(_ARROW_ICON_CACHE_DIR, filename)
+
+    if not os.path.exists(path):
+        size = 12
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(color))
+
+        cx, cy = size / 2, size / 2
+        aw, ah = 3.5, 2.6
+        arrow_path = QPainterPath()
+        if direction == "up":
+            arrow_path.moveTo(cx - aw, cy + ah * 0.5)
+            arrow_path.lineTo(cx + aw, cy + ah * 0.5)
+            arrow_path.lineTo(cx, cy - ah * 0.5)
+        else:
+            arrow_path.moveTo(cx - aw, cy - ah * 0.5)
+            arrow_path.lineTo(cx + aw, cy - ah * 0.5)
+            arrow_path.lineTo(cx, cy + ah * 0.5)
+        arrow_path.closeSubpath()
+        painter.drawPath(arrow_path)
+        painter.end()
+        pixmap.save(path)
+
+    # QSSのurl()はWindowsの円記号区切りパスを解釈できないため、
+    # スラッシュ区切りに変換する。
+    return path.replace(os.sep, "/")
 
 # フラット/ミニマルテーマの配色トークン。
 # チェックリスト(ロードマップ)アーティファクトで使ったものと近い、
@@ -258,16 +314,20 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
 }}
 
 /* --- スピンボックスの上下ボタン(GUI洗練) ---
-   何も指定しないと、OSネイティブ(Fusion)の凹凸のある古風なボタンになって
-   しまうため、他の入力欄と統一感のあるフラットな見た目にする。ホイールでの
-   値変更は無効化しているため、この上下ボタンがマウスでの主な操作手段になる。 */
+   ボックス自体(背景・区切り線)はQSSで問題なくスタイルできるが、矢印
+   (::up-arrow/::down-arrow)は `width`/`height` の指定だけでも描画されなく
+   なることを確認した(QLineEdit等と共有の角丸入力欄スタイルがQSpinBox
+   自体にも掛かっているため、Qt内部でCC_SpinBoxの描画がQStyleSheetStyleに
+   丸ごと引き取られ、QProxyStyle側のdrawPrimitive/drawComplexControlの
+   オーバーライドが安定して反映されないことを検証済み)。矢印だけは実際の
+   画像ファイル(image: url(...))として与えることで確実に表示される。 */
 QSpinBox, QDoubleSpinBox {{
-    padding-right: 18px;
+    padding-right: 16px;
 }}
 QSpinBox::up-button, QDoubleSpinBox::up-button {{
     subcontrol-origin: border;
     subcontrol-position: top right;
-    width: 18px;
+    width: 16px;
     height: 12px;
     border: none;
     border-left: 1px solid {border};
@@ -277,7 +337,7 @@ QSpinBox::up-button, QDoubleSpinBox::up-button {{
 QSpinBox::down-button, QDoubleSpinBox::down-button {{
     subcontrol-origin: border;
     subcontrol-position: bottom right;
-    width: 18px;
+    width: 16px;
     height: 12px;
     border: none;
     border-left: 1px solid {border};
@@ -293,17 +353,16 @@ QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
 QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
     background: {accent_soft};
 }}
-QSpinBox::up-arrow, QDoubleSpinBox::up-arrow,
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
+    image: url({spin_up_arrow_url});
+    width: 10px;
+    height: 10px;
+}}
 QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
-    width: 9px;
-    height: 9px;
+    image: url({spin_down_arrow_url});
+    width: 10px;
+    height: 10px;
 }}
-QSpinBox::up-button:disabled, QDoubleSpinBox::up-button:disabled,
-QSpinBox::down-button:disabled, QDoubleSpinBox::down-button:disabled {{
-    background: transparent;
-    border-left-color: {border};
-}}
-
 QComboBox::drop-down {{
     border: none;
     width: 20px;
@@ -390,18 +449,13 @@ QToolButton#add_tab_button:hover {{
     background: {accent_soft};
 }}
 
-/* --- チェックボックス / ラジオボタン --- */
-QCheckBox::indicator {{
-    width: 14px;
-    height: 14px;
-    border: 1px solid {border_strong};
-    border-radius: 3px;
-    background: {surface};
-}}
-QCheckBox::indicator:checked {{
-    background: {accent};
-    border-color: {accent};
-}}
+/* --- チェックボックス / ラジオボタン ---
+   ★ QCheckBox::indicator はQSSで何もスタイルしない。タブの閉じるボタンと
+   同様に、サブコントロールにQSSで何かひとつでもプロパティ(width/height/
+   border等)を指定すると、Qtがチェックマーク自体を描画しなくなり、
+   ただの塗りつぶし四角になってしまう(実際にこれで報告された)。
+   見た目(枠・塗りつぶし・チェックマーク)はすべて _FlatThemeProxyStyle の
+   drawPrimitive(PE_IndicatorCheckBox) で自前描画する。 */
 QRadioButton::indicator {{
     width: 14px;
     height: 14px;
@@ -464,7 +518,10 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 
 def _build_flat_qss(dark: bool) -> str:
     tokens = _DARK_TOKENS if dark else _LIGHT_TOKENS
-    return _FLAT_QSS_TEMPLATE.format(**tokens)
+    format_args = dict(tokens)
+    format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_primary"])
+    format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_primary"])
+    return _FLAT_QSS_TEMPLATE.format(**format_args)
 
 
 def _build_dark_palette() -> QPalette:
@@ -488,21 +545,28 @@ def _build_dark_palette() -> QPalette:
     return palette
 
 
-class _TabCloseIconStyle(QProxyStyle):
+class _FlatThemeProxyStyle(QProxyStyle):
     """
-    タブを閉じる「×」ボタンを、Qtネイティブの標準アイコン(背景によっては
-    非常に見えにくい)ではなく、他のツールバー類と同じTabler Icons "x" に
-    差し替えるためのQProxyStyle。
+    QSSだけでは実現できない(あるいはQtの既知の癖により逆に壊れる)、いくつかの
+    描画をQProxyStyle側で肩代わりするための共通スタイル。
 
-    QSSの `image: url(...)` で差し替える方法も考えられるが、このプロジェクトの
-    パスには日本語(非ASCII)文字が含まれており、Qtのスタイルシートの
-    url()解決は環境によって非ASCIIパスを正しく扱えないことがある。
-    そのため、他のツールバーアイコンと同じ、確実に動くPython側の
-    QIcon読み込み経路(icon_utils.icon)を使う。
+    ★ 共通する根本原因: Qtは、あるサブコントロールにQSSで何かひとつでも
+    プロパティ(padding, border-radius, width...)を指定すると、そのサブ
+    コントロールを「スタイルシートでカスタム描画されるもの」とみなし、
+    アイコンやチェックマークなどの「中身」を一切描画しなくなることがある。
+    - タブを閉じる「×」ボタン: QTabBar::close-buttonにQSSを当てると、
+      アイコン自体が完全に消える(実機で報告され、調査の上で発見)。
+      → QSSは一切当てず、標準アイコンをここで差し替える。
+    - チェックボックス: QCheckBox::indicatorにQSSを当てると、チェック時に
+      ただの塗りつぶし四角になり、チェックマークが描画されない
+      (同じく実機で報告)。
+      → QSSは一切当てず、枠・塗りつぶし・チェックマークをすべてここで
+      自前描画する。
     """
-    def __init__(self, base_style, icon_color):
+    def __init__(self, base_style, tokens):
         super().__init__(base_style)
-        self._close_icon = _svg_icon("x", color=icon_color, size=14)
+        self._tokens = tokens
+        self._close_icon = _svg_icon("x", color=tokens["text_secondary"], size=14)
         self._close_pixmap = self._close_icon.pixmap(14, 14)
 
     def standardIcon(self, standard_icon, option=None, widget=None):
@@ -518,6 +582,62 @@ class _TabCloseIconStyle(QProxyStyle):
         if standard_pixmap == QStyle.StandardPixmap.SP_TabCloseButton:
             return self._close_pixmap
         return super().standardPixmap(standard_pixmap, option, widget)
+
+    def drawPrimitive(self, element, option, painter, widget=None):
+        if element == QStyle.PrimitiveElement.PE_IndicatorCheckBox:
+            self._draw_checkbox_indicator(option, painter)
+            return
+        super().drawPrimitive(element, option, painter, widget)
+
+    def _draw_checkbox_indicator(self, option, painter):
+        tokens = self._tokens
+        checked = bool(option.state & QStyle.StateFlag.State_On)
+        tristate = bool(option.state & QStyle.StateFlag.State_NoChange)
+        enabled = bool(option.state & QStyle.StateFlag.State_Enabled)
+
+        if not enabled:
+            fill = QColor(tokens["surface_2"])
+            border = QColor(tokens["border"])
+        elif checked or tristate:
+            fill = QColor(tokens["accent"])
+            border = fill
+        else:
+            fill = QColor(tokens["surface"])
+            border = QColor(tokens["border_strong"])
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        pen = QPen(border)
+        pen.setWidthF(1.2)
+        painter.setPen(pen)
+        painter.setBrush(fill)
+        rect = QRectF(option.rect).adjusted(0.75, 0.75, -0.75, -0.75)
+        painter.drawRoundedRect(rect, 3, 3)
+
+        if checked or tristate:
+            check_color = QColor(tokens["accent_text"]) if enabled else QColor(tokens["text_muted"])
+            check_pen = QPen(check_color)
+            check_pen.setWidthF(1.6)
+            check_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            check_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(check_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+
+            r = option.rect
+            path = QPainterPath()
+            if tristate:
+                # 部分選択状態: 横棒のみ
+                path.moveTo(r.x() + r.width() * 0.22, r.y() + r.height() * 0.5)
+                path.lineTo(r.x() + r.width() * 0.78, r.y() + r.height() * 0.5)
+            else:
+                # チェックマーク(レ点)
+                path.moveTo(r.x() + r.width() * 0.20, r.y() + r.height() * 0.52)
+                path.lineTo(r.x() + r.width() * 0.42, r.y() + r.height() * 0.74)
+                path.lineTo(r.x() + r.width() * 0.82, r.y() + r.height() * 0.26)
+            painter.drawPath(path)
+
+        painter.restore()
 
 
 def apply_theme(app, dark: bool):
@@ -536,7 +656,7 @@ def apply_theme(app, dark: bool):
 
     tokens = _DARK_TOKENS if dark else _LIGHT_TOKENS
     base_style = QStyleFactory.create('Fusion')
-    _current_proxy_style = _TabCloseIconStyle(base_style, tokens["text_secondary"])
+    _current_proxy_style = _FlatThemeProxyStyle(base_style, tokens)
     app.setStyle(_current_proxy_style)
     if dark:
         app.setPalette(_build_dark_palette())
