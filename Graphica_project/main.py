@@ -1,6 +1,28 @@
 import sys
 import os
 import logging
+
+# ★ マルチモニターでDPI(拡大率)が異なる環境(例: メイン100%・サブ125%)で、
+#   ボタン等の見た目上の描画位置と実際のクリック判定位置がずれ、「ボタンが
+#   反応しない」ように見える既知の問題への対策。
+#   Windowsでは、プロセスのDPI認識モード(DPI awareness)はプロセス生成時の
+#   マニフェスト設定で一度だけ決まり、後からQt側の設定(HighDpiScaleFactor
+#   RoundingPolicy等)で上書きすることはできない。python.exeで直接実行する
+#   場合、Pythonインストーラのマニフェストが「System DPI Aware」(モニターご
+#   とではなく1つの固定DPI)になっていることが多く、これがモニター間での
+#   ジオメトリ不整合の根本原因になり得る。QtやPySide6を一切importする前に、
+#   Win32 API で明示的に「Per-Monitor DPI Aware (v2)」を要求することで、
+#   実行方法(python.exe直接実行 / .exe化)によらず正しいモード認識を保証する。
+if sys.platform == "win32":
+    try:
+        import ctypes
+        # PROCESS_PER_MONITOR_DPI_AWARE = 2 (SetProcessDpiAwareness, shcore.dll)
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except Exception:
+        # 古いWindows(shcore.dllが無い等)や、既に別の方法でDPI認識モードが
+        # 設定済みの場合はエラーになるが、アプリの起動自体は継続してよい。
+        pass
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QGuiApplication
