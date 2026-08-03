@@ -805,11 +805,26 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #     すでに自身のタイトルを持つグループボックスなので、そのまま使う
         self.ui.properties_groupbox.setTitle(tr("データセットのプロパティ"))
 
-        # 2c. 2つのセクションを1本の縦スクロールにまとめ、1つのドックに収める
+        # 2c. 折りたたみ可能に(項目102): 「データセットのプロパティ」「プロット
+        #     のプロパティ」はどちらも項目数が多く縦に長くなりがちなため、
+        #     アコーディオン形式(クリックで開閉)にする。
+        #     ★ properties_groupbox はDesigner生成のgridLayout_4を直接持つため、
+        #     内部の子ウィジェットを1つずつ数えて表示/非表示するのは(ネストした
+        #     レイアウト項目を取りこぼす恐れがあり)壊れやすい。代わりに、
+        #     QGroupBox自体(枠・タイトルごと)は一切変更せず、外側に新しい
+        #     開閉トグルボタンを1つ追加してQGroupBox全体の表示/非表示を
+        #     切り替える方式にする(タイトルの二重表示を避けるため、
+        #     QGroupBox自身のタイトルは空にし、トグルボタン側にだけ表示する)。
+        dataset_section = self._wrap_in_collapsible_section(
+            self.ui.properties_groupbox, tr("データセットのプロパティ"))
+        plot_section = self._wrap_in_collapsible_section(
+            plot_properties_group, tr("プロットのプロパティ"))
+
+        # 2d. 2つのセクションを1本の縦スクロールにまとめ、1つのドックに収める
         merged_properties_container = QWidget()
         merged_properties_layout = QVBoxLayout(merged_properties_container)
-        merged_properties_layout.addWidget(self.ui.properties_groupbox)
-        merged_properties_layout.addWidget(plot_properties_group)
+        merged_properties_layout.addWidget(dataset_section)
+        merged_properties_layout.addWidget(plot_section)
         merged_properties_layout.addStretch()
 
         merged_scroll_area = QScrollArea()
@@ -1316,6 +1331,44 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.canvas.set_highlighted_points(
             self.data_editor_dialog.dataset, self.data_editor_dialog.get_selected_master_indices()
         )
+
+    def _wrap_in_collapsible_section(self, group_box, title):
+        """
+        折りたたみ可能に(項目102): 「データセットのプロパティ」「プロットの
+        プロパティ」をアコーディオン形式(クリックで開閉)にするためのヘルパー。
+
+        group_box (QGroupBox) 自体の内部構造には一切手を加えず、外側に新しい
+        開閉トグルボタン(シェブロンアイコン付き)を1つ追加し、そのボタンで
+        group_box 全体(枠・中身ごと)の表示/非表示を切り替える。
+        タイトルの二重表示を避けるため、group_box 自身のタイトルは空にし、
+        トグルボタン側にだけ表示する。
+        """
+        group_box.setTitle("")
+
+        wrapper = QWidget()
+        wrapper_layout = QVBoxLayout(wrapper)
+        wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        wrapper_layout.setSpacing(2)
+
+        toggle_button = QToolButton()
+        toggle_button.setText(title)
+        toggle_button.setCheckable(True)
+        toggle_button.setChecked(True)
+        toggle_button.setIcon(_svg_icon("chevron-down", size=14))
+        toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toggle_button.setObjectName("collapsible_section_toggle")
+        toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        toggle_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
+        def _on_toggled(checked, box=group_box, btn=toggle_button):
+            box.setVisible(checked)
+            btn.setIcon(_svg_icon("chevron-down" if checked else "chevron-right", size=14))
+
+        toggle_button.toggled.connect(_on_toggled)
+
+        wrapper_layout.addWidget(toggle_button)
+        wrapper_layout.addWidget(group_box)
+        return wrapper
 
     #==========================================================================
     # データセットリスト (QTreeWidget) 関連のヘルパー

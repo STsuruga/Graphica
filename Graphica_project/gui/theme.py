@@ -263,6 +263,28 @@ QDockWidget QGroupBox::title {{
     background: transparent;
     border-radius: 0;
 }}
+
+/* --- 折りたたみ可能なセクション見出し(項目102) ---
+   「データセットのプロパティ」「プロットのプロパティ」の開閉トグルボタン。
+   通常のQToolButtonとは見た目を変え、アコーディオンの見出し行らしく
+   横幅いっぱい・左寄せ・太字にする。 */
+QToolButton#collapsible_section_toggle {{
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 4px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12.5px;
+    color: {text_secondary};
+}}
+QToolButton#collapsible_section_toggle:hover {{
+    background: {surface_2};
+    color: {text_primary};
+}}
+QToolButton#collapsible_section_toggle:pressed {{
+    background: {accent_soft};
+}}
 QPushButton {{
     background: {surface};
     border: 1px solid {border_strong};
