@@ -61,6 +61,13 @@ CONTROL_DOCK_INITIAL_HEIGHT = 500  # 項目: データセットのプロパテ�
 PROPERTIES_DOCK_INITIAL_HEIGHT = 500
 SPIN_BOX_MAX_DECIMALS = 16
 
+# グラフ内テキスト(目盛り・軸ラベル・凡例)の既定フォント。
+# アプリのUIフォント(main.py の APP_FONT_FAMILIES)とは意図的に別系統にしている:
+# matplotlibは独自のフォント探索(freetypeベースのキャッシュ)を使うため、
+# Qt/Windowsの「UI専用」フォントバリアント("Yu Gothic UI"等)を渡すと解決できず
+# 文字化けする。"Yu Gothic"は実ファイルとして存在しmatplotlibからも解決できる。
+PLOT_DEFAULT_FONT_FAMILY = "Yu Gothic"
+
 # --- オートセーブに関する定数 ---
 DEFAULT_AUTOSAVE_INTERVAL_MIN = 5  # 分単位 (0 = 無効化)
 MIN_AUTOSAVE_INTERVAL_MIN = 0
@@ -299,14 +306,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._layout_drag_state = None         # ドラッグ中の状態 (dict) または None
 
         # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
-        self._tick_font = QFont() # デフォルトフォント
+        # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
+        #   PLOT_DEFAULT_FONT_FAMILY を指定する。グラフのテキストは
+        #   matplotlib自身のフォント解決系(独自のフォントキャッシュ)を通るため、
+        #   Qt側のUIフォント("Yu Gothic UI"等のUI専用バリアント)をそのまま
+        #   渡すとmatplotlibがフォントを解決できず文字化けする(findfont警告)。
+        #   UIのフォントとプロット内テキストのフォントは別系統として扱う。
+        self._tick_font = QFont(PLOT_DEFAULT_FONT_FAMILY)
         self._tick_color = '#000000' # 黒
         self._tick_width = 0.8
-        self._axis_label_font = QFont()
+        self._axis_label_font = QFont(PLOT_DEFAULT_FONT_FAMILY)
         self._axis_label_color = '#000000'
         self._spine_width = 1.0
         self._spine_color = '#000000'
-        self._legend_font = QFont()
+        self._legend_font = QFont(PLOT_DEFAULT_FONT_FAMILY)
         self._legend_color = '#000000'
 
         # --- 3. ウィンドウサイズとレイアウトの基本設定 ---

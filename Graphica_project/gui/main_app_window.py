@@ -17,11 +17,12 @@
 """
 import logging
 
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt, QSettings, QSize
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow, QTabWidget, QToolButton, QMessageBox
 
 from gui.main_window import PlotterApp, resource_path
+from gui.icon_utils import icon as svg_icon
 from core.version import APP_NAME, __version__
 
 logger = logging.getLogger(__name__)
@@ -53,9 +54,15 @@ class MainAppWindow(QMainWindow):
         self.setCentralWidget(self.tab_widget)
 
         # タブバー右端の「+」ボタン (新しいプロジェクトタブを開く)
+        # ★ GUI洗練: プレーンな文字ボタンではなく、他のツールバー類と同じ
+        #   Tabler Iconsのトーンに揃えたアイコンボタンにする。
         add_tab_button = QToolButton()
-        add_tab_button.setText("+")
+        add_tab_button.setObjectName("add_tab_button")
+        add_tab_button.setIcon(svg_icon("file-plus", size=18))
+        add_tab_button.setIconSize(QSize(18, 18))
         add_tab_button.setToolTip("新しいプロジェクトタブを開く")
+        add_tab_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        add_tab_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         add_tab_button.clicked.connect(lambda: self.add_new_project_tab())
         self.tab_widget.setCornerWidget(add_tab_button, Qt.Corner.TopRightCorner)
 

@@ -117,7 +117,7 @@ QToolBar {{
 }}
 QToolButton {{
     background: transparent;
-    border: none;
+    border: 1px solid transparent;
     border-radius: 6px;
     padding: 4px;
 }}
@@ -138,6 +138,26 @@ QDockWidget::title {{
     background: {surface_2};
     padding: 6px 8px;
     border-bottom: 1px solid {border};
+    font-weight: 600;
+    letter-spacing: .01em;
+}}
+
+/* --- スプリッター(ドック/パネルの境界): 既定のOSハンドルはフラットテーマと
+   馴染まないため、細く控えめなハンドルに置き換え、ホバー時のみアクセント色で
+   「動かせる」ことを示す(GUI洗練) --- */
+QSplitter::handle {{
+    background: {border};
+}}
+QSplitter::handle:horizontal {{
+    width: 3px;
+    margin: 2px 0;
+}}
+QSplitter::handle:vertical {{
+    height: 3px;
+    margin: 0 2px;
+}}
+QSplitter::handle:hover {{
+    background: {accent};
 }}
 
 /* --- グループボックス / ボタン --- */
@@ -182,6 +202,9 @@ QPushButton:default {{
     background: {accent};
     border-color: {accent};
     color: {accent_text};
+}}
+QPushButton:focus, QToolButton:focus {{
+    border: 1px solid {accent};
 }}
 
 /* --- 入力欄 --- */
@@ -241,12 +264,37 @@ QTabWidget::pane {{
 }}
 QTabBar::tab {{
     background: transparent;
+    color: {text_secondary};
     padding: 6px 14px;
+    margin-right: 2px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
     border-bottom: 2px solid transparent;
 }}
+QTabBar::tab:hover {{
+    background: {surface_2};
+    color: {text_primary};
+}}
 QTabBar::tab:selected {{
+    background: {surface};
     border-bottom: 2px solid {accent};
     color: {accent};
+    font-weight: 600;
+}}
+QTabBar::close-button {{
+    padding: 2px;
+    border-radius: 4px;
+}}
+QTabBar::close-button:hover {{
+    background: {accent_soft};
+}}
+QToolButton#add_tab_button {{
+    margin: 3px 6px 3px 2px;
+    border-radius: 13px;
+    padding: 5px;
+}}
+QToolButton#add_tab_button:hover {{
+    background: {accent_soft};
 }}
 
 /* --- チェックボックス / ラジオボタン --- */
