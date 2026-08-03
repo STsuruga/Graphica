@@ -1,13 +1,19 @@
+import logging
 import numpy as np
 import pandas as pd
+import matplotlib as mpl
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser,
                                QDialogButtonBox, QFormLayout, QComboBox,
                                QDoubleSpinBox, QLabel, QLineEdit, QSpinBox,
                                QPushButton, QHBoxLayout, QPlainTextEdit,
                                QApplication, QFileDialog, QMessageBox, QGroupBox,
-                               QTableWidget, QTableWidgetItem)
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPixmap, QFont
+                               QTableWidget, QTableWidgetItem, QListWidget,
+                               QListWidgetItem, QColorDialog, QInputDialog,
+                               QCheckBox, QStackedWidget, QWidget)
+from PySide6.QtCore import Qt, QTimer, QEvent
+from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence
+
+logger = logging.getLogger(__name__)
 
 
 #==============================================================================
@@ -23,8 +29,9 @@ class AboutDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         from core.version import APP_NAME, __version__
+        from core.i18n import tr
 
-        self.setWindowTitle(f"{APP_NAME} について")
+        self.setWindowTitle(tr("{app} について").format(app=APP_NAME))
         self.resize(420, 380)
 
         layout = QVBoxLayout(self)
@@ -41,7 +48,7 @@ class AboutDialog(QDialog):
         title_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(title_label)
 
-        version_label = QLabel(f"バージョン {__version__}")
+        version_label = QLabel(f"{tr('バージョン')} {__version__}")
         version_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(version_label)
 
@@ -66,6 +73,72 @@ class AboutDialog(QDialog):
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(self.accept)
         layout.addWidget(button_box)
+
+
+#==============================================================================
+# カスタムダイアログクラス: 初回起動時のウェルカム画面
+#==============================================================================
+class WelcomeDialog(QDialog):
+    """
+    初回起動時にだけ表示するウェルカムダイアログ。
+    簡単な操作ガイドと、すぐに試せるサンプルデータの読み込みボタンを提供する。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from core.version import APP_NAME
+        from core.i18n import tr
+
+        self.setWindowTitle(tr("{app} へようこそ").format(app=APP_NAME))
+        self.resize(460, 420)
+        self.load_sample_requested = False
+
+        layout = QVBoxLayout(self)
+
+        if parent is not None:
+            icon_label = QLabel()
+            pixmap = parent.windowIcon().pixmap(64, 64)
+            if not pixmap.isNull():
+                icon_label.setPixmap(pixmap)
+                icon_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+                layout.addWidget(icon_label)
+
+        title_label = QLabel(f"<h2>{tr('{app} へようこそ').format(app=APP_NAME)}</h2>")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(title_label)
+
+        guide_browser = QTextBrowser()
+        guide_browser.setHtml(r"""
+        <p>{app}は、CSV/Excelファイルからデータを読み込み、グラフの作成・編集・
+        エクスポートを行うためのデータ可視化ソフトウェアです。</p>
+        <h3>はじめの一歩</h3>
+        <ol>
+            <li><b>「データ追加」</b>ボタンでCSV/Excelファイルを読み込む
+                (下の「サンプルデータを開く」からすぐに試すこともできます)</li>
+            <li>X軸・Y軸に使う列を選択する</li>
+            <li>右側の「データセットのプロパティ」パネルで色・線種・マーカーなどを調整する</li>
+            <li>「曲線フィット」「ピーク検出」などの解析機能を試す</li>
+            <li>「ファイル」メニューの「名前を付けてエクスポート」で画像として保存する</li>
+        </ol>
+        <p>このガイドは初回起動時にのみ表示されます。「ヘルプ」メニューからいつでも
+        各種リファレンスを確認できます。</p>
+        """.format(app=APP_NAME))
+        layout.addWidget(guide_browser)
+
+        button_row = QHBoxLayout()
+        self.load_sample_button = QPushButton(tr("サンプルデータを開く"))
+        self.load_sample_button.clicked.connect(self._on_load_sample_clicked)
+        button_row.addWidget(self.load_sample_button)
+        button_row.addStretch()
+
+        close_button = QPushButton(tr("閉じる"))
+        close_button.clicked.connect(self.accept)
+        button_row.addWidget(close_button)
+        layout.addLayout(button_row)
+
+    def _on_load_sample_clicked(self):
+        self.load_sample_requested = True
+        self.accept()
 
 
 #==============================================================================
@@ -338,7 +411,7 @@ class ResultDialog(QDialog):
     csv_data (DataFrame) を渡すと「CSVとして保存」ボタンも表示される。
     """
 
-    def __init__(self, title, text, parent=None, csv_data=None):
+    def __init__(self, title, text, parent=None, csv_data=None, residual_x=None, residual_y=None):
         """
         Args:
             title (str): ウィンドウタイトル。
@@ -348,6 +421,10 @@ class ResultDialog(QDialog):
                 None の場合は「CSVとして保存」ボタンを表示しない
                 (表示テキストをそのままパースするのではなく、呼び出し側が
                  意味のある表形式データを渡す設計にしている)。
+            residual_x (array-like, optional): 曲線フィットの残差プロット用のX座標。
+            residual_y (array-like, optional): 曲線フィットの残差 (実測値-フィット値)。
+                residual_x/residual_y を両方渡すと、当てはまりの良し悪しを視覚的に
+                確認できる残差プロット(0を基準にした散布図)を追加表示する。
         """
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -364,6 +441,22 @@ class ResultDialog(QDialog):
         mono_font.setStyleHint(QFont.StyleHint.Monospace)
         self.text_edit.setFont(mono_font)
         layout.addWidget(self.text_edit)
+
+        if residual_x is not None and residual_y is not None and len(residual_x) > 0:
+            self.resize(480, 620)
+            layout.addWidget(QLabel("残差プロット (実測値 - フィット値):"))
+            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+            from matplotlib.figure import Figure
+            fig = Figure(figsize=(4, 2.2), dpi=100, tight_layout=True)
+            canvas = FigureCanvasQTAgg(fig)
+            canvas.setFixedHeight(200)
+            ax = fig.add_subplot(111)
+            ax.axhline(0, color='gray', linewidth=0.8, linestyle='--')
+            ax.scatter(residual_x, residual_y, s=14, color='#1F6F78')
+            ax.set_xlabel("X", fontsize=8)
+            ax.set_ylabel("残差", fontsize=8)
+            ax.tick_params(labelsize=7)
+            layout.addWidget(canvas)
 
         button_layout = QHBoxLayout()
 
@@ -547,36 +640,58 @@ class FitDialog(QDialog):
             "線形 (y = ax + b)",
             "2次多項式 (y = ax^2 + bx + c)",
             "3次多項式 (y = ax^3 + bx^2 + cx + d)",
-            "指数関数 (y = a * exp(bx))"
-            # (将来的にここに関数の種類を追加可能)
+            "指数関数 (y = a * exp(bx))",
+            "対数 (y = a * ln(x) + b)",
+            "べき乗 (y = a * x^b)",
+            "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
+            "シグモイド (y = a / (1 + exp(-b(x-c))))",
+            "カスタム数式...",
         ])
+        self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
         layout.addWidget(self.fit_type_combo)
-        
+
+        # --- カスタム数式入力欄 (「カスタム数式...」選択時のみ表示) ---
+        self.custom_formula_label = QLabel("数式 (xとパラメータ名を使って入力、例: a*exp(-b*x)+c):")
+        self.custom_formula_edit = QLineEdit()
+        self.custom_formula_edit.setPlaceholderText("a*exp(-b*x)+c")
+        self.custom_formula_label.setVisible(False)
+        self.custom_formula_edit.setVisible(False)
+        layout.addWidget(self.custom_formula_label)
+        layout.addWidget(self.custom_formula_edit)
+
         # --- OK / Cancel ボタン ---
-        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | 
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
+    def _on_fit_type_changed(self, text):
+        """フィット関数の選択が変わったときに、カスタム数式入力欄の表示/非表示を切り替える"""
+        is_custom = "カスタム数式" in text
+        self.custom_formula_label.setVisible(is_custom)
+        self.custom_formula_edit.setVisible(is_custom)
+
     @staticmethod
     def get_fit_type(parent=None):
         """
         【スタティックメソッド】
-        ダイアログをモーダルで表示し、OKが押された場合は選択されたフィットタイプ名 (文字列) を、
-        Cancelが押された場合は None を返します。
-        
+        ダイアログをモーダルで表示し、OKが押された場合は
+        (選択されたフィットタイプ名, カスタム数式またはNone) のタプルを、
+        Cancelが押された場合は (None, None) を返します。
+
         Args:
             parent (QWidget, optional): 親ウィジェット。
-        
+
         Returns:
-            str or None: 選択された関数の名前 (例: "線形 (y = ax + b)")、または None。
+            tuple (str or None, str or None): (フィットタイプ名, カスタム数式)
         """
         dialog = FitDialog(parent)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            # コンボボックスで現在選択されているテキストを返す
-            return dialog.fit_type_combo.currentText()
-        return None
+            fit_type = dialog.fit_type_combo.currentText()
+            custom_formula = dialog.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
+            return fit_type, custom_formula
+        return None, None
 
 
 #==============================================================================
@@ -827,51 +942,97 @@ class ColumnPreviewDialog(QDialog):
     これまでは常に先頭2列を自動でX/Y軸に割り当てていたが、
     列数の多いファイルでは意図しない列が選ばれることがあるため、
     読み込み前に確認・選択できるようにする。
+
+    Excelファイルの場合は、シートの切り替えとヘッダー行の指定にも対応する
+    (どちらも変更するとファイルからその場で再読み込みしてプレビューを更新する)。
     """
 
-    def __init__(self, df, file_name, parent=None):
+    def __init__(self, df, file_name, parent=None, file_path=None):
         """
         Args:
-            df (pandas.DataFrame): 読み込んだファイルのデータ (プレビュー表示用)。
+            df (pandas.DataFrame): 読み込んだファイルのデータ (プレビュー表示用、
+                先頭シート・1行目ヘッダーで読み込んだ初期状態)。
             file_name (str): 表示用のファイル名。
             parent (QWidget, optional): 親ウィジェット。
+            file_path (str, optional): 実ファイルパス。Excelファイルの場合、
+                シート切り替え・ヘッダー行変更時の再読み込みに使う。
         """
         super().__init__(parent)
         self.setWindowTitle(f"列の選択: {file_name}")
-        self.resize(600, 450)
+        self.resize(600, 480)
 
-        columns = [str(c) for c in df.columns]
+        self.file_path = file_path
+        self.current_df = df
+        self.is_excel = bool(file_path) and file_path.lower().endswith(('.xlsx', '.xls'))
+        # 「列の型を確認...」で設定された、列ごとの型上書き ({列名: "数値"/"文字列"/"日付"})
+        self.type_overrides = {}
+
+        self.sheet_names = []
+        if self.is_excel:
+            try:
+                self.sheet_names = pd.ExcelFile(file_path).sheet_names
+            except Exception as e:
+                logger.warning("Excelのシート一覧取得に失敗しました: %s", e)
 
         layout = QVBoxLayout(self)
 
-        info_label = QLabel(
-            f"{len(df)}行 × {len(columns)}列 が見つかりました。"
-            "プレビューを確認し、X軸・Y軸に使う列を選択してください。"
-        )
-        layout.addWidget(info_label)
+        # --- Excel専用: シート選択・ヘッダー行指定 ---
+        if self.is_excel:
+            excel_form = QFormLayout()
+            if self.sheet_names:
+                self.sheet_combo = QComboBox()
+                self.sheet_combo.addItems(self.sheet_names)
+                self.sheet_combo.currentIndexChanged.connect(self._on_sheet_or_header_changed)
+                excel_form.addRow("シート:", self.sheet_combo)
+            else:
+                self.sheet_combo = None
+
+            self.header_row_spinbox = QSpinBox()
+            self.header_row_spinbox.setRange(1, 100)
+            self.header_row_spinbox.setValue(1)
+            self.header_row_spinbox.setToolTip("列名として使う行を指定します(データの上に説明行がある場合など)")
+            self.header_row_spinbox.valueChanged.connect(self._on_sheet_or_header_changed)
+            excel_form.addRow("ヘッダー行:", self.header_row_spinbox)
+
+            # 使用する列 (pandasのusecolsは "A,C:E" のようなExcel列表記の文字列を
+            # そのまま受け付けるため、パース処理を自前で書く必要がない)
+            self.usecols_edit = QLineEdit()
+            self.usecols_edit.setPlaceholderText("例: A,C:E (空欄で全列)")
+            self.usecols_edit.setToolTip("読み込む列をExcelの列表記で指定します(空欄なら全列を読み込みます)")
+            self.usecols_edit.editingFinished.connect(self._on_sheet_or_header_changed)
+            excel_form.addRow("使用する列 (usecols):", self.usecols_edit)
+
+            self.nrows_spinbox = QSpinBox()
+            self.nrows_spinbox.setRange(0, 10_000_000)
+            self.nrows_spinbox.setValue(0)
+            self.nrows_spinbox.setSpecialValueText("全行")
+            self.nrows_spinbox.setToolTip("ヘッダー行より下で読み込む最大行数(0で全行)")
+            self.nrows_spinbox.valueChanged.connect(self._on_sheet_or_header_changed)
+            excel_form.addRow("読み込む最大行数:", self.nrows_spinbox)
+
+            layout.addLayout(excel_form)
+
+            self.check_types_button = QPushButton("列の型を確認...")
+            self.check_types_button.clicked.connect(self._on_check_column_types)
+            layout.addWidget(self.check_types_button)
+        else:
+            self.sheet_combo = None
+            self.header_row_spinbox = None
+            self.usecols_edit = None
+            self.nrows_spinbox = None
+
+        self.info_label = QLabel()
+        layout.addWidget(self.info_label)
 
         # --- プレビューテーブル (先頭最大20行、読み取り専用) ---
-        preview_row_count = min(len(df), 20)
-        table = QTableWidget(preview_row_count, len(columns))
-        table.setHorizontalHeaderLabels(columns)
-        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        for r in range(preview_row_count):
-            for c in range(len(columns)):
-                value = df.iloc[r, c]
-                text = "" if pd.isna(value) else str(value)
-                table.setItem(r, c, QTableWidgetItem(text))
-        table.resizeColumnsToContents()
-        layout.addWidget(table)
+        self.table = QTableWidget()
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        layout.addWidget(self.table)
 
         # --- X/Y列選択 ---
         form = QFormLayout()
         self.x_col_combo = QComboBox()
-        self.x_col_combo.addItems(columns)
         self.y_col_combo = QComboBox()
-        self.y_col_combo.addItems(columns)
-        if len(columns) >= 2:
-            self.x_col_combo.setCurrentIndex(0)
-            self.y_col_combo.setCurrentIndex(1)
         form.addRow("X軸の列:", self.x_col_combo)
         form.addRow("Y軸の列:", self.y_col_combo)
         layout.addLayout(form)
@@ -882,6 +1043,102 @@ class ColumnPreviewDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
+        self._rebuild_preview_table()
+
+    def _on_sheet_or_header_changed(self):
+        """
+        シート選択、ヘッダー行、使用する列(usecols)、最大行数(nrows) のいずれかが
+        変更されたときに呼ばれる。指定された条件でファイルから再読み込みし、
+        プレビュー全体を更新する。
+        """
+        sheet_name = self.sheet_combo.currentText() if self.sheet_combo else 0
+        header_row = self.header_row_spinbox.value() - 1  # UIは1始まり、pandasは0始まり
+        usecols = self.usecols_edit.text().strip() or None if self.usecols_edit else None
+        nrows = (self.nrows_spinbox.value() or None) if self.nrows_spinbox else None
+        try:
+            new_df = pd.read_excel(
+                self.file_path, sheet_name=sheet_name, header=header_row,
+                usecols=usecols, nrows=nrows
+            )
+        except Exception as e:
+            QMessageBox.warning(
+                self, "読み込みエラー",
+                f"指定した条件(シート/ヘッダー行/使用する列/最大行数)では読み込めませんでした:\n{e}"
+            )
+            return
+        self.current_df = new_df
+        self._apply_type_overrides()
+        self._rebuild_preview_table()
+
+    def _on_check_column_types(self):
+        """「列の型を確認...」ボタンの処理。ColumnTypeDialogを表示し、上書き設定を反映する"""
+        dialog = ColumnTypeDialog(self.current_df, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.type_overrides = dialog.get_overrides()
+            self._apply_type_overrides()
+            self._rebuild_preview_table()
+
+    def _apply_type_overrides(self):
+        """
+        self.type_overrides に設定されている列の型上書きを self.current_df に適用する。
+        シート/ヘッダー行等の変更で current_df が新しく読み直された場合も、
+        同じ列名がまだ存在すれば上書き設定を再適用する(呼び出し元で毎回呼ばれる)。
+        """
+        for col_name, override in self.type_overrides.items():
+            if col_name not in self.current_df.columns:
+                continue
+            try:
+                if override == "数値":
+                    self.current_df[col_name] = pd.to_numeric(self.current_df[col_name], errors='coerce')
+                elif override == "文字列":
+                    self.current_df[col_name] = self.current_df[col_name].astype(str)
+                elif override == "日付":
+                    self.current_df[col_name] = pd.to_datetime(self.current_df[col_name], errors='coerce')
+            except Exception as e:
+                logger.warning("列「%s」の型変換(%s)に失敗しました: %s", col_name, override, e)
+
+    def _rebuild_preview_table(self):
+        """現在の self.current_df の内容で、情報ラベル・プレビュー表・X/Y列コンボを再構築する"""
+        df = self.current_df
+        columns = [str(c) for c in df.columns]
+
+        self.info_label.setText(
+            f"{len(df)}行 × {len(columns)}列 が見つかりました。"
+            "プレビューを確認し、X軸・Y軸に使う列を選択してください。"
+        )
+
+        preview_row_count = min(len(df), 20)
+        self.table.clear()
+        self.table.setRowCount(preview_row_count)
+        self.table.setColumnCount(len(columns))
+        self.table.setHorizontalHeaderLabels(columns)
+        for r in range(preview_row_count):
+            for c in range(len(columns)):
+                value = df.iloc[r, c]
+                text = "" if pd.isna(value) else str(value)
+                self.table.setItem(r, c, QTableWidgetItem(text))
+        self.table.resizeColumnsToContents()
+
+        # X/Y列の選択肢を更新 (できる限り元の選択を維持し、無ければ先頭2列にフォールバック)
+        prev_x = self.x_col_combo.currentText()
+        prev_y = self.y_col_combo.currentText()
+        self.x_col_combo.blockSignals(True)
+        self.y_col_combo.blockSignals(True)
+        self.x_col_combo.clear()
+        self.y_col_combo.clear()
+        self.x_col_combo.addItems(columns)
+        self.y_col_combo.addItems(columns)
+        if prev_x in columns:
+            self.x_col_combo.setCurrentText(prev_x)
+        elif len(columns) >= 1:
+            self.x_col_combo.setCurrentIndex(0)
+        if prev_y in columns:
+            self.y_col_combo.setCurrentText(prev_y)
+        elif len(columns) >= 2:
+            self.y_col_combo.setCurrentIndex(1)
+        self.x_col_combo.blockSignals(False)
+        self.y_col_combo.blockSignals(False)
+
     def get_selected_columns(self):
         """
         選択された (X軸の列名, Y軸の列名) をタプルで返す。
@@ -890,3 +1147,927 @@ class ColumnPreviewDialog(QDialog):
             tuple (str, str): (x_col_name, y_col_name)
         """
         return self.x_col_combo.currentText(), self.y_col_combo.currentText()
+
+    def get_dataframe(self):
+        """
+        現在プレビュー表示しているDataFrameを返す。
+        Excelでシート/ヘッダー行を変更した場合は、その内容を反映したものになる。
+        """
+        return self.current_df
+
+
+#==============================================================================
+# カスタムダイアログクラス (8)
+#==============================================================================
+class ColorPaletteDialog(QDialog):
+    """
+    「自動配色」ボタンで使うカラーサイクル(パレット)を、ユーザーが複数
+    定義・保存・切り替えできるようにするダイアログ。
+    「Matplotlib既定」は常に選べる読み取り専用のパレットとして扱う。
+    """
+
+    DEFAULT_PALETTE_NAME = "Matplotlib既定"
+
+    def __init__(self, palettes: dict, active_name: str, parent=None):
+        """
+        Args:
+            palettes (dict[str, list[str]]): パレット名 -> 16進カラーコードのリスト。
+            active_name (str): 現在アクティブなパレット名 (初期選択に使う)。
+            parent (QWidget, optional): 親ウィジェット。
+        """
+        super().__init__(parent)
+        self.setWindowTitle("配色パレットの管理")
+        self.resize(420, 440)
+
+        # 呼び出し側の辞書を直接変更しない (Cancel時に元の状態を保つため)
+        self.palettes = {name: list(colors) for name, colors in palettes.items()}
+
+        layout = QVBoxLayout(self)
+
+        combo_layout = QHBoxLayout()
+        combo_layout.addWidget(QLabel("パレット:"))
+        self.palette_combo = QComboBox()
+        self.palette_combo.addItem(self.DEFAULT_PALETTE_NAME)
+        self.palette_combo.addItems(sorted(self.palettes.keys()))
+        combo_layout.addWidget(self.palette_combo, stretch=1)
+        layout.addLayout(combo_layout)
+
+        palette_button_layout = QHBoxLayout()
+        self.new_palette_button = QPushButton("新規パレット...")
+        self.rename_palette_button = QPushButton("名前を変更...")
+        self.delete_palette_button = QPushButton("削除")
+        palette_button_layout.addWidget(self.new_palette_button)
+        palette_button_layout.addWidget(self.rename_palette_button)
+        palette_button_layout.addWidget(self.delete_palette_button)
+        layout.addLayout(palette_button_layout)
+
+        self.color_list = QListWidget()
+        layout.addWidget(self.color_list)
+
+        color_button_layout = QHBoxLayout()
+        self.add_color_button = QPushButton("色を追加...")
+        self.remove_color_button = QPushButton("選択した色を削除")
+        color_button_layout.addWidget(self.add_color_button)
+        color_button_layout.addWidget(self.remove_color_button)
+        color_button_layout.addStretch()
+        layout.addLayout(color_button_layout)
+
+        info_label = QLabel("「OK」を押すと、選択中のパレットが以後「自動配色」ボタンで使われます。")
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.palette_combo.currentTextChanged.connect(self._on_palette_selected)
+        self.new_palette_button.clicked.connect(self._on_new_palette)
+        self.rename_palette_button.clicked.connect(self._on_rename_palette)
+        self.delete_palette_button.clicked.connect(self._on_delete_palette)
+        self.add_color_button.clicked.connect(self._on_add_color)
+        self.remove_color_button.clicked.connect(self._on_remove_color)
+
+        if active_name in self.palettes:
+            self.palette_combo.setCurrentText(active_name)
+        else:
+            self.palette_combo.setCurrentText(self.DEFAULT_PALETTE_NAME)
+        self._refresh_color_list()
+        self._update_button_states()
+
+    def _is_default_selected(self):
+        return self.palette_combo.currentText() == self.DEFAULT_PALETTE_NAME
+
+    def _update_button_states(self):
+        # 既定パレットは読み取り専用 (名前変更・削除・色の追加/削除は不可)
+        editable = not self._is_default_selected()
+        self.rename_palette_button.setEnabled(editable)
+        self.delete_palette_button.setEnabled(editable)
+        self.add_color_button.setEnabled(editable)
+        self.remove_color_button.setEnabled(editable)
+
+    def _refresh_color_list(self):
+        self.color_list.clear()
+        name = self.palette_combo.currentText()
+        if name == self.DEFAULT_PALETTE_NAME:
+            colors = list(mpl.rcParams['axes.prop_cycle'].by_key()['color'])
+        else:
+            colors = self.palettes.get(name, [])
+        for color_hex in colors:
+            item = QListWidgetItem(color_hex)
+            qcolor = QColor(color_hex)
+            item.setBackground(qcolor)
+            # 背景の明るさに応じて文字色を切り替え、常に読めるようにする
+            item.setForeground(QColor('#ffffff') if qcolor.lightnessF() < 0.5 else QColor('#000000'))
+            self.color_list.addItem(item)
+
+    def _on_palette_selected(self, _name):
+        self._refresh_color_list()
+        self._update_button_states()
+
+    def _on_new_palette(self):
+        name, ok = QInputDialog.getText(self, "新規パレット", "パレット名:")
+        if not ok or not name:
+            return
+        if name == self.DEFAULT_PALETTE_NAME or name in self.palettes:
+            QMessageBox.warning(self, "エラー", f"パレット名 '{name}' は既に使われています。")
+            return
+        self.palettes[name] = []
+        self.palette_combo.addItem(name)
+        self.palette_combo.setCurrentText(name)
+
+    def _on_rename_palette(self):
+        old_name = self.palette_combo.currentText()
+        if old_name == self.DEFAULT_PALETTE_NAME:
+            return
+        new_name, ok = QInputDialog.getText(self, "名前を変更", "新しいパレット名:", text=old_name)
+        if not ok or not new_name or new_name == old_name:
+            return
+        if new_name == self.DEFAULT_PALETTE_NAME or new_name in self.palettes:
+            QMessageBox.warning(self, "エラー", f"パレット名 '{new_name}' は既に使われています。")
+            return
+        self.palettes[new_name] = self.palettes.pop(old_name)
+        self.palette_combo.setItemText(self.palette_combo.currentIndex(), new_name)
+
+    def _on_delete_palette(self):
+        name = self.palette_combo.currentText()
+        if name == self.DEFAULT_PALETTE_NAME:
+            return
+        reply = QMessageBox.question(
+            self, "パレットを削除", f"パレット '{name}' を削除しますか?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        del self.palettes[name]
+        self.palette_combo.removeItem(self.palette_combo.currentIndex())  # 既定パレットに自動的に切り替わる
+
+    def _on_add_color(self):
+        name = self.palette_combo.currentText()
+        if name == self.DEFAULT_PALETTE_NAME:
+            return
+        color = QColorDialog.getColor()
+        if not color.isValid():
+            return
+        self.palettes.setdefault(name, []).append(color.name())
+        self._refresh_color_list()
+
+    def _on_remove_color(self):
+        name = self.palette_combo.currentText()
+        if name == self.DEFAULT_PALETTE_NAME:
+            return
+        row = self.color_list.currentRow()
+        if row < 0:
+            return
+        del self.palettes[name][row]
+        self._refresh_color_list()
+
+    def get_result(self):
+        """
+        (パレット辞書, アクティブにするパレット名) のタプルを返す。
+        QSettingsへの実際の保存は呼び出し側が行う。
+        """
+        return self.palettes, self.palette_combo.currentText()
+
+
+#==============================================================================
+# カスタムダイアログクラス (9)
+#==============================================================================
+class ReplicateErrorDialog(QDialog):
+    """
+    同一条件で複数回測定した列 (反復測定列) から、行ごとの平均と誤差
+    (標準偏差/標準誤差/95%信頼区間) を自動計算するための列を選ばせるダイアログ。
+    データエディタの「誤差の自動計算...」ボタンから使われる。
+    """
+
+    def __init__(self, column_names, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("誤差の自動計算 (反復測定)")
+        self.resize(360, 420)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("反復測定として扱う列を2つ以上選んでください:"))
+
+        self.column_list = QListWidget()
+        self.column_list.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        for name in column_names:
+            item = QListWidgetItem(str(name))
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self.column_list.addItem(item)
+        layout.addWidget(self.column_list)
+
+        form = QFormLayout()
+        self.stat_combo = QComboBox()
+        self.stat_combo.addItems(["SD (標準偏差)", "SEM (標準誤差)", "95%CI (信頼区間)"])
+        form.addRow("誤差の種類:", self.stat_combo)
+
+        self.base_name_edit = QLineEdit("measurement")
+        form.addRow("出力列名 (ベース):", self.base_name_edit)
+        layout.addLayout(form)
+
+        info_label = QLabel(
+            "「平均」列と「誤差」列の2つが追加されます (例: measurement_mean, measurement_SD)。"
+            "NaNを含む行は、その行にある有効な測定値だけで計算します。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (list[str], str, str): (選択された列名のリスト,
+                誤差の種類 ('SD'/'SEM'/'95%CI'), 出力列名のベース名)
+        """
+        selected = []
+        for i in range(self.column_list.count()):
+            item = self.column_list.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                selected.append(item.text())
+        stat_type = self.stat_combo.currentText().split(" ")[0]  # "SD (標準偏差)" -> "SD"
+        return selected, stat_type, self.base_name_edit.text().strip()
+
+
+#==============================================================================
+# カスタムダイアログクラス: Excel列の型自動判定確認
+#==============================================================================
+class ColumnTypeDialog(QDialog):
+    """
+    読み込んだ表の各列について、pandasが自動判定した型を一覧表示し、
+    必要であれば「数値」「文字列」「日付」に強制変換できるようにするダイアログ。
+    日付列が数値(Excelのシリアル値)として誤認識される、といったケースへの対策として、
+    読み込み前にユーザー自身が気づいて修正できるようにする。
+    """
+
+    OVERRIDE_CHOICES = ["自動 (変換しない)", "数値", "文字列", "日付"]
+
+    def __init__(self, df, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("列の型を確認")
+        self.resize(480, 400)
+
+        layout = QVBoxLayout(self)
+        info_label = QLabel(
+            "各列について、現在検出されている型を表示しています。"
+            "日付が数値として読み込まれている場合など、意図と異なる場合は"
+            "「上書き後の型」で変換方法を選択してください。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(3)
+        self.table.setHorizontalHeaderLabels(["列名", "検出された型", "上書き後の型"])
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table.setRowCount(len(df.columns))
+
+        self._override_combos = {}
+        for row, col_name in enumerate(df.columns):
+            self.table.setItem(row, 0, QTableWidgetItem(str(col_name)))
+
+            detected_item = QTableWidgetItem(str(df[col_name].dtype))
+            detected_item.setFlags(detected_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.table.setItem(row, 1, detected_item)
+
+            combo = QComboBox()
+            combo.addItems(self.OVERRIDE_CHOICES)
+            self.table.setCellWidget(row, 2, combo)
+            self._override_combos[str(col_name)] = combo
+
+        self.table.resizeColumnsToContents()
+        layout.addWidget(self.table)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def get_overrides(self):
+        """
+        「自動」以外が選択された列だけを対象に、{列名: 上書き後の型} の辞書を返す。
+        上書き後の型は "数値" / "文字列" / "日付" のいずれか。
+        """
+        overrides = {}
+        for col_name, combo in self._override_combos.items():
+            text = combo.currentText()
+            if text != "自動 (変換しない)":
+                overrides[col_name] = text
+        return overrides
+
+
+#==============================================================================
+# カスタムダイアログクラス: Excel複数シートの一括インポート
+#==============================================================================
+class ExcelMultiSheetDialog(QDialog):
+    """
+    複数シートを持つExcelファイルを読み込む際に、どのシートを
+    データセットとして取り込むかチェックボックスで選択させるダイアログ。
+    2つ以上チェックした場合は、シートごとに別々のデータセットとして追加される
+    (シートごとにX/Y列の選択プレビューが続けて表示される)。
+    """
+
+    def __init__(self, sheet_names, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("シートの選択")
+        self.resize(320, 380)
+
+        layout = QVBoxLayout(self)
+        info_label = QLabel(
+            "読み込むシートを選択してください(複数選択可)。\n"
+            "2つ以上選択すると、シートごとに別々のデータセットとして追加されます。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        self.sheet_list = QListWidget()
+        self.sheet_list.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        for i, name in enumerate(sheet_names):
+            item = QListWidgetItem(str(name))
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if i == 0 else Qt.CheckState.Unchecked)
+            self.sheet_list.addItem(item)
+        layout.addWidget(self.sheet_list)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def get_selected_sheets(self):
+        """チェックされたシート名のリストを、シート一覧に現れる順序で返す"""
+        result = []
+        for i in range(self.sheet_list.count()):
+            item = self.sheet_list.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                result.append(item.text())
+        return result
+
+
+#==============================================================================
+# カスタムダイアログクラス: データセット間演算
+#==============================================================================
+class DatasetArithmeticDialog(QDialog):
+    """
+    2つのデータセット (A, B) 間で差・和・積・商を計算し、新しいデータセットを
+    生成するための設定を入力させるダイアログ。
+    X軸の値が完全には一致しない2つのデータセットを対象にするため、実際の計算は
+    B側のY値をA側のX値に線形補間してから行う (呼び出し側の責務)。
+    """
+
+    OPERATIONS = ["A - B", "B - A", "A + B", "A × B", "A ÷ B", "B ÷ A"]
+
+    def __init__(self, name_a, name_b, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("データセット間演算")
+        self.resize(360, 200)
+
+        layout = QVBoxLayout(self)
+        label = QLabel(f"A: {name_a}\nB: {name_b}")
+        layout.addWidget(label)
+
+        form = QFormLayout()
+        self.operation_combo = QComboBox()
+        self.operation_combo.addItems(self.OPERATIONS)
+        form.addRow("演算:", self.operation_combo)
+
+        self.output_name_edit = QLineEdit(f"{name_a} vs {name_b}")
+        form.addRow("出力データセット名:", self.output_name_edit)
+        layout.addLayout(form)
+
+        info_label = QLabel(
+            "B側のY値を、A側のX値に線形補間してから演算します。"
+            "2つのデータセットのX軸の値が重なる範囲のみが対象になります。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, str): (演算の種類 (OPERATIONSのいずれか), 出力データセット名)
+        """
+        return self.operation_combo.currentText(), self.output_name_edit.text().strip()
+
+
+#==============================================================================
+# カスタムダイアログクラス: 環境設定 (Preferences)
+#==============================================================================
+class PreferencesDialog(QDialog):
+    """
+    これまでメニューに散らばっていた設定項目 (ダークモード、オートセーブ間隔) を
+    1つの画面にまとめた環境設定ダイアログ。
+    設定の永続化自体は呼び出し側 (main_window) が get_settings() の戻り値を
+    使って行う。このダイアログ自体は値の入力/表示のみを担当する。
+    """
+
+    def __init__(self, dark_mode, autosave_minutes, autosave_bounds=(0, 180), parent=None,
+                 current_language=None, autosave_dir=""):
+        super().__init__(parent)
+        from core.i18n import tr, SUPPORTED_LANGUAGES, get_language
+        self.setWindowTitle(tr("環境設定"))
+        # ★ QGroupBoxの見出しをアクセントカラーの背景チップで目立たせるQSS
+        #   (GUIモダン化第2弾、項目68)により、各グループボックスの上部余白
+        #   (margin-top/padding-top)が以前より広くなったため、旧来のサイズ
+        #   (360x260)のままだと3つのグループボックスがすべて収まりきらず
+        #   文字が見切れてしまっていた。縦方向に余裕を持たせる。
+        self.resize(420, 420)
+
+        layout = QVBoxLayout(self)
+
+        appearance_group = QGroupBox(tr("外観"))
+        appearance_layout = QVBoxLayout(appearance_group)
+        self.dark_mode_checkbox = QCheckBox(tr("ダークモードを有効にする"))
+        self.dark_mode_checkbox.setChecked(bool(dark_mode))
+        appearance_layout.addWidget(self.dark_mode_checkbox)
+        layout.addWidget(appearance_group)
+
+        # UIの多言語対応(項目41): 表示言語の選択。切り替えは次回起動時に反映される
+        # (実行中のウィジェットをその場で再翻訳する仕組みは持たないため)。
+        language_group = QGroupBox(tr("言語"))
+        language_form = QFormLayout(language_group)
+        self.language_combo = QComboBox()
+        self._language_codes = list(SUPPORTED_LANGUAGES.keys())
+        self.language_combo.addItems([SUPPORTED_LANGUAGES[code] for code in self._language_codes])
+        active_language = current_language or get_language()
+        if active_language in self._language_codes:
+            self.language_combo.setCurrentIndex(self._language_codes.index(active_language))
+        language_form.addRow(tr("表示言語:"), self.language_combo)
+        language_note = QLabel(tr("※ 言語の変更は次回起動時に反映されます。"))
+        language_note.setStyleSheet("font-size: 9pt; color: gray;")
+        language_note.setWordWrap(True)
+        language_form.addRow(language_note)
+        layout.addWidget(language_group)
+
+        save_group = QGroupBox(tr("保存"))
+        save_form = QFormLayout(save_group)
+        self.autosave_spinbox = QSpinBox()
+        min_minutes, max_minutes = autosave_bounds
+        self.autosave_spinbox.setRange(min_minutes, max_minutes)
+        self.autosave_spinbox.setSuffix(tr(" 分"))
+        self.autosave_spinbox.setSpecialValueText(tr("無効"))
+        self.autosave_spinbox.setValue(int(autosave_minutes))
+        save_form.addRow(tr("オートセーブ間隔:"), self.autosave_spinbox)
+
+        # オートセーブの保存先フォルダ(未指定なら従来どおりアプリのフォルダに保存)
+        self._autosave_dir = autosave_dir or ""
+        autosave_dir_row = QHBoxLayout()
+        self.autosave_dir_edit = QLineEdit(self._autosave_dir)
+        self.autosave_dir_edit.setReadOnly(True)
+        self.autosave_dir_edit.setPlaceholderText(tr("(既定: アプリのフォルダ)"))
+        self.autosave_dir_browse_button = QPushButton(tr("参照..."))
+        self.autosave_dir_browse_button.clicked.connect(self._on_browse_autosave_dir)
+        self.autosave_dir_clear_button = QPushButton(tr("既定に戻す"))
+        self.autosave_dir_clear_button.clicked.connect(self._on_clear_autosave_dir)
+        autosave_dir_row.addWidget(self.autosave_dir_edit, 1)
+        autosave_dir_row.addWidget(self.autosave_dir_browse_button)
+        autosave_dir_row.addWidget(self.autosave_dir_clear_button)
+        save_form.addRow(tr("オートセーブ保存先:"), autosave_dir_row)
+
+        layout.addWidget(save_group)
+
+        layout.addStretch()
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def _on_browse_autosave_dir(self):
+        from core.i18n import tr
+        directory = QFileDialog.getExistingDirectory(
+            self, tr("オートセーブの保存先を選択"), self._autosave_dir or ""
+        )
+        if directory:
+            self._autosave_dir = directory
+            self.autosave_dir_edit.setText(directory)
+
+    def _on_clear_autosave_dir(self):
+        self._autosave_dir = ""
+        self.autosave_dir_edit.setText("")
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (bool, int, str, str): (ダークモードを有効にするか, オートセーブ間隔(分, 0=無効),
+                表示言語コード, オートセーブ保存先ディレクトリ("" なら既定=アプリのフォルダ))
+        """
+        language_code = self._language_codes[self.language_combo.currentIndex()]
+        return (self.dark_mode_checkbox.isChecked(), self.autosave_spinbox.value(),
+                language_code, self._autosave_dir)
+
+
+#==============================================================================
+# カスタムダイアログクラス: コマンドパレット
+#==============================================================================
+class CommandPaletteDialog(QDialog):
+    """
+    Ctrl+Shift+P で開く、メニュー項目をキーボードで検索して実行できるダイアログ。
+    検索欄にフォーカスがある状態のまま上下キーでリストの選択を移動し、
+    Enterで実行できるようにしている(一般的なコマンドパレットのUXに合わせる)。
+
+    ★ 注意 ★
+    QMenu.addAction(text) の戻り値のように、Python側で明示的に self.xxx として
+    保持されていない QAction は、後からPythonの参照だけを保持していても、
+    ガベージコレクションのタイミングでラッパーが無効化される(実体は
+    メニューに残っているのに "already deleted" になる)ことがある。
+    そのため、収集した (path, action) の組は一度きりの表示にしか使わず、
+    実際に実行する際は collect_fn() を呼び直して「今」有効なQActionを
+    取り直してからその場で trigger() する(取得と使用の間に時間を空けない)。
+    """
+
+    def __init__(self, collect_fn, parent=None):
+        """
+        Args:
+            collect_fn (callable): 呼ぶたびに現在のメニューアクションを
+                [(パスのリスト, QAction), ...] として新しく収集して返す関数。
+        """
+        super().__init__(parent)
+        self.setWindowTitle("コマンドパレット")
+        self.resize(480, 420)
+
+        self._collect_fn = collect_fn
+
+        layout = QVBoxLayout(self)
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("コマンドを検索...")
+        layout.addWidget(self.search_edit)
+
+        self.list_widget = QListWidget()
+        layout.addWidget(self.list_widget)
+
+        self.search_edit.textChanged.connect(self._update_list)
+        self.list_widget.itemActivated.connect(self._on_item_activated)
+        self.search_edit.installEventFilter(self)
+
+        self._update_list("")
+
+    def _update_list(self, text):
+        query = text.strip().lower()
+        self.list_widget.clear()
+        for path, action in self._collect_fn():
+            if not action.isEnabled():
+                continue
+            label = " > ".join(path)
+            if query and query not in label.lower():
+                continue
+            item = QListWidgetItem(label)
+            if action.isCheckable():
+                item.setText(f"{'✓' if action.isChecked() else ' '}  {label}")
+            # QAction そのものではなく、後で再検索するためのパスだけを保持する
+            # (プレーンなPythonのリストなので、ラッパー無効化の影響を受けない)
+            item.setData(Qt.ItemDataRole.UserRole, path)
+            self.list_widget.addItem(item)
+        if self.list_widget.count() > 0:
+            self.list_widget.setCurrentRow(0)
+
+    def _on_item_activated(self, item):
+        target_path = item.data(Qt.ItemDataRole.UserRole)
+        self.accept()
+        if target_path is None:
+            return
+        # 表示時に集めた QAction は使わず、実行直前に取り直したものを使う
+        for path, action in self._collect_fn():
+            if path == target_path:
+                action.trigger()
+                return
+
+    def eventFilter(self, obj, event):
+        """
+        検索欄(QLineEdit)にフォーカスがある間も、上下キーでリストの選択を
+        移動でき、Enterで実行できるようにする。
+        """
+        if obj is self.search_edit and event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key == Qt.Key.Key_Down:
+                row = min(self.list_widget.currentRow() + 1, self.list_widget.count() - 1)
+                self.list_widget.setCurrentRow(row)
+                return True
+            elif key == Qt.Key.Key_Up:
+                row = max(self.list_widget.currentRow() - 1, 0)
+                self.list_widget.setCurrentRow(row)
+                return True
+            elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                current = self.list_widget.currentItem()
+                if current is not None:
+                    self._on_item_activated(current)
+                return True
+        return super().eventFilter(obj, event)
+
+
+#==============================================================================
+# カスタムダイアログクラス: キーボードショートカット一覧
+#==============================================================================
+class ShortcutsDialog(QDialog):
+    """
+    ヘルプメニューから開く、現在使えるキーボードショートカットの一覧ダイアログ。
+    メニューバーを直接走査するため、ショートカットを追加/変更してもここを
+    個別に更新し忘れる心配がない(CommandPaletteDialogと同じ collect_fn 方式)。
+    """
+
+    def __init__(self, collect_fn, parent=None):
+        """
+        Args:
+            collect_fn (callable): 呼ぶたびに現在のメニューアクションを
+                [(パスのリスト, QAction), ...] として新しく収集して返す関数。
+        """
+        super().__init__(parent)
+        self.setWindowTitle("キーボードショートカット一覧")
+        self.resize(420, 380)
+
+        layout = QVBoxLayout(self)
+
+        table = QTableWidget()
+        table.setColumnCount(2)
+        table.setHorizontalHeaderLabels(["操作", "ショートカット"])
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        table.verticalHeader().setVisible(False)
+
+        rows = []
+        for path, action in collect_fn():
+            # ★ QUndoStack.createUndoAction() 等、self.xxx として保持されていない
+            # QAction はPython側のラッパーがGCで無効化されうる(既知のPySide6の癖)。
+            # 収集直後の使用でも起こりうるため、個別に握りつぶして続行する。
+            try:
+                shortcut = action.shortcut()
+            except RuntimeError:
+                continue
+            if shortcut.isEmpty():
+                continue
+            rows.append((" > ".join(path), shortcut.toString(QKeySequence.SequenceFormat.NativeText)))
+
+        table.setRowCount(len(rows))
+        for row_idx, (label, shortcut_text) in enumerate(rows):
+            table.setItem(row_idx, 0, QTableWidgetItem(label))
+            table.setItem(row_idx, 1, QTableWidgetItem(shortcut_text))
+        table.resizeColumnsToContents()
+        table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(table)
+
+        close_button = QPushButton("閉じる")
+        close_button.clicked.connect(self.reject)
+        layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
+
+
+#==============================================================================
+# カスタムダイアログクラス: 凡例の表示順序
+#==============================================================================
+class LegendOrderDialog(QDialog):
+    """
+    凡例の表示順序を、データセットの描画順とは独立にドラッグで並べ替えるためのダイアログ。
+    QListWidget の InternalMove ドラッグ&ドロップをそのまま順序編集に使う。
+    """
+
+    def __init__(self, labels, parent=None):
+        """
+        Args:
+            labels (list[str]): 現在の軸の凡例ラベル(既存の並び順、または
+                以前保存した並び順)を並べたリスト。
+            parent (QWidget, optional): 親ウィジェット。
+        """
+        super().__init__(parent)
+        self.setWindowTitle("凡例の順序")
+        self.resize(320, 380)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("ドラッグして凡例の表示順序を変更できます:"))
+
+        self.list_widget = QListWidget()
+        self.list_widget.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self.list_widget.addItems(labels)
+        layout.addWidget(self.list_widget)
+
+        reset_button = QPushButton("描画順にリセット")
+        reset_button.clicked.connect(self._on_reset)
+        layout.addWidget(reset_button)
+        self._original_labels = list(labels)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                       QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def _on_reset(self):
+        """凡例をカスタム順ではなく、常にデータセットの描画順で表示するようにリセットする"""
+        self.list_widget.clear()
+
+    def get_order(self):
+        """
+        現在のリスト順を返す。「描画順にリセット」が押された場合は空リスト
+        (=カスタム順を使わず、常に描画順に従う)を返す。
+        """
+        return [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
+
+
+#==============================================================================
+# カスタムダイアログクラス: バッチエクスポート
+#==============================================================================
+class BatchExportDialog(QDialog):
+    """
+    複数の画像をまとめて一括書き出しするための設定ダイアログ。
+    2つのモードを切り替えられる:
+      1. 現在のプロジェクトの各サブプロットを、個別の画像として書き出す
+      2. 複数のプロジェクトファイル(.pkl)を選び、それぞれの完成図を書き出す
+    実際の書き出し処理自体はこのダイアログの責務ではなく、呼び出し側が
+    get_*() で取得した設定を使って行う。
+    """
+
+    def __init__(self, subplot_count, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("バッチエクスポート")
+        self.resize(480, 480)
+
+        layout = QVBoxLayout(self)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems([
+            "現在のプロジェクトの各サブプロットを個別に書き出す",
+            "複数のプロジェクトファイルをまとめて書き出す",
+        ])
+        layout.addWidget(self.mode_combo)
+
+        self.stack = QStackedWidget()
+        layout.addWidget(self.stack, 1)
+
+        # --- モード1: サブプロット選択 ---
+        subplot_page = QWidget()
+        subplot_page_layout = QVBoxLayout(subplot_page)
+        subplot_page_layout.addWidget(QLabel("書き出すサブプロットを選択してください:"))
+        self.subplot_list = QListWidget()
+        self.subplot_list.setSelectionMode(QListWidget.SelectionMode.NoSelection)
+        for i in range(max(subplot_count, 1)):
+            item = QListWidgetItem(f"プロット {i + 1}")
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked)
+            self.subplot_list.addItem(item)
+        subplot_page_layout.addWidget(self.subplot_list)
+        self.stack.addWidget(subplot_page)
+
+        # --- モード2: プロジェクトファイル選択 ---
+        files_page = QWidget()
+        files_page_layout = QVBoxLayout(files_page)
+        files_page_layout.addWidget(QLabel("書き出すプロジェクトファイル(.pkl)を追加してください:"))
+        self.project_files_list = QListWidget()
+        files_page_layout.addWidget(self.project_files_list)
+        files_button_row = QHBoxLayout()
+        add_files_button = QPushButton("追加...")
+        add_files_button.clicked.connect(self._on_add_project_files)
+        remove_files_button = QPushButton("削除")
+        remove_files_button.clicked.connect(self._on_remove_selected_project_files)
+        files_button_row.addWidget(add_files_button)
+        files_button_row.addWidget(remove_files_button)
+        files_button_row.addStretch()
+        files_page_layout.addLayout(files_button_row)
+        self.stack.addWidget(files_page)
+
+        self.mode_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+
+        # --- 共通設定 ---
+        form = QFormLayout()
+
+        output_dir_row = QHBoxLayout()
+        self.output_dir_edit = QLineEdit()
+        self.output_dir_edit.setReadOnly(True)
+        browse_button = QPushButton("参照...")
+        browse_button.clicked.connect(self._on_browse_output_dir)
+        output_dir_row.addWidget(self.output_dir_edit)
+        output_dir_row.addWidget(browse_button)
+        form.addRow("出力先フォルダ:", output_dir_row)
+
+        self.prefix_edit = QLineEdit("export")
+        form.addRow("ファイル名の接頭辞:", self.prefix_edit)
+
+        self.format_combo = QComboBox()
+        self.format_combo.addItems(["PNG", "PDF", "SVG"])
+        form.addRow("形式:", self.format_combo)
+
+        self.dpi_spinbox = QSpinBox()
+        self.dpi_spinbox.setRange(50, 1200)
+        self.dpi_spinbox.setValue(150)
+        self.dpi_spinbox.setSuffix(" dpi")
+        form.addRow("解像度(ラスター形式時):", self.dpi_spinbox)
+
+        layout.addLayout(form)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.button(QDialogButtonBox.StandardButton.Ok).setText("実行")
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def _on_add_project_files(self):
+        paths, _ = QFileDialog.getOpenFileNames(self, "プロジェクトファイルを選択", "", "Project Files (*.pkl)")
+        for path in paths:
+            self.project_files_list.addItem(path)
+
+    def _on_remove_selected_project_files(self):
+        for item in self.project_files_list.selectedItems():
+            self.project_files_list.takeItem(self.project_files_list.row(item))
+
+    def _on_browse_output_dir(self):
+        directory = QFileDialog.getExistingDirectory(self, "出力先フォルダを選択")
+        if directory:
+            self.output_dir_edit.setText(directory)
+
+    def get_mode(self):
+        """'subplots' または 'project_files' を返す"""
+        return "subplots" if self.mode_combo.currentIndex() == 0 else "project_files"
+
+    def get_selected_subplot_indices(self):
+        return [
+            i for i in range(self.subplot_list.count())
+            if self.subplot_list.item(i).checkState() == Qt.CheckState.Checked
+        ]
+
+    def get_project_file_paths(self):
+        return [self.project_files_list.item(i).text() for i in range(self.project_files_list.count())]
+
+    def get_common_options(self):
+        return {
+            'output_dir': self.output_dir_edit.text(),
+            'prefix': self.prefix_edit.text().strip() or "export",
+            'format': self.format_combo.currentText().lower(),
+            'dpi': self.dpi_spinbox.value(),
+        }
+
+
+#==============================================================================
+# カスタムダイアログクラス: 新規データセットを作成 (項目63)
+#==============================================================================
+class NewDatasetDialog(QDialog):
+    """
+    ファイル読み込みを介さず、名前・列名・初期行数だけを指定して空のデータセットを
+    作成するためのダイアログ(項目63)。作成後はデータエディタが自動的に開き、
+    そこでセルに直接データを打ち込んでいく運用を想定している。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from core.i18n import tr
+
+        self.setWindowTitle(tr("新規データセットを作成"))
+        self.resize(360, 180)
+
+        layout = QFormLayout(self)
+
+        self.name_edit = QLineEdit(tr("新規データセット"))
+        layout.addRow(tr("データセット名:"), self.name_edit)
+
+        self.columns_edit = QLineEdit("X, Y")
+        self.columns_edit.setToolTip(tr("カンマ区切りで列名を入力してください(例: X, Y, 誤差)"))
+        layout.addRow(tr("列名 (カンマ区切り):"), self.columns_edit)
+
+        self.rows_spinbox = QSpinBox()
+        self.rows_spinbox.setRange(0, 10000)
+        self.rows_spinbox.setValue(5)
+        layout.addRow(tr("初期の空行数:"), self.rows_spinbox)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                       QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self._on_accept)
+        button_box.rejected.connect(self.reject)
+        layout.addRow(button_box)
+
+    def _on_accept(self):
+        from core.i18n import tr
+        if not self.get_dataset_name():
+            QMessageBox.warning(self, tr("新規データセットを作成"), tr("データセット名を入力してください。"))
+            return
+        if not self.get_column_names():
+            QMessageBox.warning(self, tr("新規データセットを作成"), tr("列名を1つ以上入力してください。"))
+            return
+        self.accept()
+
+    def get_dataset_name(self):
+        return self.name_edit.text().strip()
+
+    def get_column_names(self):
+        """カンマ区切りの入力を列名のリストに変換する(重複・空文字は除く)"""
+        raw = self.columns_edit.text()
+        names = [c.strip() for c in raw.split(',') if c.strip()]
+        unique_names = []
+        for name in names:
+            if name not in unique_names:
+                unique_names.append(name)
+        return unique_names
+
+    def get_row_count(self):
+        return self.rows_spinbox.value()

@@ -8,9 +8,26 @@
 """
 import logging
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QFontDialog, QColorDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QFontDialog, QColorDialog, QMessageBox
+
+from core.i18n import tr
+from gui.color_history import get_color_with_history
+from gui.dialogs import LegendOrderDialog
 
 logger = logging.getLogger(__name__)
+
+
+def _order_labels(labels, order):
+    """凡例ラベルのリストを、保存済みの並び順(order)に従って並べ替える。
+    order に無いラベルは元の相対順を保ったまま末尾に追加する。"""
+    if not order:
+        return list(labels)
+    order_index = {name: i for i, name in enumerate(order)}
+    indices = sorted(
+        range(len(labels)),
+        key=lambda i: (0, order_index[labels[i]]) if labels[i] in order_index else (1, i)
+    )
+    return [labels[i] for i in indices]
 
 
 class SettingsMixin:
@@ -18,7 +35,13 @@ class SettingsMixin:
             """
             サブプロットのレイアウト(行数/列数)スピンボックスが変更されたときに呼び出されます。
             all_plot_settings リストのサイズを調整し、UIを更新します。
+
+            自由配置レイアウト(項目37)が有効な間は行数/列数スピンボックス自体が
+            無効化されているが、念のため二重チェックとしてここでも早期returnする
+            (自由配置モードでのサブプロット数の増減は「+」「-」ボタン経由で行う)。
             """
+            if getattr(self.project, 'layout_mode', 'grid') == 'free':
+                return
 
             # 1. 【★ 重要 ★】
             #    これからUIコントロール（active_axis_comboなど）の値を変更するため、
@@ -38,7 +61,13 @@ class SettingsMixin:
                 default_settings = self._gather_settings_from_ui()
                 for _ in range(total_plots - current_plot_count):
                     # ★ .copy() が重要 (辞書は参照型のため、コピーしないとすべて同じ設定になる)
-                    self.project.all_plot_settings.append(default_settings.copy())
+                    new_settings = default_settings.copy()
+                    # ★ 新しいサブプロットは、アクティブな軸の注釈をそのまま
+                    # 引き継がず空から始める(かつ .copy() は浅いコピーなので、
+                    # 空リストにしないと全ての新規プロットが同じリストを共有してしまう)
+                    new_settings['annotations'] = []
+                    new_settings['legend_order'] = []
+                    self.project.all_plot_settings.append(new_settings)
 
             elif total_plots < current_plot_count:
                 # 2b. プロットが減った場合
@@ -250,7 +279,7 @@ class SettingsMixin:
 
     def _on_change_tick_color(self):
         """「目盛 文字色」ボタンが押された"""
-        color = QColorDialog.getColor()
+        color = get_color_with_history(self.settings, self)
         if color.isValid():
             self._tick_color = color.name() # #RRGGBB 形式の文字列
             self._on_axis_setting_changed() # 変更を保存・適用
@@ -268,7 +297,7 @@ class SettingsMixin:
 
     def _on_change_axis_label_color(self):
         """「軸ラベル 文字色」ボタンが押された"""
-        color = QColorDialog.getColor()
+        color = get_color_with_history(self.settings, self)
         if color.isValid():
             self._axis_label_color = color.name()
             # 【★ バグ修正 ★】 (上記と同様の理由)
@@ -283,18 +312,105 @@ class SettingsMixin:
 
     def _on_change_legend_color(self):
         """「凡例 文字色」ボタンが押された"""
-        color = QColorDialog.getColor()
+        color = get_color_with_history(self.settings, self)
         if color.isValid():
             self._legend_color = color.name()
             self._on_axis_setting_changed() # 変更を保存・適用
 
     def _on_change_spine_color(self):
         """「外枠・目盛線 色」ボタンが押された"""
-        color = QColorDialog.getColor()
+        color = get_color_with_history(self.settings, self)
         if color.isValid():
             self._spine_color = color.name()
             # 【★ バグ修正 ★】 (上記と同様の理由)
             self._on_axis_setting_changed()
+
+    # field_key ("title"/"x_label"/"y_label") -> 対応するui属性名
+    _LABEL_FIELD_ATTR_BY_KEY = {
+        'title': 'title_text_edit',
+        'x_label': 'x_label_text_edit',
+        'y_label': 'y_label_text_edit',
+    }
+
+    def _capture_label_format_selection(self, field_key, line_edit):
+        """
+        文字装飾メニューボタンが「押された瞬間」(pressed)に呼ばれ、その時点の
+        選択範囲を保存しておく。ポップアップメニューを開く動作自体でテキスト欄の
+        フォーカス・選択が失われる環境があるため、メニュー項目が実際に選ばれる
+        (triggered)まで選択範囲の情報を持ち越すために必要。
+        """
+        if line_edit.hasSelectedText():
+            self._label_format_pending_selection[field_key] = (
+                line_edit.selectionStart(), line_edit.selectedText()
+            )
+        else:
+            self._label_format_pending_selection[field_key] = None
+
+    def _apply_label_mathtext_format(self, field_key, wrap_fn):
+        """
+        タイトル/X軸ラベル/Y軸ラベルの各入力欄に埋め込まれた文字装飾メニュー
+        (項目61)の項目が選ばれたときの共通処理。_capture_label_format_selection で
+        ボタン押下時点に保存しておいた選択範囲を使い、wrap_fn(選択文字列) が
+        返すmathtext片をsetText() で差し込む(matplotlibはタイトル/ラベル文字列中の
+        $...$ 区間を自動的にmathtextとして解釈するため、これだけで太字/イタリック/
+        上付き/下付きの見た目が反映される)。
+        """
+        target = getattr(self.ui, self._LABEL_FIELD_ATTR_BY_KEY[field_key])
+        pending = self._label_format_pending_selection.get(field_key)
+        if not pending:
+            QMessageBox.information(
+                self, tr("文字装飾"),
+                tr("装飾したい文字を選択してから、このボタンを押してください。")
+            )
+            return
+
+        start, selected = pending
+        replacement = wrap_fn(selected)
+        text = target.text()
+        target.setText(text[:start] + replacement + text[start + len(selected):])
+        target.setSelection(start, len(replacement))
+
+    def _on_label_bold_clicked(self, field_key):
+        """文字装飾メニューの「太字」が選ばれた(項目61)"""
+        self._apply_label_mathtext_format(field_key, lambda s: f"$\\mathbf{{{s}}}$")
+
+    def _on_label_italic_clicked(self, field_key):
+        """文字装飾メニューの「イタリック」が選ばれた(項目61)"""
+        self._apply_label_mathtext_format(field_key, lambda s: f"$\\mathit{{{s}}}$")
+
+    def _on_label_superscript_clicked(self, field_key):
+        """文字装飾メニューの「上付き文字」が選ばれた(項目61)"""
+        self._apply_label_mathtext_format(field_key, lambda s: f"${{}}^{{{s}}}$")
+
+    def _on_label_subscript_clicked(self, field_key):
+        """文字装飾メニューの「下付き文字」が選ばれた(項目61)"""
+        self._apply_label_mathtext_format(field_key, lambda s: f"${{}}_{{{s}}}$")
+
+    def _on_edit_legend_order(self):
+        """
+        「凡例の順序...」ボタンが押されたときの処理。
+        現在アクティブな軸に描画されているデータセットの凡例ラベルを、
+        (保存済みのカスタム順があればそれを初期値として) ドラッグで並べ替えられる
+        ダイアログを表示し、結果を軸ごとの設定 (legend_order) に保存する。
+        """
+        axis_index = self.project.active_axis_index
+        if axis_index >= len(self.canvas.all_axes):
+            return
+        ax = self.canvas.all_axes[axis_index]
+        _, labels = ax.get_legend_handles_labels()
+        if axis_index < len(self.canvas.all_secondary_axes) and self.canvas.all_secondary_axes[axis_index] is not None:
+            _, secondary_labels = self.canvas.all_secondary_axes[axis_index].get_legend_handles_labels()
+            labels = labels + secondary_labels
+        if not labels:
+            QMessageBox.information(self, "凡例の順序", "この軸には凡例に表示するデータセットがありません。")
+            return
+
+        current_order = self.project.all_plot_settings[axis_index].get('legend_order') or []
+        dialog = LegendOrderDialog(_order_labels(labels, current_order), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.project.all_plot_settings[axis_index]['legend_order'] = dialog.get_order()
+        self._update_plot()
 
     #==========================================================================
     # 【★ 指摘: 以下のメソッドは「デッドコード」 ★】
@@ -349,6 +465,7 @@ class SettingsMixin:
             'x_major_tick_interval': self.ui.x_major_tick_interval_spinbox.value(),
             'x_minor_ticks_visible': self.ui.x_minor_ticks_visible_checkbox.isChecked(),
             'x_minor_tick_interval': self.ui.x_minor_tick_interval_spinbox.value(),
+            'x_tick_format_mode': self.x_tick_format_combo.currentIndex(),
 
             # Y軸タブ
             'y_autoscale': self.ui.y_autoscale_checkbox.isChecked(),
@@ -360,6 +477,7 @@ class SettingsMixin:
             'y_major_tick_interval': self.ui.y_major_tick_interval_spinbox.value(),
             'y_minor_ticks_visible': self.ui.y_minor_ticks_visible_checkbox.isChecked(),
             'y_minor_tick_interval': self.ui.y_minor_tick_interval_spinbox.value(),
+            'y_tick_format_mode': self.y_tick_format_combo.currentIndex(),
 
             # ラベル/書式タブ (続き)
             'legend_visible': self.ui.legend_visible_checkbox.isChecked(),
@@ -382,6 +500,22 @@ class SettingsMixin:
             'spine_width': self.ui.spine_width_spinbox.value(),
             'spine_color': self._spine_color,
         }
+
+        # ★ 注釈(テキスト・矢印)はUIコントロールを持たず、_add_annotation等から
+        # 直接 all_plot_settings[index]['annotations'] へ追記される。
+        # このメソッドは呼ばれるたびに辞書を「総入れ替え」するため、ここで
+        # 明示的に引き継がないと、他の軸設定を変更しただけで注釈が消えてしまう。
+        # ★ 自由配置レイアウト(項目37)の各サブプロットの矩形(free_rect)も同様に、
+        # UIコントロールを持たずドラッグ操作から直接書き込まれるため、ここで引き継ぐ。
+        if self.project.active_axis_index < len(self.project.all_plot_settings):
+            current = self.project.all_plot_settings[self.project.active_axis_index]
+            settings['annotations'] = current.get('annotations', [])
+            settings['legend_order'] = current.get('legend_order', [])
+            settings['free_rect'] = current.get('free_rect')
+        else:
+            settings['annotations'] = []
+            settings['legend_order'] = []
+            settings['free_rect'] = None
         return settings
 
     def _apply_settings_to_ui_controls(self, settings: dict):
@@ -417,6 +551,7 @@ class SettingsMixin:
             self.ui.x_major_tick_interval_spinbox.setValue(settings.get('x_major_tick_interval', 1))
             self.ui.x_minor_ticks_visible_checkbox.setChecked(settings.get('x_minor_ticks_visible', False))
             self.ui.x_minor_tick_interval_spinbox.setValue(settings.get('x_minor_tick_interval', 0.5))
+            self.x_tick_format_combo.setCurrentIndex(settings.get('x_tick_format_mode', 0))
 
             # Y軸
             self.ui.y_autoscale_checkbox.setChecked(settings.get('y_autoscale', True))
@@ -428,6 +563,7 @@ class SettingsMixin:
             self.ui.y_major_tick_interval_spinbox.setValue(settings.get('y_major_tick_interval', 1))
             self.ui.y_minor_ticks_visible_checkbox.setChecked(settings.get('y_minor_ticks_visible', False))
             self.ui.y_minor_tick_interval_spinbox.setValue(settings.get('y_minor_tick_interval', 0.5))
+            self.y_tick_format_combo.setCurrentIndex(settings.get('y_tick_format_mode', 0))
 
             # ラベル/書式 (続き)
             self.ui.legend_visible_checkbox.setChecked(settings.get('legend_visible', True))
@@ -507,6 +643,7 @@ class SettingsMixin:
         self.ui.x_major_tick_interval_spinbox.blockSignals(block)
         self.ui.x_minor_ticks_visible_checkbox.blockSignals(block)
         self.ui.x_minor_tick_interval_spinbox.blockSignals(block)
+        self.x_tick_format_combo.blockSignals(block)
 
         # Y軸タブ
         self.ui.y_autoscale_checkbox.blockSignals(block)
@@ -518,6 +655,7 @@ class SettingsMixin:
         self.ui.y_major_tick_interval_spinbox.blockSignals(block)
         self.ui.y_minor_ticks_visible_checkbox.blockSignals(block)
         self.ui.y_minor_tick_interval_spinbox.blockSignals(block)
+        self.y_tick_format_combo.blockSignals(block)
 
         # ラベル/書式タブ
         self.ui.title_text_edit.blockSignals(block)

@@ -8,3 +8,7 @@
 
 APP_NAME = "Graphica"
 __version__ = "1.1.0"
+
+# ログファイル名 (main.py のロギング設定と、クラッシュ案内ダイアログの両方から
+# 参照するため、文字列の重複を避けてここに一元化する)
+LOG_FILE_NAME = "graphica.log"

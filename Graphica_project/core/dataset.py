@@ -24,37 +24,52 @@ class Dataset:
     # df と col_name が変更されると、ここから取得されるデータも自動的に更新されます。
     
     @property
+    def visible_df(self) -> pd.DataFrame:
+        """
+        masked_row_indices に含まれる行(フィット/プロットから除外された行)を
+        取り除いた DataFrame。行そのものは dataset.df から削除しない
+        「非破壊的なマスク」機能(項目36)のため、x_data/y_data等はすべて
+        こちらを経由してデータを取得する。
+        """
+        if not self.masked_row_indices:
+            return self.df
+        return self.df[~self.df.index.isin(self.masked_row_indices)]
+
+    @property
     def x_data(self) -> np.ndarray:
         """
         現在の X軸列名 (x_col_name) に基づいて、
         DataFrame (df) から X軸のデータを NumPy 配列として返します。
+        (マスクされた行は除外される)
         """
         # .values は pandas Series を NumPy 配列に変換します
-        return self.df[self.x_col_name].values
-    
+        return self.visible_df[self.x_col_name].values
+
     @property
     def y_data(self) -> np.ndarray:
         """
         現在の Y軸列名 (y_col_name) に基づいて、
         DataFrame (df) から Y軸のデータを NumPy 配列として返します。
+        (マスクされた行は除外される)
         """
-        return self.df[self.y_col_name].values
+        return self.visible_df[self.y_col_name].values
 
     @property
     def x_err_data(self):
         """
         X軸の誤差列 (x_err_col_name) が設定されていれば、そのデータを
         NumPy 配列として返す。未設定 (None) ならエラーバーなしを表す None を返す。
+        (マスクされた行は除外される。x_data/y_dataと長さを揃える必要があるため)
         """
         if self.x_err_col_name and self.x_err_col_name in self.df.columns:
-            return self.df[self.x_err_col_name].values
+            return self.visible_df[self.x_err_col_name].values
         return None
 
     @property
     def y_err_data(self):
         """Y軸の誤差列 (y_err_col_name) について x_err_data と同様。"""
         if self.y_err_col_name and self.y_err_col_name in self.df.columns:
-            return self.df[self.y_err_col_name].values
+            return self.visible_df[self.y_err_col_name].values
         return None
 
     # --- スタイルと状態に関する情報 (デフォルト値付き) ---
@@ -67,9 +82,19 @@ class Dataset:
     smoothing: bool = False       # CubicSpline で平滑化するかどうか
     alpha: float = 1.0            # 透明度 (0.0=完全に透明 ～ 1.0=不透明)
 
+    # データポイントラベル表示 (各点の脇に値を表示するかどうか、および表示する列)
+    show_point_labels: bool = False
+    # None なら Y値そのものをラベルにする。列名を指定するとその列の値を表示する。
+    point_label_col_name: str = field(default=None)
+
     # エラーバー表示用の誤差列名。None ならその軸のエラーバーは表示しない。
     x_err_col_name: str = field(default=None)
     y_err_col_name: str = field(default=None)
+
+    # 外れ値のマスク機能(項目36): 行を削除せず「フィット/プロットから除外」する
+    # ためのマーカー。df.index のラベルのリスト(位置ではなく)。
+    # x_data/y_data/x_err_data/y_err_data はこのリストに含まれる行を自動的に除いて返す。
+    masked_row_indices: list = field(default_factory=list)
 
     # field(...) は、@dataclass でデフォルト値を設定する際の高度な方法です
     # default=None とすることで、初期化時に指定されなければ None が入ります
@@ -97,9 +122,15 @@ class Dataset:
         self.df.loc[row_idx, col_name] = value
 
     def add_row(self):
-        """NaN で埋めた行を末尾に追加する"""
-        new_row = pd.Series([np.nan] * len(self.df.columns), index=self.df.columns)
-        self.df = pd.concat([self.df, new_row.to_frame().T], ignore_index=True)
+        """
+        NaN で埋めた行を末尾に追加する。
+        ignore_index=True で全行を振り直すと、delete_rows が (restore_rows との
+        整合性のため) 保持しているインデックスの欠番が失われてしまうため、
+        既存の行には触れず、新しい一意なラベルを1つだけ割り当てる。
+        """
+        new_index = (self.df.index.max() + 1) if len(self.df) > 0 else 0
+        new_row = pd.Series([np.nan] * len(self.df.columns), index=self.df.columns, name=new_index)
+        self.df = pd.concat([self.df, new_row.to_frame().T])
 
     def delete_last_row(self):
         """末尾の行を削除する (add_row の取り消し用)"""
@@ -107,11 +138,18 @@ class Dataset:
             self.df = self.df.drop(self.df.index[-1])
 
     def delete_rows(self, row_indices):
-        """指定したインデックスの行を削除し、インデックスを振り直す"""
-        self.df = self.df.drop(row_indices).reset_index(drop=True)
+        """
+        指定したインデックスの行を削除する。
+        ★ reset_index(drop=True) はしない (意図的)。
+        ここでインデックスを振り直してしまうと、restore_rows に渡される
+        deleted_data (削除前のインデックスラベルを保持したスライス) のラベルと
+        噛み合わなくなり、Undo(復元)時に行の並び順が崩れてしまう
+        (元は中間の行を削除して復元すると隣の行と入れ替わってしまうバグがあった)。
+        """
+        self.df = self.df.drop(row_indices)
 
     def restore_rows(self, deleted_data):
-        """delete_rows で削除した行 (元のインデックス付き) を復元する"""
+        """delete_rows で削除した行 (元のインデックス付き) を、元の位置に復元する"""
         restored_df = pd.concat([self.df, deleted_data])
         self.df = restored_df.sort_index().reset_index(drop=True)
 
@@ -128,6 +166,25 @@ class Dataset:
         """列を削除する"""
         if col_name in self.df.columns:
             self.df = self.df.drop(columns=[col_name])
+
+    def rename_column(self, old_name, new_name):
+        """
+        列名を変更する(項目64)。X/Y軸・誤差列・データ点ラベル列としてその列名を
+        参照している設定があれば、新しい列名に追従させる(参照が切れないようにするため)。
+        """
+        if old_name not in self.df.columns or old_name == new_name:
+            return
+        self.df = self.df.rename(columns={old_name: new_name})
+        if self.x_col_name == old_name:
+            self.x_col_name = new_name
+        if self.y_col_name == old_name:
+            self.y_col_name = new_name
+        if self.x_err_col_name == old_name:
+            self.x_err_col_name = new_name
+        if self.y_err_col_name == old_name:
+            self.y_err_col_name = new_name
+        if self.point_label_col_name == old_name:
+            self.point_label_col_name = new_name
 
     def restore_column(self, col_name, column_data):
         """remove_column で削除した列を末尾に復元する"""

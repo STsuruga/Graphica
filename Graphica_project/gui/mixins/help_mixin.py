@@ -2,7 +2,7 @@
 """
 ヘルプメニューから開くリファレンスダイアログをまとめた Mixin。
 """
-from gui.dialogs import HelpDialog, CalcHelpDialog, AboutDialog
+from gui.dialogs import HelpDialog, CalcHelpDialog, AboutDialog, ShortcutsDialog
 
 
 class HelpMixin:
@@ -34,3 +34,8 @@ class HelpMixin:
         self.calc_help_dialog.show()
         self.calc_help_dialog.raise_()
         self.calc_help_dialog.activateWindow()
+
+    def _on_show_shortcuts(self):
+        """「キーボードショートカット一覧」メニューがクリックされたときの処理。"""
+        dialog = ShortcutsDialog(self._collect_menu_actions, self)
+        dialog.exec()

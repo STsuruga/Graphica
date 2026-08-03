@@ -127,6 +127,21 @@ class DeleteColumnCommand(QUndoCommand):
         self.dataset.restore_column(self.col_name, self.deleted_column_data)
 
 
+class RenameColumnCommand(QUndoCommand):
+    """列名を変更するコマンド(項目64)。X/Y軸等の参照追従はDataset.rename_column側で行う。"""
+    def __init__(self, dataset, old_name, new_name, description="列名の変更"):
+        super().__init__(description)
+        self.dataset = dataset
+        self.old_name = old_name
+        self.new_name = new_name
+
+    def redo(self):
+        self.dataset.rename_column(self.old_name, self.new_name)
+
+    def undo(self):
+        self.dataset.rename_column(self.new_name, self.old_name)
+
+
 class SetDatasetPropertiesCommand(QUndoCommand):
     """
     Dataset の1つ以上の属性 (色, 線種, 凡例名, 描画先など) をまとめて
@@ -158,6 +173,65 @@ class SetDatasetPropertiesCommand(QUndoCommand):
     def undo(self):
         for attr, value in self.old_values.items():
             setattr(self.dataset, attr, value)
+        self.on_applied()
+
+
+class SetMaskedRowsCommand(QUndoCommand):
+    """
+    行を削除せず「フィット/プロットから除外(マスク)」する/を解除するかを
+    まとめて切り替えるUndo/Redoコマンド(項目36)。
+    DataEditorDialog の「選択行を除外/解除」操作から発行される。
+    """
+    def __init__(self, dataset, old_masked_indices, new_masked_indices, description="行の除外/解除"):
+        """
+        Args:
+            dataset (Dataset): 対象の Dataset。
+            old_masked_indices (list): 変更前のマスク済み行インデックス(df.indexラベル)のリスト。
+            new_masked_indices (list): 変更後のマスク済み行インデックスのリスト。
+            description (str): Undo/Redoメニューに表示されるテキスト。
+        """
+        super().__init__(description)
+        self.dataset = dataset
+        self.old_masked_indices = list(old_masked_indices)
+        self.new_masked_indices = list(new_masked_indices)
+
+    def redo(self):
+        self.dataset.masked_row_indices = list(self.new_masked_indices)
+
+    def undo(self):
+        self.dataset.masked_row_indices = list(self.old_masked_indices)
+
+
+class SetAnnotationsCommand(QUndoCommand):
+    """
+    指定した軸 (project.all_plot_settings[axis_index]) の注釈(テキスト・矢印)
+    リストをまとめて置き換えるUndo/Redoコマンド。追加・削除のどちらも、
+    変更前後のリスト全体を保持するシンプルな方式で統一的に扱う。
+    gui/mixins/annotation_mixin.py の注釈追加/削除処理から発行される。
+    """
+    def __init__(self, project, axis_index, old_annotations, new_annotations, on_applied, description="注釈の変更"):
+        """
+        Args:
+            project (ProjectModel): 対象のプロジェクト。
+            axis_index (int): 対象の軸 (all_plot_settings) のインデックス。
+            old_annotations (list[dict]): 変更前の注釈リスト。
+            new_annotations (list[dict]): 変更後の注釈リスト。
+            on_applied (callable): redo/undo 後に呼ばれるコールバック (外観の再描画を行う)。
+            description (str): Undo/Redoメニューに表示されるテキスト。
+        """
+        super().__init__(description)
+        self.project = project
+        self.axis_index = axis_index
+        self.old_annotations = list(old_annotations)
+        self.new_annotations = list(new_annotations)
+        self.on_applied = on_applied
+
+    def redo(self):
+        self.project.all_plot_settings[self.axis_index]['annotations'] = list(self.new_annotations)
+        self.on_applied()
+
+    def undo(self):
+        self.project.all_plot_settings[self.axis_index]['annotations'] = list(self.old_annotations)
         self.on_applied()
 
 

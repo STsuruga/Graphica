@@ -20,6 +20,11 @@ class CursorMixin:
         self.cursor_mode_enabled = checked
 
         if checked:
+            # 注釈モードと同時に有効だと同じクリックが両方に反応してしまうため排他にする
+            if getattr(self, 'annotation_mode_enabled', False):
+                self.annotation_action.setChecked(False)
+                self._toggle_annotation_mode(False)
+
             # --- モード ON ---
             logger.debug("データカーソルモード ON")
             self.coordinate_label.setText("クリックしてデータを選択")
@@ -99,6 +104,45 @@ class CursorMixin:
                 self.coordinate_label.setText("X= ---, Y= ---")
             # (カーソルモード ON の場合は、最後の座標を表示し続ける方が良いかもしれない)
 
+    def _on_element_pick(self, event):
+        """
+        グラフ要素の直接クリック選択(項目35)。データセットリストを介さず、
+        グラフ上のデータ系列やタイトルを直接クリックして選択・編集できるようにする。
+        データカーソル/注釈モードのON/OFFに関わらず常時有効な、独立したpick_event接続。
+        """
+        # 注釈モード中はクリックがテキスト/矢印の追加・削除操作として使われるため、
+        # 選択処理と競合しないようここでは何もしない。
+        if getattr(self, 'annotation_mode_enabled', False):
+            return
+        # 自由配置レイアウトの編集モード中は、クリックはサブプロットの移動/リサイズに
+        # 使われるため、要素選択とは競合しないようここでは何もしない。
+        if getattr(self, 'layout_edit_mode_enabled', False):
+            return
+
+        artist = event.artist
+
+        # 1. タイトルがクリックされた場合: そのサブプロットを編集対象に切り替える
+        for ax_index, ax in enumerate(self.all_axes):
+            if artist is ax.title:
+                if self.active_axis_combo.currentIndex() != ax_index:
+                    self.active_axis_combo.setCurrentIndex(ax_index)
+                return
+
+        # 2. データ系列がクリックされた場合: 対応するデータセットをリストで選択する
+        #    (Bar は BarContainer のためds.artist自体とは一致せず、
+        #     patches (Rectangleの集合) の中にクリックされたArtistが含まれるかで判定する)
+        owning_dataset = next(
+            (ds for ds in self.project.datasets
+             if ds.artist is artist or (hasattr(ds.artist, 'patches') and artist in ds.artist.patches)),
+            None
+        )
+        if owning_dataset is None:
+            return
+
+        item = self._get_dataset_tree_item(owning_dataset)
+        if item is not None and self.ui.dataset_list_widget.currentItem() is not item:
+            self.ui.dataset_list_widget.setCurrentItem(item)
+
     def _on_pick(self, event):
         """データ要素がクリックされたときに呼び出される (pick_event)"""
 
@@ -167,3 +211,26 @@ class CursorMixin:
 
             # 5. 注釈の描画を更新
             self.canvas.draw_idle()
+
+            # 6. データ⇔グラフの双方向ハイライト (逆方向):
+            #    クリックされた点の属するデータセットのデータエディタが開いていれば、
+            #    対応する行をテーブル側でも選択状態にする。
+            #    (ds.artist は _draw_data で描画のたびに設定される、そのデータセットの
+            #     最新のArtistへの参照。identityで一致するものを探す)
+            if ind is not None and self.data_editor_dialog is not None:
+                owning_dataset = next(
+                    (ds for ds in self.project.datasets if ds.artist is artist), None
+                )
+                if owning_dataset is not None and self.data_editor_dialog.dataset is owning_dataset:
+                    try:
+                        # ★ artistはvisible_df(マスクされた行を除いたもの)基準で描画されて
+                        # いるため、indの位置からラベルへの変換もvisible_df.indexで行う。
+                        master_index = owning_dataset.visible_df.index[ind]
+                        # 選択変更のシグナルはブロックされているため(無限ループ防止)、
+                        # グラフ側のハイライトはここで明示的に更新する
+                        self.data_editor_dialog.select_row_by_master_index(master_index)
+                        self.canvas.set_highlighted_points(
+                            owning_dataset, self.data_editor_dialog.get_selected_master_indices()
+                        )
+                    except IndexError:
+                        pass

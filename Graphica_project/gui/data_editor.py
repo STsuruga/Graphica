@@ -2,18 +2,24 @@ import os
 import logging
 import numpy as np
 import pandas as pd
+from scipy import stats as scipy_stats
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                QTableWidget, QTableWidgetItem, QMenuBar,
                                QInputDialog, QMessageBox, QFileDialog, QDialogButtonBox)
-from PySide6.QtGui import QUndoStack, QKeySequence
-from PySide6.QtCore import Signal
+from PySide6.QtGui import QUndoStack, QKeySequence, QColor
+from PySide6.QtCore import Signal, Qt
 
 logger = logging.getLogger(__name__)
 
 # 自分で切り出したモジュールの読み込み
-from core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand, 
-                           AddColumnCommand, DeleteColumnCommand)
-from gui.dialogs import ColumnCalculatorDialog
+from core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
+                           AddColumnCommand, DeleteColumnCommand, SetMaskedRowsCommand,
+                           RenameColumnCommand)
+from gui.dialogs import ColumnCalculatorDialog, ReplicateErrorDialog
+from gui import icon_utils
+
+# 外れ値のマスク機能(項目36): 除外中の行をテーブル上でひと目で分かるように示す背景色
+MASKED_ROW_BACKGROUND = QColor(220, 220, 220)
 
 #==============================================================================
 # データ構造とMatplotlibキャンバスクラス (2)
@@ -30,6 +36,11 @@ class DataEditorDialog(QDialog):
     # dataChanged シグナルを定義
     # このダイアログ外 (PlotterApp) に「データが変更された」ことを通知するために使う
     dataChanged = Signal()
+
+    # テーブルで選択されている行が変わったときに発行するシグナル。
+    # 引数は dataset.df のインデックスラベルのリスト (空リストなら選択なし)。
+    # データ⇔グラフの双方向ハイライト機能で、グラフ側の表示を連動させるために使う。
+    rowsHighlighted = Signal(list)
     
     def __init__(self, dataset, parent=None):
         """
@@ -49,8 +60,8 @@ class DataEditorDialog(QDialog):
         # ★ view_df: フィルターやソートを適用するための「表示用」DataFrame
         # マスター (dataset.df) のコピー (copy()) を使うことが重要。
         # (元のコードではコピーしていなかったため、ソートなどがマスターに影響する可能性があった)
-        self.view_df = self.dataset.df.copy() 
-        self.sort_state = (None, True) # (ソート機能は未実装だが、将来用のプレースホルダ)
+        self.view_df = self.dataset.df.copy()
+        self.sort_state = (None, True) # (現在ソート中の列名, 昇順かどうか)。未ソート時は (None, True)
 
         # --- ★ Undo/Redo スタックを作成 ---
         self.undo_stack = QUndoStack(self)
@@ -60,24 +71,50 @@ class DataEditorDialog(QDialog):
         # --- メインのテーブルウィジェット ---
         self.table_widget = QTableWidget()
         self.table_widget.setSortingEnabled(False) # ★ ソート機能は自前で実装する必要があるため、標準は無効
+        self.table_widget.horizontalHeader().setSectionsClickable(True)
+        self.table_widget.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
+        # 列ヘッダーのダブルクリックで列名をリネームできるようにする(項目64)
+        self.table_widget.horizontalHeader().sectionDoubleClicked.connect(self._on_header_double_clicked)
+        # 選択中の行が変わるたびに、対応するデータ点をグラフ上でハイライトする
+        self.table_widget.itemSelectionChanged.connect(self._on_table_selection_changed)
         self._populate_table()
         
         # --- 1. ボタンのレイアウトを作成 (QHBoxLayout: 水平) ---
         button_layout = QHBoxLayout()
         self.add_row_button = QPushButton("行を追加")
         self.delete_row_button = QPushButton("選択行を削除")
+        self.mask_rows_button = QPushButton("選択行を除外/解除")
+        self.mask_rows_button.setToolTip(
+            "行を削除せず、フィット/プロットの対象から除外(または解除)します(非破壊的)"
+        )
         self.add_col_button = QPushButton("列を追加")
         self.delete_col_button = QPushButton("選択列を削除")
         self.calc_button = QPushButton("列の計算...")
+        self.replicate_error_button = QPushButton("誤差の自動計算...")
         self.save_csv_button = QPushButton("CSVとして保存...")
+
+        # ボタン行にアイコンを追加(ユーザーフィードバックを受けて)
+        for button, icon_name in (
+            (self.add_row_button, "row-insert-bottom"),
+            (self.delete_row_button, "row-remove"),
+            (self.mask_rows_button, "eye-off"),
+            (self.add_col_button, "column-insert-right"),
+            (self.delete_col_button, "column-remove"),
+            (self.calc_button, "calculator"),
+            (self.replicate_error_button, "math-function"),
+            (self.save_csv_button, "download"),
+        ):
+            button.setIcon(icon_utils.icon(icon_name))
 
         button_layout.addWidget(self.add_row_button)
         button_layout.addWidget(self.delete_row_button)
+        button_layout.addWidget(self.mask_rows_button)
         button_layout.addStretch() # 伸縮可能なスペース (ボタンを左端に寄せる)
         button_layout.addWidget(self.add_col_button)
         button_layout.addWidget(self.delete_col_button)
         button_layout.addStretch()
         button_layout.addWidget(self.calc_button)
+        button_layout.addWidget(self.replicate_error_button)
         button_layout.addStretch()
         button_layout.addWidget(self.save_csv_button)
         
@@ -121,9 +158,11 @@ class DataEditorDialog(QDialog):
         # 各ボタンのクリックシグナルを対応するスロット（メソッド）に接続
         self.add_row_button.clicked.connect(self._on_add_row)
         self.delete_row_button.clicked.connect(self._on_delete_rows)
+        self.mask_rows_button.clicked.connect(self._on_toggle_mask_rows)
         self.add_col_button.clicked.connect(self._on_add_column)
         self.delete_col_button.clicked.connect(self._on_delete_column)
         self.calc_button.clicked.connect(self._on_calculate_column)
+        self.replicate_error_button.clicked.connect(self._on_calculate_replicate_error)
         self.save_csv_button.clicked.connect(self._on_save_as_csv)
 
     def _populate_table(self):
@@ -148,20 +187,118 @@ class DataEditorDialog(QDialog):
         self.table_widget.setVerticalHeaderLabels([str(i) for i in df.index])
 
         for i in range(len(df)):
+            # 外れ値のマスク機能(項目36): 除外中の行は背景色を変えてひと目で分かるようにする
+            is_masked = df.index[i] in self.dataset.masked_row_indices
             for j in range(len(df.columns)):
                 # iloc[i, j] を使って「表示上のi行目」のデータを取得
-                value = df.iloc[i, j] 
-                
+                value = df.iloc[i, j]
+
                 # ★ pd.isna で NaN (Not a Number) や NaT (Not a Time) をチェック
                 item_text = "" if pd.isna(value) else str(value)
-                
+
                 item = QTableWidgetItem(item_text)
+                if is_masked:
+                    item.setBackground(MASKED_ROW_BACKGROUND)
+                    item.setToolTip("この行はフィット/プロットから除外されています")
                 self.table_widget.setItem(i, j, item)
         
         self.table_widget.resizeColumnsToContents() # 列幅を自動調整
-        
+
+        # ソート中の列があれば、ヘッダーに矢印アイコンで表示する
+        sort_col, sort_ascending = self.sort_state
+        header = self.table_widget.horizontalHeader()
+        if sort_col is not None and sort_col in df.columns:
+            header.setSortIndicatorShown(True)
+            header.setSortIndicator(
+                df.columns.get_loc(sort_col),
+                Qt.SortOrder.AscendingOrder if sort_ascending else Qt.SortOrder.DescendingOrder
+            )
+        else:
+            header.setSortIndicatorShown(False)
+
         # ★ blockSignals(False): UIの準備が終わったので、シグナルを再開
         self.table_widget.blockSignals(False)
+
+    def _on_header_clicked(self, logical_index):
+        """
+        テーブルの列ヘッダーがクリックされたときに呼ばれる。
+        その列を基準に昇順/降順ソートする (同じ列を再度クリックすると昇順/降順を反転)。
+        ソートは表示用の view_df のみに適用され、マスターデータ (dataset.df) や
+        Undo/Redoスタックには影響しない (見た目上の並べ替えのため)。
+        """
+        col_name = self.view_df.columns[logical_index]
+        current_col, current_ascending = self.sort_state
+        ascending = (not current_ascending) if current_col == col_name else True
+
+        try:
+            # kind='mergesort' は安定ソート (同値の行の相対順序を保つ)
+            self.view_df = self.view_df.sort_values(by=col_name, ascending=ascending, kind='mergesort')
+        except TypeError:
+            # 型が混在する列 (数値とNaN以外の文字列が混じる等) はソートできないことがある
+            QMessageBox.warning(self, "ソートエラー", f"列 '{col_name}' はソートできませんでした。")
+            return
+
+        self.sort_state = (col_name, ascending)
+        self._populate_table()
+
+    def _on_header_double_clicked(self, logical_index):
+        """
+        列ヘッダーをダブルクリックすると、列名を変更できるようにする(項目64)。
+        手動データ入力(項目63)で「列1」「列2」のような仮の名前を付けた場合の
+        リネームや、既存データの列名修正を想定している。
+        """
+        old_name = self.view_df.columns[logical_index]
+        new_name, ok = QInputDialog.getText(self, "列名の変更", "新しい列名:", text=old_name)
+        if not ok:
+            return
+        new_name = new_name.strip()
+        if not new_name or new_name == old_name:
+            return
+        if new_name in self.dataset.df.columns:
+            QMessageBox.warning(self, "列名の変更", f"列名 '{new_name}' は既に使用されています。")
+            return
+
+        command = RenameColumnCommand(self.dataset, old_name, new_name)
+        self.undo_stack.push(command)
+
+    def get_selected_master_indices(self):
+        """
+        現在テーブルで選択されている行に対応する、マスターDataFrame(dataset.df)の
+        インデックスラベルのリストを返す。view_df はソート済みの場合があるため、
+        表示上の行番号をそのまま使わず view_df.index 経由で変換する。
+        """
+        rows = sorted({index.row() for index in self.table_widget.selectionModel().selectedRows()})
+        return [self.view_df.index[r] for r in rows if r < len(self.view_df.index)]
+
+    def _on_table_selection_changed(self):
+        """テーブルの選択行が変わるたびに呼ばれ、グラフ側のハイライトを更新するよう通知する"""
+        self.rowsHighlighted.emit(self.get_selected_master_indices())
+
+    def select_row_by_master_index(self, master_index):
+        """
+        マスターDataFrame(dataset.df)のインデックスラベルを指定して、対応する行を
+        テーブル上で選択・スクロール表示する(グラフ上の点クリックからの逆方向ハイライト用)。
+        プログラムによる選択のため itemSelectionChanged はブロックし、
+        グラフ側への通知が無駄にループしないようにする。
+        """
+        matches = np.where(self.view_df.index == master_index)[0]
+        if len(matches) == 0:
+            return
+        row = int(matches[0])
+
+        self.table_widget.blockSignals(True)
+        self.table_widget.clearSelection()
+        self.table_widget.selectRow(row)
+        self.table_widget.blockSignals(False)
+
+        item = self.table_widget.item(row, 0)
+        if item is not None:
+            self.table_widget.scrollToItem(item)
+
+    def closeEvent(self, event):
+        """閉じるときはグラフ側のハイライトも消す"""
+        self.rowsHighlighted.emit([])
+        super().closeEvent(event)
 
     def _on_cell_changed(self, row, column):
         """
@@ -306,6 +443,37 @@ class DataEditorDialog(QDialog):
         command = DeleteRowsCommand(self.dataset, valid_indices_to_delete, deleted_data)
         self.undo_stack.push(command)
 
+    def _on_toggle_mask_rows(self):
+        """
+        「選択行を除外/解除」ボタンが押された処理(項目36: 外れ値のマスク機能)。
+        選択中の行それぞれについて、フィット/プロットからの除外(マスク)状態を
+        反転させる。行そのものは削除しない非破壊的な操作で、Undo/Redo可能。
+        """
+        selected_items = self.table_widget.selectedItems()
+        if not selected_items:
+            return
+
+        view_rows = sorted(set(item.row() for item in selected_items))
+        try:
+            master_indices = [self.view_df.index[row] for row in view_rows]
+        except IndexError:
+            QMessageBox.warning(self, "操作エラー", "行インデックスの取得に失敗しました。")
+            return
+        master_indices = [idx for idx in master_indices if idx in self.dataset.df.index]
+        if not master_indices:
+            return
+
+        old_masked = list(self.dataset.masked_row_indices)
+        new_masked = list(old_masked)
+        for idx in master_indices:
+            if idx in new_masked:
+                new_masked.remove(idx)
+            else:
+                new_masked.append(idx)
+
+        command = SetMaskedRowsCommand(self.dataset, old_masked, new_masked)
+        self.undo_stack.push(command)
+
     def _on_add_column(self):
         """列追加ボタンが押された -> AddColumnCommand を発行する"""
         
@@ -395,6 +563,72 @@ class DataEditorDialog(QDialog):
                                      f"計算式の実行に失敗しました:\n\n{e}\n\n"
                                      "列名 (A, B など) や関数 (log(A) など) が正しいか確認してください。")
     
+    def _on_calculate_replicate_error(self):
+        """
+        「誤差の自動計算...」ボタンが押されたときの処理。
+        同一条件で複数回測定した列 (反復測定列) から、行ごとの平均と誤差
+        (SD/SEM/95%信頼区間) を計算し、新しい2つの列 (平均・誤差) として追加する。
+        計算した誤差列は、プロパティ欄の「誤差(エラーバー)の列」からY誤差列として
+        選択すれば、そのままグラフにエラーバー表示できる。
+
+        【★ 指摘 ★】_on_calculate_column と同様、この操作はUndo/Redoスタックを
+        経由しないため「元に戻す」ことができない(既知の制限。列計算機能と同じ扱い)。
+        """
+        dialog = ReplicateErrorDialog(self.dataset.df.columns.tolist(), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        selected_cols, stat_type, base_name = dialog.get_settings()
+        if len(selected_cols) < 2:
+            QMessageBox.warning(self, "入力エラー", "反復測定として扱う列を2つ以上選択してください。")
+            return
+        if not base_name:
+            QMessageBox.warning(self, "入力エラー", "出力列名のベースが空です。")
+            return
+
+        error_suffix = {"SD": "SD", "SEM": "SEM", "95%CI": "CI95"}[stat_type]
+        mean_col_name = f"{base_name}_mean"
+        error_col_name = f"{base_name}_{error_suffix}"
+
+        if mean_col_name in self.dataset.df.columns or error_col_name in self.dataset.df.columns:
+            QMessageBox.warning(
+                self, "エラー",
+                f"列名 '{mean_col_name}' または '{error_col_name}' は既に存在します。"
+                "別のベース名を指定してください。"
+            )
+            return
+
+        try:
+            # 選択列を数値として扱い、行ごと(反復測定間)の平均・標準偏差・有効データ数を計算
+            values = self.dataset.df[selected_cols].apply(pd.to_numeric, errors='coerce')
+            mean = values.mean(axis=1)
+            std = values.std(axis=1, ddof=1)  # 標本標準偏差 (不偏推定)
+            n = values.notna().sum(axis=1)
+
+            if stat_type == "SD":
+                error = std
+            elif stat_type == "SEM":
+                error = std / np.sqrt(n)
+            else:  # 95%CI: t分布の臨界値を使う (反復回数が少ない場合に正規近似より正確)
+                dof = (n - 1).clip(lower=1)
+                t_crit = pd.Series(scipy_stats.t.ppf(0.975, dof), index=dof.index)
+                error = t_crit * std / np.sqrt(n)
+
+            self.dataset.df[mean_col_name] = mean
+            self.dataset.df[error_col_name] = error
+
+            logger.info(
+                "誤差自動計算完了: %s, %s (元列: %s, 統計量: %s)",
+                mean_col_name, error_col_name, selected_cols, stat_type
+            )
+
+            self._reset_view() # (列が追加されたので再描画)
+            self.dataChanged.emit()
+
+        except Exception as e:
+            logger.exception("誤差自動計算エラー")
+            QMessageBox.critical(self, "計算エラー", f"誤差の計算に失敗しました:\n{e}")
+
     def _on_save_as_csv(self):
         """現在のDataFrameをCSVファイルとして保存する"""
         

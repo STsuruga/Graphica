@@ -9,6 +9,9 @@ import json
 import logging
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 
+from gui.dialogs import PreferencesDialog
+from core.i18n import tr, get_language
+
 logger = logging.getLogger(__name__)
 
 # オートセーブ間隔として指定できる範囲 (分)
@@ -40,6 +43,13 @@ class ProjectIOMixin:
         if not ok:
             return
 
+        self._apply_autosave_interval(minutes)
+
+    def _apply_autosave_interval(self, minutes):
+        """
+        オートセーブ間隔 (分) を実際に適用し、設定を永続化する。
+        「オートセーブ間隔を設定...」メニューと環境設定ダイアログの両方から呼ばれる。
+        """
         self.settings.setValue("autosave_interval_min", minutes)
         if minutes <= 0:
             self.autosave_timer.stop()
@@ -50,16 +60,58 @@ class ProjectIOMixin:
 
         self._update_autosave_menu_text()
 
+    def _on_show_preferences(self):
+        """
+        「編集」メニューの「環境設定...」がクリックされたときの処理。
+        ダークモード・オートセーブ間隔をまとめた1つのダイアログで変更できるようにする。
+        """
+        current_minutes = (self.autosave_timer.interval() // 60000) if self.autosave_timer.isActive() else 0
+        current_language = self.settings.value("language", get_language())
+        current_autosave_dir = self.settings.value("autosave_dir", "", type=str)
+        dlg = PreferencesDialog(
+            self.canvas.dark_mode, current_minutes,
+            autosave_bounds=AUTOSAVE_INTERVAL_MIN_BOUNDS, parent=self,
+            current_language=current_language, autosave_dir=current_autosave_dir
+        )
+        if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
+            return
+
+        new_dark_mode, new_autosave_minutes, new_language, new_autosave_dir = dlg.get_settings()
+
+        # オートセーブの保存先フォルダ(項目: 環境設定からオートセーブ保存先を指定可能に)
+        if new_autosave_dir != current_autosave_dir:
+            self.settings.setValue("autosave_dir", new_autosave_dir)
+            self._update_autosave_path()
+
+        # ダークモードの切り替えは、ツールバー等のチェック状態も含めて一貫性を
+        # 保つため、既存の View メニューのチェック可能アクション経由で行う。
+        # setChecked() が値の変化時に toggled シグナルを発火し、
+        # _on_toggle_dark_mode が実際の適用(パレット/設定保存/再描画)を行う。
+        if new_dark_mode != self.canvas.dark_mode:
+            self.dark_mode_action.setChecked(new_dark_mode)
+
+        if new_autosave_minutes != current_minutes:
+            self._apply_autosave_interval(new_autosave_minutes)
+
+        # UIの多言語対応(項目41): 実行中のウィジェットをその場で再翻訳する仕組みは
+        # 持たないため、設定の保存のみ行い、反映は次回起動時になる旨を案内する。
+        if new_language != current_language:
+            self.settings.setValue("language", new_language)
+            QMessageBox.information(
+                self, tr("表示言語の変更"),
+                tr("表示言語の変更は、次回起動時に反映されます。")
+            )
+
     def _update_autosave_menu_text(self):
         """
         「ファイル」メニューのオートセーブ項目に、現在の状態 (有効/無効・間隔) を
         反映したテキストを設定する。__init__ で一度、設定変更のたびに呼び出す。
         """
         if not self.autosave_timer.isActive():
-            self.autosave_interval_action.setText("オートセーブ: 無効(&I)...")
+            self.autosave_interval_action.setText(tr("オートセーブ: 無効(&I)..."))
         else:
             minutes = self.autosave_timer.interval() // 60000
-            self.autosave_interval_action.setText(f"オートセーブ: {minutes}分間隔(&I)...")
+            self.autosave_interval_action.setText(tr("オートセーブ: {minutes}分間隔(&I)...").format(minutes=minutes))
 
     def _on_save_plot_template(self):
         """

@@ -4,11 +4,13 @@ PlotterApp の「一度きりの初期化」処理 (シグナル接続、メニ�
 初期UI状態の設定) を担当する Mixin。
 __init__ の最後の方から一度だけ呼び出されるメソッド群をまとめている。
 """
-from PySide6.QtGui import QKeySequence
+from PySide6.QtGui import QKeySequence, QAction
 from PySide6.QtWidgets import QApplication
 
 from gui.theme import apply_theme
+from gui.dialogs import CommandPaletteDialog
 from core.version import APP_NAME
+from core.i18n import tr
 
 
 class UISetupMixin:
@@ -25,6 +27,11 @@ class UISetupMixin:
 
             # 「編集対象のプロット」コンボボックスが変更されたら _on_active_axis_changed を呼ぶ
             self.active_axis_combo.currentIndexChanged.connect(self._on_active_axis_changed)
+
+            # 自由配置レイアウト(項目37)関連のシグナル
+            self.free_layout_checkbox.toggled.connect(self._on_toggle_free_layout)
+            self.add_free_subplot_button.clicked.connect(self._on_add_free_subplot)
+            self.remove_free_subplot_button.clicked.connect(self._on_remove_free_subplot)
 
             # --- 2. 編集対象の「軸設定」が変更されたときのシグナル ---
             # ほとんどのUIは、値が変更されたら _on_axis_setting_changed を呼ぶ
@@ -59,6 +66,17 @@ class UISetupMixin:
             self.ui.x_major_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.y_major_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.x_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
+            self.x_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
+            self.y_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
+            for field_key, actions in self.label_format_menu_buttons.items():
+                actions['bold'].triggered.connect(
+                    lambda checked=False, k=field_key: self._on_label_bold_clicked(k))
+                actions['italic'].triggered.connect(
+                    lambda checked=False, k=field_key: self._on_label_italic_clicked(k))
+                actions['superscript'].triggered.connect(
+                    lambda checked=False, k=field_key: self._on_label_superscript_clicked(k))
+                actions['subscript'].triggered.connect(
+                    lambda checked=False, k=field_key: self._on_label_subscript_clicked(k))
             self.ui.y_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
 
             # (ラベル/書式タブ)
@@ -77,6 +95,7 @@ class UISetupMixin:
 
             self.legend_font_button.clicked.connect(self._on_change_legend_font)
             self.legend_color_button.clicked.connect(self._on_change_legend_color)
+            self.legend_order_button.clicked.connect(self._on_edit_legend_order)
 
             self.ui.legend_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
             self.ui.legend_visible_checkbox.stateChanged.connect(self._on_legend_visibility_changed)
@@ -100,8 +119,10 @@ class UISetupMixin:
 
             # (データセットリストタブ)
             self.ui.add_dataset_button.clicked.connect(self._on_add_dataset)
+            self.new_dataset_button.clicked.connect(self._on_create_new_dataset)
             self.ui.remove_dataset_button.clicked.connect(self._on_remove_dataset)
             self.new_folder_button.clicked.connect(self._on_new_folder)
+            self.dataset_search_edit.textChanged.connect(self._on_dataset_search_changed)
             self.ui.dataset_list_widget.currentItemChanged.connect(self._on_dataset_selected)
             self.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
             # ドラッグ&ドロップでの並べ替え/フォルダ移動(=描画の重なり順の変更)を project.datasets に反映する
@@ -114,13 +135,15 @@ class UISetupMixin:
             self.ui.legend_name_edit.editingFinished.connect(self._on_legend_name_changed)
 
             self.ui.plot_type_combo.currentTextChanged.connect(self._on_property_changed)
-            self.ui.color_button.clicked.connect(self._on_change_dataset_color)
+            self.color_picker_widget.colorChanged.connect(self._on_dataset_color_changed)
             self.ui.linestyle_combo.currentTextChanged.connect(self._on_property_changed)
             self.ui.linewidth_spinbox.valueChanged.connect(self._on_property_changed)
             self.ui.marker_combo.currentTextChanged.connect(self._on_property_changed)
             self.ui.markersize_spinbox.valueChanged.connect(self._on_property_changed)
             self.ui.smoothing_checkbox.stateChanged.connect(self._on_property_changed)
             self.alpha_spinbox.valueChanged.connect(self._on_property_changed)
+            self.point_labels_checkbox.stateChanged.connect(self._on_property_changed)
+            self.point_label_col_combo.currentTextChanged.connect(self._on_property_changed)
 
             self.fit_curve_button.clicked.connect(self._on_fit_curve)
             self.find_peaks_button.clicked.connect(self._on_find_peaks)
@@ -130,6 +153,7 @@ class UISetupMixin:
 
             self.duplicate_dataset_button.clicked.connect(self._on_duplicate_dataset)
             self.auto_color_button.clicked.connect(self._on_auto_assign_colors)
+            self.manage_palette_action.triggered.connect(self._on_manage_color_palettes)
             self.view_edit_data_button.clicked.connect(self._on_show_data_editor)
 
             self.x_col_combo.currentTextChanged.connect(self._on_plot_column_changed)
@@ -148,84 +172,134 @@ class UISetupMixin:
 
             # --- 1. 「ファイル」メニュー ---
             # "ファイル(&F)" の &F は、Alt+F で開くためのニーモニック
-            file_menu = menu_bar.addMenu("ファイル(&F)")
+            file_menu = menu_bar.addMenu(tr("ファイル(&F)"))
+            # ★ 重要 ★ menu_bar.addMenu() の戻り値をローカル変数のままにすると、
+            # (このメソッドを抜けて file_menu への唯一のPython参照が消えた時点で)
+            # PySide6側がこのQMenuをPython所有と誤認しているらしく、ガベージ
+            # コレクトのタイミングでC++オブジェクトごと実際に破棄されてしまう
+            # (子のQActionも道連れで "already deleted" になる)。self.xxx として
+            # 永続的な参照を保持することで、この破棄を防ぐ。
+            self._file_menu = file_menu
 
             # (プロジェクト機能)
-            open_project_action = file_menu.addAction("プロジェクトを開く(&O)...")
-            open_project_action.setShortcut(QKeySequence.StandardKey.Open)
-            open_project_action.triggered.connect(self._on_load_project)
+            # ★ ショートカットを持つQActionは self.xxx として保持する。
+            # menu.addAction(text) の戻り値をローカル変数のままにすると、
+            # (Qt側では file_menu が親でC++オブジェクトは生きているにも関わらず)
+            # PySide6側のPythonラッパーが後からGCで無効化されることがある
+            # (コマンドパレット/ショートカット一覧のような「後から再収集して使う」
+            # 機能で "already deleted" になる既知の癖)。self.xxx で参照を保持することで防ぐ。
+            self.open_project_action = file_menu.addAction(tr("プロジェクトを開く(&O)..."))
+            self.open_project_action.setShortcut(QKeySequence.StandardKey.Open)
+            self.open_project_action.triggered.connect(self._on_load_project)
 
-            save_project_action = file_menu.addAction("プロジェクトを保存(&P)...")
-            save_project_action.setShortcut(QKeySequence.StandardKey.Save)
-            save_project_action.triggered.connect(self._on_save_project)
+            self.save_project_action = file_menu.addAction(tr("プロジェクトを保存(&P)..."))
+            self.save_project_action.setShortcut(QKeySequence.StandardKey.Save)
+            self.save_project_action.triggered.connect(self._on_save_project)
+
+            # (クリップボードから表データを貼り付け: Excel/スプレッドシートでコピーした
+            #  セル範囲をタブ区切りテキストとして解釈し、新しいデータセットにする)
+            paste_data_action = file_menu.addAction(tr("クリップボードから貼り付け(&V)..."))
+            paste_data_action.triggered.connect(self._on_paste_data_from_clipboard)
 
             # 最近使ったファイル (プロジェクト/データファイル共通の履歴)
-            self.recent_files_menu = file_menu.addMenu("最近使ったファイル")
+            self.recent_files_menu = file_menu.addMenu(tr("最近使ったファイル"))
             self._update_recent_files_menu()
 
             file_menu.addSeparator() # 区切り線
 
             # (テンプレート機能)
-            save_template_action = file_menu.addAction("書式テンプレートを保存(&T)...")
+            save_template_action = file_menu.addAction(tr("書式テンプレートを保存(&T)..."))
             save_template_action.triggered.connect(self._on_save_plot_template)
 
-            load_template_action = file_menu.addAction("書式テンプレートを適用(&A)...")
+            load_template_action = file_menu.addAction(tr("書式テンプレートを適用(&A)..."))
             load_template_action.triggered.connect(self._on_load_plot_template)
 
             file_menu.addSeparator() # --- 区切り線 ---
 
             # (エクスポート機能)
-            save_action = file_menu.addAction("名前を付けてエクスポート(&S)...")
-            save_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-            save_action.triggered.connect(self._on_export_plot)
+            self.save_action = file_menu.addAction(tr("名前を付けてエクスポート(&S)..."))
+            self.save_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+            self.save_action.triggered.connect(self._on_export_plot)
 
             # (クリップボードコピー: Ctrl+C は既存のテキスト編集のコピー操作と
             #  衝突しうるため、あえてショートカットは割り当てずメニューのみにする)
-            copy_plot_action = file_menu.addAction("グラフをコピー(&C)")
+            copy_plot_action = file_menu.addAction(tr("グラフをコピー(&C)"))
             copy_plot_action.triggered.connect(self._on_copy_plot_to_clipboard)
+
+            # (印刷: ファイル保存を経由せず直接プリンターに出力)
+            self.print_action = file_menu.addAction(tr("印刷(&R)..."))
+            self.print_action.setShortcut(QKeySequence.StandardKey.Print)
+            self.print_action.triggered.connect(self._on_print_plot)
+
+            # (バッチエクスポート: 複数サブプロット/複数プロジェクトファイルを一括書き出し)
+            batch_export_action = file_menu.addAction(tr("バッチエクスポート(&B)..."))
+            batch_export_action.triggered.connect(self._on_batch_export)
 
             file_menu.addSeparator() # --- 区切り線 ---
 
             # (オートセーブ設定: テキストには現在の状態(有効/無効・間隔)を表示する)
-            self.autosave_interval_action = file_menu.addAction("オートセーブ間隔を設定(&I)...")
+            self.autosave_interval_action = file_menu.addAction(tr("オートセーブ間隔を設定(&I)..."))
             self.autosave_interval_action.triggered.connect(self._on_configure_autosave_interval)
             self._update_autosave_menu_text()
 
             # --- 2. 「編集」メニュー ---
             # データセットのプロパティ変更 (色・線種・凡例名など) の Undo/Redo
             # (DataEditorDialog 内のセル編集用スタックとは別の、メインウィンドウ用スタック)
-            edit_menu = menu_bar.addMenu("編集(&E)")
+            edit_menu = menu_bar.addMenu(tr("編集(&E)"))
+            self._edit_menu = edit_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
 
-            undo_action = self.undo_stack.createUndoAction(self, "元に戻す")
+            undo_action = self.undo_stack.createUndoAction(self, tr("元に戻す"))
             undo_action.setShortcut(QKeySequence.StandardKey.Undo)
             edit_menu.addAction(undo_action)
 
-            redo_action = self.undo_stack.createRedoAction(self, "やり直し")
+            redo_action = self.undo_stack.createRedoAction(self, tr("やり直し"))
             redo_action.setShortcut(QKeySequence.StandardKey.Redo)
             edit_menu.addAction(redo_action)
 
+            edit_menu.addSeparator()
+
+            # 散らばっていた設定項目 (ダークモード/オートセーブ間隔など) を
+            # 1画面にまとめた環境設定ダイアログ
+            preferences_action = edit_menu.addAction(tr("環境設定(&P)..."))
+            preferences_action.triggered.connect(self._on_show_preferences)
+
+            # コマンドパレット (Ctrl+Shift+P): メニュー項目をキーボードで検索して実行する。
+            # メニューにフォーカスがなくても使えるよう self (QMainWindow) にも
+            # アクションを追加し、ショートカットがウィンドウ全体で有効になるようにする。
+            self.command_palette_action = QAction(tr("コマンドパレット(&K)..."), self)
+            self.command_palette_action.setShortcut(QKeySequence("Ctrl+Shift+P"))
+            self.command_palette_action.triggered.connect(self._on_show_command_palette)
+            self.addAction(self.command_palette_action)
+            edit_menu.addAction(self.command_palette_action)
+
             # --- 3. 「表示」メニュー ---
-            view_menu = menu_bar.addMenu("表示(&V)")
+            view_menu = menu_bar.addMenu(tr("表示(&V)"))
+            self._view_menu = view_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
 
             # QDockWidget が持つ標準の「表示/非表示」アクションを取得
             dock_widget_action = self.ui.control_dock_widget.toggleViewAction()
-            dock_widget_action.setText("プロット制御パネル") # メニューに表示される名前を設定
+            dock_widget_action.setText(tr("プロット制御パネル")) # メニューに表示される名前を設定
             view_menu.addAction(dock_widget_action)
 
             # ★ (__init__ で作成した properties_dock_widget も同様に追加可能)
             properties_dock_action = self.properties_dock_widget.toggleViewAction()
-            properties_dock_action.setText("データセットプロパティ")
+            properties_dock_action.setText(tr("データセットプロパティ"))
             view_menu.addAction(properties_dock_action)
+
+            # 常時表示のエクスポートプレビューパネル (デフォルトは非表示)
+            export_preview_dock_action = self.export_preview_dock_widget.toggleViewAction()
+            export_preview_dock_action.setText(tr("エクスポートプレビュー"))
+            view_menu.addAction(export_preview_dock_action)
 
             view_menu.addSeparator()
 
             # ダークモード切り替え (アプリ全体のQtパレット + グラフの配色の両方に適用)
             # チェック状態は設定から復元する。setChecked() は toggled.connect() より前に
             # 行うことで、復元時に _on_toggle_dark_mode が二重に呼ばれないようにしている。
-            dark_mode_action = view_menu.addAction("ダークモード")
-            dark_mode_action.setCheckable(True)
-            dark_mode_action.setChecked(self.canvas.dark_mode)
-            dark_mode_action.toggled.connect(self._on_toggle_dark_mode)
+            self.dark_mode_action = view_menu.addAction(tr("ダークモード"))
+            self.dark_mode_action.setCheckable(True)
+            self.dark_mode_action.setChecked(self.canvas.dark_mode)
+            self.dark_mode_action.toggled.connect(self._on_toggle_dark_mode)
             # 起動時のモードに関わらず必ず呼び、Fusionスタイルを一貫して適用する
             # (呼ばないとネイティブスタイルのままになり、後でダーク→ライトと
             # 切り替えた際にツールバーサイズ等が変わってしまう)
@@ -233,18 +307,59 @@ class UISetupMixin:
 
 
             # --- 4. 「ヘルプ」メニュー ---
-            help_menu = menu_bar.addMenu("ヘルプ(&H)")
+            help_menu = menu_bar.addMenu(tr("ヘルプ(&H)"))
+            self._help_menu = help_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
 
-            mathtext_help_action = help_menu.addAction("mathtext リファレンス...")
+            mathtext_help_action = help_menu.addAction(tr("mathtext リファレンス..."))
             mathtext_help_action.triggered.connect(self._on_show_help) # HelpDialog を表示
 
-            calc_help_action = help_menu.addAction("列計算機能 リファレンス...")
+            calc_help_action = help_menu.addAction(tr("列計算機能 リファレンス..."))
             calc_help_action.triggered.connect(self._on_show_calc_help) # CalcHelpDialog を表示
+
+            shortcuts_action = help_menu.addAction(tr("キーボードショートカット一覧..."))
+            shortcuts_action.triggered.connect(self._on_show_shortcuts)
 
             help_menu.addSeparator()
 
-            about_action = help_menu.addAction(f"{APP_NAME} について...")
+            about_action = help_menu.addAction(tr("{app} について...").format(app=APP_NAME))
             about_action.triggered.connect(self._on_show_about) # AboutDialog を表示
+
+    def _collect_menu_actions(self):
+        """
+        メニューバー配下の全アクション(区切り線・空文字・サブメニュー自体を除く)を、
+        表示用の階層パス付きで収集する。コマンドパレットの検索候補として使う。
+        「最近使ったファイル」はコマンドではなくファイルパスの一覧なので対象外にする。
+
+        ★ 重要 ★ 最上位メニューは self.menuBar().actions() 経由で毎回取り直すのではなく、
+        _create_menu_bar() で self._file_menu 等として保持している永続参照を直接使う。
+        self.menuBar().actions() で取得した QAction (各メニューの「メニューとしての自分」を
+        表すaction) を経由して action.menu() でメニュー本体を辿るやり方だと、このメソッドを
+        抜けて一時的な参照が失われた際に、なぜかメニュー本体ごとPySide6側に破棄されてしまう
+        (子のQActionもろとも "already deleted" になる) という実測済みの癖があるため。
+        """
+        results = []
+
+        def walk(menu, path):
+            for action in menu.actions():
+                if action.isSeparator() or menu is self.recent_files_menu:
+                    continue
+                submenu = action.menu()
+                if submenu is not None:
+                    if submenu is not self.recent_files_menu:
+                        walk(submenu, path + [action.text().replace('&', '')])
+                else:
+                    text = action.text().replace('&', '').strip()
+                    if text:
+                        results.append((path + [text], action))
+
+        for top_menu in (self._file_menu, self._edit_menu, self._view_menu, self._help_menu):
+            walk(top_menu, [top_menu.title().replace('&', '')])
+        return results
+
+    def _on_show_command_palette(self):
+        """「コマンドパレット...」(Ctrl+Shift+P) の処理。メニュー項目を検索して実行できるようにする"""
+        dialog = CommandPaletteDialog(self._collect_menu_actions, self)
+        dialog.exec()
 
     def _on_toggle_dark_mode(self, checked):
         """

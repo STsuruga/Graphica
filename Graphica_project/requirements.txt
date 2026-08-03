@@ -14,3 +14,6 @@ openpyxl==3.1.5
 
 # --- .exe化 (PyInstaller) を行う場合のみ必要 ---
 pyinstaller==6.16.0
+
+# --- 自動テスト (pytest tests/) を実行する場合のみ必要 ---
+pytest==9.1.1

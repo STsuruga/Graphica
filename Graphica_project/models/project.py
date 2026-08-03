@@ -62,6 +62,11 @@ class ProjectModel:
         # --- レイアウト情報 ---
         self.layout_rows = 1            # 行数
         self.layout_cols = 1            # 列数
+        # 'grid' (行数×列数の均等グリッド) か 'free' (サブプロットをドラッグで
+        # 自由な位置・サイズに配置するレイアウト) か。'free'時は all_plot_settings の
+        # 各要素数がそのままサブプロット数となり、各要素の 'free_rect' キーに
+        # (left, bottom, width, height) の正規化座標(0〜1)が保持される。
+        self.layout_mode = 'grid'
 
     def save_project(self, filepath):
         """現在のアプリケーション状態を丸ごとpickleで保存"""
@@ -71,7 +76,8 @@ class ProjectModel:
             'all_plot_settings': self.all_plot_settings,
             'active_axis_index': self.active_axis_index,
             'layout_rows': self.layout_rows,
-            'layout_cols': self.layout_cols
+            'layout_cols': self.layout_cols,
+            'layout_mode': self.layout_mode,
         }
         with open(filepath, 'wb') as f:
             pickle.dump(data, f)
@@ -101,5 +107,6 @@ class ProjectModel:
         self.active_axis_index = data.get('active_axis_index', 0)
         self.layout_rows = data.get('layout_rows', 1)
         self.layout_cols = data.get('layout_cols', 1)
+        self.layout_mode = data.get('layout_mode', 'grid')
 
         self.current_filepath = filepath

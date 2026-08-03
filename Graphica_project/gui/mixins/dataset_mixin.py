@@ -14,23 +14,39 @@ _add_dataset_list_item / _add_dataset_folder_item 参照)。
 経由する。これによりフォルダのネストがあっても正しくデータセットだけを扱える。
 """
 import copy
+import json
 import logging
+import os
+import re
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu
+from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu
 
 from core.analysis import calculate_curve_fit, calculate_peaks
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand
 from core.dataset import Dataset
 from gui.data_editor import DataEditorDialog
-from gui.dialogs import PeakSettingsDialog, FitDialog, ResultDialog
+from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
+                         ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog)
+from gui.dataset_style_icon import make_dataset_style_icon
 
 logger = logging.getLogger(__name__)
 
+# カスタム配色パレットをQSettingsに保存する際のキー
+COLOR_PALETTES_SETTINGS_KEY = "custom_color_palettes_json"
+ACTIVE_PALETTE_SETTINGS_KEY = "active_color_palette"
+
 # エラーバー用の誤差列コンボボックスで「誤差列を使わない」ことを表す選択肢
 NO_ERROR_COLUMN_LABEL = "(なし)"
+
+# 「スタイルのコピー&ペースト」で複製対象とする、見た目に関する属性
+# (凡例名・X/Y列・エラーバー列・描画先など、データ/構造に関わるものは含めない)
+STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing', 'alpha')
+
+# データポイントラベルの「内容」コンボボックスで、Y値そのものを表示することを示す選択肢
+POINT_LABEL_Y_VALUE_LABEL = "Y値"
 
 
 class DatasetMixin:
@@ -43,6 +59,57 @@ class DatasetMixin:
         if file_path:
             # 古い読み込み処理は捨てて、一番下にある load_data メソッドに処理を任せる
             self.load_data(file_path)
+
+    def _on_create_new_dataset(self):
+        """
+        「新規データセット作成...」ボタンが押されたときの処理(項目63)。
+        ファイル読み込みを介さず、名前・列名・初期行数を指定した空のDatasetを作成し、
+        その場でデータエディタを開いて手入力できるようにする。
+        """
+        dialog = NewDatasetDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        name = dialog.get_dataset_name()
+        column_names = dialog.get_column_names()
+        row_count = dialog.get_row_count()
+
+        df = pd.DataFrame({col: [np.nan] * row_count for col in column_names})
+        x_col_name = column_names[0]
+        y_col_name = column_names[1] if len(column_names) > 1 else column_names[0]
+
+        new_dataset = Dataset(name=name, df=df, x_col_name=x_col_name, y_col_name=y_col_name)
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+
+        # 作成直後、そのままデータエディタを開いて手入力できるようにする
+        self._on_show_data_editor()
+
+    def _on_dataset_search_changed(self, text):
+        """
+        データセット検索ボックスの入力が変わるたびに呼ばれる。
+        名前が検索文字列を含むデータセットだけを表示し、それ以外は非表示にする。
+        フォルダは、中に一致するデータセットが1つでもあれば表示する
+        (検索文字列が空のときはすべて表示する)。
+        """
+        query = text.strip().lower()
+
+        def apply_filter(item):
+            dataset = item.data(0, Qt.ItemDataRole.UserRole)
+            if dataset is not None:
+                visible = (not query) or (query in dataset.name.lower())
+                item.setHidden(not visible)
+                return visible
+            else:
+                any_child_visible = False
+                for i in range(item.childCount()):
+                    if apply_filter(item.child(i)):
+                        any_child_visible = True
+                item.setHidden(bool(query) and not any_child_visible)
+                return any_child_visible or not query
+
+        root = self.ui.dataset_list_widget.invisibleRootItem()
+        for i in range(root.childCount()):
+            apply_filter(root.child(i))
 
     def _on_new_folder(self):
         """
@@ -67,12 +134,331 @@ class DatasetMixin:
         new_folder_action = menu.addAction("新しいフォルダ")
         new_folder_action.triggered.connect(self._on_new_folder)
 
+        if self._get_current_dataset() is not None:
+            menu.addSeparator()
+            copy_style_action = menu.addAction("スタイルをコピー")
+            copy_style_action.triggered.connect(self._on_copy_dataset_style)
+
+            paste_style_action = menu.addAction("スタイルを貼り付け")
+            paste_style_action.setEnabled(self._copied_dataset_style is not None)
+            paste_style_action.triggered.connect(self._on_paste_dataset_style)
+
+        selected_count = len(self._get_selected_datasets())
+        if selected_count >= 2:
+            menu.addSeparator()
+            if selected_count == 2:
+                arithmetic_action = menu.addAction("データセット間演算...")
+                arithmetic_action.triggered.connect(self._on_dataset_arithmetic)
+
+            batch_calc_action = menu.addAction("バッチ列計算...")
+            batch_calc_action.triggered.connect(self._on_batch_column_calculate)
+
+            batch_fit_action = menu.addAction("バッチカーブフィット...")
+            batch_fit_action.triggered.connect(self._on_batch_curve_fit)
+
+        if self._get_selected_datasets():
+            menu.addSeparator()
+            export_data_action = menu.addAction("データ表をファイルに書き出す...")
+            export_data_action.triggered.connect(self._on_export_dataset_data)
+
         if self.ui.dataset_list_widget.selectedItems():
             menu.addSeparator()
             remove_action = menu.addAction("削除")
             remove_action.triggered.connect(self._on_remove_dataset)
 
         menu.exec(self.ui.dataset_list_widget.viewport().mapToGlobal(pos))
+
+    def _on_export_dataset_data(self):
+        """
+        「データ表をファイルに書き出す...」メニューの処理。
+        グラフ画像ではなく、加工済みのデータセットそのもの(DataFrame)を
+        他のソフト(Excel等)で使えるようファイル出力する。
+        1件選択時はCSVまたはExcelのファイルを直接選ばせ、複数選択時は
+        フォルダを選ばせて各データセットを別々のCSVとして書き出すか、
+        1つのExcelブックにシート分けしてまとめるかを選ばせる。
+        """
+        selected = self._get_selected_datasets()
+        if not selected:
+            return
+
+        if len(selected) == 1:
+            dataset = selected[0]
+            default_name = re.sub(r'[\\/:*?"<>|]', '_', dataset.name) or "dataset"
+            file_path, selected_filter = QFileDialog.getSaveFileName(
+                self, "データ表を書き出す", default_name,
+                "CSV Files (*.csv);;Excel Files (*.xlsx)"
+            )
+            if not file_path:
+                return
+            try:
+                if file_path.lower().endswith('.xlsx') or "Excel" in selected_filter:
+                    if not file_path.lower().endswith('.xlsx'):
+                        file_path += '.xlsx'
+                    dataset.df.to_excel(file_path, index=False)
+                else:
+                    if not file_path.lower().endswith('.csv'):
+                        file_path += '.csv'
+                    dataset.df.to_csv(file_path, index=False, encoding='utf-8-sig')
+            except Exception as e:
+                QMessageBox.warning(self, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
+                return
+            QMessageBox.information(self, "書き出し完了", f"書き出しました:\n{file_path}")
+            return
+
+        # --- 複数選択時 ---
+        format_choice, ok = QInputDialog.getItem(
+            self, "データ表を書き出す", "書き出し形式を選択してください:",
+            ["CSV (データセットごとに別ファイル)", "Excel (1ブックにシート分け)"], 0, False
+        )
+        if not ok:
+            return
+
+        if format_choice.startswith("Excel"):
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, "データ表を書き出す", "datasets.xlsx", "Excel Files (*.xlsx)"
+            )
+            if not file_path:
+                return
+            if not file_path.lower().endswith('.xlsx'):
+                file_path += '.xlsx'
+            used_sheet_names = set()
+            try:
+                with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+                    for dataset in selected:
+                        sheet_name = re.sub(r'[\\/:*?\[\]]', '_', dataset.name)[:31] or "Sheet"
+                        base_name, suffix = sheet_name, 1
+                        while sheet_name in used_sheet_names:
+                            suffix += 1
+                            sheet_name = f"{base_name[:28]}_{suffix}"
+                        used_sheet_names.add(sheet_name)
+                        dataset.df.to_excel(writer, sheet_name=sheet_name, index=False)
+            except Exception as e:
+                QMessageBox.warning(self, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
+                return
+            QMessageBox.information(self, "書き出し完了", f"{len(selected)}件を書き出しました:\n{file_path}")
+        else:
+            dir_path = QFileDialog.getExistingDirectory(self, "書き出し先フォルダを選択")
+            if not dir_path:
+                return
+            succeeded, failed = [], []
+            used_names = set()
+            for dataset in selected:
+                base_name = re.sub(r'[\\/:*?"<>|]', '_', dataset.name) or "dataset"
+                file_name, suffix = base_name, 1
+                while file_name in used_names:
+                    suffix += 1
+                    file_name = f"{base_name}_{suffix}"
+                used_names.add(file_name)
+                try:
+                    dataset.df.to_csv(os.path.join(dir_path, f"{file_name}.csv"), index=False, encoding='utf-8-sig')
+                    succeeded.append(dataset.name)
+                except Exception as e:
+                    failed.append(f"{dataset.name}: {e}")
+            message = f"{len(succeeded)}件を書き出しました。"
+            if failed:
+                message += "\n\n失敗:\n" + "\n".join(failed)
+            QMessageBox.information(self, "書き出し完了", message)
+
+    def _on_copy_dataset_style(self):
+        """
+        「スタイルをコピー」メニューが選ばれたときの処理。
+        現在カレントのデータセット1件から、見た目に関する属性(STYLE_ATTRS)だけを
+        値としてコピーしておく(オブジェクト参照ではなく値のコピーなので、
+        コピー元を後から変更してもコピー内容には影響しない)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            return
+        self._copied_dataset_style = {attr: getattr(dataset, attr) for attr in STYLE_ATTRS}
+        self.statusBar().showMessage(f"「{dataset.name}」のスタイルをコピーしました", 3000)
+
+    def _on_paste_dataset_style(self):
+        """
+        「スタイルを貼り付け」メニューが選ばれたときの処理。
+        コピーしておいたスタイルを、選択中の(複数可)データセットにまとめて適用する。
+        複数選択時は1回のUndo/Redoでまとめて元に戻せるようにする。
+        """
+        if self._copied_dataset_style is None:
+            return
+        selected_datasets = self._get_selected_datasets()
+        if not selected_datasets:
+            return
+
+        is_batch = len(selected_datasets) > 1
+        if is_batch:
+            self.undo_stack.beginMacro(f"スタイルの貼り付け ({len(selected_datasets)}件)")
+        for dataset in selected_datasets:
+            old_values = {attr: getattr(dataset, attr) for attr in STYLE_ATTRS}
+            self._push_dataset_property_command(
+                dataset, old_values, dict(self._copied_dataset_style),
+                description="スタイルの貼り付け"
+            )
+        if is_batch:
+            self.undo_stack.endMacro()
+
+    def _on_dataset_arithmetic(self):
+        """
+        「データセット間演算...」メニューの処理。
+        選択中のちょうど2つのデータセット(A, B)について、B側のY値をA側のX値に
+        線形補間してから差・和・積・商を計算し、新しいデータセットとして追加する。
+        2つのデータセットのX軸が完全には一致しないケースを想定している。
+        """
+        selected = self._get_selected_datasets()
+        if len(selected) != 2:
+            QMessageBox.information(self, "データセット間演算", "演算対象として、データセットをちょうど2つ選択してください。")
+            return
+        ds_a, ds_b = selected[0], selected[1]
+
+        dialog = DatasetArithmeticDialog(ds_a.name, ds_b.name, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        operation, output_name = dialog.get_settings()
+        if not output_name:
+            QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+            return
+
+        xa = np.asarray(ds_a.x_data, dtype=float)
+        ya = np.asarray(ds_a.y_data, dtype=float)
+        xb = np.asarray(ds_b.x_data, dtype=float)
+        yb = np.asarray(ds_b.y_data, dtype=float)
+
+        valid_a = ~(np.isnan(xa) | np.isnan(ya))
+        valid_b = ~(np.isnan(xb) | np.isnan(yb))
+        xa, ya = xa[valid_a], ya[valid_a]
+        xb, yb = xb[valid_b], yb[valid_b]
+
+        if len(xa) == 0 or len(xb) == 0:
+            QMessageBox.warning(self, "データセット間演算", "有効なデータ点がありません。")
+            return
+
+        lo, hi = max(np.min(xa), np.min(xb)), min(np.max(xa), np.max(xb))
+        if lo > hi:
+            QMessageBox.warning(self, "データセット間演算", "2つのデータセットのX軸の範囲が重なっていないため演算できません。")
+            return
+
+        mask = (xa >= lo) & (xa <= hi)
+        xa_sub, ya_sub = xa[mask], ya[mask]
+        if len(xa_sub) == 0:
+            QMessageBox.warning(self, "データセット間演算", "重なる範囲にA側のデータ点がありません。")
+            return
+
+        order_b = np.argsort(xb)
+        yb_interp = np.interp(xa_sub, xb[order_b], yb[order_b])
+
+        if operation == "A - B":
+            result = ya_sub - yb_interp
+        elif operation == "B - A":
+            result = yb_interp - ya_sub
+        elif operation == "A + B":
+            result = ya_sub + yb_interp
+        elif operation == "A × B":
+            result = ya_sub * yb_interp
+        elif operation == "A ÷ B":
+            with np.errstate(divide='ignore', invalid='ignore'):
+                result = ya_sub / yb_interp
+        else:  # "B ÷ A"
+            with np.errstate(divide='ignore', invalid='ignore'):
+                result = yb_interp / ya_sub
+
+        result_df = pd.DataFrame({'x': xa_sub, 'y': result})
+        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    def _on_batch_column_calculate(self):
+        """
+        「バッチ列計算...」メニューの処理。
+        選択中の複数データセットに、同じ計算式(pandas.eval)を一括で適用する。
+        列計算は既存の _on_calculate_column (data_editor.py) と同様、
+        Undo/Redoスタックを経由しない (df を直接書き換える) 点に注意。
+        """
+        selected = self._get_selected_datasets()
+        if len(selected) < 2:
+            QMessageBox.information(self, "バッチ列計算", "2つ以上のデータセットを選択してください。")
+            return
+
+        # 計算式の候補として、選択中の全データセットに共通する列名を提示する
+        common_columns = set(selected[0].df.columns)
+        for ds in selected[1:]:
+            common_columns &= set(ds.df.columns)
+
+        dialog = ColumnCalculatorDialog(sorted(str(c) for c in common_columns), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        output_col, formula = dialog.get_formula()
+        if not output_col or not formula:
+            QMessageBox.warning(self, "入力エラー", "出力列または計算式が空です。")
+            return
+
+        succeeded, failed = [], []
+        for dataset in selected:
+            try:
+                dataset.df[output_col] = dataset.df.eval(formula, engine='python')
+                succeeded.append(dataset.name)
+            except Exception as e:
+                failed.append(f"{dataset.name}: {e}")
+
+        self._update_ui_state()
+        self._update_plot()
+
+        message = f"{len(succeeded)}件のデータセットに適用しました。"
+        if failed:
+            message += "\n\n失敗:\n" + "\n".join(failed)
+        QMessageBox.information(self, "バッチ列計算", message)
+
+    def _on_batch_curve_fit(self):
+        """
+        「バッチカーブフィット...」メニューの処理。
+        選択中の複数データセットそれぞれに、同じフィット関数(FitDialogで1回だけ選択)を
+        適用し、成功したものごとに "Fit (元の名前)" というデータセットを追加する。
+        単一データセット向けの _on_fit_curve と基本ロジックは同じで、
+        フィット種類の選択を1回にまとめ、複数データセットへループ適用する点が異なる。
+        """
+        selected = self._get_selected_datasets()
+        if len(selected) < 2:
+            QMessageBox.information(self, "バッチカーブフィット", "2つ以上のデータセットを選択してください。")
+            return
+
+        fit_type, custom_formula = FitDialog.get_fit_type(self)
+        if fit_type is None:
+            return
+
+        target_folder = self._get_target_folder_for_new_dataset()
+        succeeded, failed = [], []
+        for dataset in selected:
+            x_data, y_data = dataset.x_data, dataset.y_data
+            try:
+                popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
+                    x_data, y_data, fit_type, custom_formula=custom_formula
+                )
+            except Exception as e:
+                failed.append(f"{dataset.name}: {e}")
+                continue
+
+            fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
+            result_text = f"[{fit_label}] のフィッティング結果:\n"
+            for param_name, param_value in zip(params_info, popt):
+                result_text += f"  {param_name} = {param_value: .4e}\n"
+            result_text += f"  R^2 = {r_squared: .5f}\n"
+
+            fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
+            fit_dataset = Dataset(
+                name=f"Fit ({dataset.name})",
+                df=fit_df,
+                x_col_name='x_fit', y_col_name='y_fit',
+                color=dataset.color, linestyle='--', marker='None',
+                linewidth=dataset.linewidth,
+                use_secondary_y=dataset.use_secondary_y,
+                subplot_target=dataset.subplot_target,
+                fit_info=result_text
+            )
+            self._add_dataset(fit_dataset, target_folder, select=False)
+            succeeded.append(dataset.name)
+
+        message = f"{len(succeeded)}件のフィットに成功しました。"
+        if failed:
+            message += "\n\n失敗:\n" + "\n".join(failed)
+        QMessageBox.information(self, "バッチカーブフィット", message)
 
     def _top_level_selected_items(self, items):
         """
@@ -230,6 +616,7 @@ class DatasetMixin:
         if item is not None:
             if item.text(0) != dataset.name:
                 item.setText(0, dataset.name)
+            item.setIcon(0, make_dataset_style_icon(dataset))
             if item is self.ui.dataset_list_widget.currentItem():
                 self._update_ui_state()
         self._update_plot()
@@ -330,6 +717,12 @@ class DatasetMixin:
             self.ui.markersize_spinbox: ('markersize', self.ui.markersize_spinbox.value()),
             self.ui.smoothing_checkbox: ('smoothing', self.ui.smoothing_checkbox.isChecked()),
             self.alpha_spinbox: ('alpha', self.alpha_spinbox.value()),
+            self.point_labels_checkbox: ('show_point_labels', self.point_labels_checkbox.isChecked()),
+            self.point_label_col_combo: (
+                'point_label_col_name',
+                None if self.point_label_col_combo.currentText() == POINT_LABEL_Y_VALUE_LABEL
+                else self.point_label_col_combo.currentText()
+            ),
         }
 
         changed = field_by_widget.get(self.sender())
@@ -348,10 +741,12 @@ class DatasetMixin:
         if is_batch:
             self.undo_stack.endMacro()
 
-    def _on_change_dataset_color(self):
+    def _on_dataset_color_changed(self, new_color):
         """
-        データセットの色選択ボタン (color_button) がクリックされたときの処理。
-        QColorDialog を表示し、選択された色を Dataset に適用します。
+        データセットの色選択ウィジェット (color_picker_widget、項目65) で
+        色が変更されたときの処理。スウォッチのパレット展開・カラーコード欄への
+        直接入力のどちらの経路でも呼ばれる (色選択・表示更新自体はウィジェット側で
+        完結済みのため、ここでは選ばれた色をDatasetに適用するだけでよい)。
         複数のデータセットが選択されている場合は、全てに同じ色を適用し、
         1回のUndo/Redoでまとめて元に戻せるようにする。
         """
@@ -359,15 +754,7 @@ class DatasetMixin:
         if not selected_datasets:
             return
 
-        # 1. 色選択ダイアログを表示
-        color = QColorDialog.getColor() # QColor オブジェクトが返る
-
-        # 2. 有効な色が選択されたか確認 (Cancel されなかったか)
-        if not color.isValid():
-            return
-        new_color = color.name()
-
-        # 3. Undo/Redo可能なコマンドとして発行
+        # Undo/Redo可能なコマンドとして発行
         #    複数選択時は beginMacro/endMacro で1つの操作としてまとめる
         is_batch = len(selected_datasets) > 1
         if is_batch:
@@ -385,15 +772,16 @@ class DatasetMixin:
     def _on_auto_assign_colors(self):
         """
         「自動配色」ボタンが押されたときの処理。
-        選択中の(複数可)データセットに、matplotlibの既定カラーサイクル
-        (tab10など、rcParamsで設定されているもの) を順番に自動で割り当てる。
+        選択中の(複数可)データセットに、現在アクティブなカラーパレット
+        (ユーザーが「パレット管理」で作成したもの、または既定のmatplotlibの
+        カラーサイクル) を順番に自動で割り当てる。
         手動で1つずつ色を選ぶ手間を省くための一括操作。
         """
         selected_datasets = self._get_selected_datasets()
         if not selected_datasets:
             return
 
-        color_cycle = mpl.rcParams['axes.prop_cycle'].by_key()['color']
+        color_cycle = self._get_active_color_cycle()
 
         is_batch = len(selected_datasets) > 1
         if is_batch:
@@ -408,6 +796,43 @@ class DatasetMixin:
             )
         if is_batch:
             self.undo_stack.endMacro()
+
+    def _load_color_palettes(self):
+        """QSettingsに保存されているカスタム配色パレット一式を辞書として読み込む"""
+        raw = self.settings.value(COLOR_PALETTES_SETTINGS_KEY, "")
+        if not raw:
+            return {}
+        try:
+            return json.loads(raw)
+        except (TypeError, ValueError):
+            logger.warning("カスタム配色パレットの読み込みに失敗しました。空として扱います。")
+            return {}
+
+    def _save_color_palettes(self, palettes: dict):
+        """カスタム配色パレット一式をQSettingsに保存する"""
+        self.settings.setValue(COLOR_PALETTES_SETTINGS_KEY, json.dumps(palettes))
+
+    def _get_active_color_cycle(self):
+        """
+        現在アクティブなパレットの色リストを返す。
+        パレットが未設定、または空の場合はmatplotlibの既定カラーサイクルにフォールバックする。
+        """
+        active_name = self.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+        palettes = self._load_color_palettes()
+        if active_name != ColorPaletteDialog.DEFAULT_PALETTE_NAME and palettes.get(active_name):
+            return palettes[active_name]
+        return mpl.rcParams['axes.prop_cycle'].by_key()['color']
+
+    def _on_manage_color_palettes(self):
+        """「パレット管理...」ボタンが押されたときの処理。ダイアログで編集後、設定に保存する。"""
+        palettes = self._load_color_palettes()
+        active_name = self.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+
+        dialog = ColorPaletteDialog(palettes, active_name, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_palettes, new_active_name = dialog.get_result()
+            self._save_color_palettes(new_palettes)
+            self.settings.setValue(ACTIVE_PALETTE_SETTINGS_KEY, new_active_name)
 
     def _update_ui_state(self):
         """
@@ -461,13 +886,15 @@ class DatasetMixin:
             # (これからコードでUIの値をセットするため、シグナルが発火するのを防ぐ)
             self.ui.legend_name_edit.blockSignals(True)
             self.ui.plot_type_combo.blockSignals(True)
-            self.ui.color_button.blockSignals(True)
+            self.color_picker_widget.blockSignals(True)
             self.ui.linestyle_combo.blockSignals(True)
             self.ui.linewidth_spinbox.blockSignals(True)
             self.ui.marker_combo.blockSignals(True)
             self.ui.markersize_spinbox.blockSignals(True)
             self.ui.smoothing_checkbox.blockSignals(True)
             self.alpha_spinbox.blockSignals(True)
+            self.point_labels_checkbox.blockSignals(True)
+            self.point_label_col_combo.blockSignals(True)
             self.use_secondary_y_checkbox.blockSignals(True)
             self.subplot_target_combo.blockSignals(True)
 
@@ -478,21 +905,28 @@ class DatasetMixin:
             self.ui.linewidth_spinbox.setValue(dataset.linewidth)
             self.ui.marker_combo.setCurrentText(dataset.marker if dataset.marker is not None else 'None')
             self.ui.markersize_spinbox.setValue(dataset.markersize)
+            self.color_picker_widget.set_color(dataset.color)
             self.ui.smoothing_checkbox.setChecked(dataset.smoothing)
             self.alpha_spinbox.setValue(dataset.alpha)
+            self.point_labels_checkbox.setChecked(dataset.show_point_labels)
+            self.point_label_col_combo.clear()
+            self.point_label_col_combo.addItems([POINT_LABEL_Y_VALUE_LABEL] + dataset.df.columns.tolist())
+            self.point_label_col_combo.setCurrentText(dataset.point_label_col_name or POINT_LABEL_Y_VALUE_LABEL)
             self.use_secondary_y_checkbox.setChecked(dataset.use_secondary_y)
             self.subplot_target_combo.setCurrentIndex(dataset.subplot_target)
 
             # 4d. ★★★ シグナルを解除 ★★★
             self.ui.legend_name_edit.blockSignals(False)
             self.ui.plot_type_combo.blockSignals(False)
-            self.ui.color_button.blockSignals(False)
+            self.color_picker_widget.blockSignals(False)
             self.ui.linestyle_combo.blockSignals(False)
             self.ui.linewidth_spinbox.blockSignals(False)
             self.ui.marker_combo.blockSignals(False)
             self.ui.markersize_spinbox.blockSignals(False)
             self.ui.smoothing_checkbox.blockSignals(False)
             self.alpha_spinbox.blockSignals(False)
+            self.point_labels_checkbox.blockSignals(False)
+            self.point_label_col_combo.blockSignals(False)
             self.use_secondary_y_checkbox.blockSignals(False)
             self.subplot_target_combo.blockSignals(False)
 
@@ -537,16 +971,49 @@ class DatasetMixin:
                 self.fit_info_textedit.setVisible(False)
                 self.fit_info_textedit.clear()
 
+            # 4g. 統計サマリー (Y列の件数・平均・標準偏差・最小/最大) の更新
+            self._update_stats_summary_label(dataset)
+
         # 5. 【非選択中 (またはフォルダ選択中)】の場合: UIをクリア
         else:
             self.x_col_combo.clear()
             self.y_col_combo.clear()
             self.x_err_col_combo.clear()
             self.y_err_col_combo.clear()
+            self.point_label_col_combo.clear()
 
             self.fit_info_label.setVisible(False)
             self.fit_info_textedit.setVisible(False)
             self.fit_info_textedit.clear()
+
+            self.stats_summary_label.setText("-")
+            self.dataset_mini_stats_label.setText("-")
+
+    def _update_stats_summary_label(self, dataset):
+        """
+        選択中データセットのY列について、件数・平均・標準偏差・最小/最大の
+        要約統計量を計算し、プロパティパネルのラベル(詳細版)と、
+        データセットリスト直下のミニ統計ラベル(項目69、1行の簡易版)の
+        両方に表示する。NaNは集計から除外する。数値に変換できない列の場合は "-" を表示する。
+        """
+        try:
+            y = np.asarray(dataset.y_data, dtype=float)
+            valid = y[~np.isnan(y)]
+            if len(valid) == 0:
+                self.stats_summary_label.setText("-")
+                self.dataset_mini_stats_label.setText(dataset.name)
+                return
+            self.stats_summary_label.setText(
+                f"件数: {len(valid)}   平均: {np.mean(valid):.4g}   "
+                f"標準偏差: {np.std(valid):.4g}   最小: {np.min(valid):.4g}   最大: {np.max(valid):.4g}"
+            )
+            self.dataset_mini_stats_label.setText(
+                f"{dataset.name} 〈n={len(valid)}, 平均={np.mean(valid):.4g}, "
+                f"σ={np.std(valid):.4g}〉"
+            )
+        except (TypeError, ValueError):
+            self.stats_summary_label.setText("-")
+            self.dataset_mini_stats_label.setText(dataset.name)
 
     def _on_duplicate_dataset(self):
         """
@@ -609,6 +1076,9 @@ class DatasetMixin:
         #    _on_data_structure_changed スロットに接続する。
         #    (エディタでの変更を検知するため)
         self.data_editor_dialog.dataChanged.connect(self._on_data_structure_changed)
+
+        # 3b. データエディタで選択した行 <-> グラフ上のハイライトを連動させる
+        self.data_editor_dialog.rowsHighlighted.connect(self._on_editor_rows_highlighted)
 
         # 4. exec() (モーダル) の代わりに show() (非モーダル) で表示する
         #    (エディタを開いたままメインウィンドウを操作できるようにするため)
@@ -686,22 +1156,26 @@ class DatasetMixin:
             return
         x_data, y_data = original_dataset.x_data, original_dataset.y_data
 
-        # ダイアログからフィットの種類を取得
-        fit_type = FitDialog.get_fit_type(self)
+        # ダイアログからフィットの種類を取得 (カスタム数式選択時は数式文字列も一緒に返る)
+        fit_type, custom_formula = FitDialog.get_fit_type(self)
         if fit_type is None:
             return
 
         try:
             # ★ 計算はすべて分離したモジュールに丸投げ
-            popt, params_info, x_fit, y_fit = calculate_curve_fit(x_data, y_data, fit_type)
+            popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
+                x_data, y_data, fit_type, custom_formula=custom_formula
+            )
         except Exception as e:
             QMessageBox.warning(self, "フィットエラー", f"フィッティングに失敗しました:\n{e}")
             return
 
-        # 結果文字列の作成
-        result_text = f"[{fit_type}] のフィッティング結果:\n"
+        # 結果文字列の作成 (カスタム数式の場合は入力された数式も表示する)
+        fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
+        result_text = f"[{fit_label}] のフィッティング結果:\n"
         for param_name, param_value in zip(params_info, popt):
             result_text += f"  {param_name} = {param_value: .4e}\n"
+        result_text += f"  R^2 = {r_squared: .5f}\n"
 
         # UI/Modelへの反映 (Datasetの追加。元のデータセットと同じフォルダに追加する)
         fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
@@ -724,8 +1198,14 @@ class DatasetMixin:
         # ★ グラフを見ながら結果を確認できるよう、非モーダル・スクロール可能なダイアログで表示する
         if self.fit_result_dialog is not None:
             self.fit_result_dialog.close()
-        fit_csv_data = pd.DataFrame({'パラメータ': params_info, '値': popt})
-        self.fit_result_dialog = ResultDialog("フィッティング完了", result_text, self, csv_data=fit_csv_data)
+        fit_csv_data = pd.DataFrame({
+            'パラメータ': list(params_info) + ['R^2'],
+            '値': list(popt) + [r_squared],
+        })
+        self.fit_result_dialog = ResultDialog(
+            "フィッティング完了", result_text, self, csv_data=fit_csv_data,
+            residual_x=x_data, residual_y=residuals
+        )
         self.fit_result_dialog.show()
 
     def _on_secondary_y_changed(self):
