@@ -367,6 +367,13 @@ QComboBox::drop-down {{
     border: none;
     width: 20px;
 }}
+QComboBox::down-arrow {{
+    /* スピンボックスと同じ理由(QSSでwidth/heightを指定するだけで矢印自体が
+       描画されなくなる)により、画像として与える */
+    image: url({spin_down_arrow_url});
+    width: 10px;
+    height: 10px;
+}}
 QComboBox QAbstractItemView {{
     background: {surface};
     border: 1px solid {border};
