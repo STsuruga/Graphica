@@ -56,7 +56,12 @@ def _enable_scientific_notation_input(spin_box, minimum, maximum, single_step=0.
 # --- ウィンドウ/レイアウトに関する定数 ---
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
-CONTROL_DOCK_WIDTH = 440  # 項目68/61: フィールドの見切れ解消のため実測ベースで拡幅(旧350px→380px→400px→440px)
+CONTROL_DOCK_WIDTH = 472  # 項目68/61: フィールドの見切れ解消のため実測ベースで拡幅(旧350px→380px→400px→440px)
+                          # ★ バグ修正(項目102の折りたたみ化で発覚): 440pxのままだと、
+                          #   縦スクロールバー(11px)+レイアウト余白の分だけ中身の最小幅を
+                          #   下回り、意図しない横スクロールバーが常時出てしまっていた。
+                          #   スクロールバー分の余裕を持たせて拡幅する(merged_properties_layout
+                          #   の余白圧縮と合わせて横スクロールバーが出ないことを実測確認済み)。
 EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT = 340  # エクスポートプレビューを下部ドックに分離した際の初期高さ
 SPIN_BOX_MAX_DECIMALS = 16
 
@@ -821,14 +826,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             plot_properties_group, tr("プロットのプロパティ"))
 
         # 2d. 2つのセクションを1本の縦スクロールにまとめ、1つのドックに収める
+        # ★ バグ修正: 既定のレイアウト余白のままだと、縦スクロールバー分を差し引いた
+        #   ビューポート幅に対して中身がわずかに(数十px)はみ出し、意図しない横スクロール
+        #   バーが常時表示されてしまっていた。左右の余白を切り詰めて幅の余裕を作る。
         merged_properties_container = QWidget()
         merged_properties_layout = QVBoxLayout(merged_properties_container)
+        merged_properties_layout.setContentsMargins(2, 4, 2, 4)
         merged_properties_layout.addWidget(dataset_section)
         merged_properties_layout.addWidget(plot_section)
         merged_properties_layout.addStretch()
 
         merged_scroll_area = QScrollArea()
         merged_scroll_area.setWidgetResizable(True)
+        merged_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         merged_scroll_area.setWidget(merged_properties_container)
         self.ui.control_dock_widget.setWidget(merged_scroll_area)
 

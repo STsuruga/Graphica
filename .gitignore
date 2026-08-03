@@ -21,3 +21,4 @@ Graphica_project_backup_*/
 
 # Claude Codeのローカル専用設定 (この環境固有のため共有しない)
 .claude/settings.local.json
+.coverage
