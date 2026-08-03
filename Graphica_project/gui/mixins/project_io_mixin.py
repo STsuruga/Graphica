@@ -1,9 +1,10 @@
 # gui/mixins/project_io_mixin.py
 """
-プロジェクト (.pkl) の保存/読込メニュー、および書式テンプレート (.json) の
+プロジェクト (.graphica/.pkl) の保存/読込メニュー、および書式テンプレート (.json) の
 保存/読込をまとめた Mixin。
 実際のファイルI/Oの主要ロジックは gui/main_window.py の manual_save/manual_load
-(pickle) にあり、ここはメニューからの呼び出しとテンプレート機能を担当する。
+(拡張子に応じてJSON/pickleを振り分け) にあり、ここはメニューからの呼び出しと
+テンプレート機能を担当する。
 """
 import json
 import logging
@@ -20,12 +21,12 @@ AUTOSAVE_INTERVAL_MIN_BOUNDS = (0, 180)
 
 class ProjectIOMixin:
     def _on_save_project(self):
-        """プロジェクト保存（JSONからPickle/MVCに変更）"""
-        self.manual_save() # 既に定義されている .pkl 用の保存処理を呼ぶ
+        """プロジェクト保存（MVC対応）"""
+        self.manual_save() # 既に定義されている保存処理を呼ぶ(拡張子でJSON/pickleを振り分け)
 
     def _on_load_project(self):
         """プロジェクト読込（MVC対応）"""
-        self.manual_load() # 既に定義されている .pkl 用の読込処理を呼ぶ
+        self.manual_load() # 既に定義されている読込処理を呼ぶ(拡張子でJSON/pickleを振り分け)
 
     def _on_configure_autosave_interval(self):
         """

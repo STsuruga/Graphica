@@ -65,8 +65,8 @@ SPIN_BOX_MAX_DECIMALS = 16
 DEFAULT_AUTOSAVE_INTERVAL_MIN = 5  # 分単位 (0 = 無効化)
 MIN_AUTOSAVE_INTERVAL_MIN = 0
 MAX_AUTOSAVE_INTERVAL_MIN = 180
-AUTOSAVE_FILENAME = "autosave.pkl"
-AUTOSAVE_GENERATIONS = 3  # 保持する世代数 (最新のautosave.pklを含む)
+AUTOSAVE_FILENAME = "autosave.graphica"  # 新規インストール/セッションは新形式(JSON)でオートセーブする
+AUTOSAVE_GENERATIONS = 3  # 保持する世代数 (最新のautosave.graphicaを含む)
 
 # --- 最近使ったファイル一覧に関する定数 ---
 MAX_RECENT_FILES = 10
@@ -188,7 +188,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             tab_id (int, optional): タブ化機能で複数インスタンスを同時に開く際、
                 オートセーブファイルが衝突しないよう区別するための番号。
                 None(既定、単独起動または最初のタブ)の場合は従来通りの
-                ファイル名 (autosave.pkl) を使う。
+                ファイル名 (autosave.graphica) を使う。
         """
         super().__init__()
         self._run_startup_checks = run_startup_checks
@@ -196,7 +196,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # ★ 複数タブが同時にオートセーブすると同じファイルを取り合ってしまうため、
         # 最初のタブ(=従来の単独起動と同じ)以外は専用のファイル名を使う。
         # (保存先ディレクトリの反映は self.settings 作成後に _update_autosave_path で行う)
-        self._autosave_base_filename = AUTOSAVE_FILENAME if not tab_id else f"autosave_tab{tab_id}.pkl"
+        self._autosave_base_filename = (
+            AUTOSAVE_FILENAME if not tab_id
+            else f"autosave_tab{tab_id}{os.path.splitext(AUTOSAVE_FILENAME)[1]}"
+        )
         self._autosave_filename = self._autosave_base_filename
 
         # --- 1. UIファイルのロード ---
@@ -868,9 +871,24 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         起動時に一度だけ呼ばれる。前回のセッションが正常終了しなかった
         (クラッシュ・強制終了など) と判断され、かつオートセーブファイルが
         残っている場合、復元するかどうかをユーザーに確認する。
+
+        ★ 新形式(.graphica)への移行対応: このアプリのバージョンにアップデートした
+        直後の初回起動では、旧バージョンで発生したクラッシュにより、新形式ではなく
+        旧形式(.pkl)のオートセーブファイルだけが残っている可能性がある。そのため、
+        新形式のファイルが見つからない場合は、同じベース名の旧形式ファイルが
+        無いか一時的なフォールバックとして確認する(恒久的な二重管理ではなく、
+        移行期のみの措置)。どちらの形式でも load_project 側が拡張子で判別する。
         """
-        if self._had_clean_exit or not os.path.exists(self._autosave_filename):
+        if self._had_clean_exit:
             return
+
+        autosave_path = self._autosave_filename
+        if not os.path.exists(autosave_path):
+            legacy_path = os.path.splitext(self._autosave_filename)[0] + '.pkl'
+            if os.path.exists(legacy_path):
+                autosave_path = legacy_path
+            else:
+                return
 
         reply = QMessageBox.question(
             self, "オートセーブからの復元",
@@ -880,7 +898,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             QMessageBox.StandardButton.Yes
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self._load_project_from_path(self._autosave_filename, add_to_recent=False)
+            self._load_project_from_path(autosave_path, add_to_recent=False)
 
     def _check_first_launch(self):
         """
@@ -927,9 +945,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     def _rotate_autosave_generations(self):
         """
         オートセーブファイルを世代ローテーションする。
-        autosave.pkl は常に最新の状態を指し、直前までの内容は
-        autosave.1.pkl, autosave.2.pkl, ... として押し出される
-        (AUTOSAVE_GENERATIONS世代を超える最古のものは破棄する)。
+        autosave.graphica (拡張子は AUTOSAVE_FILENAME に依存) は常に最新の状態を指し、
+        直前までの内容は autosave.1.graphica, autosave.2.graphica, ... として
+        押し出される (AUTOSAVE_GENERATIONS世代を超える最古のものは破棄する)。
         """
         base, ext = os.path.splitext(self._autosave_filename)
 
@@ -964,8 +982,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def manual_save(self):
         """ユーザーが保存操作をしたときの処理"""
-        filepath, _ = QFileDialog.getSaveFileName(self, "プロジェクトを保存", "", "Project Files (*.pkl)")
+        # ★ 新形式(.graphica, JSON)をデフォルトの保存先とする。任意コード実行の
+        #   リスクが無い安全なフォーマットへの移行を促すため、先頭のフィルタを
+        #   .graphica にしている。ただし従来形式で保存したいユーザーのために、
+        #   .pkl も引き続き選択できるようにしておく。
+        filepath, selected_filter = QFileDialog.getSaveFileName(
+            self, "プロジェクトを保存", "",
+            "Graphica Project (*.graphica);;Project Files (*.pkl)"
+        )
         if filepath:
+            # 一部環境ではファイルダイアログが選択フィルタに応じた拡張子を
+            # 自動付加しないため、拡張子が無い場合は選択されたフィルタから補う。
+            if not os.path.splitext(filepath)[1]:
+                filepath += '.graphica' if 'graphica' in selected_filter else '.pkl'
             try:
                 # フォルダ構造(現在のツリーの状態)を保存直前にキャプチャする
                 self.project.dataset_group_tree = self._capture_dataset_group_tree()
@@ -981,13 +1010,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def manual_load(self):
         """ユーザーが読み込み操作をしたときの処理"""
-        filepath, _ = QFileDialog.getOpenFileName(self, "プロジェクトを開く", "", "Project Files (*.pkl)")
+        # 新形式(.graphica)・旧形式(.pkl)のどちらも開けるようにする
+        # (project.load_project側が拡張子で自動判別する)
+        filepath, _ = QFileDialog.getOpenFileName(
+            self, "プロジェクトを開く", "", "Project Files (*.graphica *.pkl)"
+        )
         if filepath:
             self._load_project_from_path(filepath)
 
     def _load_project_from_path(self, filepath, add_to_recent=True):
         """
-        指定されたパスの プロジェクト(.pkl) を読み込み、UIを再構築する。
+        指定されたパスのプロジェクト(.graphica または .pkl)を読み込み、UIを再構築する。
         manual_load (ファイルダイアログ経由)、最近使ったファイル一覧からの
         再オープン、オートセーブからの復元の、いずれからも呼ばれる共通処理。
 
@@ -1533,7 +1566,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     #==========================================================================
     # 最近使ったファイル一覧
     #==========================================================================
-    # プロジェクト(.pkl)とデータファイル(csv/xlsx等)の両方をまとめて履歴管理する。
+    # プロジェクト(.graphica/.pkl)とデータファイル(csv/xlsx等)の両方をまとめて履歴管理する。
     # 履歴自体は QSettings で永続化するため、アプリを再起動しても保持される。
 
     def _get_recent_files(self):
@@ -1584,7 +1617,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 self._update_recent_files_menu()
             return
 
-        if file_path.lower().endswith('.pkl'):
+        if file_path.lower().endswith(('.graphica', '.pkl')):
             self._load_project_from_path(file_path)
         else:
             self.load_data(file_path)

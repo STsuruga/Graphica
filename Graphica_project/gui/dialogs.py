@@ -1884,7 +1884,7 @@ class BatchExportDialog(QDialog):
     複数の画像をまとめて一括書き出しするための設定ダイアログ。
     2つのモードを切り替えられる:
       1. 現在のプロジェクトの各サブプロットを、個別の画像として書き出す
-      2. 複数のプロジェクトファイル(.pkl)を選び、それぞれの完成図を書き出す
+      2. 複数のプロジェクトファイル(.graphica/.pkl)を選び、それぞれの完成図を書き出す
     実際の書き出し処理自体はこのダイアログの責務ではなく、呼び出し側が
     get_*() で取得した設定を使って行う。
     """
@@ -1923,7 +1923,7 @@ class BatchExportDialog(QDialog):
         # --- モード2: プロジェクトファイル選択 ---
         files_page = QWidget()
         files_page_layout = QVBoxLayout(files_page)
-        files_page_layout.addWidget(QLabel("書き出すプロジェクトファイル(.pkl)を追加してください:"))
+        files_page_layout.addWidget(QLabel("書き出すプロジェクトファイル(.graphica/.pkl)を追加してください:"))
         self.project_files_list = QListWidget()
         files_page_layout.addWidget(self.project_files_list)
         files_button_row = QHBoxLayout()
@@ -1974,7 +1974,9 @@ class BatchExportDialog(QDialog):
         layout.addWidget(button_box)
 
     def _on_add_project_files(self):
-        paths, _ = QFileDialog.getOpenFileNames(self, "プロジェクトファイルを選択", "", "Project Files (*.pkl)")
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "プロジェクトファイルを選択", "", "Project Files (*.graphica *.pkl)"
+        )
         for path in paths:
             self.project_files_list.addItem(path)
 

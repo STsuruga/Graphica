@@ -103,7 +103,7 @@ class ExportMixin:
         """
         「バッチエクスポート...」メニューの処理。
         現在のプロジェクトの各サブプロットを個別画像として、または複数の
-        プロジェクトファイル(.pkl)をそれぞれの完成図として、まとめて書き出す。
+        プロジェクトファイル(.graphica/.pkl)をそれぞれの完成図として、まとめて書き出す。
         """
         dialog = BatchExportDialog(len(self.project.all_plot_settings), self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -174,9 +174,10 @@ class ExportMixin:
 
     def _batch_export_project_files(self, paths, options):
         """
-        複数のプロジェクトファイル(.pkl)それぞれを読み込み、その完成図を書き出す。
+        複数のプロジェクトファイル(.graphica/.pkl)それぞれを読み込み、その完成図を書き出す。
         現在開いているプロジェクト/GUIの状態には一切触れない(使い捨てのProjectModelと
-        MplCanvasだけを使う)。
+        MplCanvasだけを使う)。load_project側が拡張子で保存形式を自動判別するため、
+        ここでは形式を意識せずパスをそのまま渡すだけでよい。
         """
         results = []
         for path in paths:

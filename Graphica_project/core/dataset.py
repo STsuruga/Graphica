@@ -239,6 +239,15 @@ class Dataset:
                 state[f.name] = f.default
             elif f.default_factory is not MISSING:
                 state[f.name] = f.default_factory()
+            else:
+                # デフォルト値を持たない必須フィールド(name/x_col_name/y_col_name)が
+                # 欠けている場合、黙って未設定のままにすると後で無関係な箇所での
+                # AttributeError として現れ原因が分かりにくくなる。壊れた/手編集された
+                # .graphicaファイルであることが明確になるよう、この場でエラーにする。
+                raise ValueError(
+                    f"Datasetの復元に失敗しました: 必須フィールド '{f.name}' がありません。"
+                    "壊れているか、対応していない形式のファイルの可能性があります。"
+                )
         obj.__dict__.update(state)
         return obj
 
@@ -266,6 +275,7 @@ class Dataset:
         return {
             'columns': list(df.columns),
             'index': list(df.index),
+            'index_dtype': str(df.index.dtype),
             'data': data,
             'dtypes': dtypes,
         }
@@ -277,8 +287,18 @@ class Dataset:
         index = d.get('index', [])
         data = d.get('data', {})
         dtypes = d.get('dtypes', {})
+        index_dtype = d.get('index_dtype')
 
         df = pd.DataFrame(index=index)
+        if index_dtype:
+            # ★ 0行のDataFrameは index=[] から素のIndexを作ると dtype が
+            # 'object' になり、元(RangeIndex/int64等)と食い違うため明示的に揃える。
+            # 行が1件以上あれば通常pandasが値からdtypeを正しく推定するため
+            # 実害は出ないが、この境界条件を含めて常に明示しておく。
+            try:
+                df.index = df.index.astype(index_dtype)
+            except (TypeError, ValueError):
+                pass
         for col in columns:
             col_data = data.get(col, [])
             dtype_str = dtypes.get(col)
