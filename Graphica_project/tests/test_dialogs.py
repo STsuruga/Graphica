@@ -41,14 +41,16 @@ def test_new_dataset_dialog_no_column_names_returns_empty_list():
 
 # --- PreferencesDialog (項目: オートセーブ保存先の指定) ---
 
-def test_preferences_dialog_get_settings_returns_four_tuple():
+def test_preferences_dialog_get_settings_returns_five_tuple():
     dlg = PreferencesDialog(dark_mode=True, autosave_minutes=10,
-                             current_language="en", autosave_dir="/tmp/foo")
-    dark_mode, minutes, lang, autosave_dir = dlg.get_settings()
+                             current_language="en", autosave_dir="/tmp/foo",
+                             point_label_max_points=2000)
+    dark_mode, minutes, lang, autosave_dir, point_label_max = dlg.get_settings()
     assert dark_mode is True
     assert minutes == 10
     assert lang == "en"
     assert autosave_dir == "/tmp/foo"
+    assert point_label_max == 2000
 
 
 def test_preferences_dialog_defaults_to_empty_autosave_dir():

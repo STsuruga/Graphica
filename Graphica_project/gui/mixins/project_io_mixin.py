@@ -11,6 +11,7 @@ import logging
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 
 from gui.dialogs import PreferencesDialog
+from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 from core.i18n import tr, get_language
 
 logger = logging.getLogger(__name__)
@@ -69,15 +70,19 @@ class ProjectIOMixin:
         current_minutes = (self.autosave_timer.interval() // 60000) if self.autosave_timer.isActive() else 0
         current_language = self.settings.value("language", get_language())
         current_autosave_dir = self.settings.value("autosave_dir", "", type=str)
+        current_point_label_max = self.settings.value(
+            "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
         dlg = PreferencesDialog(
             self.canvas.dark_mode, current_minutes,
             autosave_bounds=AUTOSAVE_INTERVAL_MIN_BOUNDS, parent=self,
-            current_language=current_language, autosave_dir=current_autosave_dir
+            current_language=current_language, autosave_dir=current_autosave_dir,
+            point_label_max_points=current_point_label_max
         )
         if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
             return
 
-        new_dark_mode, new_autosave_minutes, new_language, new_autosave_dir = dlg.get_settings()
+        (new_dark_mode, new_autosave_minutes, new_language,
+         new_autosave_dir, new_point_label_max) = dlg.get_settings()
 
         # オートセーブの保存先フォルダ(項目: 環境設定からオートセーブ保存先を指定可能に)
         if new_autosave_dir != current_autosave_dir:
@@ -93,6 +98,13 @@ class ProjectIOMixin:
 
         if new_autosave_minutes != current_minutes:
             self._apply_autosave_interval(new_autosave_minutes)
+
+        # データ点ラベルの表示上限(項目105): 変更されたら即座にキャンバスへ反映し、
+        # 現在表示中のグラフにも(上限を超えるデータセットがあれば)反映されるよう再描画する
+        if new_point_label_max != current_point_label_max:
+            self.settings.setValue("point_label_max_points", new_point_label_max)
+            self.canvas.point_label_max_points = new_point_label_max
+            self._update_plot()
 
         # UIの多言語対応(項目41): 実行中のウィジェットをその場で再翻訳する仕組みは
         # 持たないため、設定の保存のみ行い、反映は次回起動時になる旨を案内する。

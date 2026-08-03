@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 #   境界の丸め誤差でそこに接触しないよう、余裕を持たせた値にしている。
 MAX_TICKS_PER_AXIS = 500
 
+# データ点ラベル表示(各点の脇にテキストを描画)は、点数が多いと
+# ax.annotate() の呼び出し回数がそのまま増えてアプリがフリーズする原因になるため、
+# この件数を超えるデータセットには自動的にラベルを描画しない。
+# 環境設定ダイアログで変更可能 (main_window.py が起動時/変更時に
+# self.point_label_max_points へ反映する)。
+DEFAULT_POINT_LABEL_MAX_POINTS = 1000
+
 
 def _apply_legend_order(lines, labels, order):
     """
@@ -115,6 +122,8 @@ class MplCanvas(FigureCanvas):
         # 各軸のX軸データが文字列カテゴリかどうか (数値専用の軸設定を無視するために使用)
         self.axis_is_category_x = []
         self.dark_mode = False # ダークモードが有効かどうか (main_windowから設定される)
+        # データ点ラベルを描画する点数の上限(main_windowから環境設定に基づいて設定される)
+        self.point_label_max_points = DEFAULT_POINT_LABEL_MAX_POINTS
         # 自由なテキスト注釈・矢印の描画済みArtistを軸インデックスごとに保持する。
         # update_appearance_only では fig.clf() を行わないため、再描画のたびに
         # 前回分を明示的に削除してから描き直さないと注釈が重複してしまう。
@@ -357,7 +366,10 @@ class MplCanvas(FigureCanvas):
 
             # ★ データポイントラベル (各点の脇にY値、または指定列の値を表示)
             # 平滑化が有効な場合でも、ラベルは元のデータ点の位置に表示する。
-            if ds.show_point_labels:
+            # 点数が point_label_max_points を超える場合は、フリーズ防止のため描画しない
+            # (ダイアログ側で有効化時に確認ポップアップを出しているが、これは別プロジェクトの
+            #  読み込みなど確認を経ないケースも含めて描画時にも必ず効くようにするための保険)。
+            if ds.show_point_labels and len(ds.visible_df) <= self.point_label_max_points:
                 self._draw_point_labels(target_ax, ds)
 
     def set_highlighted_points(self, dataset, master_indices):

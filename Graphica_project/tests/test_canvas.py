@@ -4,12 +4,15 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import pandas as pd
 import pytest
 
 from gui.canvas import (
     _apply_legend_order, _safe_multiple_locator,
     _sci_each_formatter, _apply_tick_format_mode,
+    MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
 )
+from core.dataset import Dataset
 
 
 # --- _apply_legend_order ---
@@ -110,3 +113,37 @@ def test_apply_tick_format_mode_always_plain(axis):
     formatter.set_locs([1e8, 2e8, 3e8])
     label = formatter(2e8)
     assert "10^" not in label
+
+
+# --- データ点ラベルの表示上限(項目105: 大量データでのフリーズ防止) ---
+
+def _make_dataset(n_points, show_point_labels=True):
+    df = pd.DataFrame({"x": range(n_points), "y": range(n_points)})
+    return Dataset(name="d", df=df, x_col_name="x", y_col_name="y",
+                    show_point_labels=show_point_labels)
+
+
+@pytest.fixture
+def canvas():
+    c = MplCanvas(width=4, height=3, dpi=80)
+    yield c
+    plt.close(c.fig)
+
+
+def test_point_labels_drawn_when_within_limit(canvas):
+    canvas.point_label_max_points = 100
+    ds = _make_dataset(10)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert len(canvas.all_axes[0].texts) == 10
+
+
+def test_point_labels_skipped_when_over_limit(canvas):
+    """点数がpoint_label_max_pointsを超えるデータセットには、フリーズ防止のためラベルを描画しない"""
+    canvas.point_label_max_points = 5
+    ds = _make_dataset(10)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert len(canvas.all_axes[0].texts) == 0
+
+
+def test_point_labels_default_limit_matches_module_constant(canvas):
+    assert canvas.point_label_max_points == DEFAULT_POINT_LABEL_MAX_POINTS

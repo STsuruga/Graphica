@@ -146,7 +146,9 @@ class UISetupMixin:
             self.ui.markersize_spinbox.valueChanged.connect(self._on_property_changed)
             self.ui.smoothing_checkbox.stateChanged.connect(self._on_property_changed)
             self.alpha_spinbox.valueChanged.connect(self._on_property_changed)
-            self.point_labels_checkbox.stateChanged.connect(self._on_property_changed)
+            # 項目105: ラベル有効化時、データ点が多いと確認ポップアップを挟むための
+            # 専用ハンドラ経由にする(_on_property_changedへは内部で委譲される)
+            self.point_labels_checkbox.toggled.connect(self._on_point_labels_toggled)
             self.point_label_col_combo.currentTextChanged.connect(self._on_property_changed)
 
             self.fit_curve_button.clicked.connect(self._on_fit_curve)

@@ -31,6 +31,7 @@ from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog)
 from gui.dataset_style_icon import make_dataset_style_icon
+from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 
 logger = logging.getLogger(__name__)
 
@@ -690,6 +691,41 @@ class DatasetMixin:
             {'name': new_name},
             description="凡例名の変更"
         )
+
+    def _on_point_labels_toggled(self, checked):
+        """
+        「データ点にラベルを表示」チェックボックスが切り替えられたときの処理(項目105)。
+        データ点が多いデータセットにラベルを表示すると、点の数だけ ax.annotate() が
+        呼ばれるため描画が重くなり、アプリがフリーズする場合がある。有効化しようと
+        しているときに、選択中データセットの点数が環境設定の上限を超えていれば、
+        確認ポップアップを表示し、キャンセルされたらチェックボックスを元に戻して
+        プロパティ変更自体を行わない(この場合 _on_property_changed は呼ばない)。
+        無効化(OFF)にする場合や、点数が上限以内の場合は、そのまま通常の
+        プロパティ変更処理(_on_property_changed、self.sender()で判定)に進む。
+        """
+        if checked:
+            selected_datasets = self._get_selected_datasets()
+            max_points = self.settings.value(
+                "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
+            over_limit = [ds for ds in selected_datasets if len(ds.visible_df) > max_points]
+            if over_limit:
+                max_count = max(len(ds.visible_df) for ds in over_limit)
+                reply = QMessageBox.question(
+                    self, "データ点ラベルの表示",
+                    f"選択中のデータセットには最大{max_count}件のデータ点があります"
+                    f"(環境設定の上限: {max_points}件)。\n"
+                    "データ点が多い状態でラベルを表示すると、描画が遅くなったり"
+                    "アプリがフリーズする場合があります。\n\nラベルを表示しますか？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    self.point_labels_checkbox.blockSignals(True)
+                    self.point_labels_checkbox.setChecked(False)
+                    self.point_labels_checkbox.blockSignals(False)
+                    return
+
+        self._on_property_changed()
 
     def _on_property_changed(self):
         """

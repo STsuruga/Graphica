@@ -108,7 +108,7 @@ from ui_main_window import Ui_MainWindow
 
 # --- 自分で分割したモジュール ---
 from core.dataset import Dataset
-from gui.canvas import MplCanvas
+from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.theme import apply_form_spacing
 from gui.workers import DataLoadWorker
 from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
@@ -359,6 +359,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
         # ダークモード設定を復元 (QApplication側の配色は _create_menu_bar で適用する)
         self.canvas.dark_mode = self.settings.value("dark_mode", False, type=bool)
+        # データ点ラベルの表示上限(環境設定、項目105: 大量データでのフリーズ防止)
+        self.canvas.point_label_max_points = self.settings.value(
+            "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
         # Matplotlib 標準のナビゲーションツールバーを作成
         toolbar = NavigationToolbar(self.canvas, self)
         # ★ バグ修正: このツールバーはQMainWindowのツールバー領域ではなく
@@ -411,6 +414,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.layout_edit_action.setEnabled(False)
         self.layout_edit_action.triggered.connect(self._toggle_layout_edit_mode)
         toolbar.addAction(self.layout_edit_action)
+
+        # ★ 統計情報ボタン(項目106)はこの時点ではまだ self.stats_summary_label が
+        #   存在しないため、それが作られた後のセクションでこの `toolbar` 変数を
+        #   使って追加する(__init__の同じメソッドスコープ内なので参照可能)。
 
         # Designer で用意した plot_container (おそらく QWidget) にレイアウトを作成
         # 項目72: キャンバス周りに余白とセパレーターを設け、書式パネルの並びとの
@@ -593,11 +600,39 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.fit_info_textedit.setFixedHeight(100) # 高さを固定
         self.ui.formLayout_4.addRow(self.fit_info_label, self.fit_info_textedit)
 
-        # 4b. 統計サマリー表示用のUI追加 (選択中データセットのY列の要約統計量)
+        # 4b. 統計サマリー表示用のUI (項目106: 以前は「データセットのプロパティ」に
+        #     常時1行を占有していたが、常に使う情報ではないため、ツールバーの
+        #     アイコンボタンから必要な時だけポップアップで参照できる方式に変更した。
+        #     _update_stats_summary_label (dataset_mixin.py) は選択中データセットが
+        #     変わるたびにこのラベルのテキストを更新し続ける(ポップアップが
+        #     閉じている間も)。
         self.stats_summary_label = QLabel("-")
         self.stats_summary_label.setWordWrap(True)
         self.stats_summary_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.ui.formLayout_4.addRow("統計 (Y列):", self.stats_summary_label)
+
+        self.stats_toolbar_button = QToolButton()
+        self.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
+        self.stats_toolbar_button.setToolTip(tr("統計情報 (選択中データセットのY列の要約統計量)"))
+        self.stats_toolbar_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+
+        stats_popup = QWidget()
+        stats_popup_layout = QVBoxLayout(stats_popup)
+        stats_popup_layout.setContentsMargins(10, 8, 10, 8)
+        stats_popup_title = QLabel(tr("統計 (Y列)"))
+        stats_popup_title_font = QFont(stats_popup_title.font())
+        stats_popup_title_font.setBold(True)
+        stats_popup_title.setFont(stats_popup_title_font)
+        stats_popup_layout.addWidget(stats_popup_title)
+        self.stats_summary_label.setMinimumWidth(260)
+        stats_popup_layout.addWidget(self.stats_summary_label)
+
+        stats_menu = QMenu(self.stats_toolbar_button)
+        stats_widget_action = QWidgetAction(self.stats_toolbar_button)
+        stats_widget_action.setDefaultWidget(stats_popup)
+        stats_menu.addAction(stats_widget_action)
+        self.stats_toolbar_button.setMenu(stats_menu)
+        toolbar.addSeparator()
+        toolbar.addWidget(self.stats_toolbar_button)
 
         # 5. 第2Y軸チェックボックスを追加
         self.use_secondary_y_checkbox = QCheckBox("第2Y軸 (右側) を使用")
