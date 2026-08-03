@@ -253,6 +253,54 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
     color: {text_muted};
     background: {surface_2};
 }}
+
+/* --- スピンボックスの上下ボタン(GUI洗練) ---
+   何も指定しないと、OSネイティブ(Fusion)の凹凸のある古風なボタンになって
+   しまうため、他の入力欄と統一感のあるフラットな見た目にする。ホイールでの
+   値変更は無効化しているため、この上下ボタンがマウスでの主な操作手段になる。 */
+QSpinBox, QDoubleSpinBox {{
+    padding-right: 18px;
+}}
+QSpinBox::up-button, QDoubleSpinBox::up-button {{
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 16px;
+    height: 11px;
+    border: none;
+    border-left: 1px solid {border};
+    background: transparent;
+    border-top-right-radius: 5px;
+}}
+QSpinBox::down-button, QDoubleSpinBox::down-button {{
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 16px;
+    height: 11px;
+    border: none;
+    border-left: 1px solid {border};
+    border-top: 1px solid {border};
+    background: transparent;
+    border-bottom-right-radius: 5px;
+}}
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
+    background: {surface_2};
+}}
+QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
+QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
+    background: {accent_soft};
+}}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow,
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
+    width: 7px;
+    height: 7px;
+}}
+QSpinBox::up-button:disabled, QDoubleSpinBox::up-button:disabled,
+QSpinBox::down-button:disabled, QDoubleSpinBox::down-button:disabled {{
+    background: transparent;
+    border-left-color: {border};
+}}
+
 QComboBox::drop-down {{
     border: none;
     width: 20px;

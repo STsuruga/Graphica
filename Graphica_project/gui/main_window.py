@@ -333,6 +333,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         self.ui.control_dock_widget.setFixedWidth(CONTROL_DOCK_WIDTH) # 右側パネルの幅を固定
 
+        # ★ GUI洗練: 中央ウィジェットのgridLayout_2は、どの行にも明示的な
+        #   stretch指定が無かったため、ウィンドウの余った縦スペースがキャンバス行(1)と
+        #   データセットリスト行(2)に均等に配分されてしまい、データセットが少ない時に
+        #   リストの下に大きな空白ができていた(旧properties_groupbox用の行5が
+        #   プロパティドックへ移動して空になった分の余白も、キャンバスではなく
+        #   リスト側に流れ込んでいた)。余ったスペースは常にキャンバスへ優先的に
+        #   割り当てるようにする。
+        self.ui.gridLayout_2.setRowStretch(1, 1)  # プロットキャンバス: 余白を優先的に受け取る
+        self.ui.gridLayout_2.setRowStretch(2, 0)  # データセットリスト: 内容に応じた高さのみ
+        self.ui.gridLayout_2.setRowStretch(3, 0)  # 操作ボタン行: 内容に応じた高さのみ
+
 
         # --- 4. Matplotlib キャンバスとツールバーの組み込み ---
 
@@ -1247,6 +1258,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         tree.setDefaultDropAction(Qt.DropAction.MoveAction)
         tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        # ★ GUI洗練: gridLayout_2の行stretchを0にした(キャンバスへ余白を譲る)ため、
+        #   このリストはsizeHint任せだと窮屈すぎる高さまで縮む可能性がある。
+        #   データが2〜3件程度でも下に大きな空白ができない程度の高さを確保する。
+        tree.setMinimumHeight(90)
         container_layout.addWidget(tree)
 
         # 項目69: リストとボタン行の間の余白を、選択中データセットのミニ統計で埋める
