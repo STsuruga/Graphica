@@ -32,8 +32,7 @@ TRANSLATIONS = {
 
     # --- メニューバー: 表示 ---
     "表示(&V)": "&View",
-    "プロット制御パネル": "Plot Control Panel",
-    "データセットプロパティ": "Dataset Properties",
+    "プロパティパネル": "Properties Panel",
     "エクスポートプレビュー": "Export Preview",
     "ダークモード": "Dark Mode",
 

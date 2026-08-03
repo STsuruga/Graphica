@@ -57,8 +57,6 @@ def _enable_scientific_notation_input(spin_box, minimum, maximum, single_step=0.
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
 CONTROL_DOCK_WIDTH = 440  # 項目68/61: フィールドの見切れ解消のため実測ベースで拡幅(旧350px→380px→400px→440px)
-CONTROL_DOCK_INITIAL_HEIGHT = 500  # 項目: データセットのプロパティが窮屈だったため500/300→500/500に再配分
-PROPERTIES_DOCK_INITIAL_HEIGHT = 500
 EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT = 340  # エクスポートプレビューを下部ドックに分離した際の初期高さ
 SPIN_BOX_MAX_DECIMALS = 16
 
@@ -67,7 +65,7 @@ SPIN_BOX_MAX_DECIMALS = 16
 # 異なる場合、保存済みの window_state を復元せず新しい既定配置を優先する
 # (そうしないと、restoreState() で常に旧配置が復元され続け、コード側で
 # デフォルトのドック配置を変えても既存ユーザーには反映されない)。
-DOCK_LAYOUT_VERSION = 3  # v3: エクスポートプレビューを既定でフローティングの独立ウィンドウに変更
+DOCK_LAYOUT_VERSION = 4  # v4: 「プロットのプロパティ」「データセットのプロパティ」を1つのドックに統合
 
 # グラフ内テキスト(目盛り・軸ラベル・凡例)の既定フォント。
 # アプリのUIフォント(main.py の APP_FONT_FAMILIES)とは意図的に別系統にしている:
@@ -262,7 +260,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         icon_path = resource_path("Graphica.ico")
         self.setWindowIcon(QIcon(icon_path))
         # Designer で作成したドックウィジェット (右側のパネル) をメインウィンドウに追加
-        self.ui.control_dock_widget.setWindowTitle(tr("プロットのプロパティ"))
+        # (タイトルは、後段でプロパティ/データセットの2セクションを統合する際に
+        #  tr("プロパティ") へ設定し直す)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.control_dock_widget)
 
         # --- 2. 状態変数の初期化 ---
@@ -695,39 +694,47 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.subplot_target_combo = QComboBox()
         self.ui.formLayout_4.addRow(self.subplot_target_label, self.subplot_target_combo)
 
-        # 2. ★ Designer 上の「プロパティ」グループボックスを、
-        #    新しい「タブ付きドックウィジェット」に移動させる
-        self.properties_dock_widget = QDockWidget(tr("データセットのプロパティ"), self)
-        self.properties_dock_widget.setObjectName("PropertiesDockWidget")
+        # 2. ★ GUI洗練: 「プロットのプロパティ」(control_dock_widget) と
+        #    「データセットのプロパティ」(properties_groupbox) は、以前は別々の
+        #    QDockWidgetとして右側に縦積みされていた。それぞれが独自のOS標準
+        #    タイトルバー(フロート/閉じるアイコン付き)を持つため、右パネルが
+        #    「継ぎ目のある2枚の箱」に見えてしまっていた。
+        #    1つのドックの中に、見出し付きグループボックス2つを縦に並べる形に
+        #    まとめることで、1枚のカードのように見せる
+        #    (QDockWidget内のQGroupBoxは、theme.pyで枠なし・プレーンな見出しに
+        #    スタイルされている)。
+        #
+        #    self.properties_dock_widget は control_dock_widget のエイリアスとして
+        #    残す (表示メニュー等、他のコードから同名で参照される箇所があるため)。
+        self.properties_dock_widget = self.ui.control_dock_widget
+        self.ui.control_dock_widget.setWindowTitle(tr("プロパティ"))
 
-        # 3. ★ self.ui.properties_groupbox を、元の親から切り離し、
-        #    新しいドックウィジェット (properties_dock_widget) の子に設定
-        self.properties_dock_widget.setWidget(self.ui.properties_groupbox)
-
-        # 4. 新しいドックウィジェットを、メインウィンドウの右側
-        #    (元の control_dock_widget と同じ場所) に追加
-        #    -> これにより、2つのドックが「タブ」として表示される
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_dock_widget)
-
-        # --- Control Dock の中身を ScrollArea に入れる ---
+        # 2a. 「プロットのプロパティ」セクション: 既存のdockWidgetContents
+        #     (目盛/書式/ラベルタブなど) を、見出し付きグループボックスで包み直す
         original_control_widget = self.ui.control_dock_widget.widget()
+        plot_properties_group = QGroupBox(tr("プロットのプロパティ"))
+        plot_properties_layout = QVBoxLayout(plot_properties_group)
+        plot_properties_layout.setContentsMargins(0, 4, 0, 0)
         if original_control_widget:
-             control_scroll_area = QScrollArea()
-             control_scroll_area.setWidgetResizable(True)
-             control_scroll_area.setWidget(original_control_widget)
-             self.ui.control_dock_widget.setWidget(control_scroll_area)
+            plot_properties_layout.addWidget(original_control_widget)
         else:
-             logger.warning("control_dock_widget の中身が見つかりません。")
+            logger.warning("control_dock_widget の中身が見つかりません。")
 
-        # --- Properties Dock の中身を ScrollArea に入れる ---
-        original_properties_widget = self.properties_dock_widget.widget()
-        if original_properties_widget:
-             properties_scroll_area = QScrollArea()
-             properties_scroll_area.setWidgetResizable(True)
-             properties_scroll_area.setWidget(original_properties_widget)
-             self.properties_dock_widget.setWidget(properties_scroll_area)
-        else:
-             logger.warning("properties_dock_widget の中身が見つかりません。")
+        # 2b. 「データセットのプロパティ」セクション: properties_groupbox は
+        #     すでに自身のタイトルを持つグループボックスなので、そのまま使う
+        self.ui.properties_groupbox.setTitle(tr("データセットのプロパティ"))
+
+        # 2c. 2つのセクションを1本の縦スクロールにまとめ、1つのドックに収める
+        merged_properties_container = QWidget()
+        merged_properties_layout = QVBoxLayout(merged_properties_container)
+        merged_properties_layout.addWidget(self.ui.properties_groupbox)
+        merged_properties_layout.addWidget(plot_properties_group)
+        merged_properties_layout.addStretch()
+
+        merged_scroll_area = QScrollArea()
+        merged_scroll_area.setWidgetResizable(True)
+        merged_scroll_area.setWidget(merged_properties_container)
+        self.ui.control_dock_widget.setWidget(merged_scroll_area)
 
         # 2b. ★ 常時表示のエクスポートプレビューパネル (右側ドックに3つ目のタブとして追加)
         #    設定(サイズ・DPI)を変更するたびに自動でプレビューを更新し、
@@ -890,11 +897,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         if not state_restored:
             try:
-                self.resizeDocks(
-                    [self.ui.control_dock_widget, self.properties_dock_widget], # 上側のドック, 下側のドック
-                    [CONTROL_DOCK_INITIAL_HEIGHT, PROPERTIES_DOCK_INITIAL_HEIGHT], # 各ドックの初期の高さ (合計値に意味はない、比率が重要)
-                    Qt.Orientation.Vertical # 高さを指定するため Vertical
-                )
+                # ★ 「プロットのプロパティ」「データセットのプロパティ」は1つのドックに
+                #   統合したため、もう互いの高さ比率を指定する必要はない
+                #   (ドック自体がRightDockWidgetAreaの高さいっぱいに広がる)。
                 self.resizeDocks(
                     [self.export_preview_dock_widget],
                     [EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT],

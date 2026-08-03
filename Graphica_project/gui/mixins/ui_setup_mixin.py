@@ -277,14 +277,13 @@ class UISetupMixin:
             self._view_menu = view_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
 
             # QDockWidget が持つ標準の「表示/非表示」アクションを取得
+            # ★ GUI洗練: 「プロットのプロパティ」「データセットのプロパティ」は
+            #   1つのドック(self.ui.control_dock_widget、内部で2セクションに分割)に
+            #   統合したため、表示メニューの項目も1つにまとめる
+            #   (properties_dock_widget は control_dock_widget のエイリアス)
             dock_widget_action = self.ui.control_dock_widget.toggleViewAction()
-            dock_widget_action.setText(tr("プロット制御パネル")) # メニューに表示される名前を設定
+            dock_widget_action.setText(tr("プロパティパネル")) # メニューに表示される名前を設定
             view_menu.addAction(dock_widget_action)
-
-            # ★ (__init__ で作成した properties_dock_widget も同様に追加可能)
-            properties_dock_action = self.properties_dock_widget.toggleViewAction()
-            properties_dock_action.setText(tr("データセットプロパティ"))
-            view_menu.addAction(properties_dock_action)
 
             # 常時表示のエクスポートプレビューパネル (デフォルトは非表示)
             export_preview_dock_action = self.export_preview_dock_widget.toggleViewAction()
