@@ -3,7 +3,7 @@
 
 ダイアログ自体のexec()(モーダル表示)は呼ばず、値の設定・取得ロジックのみを検証する。
 """
-from gui.dialogs import NewDatasetDialog, PreferencesDialog
+from gui.dialogs import NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog
 
 
 # --- NewDatasetDialog (項目63: 空のテーブルから新規データセットを作成) ---
@@ -67,3 +67,22 @@ def test_preferences_dialog_clear_autosave_dir_resets_to_empty():
 
     assert dlg.get_settings()[3] == ""
     assert dlg.autosave_dir_edit.text() == ""
+
+
+# --- 背景透過オプション(項目108) ---
+
+def test_export_dialog_transparent_defaults_true_and_reflected_in_options():
+    dlg = ExportDialog()
+    assert dlg.transparent_checkbox.isChecked() is True
+    assert dlg.get_options()["transparent"] is True
+
+    dlg.transparent_checkbox.setChecked(False)
+    assert dlg.get_options()["transparent"] is False
+
+
+def test_batch_export_dialog_transparent_defaults_true_and_reflected_in_options():
+    dlg = BatchExportDialog(subplot_count=2)
+    assert dlg.get_common_options()["transparent"] is True
+
+    dlg.transparent_checkbox.setChecked(False)
+    assert dlg.get_common_options()["transparent"] is False

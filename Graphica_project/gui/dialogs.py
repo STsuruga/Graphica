@@ -891,6 +891,11 @@ class ExportDialog(QDialog):
         self.dpi_spinbox.setValue(300)      # デフォルト値 300 (印刷用途を想定)
         self.dpi_spinbox.setSuffix(" dpi")  # " dpi" という接尾辞を表示
 
+        # 背景の透過(項目108): 以前は常にtransparent=Trueで固定していたが、
+        # スライド資料等で背景色を保ちたい場合もあるため選択可能にする
+        self.transparent_checkbox = QCheckBox("背景を透過")
+        self.transparent_checkbox.setChecked(True)
+
         # --- プレビュー関連 ---
         self.preview_button = QPushButton("プレビュー更新")
         self.preview_button.setToolTip("現在の設定でプレビュー画像を生成します。")
@@ -915,6 +920,7 @@ class ExportDialog(QDialog):
         form_layout.addRow("高さ", self.height_spinbox)
         form_layout.addRow("単位", self.unit_combo)
         form_layout.addRow("解像度", self.dpi_spinbox)
+        form_layout.addRow(self.transparent_checkbox)
 
         # 2. 全体をまとめる垂直レイアウト
         main_layout = QVBoxLayout()
@@ -938,7 +944,8 @@ class ExportDialog(QDialog):
             "width": self.width_spinbox.value(),
             "height": self.height_spinbox.value(),
             "unit": self.unit_combo.currentText(),
-            "dpi": self.dpi_spinbox.value()
+            "dpi": self.dpi_spinbox.value(),
+            "transparent": self.transparent_checkbox.isChecked(),
         }
 
 
@@ -2004,6 +2011,10 @@ class BatchExportDialog(QDialog):
         self.dpi_spinbox.setSuffix(" dpi")
         form.addRow("解像度(ラスター形式時)", self.dpi_spinbox)
 
+        self.transparent_checkbox = QCheckBox("背景を透過")
+        self.transparent_checkbox.setChecked(True)
+        form.addRow(self.transparent_checkbox)
+
         layout.addLayout(form)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -2050,6 +2061,7 @@ class BatchExportDialog(QDialog):
             'prefix': self.prefix_edit.text().strip() or "export",
             'format': self.format_combo.currentText().lower(),
             'dpi': self.dpi_spinbox.value(),
+            'transparent': self.transparent_checkbox.isChecked(),
         }
 
 

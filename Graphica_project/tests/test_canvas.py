@@ -147,3 +147,37 @@ def test_point_labels_skipped_when_over_limit(canvas):
 
 def test_point_labels_default_limit_matches_module_constant(canvas):
     assert canvas.point_label_max_points == DEFAULT_POINT_LABEL_MAX_POINTS
+
+
+# --- SVGエクスポートでのテキスト保持(項目108) ---
+# エクスポート/コピー機能は matplotlib.rc_context({'svg.fonttype': 'none'}) を
+# 一時的に適用してからSVGを書き出すことで、目盛りの数字や凡例の文字を
+# パス(図形)ではなく実際のテキスト要素として出力する。ここではその根幹の
+# 仕組み(rc_contextの効果)を、実際に使われるMplCanvasの描画結果で検証する。
+
+def test_svg_export_default_fonttype_does_not_preserve_text_elements(canvas):
+    """デフォルト(svg.fonttype='path')では、ラベル文字は<text>要素として出力されない"""
+    import io
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.all_axes[0].set_title("Sample Title")
+
+    buf = io.BytesIO()
+    canvas.fig.savefig(buf, format="svg")
+    svg_text = buf.getvalue().decode("utf-8")
+    assert "<text" not in svg_text
+
+
+def test_svg_export_with_fonttype_none_preserves_text_elements(canvas):
+    """svg.fonttype='none'を適用すると、タイトル等の文字が<text>要素として出力される"""
+    import io
+    import matplotlib as mpl
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.all_axes[0].set_title("Sample Title")
+
+    buf = io.BytesIO()
+    with mpl.rc_context({"svg.fonttype": "none"}):
+        canvas.fig.savefig(buf, format="svg")
+    svg_text = buf.getvalue().decode("utf-8")
+    assert "<text" in svg_text

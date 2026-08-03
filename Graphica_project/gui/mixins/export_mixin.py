@@ -7,6 +7,7 @@ import io
 import os
 import dataclasses
 import logging
+import matplotlib as mpl
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPainter
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox
@@ -137,11 +138,20 @@ class ExportMixin:
         QMessageBox.information(self, "バッチエクスポート完了", message)
 
     def _save_figure_with_options(self, fig, out_path, options):
-        """savefigのkwargsを、既存の単発エクスポートと同じ方針(透過背景・bbox_inches='tight')で組み立てて保存する"""
-        save_kwargs = {'transparent': True, 'bbox_inches': 'tight'}
+        """
+        savefigのkwargsを、既存の単発エクスポートと同じ方針(bbox_inches='tight')で組み立てて保存する。
+        透過背景の有無は options['transparent'] に従う(項目108、未指定時は従来どおりTrue)。
+        SVG形式では svg.fonttype='none' を一時的に適用し、目盛りの数字や凡例の文字が
+        パスではなくテキストとして出力されるようにする。
+        """
+        save_kwargs = {'transparent': options.get('transparent', True), 'bbox_inches': 'tight'}
         if options['format'] not in ('pdf', 'svg'):
             save_kwargs['dpi'] = options['dpi']
-        fig.savefig(out_path, **save_kwargs)
+        if options['format'] == 'svg':
+            with mpl.rc_context({'svg.fonttype': 'none'}):
+                fig.savefig(out_path, **save_kwargs)
+        else:
+            fig.savefig(out_path, **save_kwargs)
 
     def _batch_export_subplots(self, indices, options):
         """
@@ -254,13 +264,12 @@ class ExportMixin:
                 self.canvas.fig.set_size_inches(width_in, height_in)
 
                 # 9. savefig を実行 (DPIも指定)
-                #    (transparent=True など、他のオプションもここに追加可能)
                 try:
                     # ファイルパスの拡張子を取得 (小文字に変換)
                     file_ext = os.path.splitext(file_path)[1].lower()
 
-                    # (オプション: 背景を透明にする)
-                    save_kwargs = {'transparent': True}
+                    # 背景の透過(項目108): ExportDialogのチェックボックスに従う
+                    save_kwargs = {'transparent': options.get('transparent', True)}
                     save_kwargs['bbox_inches'] = 'tight'
 
                     # ベクター形式 (pdf, svg) の場合は dpi を指定しない
@@ -270,7 +279,13 @@ class ExportMixin:
                         # ラスター形式 (png など) の場合は dpi を指定
                         save_kwargs['dpi'] = options["dpi"]
 
-                    self.canvas.fig.savefig(file_path, **save_kwargs)
+                    # SVG形式では目盛りの数字・凡例の文字をパスではなくテキストとして
+                    # 出力する(項目108: 編集ソフトでの再編集・検索性を確保するため)
+                    if file_ext == '.svg':
+                        with mpl.rc_context({'svg.fonttype': 'none'}):
+                            self.canvas.fig.savefig(file_path, **save_kwargs)
+                    else:
+                        self.canvas.fig.savefig(file_path, **save_kwargs)
                 except Exception as e:
                     QMessageBox.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
                 finally:
