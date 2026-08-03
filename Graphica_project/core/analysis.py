@@ -6,6 +6,46 @@ from scipy.signal import find_peaks
 
 CURVE_FIT_MAX_ITERATIONS = 5000
 
+# --- プラグインが追加するカーブフィット関数のレジストリ ---
+# {name: {"func": f(x, *params), "params": [param_name, ...], "p0": [float,...] | callable | None}}
+# core/plugin_api.py の GraphicaPluginAPI.register_fit_function() 経由で登録される。
+_PLUGIN_FIT_FUNCTIONS = {}
+
+# calculate_curve_fit() の組み込みフィットタイプ判定(部分一致)で使われる文字列。
+# register_fit_function() が組み込み名と衝突する名前を弾くためのチェックにも使う。
+_BUILTIN_FIT_TYPE_SUBSTRINGS = (
+    "カスタム数式", "線形", "2次多項式", "3次多項式", "指数関数",
+    "対数", "べき乗", "ガウシアン", "シグモイド",
+)
+
+
+def register_fit_function(name, func, param_names, p0=None):
+    """
+    プラグインから、カーブフィットの選択肢に新しい関数を追加する。
+
+    Args:
+        name (str): フィットタイプ名(組み込みのフィットタイプ名や既存の
+            プラグイン名と重複してはならない)。
+        func (callable): f(x, *params) 形式の関数。
+        param_names (list[str]): パラメータ名のリスト。
+        p0 (list[float] | callable | None): 初期値、または
+            (x_data, y_data) -> list[float] を返す関数。省略時は全て1.0。
+    """
+    if not name or not name.strip():
+        raise ValueError("フィット関数名が空です。")
+    if name in _BUILTIN_FIT_TYPE_SUBSTRINGS:
+        raise ValueError(f"'{name}' は組み込みのフィットタイプ名と衝突します。")
+    if name in _PLUGIN_FIT_FUNCTIONS:
+        raise ValueError(f"フィット関数 '{name}' は既に登録されています。")
+    if not param_names:
+        raise ValueError("param_names が空です。")
+    _PLUGIN_FIT_FUNCTIONS[name] = {"func": func, "params": list(param_names), "p0": p0}
+
+
+def get_plugin_fit_type_names():
+    """プラグインが登録したフィットタイプ名の一覧を返す(UIのコンボボックス表示用)"""
+    return list(_PLUGIN_FIT_FUNCTIONS.keys())
+
 # --- カスタム数式で使用可能な関数・定数 (evalに渡す安全な名前空間) ---
 # 任意コード実行を防ぐため、__builtins__ を空にした上でこれらのみを許可する。
 _SAFE_FORMULA_NAMESPACE = {
@@ -111,6 +151,17 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None):
         fit_func, params_info = sigmoid_func, ['a', 'b', 'c']
         amplitude = np.nanmax(y_data) or 1.0
         p0 = [amplitude, 1.0, np.nanmean(x_data)]
+    elif fit_type in _PLUGIN_FIT_FUNCTIONS:
+        # プラグインが register_fit_function() で追加したフィット関数
+        plugin_entry = _PLUGIN_FIT_FUNCTIONS[fit_type]
+        fit_func, params_info = plugin_entry["func"], plugin_entry["params"]
+        plugin_p0 = plugin_entry["p0"]
+        if callable(plugin_p0):
+            p0 = list(plugin_p0(x_data, y_data))
+        elif plugin_p0 is not None:
+            p0 = list(plugin_p0)
+        else:
+            p0 = [1.0] * len(params_info)
     else:
         raise ValueError(f"不明なフィットタイプ: {fit_type}")
 

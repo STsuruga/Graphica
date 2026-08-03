@@ -36,6 +36,9 @@ TRANSLATIONS = {
     "エクスポートプレビュー": "Export Preview",
     "ダークモード": "Dark Mode",
 
+    # --- メニューバー: プラグイン ---
+    "プラグイン(&P)": "&Plugins",
+
     # --- メニューバー: ヘルプ ---
     "ヘルプ(&H)": "&Help",
     "mathtext リファレンス...": "mathtext Reference...",

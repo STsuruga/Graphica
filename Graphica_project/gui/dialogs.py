@@ -645,8 +645,12 @@ class FitDialog(QDialog):
             "べき乗 (y = a * x^b)",
             "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
             "シグモイド (y = a / (1 + exp(-b(x-c))))",
-            "カスタム数式...",
         ])
+        # プラグインが追加したフィット関数を、組み込みの選択肢と
+        # 「カスタム数式...」の間に挿入する
+        from core.analysis import get_plugin_fit_type_names
+        self.fit_type_combo.addItems(get_plugin_fit_type_names())
+        self.fit_type_combo.addItem("カスタム数式...")
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
         layout.addWidget(self.fit_type_combo)
 

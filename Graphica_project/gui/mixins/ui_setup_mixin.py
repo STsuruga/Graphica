@@ -163,7 +163,9 @@ class UISetupMixin:
 
     def _create_menu_bar(self):
             """
-            メインウィンドウのメニューバー (「ファイル」「表示」「ヘルプ」) を作成します。
+            メインウィンドウのメニューバー (「ファイル」「表示」「プラグイン」「ヘルプ」) を
+            作成します。「プラグイン」はプラグインが1つもメニューアクションを
+            登録していない場合は作られない。
             __init__ から一度だけ呼び出されます。
             """
 
@@ -305,7 +307,26 @@ class UISetupMixin:
             apply_theme(QApplication.instance(), self.canvas.dark_mode)
 
 
-            # --- 4. 「ヘルプ」メニュー ---
+            # --- 4. 「プラグイン」メニュー (プラグインが1つも登録していない場合は作らない) ---
+            # ★ self.plugin_api は __init__ 側で _create_menu_bar() より前に
+            #   load_plugins_once() 済み。フィット関数の登録はプロセス全体で
+            #   1度だけだが、メニューアクションはタブごとの menuBar() に
+            #   個別に追加する必要があるため、ここで毎回追加する。
+            if self.plugin_api.menu_actions:
+                plugin_menu = menu_bar.addMenu(tr("プラグイン(&P)"))
+                self._plugin_menu = plugin_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
+                for text, callback, shortcut in self.plugin_api.menu_actions:
+                    action = plugin_menu.addAction(text)
+                    if shortcut:
+                        action.setShortcut(QKeySequence(shortcut))
+                    # callback(self) の形式で、現在のPlotterAppインスタンスを渡す。
+                    # デフォルト引数でクロージャに現在のcallback/selfを束縛する
+                    # (ループ変数をラムダで直接使うと最後の値だけが使われてしまうため)。
+                    action.triggered.connect(
+                        lambda checked=False, cb=callback: cb(self)
+                    )
+
+            # --- 5. 「ヘルプ」メニュー ---
             help_menu = menu_bar.addMenu(tr("ヘルプ(&H)"))
             self._help_menu = help_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
 

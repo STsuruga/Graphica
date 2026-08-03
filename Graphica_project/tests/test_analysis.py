@@ -3,7 +3,9 @@
 import numpy as np
 import pytest
 
-from core.analysis import calculate_curve_fit, calculate_peaks
+import core.analysis as analysis_module
+from core.analysis import (calculate_curve_fit, calculate_peaks,
+                            get_plugin_fit_type_names, register_fit_function)
 
 
 def test_linear_fit_recovers_known_parameters():
@@ -139,6 +141,64 @@ def test_too_few_points_raises():
     y = np.array([1.0])
     with pytest.raises(ValueError, match="データ点数"):
         calculate_curve_fit(x, y, "2次多項式 (y = ax^2 + bx + c)")
+
+
+# --- プラグインが追加するフィット関数 (core/plugin_api.py 参照) ---
+
+@pytest.fixture
+def clear_plugin_fit_registry():
+    """テスト間で _PLUGIN_FIT_FUNCTIONS レジストリの汚染が伝播しないようにする"""
+    yield
+    analysis_module._PLUGIN_FIT_FUNCTIONS.clear()
+
+
+def test_register_fit_function_and_use_it(clear_plugin_fit_registry):
+    def double_line(x, a, b):
+        return a * x + b
+
+    register_fit_function("プラグインテスト用線形", double_line, ["a", "b"])
+    assert "プラグインテスト用線形" in get_plugin_fit_type_names()
+
+    x = np.linspace(0, 10, 30)
+    y = 2.0 * x + 5.0
+    popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
+        x, y, "プラグインテスト用線形"
+    )
+    assert params_info == ["a", "b"]
+    np.testing.assert_allclose(popt, [2.0, 5.0], atol=1e-6)
+
+
+def test_register_fit_function_with_callable_p0(clear_plugin_fit_registry):
+    calls = []
+
+    def custom_func(x, a):
+        return a * x
+
+    def p0_fn(x_data, y_data):
+        calls.append((len(x_data), len(y_data)))
+        return [3.0]
+
+    register_fit_function("プラグインテスト用p0関数", custom_func, ["a"], p0=p0_fn)
+    x = np.linspace(1, 10, 20)
+    y = 3.0 * x
+    calculate_curve_fit(x, y, "プラグインテスト用p0関数")
+    assert calls == [(20, 20)]
+
+
+def test_register_fit_function_rejects_duplicate_name(clear_plugin_fit_registry):
+    register_fit_function("重複テスト", lambda x, a: a * x, ["a"])
+    with pytest.raises(ValueError, match="既に登録されています"):
+        register_fit_function("重複テスト", lambda x, a: a * x, ["a"])
+
+
+def test_register_fit_function_rejects_builtin_name_collision(clear_plugin_fit_registry):
+    with pytest.raises(ValueError, match="組み込みのフィットタイプ名"):
+        register_fit_function("線形", lambda x, a: a * x, ["a"])
+
+
+def test_register_fit_function_rejects_empty_param_names(clear_plugin_fit_registry):
+    with pytest.raises(ValueError):
+        register_fit_function("空パラメータテスト", lambda x: x, [])
 
 
 # --- ピーク検出 ---

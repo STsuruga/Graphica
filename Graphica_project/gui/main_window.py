@@ -97,6 +97,7 @@ from PySide6.QtCore import Qt, QTimer, QSettings, Signal
 from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
+from core.plugin_api import load_plugins_once
 
 # --- Matplotlib ---
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
@@ -852,6 +853,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # グラフ要素の直接クリック選択(項目35): データカーソル/注釈モードのON/OFFに
         # 関わらず常時有効な、独立したpick_event接続 (詳細は _on_element_pick を参照)
         self.canvas.mpl_connect('pick_event', self._on_element_pick)
+
+        # プラグインの読み込み (メニューバー作成より前に行う必要がある:
+        # プラグインが register_menu_action() で追加したメニュー項目を
+        # _create_menu_bar() が読むため)。
+        # ★ 複数プロジェクトタブ(項目40)ではPlotterAppがタブごとに作られるが、
+        # プラグインの読み込み・登録(フィット関数レジストリへの登録等)は
+        # プロセス全体で1度だけ行う(load_plugins_once がキャッシュする)。
+        # メニューへのアクション追加自体は、タブごとに自分の menuBar() へ
+        # 個別に行う必要があるため、_create_menu_bar() 側で行う。
+        self.plugin_api = load_plugins_once(resource_path("plugins"))
 
         # UIコントロールのシグナル接続を _connect_signals ヘルパーメソッドで実行
         self._connect_signals()
