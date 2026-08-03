@@ -7,10 +7,12 @@ QSS (Qtスタイルシート) でツールバー・ボタン・入力欄・リ�
 角丸/フラットに統一し、よりモダンな印象にしている。
 """
 from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QAbstractSpinBox, QComboBox
 
 # 起動時の元のパレット/スタイル名を保持し、ライトモードへの復帰に使う
 _original_palette = None
 _original_style_name = None
+_wheel_value_change_disabled = False
 
 # フラット/ミニマルテーマの配色トークン。
 # チェックリスト(ロードマップ)アーティファクトで使ったものと近い、
@@ -458,3 +460,35 @@ def apply_theme(app, dark: bool):
     # パレットに加えて QSS を適用し、ツールバー/ボタン/入力欄/リスト等を
     # 角丸・フラットな見た目に統一する(モダンなミニマルテーマ)。
     app.setStyleSheet(_build_flat_qss(dark))
+
+
+def disable_scroll_value_change():
+    """
+    QSpinBox/QDoubleSpinBox/QComboBoxは既定で、フォーカスが無い状態でも
+    マウスホイールで値が変わってしまう。スクロール可能なドック/ダイアログの
+    中でスピンボックスの上をスクロールしただけで、意図せず値が変わって
+    しまう事故が起きやすいため、フォーカスが無い間はホイール操作を無効化する。
+
+    ホイールイベントを event.ignore() で無視すると (accept() せず、独自の
+    処理も行わないと)、Qtはそのイベントを親ウィジェットへ伝播させるため、
+    スピンボックスの上でマウスホイールを回してもスクロールエリア自体は
+    問題なくスクロールできる。
+
+    クラスのメソッドを直接書き換えるため、アプリ起動時に一度だけ呼び出す
+    (QApplication生成後、最初のウィジェットが作られる前が望ましい)。
+    """
+    global _wheel_value_change_disabled
+    if _wheel_value_change_disabled:
+        return
+    _wheel_value_change_disabled = True
+
+    def _make_guarded_wheel_event(original_wheel_event):
+        def guarded_wheel_event(self, event):
+            if self.hasFocus():
+                original_wheel_event(self, event)
+            else:
+                event.ignore()
+        return guarded_wheel_event
+
+    QAbstractSpinBox.wheelEvent = _make_guarded_wheel_event(QAbstractSpinBox.wheelEvent)
+    QComboBox.wheelEvent = _make_guarded_wheel_event(QComboBox.wheelEvent)

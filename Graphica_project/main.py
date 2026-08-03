@@ -8,6 +8,7 @@ from PySide6.QtGui import QFont
 # 内部で PlotterApp を各タブとして生成する。
 from gui.main_app_window import MainAppWindow
 from gui.crash_handler import install_crash_handler
+from gui.theme import disable_scroll_value_change
 from core.version import LOG_FILE_NAME
 
 # アプリ全体のUIフォント。既定の "MS Shell Dlg 2"(素朴な見た目)ではなく、
@@ -39,6 +40,10 @@ if __name__ == '__main__':
     app_font.setFamilies(APP_FONT_FAMILIES)
     app_font.setPointSizeF(APP_FONT_POINT_SIZE)
     app.setFont(app_font)
+
+    # スクロール操作でスピンボックス/コンボボックスの値が意図せず変わって
+    # しまうのを防ぐ(フォーカスしている時だけホイールで値を変更できる)
+    disable_scroll_value_change()
 
     # 最上位ウィンドウ (複数プロジェクトタブを管理する) のインスタンスを作成して表示
     window = MainAppWindow()
