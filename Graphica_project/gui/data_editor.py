@@ -84,17 +84,16 @@ class DataEditorDialog(QDialog):
         self.add_row_button = QPushButton("行を追加")
         self.delete_row_button = QPushButton("選択行を削除")
         self.mask_rows_button = QPushButton("選択行を除外/解除")
-        self.mask_rows_button.setToolTip(
-            "行を削除せず、フィット/プロットの対象から除外(または解除)します(非破壊的)"
-        )
         self.add_col_button = QPushButton("列を追加")
         self.delete_col_button = QPushButton("選択列を削除")
         self.calc_button = QPushButton("列の計算...")
         self.replicate_error_button = QPushButton("誤差の自動計算...")
         self.save_csv_button = QPushButton("CSVとして保存...")
 
-        # ボタン行にアイコンを追加(ユーザーフィードバックを受けて)
-        for button, icon_name in (
+        # メインウィンドウの操作ボタン行(項目70)と統一感を持たせるため、
+        # ここもテキスト付きボタンではなくアイコンのみの正方形ボタンにする。
+        # ラベルはツールチップに残す。
+        _button_icons = (
             (self.add_row_button, "row-insert-bottom"),
             (self.delete_row_button, "row-remove"),
             (self.mask_rows_button, "eye-off"),
@@ -103,8 +102,17 @@ class DataEditorDialog(QDialog):
             (self.calc_button, "calculator"),
             (self.replicate_error_button, "math-function"),
             (self.save_csv_button, "download"),
-        ):
-            button.setIcon(icon_utils.icon(icon_name))
+        )
+        self.mask_rows_button.setToolTip(
+            "行を削除せず、フィット/プロットの対象から除外(または解除)します(非破壊的)"
+        )
+        for button, icon_name in _button_icons:
+            if not button.toolTip():
+                button.setToolTip(button.text())
+            button.setText("")
+            button.setIcon(icon_utils.icon(icon_name, size=18))
+            button.setProperty("iconOnly", True)
+            button.setFixedSize(34, 34)
 
         button_layout.addWidget(self.add_row_button)
         button_layout.addWidget(self.delete_row_button)
@@ -117,7 +125,7 @@ class DataEditorDialog(QDialog):
         button_layout.addWidget(self.replicate_error_button)
         button_layout.addStretch()
         button_layout.addWidget(self.save_csv_button)
-        
+
 
         # --- 2. メインレイアウト (QVBoxLayout: 垂直) ---
         main_layout = QVBoxLayout(self)

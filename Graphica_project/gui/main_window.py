@@ -91,7 +91,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDial
                                QDockWidget, QScrollArea, QMessageBox,
                                QLineEdit, QHBoxLayout, QFormLayout, QAbstractItemView,
                                QDialog, QTreeWidget, QTreeWidgetItem, QGridLayout,
-                               QInputDialog, QMenu, QFrame, QToolButton)
+                               QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction)
 from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack
 from PySide6.QtCore import Qt, QTimer, QSettings, Signal
 from models.project import ProjectModel
@@ -647,7 +647,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #      そのため、メニュー項目が選ばれた時点で選択範囲を読み直すのではなく、
         #      ボタンが「押された瞬間」(pressed、まだ選択が生きている)に選択範囲を
         #      保存しておき、メニュー項目のtriggeredではその保存値を使う。
+        # ★ ポップアップパネル化(項目101): 以前はテキストのみのQMenu
+        #   (「太字」「イタリック」「上付き文字」「下付き文字」を項目として
+        #   縦に並べただけ)だったが、ユーザーフィードバックを受けて、
+        #   アイコン付きのボタンを横一列に並べた小さなパネル
+        #   (QWidgetAction経由でQMenuに埋め込む)に変更した。見た目が
+        #   ツールバーに近くなり、どのボタンが何をするか記号でも判別しやすい。
         self.label_format_menu_buttons = {}
+        self._label_format_menus = {}
         self._label_format_pending_selection = {}
         for field_key, line_edit in (
             ('title', self.ui.title_text_edit),
@@ -682,22 +689,33 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             )
 
             menu = QMenu(format_button)
-            action_bold = menu.addAction(tr("太字"))
-            bold_font = QFont(action_bold.font())
-            bold_font.setBold(True)
-            action_bold.setFont(bold_font)
-            action_italic = menu.addAction(tr("イタリック"))
-            italic_font = QFont(action_italic.font())
-            italic_font.setItalic(True)
-            action_italic.setFont(italic_font)
-            action_superscript = menu.addAction(tr("上付き文字"))
-            action_subscript = menu.addAction(tr("下付き文字"))
+            panel = QWidget()
+            panel_layout = QHBoxLayout(panel)
+            panel_layout.setContentsMargins(6, 6, 6, 6)
+            panel_layout.setSpacing(4)
+
+            decoration_buttons = {}
+            for deco_key, icon_name, tooltip in (
+                ('bold', 'bold', tr("太字")),
+                ('italic', 'italic', tr("イタリック")),
+                ('superscript', 'superscript', tr("上付き文字")),
+                ('subscript', 'subscript', tr("下付き文字")),
+            ):
+                deco_button = QToolButton()
+                deco_button.setIcon(_svg_icon(icon_name, size=16))
+                deco_button.setToolTip(tooltip)
+                deco_button.setProperty("iconOnly", True)
+                deco_button.setFixedSize(28, 28)
+                panel_layout.addWidget(deco_button)
+                decoration_buttons[deco_key] = deco_button
+
+            widget_action = QWidgetAction(format_button)
+            widget_action.setDefaultWidget(panel)
+            menu.addAction(widget_action)
             format_button.setMenu(menu)
 
-            self.label_format_menu_buttons[field_key] = {
-                'bold': action_bold, 'italic': action_italic,
-                'superscript': action_superscript, 'subscript': action_subscript,
-            }
+            self.label_format_menu_buttons[field_key] = decoration_buttons
+            self._label_format_menus[field_key] = menu
 
         # --- 7. UIの「動的リファクタリング」 (Designer のUI構造をコードで変更) ---
 

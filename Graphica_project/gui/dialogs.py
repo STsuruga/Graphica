@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser,
 from PySide6.QtCore import Qt, QTimer, QEvent
 from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence
 
+from gui import icon_utils
+
 logger = logging.getLogger(__name__)
 
 
@@ -1634,8 +1636,10 @@ class PreferencesDialog(QDialog):
         self.autosave_dir_edit.setReadOnly(True)
         self.autosave_dir_edit.setPlaceholderText(tr("(既定: アプリのフォルダ)"))
         self.autosave_dir_browse_button = QPushButton(tr("参照..."))
+        self.autosave_dir_browse_button.setIcon(icon_utils.icon("folder"))
         self.autosave_dir_browse_button.clicked.connect(self._on_browse_autosave_dir)
         self.autosave_dir_clear_button = QPushButton(tr("既定に戻す"))
+        self.autosave_dir_clear_button.setIcon(icon_utils.icon("refresh"))
         self.autosave_dir_clear_button.clicked.connect(self._on_clear_autosave_dir)
         autosave_dir_row.addWidget(self.autosave_dir_edit, 1)
         autosave_dir_row.addWidget(self.autosave_dir_browse_button)

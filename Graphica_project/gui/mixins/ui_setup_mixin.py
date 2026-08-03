@@ -68,15 +68,19 @@ class UISetupMixin:
             self.ui.x_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.x_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
             self.y_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-            for field_key, actions in self.label_format_menu_buttons.items():
-                actions['bold'].triggered.connect(
-                    lambda checked=False, k=field_key: self._on_label_bold_clicked(k))
-                actions['italic'].triggered.connect(
-                    lambda checked=False, k=field_key: self._on_label_italic_clicked(k))
-                actions['superscript'].triggered.connect(
-                    lambda checked=False, k=field_key: self._on_label_superscript_clicked(k))
-                actions['subscript'].triggered.connect(
-                    lambda checked=False, k=field_key: self._on_label_subscript_clicked(k))
+            # 文字装飾ポップアップパネル(項目101)のアイコンボタン。クリックされたら
+            # 装飾を適用したうえで、QWidgetAction経由のためクリックしても自動では
+            # 閉じないポップアップメニューを明示的に閉じる。
+            for field_key, buttons in self.label_format_menu_buttons.items():
+                menu = self._label_format_menus[field_key]
+                buttons['bold'].clicked.connect(
+                    lambda checked=False, k=field_key, m=menu: (self._on_label_bold_clicked(k), m.close()))
+                buttons['italic'].clicked.connect(
+                    lambda checked=False, k=field_key, m=menu: (self._on_label_italic_clicked(k), m.close()))
+                buttons['superscript'].clicked.connect(
+                    lambda checked=False, k=field_key, m=menu: (self._on_label_superscript_clicked(k), m.close()))
+                buttons['subscript'].clicked.connect(
+                    lambda checked=False, k=field_key, m=menu: (self._on_label_subscript_clicked(k), m.close()))
             self.ui.y_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
 
             # (ラベル/書式タブ)
