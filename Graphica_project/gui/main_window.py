@@ -59,7 +59,15 @@ DEFAULT_WINDOW_HEIGHT = 800
 CONTROL_DOCK_WIDTH = 440  # 項目68/61: フィールドの見切れ解消のため実測ベースで拡幅(旧350px→380px→400px→440px)
 CONTROL_DOCK_INITIAL_HEIGHT = 500  # 項目: データセットのプロパティが窮屈だったため500/300→500/500に再配分
 PROPERTIES_DOCK_INITIAL_HEIGHT = 500
+EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT = 340  # エクスポートプレビューを下部ドックに分離した際の初期高さ
 SPIN_BOX_MAX_DECIMALS = 16
+
+# ドックの既定配置のバージョン。デフォルトの配置(どのドックをどのエリアに
+# 置くか)を変更したときはこの値を上げる。QSettingsに保存された前回のバージョンと
+# 異なる場合、保存済みの window_state を復元せず新しい既定配置を優先する
+# (そうしないと、restoreState() で常に旧配置が復元され続け、コード側で
+# デフォルトのドック配置を変えても既存ユーザーには反映されない)。
+DOCK_LAYOUT_VERSION = 2  # v2: エクスポートプレビューを右列からBottomDockWidgetAreaへ分離
 
 # グラフ内テキスト(目盛り・軸ラベル・凡例)の既定フォント。
 # アプリのUIフォント(main.py の APP_FONT_FAMILIES)とは意図的に別系統にしている:
@@ -724,7 +732,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.export_preview_dock_widget = QDockWidget(tr("エクスポートプレビュー"), self)
         self.export_preview_dock_widget.setObjectName("ExportPreviewDockWidget")
         self.export_preview_dock_widget.setWidget(self.export_preview_panel)
-        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.export_preview_dock_widget)
+        # ★ GUI改善: 「プロットのプロパティ」「データセットのプロパティ」と同じ
+        #   右列(幅440px固定)に置くと、プレビュー画像がその幅に押し込まれて
+        #   小さくなってしまう。プレビューはウィンドウ全幅を使えた方が見やすいため、
+        #   右列ではなく下部(BottomDockWidgetArea)に独立して配置する。
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.export_preview_dock_widget)
         self.export_preview_dock_widget.hide()
         self.export_preview_dock_widget.visibilityChanged.connect(
             lambda visible: self.export_preview_panel.refresh_preview() if visible else None
@@ -842,9 +854,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # (MainAppWindowに埋め込まれるタブの1つになる)ため、そちらの責務に移した。
         # また、複数タブが同じQSettingsキーを取り合わないよう、ここでの
         # ドック状態の保存/復元自体も最初のタブ(run_startup_checks=True)に限定する。
+        # ★ デフォルトのドック配置(DOCK_LAYOUT_VERSION)自体を変更した場合、
+        #   保存済みのバージョンと異なればあえて restoreState() を使わない
+        #   (そうしないと、旧バージョンの配置が復元され続けてしまい、
+        #   コード側でデフォルト配置を変えても既存ユーザーに反映されない)。
+        saved_layout_version = self.settings.value("dock_layout_version", 0, type=int) if self._run_startup_checks else DOCK_LAYOUT_VERSION
         saved_state = self.settings.value("window_state") if self._run_startup_checks else None
         state_restored = False
-        if saved_state is not None:
+        if saved_state is not None and saved_layout_version == DOCK_LAYOUT_VERSION:
             state_restored = bool(self.restoreState(saved_state))
 
         if not state_restored:
@@ -853,6 +870,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     [self.ui.control_dock_widget, self.properties_dock_widget], # 上側のドック, 下側のドック
                     [CONTROL_DOCK_INITIAL_HEIGHT, PROPERTIES_DOCK_INITIAL_HEIGHT], # 各ドックの初期の高さ (合計値に意味はない、比率が重要)
                     Qt.Orientation.Vertical # 高さを指定するため Vertical
+                )
+                self.resizeDocks(
+                    [self.export_preview_dock_widget],
+                    [EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT],
+                    Qt.Orientation.Vertical
                 )
             except Exception as e:
                 logger.warning("resizeDocks に失敗しました: %s", e)
@@ -877,6 +899,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.settings.setValue("clean_exit", True)
             # ドックの配置/表示状態を保存し、次回起動時に復元する
             self.settings.setValue("window_state", self.saveState())
+            self.settings.setValue("dock_layout_version", DOCK_LAYOUT_VERSION)
         super().closeEvent(event)
 
     def _check_autosave_recovery(self):
