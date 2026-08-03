@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository layout
 
-This repo root contains only the historical `README.txt` (user-facing manual, Japanese) and the actual application, which lives entirely under `Graphica_project/`. Always treat `Graphica_project/` as the working root for commands below. Two stale PyInstaller `.spec` files exist at the repo root (`Graphica_ver1.spec`, `main_ver6.spec`) referencing entry points that no longer exist (`Graphica_ver1.py`, `main_ver6.py`) — they predate the current `Graphica_project/` layout and should not be relied on for packaging guidance.
+This repo root contains only `README.md` (user-facing manual, Japanese) and the actual application, which lives entirely under `Graphica_project/`. Always treat `Graphica_project/` as the working root for commands below. Two stale PyInstaller `.spec` files exist at the repo root (`Graphica_ver1.spec`, `main_ver6.spec`) referencing entry points that no longer exist (`Graphica_ver1.py`, `main_ver6.py`) — they predate the current `Graphica_project/` layout and should not be relied on for packaging guidance.
 
 ## Commands
 
