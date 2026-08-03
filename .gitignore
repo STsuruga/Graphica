@@ -9,6 +9,9 @@ venv/
 build/
 dist/
 
+# pip/setuptools のビルド成果物 (pip install -e . 等で生成される)
+*.egg-info/
+
 # 実行時に生成される一時ファイル
 *.log
 autosave.pkl

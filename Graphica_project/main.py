@@ -30,7 +30,7 @@ def _setup_logging():
         ],
     )
 
-if __name__ == '__main__':
+def main():
     _setup_logging()
     # 未処理の例外発生時、ログの場所とオートセーブ復元手順を案内するダイアログを表示する
     install_crash_handler()
@@ -50,3 +50,7 @@ if __name__ == '__main__':
     window.show()
 
     sys.exit(app.exec())
+
+
+if __name__ == '__main__':
+    main()

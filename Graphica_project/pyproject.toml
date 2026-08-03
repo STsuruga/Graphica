@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphica"
+# バージョンは core/version.py の __version__ を単一の情報源とする
+# (下の [tool.setuptools.dynamic] 参照。pyproject.toml 側に数値を
+# 重複してハードコードしない)。
+dynamic = ["version"]
+description = "PySide6 + matplotlib によるデータプロット・解析デスクトップアプリケーション"
+# setuptools はプロジェクトルート (Graphica_project/) の外にあるファイルを
+# readme として直接参照できないため、リポジトリルートの README.md を
+# Graphica_project/README.md としてコピーしたものを参照する
+# (詳細はそのファイル冒頭のコメント参照)。
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "STsuruga" },
+]
+keywords = ["plotting", "matplotlib", "PySide6", "data-visualization", "curve-fitting"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: Microsoft :: Windows",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Environment :: X11 Applications :: Qt",
+    "Private :: Do Not Upload",
+]
+# requirements.txt の実行時依存 (PySide6, matplotlib, numpy, pandas, scipy,
+# openpyxl) をそのまま反映。pyinstaller/pytest はビルド/テスト専用のため
+# optional-dependencies 側に分離する。
+dependencies = [
+    "PySide6==6.9.1",
+    "matplotlib==3.10.7",
+    "numpy==2.3.1",
+    "pandas==2.3.1",
+    "scipy==1.16.0",
+    "openpyxl==3.1.5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1"]
+build = ["pyinstaller==6.16.0"]
+
+[project.scripts]
+graphica = "main:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "core.version.__version__" }
+
+# 既存の import スタイル (`from core.dataset import Dataset` のように
+# Graphica_project/ をルートとした絶対import) を一切変更しないため、
+# core / gui / gui.mixins / models をトップレベルパッケージとしてそのまま
+# 公開する(src-layout や graphica 名前空間パッケージへの巻き直しはしない)。
+# assets / assets.icons / sample_data は非Pythonリソース (SVGアイコン,
+# CSVサンプル) を resource_path() が期待する相対位置のまま同梱するための
+# 「データ専用パッケージ」(__init__.py を追加して package_data の対象にした)。
+[tool.setuptools]
+packages = [
+    "core",
+    "gui",
+    "gui.mixins",
+    "models",
+    "assets",
+    "assets.icons",
+    "sample_data",
+]
+py-modules = ["main", "ui_main_window"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"assets.icons" = ["*.svg"]
+"sample_data" = ["*.csv"]
+# 注意: Graphica.ico はどのパッケージディレクトリにも属さない
+# プロジェクトルート直下の単独ファイルのため、[tool.setuptools.package-data]
+# では同梱できない (setuptools のバリデーションは "" をキーとして許可しない)。
+# MANIFEST.in の `include Graphica.ico` で sdist には含めているが、
+# editable install (pip install -e .) はソースをそのままの配置で参照する
+# ため resource_path()/icon_utils.py の解決には影響しない。非editableな
+# wheel配布で確実に同梱したい場合は、Graphica.ico をいずれかのパッケージ
+# 配下 (例: assets/) に移し resource_path() 側の参照も合わせて更新する
+# 追加対応が別途必要(今回は main.py 以外の実行パスを変更しないスコープの
+# ため未対応)。
