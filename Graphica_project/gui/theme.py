@@ -181,6 +181,27 @@ QGroupBox::title {{
     background: {accent_soft};
     border-radius: 5px;
 }}
+
+/* --- ドック内のグループボックスは二重の箱にしない(GUI洗練) ---
+   QDockWidget自体がすでに1枚のカードとして枠を持っているため、その中の
+   グループボックスにも同じ枠+色付きチップの見出しを重ねると、箱の中に
+   箱が入れ子になって窮屈に見える。ドック内では枠を取り払い、見出しは
+   控えめなラベルのみにする(モーダルダイアログ側のグループボックスは
+   従来どおりのチップ付きスタイルを維持) */
+QDockWidget QGroupBox {{
+    border: none;
+    border-radius: 0;
+    margin-top: 18px;
+    padding-top: 6px;
+}}
+QDockWidget QGroupBox::title {{
+    left: 0;
+    top: -4px;
+    padding: 0;
+    color: {text_secondary};
+    background: transparent;
+    border-radius: 0;
+}}
 QPushButton {{
     background: {surface};
     border: 1px solid {border_strong};
@@ -205,6 +226,13 @@ QPushButton:default {{
 }}
 QPushButton:focus, QToolButton:focus {{
     border: 1px solid {accent};
+}}
+
+/* --- アイコンのみの正方形ボタン(データセット操作ボタン行、GUI洗練) ---
+   テキストラベルを持たず、ツールチップで用途を示す。9個並んでも横幅を
+   取らないよう正方形に固定する(実際のサイズ指定はPython側setFixedSize) */
+QPushButton[iconOnly="true"] {{
+    padding: 4px;
 }}
 
 /* --- 入力欄 --- */
@@ -255,6 +283,18 @@ QTreeWidget::item, QListWidget::item, QTableWidget::item {{
 QTreeWidget::item:selected, QListWidget::item:selected, QTableWidget::item:selected {{
     background: {accent_soft};
     color: {text_primary};
+}}
+QTreeWidget::item, QListWidget::item {{
+    padding: 5px 4px;
+    border-radius: 5px;
+}}
+
+/* --- データセットリストは選択状態がひと目でわかるよう、はっきりした
+   アクセント色の塗りつぶしにする(他の淡いリスト/テーブルの選択色とは
+   意図的に差をつける) --- */
+QTreeWidget#dataset_list_widget::item:selected {{
+    background: {accent};
+    color: {accent_text};
 }}
 
 /* --- タブ --- */

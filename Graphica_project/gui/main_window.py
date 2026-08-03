@@ -67,7 +67,7 @@ SPIN_BOX_MAX_DECIMALS = 16
 # 異なる場合、保存済みの window_state を復元せず新しい既定配置を優先する
 # (そうしないと、restoreState() で常に旧配置が復元され続け、コード側で
 # デフォルトのドック配置を変えても既存ユーザーには反映されない)。
-DOCK_LAYOUT_VERSION = 2  # v2: エクスポートプレビューを右列からBottomDockWidgetAreaへ分離
+DOCK_LAYOUT_VERSION = 3  # v3: エクスポートプレビューを既定でフローティングの独立ウィンドウに変更
 
 # グラフ内テキスト(目盛り・軸ラベル・凡例)の既定フォント。
 # アプリのUIフォント(main.py の APP_FONT_FAMILIES)とは意図的に別系統にしている:
@@ -447,10 +447,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.auto_color_button: ("palette", tr("自動配色")),
             self.new_folder_button: ("folder-plus", tr("新しいフォルダ")),
         }
+        # ★ GUI洗練: テキスト付きボタンではなく、アイコンのみの正方形ボタンにする。
+        #   ラベルはツールチップに残すため発見しやすさは保ちつつ、9個並んだ状態でも
+        #   横幅を大きく取らず、右パネル全体の余白・サイズ感を改善する。
         for button, (icon_name, short_label) in _button_icons.items():
             button.setToolTip(button.text() or short_label)
-            button.setText(short_label)
-            button.setIcon(_svg_icon(icon_name, size=16))
+            button.setText("")
+            button.setIcon(_svg_icon(icon_name, size=18))
+            button.setProperty("iconOnly", True)
+            button.setFixedSize(34, 34)
 
         def _make_group_separator():
             sep = QFrame()
@@ -482,6 +487,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.dataset_overflow_button.setText("⋯")  # ⋯ (三点リーダー)
         self.dataset_overflow_button.setToolTip(tr("その他の操作"))
         self.dataset_overflow_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.dataset_overflow_button.setFixedSize(34, 34)  # 他のアイコン専用ボタンと正方形サイズを揃える
         overflow_menu = QMenu(self.dataset_overflow_button)
         self.manage_palette_action = overflow_menu.addAction(
             _svg_icon("palette", size=16), tr("パレット管理...")
@@ -732,15 +738,33 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.export_preview_dock_widget = QDockWidget(tr("エクスポートプレビュー"), self)
         self.export_preview_dock_widget.setObjectName("ExportPreviewDockWidget")
         self.export_preview_dock_widget.setWidget(self.export_preview_panel)
-        # ★ GUI改善: 「プロットのプロパティ」「データセットのプロパティ」と同じ
-        #   右列(幅440px固定)に置くと、プレビュー画像がその幅に押し込まれて
-        #   小さくなってしまう。プレビューはウィンドウ全幅を使えた方が見やすいため、
-        #   右列ではなく下部(BottomDockWidgetArea)に独立して配置する。
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.export_preview_dock_widget)
+        # ★ GUI改善: 「プロットのプロパティ」「データセットのプロパティ」のような
+        #   常設パネルとは性質が異なる(必要な時だけ開く「確認用」の存在)ため、
+        #   右列や下部にドッキングしてメインのキャンバス領域を圧迫するのではなく、
+        #   既定でフローティングの独立ウィンドウとして開く。ドラッグして本体に
+        #   ドッキングすることも引き続き可能(QDockWidgetの標準機能のまま)。
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.export_preview_dock_widget)
+        self.export_preview_dock_widget.setFloating(True)
         self.export_preview_dock_widget.hide()
-        self.export_preview_dock_widget.visibilityChanged.connect(
-            lambda visible: self.export_preview_panel.refresh_preview() if visible else None
-        )
+        self._export_preview_first_show = True
+
+        def _on_export_preview_visibility_changed(visible):
+            if not visible:
+                return
+            # 初回表示時のみ、見やすいサイズ・位置に整える
+            # (フローティングDockWidgetは表示されるまで実際のジオメトリを
+            #  持たないことがあるため、初回のshowのタイミングで設定する)
+            if self._export_preview_first_show and self.export_preview_dock_widget.isFloating():
+                self._export_preview_first_show = False
+                preview_width, preview_height = 820, 680
+                self.export_preview_dock_widget.resize(preview_width, preview_height)
+                center = self.geometry().center()
+                self.export_preview_dock_widget.move(
+                    center.x() - preview_width // 2, center.y() - preview_height // 2
+                )
+            self.export_preview_panel.refresh_preview()
+
+        self.export_preview_dock_widget.visibilityChanged.connect(_on_export_preview_visibility_changed)
 
         # 5. ★ 「ラベル/書式」タブのレイアウトを「手術」する
         #    (サブプロット設定用のUIを先頭に挿入するため)
