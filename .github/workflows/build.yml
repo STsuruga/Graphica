@@ -1,0 +1,58 @@
+name: Build Windows exe
+
+# Graphica (Graphica_project/) の Windows exe を PyInstaller でビルドし、
+# 成果物を Actions のアーティファクトとしてアップロードするワークフロー。
+#
+# 注意:
+# - リポジトリルートの Graphica_ver1.spec / main_ver6.spec は現行レイアウト
+#   より前の古いファイルなので使用しない。ビルドには
+#   Graphica_project/graphica.spec を使う。
+# - 署名・PyPI公開・リリース作成等、secrets を要する外部公開ステップは
+#   意図的に含めていない (アーティファクトのアップロードまでが範囲)。
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: Graphica_project
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Run tests
+        run: pytest
+
+      - name: Build exe with PyInstaller
+        run: pyinstaller graphica.spec --noconfirm
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Graphica-windows
+          path: Graphica_project/dist/Graphica/
+          if-no-files-found: error
