@@ -109,6 +109,7 @@ from ui_main_window import Ui_MainWindow
 # --- 自分で分割したモジュール ---
 from core.dataset import Dataset
 from gui.canvas import MplCanvas
+from gui.theme import apply_form_spacing
 from gui.workers import DataLoadWorker
 from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
 from gui.color_picker_widget import ColorPickerWidget
@@ -526,17 +527,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_col_combo = QComboBox()
         # Designer 上の既存のフォームレイアウト (formLayout_4) に挿入
         # (insertRow(1,...) を2回呼ぶと、2つ目が1行目、1つ目が2行目になる)
-        self.ui.formLayout_4.insertRow(1, "Y軸の列:", self.y_col_combo)
-        self.ui.formLayout_4.insertRow(1, "X軸の列:", self.x_col_combo)
+        self.ui.formLayout_4.insertRow(1, "Y軸の列", self.y_col_combo)
+        self.ui.formLayout_4.insertRow(1, "X軸の列", self.x_col_combo)
 
         # 2b. エラーバー用の誤差列選択コンボボックス ("(なし)" を選ぶとエラーバー非表示)
         self.x_err_col_combo = QComboBox()
         self.y_err_col_combo = QComboBox()
-        self.ui.formLayout_4.insertRow(3, "Y誤差列:", self.y_err_col_combo)
-        self.ui.formLayout_4.insertRow(3, "X誤差列:", self.x_err_col_combo)
+        self.ui.formLayout_4.insertRow(3, "Y誤差列", self.y_err_col_combo)
+        self.ui.formLayout_4.insertRow(3, "X誤差列", self.x_err_col_combo)
 
         # 2c. 透明度(アルファ)スピンボックスを追加 (0.0=完全に透明 ～ 1.0=不透明)
-        self.alpha_label = QLabel("透明度:")
+        self.alpha_label = QLabel("透明度")
         self.alpha_spinbox = QDoubleSpinBox()
         self.alpha_spinbox.setRange(0.0, 1.0)
         self.alpha_spinbox.setSingleStep(0.05)
@@ -547,12 +548,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")
         self.ui.formLayout_4.addRow(self.point_labels_checkbox)
-        self.point_label_col_label = QLabel("ラベルの内容:")
+        self.point_label_col_label = QLabel("ラベルの内容")
         self.point_label_col_combo = QComboBox()
         self.ui.formLayout_4.addRow(self.point_label_col_label, self.point_label_col_combo)
 
         # 3. 凡例の位置を選択するUIをコードで作成
-        self.legend_loc_label = QLabel("凡例の位置:")
+        self.legend_loc_label = QLabel("凡例の位置")
         self.legend_loc_combo = QComboBox()
         self.legend_loc_combo.addItems([
             "best", "upper right", "upper left", "lower left", "lower right", "center"
@@ -561,11 +562,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.formLayout_3.insertRow(7, self.legend_loc_label, self.legend_loc_combo)
 
         # (凡例フォント・色ボタンも同様に追加)
-        self.legend_font_label = QLabel("凡例フォント:")
+        self.legend_font_label = QLabel("凡例フォント")
         self.legend_font_button = QPushButton("フォント選択...")
         self.ui.formLayout_3.insertRow(8, self.legend_font_label, self.legend_font_button)
 
-        self.legend_color_label = QLabel("凡例 文字色:")
+        self.legend_color_label = QLabel("凡例 文字色")
         self.legend_color_button = QPushButton("色選択...")
         self.ui.formLayout_3.insertRow(9, self.legend_color_label, self.legend_color_button)
 
@@ -586,7 +587,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             button.setIcon(_svg_icon(icon_name, size=16))
 
         # 4. フィット情報表示用のUI (非表示で) 追加
-        self.fit_info_label = QLabel("フィット情報:")
+        self.fit_info_label = QLabel("フィット情報")
         self.fit_info_textedit = QTextEdit()
         self.fit_info_textedit.setReadOnly(True)
         self.fit_info_textedit.setFixedHeight(100) # 高さを固定
@@ -603,12 +604,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.formLayout_4.addRow(self.use_secondary_y_checkbox)
 
         # 6. 第2Y軸ラベル用のUI (非表示で) 追加
-        self.y2_label_text_label = QLabel("第2Y軸ラベル:")
+        self.y2_label_text_label = QLabel("第2Y軸ラベル")
         self.y2_label_text_edit = QLineEdit()
         self.ui.formLayout_3.insertRow(3, self.y2_label_text_label, self.y2_label_text_edit)
 
         # 7. 目盛り方向UIを追加
-        self.tick_direction_label = QLabel("主軸目盛(主/補助):")
+        self.tick_direction_label = QLabel("主軸目盛(主/補助)")
         self.major_tick_direction_combo = QComboBox()
         self.major_tick_direction_combo.addItems(["out", "in", "inout"])
         self.minor_tick_direction_combo = QComboBox()
@@ -617,7 +618,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         dir_layout.addWidget(self.major_tick_direction_combo)
         dir_layout.addWidget(self.minor_tick_direction_combo)
 
-        self.tick_direction_y2_label = QLabel("第2軸目盛(主/補助):")
+        self.tick_direction_y2_label = QLabel("第2軸目盛(主/補助)")
         self.major_tick_direction_y2_combo = QComboBox()
         self.major_tick_direction_y2_combo.addItems(["out", "in", "inout"])
         self.minor_tick_direction_y2_combo = QComboBox()
@@ -637,12 +638,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             tr("目盛りごとに指数表記 (例: 1.0×10¹⁰)"),
             tr("常に小数表記"),
         ]
-        self.x_tick_format_label = QLabel(tr("目盛り表記:"))
+        self.x_tick_format_label = QLabel(tr("目盛り表記"))
         self.x_tick_format_combo = QComboBox()
         self.x_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout.addRow(self.x_tick_format_label, self.x_tick_format_combo)
 
-        self.y_tick_format_label = QLabel(tr("目盛り表記:"))
+        self.y_tick_format_label = QLabel(tr("目盛り表記"))
         self.y_tick_format_combo = QComboBox()
         self.y_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout_2.addRow(self.y_tick_format_label, self.y_tick_format_combo)
@@ -735,7 +736,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # --- 7. UIの「動的リファクタリング」 (Designer のUI構造をコードで変更) ---
 
         # 1. 「描画先」コンボボックスを "プロパティ" 欄に追加
-        self.subplot_target_label = QLabel("描画先プロット:")
+        self.subplot_target_label = QLabel("描画先プロット")
         self.subplot_target_combo = QComboBox()
         self.ui.formLayout_4.addRow(self.subplot_target_label, self.subplot_target_combo)
 
@@ -832,8 +833,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.subplot_cols_spinbox = QSpinBox()
         self.subplot_cols_spinbox.setRange(1, 10)
         self.subplot_cols_spinbox.setValue(1)
-        layout_form.addRow(tr("行数:"), self.subplot_rows_spinbox)
-        layout_form.addRow(tr("列数:"), self.subplot_cols_spinbox)
+        layout_form.addRow(tr("行数"), self.subplot_rows_spinbox)
+        layout_form.addRow(tr("列数"), self.subplot_cols_spinbox)
 
         # (自由配置レイアウト: 均等グリッドでなく、サブプロットをドラッグで
         #  自由な位置・サイズに配置できるモード。既定はOFF(従来のグリッド))
@@ -969,6 +970,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             # オートセーブ復元の確認より後に登録することで、万一両方表示される場合でも
             # データの安全性に関わる確認(復元)を先に済ませてから案内できるようにする。
             QTimer.singleShot(0, self._check_first_launch)
+
+        # 設定項目間の余白を広げる(ユーザーフィードバックを受けて)。
+        # この時点までに Designer 生成/動的生成の QFormLayout はすべて構築済みのため、
+        # __init__ の最後でまとめて適用する。
+        apply_form_spacing(self)
 
     def _restore_dock_layout(self):
         """前回終了時のドック/ツールバー配置をQSettingsから復元する。

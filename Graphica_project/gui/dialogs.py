@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, QTimer, QEvent
 from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence
 
 from gui import icon_utils
+from gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
 
@@ -446,7 +447,7 @@ class ResultDialog(QDialog):
 
         if residual_x is not None and residual_y is not None and len(residual_x) > 0:
             self.resize(480, 620)
-            layout.addWidget(QLabel("残差プロット (実測値 - フィット値):"))
+            layout.addWidget(QLabel("残差プロット (実測値 - フィット値)"))
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
             from matplotlib.figure import Figure
             fig = Figure(figsize=(4, 2.2), dpi=100, tight_layout=True)
@@ -534,7 +535,7 @@ class PeakSettingsDialog(QDialog):
         self.type_combo = QComboBox()
         self.type_combo.addItems(["上に凸 (Peaks)", "下に凸 (Valleys)"])
         # insertRow(0, ...) で、レイアウトの先頭 (0行目) に挿入
-        layout.insertRow(0, "検出タイプ:", self.type_combo) 
+        layout.insertRow(0, "検出タイプ", self.type_combo)
 
         # --- 最小高さ (height) ---
         self.height_spinbox = QDoubleSpinBox()
@@ -558,9 +559,9 @@ class PeakSettingsDialog(QDialog):
         self.prominence_spinbox.setValue(0.0) # デフォルトは 0 (無効)
         
         # --- フォームに行を追加 ---
-        layout.addRow("Y値の閾値 (Height):", self.height_spinbox)
-        layout.addRow("最小X距離 (Distance):", self.distance_spinbox)
-        layout.addRow("最小突出度 (Prominence):", self.prominence_spinbox)
+        layout.addRow("Y値の閾値 (Height)", self.height_spinbox)
+        layout.addRow("最小X距離 (Distance)", self.distance_spinbox)
+        layout.addRow("最小突出度 (Prominence)", self.prominence_spinbox)
         
         # --- OK / Cancel ボタン ---
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | 
@@ -568,6 +569,8 @@ class PeakSettingsDialog(QDialog):
         button_box.accepted.connect(self.accept) # OK が押されたら accept
         button_box.rejected.connect(self.reject) # Cancel が押されたら reject
         layout.addRow(button_box)
+
+        apply_form_spacing(self)
 
     def get_settings(self):
         """
@@ -657,7 +660,7 @@ class FitDialog(QDialog):
         layout.addWidget(self.fit_type_combo)
 
         # --- カスタム数式入力欄 (「カスタム数式...」選択時のみ表示) ---
-        self.custom_formula_label = QLabel("数式 (xとパラメータ名を使って入力、例: a*exp(-b*x)+c):")
+        self.custom_formula_label = QLabel("数式 (xとパラメータ名を使って入力、例: a*exp(-b*x)+c)")
         self.custom_formula_edit = QLineEdit()
         self.custom_formula_edit.setPlaceholderText("a*exp(-b*x)+c")
         self.custom_formula_label.setVisible(False)
@@ -726,7 +729,7 @@ class ColumnCalculatorDialog(QDialog):
         
         # --- UIコンポーネントの作成 ---
         
-        self.output_col_label = QLabel("出力先の列 (既存または新規):")
+        self.output_col_label = QLabel("出力先の列 (既存または新規)")
         
         # --- 出力先コンボボックス ---
         self.output_col_combo = QComboBox()
@@ -736,7 +739,7 @@ class ColumnCalculatorDialog(QDialog):
         # テキストボックスのように新しい列名を自由に入力できます。
         self.output_col_combo.setEditable(True) 
         
-        self.formula_label = QLabel("計算式 (例: A + B * 2):")
+        self.formula_label = QLabel("計算式 (例: A + B * 2)")
 
         # --- 計算式入力欄 ---
         self.formula_edit = QLineEdit()
@@ -752,11 +755,11 @@ class ColumnCalculatorDialog(QDialog):
         preset_layout = QVBoxLayout()
 
         preset_source_row = QHBoxLayout()
-        preset_source_row.addWidget(QLabel("対象列:"))
+        preset_source_row.addWidget(QLabel("対象列"))
         self.preset_source_combo = QComboBox()
         self.preset_source_combo.addItems(self.column_names)
         preset_source_row.addWidget(self.preset_source_combo)
-        preset_source_row.addWidget(QLabel("移動平均の窓幅:"))
+        preset_source_row.addWidget(QLabel("移動平均の窓幅"))
         self.preset_window_spinbox = QSpinBox()
         self.preset_window_spinbox.setRange(2, 100000)
         self.preset_window_spinbox.setValue(5)
@@ -908,10 +911,10 @@ class ExportDialog(QDialog):
         
         # 1. 入力欄用のフォームレイアウト (ラベル: [入力欄])
         form_layout = QFormLayout()
-        form_layout.addRow("幅:", self.width_spinbox)
-        form_layout.addRow("高さ:", self.height_spinbox)
-        form_layout.addRow("単位:", self.unit_combo)
-        form_layout.addRow("解像度:", self.dpi_spinbox)
+        form_layout.addRow("幅", self.width_spinbox)
+        form_layout.addRow("高さ", self.height_spinbox)
+        form_layout.addRow("単位", self.unit_combo)
+        form_layout.addRow("解像度", self.dpi_spinbox)
 
         # 2. 全体をまとめる垂直レイアウト
         main_layout = QVBoxLayout()
@@ -921,6 +924,8 @@ class ExportDialog(QDialog):
         main_layout.addWidget(button_box)       # 保存/Cancelボタンを追加
         
         self.setLayout(main_layout)
+
+        apply_form_spacing(self)
 
     def get_options(self):
         """
@@ -989,7 +994,7 @@ class ColumnPreviewDialog(QDialog):
                 self.sheet_combo = QComboBox()
                 self.sheet_combo.addItems(self.sheet_names)
                 self.sheet_combo.currentIndexChanged.connect(self._on_sheet_or_header_changed)
-                excel_form.addRow("シート:", self.sheet_combo)
+                excel_form.addRow("シート", self.sheet_combo)
             else:
                 self.sheet_combo = None
 
@@ -998,7 +1003,7 @@ class ColumnPreviewDialog(QDialog):
             self.header_row_spinbox.setValue(1)
             self.header_row_spinbox.setToolTip("列名として使う行を指定します(データの上に説明行がある場合など)")
             self.header_row_spinbox.valueChanged.connect(self._on_sheet_or_header_changed)
-            excel_form.addRow("ヘッダー行:", self.header_row_spinbox)
+            excel_form.addRow("ヘッダー行", self.header_row_spinbox)
 
             # 使用する列 (pandasのusecolsは "A,C:E" のようなExcel列表記の文字列を
             # そのまま受け付けるため、パース処理を自前で書く必要がない)
@@ -1006,7 +1011,7 @@ class ColumnPreviewDialog(QDialog):
             self.usecols_edit.setPlaceholderText("例: A,C:E (空欄で全列)")
             self.usecols_edit.setToolTip("読み込む列をExcelの列表記で指定します(空欄なら全列を読み込みます)")
             self.usecols_edit.editingFinished.connect(self._on_sheet_or_header_changed)
-            excel_form.addRow("使用する列 (usecols):", self.usecols_edit)
+            excel_form.addRow("使用する列 (usecols)", self.usecols_edit)
 
             self.nrows_spinbox = QSpinBox()
             self.nrows_spinbox.setRange(0, 10_000_000)
@@ -1014,7 +1019,7 @@ class ColumnPreviewDialog(QDialog):
             self.nrows_spinbox.setSpecialValueText("全行")
             self.nrows_spinbox.setToolTip("ヘッダー行より下で読み込む最大行数(0で全行)")
             self.nrows_spinbox.valueChanged.connect(self._on_sheet_or_header_changed)
-            excel_form.addRow("読み込む最大行数:", self.nrows_spinbox)
+            excel_form.addRow("読み込む最大行数", self.nrows_spinbox)
 
             layout.addLayout(excel_form)
 
@@ -1039,8 +1044,8 @@ class ColumnPreviewDialog(QDialog):
         form = QFormLayout()
         self.x_col_combo = QComboBox()
         self.y_col_combo = QComboBox()
-        form.addRow("X軸の列:", self.x_col_combo)
-        form.addRow("Y軸の列:", self.y_col_combo)
+        form.addRow("X軸の列", self.x_col_combo)
+        form.addRow("Y軸の列", self.y_col_combo)
         layout.addLayout(form)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -1048,6 +1053,8 @@ class ColumnPreviewDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
+        apply_form_spacing(self)
 
         self._rebuild_preview_table()
 
@@ -1191,7 +1198,7 @@ class ColorPaletteDialog(QDialog):
         layout = QVBoxLayout(self)
 
         combo_layout = QHBoxLayout()
-        combo_layout.addWidget(QLabel("パレット:"))
+        combo_layout.addWidget(QLabel("パレット"))
         self.palette_combo = QComboBox()
         self.palette_combo.addItem(self.DEFAULT_PALETTE_NAME)
         self.palette_combo.addItems(sorted(self.palettes.keys()))
@@ -1273,7 +1280,7 @@ class ColorPaletteDialog(QDialog):
         self._update_button_states()
 
     def _on_new_palette(self):
-        name, ok = QInputDialog.getText(self, "新規パレット", "パレット名:")
+        name, ok = QInputDialog.getText(self, "新規パレット", "パレット名")
         if not ok or not name:
             return
         if name == self.DEFAULT_PALETTE_NAME or name in self.palettes:
@@ -1287,7 +1294,7 @@ class ColorPaletteDialog(QDialog):
         old_name = self.palette_combo.currentText()
         if old_name == self.DEFAULT_PALETTE_NAME:
             return
-        new_name, ok = QInputDialog.getText(self, "名前を変更", "新しいパレット名:", text=old_name)
+        new_name, ok = QInputDialog.getText(self, "名前を変更", "新しいパレット名", text=old_name)
         if not ok or not new_name or new_name == old_name:
             return
         if new_name == self.DEFAULT_PALETTE_NAME or new_name in self.palettes:
@@ -1367,10 +1374,10 @@ class ReplicateErrorDialog(QDialog):
         form = QFormLayout()
         self.stat_combo = QComboBox()
         self.stat_combo.addItems(["SD (標準偏差)", "SEM (標準誤差)", "95%CI (信頼区間)"])
-        form.addRow("誤差の種類:", self.stat_combo)
+        form.addRow("誤差の種類", self.stat_combo)
 
         self.base_name_edit = QLineEdit("measurement")
-        form.addRow("出力列名 (ベース):", self.base_name_edit)
+        form.addRow("出力列名 (ベース)", self.base_name_edit)
         layout.addLayout(form)
 
         info_label = QLabel(
@@ -1385,6 +1392,8 @@ class ReplicateErrorDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
+        apply_form_spacing(self)
 
     def get_settings(self):
         """
@@ -1543,10 +1552,10 @@ class DatasetArithmeticDialog(QDialog):
         form = QFormLayout()
         self.operation_combo = QComboBox()
         self.operation_combo.addItems(self.OPERATIONS)
-        form.addRow("演算:", self.operation_combo)
+        form.addRow("演算", self.operation_combo)
 
         self.output_name_edit = QLineEdit(f"{name_a} vs {name_b}")
-        form.addRow("出力データセット名:", self.output_name_edit)
+        form.addRow("出力データセット名", self.output_name_edit)
         layout.addLayout(form)
 
         info_label = QLabel(
@@ -1561,6 +1570,8 @@ class DatasetArithmeticDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
+        apply_form_spacing(self)
 
     def get_settings(self):
         """
@@ -1612,7 +1623,7 @@ class PreferencesDialog(QDialog):
         active_language = current_language or get_language()
         if active_language in self._language_codes:
             self.language_combo.setCurrentIndex(self._language_codes.index(active_language))
-        language_form.addRow(tr("表示言語:"), self.language_combo)
+        language_form.addRow(tr("表示言語"), self.language_combo)
         language_note = QLabel(tr("※ 言語の変更は次回起動時に反映されます。"))
         language_note.setStyleSheet("font-size: 9pt; color: gray;")
         language_note.setWordWrap(True)
@@ -1627,7 +1638,7 @@ class PreferencesDialog(QDialog):
         self.autosave_spinbox.setSuffix(tr(" 分"))
         self.autosave_spinbox.setSpecialValueText(tr("無効"))
         self.autosave_spinbox.setValue(int(autosave_minutes))
-        save_form.addRow(tr("オートセーブ間隔:"), self.autosave_spinbox)
+        save_form.addRow(tr("オートセーブ間隔"), self.autosave_spinbox)
 
         # オートセーブの保存先フォルダ(未指定なら従来どおりアプリのフォルダに保存)
         self._autosave_dir = autosave_dir or ""
@@ -1644,7 +1655,7 @@ class PreferencesDialog(QDialog):
         autosave_dir_row.addWidget(self.autosave_dir_edit, 1)
         autosave_dir_row.addWidget(self.autosave_dir_browse_button)
         autosave_dir_row.addWidget(self.autosave_dir_clear_button)
-        save_form.addRow(tr("オートセーブ保存先:"), autosave_dir_row)
+        save_form.addRow(tr("オートセーブ保存先"), autosave_dir_row)
 
         layout.addWidget(save_group)
 
@@ -1655,6 +1666,8 @@ class PreferencesDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
+        apply_form_spacing(self)
 
     def _on_browse_autosave_dir(self):
         from core.i18n import tr
@@ -1957,20 +1970,20 @@ class BatchExportDialog(QDialog):
         browse_button.clicked.connect(self._on_browse_output_dir)
         output_dir_row.addWidget(self.output_dir_edit)
         output_dir_row.addWidget(browse_button)
-        form.addRow("出力先フォルダ:", output_dir_row)
+        form.addRow("出力先フォルダ", output_dir_row)
 
         self.prefix_edit = QLineEdit("export")
-        form.addRow("ファイル名の接頭辞:", self.prefix_edit)
+        form.addRow("ファイル名の接頭辞", self.prefix_edit)
 
         self.format_combo = QComboBox()
         self.format_combo.addItems(["PNG", "PDF", "SVG"])
-        form.addRow("形式:", self.format_combo)
+        form.addRow("形式", self.format_combo)
 
         self.dpi_spinbox = QSpinBox()
         self.dpi_spinbox.setRange(50, 1200)
         self.dpi_spinbox.setValue(150)
         self.dpi_spinbox.setSuffix(" dpi")
-        form.addRow("解像度(ラスター形式時):", self.dpi_spinbox)
+        form.addRow("解像度(ラスター形式時)", self.dpi_spinbox)
 
         layout.addLayout(form)
 
@@ -1980,6 +1993,8 @@ class BatchExportDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
+        apply_form_spacing(self)
 
     def _on_add_project_files(self):
         paths, _ = QFileDialog.getOpenFileNames(
@@ -2039,22 +2054,24 @@ class NewDatasetDialog(QDialog):
         layout = QFormLayout(self)
 
         self.name_edit = QLineEdit(tr("新規データセット"))
-        layout.addRow(tr("データセット名:"), self.name_edit)
+        layout.addRow(tr("データセット名"), self.name_edit)
 
         self.columns_edit = QLineEdit("X, Y")
         self.columns_edit.setToolTip(tr("カンマ区切りで列名を入力してください(例: X, Y, 誤差)"))
-        layout.addRow(tr("列名 (カンマ区切り):"), self.columns_edit)
+        layout.addRow(tr("列名 (カンマ区切り)"), self.columns_edit)
 
         self.rows_spinbox = QSpinBox()
         self.rows_spinbox.setRange(0, 10000)
         self.rows_spinbox.setValue(5)
-        layout.addRow(tr("初期の空行数:"), self.rows_spinbox)
+        layout.addRow(tr("初期の空行数"), self.rows_spinbox)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                        QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self._on_accept)
         button_box.rejected.connect(self.reject)
         layout.addRow(button_box)
+
+        apply_form_spacing(self)
 
     def _on_accept(self):
         from core.i18n import tr

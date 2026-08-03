@@ -675,6 +675,19 @@ def apply_theme(app, dark: bool):
     app.setStyleSheet(_build_flat_qss(dark))
 
 
+def apply_form_spacing(widget, spacing=12):
+    """
+    設定/プロパティ系のダイアログ・パネルの項目間の余白を広げる
+    (ユーザーフィードバックを受けて、QFormLayoutの既定の詰まった間隔を緩める)。
+    widget配下の全QFormLayoutを対象に、垂直方向の間隔を最低spacingまで広げる。
+    既にそれより広い間隔が明示的に設定されているレイアウトは縮めない。
+    """
+    from PySide6.QtWidgets import QFormLayout
+    for form_layout in widget.findChildren(QFormLayout):
+        if form_layout.verticalSpacing() < spacing:
+            form_layout.setVerticalSpacing(spacing)
+
+
 def disable_scroll_value_change():
     """
     QSpinBox/QDoubleSpinBox/QComboBoxは既定でマウスホイールで値が変わり、
