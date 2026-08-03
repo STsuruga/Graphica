@@ -464,10 +464,21 @@ def apply_theme(app, dark: bool):
 
 def disable_scroll_value_change():
     """
-    QSpinBox/QDoubleSpinBox/QComboBoxは既定で、フォーカスが無い状態でも
-    マウスホイールで値が変わってしまう。スクロール可能なドック/ダイアログの
-    中でスピンボックスの上をスクロールしただけで、意図せず値が変わって
-    しまう事故が起きやすいため、フォーカスが無い間はホイール操作を無効化する。
+    QSpinBox/QDoubleSpinBox/QComboBoxは既定でマウスホイールで値が変わり、
+    スクロール可能なドック/ダイアログの中でスクロールしようとしただけで
+    意図せず値が変わる事故が起きやすい。
+
+    ★ 当初は「フォーカスが無い間だけ無視する」という条件付きの実装を
+    試したが、実際には効果がなかった: QAbstractSpinBoxの既定のフォーカス
+    ポリシーは Qt.FocusPolicy.WheelFocus であり、フォームを開いた直後は
+    フォーカス可能な最初のウィジェットに自動的にフォーカスが当たる上、
+    一度どれかのフィールドにフォーカスが移ると、ユーザーがマウスを別の
+    フィールドへ動かして単にスクロールしただけでは、フォーカス自体は
+    そのフィールドに残ったままになる。つまり「マウスカーソルが今どこに
+    あるか」と「hasFocus()が真かどうか」は一致しないため、フォーカスの
+    有無では判定できない。そのため、ホイールによる値変更は常に無効化する
+    (値の変更は上下矢印ボタン、またはキーボード入力/フォーカス後の
+    キー操作で行う)。
 
     ホイールイベントを event.ignore() で無視すると (accept() せず、独自の
     処理も行わないと)、Qtはそのイベントを親ウィジェットへ伝播させるため、
@@ -482,13 +493,8 @@ def disable_scroll_value_change():
         return
     _wheel_value_change_disabled = True
 
-    def _make_guarded_wheel_event(original_wheel_event):
-        def guarded_wheel_event(self, event):
-            if self.hasFocus():
-                original_wheel_event(self, event)
-            else:
-                event.ignore()
-        return guarded_wheel_event
+    def _ignore_wheel_event(self, event):
+        event.ignore()
 
-    QAbstractSpinBox.wheelEvent = _make_guarded_wheel_event(QAbstractSpinBox.wheelEvent)
-    QComboBox.wheelEvent = _make_guarded_wheel_event(QComboBox.wheelEvent)
+    QAbstractSpinBox.wheelEvent = _ignore_wheel_event
+    QComboBox.wheelEvent = _ignore_wheel_event
