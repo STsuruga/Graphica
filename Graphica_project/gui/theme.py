@@ -7,12 +7,15 @@ QSS (Qtスタイルシート) でツールバー・ボタン・入力欄・リ�
 角丸/フラットに統一し、よりモダンな印象にしている。
 """
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QAbstractSpinBox, QComboBox
+from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QProxyStyle, QStyle, QStyleFactory
+
+from gui.icon_utils import icon as _svg_icon
 
 # 起動時の元のパレット/スタイル名を保持し、ライトモードへの復帰に使う
 _original_palette = None
 _original_style_name = None
 _wheel_value_change_disabled = False
+_current_proxy_style = None  # QApplication.setStyle()に渡したオブジェクトへの参照を保持
 
 # フラット/ミニマルテーマの配色トークン。
 # チェックリスト(ロードマップ)アーティファクトで使ったものと近い、
@@ -264,27 +267,27 @@ QSpinBox, QDoubleSpinBox {{
 QSpinBox::up-button, QDoubleSpinBox::up-button {{
     subcontrol-origin: border;
     subcontrol-position: top right;
-    width: 16px;
-    height: 11px;
+    width: 18px;
+    height: 12px;
     border: none;
     border-left: 1px solid {border};
-    background: transparent;
+    background: {surface_2};
     border-top-right-radius: 5px;
 }}
 QSpinBox::down-button, QDoubleSpinBox::down-button {{
     subcontrol-origin: border;
     subcontrol-position: bottom right;
-    width: 16px;
-    height: 11px;
+    width: 18px;
+    height: 12px;
     border: none;
     border-left: 1px solid {border};
     border-top: 1px solid {border};
-    background: transparent;
+    background: {surface_2};
     border-bottom-right-radius: 5px;
 }}
 QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
 QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
-    background: {surface_2};
+    background: {border_strong};
 }}
 QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
 QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
@@ -292,8 +295,8 @@ QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
 }}
 QSpinBox::up-arrow, QDoubleSpinBox::up-arrow,
 QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
-    width: 7px;
-    height: 7px;
+    width: 9px;
+    height: 9px;
 }}
 QSpinBox::up-button:disabled, QDoubleSpinBox::up-button:disabled,
 QSpinBox::down-button:disabled, QDoubleSpinBox::down-button:disabled {{
@@ -371,13 +374,13 @@ QTabBar::tab:selected {{
     color: {accent};
     font-weight: 600;
 }}
-QTabBar::close-button {{
-    padding: 2px;
-    border-radius: 4px;
-}}
-QTabBar::close-button:hover {{
-    background: {accent_soft};
-}}
+/* ★ QTabBar::close-button に何かひとつでもプロパティを指定すると(paddingや
+   border-radiusだけでも)、Qtがこのサブコントロールを「スタイルシートで
+   カスタム描画される」ものとみなし、アイコン自体が一切描画されなくなる
+   (QProxyStyleでstandardIcon/standardPixmapを差し替えても効果が無い)。
+   そのため、閉じるボタンにはQSSを一切当てず、アイコンの見た目は
+   _TabCloseIconStyle (QProxyStyle) 側だけで制御する。 */
+
 QToolButton#add_tab_button {{
     margin: 3px 6px 3px 2px;
     border-radius: 13px;
@@ -485,6 +488,38 @@ def _build_dark_palette() -> QPalette:
     return palette
 
 
+class _TabCloseIconStyle(QProxyStyle):
+    """
+    タブを閉じる「×」ボタンを、Qtネイティブの標準アイコン(背景によっては
+    非常に見えにくい)ではなく、他のツールバー類と同じTabler Icons "x" に
+    差し替えるためのQProxyStyle。
+
+    QSSの `image: url(...)` で差し替える方法も考えられるが、このプロジェクトの
+    パスには日本語(非ASCII)文字が含まれており、Qtのスタイルシートの
+    url()解決は環境によって非ASCIIパスを正しく扱えないことがある。
+    そのため、他のツールバーアイコンと同じ、確実に動くPython側の
+    QIcon読み込み経路(icon_utils.icon)を使う。
+    """
+    def __init__(self, base_style, icon_color):
+        super().__init__(base_style)
+        self._close_icon = _svg_icon("x", color=icon_color, size=14)
+        self._close_pixmap = self._close_icon.pixmap(14, 14)
+
+    def standardIcon(self, standard_icon, option=None, widget=None):
+        if standard_icon == QStyle.StandardPixmap.SP_TabCloseButton:
+            return self._close_icon
+        return super().standardIcon(standard_icon, option, widget)
+
+    def standardPixmap(self, standard_pixmap, option=None, widget=None):
+        # ★ Qt内部のタブ「閉じる」ボタン(private CloseButton)は、実際には
+        #   standardIcon()ではなくこちらのstandardPixmap()経由でアイコンを
+        #   取得している。standardIcon()だけをオーバーライドしても効果が
+        #   無かったため、両方をオーバーライドする必要がある。
+        if standard_pixmap == QStyle.StandardPixmap.SP_TabCloseButton:
+            return self._close_pixmap
+        return super().standardPixmap(standard_pixmap, option, widget)
+
+
 def apply_theme(app, dark: bool):
     """
     QApplication 全体にダーク/ライトのテーマを適用する。
@@ -494,12 +529,15 @@ def apply_theme(app, dark: bool):
     ボタンサイズや余白などQStyle依存の見た目がモードごとに変わってしまうため、
     スタイルは固定してモード間の見た目の一貫性を保つ。
     """
-    global _original_palette, _original_style_name
+    global _original_palette, _original_style_name, _current_proxy_style
     if _original_palette is None:
         _original_palette = QPalette(app.palette())
         _original_style_name = app.style().objectName()
 
-    app.setStyle('Fusion')
+    tokens = _DARK_TOKENS if dark else _LIGHT_TOKENS
+    base_style = QStyleFactory.create('Fusion')
+    _current_proxy_style = _TabCloseIconStyle(base_style, tokens["text_secondary"])
+    app.setStyle(_current_proxy_style)
     if dark:
         app.setPalette(_build_dark_palette())
     else:
