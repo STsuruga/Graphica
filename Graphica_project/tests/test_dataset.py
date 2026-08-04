@@ -207,6 +207,54 @@ def test_pickle_roundtrip_preserves_data_and_style():
     pd.testing.assert_frame_equal(restored.df, ds.df)
 
 
+def test_defaults_include_gradient_fields():
+    """プロットへのグラデーション適用(項目79)の新フィールドのデフォルト値"""
+    ds = make_dataset()
+    assert ds.gradient_enabled is False
+    assert ds.gradient_color2 == '#ffffff'
+    assert ds.gradient_target == 'line'
+
+
+def test_to_dict_from_dict_roundtrip_preserves_gradient_fields():
+    """Dataset.to_dict()/from_dict() の往復で、グラデーション関連フィールドが
+    そのまま保持されることを確認する(項目79)。"""
+    ds = make_dataset(
+        color='#ff0000', gradient_enabled=True,
+        gradient_color2='#00ff00', gradient_target='both',
+    )
+    ds.artist = object()  # to_dict()では除外されるはず
+
+    data = ds.to_dict()
+    assert 'artist' not in data
+    assert data['gradient_enabled'] is True
+    assert data['gradient_color2'] == '#00ff00'
+    assert data['gradient_target'] == 'both'
+
+    restored = Dataset.from_dict(data)
+    assert restored.artist is None
+    assert restored.gradient_enabled is True
+    assert restored.gradient_color2 == '#00ff00'
+    assert restored.gradient_target == 'both'
+    assert restored.color == '#ff0000'
+    pd.testing.assert_frame_equal(restored.df, ds.df)
+
+
+def test_from_dict_missing_gradient_keys_falls_back_to_defaults():
+    """gradient_enabled/gradient_color2/gradient_target キーが無い(この機能追加前に
+    保存された)dict を読み込んでも、クラッシュせずデフォルト値で補われること。"""
+    ds = make_dataset(name="Legacy")
+    data = ds.to_dict()
+    for missing_field in ('gradient_enabled', 'gradient_color2', 'gradient_target'):
+        data.pop(missing_field, None)
+
+    restored = Dataset.from_dict(data)
+
+    assert restored.name == "Legacy"
+    assert restored.gradient_enabled is False
+    assert restored.gradient_color2 == '#ffffff'
+    assert restored.gradient_target == 'line'
+
+
 def test_setstate_backfills_missing_fields_for_old_pickles():
     """
     新しいフィールド(alpha等)が追加される前に保存された古い形式のpickleを

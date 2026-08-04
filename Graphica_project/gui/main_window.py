@@ -607,6 +607,26 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.alpha_spinbox.setValue(1.0)
         self.ui.formLayout_4.insertRow(5, self.alpha_label, self.alpha_spinbox)
 
+        # 2c-2. プロットへのグラデーション適用(項目79): 線ストロークグラデーション
+        # (線の色を開始色→終端色へ連続的に変化させる)と、塗りグラデーション
+        # (Areaプロットの塗り領域をグラデーションにする)の2種類。
+        # チェックボックスで有効/無効を切り替え、終端色は既存のColorPickerWidget
+        # (項目65)を再利用し、対象(線/塗り/両方)はプロットタイプに応じて
+        # 関連する選択肢だけを見せる(_update_gradient_controls_visibility で制御)。
+        self.gradient_checkbox = QCheckBox(tr("グラデーションを適用"))
+        self.ui.formLayout_4.addRow(self.gradient_checkbox)
+
+        self.gradient_color2_label = QLabel(tr("グラデーション終端色"))
+        self.gradient_color2_picker = ColorPickerWidget(self.settings, self, initial_color='#ffffff')
+        self.ui.formLayout_4.addRow(self.gradient_color2_label, self.gradient_color2_picker)
+
+        self.gradient_target_label = QLabel(tr("グラデーション対象"))
+        self.gradient_target_combo = QComboBox()
+        self.gradient_target_combo.addItem(tr("線"), "line")
+        self.gradient_target_combo.addItem(tr("塗り"), "fill")
+        self.gradient_target_combo.addItem(tr("両方"), "both")
+        self.ui.formLayout_4.addRow(self.gradient_target_label, self.gradient_target_combo)
+
         # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")
         self.ui.formLayout_4.addRow(self.point_labels_checkbox)

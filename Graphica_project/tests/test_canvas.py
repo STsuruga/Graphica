@@ -4,6 +4,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+from matplotlib.collections import LineCollection
+from matplotlib.image import AxesImage
+from matplotlib.lines import Line2D
 import pandas as pd
 import pytest
 
@@ -282,6 +285,138 @@ def test_grid_custom_style_applies_independently_per_axis_and_major_minor():
     y_minor = _minor_gridlines(ax.yaxis)[0]
     assert (y_minor.get_linestyle(), y_minor.get_linewidth(), y_minor.get_alpha()) == (':', pytest.approx(0.4), pytest.approx(0.9))
     plt.close(c.fig)
+
+
+# --- プロットへのグラデーション適用(項目79) ---
+# 線ストロークグラデーション(LineCollection)と塗りグラデーション(imshow+クリップ
+# パス)の両方について、gradient_enabled=False(デフォルト)では従来どおりの
+# 描画(回帰が無いこと)を、gradient_enabled=True では期待するArtist種別に
+# 切り替わることを検証する。
+
+def _make_line_dataset(gradient_enabled=False, gradient_target='line', plot_type='Line'):
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0], "y": [0.0, 1.0, 4.0, 9.0]})
+    return Dataset(
+        name="line_ds", df=df, x_col_name="x", y_col_name="y",
+        plot_type=plot_type, color='#112233', gradient_color2='#ffffff',
+        gradient_enabled=gradient_enabled, gradient_target=gradient_target,
+    )
+
+
+def _make_area_dataset(gradient_enabled=False, gradient_target='fill'):
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0], "y": [1.0, 2.0, 3.0, 2.0]})
+    return Dataset(
+        name="area_ds", df=df, x_col_name="x", y_col_name="y",
+        plot_type='Area', color='#112233', gradient_color2='#ffffff',
+        gradient_enabled=gradient_enabled, gradient_target=gradient_target,
+    )
+
+
+def test_gradient_disabled_line_matches_previous_line2d_behavior(canvas):
+    """gradient_enabled=False(デフォルト)の 'Line' は、従来どおりLine2Dが1本だけ
+    描画される(LineCollectionには切り替わらない、後方互換の回帰確認)"""
+    ds = _make_line_dataset(gradient_enabled=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert isinstance(ds.artist, Line2D)
+    assert len(ax.lines) == 1
+    assert len(ax.collections) == 0
+
+
+def test_gradient_disabled_area_matches_previous_artist_count(canvas):
+    """gradient_enabled=False の 'Area' は、従来どおり fill_between(collection 1つ)
+    + 輪郭のLine2D(1本)という組み合わせのまま変わらない"""
+    ds = _make_area_dataset(gradient_enabled=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.lines) == 1
+    assert len(ax.collections) == 1
+    assert len(ax.images) == 0
+
+
+def test_gradient_line_enabled_uses_linecollection_with_two_color_cmap(canvas):
+    """gradient_target='line' で有効化すると、'Line'はLine2DではなくLineCollectionに
+    切り替わり、cmapの両端が開始色(color)・終端色(gradient_color2)になる"""
+    ds = _make_line_dataset(gradient_enabled=True, gradient_target='line')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+
+    assert isinstance(ds.artist, LineCollection)
+    assert len(ax.lines) == 0  # 通常のLine2Dとしては描画されない
+
+    cmap = ds.artist.get_cmap()
+    start_rgba = cmap(0.0)
+    end_rgba = cmap(1.0)
+    import matplotlib.colors as mcolors
+    assert start_rgba[:3] == pytest.approx(mcolors.to_rgb('#112233'), abs=1e-6)
+    assert end_rgba[:3] == pytest.approx(mcolors.to_rgb('#ffffff'), abs=1e-6)
+
+    # 各線分に、線に沿った位置(0〜1)を表す配列が割り当てられている
+    array = ds.artist.get_array()
+    assert array is not None
+    assert len(array) == len(ds.x_data) - 1
+
+
+def test_gradient_line_enabled_autoscales_axis_to_data_range(canvas):
+    """add_collection()経由のLineCollectionでも、通常のax.plot()と同様に
+    軸のオートスケールがデータ範囲に追従すること(見落としがちな落とし穴の確認)"""
+    ds = _make_line_dataset(gradient_enabled=True, gradient_target='line')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+
+    x_min, x_max = ax.get_xlim()
+    y_min, y_max = ax.get_ylim()
+    assert x_min <= ds.x_data.min() and x_max >= ds.x_data.max()
+    assert y_min <= ds.y_data.min() and y_max >= ds.y_data.max()
+
+
+def test_gradient_target_fill_only_keeps_line_as_plain_line2d(canvas):
+    """'Line'に対して(本来意味を持たない)gradient_target='fill'を指定しても
+    クラッシュせず、線は従来通りの単色Line2Dのまま描画される(防御的な後方互換)"""
+    ds = _make_line_dataset(gradient_enabled=True, gradient_target='fill', plot_type='Line')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert isinstance(ds.artist, Line2D)
+    assert len(ax.collections) == 0
+
+
+def test_gradient_fill_enabled_creates_clipped_imshow(canvas):
+    """gradient_target='fill' の 'Area' は、fill_betweenの代わりにクリップパス付きの
+    imshow(AxesImage)で塗り領域を描画する"""
+    ds = _make_area_dataset(gradient_enabled=True, gradient_target='fill')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+
+    assert len(ax.images) == 1
+    image = ax.images[0]
+    assert isinstance(image, AxesImage)
+    assert image.get_clip_path() is not None
+    assert ds.artist is image
+    # 塗りに使われたのと同じ輪郭線(通常のLine2D、対象='fill'のみなのでグラデーション化されない)も引き続き描画される
+    assert len(ax.lines) == 1
+
+
+def test_gradient_both_target_on_area_creates_gradient_line_and_gradient_fill(canvas):
+    """gradient_target='both' の 'Area' は、線・塗りの両方がグラデーション化される"""
+    ds = _make_area_dataset(gradient_enabled=True, gradient_target='both')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+
+    assert len(ax.images) == 1
+    assert ax.images[0].get_clip_path() is not None
+    assert len(ax.lines) == 0  # 輪郭線もLineCollection化されるため、Line2Dはゼロ本
+    assert any(isinstance(c, LineCollection) for c in ax.collections)
+
+
+def test_gradient_line_with_single_point_falls_back_to_plain_line(canvas):
+    """データ点が1つ以下だとセグメントが作れないため、例外を出さず通常の線として描画する"""
+    df = pd.DataFrame({"x": [1.0], "y": [2.0]})
+    ds = Dataset(
+        name="single", df=df, x_col_name="x", y_col_name="y",
+        plot_type='Line', gradient_enabled=True, gradient_target='line',
+    )
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert isinstance(ds.artist, Line2D)
 
 
 def test_grid_minor_hidden_when_minor_grid_visible_false():

@@ -825,6 +825,9 @@ class DatasetMixin:
                 None if self.point_label_col_combo.currentText() == POINT_LABEL_Y_VALUE_LABEL
                 else self.point_label_col_combo.currentText()
             ),
+            # プロットへのグラデーション適用(項目79)
+            self.gradient_checkbox: ('gradient_enabled', self.gradient_checkbox.isChecked()),
+            self.gradient_target_combo: ('gradient_target', self.gradient_target_combo.currentData()),
         }
 
         changed = field_by_widget.get(self.sender())
@@ -870,6 +873,52 @@ class DatasetMixin:
             )
         if is_batch:
             self.undo_stack.endMacro()
+
+    def _on_gradient_color2_changed(self, new_color):
+        """
+        グラデーション終端色ウィジェット (gradient_color2_picker、項目79) で
+        色が変更されたときの処理。_on_dataset_color_changed (開始色=color) と
+        同様のUndo/Redo・複数選択一括適用パターンを、gradient_color2に対して行う。
+        """
+        selected_datasets = self._get_selected_datasets()
+        if not selected_datasets:
+            return
+
+        is_batch = len(selected_datasets) > 1
+        if is_batch:
+            self.undo_stack.beginMacro(f"グラデーション終端色を一括変更 ({len(selected_datasets)}件)")
+        for dataset in selected_datasets:
+            self._push_dataset_property_command(
+                dataset,
+                {'gradient_color2': dataset.gradient_color2},
+                {'gradient_color2': new_color},
+                description="グラデーション終端色の変更"
+            )
+        if is_batch:
+            self.undo_stack.endMacro()
+
+    def _update_gradient_controls_visibility(self):
+        """
+        プロットへのグラデーション適用(項目79)のUIコントロールの表示/非表示を、
+        現在選択中データセットの plot_type に応じて更新する。
+        - グラデーション自体(チェックボックス・終端色)は 'Line'/'Line+Scatter'/'Area'
+          でのみ意味を持つ('Scatter'/'Bar'では線も塗りも無いため隠す)。
+        - 対象(線/塗り/両方)コンボは、複数の対象から選べる 'Area' でのみ表示する
+          ('Line'/'Line+Scatter' では常に「線」一択のため、コンボを見せる意味がない)。
+        """
+        dataset = self._get_current_dataset()
+        plot_type = dataset.plot_type if dataset is not None else self.ui.plot_type_combo.currentText()
+        supports_gradient = plot_type in ('Line', 'Line+Scatter', 'Area')
+
+        self.gradient_checkbox.setVisible(supports_gradient)
+
+        show_detail = supports_gradient and self.gradient_checkbox.isChecked()
+        self.gradient_color2_label.setVisible(show_detail)
+        self.gradient_color2_picker.setVisible(show_detail)
+
+        show_target_combo = show_detail and plot_type == 'Area'
+        self.gradient_target_label.setVisible(show_target_combo)
+        self.gradient_target_combo.setVisible(show_target_combo)
 
     def _on_auto_assign_colors(self):
         """
@@ -999,6 +1048,9 @@ class DatasetMixin:
             self.point_label_col_combo.blockSignals(True)
             self.use_secondary_y_checkbox.blockSignals(True)
             self.subplot_target_combo.blockSignals(True)
+            self.gradient_checkbox.blockSignals(True)
+            self.gradient_color2_picker.blockSignals(True)
+            self.gradient_target_combo.blockSignals(True)
 
             # 4c. Dataset オブジェクトの値をUIにロード
             self.ui.legend_name_edit.setText(dataset.name)
@@ -1010,6 +1062,10 @@ class DatasetMixin:
             self.color_picker_widget.set_color(dataset.color)
             self.ui.smoothing_checkbox.setChecked(dataset.smoothing)
             self.alpha_spinbox.setValue(dataset.alpha)
+            self.gradient_checkbox.setChecked(dataset.gradient_enabled)
+            self.gradient_color2_picker.set_color(dataset.gradient_color2)
+            gradient_target_index = self.gradient_target_combo.findData(dataset.gradient_target)
+            self.gradient_target_combo.setCurrentIndex(gradient_target_index if gradient_target_index != -1 else 0)
             self.point_labels_checkbox.setChecked(dataset.show_point_labels)
             self.point_label_col_combo.clear()
             self.point_label_col_combo.addItems([POINT_LABEL_Y_VALUE_LABEL] + dataset.df.columns.tolist())
@@ -1031,6 +1087,10 @@ class DatasetMixin:
             self.point_label_col_combo.blockSignals(False)
             self.use_secondary_y_checkbox.blockSignals(False)
             self.subplot_target_combo.blockSignals(False)
+            self.gradient_checkbox.blockSignals(False)
+            self.gradient_color2_picker.blockSignals(False)
+            self.gradient_target_combo.blockSignals(False)
+            self._update_gradient_controls_visibility()
 
             # 4e. X/Y軸コンボボックスの更新処理 (シグナルブロックを含む)
             self.x_col_combo.blockSignals(True)
@@ -1087,6 +1147,12 @@ class DatasetMixin:
             self.fit_info_label.setVisible(False)
             self.fit_info_textedit.setVisible(False)
             self.fit_info_textedit.clear()
+
+            self.gradient_checkbox.setVisible(False)
+            self.gradient_color2_label.setVisible(False)
+            self.gradient_color2_picker.setVisible(False)
+            self.gradient_target_label.setVisible(False)
+            self.gradient_target_combo.setVisible(False)
 
             self.stats_summary_label.setText("-")
             self.dataset_mini_stats_label.setText("-")

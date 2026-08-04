@@ -82,6 +82,14 @@ class Dataset:
     smoothing: bool = False       # CubicSpline で平滑化するかどうか
     alpha: float = 1.0            # 透明度 (0.0=完全に透明 ～ 1.0=不透明)
 
+    # プロットへのグラデーション適用(項目79): 線の色を開始色(color)から終端色
+    # (gradient_color2)へ連続的に変化させる「線ストロークグラデーション」、および
+    # Area(塗りつぶし)プロットの塗り領域をグラデーションにする「塗りグラデーション」。
+    # gradient_target は 'line'(線のみ) / 'fill'(塗りのみ) / 'both'(両方、Areaのみ意味を持つ)。
+    gradient_enabled: bool = False
+    gradient_color2: str = '#ffffff'   # グラデーションの終端色(開始色は既存の color を流用する)
+    gradient_target: str = 'line'      # 'line' / 'fill' / 'both'
+
     # データポイントラベル表示 (各点の脇に値を表示するかどうか、および表示する列)
     show_point_labels: bool = False
     # None なら Y値そのものをラベルにする。列名を指定するとその列の値を表示する。

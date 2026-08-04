@@ -5,6 +5,9 @@ from scipy.interpolate import CubicSpline
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.font_manager import FontProperties
+from matplotlib.collections import LineCollection
+from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.patches import Polygon
 import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
@@ -275,6 +278,87 @@ class MplCanvas(FigureCanvas):
         except AttributeError:
             pass
 
+    def _add_gradient_line(self, ax, x, y, color1, color2, linewidth, alpha, linestyle, label=None):
+        """
+        線ストロークグラデーション(項目79): 線を細かいセグメントに分割し、
+        各セグメントに開始色(color1)→終端色(color2)を線形補間した色を割り当てる
+        LineCollectionとして描画する(matplotlibにはグラデーション線を直接描く
+        機能が無いため、これが定番の実現方法)。
+
+        ★ 注意点(オートスケールの落とし穴): ax.plot() と違い、
+        ax.add_collection() は呼び出しただけではAxesの表示範囲(view limits)を
+        自動的に広げてくれない場合がある。Collection自体は autolim=True が
+        既定でdataLim(データ範囲)は更新されるが、実際に軸の見た目の範囲へ
+        反映されるのは呼び出し側(_apply_appearance)がautoscaleを適用した
+        タイミングになる。取りこぼしが無いよう、ここでも明示的に
+        ax.update_datalim() を呼んでデータ範囲を確実に反映させておく。
+        """
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+
+        if len(x) < 2:
+            # 点が0〜1個だとセグメント(区間)を作れないため、通常の線として描画する
+            (line,) = ax.plot(x, y, color=color1, linestyle=linestyle, linewidth=linewidth, alpha=alpha, label=label)
+            return line
+
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        cmap = LinearSegmentedColormap.from_list('graphica_line_gradient', [color1, color2])
+        lc = LineCollection(
+            segments, cmap=cmap, norm=Normalize(0, 1),
+            linewidths=linewidth, linestyles=linestyle, alpha=alpha, label=label,
+            zorder=2,
+        )
+        # 各セグメントに、線の始点からの位置(0.0=開始 ～ 1.0=終端)を割り当てる
+        lc.set_array(np.linspace(0, 1, len(segments)))
+        ax.add_collection(lc)
+        # ★ オートスケール対策(上記docstring参照): データ範囲を明示的に反映
+        ax.update_datalim(np.column_stack([x, y]))
+        return lc
+
+    def _add_gradient_fill(self, ax, x, y, color1, color2, alpha, baseline=0.0):
+        """
+        塗りグラデーション(項目79): fill_between() が作るのと同じ形状(X/Y値と
+        基準線baselineの間の領域)のポリゴンをクリップパスとして使い、
+        ax.imshow() で描いたグラデーション画像をその内側だけに見せる
+        (matplotlibで「グラデーション塗り」を実現する定番のレシピ)。
+        """
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+
+        # 縦方向(下→上)のグラデーション画像。origin='lower' で配列の先頭行が
+        # 下端に描かれるため、下端=終端色(color2)・上端=開始色(color1)になるよう
+        # 色の並びを反転させておく。
+        gradient = np.linspace(0, 1, 256).reshape(-1, 1)
+        cmap = LinearSegmentedColormap.from_list('graphica_fill_gradient', [color2, color1])
+
+        x_min, x_max = float(np.nanmin(x)), float(np.nanmax(x))
+        y_min = float(min(np.nanmin(y), baseline))
+        y_max = float(max(np.nanmax(y), baseline))
+        # 全点が同じX(またはY)座標だとimshowのextentが潰れてしまうため、
+        # わずかに幅を持たせておく
+        if x_min == x_max:
+            x_min, x_max = x_min - 0.5, x_max + 0.5
+        if y_min == y_max:
+            y_min, y_max = y_min - 0.5, y_max + 0.5
+
+        im = ax.imshow(
+            gradient, cmap=cmap, aspect='auto', origin='lower',
+            extent=(x_min, x_max, y_min, y_max), alpha=alpha, zorder=1,
+        )
+
+        # fill_between()と同じ塗り領域(データ点を辿った後、基準線上を逆向きに
+        # 戻ってくる多角形)をクリップパスとして使う
+        verts = list(zip(x, y)) + [(x[-1], baseline), (x[0], baseline)]
+        clip_poly = Polygon(verts, closed=True, transform=ax.transData)
+        im.set_clip_path(clip_poly)
+
+        # ★ imshow()はax.plot()と異なりデータ範囲を自動的に広げないため、
+        # 塗り領域の範囲を明示的に反映させておく(オートスケール対策)
+        ax.update_datalim(np.array([[x_min, y_min], [x_max, y_max]]))
+        return im
+
     def _draw_data(self, ax, axis_index, datasets):
         """指定された軸にデータをプロットする"""
         datasets_for_this_axis = [ds for ds in datasets if ds.subplot_target == axis_index]
@@ -316,33 +400,84 @@ class MplCanvas(FigureCanvas):
                 sort_indices = np.argsort(ds.x_data)
                 x_sorted = ds.x_data[sort_indices]
                 y_sorted = ds.y_data[sort_indices]
+                # ★ グラデーション(項目79)は平滑化された曲線にも適用できるよう、
+                # 平滑化後のx_smooth/y_smoothに対してLineCollectionを作る。
+                use_line_gradient = ds.gradient_enabled and ds.gradient_target in ('line', 'both')
                 try:
                     f = CubicSpline(x_sorted, y_sorted)
                     x_smooth = np.linspace(x_sorted.min(), x_sorted.max(), 200)
                     y_smooth = f(x_smooth)
-                    (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
-                    ds.artist = artist_line
+                    if use_line_gradient:
+                        ds.artist = self._add_gradient_line(
+                            target_ax, x_smooth, y_smooth, ds.color, ds.gradient_color2,
+                            ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
+                        )
+                    else:
+                        (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
+                        ds.artist = artist_line
                     if ds.plot_type == 'Line+Scatter':
                         target_ax.scatter(ds.x_data, ds.y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha)
                 except ValueError:
-                    (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
-                    ds.artist = artist
+                    if use_line_gradient:
+                        ds.artist = self._add_gradient_line(
+                            target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2,
+                            ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
+                        )
+                    else:
+                        (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
+                        ds.artist = artist
             else:
+                # ★ 線ストロークグラデーション(項目79)は 'line'/'both' が
+                # 選ばれているときのみ、'Line'/'Line+Scatter' で有効になる。
+                use_line_gradient = ds.gradient_enabled and ds.gradient_target in ('line', 'both')
                 if ds.plot_type == 'Line':
-                    (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
-                    ds.artist = artist
+                    if use_line_gradient:
+                        ds.artist = self._add_gradient_line(
+                            target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2,
+                            ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
+                        )
+                    else:
+                        (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
+                        ds.artist = artist
                 elif ds.plot_type == 'Scatter':
                     artist = target_ax.scatter(ds.x_data, ds.y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=ds.name)
                     ds.artist = artist
                 elif ds.plot_type == 'Line+Scatter':
-                    (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=ds.name)
-                    ds.artist = artist
+                    if use_line_gradient:
+                        # LineCollectionはマーカーを描けないため、線はグラデーション、
+                        # マーカーは別途ds.colorの単色scatterとして重ねて描画する。
+                        ds.artist = self._add_gradient_line(
+                            target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2,
+                            ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
+                        )
+                        target_ax.scatter(ds.x_data, ds.y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha)
+                    else:
+                        (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=ds.name)
+                        ds.artist = artist
                 elif ds.plot_type == 'Area':
                     # 塗りつぶし(エリア)プロット: 0を基準線としてY値との間を塗りつぶす。
                     # 輪郭を分かりやすくするため、上端に細い線も重ねて描画する。
-                    artist = target_ax.fill_between(ds.x_data, ds.y_data, 0, color=ds.color, alpha=ds.alpha * 0.4, label=ds.name)
-                    target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha)
-                    ds.artist = artist
+                    # ★ グラデーション無効時は従来どおりの描画(回帰防止のため分岐を変えない)。
+                    if not ds.gradient_enabled:
+                        artist = target_ax.fill_between(ds.x_data, ds.y_data, 0, color=ds.color, alpha=ds.alpha * 0.4, label=ds.name)
+                        target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha)
+                        ds.artist = artist
+                    else:
+                        use_fill_gradient = ds.gradient_target in ('fill', 'both')
+                        use_area_line_gradient = ds.gradient_target in ('line', 'both')
+                        if use_fill_gradient:
+                            artist = self._add_gradient_fill(target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2, ds.alpha * 0.4)
+                        else:
+                            artist = target_ax.fill_between(ds.x_data, ds.y_data, 0, color=ds.color, alpha=ds.alpha * 0.4)
+
+                        if use_area_line_gradient:
+                            self._add_gradient_line(
+                                target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2,
+                                ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
+                            )
+                        else:
+                            target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
+                        ds.artist = artist
                 elif ds.plot_type == 'Bar':
                     # 棒グラフ: 文字列カテゴリ軸(項目31)との組み合わせを主な用途として想定。
                     artist = target_ax.bar(ds.x_data, ds.y_data, color=ds.color, alpha=ds.alpha, label=ds.name)
