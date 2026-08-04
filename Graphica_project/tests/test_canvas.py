@@ -419,6 +419,78 @@ def test_gradient_line_with_single_point_falls_back_to_plain_line(canvas):
     assert isinstance(ds.artist, Line2D)
 
 
+# --- ウォーターフォールプロット(項目80) ---
+# 同一サブプロット上で plot_type=='Waterfall' のデータセットだけを対象に、
+# リスト順で0始まりの積み重ねインデックスを振り、X/Yをそれぞれ
+# (index * waterfall_offset_x, index * waterfall_offset_y) だけずらして描画する。
+# 実装は通常の2D Axesの範囲内(mpl_toolkits.mplot3dは使わない疑似3D)。
+
+def _make_waterfall_dataset(name, x, y, offset_x=0.0, offset_y=1.0):
+    df = pd.DataFrame({"x": x, "y": y})
+    return Dataset(
+        name=name, df=df, x_col_name="x", y_col_name="y",
+        plot_type='Waterfall', color='#112233',
+        waterfall_offset_x=offset_x, waterfall_offset_y=offset_y,
+    )
+
+
+def test_waterfall_zero_offset_matches_plain_line_position(canvas):
+    """offset=(0,0)の単独'Waterfall'データセットは、積み重ねインデックス0番目
+    として何もずらされないため、通常の'Line'と同じ位置に描画される
+    (回帰防止のためのベースライン確認)。"""
+    x, y = [0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0]
+    ds_line = Dataset(name="line", df=pd.DataFrame({"x": x, "y": y}),
+                       x_col_name="x", y_col_name="y", plot_type='Line', color='#112233')
+    ds_waterfall = _make_waterfall_dataset("wf", x, y, offset_x=0.0, offset_y=0.0)
+
+    canvas.redraw_all([ds_line], 1, 1, [{}])
+    line_x, line_y = list(ds_line.artist.get_xdata()), list(ds_line.artist.get_ydata())
+
+    canvas.redraw_all([ds_waterfall], 1, 1, [{}])
+    assert isinstance(ds_waterfall.artist, Line2D)
+    assert list(ds_waterfall.artist.get_xdata()) == pytest.approx(line_x)
+    assert list(ds_waterfall.artist.get_ydata()) == pytest.approx(line_y)
+
+
+def test_waterfall_two_datasets_shift_by_stacking_index(canvas):
+    """2件の'Waterfall'データセットは、リスト順で0,1のインデックスを振られ、
+    2件目はX方向に1*offset_x、Y方向に1*offset_yだけずれた位置に描画される。"""
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    ds0 = _make_waterfall_dataset("wf0", x, y, offset_x=1.0, offset_y=2.0)
+    ds1 = _make_waterfall_dataset("wf1", x, y, offset_x=1.0, offset_y=2.0)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    assert list(ds0.artist.get_xdata()) == pytest.approx(x)
+    assert list(ds0.artist.get_ydata()) == pytest.approx(y)
+    assert list(ds1.artist.get_xdata()) == pytest.approx([v + 1.0 for v in x])
+    assert list(ds1.artist.get_ydata()) == pytest.approx([v + 2.0 for v in y])
+
+
+def test_waterfall_non_waterfall_datasets_unaffected_and_excluded_from_index(canvas):
+    """同じサブプロットに非Waterfallのデータセットが混在していても、積み重ね
+    インデックスの計算には参加せず、位置も一切ずらされない。'Waterfall'側の
+    インデックス付番も、非Waterfallのデータセットを無視してWaterfall同士だけの
+    順序で振られる。"""
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    ds_line = Dataset(name="line", df=pd.DataFrame({"x": x, "y": y}),
+                       x_col_name="x", y_col_name="y", plot_type='Line', color='#445566')
+    ds_wf0 = _make_waterfall_dataset("wf0", x, y, offset_x=1.0, offset_y=2.0)
+    ds_wf1 = _make_waterfall_dataset("wf1", x, y, offset_x=1.0, offset_y=2.0)
+
+    # 非Waterfallのデータセットをリストの先頭・間に挟んでも結果が変わらないこと
+    canvas.redraw_all([ds_line, ds_wf0, ds_wf1], 1, 1, [{}])
+
+    assert list(ds_line.artist.get_xdata()) == pytest.approx(x)
+    assert list(ds_line.artist.get_ydata()) == pytest.approx(y)
+    # wf0 はWaterfallの中で0番目のまま(lineに割り込まれてもインデックスは変わらない)
+    assert list(ds_wf0.artist.get_xdata()) == pytest.approx(x)
+    assert list(ds_wf0.artist.get_ydata()) == pytest.approx(y)
+    # wf1 はWaterfallの中で1番目
+    assert list(ds_wf1.artist.get_xdata()) == pytest.approx([v + 1.0 for v in x])
+    assert list(ds_wf1.artist.get_ydata()) == pytest.approx([v + 2.0 for v in y])
+
+
 def test_grid_minor_hidden_when_minor_grid_visible_false():
     """主グリッドはONでも補助グリッドがOFFなら、補助目盛グリッド線は表示されない
     (X/Y独立カスタマイズ導入後も、この既存の on/off 挙動は変わらない)"""

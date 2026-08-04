@@ -258,6 +258,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # ui_main_window.py 自体は編集しない)
         self.ui.plot_type_combo.addItem("Area")
         self.ui.plot_type_combo.addItem("Bar")
+        # ウォーターフォールプロット(項目80): スペクトル等をZ軸方向にずらして
+        # 立体的に見せる表示(疑似2D、mpl_toolkits.mplot3dは使わない)。
+        self.ui.plot_type_combo.addItem("Waterfall")
 
         # ★ データセットリストを QListWidget から QTreeWidget に置き換える。
         #   フォルダによるグループ分けに対応するため (Designerが生成する
@@ -628,6 +631,28 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.gradient_target_combo.addItem(tr("塗り"), "fill")
         self.gradient_target_combo.addItem(tr("両方"), "both")
         self.ui.formLayout_4.addRow(self.gradient_target_label, self.gradient_target_combo)
+
+        # 2c-3. ウォーターフォールプロット(項目80): plot_type == 'Waterfall' の
+        # データセットだけを対象に、隣接するデータセット1件あたりのX/Yオフセット量
+        # (waterfall_offset_x/waterfall_offset_y) を指定するスピンボックス。
+        # 項目66でスライダーからスピンボックスへ統一済みの方針に合わせる。
+        # 表示/非表示は _update_gradient_controls_visibility と同じパターンで
+        # _update_waterfall_controls_visibility が行う(dataset_mixin.py)。
+        self.waterfall_offset_x_label = QLabel(tr("ウォーターフォールXオフセット"))
+        self.waterfall_offset_x_spinbox = QDoubleSpinBox()
+        self.waterfall_offset_x_spinbox.setRange(-1e6, 1e6)
+        self.waterfall_offset_x_spinbox.setSingleStep(0.1)
+        self.waterfall_offset_x_spinbox.setDecimals(4)
+        self.waterfall_offset_x_spinbox.setValue(0.0)
+        self.ui.formLayout_4.addRow(self.waterfall_offset_x_label, self.waterfall_offset_x_spinbox)
+
+        self.waterfall_offset_y_label = QLabel(tr("ウォーターフォールYオフセット"))
+        self.waterfall_offset_y_spinbox = QDoubleSpinBox()
+        self.waterfall_offset_y_spinbox.setRange(-1e6, 1e6)
+        self.waterfall_offset_y_spinbox.setSingleStep(0.1)
+        self.waterfall_offset_y_spinbox.setDecimals(4)
+        self.waterfall_offset_y_spinbox.setValue(1.0)
+        self.ui.formLayout_4.addRow(self.waterfall_offset_y_label, self.waterfall_offset_y_spinbox)
 
         # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")

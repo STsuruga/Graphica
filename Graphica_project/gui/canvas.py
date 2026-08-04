@@ -390,6 +390,29 @@ class MplCanvas(FigureCanvas):
             secondary_ax = ax.twinx()
             self.all_secondary_axes[axis_index] = secondary_ax
 
+        # ウォーターフォールプロット(項目80): このサブプロット上で plot_type=='Waterfall'
+        # のデータセットだけを対象に、リスト順(datasets_for_this_axisの並び順、
+        # 他のプロットタイプとは混ぜない)で0始まりの「積み重ねインデックス」を振る。
+        # 背景色の塗りつぶしで奥のトレースを隠す(occlusion)ためのベースライン
+        # (全ウォーターフォールトレースのY最小値からわずかに余白を取った値)も
+        # ここでまとめて計算しておく。
+        waterfall_datasets = [ds for ds in datasets_for_this_axis if ds.plot_type == 'Waterfall']
+        waterfall_index = {ds.dataset_id: i for i, ds in enumerate(waterfall_datasets)}
+        waterfall_count = len(waterfall_datasets)
+        waterfall_baseline = 0.0
+        if waterfall_count:
+            shifted_mins, shifted_maxs = [], []
+            for i, wds in enumerate(waterfall_datasets):
+                if len(wds.y_data) == 0:
+                    continue
+                y_shift = i * wds.waterfall_offset_y
+                shifted_mins.append(float(np.nanmin(wds.y_data)) + y_shift)
+                shifted_maxs.append(float(np.nanmax(wds.y_data)) + y_shift)
+            if shifted_mins:
+                y_min_all, y_max_all = min(shifted_mins), max(shifted_maxs)
+                margin = (y_max_all - y_min_all) * 0.05 if y_max_all > y_min_all else 1.0
+                waterfall_baseline = y_min_all - margin
+
         for ds in datasets_for_this_axis:
             target_ax = secondary_ax if ds.use_secondary_y else ax
             if target_ax is None: continue
@@ -481,6 +504,32 @@ class MplCanvas(FigureCanvas):
                 elif ds.plot_type == 'Bar':
                     # 棒グラフ: 文字列カテゴリ軸(項目31)との組み合わせを主な用途として想定。
                     artist = target_ax.bar(ds.x_data, ds.y_data, color=ds.color, alpha=ds.alpha, label=ds.name)
+                    ds.artist = artist
+                elif ds.plot_type == 'Waterfall':
+                    # ウォーターフォールプロット(項目80): X/Yを積み重ねインデックス分
+                    # ずらして重ね描きする。スタイルは'Line'と同じフィールド
+                    # (color/linestyle/linewidth/alpha)を流用する(ウォーターフォールは
+                    # あくまで「位置をずらす」技法であり、新しい見た目の種類ではないため)。
+                    # 分光データ等の慣習に合わせ、手前(インデックス0)のトレースが奥の
+                    # トレースを隠すように見せるため、zorderをインデックスの逆順に設定し、
+                    # 各トレースの下に軸背景色のfill_betweenを敷いて奥のトレースを隠す
+                    # (occlusion)。
+                    idx = waterfall_index.get(ds.dataset_id, 0)
+                    x_shifted = ds.x_data + idx * ds.waterfall_offset_x
+                    y_shifted = ds.y_data + idx * ds.waterfall_offset_y
+                    # 手前(idxが小さい)ほど大きいzorderになるようにし、後ろのトレースの
+                    # 上に重なって描画されるようにする。
+                    zorder = (waterfall_count - idx) * 2
+                    if len(x_shifted) > 0:
+                        bg_color = DARK_AXES_FACECOLOR if self.dark_mode else LIGHT_AXES_FACECOLOR
+                        target_ax.fill_between(
+                            x_shifted, y_shifted, waterfall_baseline,
+                            color=bg_color, alpha=1.0, zorder=zorder - 1, linewidth=0,
+                        )
+                    (artist,) = target_ax.plot(
+                        x_shifted, y_shifted, color=ds.color, linestyle=ds.linestyle,
+                        linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, zorder=zorder,
+                    )
                     ds.artist = artist
 
             # ★ グラフ要素の直接クリック選択(項目35)のため、常にクリック検出を有効にする。

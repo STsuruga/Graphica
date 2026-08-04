@@ -73,7 +73,7 @@ class Dataset:
         return None
 
     # --- スタイルと状態に関する情報 (デフォルト値付き) ---
-    plot_type: str = 'Line'       # 'Line', 'Scatter', 'Line+Scatter'
+    plot_type: str = 'Line'       # 'Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Waterfall'
     color: str = '#1f77b4'        # 16進数カラーコード (Matplotlib のデフォルト色)
     linestyle: str = '-'          # 実線 (Solid)
     linewidth: float = 1.5
@@ -89,6 +89,16 @@ class Dataset:
     gradient_enabled: bool = False
     gradient_color2: str = '#ffffff'   # グラデーションの終端色(開始色は既存の color を流用する)
     gradient_target: str = 'line'      # 'line' / 'fill' / 'both'
+
+    # ウォーターフォールプロット(項目80): 時間/濃度変化などのスペクトルを、
+    # Z軸方向にずらして立体的に配置したように見せる表示。実際には3Dプロット
+    # (mpl_toolkits.mplot3d)は使わず、同一サブプロット内の plot_type='Waterfall'
+    # なデータセットだけをリスト順に0始まりのインデックスで数え、その
+    # インデックス番目のデータセットのX/Yを (index * waterfall_offset_x,
+    # index * waterfall_offset_y) だけずらして通常の2D Axesに重ね描きすることで
+    # 疑似的な立体感を出す(gui/canvas.py の _draw_data 内 'Waterfall' 分岐)。
+    waterfall_offset_x: float = 0.0
+    waterfall_offset_y: float = 1.0
 
     # データポイントラベル表示 (各点の脇に値を表示するかどうか、および表示する列)
     show_point_labels: bool = False

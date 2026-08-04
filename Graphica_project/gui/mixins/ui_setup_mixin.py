@@ -167,6 +167,9 @@ class UISetupMixin:
             # 「線/塗り/両方」のうちどれが意味を持つかが変わるため、プロットタイプの
             # 変更のたびに表示/非表示を更新し直す(_on_property_changedとは別経路)。
             self.ui.plot_type_combo.currentTextChanged.connect(self._update_gradient_controls_visibility)
+            # ★ ウォーターフォールプロット(項目80)のオフセットスピンボックスも、
+            # プロットタイプが 'Waterfall' のときだけ表示する。
+            self.ui.plot_type_combo.currentTextChanged.connect(self._update_waterfall_controls_visibility)
             self.color_picker_widget.colorChanged.connect(self._on_dataset_color_changed)
             self.ui.linestyle_combo.currentTextChanged.connect(self._on_property_changed)
             self.ui.linewidth_spinbox.valueChanged.connect(self._on_property_changed)
@@ -180,6 +183,9 @@ class UISetupMixin:
             self.gradient_checkbox.toggled.connect(self._update_gradient_controls_visibility)
             self.gradient_color2_picker.colorChanged.connect(self._on_gradient_color2_changed)
             self.gradient_target_combo.currentIndexChanged.connect(self._on_property_changed)
+            # ウォーターフォールプロット(項目80)
+            self.waterfall_offset_x_spinbox.valueChanged.connect(self._on_property_changed)
+            self.waterfall_offset_y_spinbox.valueChanged.connect(self._on_property_changed)
             # 項目105: ラベル有効化時、データ点が多いと確認ポップアップを挟むための
             # 専用ハンドラ経由にする(_on_property_changedへは内部で委譲される)
             self.point_labels_checkbox.toggled.connect(self._on_point_labels_toggled)

@@ -828,6 +828,9 @@ class DatasetMixin:
             # プロットへのグラデーション適用(項目79)
             self.gradient_checkbox: ('gradient_enabled', self.gradient_checkbox.isChecked()),
             self.gradient_target_combo: ('gradient_target', self.gradient_target_combo.currentData()),
+            # ウォーターフォールプロット(項目80)
+            self.waterfall_offset_x_spinbox: ('waterfall_offset_x', self.waterfall_offset_x_spinbox.value()),
+            self.waterfall_offset_y_spinbox: ('waterfall_offset_y', self.waterfall_offset_y_spinbox.value()),
         }
 
         changed = field_by_widget.get(self.sender())
@@ -919,6 +922,23 @@ class DatasetMixin:
         show_target_combo = show_detail and plot_type == 'Area'
         self.gradient_target_label.setVisible(show_target_combo)
         self.gradient_target_combo.setVisible(show_target_combo)
+
+    def _update_waterfall_controls_visibility(self):
+        """
+        ウォーターフォールプロット(項目80)のオフセット量スピンボックスの
+        表示/非表示を、現在選択中データセットの plot_type に応じて更新する
+        (_update_gradient_controls_visibility と同じ「plot_typeに応じて
+        関連コントロールだけ見せる」パターン)。'Waterfall' のときだけ意味を
+        持つため、それ以外のプロットタイプでは隠す。
+        """
+        dataset = self._get_current_dataset()
+        plot_type = dataset.plot_type if dataset is not None else self.ui.plot_type_combo.currentText()
+        show_waterfall = plot_type == 'Waterfall'
+
+        self.waterfall_offset_x_label.setVisible(show_waterfall)
+        self.waterfall_offset_x_spinbox.setVisible(show_waterfall)
+        self.waterfall_offset_y_label.setVisible(show_waterfall)
+        self.waterfall_offset_y_spinbox.setVisible(show_waterfall)
 
     def _on_auto_assign_colors(self):
         """
@@ -1051,6 +1071,8 @@ class DatasetMixin:
             self.gradient_checkbox.blockSignals(True)
             self.gradient_color2_picker.blockSignals(True)
             self.gradient_target_combo.blockSignals(True)
+            self.waterfall_offset_x_spinbox.blockSignals(True)
+            self.waterfall_offset_y_spinbox.blockSignals(True)
 
             # 4c. Dataset オブジェクトの値をUIにロード
             self.ui.legend_name_edit.setText(dataset.name)
@@ -1066,6 +1088,8 @@ class DatasetMixin:
             self.gradient_color2_picker.set_color(dataset.gradient_color2)
             gradient_target_index = self.gradient_target_combo.findData(dataset.gradient_target)
             self.gradient_target_combo.setCurrentIndex(gradient_target_index if gradient_target_index != -1 else 0)
+            self.waterfall_offset_x_spinbox.setValue(dataset.waterfall_offset_x)
+            self.waterfall_offset_y_spinbox.setValue(dataset.waterfall_offset_y)
             self.point_labels_checkbox.setChecked(dataset.show_point_labels)
             self.point_label_col_combo.clear()
             self.point_label_col_combo.addItems([POINT_LABEL_Y_VALUE_LABEL] + dataset.df.columns.tolist())
@@ -1090,7 +1114,10 @@ class DatasetMixin:
             self.gradient_checkbox.blockSignals(False)
             self.gradient_color2_picker.blockSignals(False)
             self.gradient_target_combo.blockSignals(False)
+            self.waterfall_offset_x_spinbox.blockSignals(False)
+            self.waterfall_offset_y_spinbox.blockSignals(False)
             self._update_gradient_controls_visibility()
+            self._update_waterfall_controls_visibility()
 
             # 4e. X/Y軸コンボボックスの更新処理 (シグナルブロックを含む)
             self.x_col_combo.blockSignals(True)
@@ -1153,6 +1180,11 @@ class DatasetMixin:
             self.gradient_color2_picker.setVisible(False)
             self.gradient_target_label.setVisible(False)
             self.gradient_target_combo.setVisible(False)
+
+            self.waterfall_offset_x_label.setVisible(False)
+            self.waterfall_offset_x_spinbox.setVisible(False)
+            self.waterfall_offset_y_label.setVisible(False)
+            self.waterfall_offset_y_spinbox.setVisible(False)
 
             self.stats_summary_label.setText("-")
             self.dataset_mini_stats_label.setText("-")
