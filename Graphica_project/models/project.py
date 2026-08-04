@@ -47,6 +47,47 @@ def _restricted_loads(fileobj):
     return _RestrictedUnpickler(fileobj).load()
 
 
+# --- .graphica (JSON) 形式のバージョン管理 ---
+# format_version導入前(このキー自体が無い)ファイルは version 0 として扱う。
+# 破壊的な構造変更をする際は、CURRENT_FORMAT_VERSIONをインクリメントし、
+# 旧バージョンからの変換関数を _MIGRATIONS に追加すること。
+CURRENT_FORMAT_VERSION = 1
+
+
+def _migrate_v0_to_v1(data):
+    """format_version未導入(旧data構造そのもの)をversion 1として扱えるようにする。
+    このバージョン間でデータ構造自体に変更は無く、format_versionフィールドの
+    導入そのものが移行内容のため、変換処理はno-op。"""
+    return data
+
+
+# from_version -> データを (from_version + 1) に変換する関数
+_MIGRATIONS = {
+    0: _migrate_v0_to_v1,
+}
+
+
+def _migrate_project_data(data):
+    """dataのformat_versionを見て、CURRENT_FORMAT_VERSIONまで順に移行する。
+    未来バージョン(このアプリより新しいバージョンで保存されたファイル)は
+    安全側に倒して明示的にエラーとする(無言でフィールドを無視して壊れた
+    状態のまま読み込むことを避けるため)。"""
+    version = data.get('format_version', 0)
+    if version > CURRENT_FORMAT_VERSION:
+        raise ValueError(
+            f"このプロジェクトファイルはバージョン{version}で保存されていますが、"
+            f"このアプリケーションが対応しているのはバージョン{CURRENT_FORMAT_VERSION}までです。"
+            "アプリケーションを最新版に更新してください。"
+        )
+    while version < CURRENT_FORMAT_VERSION:
+        migrate = _MIGRATIONS.get(version)
+        if migrate is None:
+            raise ValueError(f"バージョン{version}からの移行手順が見つかりません。")
+        data = migrate(data)
+        version += 1
+    return data
+
+
 class ProjectModel:
     def __init__(self):
         # 現在のファイルパス
@@ -183,6 +224,7 @@ class ProjectModel:
     def _save_project_json(self, filepath):
         """現在のアプリケーション状態をJSON(.graphica)として保存する"""
         data = {
+            'format_version': CURRENT_FORMAT_VERSION,
             'datasets': [ds.to_dict() for ds in self.datasets],
             'dataset_group_tree': self._tree_to_json(self.dataset_group_tree),
             'all_plot_settings': self.all_plot_settings,
@@ -200,6 +242,8 @@ class ProjectModel:
         """JSON(.graphica)ファイルから状態を復元する"""
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
+
+        data = _migrate_project_data(data)
 
         self.datasets = [Dataset.from_dict(d) for d in data.get('datasets', [])]
         dataset_map = {ds.dataset_id: ds for ds in self.datasets}
