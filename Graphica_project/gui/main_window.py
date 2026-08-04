@@ -93,7 +93,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDial
                                QDialog, QTreeWidget, QTreeWidgetItem, QGridLayout,
                                QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction)
 from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack
-from PySide6.QtCore import Qt, QTimer, QSettings, Signal
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal
 from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
@@ -117,6 +117,12 @@ from gui.icon_utils import load_svg_icon, ICONS_DIR
 # ツールバー/ボタンのアイコン(項目67・70)。matplotlibツールバー標準アイコンと
 # 近いトーンになるよう、中間的な濃さのニュートラルグレーで統一する。
 TOOLBAR_ICON_COLOR = "#3B3F42"
+
+# キャンバス上部ツールバーのアイコンサイズ(px)。Qtの既定は24pxだが、
+# カスタムボタンを追加した結果、ウィンドウ幅が狭いときにツールバーが溢れ、
+# はみ出したボタンが極小の「>>」に押し込まれて事実上操作できなくなっていた。
+# アプリ内の他のアイコンのみボタン(18px)ともトーンを揃える。
+TOOLBAR_ICON_SIZE = 18
 
 
 def _svg_icon(name, size=20):
@@ -354,6 +360,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.canvas.dark_mode = self.settings.value("dark_mode", False, type=bool)
         # Matplotlib 標準のナビゲーションツールバーを作成
         toolbar = NavigationToolbar(self.canvas, self)
+        # ★ バグ修正: このツールバーはQMainWindowのツールバー領域ではなく
+        #   plot_container の通常のレイアウトに入れているため、幅が足りなくなると
+        #   はみ出したボタンが幅12pxほどの極小の「>>」ボタンの中に押し込まれ、
+        #   事実上見つけられなくなる。カスタムボタン(データカーソル/注釈/
+        #   レイアウト編集/統計情報)を追加した結果、既定の24pxアイコンでは
+        #   ウィンドウを少し狭めただけで溢れるようになっていた。
+        #   アプリ内の他のアイコンボタン(18px)とトーンを揃えつつ、必要幅を
+        #   縮めてオーバーフローしにくくする。
+        toolbar.setIconSize(QSize(TOOLBAR_ICON_SIZE, TOOLBAR_ICON_SIZE))
 
         # --- ★ ツールバーにカスタムボタン (データカーソル) を追加 ★ ---
         toolbar.addSeparator()
