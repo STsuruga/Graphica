@@ -68,6 +68,17 @@ class MainAppWindow(QMainWindow):
 
         saved_geometry = self._settings.value("window_geometry")
         if saved_geometry is not None:
+            # ★ バグ修正: restoreGeometry() を show() より前(=ウィンドウがまだ
+            #   一度もOSに実体化されていない段階)で呼ぶと、Windowsのウィンドウ枠
+            #   (タイトルバー等)の実寸がまだ確定しておらず、Qtが不正確な枠幅を
+            #   前提にジオメトリを復元してしまう。この結果、ウィンドウ自身の画面
+            #   上の位置についてQtが持つ内部認識が実際とズレたままになり、以降
+            #   ポップアップ位置・クリック判定・matplotlibのマウス座標など、
+            #   画面座標変換を伴うものすべてが一律にズレて見える不具合が起きていた
+            #   (最大化はこの枠幅計算に依存しない別経路のため影響を受けない)。
+            #   winId() でネイティブウィンドウハンドルだけを先に生成させることで、
+            #   画面に表示せずに正確な枠幅をQtに確定させてから復元する。
+            self.winId()
             self.restoreGeometry(saved_geometry)
         else:
             self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)

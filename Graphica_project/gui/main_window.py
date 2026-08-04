@@ -944,6 +944,41 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #   保存済みのバージョンと異なればあえて restoreState() を使わない
         #   (そうしないと、旧バージョンの配置が復元され続けてしまい、
         #   コード側でデフォルト配置を変えても既存ユーザーに反映されない)。
+        # ★ バグ修正: restoreState() はここ(__init__の途中)ではまだ
+        #   このウィンドウがMainAppWindowのタブとして実際の最終サイズに
+        #   埋め込まれる前(単独のQMainWindowとしてDesigner既定サイズのまま)
+        #   に呼ばれてしまい、ドック/ツールバーのスプリッター位置が誤ったサイズ
+        #   基準で復元される。この結果、ウィンドウを前回リサイズしてから終了→
+        #   再起動した場合にのみ、ボタン等の見た目の描画位置と実際のクリック
+        #   判定位置がずれる不具合が発生していた(最大化起動や、起動後の
+        #   手動リサイズでは正しい最終サイズで再レイアウトされるため発生しない)。
+        #   イベントループが一巡してウィンドウが実際の最終サイズで表示された
+        #   後に復元することで解消する。
+        QTimer.singleShot(0, self._restore_dock_layout)
+
+        self.setAcceptDrops(True)
+
+        # 起動直後に一度だけ、オートセーブからの復元が必要か確認する。
+        # ウィンドウ表示前だとQMessageBoxが親を持てず不自然な位置に出るため、
+        # イベントループが一巡した後 (ウィンドウ表示後) に実行されるよう遅延させる。
+        # ★ 複数プロジェクトタブ(項目40)では、これらは最初のタブでのみ行う
+        # (2つ目以降のタブは新規の空プロジェクトであり、復元/ウェルカム表示の対象外)。
+        if self._run_startup_checks:
+            QTimer.singleShot(0, self._check_autosave_recovery)
+            # 初回起動時のみ、ウェルカムダイアログ(簡単な操作ガイド+サンプルデータ)を表示する。
+            # オートセーブ復元の確認より後に登録することで、万一両方表示される場合でも
+            # データの安全性に関わる確認(復元)を先に済ませてから案内できるようにする。
+            QTimer.singleShot(0, self._check_first_launch)
+
+    def _restore_dock_layout(self):
+        """前回終了時のドック/ツールバー配置をQSettingsから復元する。
+
+        __init__からQTimer.singleShot(0, ...)経由で、ウィンドウが実際の
+        最終サイズ(タブとして埋め込まれた後のサイズ)で表示された後に
+        呼ばれる想定。__init__内で直接呼ぶと、まだDesigner既定サイズの
+        ままの状態でrestoreState()が実行されてしまい、スプリッター位置が
+        誤ったサイズ基準で復元されてしまう。
+        """
         saved_layout_version = self.settings.value("dock_layout_version", 0, type=int) if self._run_startup_checks else DOCK_LAYOUT_VERSION
         saved_state = self.settings.value("window_state") if self._run_startup_checks else None
         state_restored = False
@@ -962,20 +997,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 )
             except Exception as e:
                 logger.warning("resizeDocks に失敗しました: %s", e)
-
-        self.setAcceptDrops(True)
-
-        # 起動直後に一度だけ、オートセーブからの復元が必要か確認する。
-        # ウィンドウ表示前だとQMessageBoxが親を持てず不自然な位置に出るため、
-        # イベントループが一巡した後 (ウィンドウ表示後) に実行されるよう遅延させる。
-        # ★ 複数プロジェクトタブ(項目40)では、これらは最初のタブでのみ行う
-        # (2つ目以降のタブは新規の空プロジェクトであり、復元/ウェルカム表示の対象外)。
-        if self._run_startup_checks:
-            QTimer.singleShot(0, self._check_autosave_recovery)
-            # 初回起動時のみ、ウェルカムダイアログ(簡単な操作ガイド+サンプルデータ)を表示する。
-            # オートセーブ復元の確認より後に登録することで、万一両方表示される場合でも
-            # データの安全性に関わる確認(復元)を先に済ませてから案内できるようにする。
-            QTimer.singleShot(0, self._check_first_launch)
 
     def closeEvent(self, event):
         """ウィンドウが閉じられる(正常終了する)ときに呼ばれる。"""
