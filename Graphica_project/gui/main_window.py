@@ -150,7 +150,9 @@ from gui.mixins.ui_setup_mixin import UISetupMixin
 from gui.mixins.settings_mixin import SettingsMixin
 from gui.mixins.dataset_mixin import DatasetMixin
 from gui.mixins.cursor_mixin import CursorMixin
-from gui.mixins.annotation_mixin import AnnotationMixin
+from gui.mixins.annotation_mixin import (
+    AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
+)
 from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
 from gui.mixins.export_mixin import ExportMixin
 from gui.mixins.project_io_mixin import ProjectIOMixin
@@ -325,6 +327,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._annotation_press_cid = None      # button_press_event の接続ID
         self._annotation_release_cid = None    # button_release_event の接続ID
         self._annotation_drag_start = None     # ドラッグ開始点 (ax, x, y) または None
+        # スナップ・トゥ・グリッド(項目84): 設定から復元(既定では無効=従来どおりの挙動)
+        self.snap_to_grid_enabled = self.settings.value(
+            "snap_to_grid_enabled", DEFAULT_SNAP_TO_GRID_ENABLED, type=bool)
+        self.snap_grid_interval_px = self.settings.value(
+            "snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, type=int)
 
         # --- 自由配置レイアウト(項目37)の編集モード用の変数 ---
         self.layout_edit_mode_enabled = False  # レイアウト編集モードがONかOFFか

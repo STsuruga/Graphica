@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 
 from gui.dialogs import PreferencesDialog
 from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
+from gui.mixins.annotation_mixin import DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
 from core.i18n import tr, get_language
 
 logger = logging.getLogger(__name__)
@@ -72,17 +73,24 @@ class ProjectIOMixin:
         current_autosave_dir = self.settings.value("autosave_dir", "", type=str)
         current_point_label_max = self.settings.value(
             "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
+        current_snap_to_grid = self.settings.value(
+            "snap_to_grid_enabled", DEFAULT_SNAP_TO_GRID_ENABLED, type=bool)
+        current_snap_grid_interval = self.settings.value(
+            "snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, type=int)
         dlg = PreferencesDialog(
             self.canvas.dark_mode, current_minutes,
             autosave_bounds=AUTOSAVE_INTERVAL_MIN_BOUNDS, parent=self,
             current_language=current_language, autosave_dir=current_autosave_dir,
-            point_label_max_points=current_point_label_max
+            point_label_max_points=current_point_label_max,
+            snap_to_grid_enabled=current_snap_to_grid,
+            snap_grid_interval_px=current_snap_grid_interval
         )
         if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
             return
 
         (new_dark_mode, new_autosave_minutes, new_language,
-         new_autosave_dir, new_point_label_max) = dlg.get_settings()
+         new_autosave_dir, new_point_label_max,
+         new_snap_to_grid, new_snap_grid_interval) = dlg.get_settings()
 
         # オートセーブの保存先フォルダ(項目: 環境設定からオートセーブ保存先を指定可能に)
         if new_autosave_dir != current_autosave_dir:
@@ -105,6 +113,15 @@ class ProjectIOMixin:
             self.settings.setValue("point_label_max_points", new_point_label_max)
             self.canvas.point_label_max_points = new_point_label_max
             self._update_plot()
+
+        # スナップ・トゥ・グリッド(項目84): 注釈モードのドラッグ確定時に参照される
+        # self.snap_to_grid_enabled / self.snap_grid_interval_px をここで即座に更新する。
+        if new_snap_to_grid != current_snap_to_grid:
+            self.settings.setValue("snap_to_grid_enabled", new_snap_to_grid)
+            self.snap_to_grid_enabled = new_snap_to_grid
+        if new_snap_grid_interval != current_snap_grid_interval:
+            self.settings.setValue("snap_grid_interval_px", new_snap_grid_interval)
+            self.snap_grid_interval_px = new_snap_grid_interval
 
         # UIの多言語対応(項目41): 実行中のウィジェットをその場で再翻訳する仕組みは
         # 持たないため、設定の保存のみ行い、反映は次回起動時になる旨を案内する。

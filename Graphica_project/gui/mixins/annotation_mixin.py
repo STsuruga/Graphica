@@ -24,6 +24,12 @@ ANNOTATION_CLICK_THRESHOLD_PX = 5
 # 右クリックで削除対象とみなす、注釈位置からの許容ピクセル距離
 ANNOTATION_DELETE_TOLERANCE_PX = 15
 
+# スナップ・トゥ・グリッド(項目84)の既定値。既定では無効(=従来どおりの挙動)であり、
+# 環境設定ダイアログで有効化するとテキスト/矢印注釈の配置先がピクセル単位の
+# グリッドに吸着するようになる。
+DEFAULT_SNAP_TO_GRID_ENABLED = False
+DEFAULT_SNAP_GRID_INTERVAL_PX = 10
+
 
 class AnnotationMixin:
     def _toggle_annotation_mode(self, checked):
@@ -56,6 +62,28 @@ class AnnotationMixin:
                 self.canvas.mpl_disconnect(self._annotation_release_cid)
                 self._annotation_release_cid = None
             self._annotation_drag_start = None
+
+    def _snap_point_to_grid(self, ax, x, y):
+        """
+        スナップ・トゥ・グリッド(項目84)が有効な場合、データ座標 (x, y) を
+        いったんピクセル座標へ変換し、設定されたグリッド間隔(px)の倍数に
+        丸めてからデータ座標へ戻す。「ピクセル単位で整列」という要件のため、
+        データ空間ではなく画面ピクセル空間でスナップする必要がある。
+        無効時は入力をそのまま返す(座標変換を経由しないため、従来の挙動と
+        ピクセル単位で完全に一致する)。
+        """
+        if not getattr(self, 'snap_to_grid_enabled', False):
+            return x, y
+
+        interval = getattr(self, 'snap_grid_interval_px', DEFAULT_SNAP_GRID_INTERVAL_PX)
+        if not interval or interval <= 0:
+            return x, y
+
+        px, py = ax.transData.transform((x, y))
+        snapped_px = round(px / interval) * interval
+        snapped_py = round(py / interval) * interval
+        data_x, data_y = ax.transData.inverted().transform((snapped_px, snapped_py))
+        return data_x, data_y
 
     def _find_axis_index(self, ax):
         """指定されたAxesが self.all_axes / self.all_secondary_axes の何番目かを返す(見つからなければNone)"""
@@ -102,9 +130,10 @@ class AnnotationMixin:
             text, ok = QInputDialog.getText(self, "テキスト注釈の追加", "表示するテキスト:")
             if not ok or not text.strip():
                 return
+            snapped_x, snapped_y = self._snap_point_to_grid(start_ax, start_x, start_y)
             self._add_annotation(axis_index, {
                 'type': 'text', 'text': text.strip(),
-                'xy': (start_x, start_y), 'xytext': (start_x, start_y),
+                'xy': (snapped_x, snapped_y), 'xytext': (snapped_x, snapped_y),
                 'color': '#000000',
             })
         else:
@@ -112,9 +141,11 @@ class AnnotationMixin:
             text, ok = QInputDialog.getText(self, "矢印注釈の追加", "ラベル(空欄可):")
             if not ok:
                 return
+            snapped_end_x, snapped_end_y = self._snap_point_to_grid(start_ax, end_x, end_y)
+            snapped_start_x, snapped_start_y = self._snap_point_to_grid(start_ax, start_x, start_y)
             self._add_annotation(axis_index, {
                 'type': 'arrow', 'text': text.strip(),
-                'xy': (end_x, end_y), 'xytext': (start_x, start_y),
+                'xy': (snapped_end_x, snapped_end_y), 'xytext': (snapped_start_x, snapped_start_y),
                 'color': '#000000',
             })
 

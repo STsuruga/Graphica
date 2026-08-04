@@ -1683,7 +1683,8 @@ class PreferencesDialog(QDialog):
     """
 
     def __init__(self, dark_mode, autosave_minutes, autosave_bounds=(0, 180), parent=None,
-                 current_language=None, autosave_dir="", point_label_max_points=1000):
+                 current_language=None, autosave_dir="", point_label_max_points=1000,
+                 snap_to_grid_enabled=False, snap_grid_interval_px=10):
         super().__init__(parent)
         from core.i18n import tr, SUPPORTED_LANGUAGES, get_language
         self.setWindowTitle(tr("環境設定"))
@@ -1767,6 +1768,22 @@ class PreferencesDialog(QDialog):
         performance_form.addRow(tr("データ点ラベルの表示上限"), self.point_label_max_spinbox)
         layout.addWidget(performance_group)
 
+        # スナップ・トゥ・グリッド(項目84): テキスト注釈・矢印注釈をドラッグ配置する際、
+        # ピクセル単位のグリッドに位置を吸着させ、複数の注釈をきれいに整列できるようにする。
+        annotation_group = QGroupBox(tr("注釈"))
+        annotation_layout = QVBoxLayout(annotation_group)
+        self.snap_to_grid_checkbox = QCheckBox(tr("スナップ・トゥ・グリッドを有効にする"))
+        self.snap_to_grid_checkbox.setChecked(bool(snap_to_grid_enabled))
+        annotation_layout.addWidget(self.snap_to_grid_checkbox)
+        annotation_form = QFormLayout()
+        self.snap_grid_interval_spinbox = QSpinBox()
+        self.snap_grid_interval_spinbox.setRange(1, 200)
+        self.snap_grid_interval_spinbox.setSuffix(tr(" px"))
+        self.snap_grid_interval_spinbox.setValue(int(snap_grid_interval_px))
+        annotation_form.addRow(tr("グリッド間隔"), self.snap_grid_interval_spinbox)
+        annotation_layout.addLayout(annotation_form)
+        layout.addWidget(annotation_group)
+
         layout.addStretch()
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -1793,13 +1810,16 @@ class PreferencesDialog(QDialog):
     def get_settings(self):
         """
         Returns:
-            tuple (bool, int, str, str, int): (ダークモードを有効にするか, オートセーブ間隔(分, 0=無効),
-                表示言語コード, オートセーブ保存先ディレクトリ("" なら既定=アプリのフォルダ),
-                データ点ラベルの表示上限(件数))
+            tuple (bool, int, str, str, int, bool, int): (ダークモードを有効にするか,
+                オートセーブ間隔(分, 0=無効), 表示言語コード,
+                オートセーブ保存先ディレクトリ("" なら既定=アプリのフォルダ),
+                データ点ラベルの表示上限(件数),
+                スナップ・トゥ・グリッドを有効にするか, グリッド間隔(px))
         """
         language_code = self._language_codes[self.language_combo.currentIndex()]
         return (self.dark_mode_checkbox.isChecked(), self.autosave_spinbox.value(),
-                language_code, self._autosave_dir, self.point_label_max_spinbox.value())
+                language_code, self._autosave_dir, self.point_label_max_spinbox.value(),
+                self.snap_to_grid_checkbox.isChecked(), self.snap_grid_interval_spinbox.value())
 
 
 #==============================================================================

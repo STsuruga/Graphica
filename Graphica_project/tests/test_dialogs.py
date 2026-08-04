@@ -41,16 +41,52 @@ def test_new_dataset_dialog_no_column_names_returns_empty_list():
 
 # --- PreferencesDialog (項目: オートセーブ保存先の指定) ---
 
-def test_preferences_dialog_get_settings_returns_five_tuple():
+def test_preferences_dialog_get_settings_returns_seven_tuple():
     dlg = PreferencesDialog(dark_mode=True, autosave_minutes=10,
                              current_language="en", autosave_dir="/tmp/foo",
-                             point_label_max_points=2000)
-    dark_mode, minutes, lang, autosave_dir, point_label_max = dlg.get_settings()
+                             point_label_max_points=2000,
+                             snap_to_grid_enabled=True, snap_grid_interval_px=25)
+    (dark_mode, minutes, lang, autosave_dir, point_label_max,
+     snap_to_grid_enabled, snap_grid_interval_px) = dlg.get_settings()
     assert dark_mode is True
     assert minutes == 10
     assert lang == "en"
     assert autosave_dir == "/tmp/foo"
     assert point_label_max == 2000
+    assert snap_to_grid_enabled is True
+    assert snap_grid_interval_px == 25
+
+
+# --- スナップ・トゥ・グリッド(項目84) ---
+
+def test_preferences_dialog_snap_to_grid_defaults():
+    """スナップ・トゥ・グリッドの既定値は無効・間隔10px。"""
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
+    assert dlg.snap_to_grid_checkbox.isChecked() is False
+    assert dlg.snap_grid_interval_spinbox.value() == 10
+    settings = dlg.get_settings()
+    assert settings[5] is False
+    assert settings[6] == 10
+
+
+def test_preferences_dialog_snap_to_grid_checkbox_and_spinbox_round_trip():
+    """チェックボックス/スピンボックスの操作が get_settings() の戻り値に反映されること
+    (オートセーブ間隔のプリファレンスと同じ「spinbox + QSettings永続化」パターン)。"""
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5,
+                             snap_to_grid_enabled=False, snap_grid_interval_px=10)
+
+    dlg.snap_to_grid_checkbox.setChecked(True)
+    dlg.snap_grid_interval_spinbox.setValue(50)
+
+    settings = dlg.get_settings()
+    assert settings[5] is True
+    assert settings[6] == 50
+
+
+def test_preferences_dialog_snap_grid_interval_spinbox_range():
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
+    assert dlg.snap_grid_interval_spinbox.minimum() == 1
+    assert dlg.snap_grid_interval_spinbox.maximum() == 200
 
 
 def test_preferences_dialog_defaults_to_empty_autosave_dir():
