@@ -29,7 +29,8 @@ from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand
 from core.dataset import Dataset
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
-                         ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog)
+                         ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
+                         NormalizeDatasetDialog)
 from gui.dataset_style_icon import make_dataset_style_icon
 from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 
@@ -143,6 +144,13 @@ class DatasetMixin:
             paste_style_action = menu.addAction("スタイルを貼り付け")
             paste_style_action.setEnabled(self._copied_dataset_style is not None)
             paste_style_action.triggered.connect(self._on_paste_dataset_style)
+
+            # 規格化(ノーマライズ、項目78): 曲線フィット/ピーク検出と同様、1つの
+            # データセット(フォーカス中のカレントアイテム)に対する操作なので、
+            # 複数選択かどうかに関わらずこのブロック(カレントデータセットが
+            # 存在する場合)に置く。データセット間演算(2件選択が必須)とは異なる。
+            normalize_action = menu.addAction("規格化(ノーマライズ)...")
+            normalize_action.triggered.connect(self._on_normalize_dataset)
 
         selected_count = len(self._get_selected_datasets())
         if selected_count >= 2:
@@ -362,6 +370,64 @@ class DatasetMixin:
                 result = yb_interp / ya_sub
 
         result_df = pd.DataFrame({'x': xa_sub, 'y': result})
+        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    def _on_normalize_dataset(self):
+        """
+        「規格化(ノーマライズ)...」メニューの処理(項目78)。
+        カレントの(フォーカス中の)1つのデータセットについて、Y値を
+        最大値基準または特定X値での強度基準で規格化し、新しいデータセットとして
+        追加する。元のデータセットは変更しない(非破壊)。
+
+        単一/複数選択の扱いについて: データセット間演算(_on_dataset_arithmetic)は
+        「ちょうど2件」の選択を要求するが、規格化は曲線フィット(_on_fit_curve)や
+        ピーク検出(_on_find_peaks)と同じく「1つのデータセットから新しいデータセットを
+        1つ作る」操作であるため、それらと同様に _get_selected_datasets() ではなく
+        _get_current_dataset() (フォーカス中の1件)を対象にする。これにより、
+        複数選択中でも常にカレントアイテム1件に対して迷いなく動作する。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        x_data = np.asarray(original_dataset.x_data, dtype=float)
+        y_data = np.asarray(original_dataset.y_data, dtype=float)
+        valid = ~(np.isnan(x_data) | np.isnan(y_data))
+        x_data, y_data = x_data[valid], y_data[valid]
+
+        if len(x_data) == 0:
+            QMessageBox.warning(self, "規格化(ノーマライズ)", "有効なデータ点がありません。")
+            return
+
+        x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
+        dialog = NormalizeDatasetDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        mode, reference_x, output_name = dialog.get_settings()
+        if not output_name:
+            QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+            return
+
+        if mode == NormalizeDatasetDialog.MODE_MAX:
+            reference_value = float(np.max(y_data))
+        else:
+            if reference_x < x_min or reference_x > x_max:
+                QMessageBox.warning(
+                    self, "規格化(ノーマライズ)",
+                    f"指定されたX値 ({reference_x}) がデータセットのX軸範囲 "
+                    f"({x_min} 〜 {x_max}) の外にあるため、規格化できません。"
+                )
+                return
+            order = np.argsort(x_data)
+            reference_value = float(np.interp(reference_x, x_data[order], y_data[order]))
+
+        if abs(reference_value) < 1e-12:
+            QMessageBox.warning(self, "規格化(ノーマライズ)", "基準値が0に近すぎるため、規格化できません。")
+            return
+
+        result_df = pd.DataFrame({'x': x_data, 'y': y_data / reference_value})
         new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)

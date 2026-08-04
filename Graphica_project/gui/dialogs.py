@@ -1601,6 +1601,77 @@ class DatasetArithmeticDialog(QDialog):
 
 
 #==============================================================================
+# カスタムダイアログクラス: 規格化(ノーマライズ)
+#==============================================================================
+class NormalizeDatasetDialog(QDialog):
+    """
+    規格化(ノーマライズ、項目78)の設定を入力させるダイアログ。
+    最大値基準(Yの最大値を1.0にする)か、特定X値での強度基準
+    (指定したX値での補間値を1.0にする)かを選ばせ、後者の場合のみ
+    基準X値の数値入力欄を有効にする。DatasetArithmeticDialogと同じ構成。
+    """
+
+    MODE_MAX = "最大値基準"
+    MODE_X_VALUE = "特定X値での強度基準"
+    MODES = [MODE_MAX, MODE_X_VALUE]
+
+    def __init__(self, name, x_min=None, x_max=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("規格化(ノーマライズ)")
+        self.resize(360, 220)
+
+        layout = QVBoxLayout(self)
+        label = QLabel(f"対象: {name}")
+        layout.addWidget(label)
+
+        form = QFormLayout()
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(self.MODES)
+        form.addRow("基準", self.mode_combo)
+
+        self.reference_x_spinbox = QDoubleSpinBox()
+        self.reference_x_spinbox.setRange(-1e12, 1e12)
+        self.reference_x_spinbox.setDecimals(6)
+        self.reference_x_spinbox.setEnabled(False)
+        if x_min is not None:
+            self.reference_x_spinbox.setValue(x_min)
+        form.addRow("基準X値", self.reference_x_spinbox)
+
+        self.output_name_edit = QLineEdit(f"{name}_normalized")
+        form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(form)
+
+        self.mode_combo.currentTextChanged.connect(
+            lambda text: self.reference_x_spinbox.setEnabled(text == self.MODE_X_VALUE)
+        )
+
+        info_label = QLabel(
+            "最大値基準: Yの最大値が1.0になるよう規格化します(マスク中の行は除外)。\n"
+            "特定X値での強度基準: 指定したX値でのYを線形補間し、その値が1.0になるよう規格化します。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, float|None, str): (基準の種類 (MODESのいずれか),
+            基準X値 (MODE_X_VALUEの場合のみ数値、それ以外はNone), 出力データセット名)
+        """
+        mode = self.mode_combo.currentText()
+        reference_x = self.reference_x_spinbox.value() if mode == self.MODE_X_VALUE else None
+        return mode, reference_x, self.output_name_edit.text().strip()
+
+
+#==============================================================================
 # カスタムダイアログクラス: 環境設定 (Preferences)
 #==============================================================================
 class PreferencesDialog(QDialog):
