@@ -322,6 +322,15 @@ class UISetupMixin:
             export_preview_dock_action.setText(tr("エクスポートプレビュー"))
             view_menu.addAction(export_preview_dock_action)
 
+            # ミニマップ(レンジスライダー、項目83)の表示/非表示切り替え。
+            # チェック状態はQSettingsから復元済みの self.minimap_visible に合わせる。
+            # setChecked() は toggled.connect() より前に行うことで、復元時に
+            # _on_toggle_minimap が二重に呼ばれないようにしている(ダークモードと同じ理由)。
+            self.minimap_action = view_menu.addAction(tr("ミニマップ(レンジスライダー)"))
+            self.minimap_action.setCheckable(True)
+            self.minimap_action.setChecked(self.minimap_visible)
+            self.minimap_action.toggled.connect(self._on_toggle_minimap)
+
             view_menu.addSeparator()
 
             # ダークモード切り替え (アプリ全体のQtパレット + グラフの配色の両方に適用)

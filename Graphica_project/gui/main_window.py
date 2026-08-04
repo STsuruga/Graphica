@@ -119,6 +119,7 @@ from ui_main_window import Ui_MainWindow
 # --- 自分で分割したモジュール ---
 from core.dataset import Dataset
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
+from gui.minimap_widget import MinimapWidget
 from gui.theme import apply_form_spacing
 from gui.workers import DataLoadWorker
 from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
@@ -469,6 +470,25 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         plot_layout.addWidget(canvas_separator)
 
         plot_layout.addWidget(self.canvas) # 下部にキャンバス
+
+        # --- ★ 項目83: レンジスライダー(ミニマップ) ---
+        # グラフ下部に全体像の小さな概観を表示し、ドラッグ選択でX軸ズーム範囲を
+        # 全サブプロット一括で絞り込めるようにする。canvas_separatorと同じ
+        # objectNameを使うことで、theme.py側のQSSをそのまま流用する。
+        self.minimap_separator = QFrame()
+        self.minimap_separator.setFrameShape(QFrame.Shape.HLine)
+        self.minimap_separator.setObjectName("canvas_separator")
+        plot_layout.addWidget(self.minimap_separator)
+
+        self.minimap = MinimapWidget(self)
+        self.minimap.range_selected.connect(self._on_minimap_range_selected)
+        plot_layout.addWidget(self.minimap)
+
+        # 表示/非表示は設定(QSettings)から復元する。表示メニュー側のチェック状態
+        # (_create_menu_bar内)もこの値に合わせる。
+        self.minimap_visible = self.settings.value("minimap_visible", True, type=bool)
+        self.minimap.setVisible(self.minimap_visible)
+        self.minimap_separator.setVisible(self.minimap_visible)
 
         # --- 5. ステータスバーの設定 ---
         self.coordinate_label = QLabel("X= ---, Y= ---")
@@ -1483,6 +1503,41 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # ★ フルの再描画 (redraw_all) は Figure を作り直すため、以前のハイライト表示は
         #   消えてしまう。データエディタが開いていて行が選択中なら再度反映する。
         self._reapply_editor_row_highlight()
+
+        # ★ 項目83: ミニマップ(レンジスライダー)の概観も、データセット/テーマの
+        #   変更に合わせて更新する。ミニマップはメインキャンバスとは別のFigureを
+        #   持つため、redraw_all()のfig.clf()では自動的に更新されない。
+        self._refresh_minimap()
+
+    def _refresh_minimap(self):
+        """
+        ミニマップ(項目83)の概観表示を、現在のデータセット/ダークモード設定に
+        合わせて描き直す。ウィジェットがまだ作られていない(または非表示中の)
+        場合でも安全に呼べるよう、常に描画自体は行う(非表示中でも次に表示した
+        ときに最新の概観になっているようにするため)。
+        """
+        if not hasattr(self, 'minimap'):
+            return
+        self.minimap.refresh(self.project.datasets, self.canvas.dark_mode)
+
+    def _on_minimap_range_selected(self, xmin, xmax):
+        """
+        ミニマップ(項目83)でドラッグ選択された範囲を、メインキャンバスの
+        全サブプロットのX軸ズーム範囲として一括適用する。
+        ★ ここでは _update_plot()(fig.clf()を伴うフル再描画)は呼ばない。
+        ズーム範囲の変更だけならAxesを作り直す必要はなく、標準のナビゲーション
+        ツールバーのズーム/パンと同様に set_xlim() + draw_idle() で十分かつ軽量。
+        """
+        for ax in self.canvas.all_axes:
+            ax.set_xlim(xmin, xmax)
+        self.canvas.draw_idle()
+
+    def _on_toggle_minimap(self, checked):
+        """「表示」メニューの「ミニマップ」チェック状態が変更されたときの処理。"""
+        self.minimap_visible = checked
+        self.minimap.setVisible(checked)
+        self.minimap_separator.setVisible(checked)
+        self.settings.setValue("minimap_visible", checked)
 
     def _update_plot_appearance(self):
         """外観のみを更新する（MVC対応版）"""
