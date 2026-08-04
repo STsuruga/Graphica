@@ -341,6 +341,17 @@ class UISetupMixin:
             self.minimap_action.setChecked(self.minimap_visible)
             self.minimap_action.toggled.connect(self._on_toggle_minimap)
 
+            # 項目87: クイックアクセスのカスタムツールバー。ツールバー本体の作成と
+            # 表示/非表示を切り替える表示メニュー項目の追加はここで行う。
+            # ★ ピン留め済みアクションの実際の復元 (_restore_quick_access_actions) と
+            #   右クリックでのピン留め用コンテキストメニューの設置
+            #   (_install_quick_access_context_menus) は、「プラグイン」メニュー
+            #   (このメソッドの後段、セクション4) も含めた全メニューが構築し
+            #   終わった後でないと _collect_menu_actions() がプラグインの
+            #   アクションを拾えないため、このメソッドの外(__init__側)で
+            #   _create_menu_bar() 呼び出し直後に行う。
+            self._create_quick_access_toolbar()
+
             view_menu.addSeparator()
 
             # ダークモード切り替え (アプリ全体のQtパレット + グラフの配色の両方に適用)
@@ -421,7 +432,14 @@ class UISetupMixin:
                     if text:
                         results.append((path + [text], action))
 
-        for top_menu in (self._file_menu, self._edit_menu, self._view_menu, self._help_menu):
+        top_menus = [self._file_menu, self._edit_menu, self._view_menu, self._help_menu]
+        # ★ 「プラグイン」メニューは、プラグインが1つもメニューアクションを
+        # 登録していない場合は _create_menu_bar() で作られず self._plugin_menu が
+        # 存在しないため、getattr で安全に確認してから含める。
+        plugin_menu = getattr(self, '_plugin_menu', None)
+        if plugin_menu is not None:
+            top_menus.append(plugin_menu)
+        for top_menu in top_menus:
             walk(top_menu, [top_menu.title().replace('&', '')])
         return results
 

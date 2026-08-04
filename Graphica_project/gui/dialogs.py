@@ -1974,6 +1974,93 @@ class CommandPaletteDialog(QDialog):
 
 
 #==============================================================================
+# カスタムダイアログクラス: クイックアクセスの管理 (項目87)
+#==============================================================================
+class QuickAccessManagerDialog(QDialog):
+    """
+    クイックアクセスツールバーへのピン留めを、チェックボックス付きの検索可能な
+    一覧から行うためのダイアログ。CommandPaletteDialogと同様、collect_fn()を
+    呼ぶたびに現在有効なメニューアクションを集め直す(表示中に保持したQActionは
+    実行には使わない)。
+
+    ★ 注意 ★
+    OK/キャンセルの概念を持たない、チェック状態の変更をその場で即座に反映する
+    「表示/非表示」に近いトグルUI(閉じるボタンのみ)。
+    """
+
+    def __init__(self, collect_fn, is_pinned_fn, toggle_fn, parent=None):
+        """
+        Args:
+            collect_fn (callable): CommandPaletteDialogと同じ契約。呼ぶたびに
+                現在のメニューアクションを [(パスのリスト, QAction), ...] として返す。
+            is_pinned_fn (callable): (識別子文字列) -> bool。現在ピン留め済みかどうか。
+            toggle_fn (callable): (識別子文字列, パスのリスト, チェック後の状態bool) -> None。
+                チェック状態が変わった項目に対して呼ばれる、ピン留め/解除の実処理。
+        """
+        super().__init__(parent)
+        from core.i18n import tr
+
+        self.setWindowTitle(tr("クイックアクセスの管理"))
+        self.resize(480, 420)
+
+        self._collect_fn = collect_fn
+        self._is_pinned_fn = is_pinned_fn
+        self._toggle_fn = toggle_fn
+        self._updating = False  # _update_list() でのチェック状態初期化中はitemChangedを無視する
+
+        layout = QVBoxLayout(self)
+
+        info_label = QLabel(tr("チェックした項目がクイックアクセスツールバーに表示されます。"))
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText(tr("コマンドを検索..."))
+        layout.addWidget(self.search_edit)
+
+        self.list_widget = QListWidget()
+        layout.addWidget(self.list_widget)
+
+        self.search_edit.textChanged.connect(self._update_list)
+        self.list_widget.itemChanged.connect(self._on_item_changed)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        button_box.rejected.connect(self.accept)  # Closeボタンは RejectRole → rejected() を発行する
+        layout.addWidget(button_box)
+
+        self._update_list("")
+
+    def _update_list(self, text):
+        query = text.strip().lower()
+        self._updating = True
+        try:
+            self.list_widget.clear()
+            for path, action in self._collect_fn():
+                if action.isSeparator():
+                    continue
+                label = " > ".join(path)
+                if query and query not in label.lower():
+                    continue
+                ident = " > ".join(path)
+                item = QListWidgetItem(label)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setData(Qt.ItemDataRole.UserRole, (ident, path))
+                item.setCheckState(
+                    Qt.CheckState.Checked if self._is_pinned_fn(ident) else Qt.CheckState.Unchecked
+                )
+                self.list_widget.addItem(item)
+        finally:
+            self._updating = False
+
+    def _on_item_changed(self, item):
+        if self._updating:
+            return
+        ident, path = item.data(Qt.ItemDataRole.UserRole)
+        checked = item.checkState() == Qt.CheckState.Checked
+        self._toggle_fn(ident, path, checked)
+
+
+#==============================================================================
 # カスタムダイアログクラス: キーボードショートカット一覧
 #==============================================================================
 class ShortcutsDialog(QDialog):

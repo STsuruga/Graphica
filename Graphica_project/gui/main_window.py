@@ -169,6 +169,7 @@ from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
 from gui.mixins.export_mixin import ExportMixin
 from gui.mixins.project_io_mixin import ProjectIOMixin
 from gui.mixins.help_mixin import HelpMixin
+from gui.mixins.quick_access_mixin import QuickAccessMixin
 
 
 def resource_path(relative_path):
@@ -204,11 +205,12 @@ def resource_path(relative_path):
 #   ExportMixin     : 画像/PDF/SVGへのエクスポートとプレビュー生成
 #   ProjectIOMixin  : プロジェクト保存/読込メニューと書式テンプレート機能
 #   HelpMixin       : ヘルプダイアログ
+#   QuickAccessMixin: クイックアクセスのカスタムツールバー(項目87)
 # PlotterApp 本体には、初期化・ファイルI/Oの中核・プロット更新など、
 # 上記どれにも属さない「アプリのエントリーポイント」的な処理のみを残す。
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                   CursorMixin, AnnotationMixin, LayoutEditMixin, ExportMixin,
-                  ProjectIOMixin, HelpMixin):
+                  ProjectIOMixin, HelpMixin, QuickAccessMixin):
     """
     メインアプリケーションウィンドウクラス。
     QMainWindow を継承し、ui_main_window.py からロードしたUI骨格に、
@@ -1171,6 +1173,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # メニューバー (ファイル, ヘルプなど) を作成
         self._create_menu_bar()
+
+        # 項目87: クイックアクセスツールバーへ、前回までにピン留めされた
+        # アクションを復元し、メニュー項目の右クリックでのピン留め/解除を
+        # 有効にする。「プラグイン」メニューを含む全メニューが構築し終わった
+        # 直後(=_create_menu_bar()の後)である必要がある。
+        self._restore_quick_access_actions()
+        self._install_quick_access_context_menus()
 
         # ★★★ 重要な初期化プロセス ★★★
         # 1. 現在のUI (デフォルト状態) から設定を辞書として収集
