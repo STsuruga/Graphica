@@ -5,8 +5,11 @@ gui/main_window.py (PlotterApp) の統合的なGUI挙動に対する、最小限
 PlotterApp のインスタンス化にはQApplicationが必要(conftest.pyのqappフィクスチャで用意)。
 QSettingsは実際のレジストリ/iniファイルを汚染しないよう、一時ファイルにリダイレクトする。
 """
-from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QApplication, QToolButton
+import time
+
+from PySide6.QtCore import QSettings, Qt, QUrl, QPointF, QMimeData
+from PySide6.QtGui import QDropEvent
+from PySide6.QtWidgets import QApplication, QDialog, QToolButton
 
 import gui.main_window as main_window_module
 from gui.main_window import PlotterApp
@@ -28,6 +31,115 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
     for _ in range(5):
         app.processEvents()
     return window
+
+
+class _FakeAcceptedColumnPreviewDialog:
+    """
+    ColumnPreviewDialog の代わりに使う、実際にダイアログを表示しないダブル。
+    常に「先頭2列をX/Y軸として選択し、OKした」ものとして振る舞う。
+    """
+
+    def __init__(self, df, file_name, parent=None, file_path=None):
+        self._df = df
+        self.sheet_combo = None
+
+    def exec(self):
+        return QDialog.DialogCode.Accepted
+
+    def get_selected_columns(self):
+        return self._df.columns[0], self._df.columns[1]
+
+    def get_dataframe(self):
+        return self._df
+
+
+def _make_drop_event(file_paths):
+    """指定したローカルファイルパス群を、ドロップされたものとして表すQDropEventを作る"""
+    mime_data = QMimeData()
+    mime_data.setUrls([QUrl.fromLocalFile(str(p)) for p in file_paths])
+    event = QDropEvent(
+        QPointF(0, 0),
+        Qt.DropAction.CopyAction,
+        mime_data,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    # QDropEvent はQMimeDataを生ポインタでしか保持しないため、Python側の参照が
+    # なくなるとGCされてダングリングポインタになる。eventと寿命を揃えるため
+    # 明示的に参照を保持しておく。
+    event._mime_data_keepalive = mime_data
+    return event
+
+
+def _pump_events_until_queue_drained(window, max_iterations=300):
+    """
+    バックグラウンドの読み込みキューが完全に消化されるまでイベントループを回す。
+    DataLoadWorker は実際の別スレッド(QThread)でファイルI/Oを行うため、
+    processEvents() を呼ぶだけでなく、OS側にスレッドの実行機会を与えるための
+    短いsleepを挟む(でないとメインスレッドがビジーループしてワーカースレッドの
+    完了シグナルがなかなか配送されない)。
+    """
+    app = QApplication.instance()
+    for _ in range(max_iterations):
+        app.processEvents()
+        if window._data_load_worker is None and not window._data_load_queue:
+            return
+        time.sleep(0.01)
+    raise AssertionError("読み込みキューが時間内に消化されませんでした")
+
+
+def test_drop_event_queues_and_loads_all_supported_files(tmp_path, monkeypatch):
+    """
+    項目77: 複数ファイルをドラッグ&ドロップすると、最初の1件だけでなく
+    全ファイルが1つずつ順番に読み込まれ、データセットとして追加されること。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+
+    csv1 = tmp_path / "a.csv"
+    csv1.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
+    csv2 = tmp_path / "b.csv"
+    csv2.write_text("x,y\n5,6\n7,8\n", encoding="utf-8")
+
+    initial_count = len(window._flatten_dataset_tree())
+
+    window.dropEvent(_make_drop_event([csv1, csv2]))
+    _pump_events_until_queue_drained(window)
+
+    assert len(window._flatten_dataset_tree()) == initial_count + 2
+
+
+def test_drop_event_skips_unsupported_extension_but_loads_the_rest(tmp_path, monkeypatch):
+    """
+    項目77: 対応拡張子でないファイルがバッチの途中に混ざっていても、
+    そのファイルだけ警告付きでスキップし、残りのファイルは読み込みが続行されること。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+
+    warning_calls = []
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "warning",
+        staticmethod(lambda *args, **kwargs: warning_calls.append(args))
+    )
+
+    csv1 = tmp_path / "a.csv"
+    csv1.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
+    unsupported = tmp_path / "notes.txt"
+    unsupported.write_text("これはデータファイルではありません", encoding="utf-8")
+    csv2 = tmp_path / "b.csv"
+    csv2.write_text("x,y\n5,6\n7,8\n", encoding="utf-8")
+
+    initial_count = len(window._flatten_dataset_tree())
+
+    window.dropEvent(_make_drop_event([csv1, unsupported, csv2]))
+    _pump_events_until_queue_drained(window)
+
+    # 対応拡張子の2件は読み込まれ、非対応の1件はスキップされる
+    assert len(window._flatten_dataset_tree()) == initial_count + 2
+    # スキップの警告は(ファイルごとではなく)1回だけまとめて表示される
+    assert len(warning_calls) == 1
+    assert "notes.txt" in warning_calls[0][2]
 
 
 def test_properties_dock_has_no_horizontal_scrollbar(tmp_path, monkeypatch):

@@ -89,6 +89,11 @@ AUTOSAVE_GENERATIONS = 3  # 保持する世代数 (最新のautosave.graphicaを
 # --- 最近使ったファイル一覧に関する定数 ---
 MAX_RECENT_FILES = 10
 
+# --- ドラッグ&ドロップでの複数ファイル一括読み込みに関する定数 ---
+# gui/workers.py の read_data_file() が実際に読み込める拡張子のみを許可する
+# (QFileDialog側のフィルターは *.txt も含むが、read_data_file() は非対応)
+SUPPORTED_DATA_FILE_EXTENSIONS = ('.csv', '.xls', '.xlsx')
+
 # --- PySide6 ---
 from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDialog,
                                QComboBox, QLabel, QSpinBox, QDoubleSpinBox, QPushButton,
@@ -284,6 +289,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
         self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
         self._data_load_worker = None  # ファイル読み込み用バックグラウンドワーカーの保持用
+        self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
+        self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
+        self._data_load_queue_done = 0   # 現在処理中のバッチで読み込みを開始した件数 (進捗表示用)
         self._copied_dataset_style = None  # 「スタイルをコピー」でコピーした属性値の辞書
 
         # データセットのプロパティ変更 (色・線種・凡例名など) 用の Undo/Redo スタック
@@ -1709,23 +1717,87 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             event.acceptProposedAction()
 
     def dropEvent(self, event):
+        """
+        複数ファイルの一括ドラッグ&ドロップ読み込み(項目77)。
+        ドロップされた全ファイルパスを取得し、対応拡張子のものだけを
+        読み込みキューに積む。実際の読み込みは _process_next_queued_file() が
+        既存の単一ファイル読み込み経路 (load_data) を使って1件ずつ順番に行う。
+        """
         urls = event.mimeData().urls()
-        if urls:
-            file_path = urls[0].toLocalFile()
-            self.load_data(file_path)  # 直接読み込みメソッドを呼ぶ
+        file_paths = [url.toLocalFile() for url in urls if url.toLocalFile()]
+        if file_paths:
+            self._queue_data_files(file_paths)
 
-    def load_data(self, file_path):
+    def _queue_data_files(self, file_paths):
+        """
+        ドロップ/一括指定された複数のファイルパスを、対応拡張子かどうかで
+        振り分ける。非対応拡張子はまとめて1回の警告ダイアログでスキップを
+        通知し(1ファイルずつダイアログを出さない)、対応拡張子のファイルは
+        読み込みキューに積んで、他に読み込み中でなければ処理を開始する。
+        """
+        valid_paths = []
+        skipped_names = []
+        for file_path in file_paths:
+            if file_path.lower().endswith(SUPPORTED_DATA_FILE_EXTENSIONS):
+                valid_paths.append(file_path)
+            else:
+                skipped_names.append(os.path.basename(file_path))
+
+        if skipped_names:
+            QMessageBox.warning(
+                self, "非対応のファイル形式",
+                "以下のファイルは対応していない形式のため読み込みをスキップしました:\n"
+                + "\n".join(skipped_names)
+            )
+
+        if not valid_paths:
+            return
+
+        self._data_load_queue.extend(valid_paths)
+        self._data_load_queue_total += len(valid_paths)
+
+        if self._data_load_worker is None:
+            self._process_next_queued_file()
+        # 既に読み込み中の場合は、その完了後に _process_next_queued_file が
+        # 自動的にキューの続きを処理する
+
+    def _process_next_queued_file(self):
+        """
+        読み込みキューの先頭を取り出し、load_data() で読み込みを開始する。
+        キューが空ならバッチの進捗カウンタをリセットするだけで何もしない。
+        _on_data_load_succeeded / _on_data_load_failed の両方から、読み込みの
+        成否によらず呼ばれる(1件読み終わるたびに次を進める)。
+        """
+        if not self._data_load_queue:
+            self._data_load_queue_total = 0
+            self._data_load_queue_done = 0
+            return
+
+        next_path = self._data_load_queue.pop(0)
+        self._data_load_queue_done += 1
+        self.load_data(next_path, queue_progress=(self._data_load_queue_done, self._data_load_queue_total))
+
+    def load_data(self, file_path, queue_progress=None):
         """
         ファイルをバックグラウンドスレッドで読み込み、既存のDataset(Model)とUIに反映させる。
         大きなCSV/Excelファイルでも、読み込み中にUIがフリーズしないようにするため、
         実際のファイルI/O (gui/workers.py の DataLoadWorker) は別スレッドで実行する。
+
+        queue_progress: ドラッグ&ドロップの複数ファイル一括読み込み(項目77)で、
+            キュー内の進捗を (現在の件数, 総件数) のタプルで渡すと、
+            ステータスバーに "読み込み中 (2/5): ..." のように表示する。
+            単体読み込み(メニューからの「データセット追加」等)では None のまま。
         """
         if self._data_load_worker is not None:
             QMessageBox.information(self, "読み込み中", "他のファイルを読み込み中です。完了までお待ちください。")
             return
 
         self.ui.add_dataset_button.setEnabled(False)
-        self.statusBar().showMessage(f"読み込み中: {file_path} ...")
+        if queue_progress is not None:
+            done, total = queue_progress
+            self.statusBar().showMessage(f"読み込み中 ({done}/{total}): {os.path.basename(file_path)} ...")
+        else:
+            self.statusBar().showMessage(f"読み込み中: {file_path} ...")
 
         worker = DataLoadWorker(file_path, self)
         worker.load_succeeded.connect(self._on_data_load_succeeded)
@@ -1736,12 +1808,23 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     def _on_data_load_succeeded(self, df, file_path):
         """
         DataLoadWorker がファイル読み込みに成功したときに呼ばれるスロット。
+        実際のデータセット追加処理は _import_loaded_dataframe に委譲し、
+        その途中でユーザーがダイアログをキャンセルした場合も含め、
+        必ず finally でキューの次のファイル読み込みに進む
+        (複数ファイル一括ドラッグ&ドロップ、項目77)。
+        """
+        self._cleanup_data_load_worker()
+        try:
+            self._import_loaded_dataframe(df, file_path)
+        finally:
+            self._process_next_queued_file()
+
+    def _import_loaded_dataframe(self, df, file_path):
+        """
         複数シートを持つExcelファイルの場合、シートを複数選択すると
         シートごとに別々のデータセットとして追加できる(未選択/単一選択の場合は
         従来通り1ファイル=1データセットの読み込みフローになる)。
         """
-        self._cleanup_data_load_worker()
-
         dataset_name = os.path.basename(file_path)
         is_excel = file_path.lower().endswith(('.xlsx', '.xls'))
 
@@ -1872,10 +1955,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.statusBar().showMessage("クリップボードからデータを貼り付けました", 3000)
 
     def _on_data_load_failed(self, error_message, file_path):
-        """DataLoadWorker がファイル読み込みに失敗したときに呼ばれるスロット"""
+        """
+        DataLoadWorker がファイル読み込みに失敗したときに呼ばれるスロット。
+        失敗時も、複数ファイル一括ドラッグ&ドロップ(項目77)のキューが
+        残っていれば次のファイルの読み込みに進む。
+        """
         self._cleanup_data_load_worker()
         self.statusBar().clearMessage()
         QMessageBox.critical(self, "エラー", f"読み込みエラー: {error_message}")
+        self._process_next_queued_file()
 
     def _cleanup_data_load_worker(self):
         """読み込み完了/失敗後の後片付け(UIの再有効化とワーカーの破棄)"""
