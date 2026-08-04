@@ -151,7 +151,7 @@ from gui.mixins.settings_mixin import SettingsMixin
 from gui.mixins.dataset_mixin import DatasetMixin
 from gui.mixins.cursor_mixin import CursorMixin
 from gui.mixins.annotation_mixin import AnnotationMixin
-from gui.mixins.layout_edit_mixin import LayoutEditMixin
+from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
 from gui.mixins.export_mixin import ExportMixin
 from gui.mixins.project_io_mixin import ProjectIOMixin
 from gui.mixins.help_mixin import HelpMixin
@@ -332,6 +332,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._layout_edit_motion_cid = None    # motion_notify_event の接続ID
         self._layout_edit_release_cid = None   # button_release_event の接続ID
         self._layout_drag_state = None         # ドラッグ中の状態 (dict) または None
+        # 項目85: レイアウト編集モードでクリックして「選択」されているサブプロットの
+        # 軸インデックス (ドラッグ中かどうかとは独立して保持する)。数値入力欄
+        # (X/Y/幅/高さ)の表示対象・書き込み先を決めるために使う。未選択ならNone。
+        self._layout_selected_axis_index = None
 
         # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
         # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
@@ -990,6 +994,33 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         free_layout_button_row.addWidget(self.add_free_subplot_button)
         free_layout_button_row.addWidget(self.remove_free_subplot_button)
         layout_form.addRow(free_layout_button_row)
+
+        # 項目85: 自由配置レイアウトで選択中のサブプロットの位置・サイズを、
+        # マウスドラッグだけでなく数値入力でも編集できるようにするコントロール。
+        # Figure正規化座標(0〜1、ax.set_positionと同じ規約)をそのまま公開しつつ、
+        # ドラッグ同様に範囲外(負値/1超)もある程度許容して自由度を保つ。
+        self.free_layout_position_group = QGroupBox(tr("選択中のサブプロットの位置・サイズ"))
+        free_layout_position_form = QFormLayout()
+        self.free_layout_x_spinbox = QDoubleSpinBox()
+        self.free_layout_y_spinbox = QDoubleSpinBox()
+        self.free_layout_width_spinbox = QDoubleSpinBox()
+        self.free_layout_height_spinbox = QDoubleSpinBox()
+        for spinbox in (self.free_layout_x_spinbox, self.free_layout_y_spinbox):
+            spinbox.setRange(-1.0, 2.0)
+            spinbox.setDecimals(3)
+            spinbox.setSingleStep(0.01)
+        for spinbox in (self.free_layout_width_spinbox, self.free_layout_height_spinbox):
+            spinbox.setRange(MIN_FREE_RECT_SIZE, 2.0)
+            spinbox.setDecimals(3)
+            spinbox.setSingleStep(0.01)
+        free_layout_position_form.addRow(tr("X"), self.free_layout_x_spinbox)
+        free_layout_position_form.addRow(tr("Y"), self.free_layout_y_spinbox)
+        free_layout_position_form.addRow(tr("幅"), self.free_layout_width_spinbox)
+        free_layout_position_form.addRow(tr("高さ"), self.free_layout_height_spinbox)
+        self.free_layout_position_group.setLayout(free_layout_position_form)
+        # 自由配置モードで、かつサブプロットが選択されている間だけ表示する
+        self.free_layout_position_group.setVisible(False)
+        layout_form.addRow(self.free_layout_position_group)
 
         layout_group.setLayout(layout_form)
 

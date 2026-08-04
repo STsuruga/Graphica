@@ -8,6 +8,15 @@
 「自由配置レイアウト」チェックボックスがONの間は、サブプロット数は
 行数×列数ではなく all_plot_settings の要素数そのものになり、
 「+ プロット追加」「- プロット削除」ボタンで増減させる。
+
+項目85: 上記のマウスドラッグに加えて、X/Y/幅/高さの数値入力
+(free_layout_x/y/width/height_spinbox) でも同じサブプロットの矩形を
+編集できるようにしてある。ドラッグ中の状態(_layout_drag_state)とは別に、
+「レイアウト編集モードでクリックして選択されているサブプロット」を
+_layout_selected_axis_index として保持し、ドラッグ操作・数値入力の
+どちらの経路でも最終的に ax.set_position() + all_plot_settings[index]
+['free_rect'] への書き込みという同じ1本の状態更新パスを通ることで、
+2つの入力手段が食い違わないようにしている。
 """
 import logging
 
@@ -33,6 +42,11 @@ class LayoutEditMixin:
         if not checked and self.layout_edit_action.isChecked():
             self.layout_edit_action.setChecked(False)
             self._toggle_layout_edit_mode(False)
+
+        if not checked:
+            # グリッドレイアウトに戻したら、数値入力欄の選択状態も解除して隠す
+            self._layout_selected_axis_index = None
+            self.free_layout_position_group.setVisible(False)
 
         if checked:
             # グリッド -> 自由配置への切り替え直後、まだ矩形を持たないサブプロットには
@@ -70,6 +84,12 @@ class LayoutEditMixin:
         self._apply_settings_to_ui_controls(self.project.all_plot_settings[self.project.active_axis_index])
         self._update_plot()
 
+        # 選択中だったサブプロットが削除された場合は選択を解除する
+        if (self._layout_selected_axis_index is not None and
+                self._layout_selected_axis_index >= len(self.project.all_plot_settings)):
+            self._layout_selected_axis_index = None
+        self._sync_free_layout_position_controls()
+
     def _toggle_layout_edit_mode(self, checked):
         """
         「レイアウト編集」ツールバーボタンが押されたときの処理。
@@ -98,6 +118,9 @@ class LayoutEditMixin:
                     self.canvas.mpl_disconnect(cid)
                     setattr(self, cid_attr, None)
             self._layout_drag_state = None
+            # レイアウト編集モードを抜けたら、数値入力欄の選択状態も解除して隠す
+            self._layout_selected_axis_index = None
+            self.free_layout_position_group.setVisible(False)
 
     def _find_axis_at_point(self, x_px, y_px):
         """指定されたピクセル座標(Figure内、原点は左下)に該当する軸のインデックスを返す(無ければNone)"""
@@ -113,7 +136,15 @@ class LayoutEditMixin:
             return
         axis_index = self._find_axis_at_point(event.x, event.y)
         if axis_index is None:
+            # プロット外をクリックしたら選択解除(数値入力欄も隠す)
+            self._layout_selected_axis_index = None
+            self._sync_free_layout_position_controls()
             return
+
+        # クリックされたサブプロットを「選択」状態にする(ドラッグの有無に関わらず)。
+        # これにより数値入力欄(X/Y/幅/高さ)が現在の矩形を表示するようになる。
+        self._layout_selected_axis_index = axis_index
+        self._sync_free_layout_position_controls()
 
         ax = self.canvas.all_axes[axis_index]
         bbox = ax.bbox
@@ -161,6 +192,10 @@ class LayoutEditMixin:
         ax.set_position([new_left, new_bottom, new_width, new_height])
         self.canvas.draw_idle()
 
+        # ドラッグ中の矩形を数値入力欄にもリアルタイムで反映する(選択中サブプロットは
+        # ドラッグ中のサブプロットと常に同じなので、無条件に同期して構わない)
+        self._sync_free_layout_position_controls()
+
     def _on_layout_release(self, event):
         """レイアウト編集モードでマウスボタンが離されたときの処理。最終的な位置を設定に保存する"""
         if not self.layout_edit_mode_enabled or self._layout_drag_state is None:
@@ -174,3 +209,66 @@ class LayoutEditMixin:
         ax = self.canvas.all_axes[axis_index]
         pos = ax.get_position()
         self.project.all_plot_settings[axis_index]['free_rect'] = (pos.x0, pos.y0, pos.width, pos.height)
+
+        # 最終的な矩形を数値入力欄にも反映しておく(念のための最終同期)
+        self._sync_free_layout_position_controls()
+
+    def _sync_free_layout_position_controls(self):
+        """
+        項目85: 選択中サブプロット(_layout_selected_axis_index)の現在の矩形を
+        X/Y/幅/高さの数値入力欄に反映する。自由配置モードでなかったり、
+        サブプロットが選択されていない場合は入力欄ごと隠す。
+
+        マウスドラッグ後や、数値入力自体で書き換えた後にも呼ばれるため、
+        「表示されている数値」は常に ax の実際の位置と一致する(=ドラッグと
+        数値入力が食い違わない)。setValue() 中に valueChanged が発火して
+        _on_free_layout_position_spinbox_changed が呼ばれ無限ループするのを
+        防ぐため、blockSignals で一時的にシグナルを止める。
+        """
+        is_free_layout = getattr(self.project, 'layout_mode', 'grid') == 'free'
+        axis_index = self._layout_selected_axis_index
+
+        if (not is_free_layout or axis_index is None or
+                axis_index >= len(self.canvas.all_axes)):
+            self.free_layout_position_group.setVisible(False)
+            return
+
+        ax = self.canvas.all_axes[axis_index]
+        pos = ax.get_position()
+        for spinbox, value in (
+            (self.free_layout_x_spinbox, pos.x0),
+            (self.free_layout_y_spinbox, pos.y0),
+            (self.free_layout_width_spinbox, pos.width),
+            (self.free_layout_height_spinbox, pos.height),
+        ):
+            spinbox.blockSignals(True)
+            spinbox.setValue(value)
+            spinbox.blockSignals(False)
+        self.free_layout_position_group.setVisible(True)
+
+    def _on_free_layout_position_spinbox_changed(self, _value=None):
+        """
+        項目85: X/Y/幅/高さのいずれかの数値入力欄が変更されたときの処理。
+        選択中サブプロットに対して、マウスドラッグ(_on_layout_release)と全く同じ
+        更新パス(ax.set_position() -> canvas.draw_idle() ->
+        all_plot_settings[axis_index]['free_rect'] への保存)を通すことで、
+        ドラッグと数値入力の状態が食い違わないようにする。
+        """
+        axis_index = self._layout_selected_axis_index
+        if (axis_index is None or
+                axis_index >= len(self.canvas.all_axes) or
+                axis_index >= len(self.project.all_plot_settings)):
+            return
+
+        new_left = self.free_layout_x_spinbox.value()
+        new_bottom = self.free_layout_y_spinbox.value()
+        new_width = max(MIN_FREE_RECT_SIZE, self.free_layout_width_spinbox.value())
+        new_height = max(MIN_FREE_RECT_SIZE, self.free_layout_height_spinbox.value())
+
+        ax = self.canvas.all_axes[axis_index]
+        ax.set_position([new_left, new_bottom, new_width, new_height])
+        self.canvas.draw_idle()
+
+        self.project.all_plot_settings[axis_index]['free_rect'] = (
+            new_left, new_bottom, new_width, new_height
+        )

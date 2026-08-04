@@ -33,6 +33,13 @@ class UISetupMixin:
             self.add_free_subplot_button.clicked.connect(self._on_add_free_subplot)
             self.remove_free_subplot_button.clicked.connect(self._on_remove_free_subplot)
 
+            # 項目85: 自由配置レイアウトの位置・サイズ数値入力(X/Y/幅/高さ)。
+            # どれか1つでも変更されたら、選択中のサブプロットへ即座に反映する。
+            self.free_layout_x_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
+            self.free_layout_y_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
+            self.free_layout_width_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
+            self.free_layout_height_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
+
             # --- 2. 編集対象の「軸設定」が変更されたときのシグナル ---
             # ほとんどのUIは、値が変更されたら _on_axis_setting_changed を呼ぶ
 
