@@ -92,3 +92,23 @@ Traversing `self.menuBar().actions()` and then calling `.menu()` on each top-lev
 ### Settings and autosave
 
 `QSettings("Graphica", "Graphica")` persists dark mode, autosave interval, autosave directory, recent files, window/dock layout, custom color palettes, and language. Autosave writes to `AUTOSAVE_FILENAME` under a configurable directory (`autosave_dir` setting, empty = alongside the app) with generation rotation (`_rotate_autosave_generations`, keeps `AUTOSAVE_GENERATIONS` copies). Dock layout (`saveState()`/`restoreState()`) is only restored on the first tab and only applied on first launch — if a window layout is already saved, changing the default dock-size constants in code has no visible effect until the user resets or manually resizes.
+
+## Planning documents and active roadmap
+
+Six planning documents live under `Graphica_project/docs/` and describe the current multi-session development plan (plugin API extension points, GUI modernization, and a 135-item feature backlog). These are living project-management documents, not architecture reference — for architecture, keep using the sections above and `docs/Graphica_SPEC.md`.
+
+- `docs/Graphica_MASTER_SCHEDULE.md` — the entry point. Defines 5 execution tracks (Track 0: prerequisites, Track 0': quick wins, Track 1: plugin API phases A–G, Track 2: GUI modernization phase H, Track 3: remaining core features, Track 4: plugin development) and states which track/phase is currently active.
+- `docs/Graphica_SPEC.md` — full architecture/feature handoff doc (superset of this file, written for an AI picking up the project cold).
+- `docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md` — detailed phase-by-phase steps for Track 1 (plugin API) and Track 2 (GUI).
+- `docs/Graphica_CORE_BACKLOG.md` / `docs/Graphica_PLUGIN_BACKLOG.md` — the 135 core-app and 64 plugin backlog items referenced by ID (e.g. "C-001", "P-304") from the schedule and roadmap.
+- `docs/Graphica_INTEGRATION_REPORT.md` — background/rationale for how the backlogs were split; not required reading to execute a task.
+
+**Before starting any task from this roadmap**: read `docs/Graphica_MASTER_SCHEDULE.md` first and identify the current track and phase — do not assume which one is active from memory or from a prior session.
+
+**Track 0 gate**: Track 1 (plugin API) must not be started until Track 0's prerequisite items are confirmed complete. If asked to work on Track 1+ without confirmation that Track 0 is done, say so instead of silently implementing Track 0 first.
+
+**Scope discipline**: work only the track/phase/item the user specifies. Do not autonomously expand into adjacent tracks or "while I'm here" fixes elsewhere in the roadmap — the master schedule explicitly calls this out as a failure mode to avoid.
+
+**Regression bar**: the full `pytest` suite (248 tests as of 2026-08-04) must stay green. Run it before considering any roadmap task done.
+
+**Constraint inherited from `docs/Graphica_SPEC.md` §2.8**: do not add new Win32 DPI-awareness API calls, and do not add any code that depends on the process's current working directory — route resource loading through `resource_path()` / `icon_utils.icon()` as already established above.
