@@ -73,7 +73,7 @@ class Dataset:
         return None
 
     # --- スタイルと状態に関する情報 (デフォルト値付き) ---
-    plot_type: str = 'Line'       # 'Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Waterfall'
+    plot_type: str = 'Line'       # 'Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar'
     color: str = '#1f77b4'        # 16進数カラーコード (Matplotlib のデフォルト色)
     linestyle: str = '-'          # 実線 (Solid)
     linewidth: float = 1.5
@@ -90,13 +90,16 @@ class Dataset:
     gradient_color2: str = '#ffffff'   # グラデーションの終端色(開始色は既存の color を流用する)
     gradient_target: str = 'line'      # 'line' / 'fill' / 'both'
 
-    # ウォーターフォールプロット(項目80): 時間/濃度変化などのスペクトルを、
-    # Z軸方向にずらして立体的に配置したように見せる表示。実際には3Dプロット
-    # (mpl_toolkits.mplot3d)は使わず、同一サブプロット内の plot_type='Waterfall'
-    # なデータセットだけをリスト順に0始まりのインデックスで数え、その
-    # インデックス番目のデータセットのX/Yを (index * waterfall_offset_x,
-    # index * waterfall_offset_y) だけずらして通常の2D Axesに重ね描きすることで
-    # 疑似的な立体感を出す(gui/canvas.py の _draw_data 内 'Waterfall' 分岐)。
+    # ウォーターフォールプロット(項目80、項目109で独立したプロット種別から
+    # 「積み重ねオプション」に変更): 時間/濃度変化などのスペクトルを、Z軸方向に
+    # ずらして立体的に配置したように見せる表示。実際には3Dプロット
+    # (mpl_toolkits.mplot3d)は使わず、同一サブプロット内の waterfall_enabled=True
+    # なデータセットだけをリスト順に0始まりのインデックスで数え、そのインデックス
+    # 番目のデータセットのX/Yを (index * waterfall_offset_x, index * waterfall_offset_y)
+    # だけずらして通常の2D Axesに重ね描きすることで疑似的な立体感を出す
+    # (gui/canvas.py の _draw_data)。plot_type とは独立したフラグなので、
+    # Line/Scatter/Line+Scatter/Area/Bar のどの見た目とも組み合わせられる。
+    waterfall_enabled: bool = False
     waterfall_offset_x: float = 0.0
     waterfall_offset_y: float = 1.0
 
@@ -266,6 +269,13 @@ class Dataset:
                     f"Datasetの復元に失敗しました: 必須フィールド '{f.name}' がありません。"
                     "壊れているか、対応していない形式のファイルの可能性があります。"
                 )
+        # 項目109: ウォーターフォールは独立したplot_type値から、任意の種別と
+        # 組み合わせられる独立フラグ(waterfall_enabled)に変更した。移行期間の
+        # プロジェクトファイルに残っている可能性がある古い値を読み替える。
+        if state.get('plot_type') == 'Waterfall':
+            state['plot_type'] = 'Line'
+            state['waterfall_enabled'] = True
+
         obj.__dict__.update(state)
         return obj
 
@@ -357,3 +367,8 @@ class Dataset:
                     self.__dict__[f.name] = f.default
                 elif f.default_factory is not MISSING:
                     self.__dict__[f.name] = f.default_factory()
+        # 項目109: ウォーターフォールを独立したplot_type値から独立フラグに変更した
+        # 際の移行(from_dictと同じ理由)。
+        if self.__dict__.get('plot_type') == 'Waterfall':
+            self.__dict__['plot_type'] = 'Line'
+            self.__dict__['waterfall_enabled'] = True

@@ -265,9 +265,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # ui_main_window.py 自体は編集しない)
         self.ui.plot_type_combo.addItem("Area")
         self.ui.plot_type_combo.addItem("Bar")
-        # ウォーターフォールプロット(項目80): スペクトル等をZ軸方向にずらして
-        # 立体的に見せる表示(疑似2D、mpl_toolkits.mplot3dは使わない)。
-        self.ui.plot_type_combo.addItem("Waterfall")
 
         # ★ データセットリストを QListWidget から QTreeWidget に置き換える。
         #   フォルダによるグループ分けに対応するため (Designerが生成する
@@ -650,12 +647,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.gradient_target_combo.addItem(tr("両方"), "both")
         self.ui.formLayout_4.addRow(self.gradient_target_label, self.gradient_target_combo)
 
-        # 2c-3. ウォーターフォールプロット(項目80): plot_type == 'Waterfall' の
-        # データセットだけを対象に、隣接するデータセット1件あたりのX/Yオフセット量
-        # (waterfall_offset_x/waterfall_offset_y) を指定するスピンボックス。
+        # 2c-3. ウォーターフォールプロット(項目80、項目109で独立したプロット種別
+        # から「積み重ねオプション」に変更): plot_typeとは独立したチェックボックス
+        # にすることで、Line/Scatter/Line+Scatter/Area/Barのどの見た目とも
+        # 組み合わせられるようにした(専用の"Waterfall"種別だと、線種/マーカー等の
+        # 通常のスタイル選択肢と排他的になり使いにくいというフィードバックを受けて変更)。
+        # 有効時は、隣接するデータセット1件あたりのX/Yオフセット量
+        # (waterfall_offset_x/waterfall_offset_y) をスピンボックスで指定する。
         # 項目66でスライダーからスピンボックスへ統一済みの方針に合わせる。
         # 表示/非表示は _update_gradient_controls_visibility と同じパターンで
         # _update_waterfall_controls_visibility が行う(dataset_mixin.py)。
+        self.waterfall_checkbox = QCheckBox(tr("ウォーターフォール表示(積み重ね)"))
+        self.ui.formLayout_4.addRow(self.waterfall_checkbox)
+
         self.waterfall_offset_x_label = QLabel(tr("ウォーターフォールXオフセット"))
         self.waterfall_offset_x_spinbox = QDoubleSpinBox()
         self.waterfall_offset_x_spinbox.setRange(-1e6, 1e6)

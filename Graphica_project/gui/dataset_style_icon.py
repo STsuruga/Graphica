@@ -37,10 +37,9 @@ def make_dataset_style_icon(dataset):
     # 透明度が低いデータセットでも、リスト上では完全に見えなくならないよう下限を設ける
     color.setAlphaF(max(0.2, min(dataset.alpha, 1.0)))
 
-    # ウォーターフォールプロット(項目80)はスタイル的には通常の線(color/linestyle/
-    # linewidth)をそのまま流用するプロットタイプのため、'Line'と同じくプレビューに
-    # 線を表示する。
-    show_line = dataset.plot_type in ('Line', 'Line+Scatter', 'Waterfall')
+    # ウォーターフォール(項目80/109)はplot_typeとは独立したフラグになったため、
+    # ここでは特別扱いせず通常通りplot_typeだけでプレビュー内容を決める。
+    show_line = dataset.plot_type in ('Line', 'Line+Scatter')
     show_marker = dataset.plot_type in ('Scatter', 'Line+Scatter')
     y = height // 2
 

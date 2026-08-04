@@ -256,46 +256,69 @@ def test_from_dict_missing_gradient_keys_falls_back_to_defaults():
 
 
 def test_defaults_include_waterfall_fields():
-    """ウォーターフォールプロット(項目80)の新フィールドのデフォルト値"""
+    """ウォーターフォールプロット(項目80、項目109で独立フラグに変更)の
+    新フィールドのデフォルト値"""
     ds = make_dataset()
+    assert ds.waterfall_enabled is False
     assert ds.waterfall_offset_x == 0.0
     assert ds.waterfall_offset_y == 1.0
 
 
 def test_to_dict_from_dict_roundtrip_preserves_waterfall_fields():
     """Dataset.to_dict()/from_dict() の往復で、ウォーターフォール関連フィールドが
-    そのまま保持されることを確認する(項目80)。"""
+    そのまま保持されることを確認する(項目80/109)。plot_typeとは独立したフラグ
+    なので、Scatter等の他のplot_typeと組み合わせても保持されることも確認する。"""
     ds = make_dataset(
-        plot_type='Waterfall', waterfall_offset_x=1.5, waterfall_offset_y=2.5,
+        plot_type='Scatter', waterfall_enabled=True,
+        waterfall_offset_x=1.5, waterfall_offset_y=2.5,
     )
     ds.artist = object()  # to_dict()では除外されるはず
 
     data = ds.to_dict()
     assert 'artist' not in data
+    assert data['waterfall_enabled'] is True
     assert data['waterfall_offset_x'] == 1.5
     assert data['waterfall_offset_y'] == 2.5
 
     restored = Dataset.from_dict(data)
     assert restored.artist is None
-    assert restored.plot_type == 'Waterfall'
+    assert restored.plot_type == 'Scatter'
+    assert restored.waterfall_enabled is True
     assert restored.waterfall_offset_x == 1.5
     assert restored.waterfall_offset_y == 2.5
     pd.testing.assert_frame_equal(restored.df, ds.df)
 
 
 def test_from_dict_missing_waterfall_keys_falls_back_to_defaults():
-    """waterfall_offset_x/waterfall_offset_y キーが無い(この機能追加前に保存された)
-    dict を読み込んでも、クラッシュせずデフォルト値で補われること。"""
+    """waterfall_enabled/waterfall_offset_x/waterfall_offset_y キーが無い(この機能
+    追加前に保存された)dict を読み込んでも、クラッシュせずデフォルト値で
+    補われること。"""
     ds = make_dataset(name="Legacy")
     data = ds.to_dict()
-    for missing_field in ('waterfall_offset_x', 'waterfall_offset_y'):
+    for missing_field in ('waterfall_enabled', 'waterfall_offset_x', 'waterfall_offset_y'):
         data.pop(missing_field, None)
 
     restored = Dataset.from_dict(data)
 
     assert restored.name == "Legacy"
+    assert restored.waterfall_enabled is False
     assert restored.waterfall_offset_x == 0.0
     assert restored.waterfall_offset_y == 1.0
+
+
+def test_from_dict_migrates_legacy_waterfall_plot_type():
+    """項目109: ウォーターフォールを独立フラグに変更する前、短期間存在した
+    plot_type='Waterfall' というdictを読み込んだ場合、plot_type='Line' +
+    waterfall_enabled=True に自動的に読み替えられること(移行時の後方互換性)。"""
+    ds = make_dataset(plot_type='Line', waterfall_offset_x=1.0, waterfall_offset_y=2.0)
+    data = ds.to_dict()
+    data['plot_type'] = 'Waterfall'  # 旧形式のdictを模擬
+    data['waterfall_enabled'] = False  # 旧形式には無かったキーのはずだが念のため
+
+    restored = Dataset.from_dict(data)
+
+    assert restored.plot_type == 'Line'
+    assert restored.waterfall_enabled is True
 
 
 def test_setstate_backfills_missing_fields_for_old_pickles():

@@ -828,7 +828,8 @@ class DatasetMixin:
             # プロットへのグラデーション適用(項目79)
             self.gradient_checkbox: ('gradient_enabled', self.gradient_checkbox.isChecked()),
             self.gradient_target_combo: ('gradient_target', self.gradient_target_combo.currentData()),
-            # ウォーターフォールプロット(項目80)
+            # ウォーターフォールプロット(項目80、項目109でplot_typeとは独立したフラグに変更)
+            self.waterfall_checkbox: ('waterfall_enabled', self.waterfall_checkbox.isChecked()),
             self.waterfall_offset_x_spinbox: ('waterfall_offset_x', self.waterfall_offset_x_spinbox.value()),
             self.waterfall_offset_y_spinbox: ('waterfall_offset_y', self.waterfall_offset_y_spinbox.value()),
         }
@@ -925,20 +926,20 @@ class DatasetMixin:
 
     def _update_waterfall_controls_visibility(self):
         """
-        ウォーターフォールプロット(項目80)のオフセット量スピンボックスの
-        表示/非表示を、現在選択中データセットの plot_type に応じて更新する
-        (_update_gradient_controls_visibility と同じ「plot_typeに応じて
-        関連コントロールだけ見せる」パターン)。'Waterfall' のときだけ意味を
-        持つため、それ以外のプロットタイプでは隠す。
+        ウォーターフォールプロット(項目80)のオフセット量スピンボックスの表示/非表示を
+        更新する。項目109で「plot_type=='Waterfall'という専用種別」から「どの
+        plot_typeとも組み合わせられる独立チェックボックス」に変更したため、
+        チェックボックス自体は常に表示し、オフセット量スピンボックスだけを
+        チェック状態に応じて表示/非表示にする(_update_gradient_controls_visibility の
+        「詳細設定はチェック後にだけ見せる」パターンと同じ)。
         """
-        dataset = self._get_current_dataset()
-        plot_type = dataset.plot_type if dataset is not None else self.ui.plot_type_combo.currentText()
-        show_waterfall = plot_type == 'Waterfall'
+        self.waterfall_checkbox.setVisible(True)
+        show_offsets = self.waterfall_checkbox.isChecked()
 
-        self.waterfall_offset_x_label.setVisible(show_waterfall)
-        self.waterfall_offset_x_spinbox.setVisible(show_waterfall)
-        self.waterfall_offset_y_label.setVisible(show_waterfall)
-        self.waterfall_offset_y_spinbox.setVisible(show_waterfall)
+        self.waterfall_offset_x_label.setVisible(show_offsets)
+        self.waterfall_offset_x_spinbox.setVisible(show_offsets)
+        self.waterfall_offset_y_label.setVisible(show_offsets)
+        self.waterfall_offset_y_spinbox.setVisible(show_offsets)
 
     def _on_auto_assign_colors(self):
         """
@@ -1071,6 +1072,7 @@ class DatasetMixin:
             self.gradient_checkbox.blockSignals(True)
             self.gradient_color2_picker.blockSignals(True)
             self.gradient_target_combo.blockSignals(True)
+            self.waterfall_checkbox.blockSignals(True)
             self.waterfall_offset_x_spinbox.blockSignals(True)
             self.waterfall_offset_y_spinbox.blockSignals(True)
 
@@ -1088,6 +1090,7 @@ class DatasetMixin:
             self.gradient_color2_picker.set_color(dataset.gradient_color2)
             gradient_target_index = self.gradient_target_combo.findData(dataset.gradient_target)
             self.gradient_target_combo.setCurrentIndex(gradient_target_index if gradient_target_index != -1 else 0)
+            self.waterfall_checkbox.setChecked(dataset.waterfall_enabled)
             self.waterfall_offset_x_spinbox.setValue(dataset.waterfall_offset_x)
             self.waterfall_offset_y_spinbox.setValue(dataset.waterfall_offset_y)
             self.point_labels_checkbox.setChecked(dataset.show_point_labels)
@@ -1114,6 +1117,7 @@ class DatasetMixin:
             self.gradient_checkbox.blockSignals(False)
             self.gradient_color2_picker.blockSignals(False)
             self.gradient_target_combo.blockSignals(False)
+            self.waterfall_checkbox.blockSignals(False)
             self.waterfall_offset_x_spinbox.blockSignals(False)
             self.waterfall_offset_y_spinbox.blockSignals(False)
             self._update_gradient_controls_visibility()
@@ -1181,6 +1185,7 @@ class DatasetMixin:
             self.gradient_target_label.setVisible(False)
             self.gradient_target_combo.setVisible(False)
 
+            self.waterfall_checkbox.setVisible(False)
             self.waterfall_offset_x_label.setVisible(False)
             self.waterfall_offset_x_spinbox.setVisible(False)
             self.waterfall_offset_y_label.setVisible(False)

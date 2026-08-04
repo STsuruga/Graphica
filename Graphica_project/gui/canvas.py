@@ -390,13 +390,15 @@ class MplCanvas(FigureCanvas):
             secondary_ax = ax.twinx()
             self.all_secondary_axes[axis_index] = secondary_ax
 
-        # ウォーターフォールプロット(項目80): このサブプロット上で plot_type=='Waterfall'
-        # のデータセットだけを対象に、リスト順(datasets_for_this_axisの並び順、
-        # 他のプロットタイプとは混ぜない)で0始まりの「積み重ねインデックス」を振る。
-        # 背景色の塗りつぶしで奥のトレースを隠す(occlusion)ためのベースライン
-        # (全ウォーターフォールトレースのY最小値からわずかに余白を取った値)も
-        # ここでまとめて計算しておく。
-        waterfall_datasets = [ds for ds in datasets_for_this_axis if ds.plot_type == 'Waterfall']
+        # ウォーターフォールプロット(項目80、項目109で独立したプロット種別から
+        # 「積み重ねオプション」に変更): このサブプロット上で waterfall_enabled な
+        # データセットだけを対象に、リスト順(datasets_for_this_axisの並び順、
+        # waterfall_enabledでないものとは混ぜない)で0始まりの「積み重ねインデックス」を
+        # 振る。plot_typeとは独立したフラグなので、Line/Scatter/Line+Scatter/Area/Bar
+        # のどの見た目とも組み合わせられる。背景色の塗りつぶしで奥のトレースを隠す
+        # (occlusion)ためのベースライン(全ウォーターフォールトレースのY最小値から
+        # わずかに余白を取った値)も、ここでまとめて計算しておく。
+        waterfall_datasets = [ds for ds in datasets_for_this_axis if ds.waterfall_enabled]
         waterfall_index = {ds.dataset_id: i for i, ds in enumerate(waterfall_datasets)}
         waterfall_count = len(waterfall_datasets)
         waterfall_baseline = 0.0
@@ -417,12 +419,29 @@ class MplCanvas(FigureCanvas):
             target_ax = secondary_ax if ds.use_secondary_y else ax
             if target_ax is None: continue
 
+            # ウォーターフォール(項目80/109): 有効な場合、以降の描画処理は全て
+            # 積み重ねインデックス分だけずらしたX/Yを使う。plot_type別のスタイル
+            # (線種・マーカー・塗り等)は各分岐でそのまま個別に選べる。
+            waterfall_zorder = None
+            plot_kwargs = {}
+            if ds.waterfall_enabled:
+                w_idx = waterfall_index.get(ds.dataset_id, 0)
+                plot_x_data = ds.x_data + w_idx * ds.waterfall_offset_x
+                plot_y_data = ds.y_data + w_idx * ds.waterfall_offset_y
+                # 手前(インデックスが小さい)ほど大きいzorderにし、後ろのトレースの
+                # 上に重なって描画されるようにする。
+                waterfall_zorder = (waterfall_count - w_idx) * 2
+                plot_kwargs['zorder'] = waterfall_zorder
+            else:
+                plot_x_data = ds.x_data
+                plot_y_data = ds.y_data
+
             # ★ 平滑化(CubicSpline)は数値のX軸でのみ意味を持つ/計算可能なため、
             # 文字列カテゴリ軸の場合はスキップして通常のプロット経路に進む。
-            if ds.smoothing and len(ds.x_data) > 1 and not is_category_x:
-                sort_indices = np.argsort(ds.x_data)
-                x_sorted = ds.x_data[sort_indices]
-                y_sorted = ds.y_data[sort_indices]
+            if ds.smoothing and len(plot_x_data) > 1 and not is_category_x:
+                sort_indices = np.argsort(plot_x_data)
+                x_sorted = plot_x_data[sort_indices]
+                y_sorted = plot_y_data[sort_indices]
                 # ★ グラデーション(項目79)は平滑化された曲線にも適用できるよう、
                 # 平滑化後のx_smooth/y_smoothに対してLineCollectionを作る。
                 use_line_gradient = ds.gradient_enabled and ds.gradient_target in ('line', 'both')
@@ -436,18 +455,18 @@ class MplCanvas(FigureCanvas):
                             ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
                         )
                     else:
-                        (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
+                        (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                         ds.artist = artist_line
                     if ds.plot_type == 'Line+Scatter':
-                        target_ax.scatter(ds.x_data, ds.y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha)
+                        target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **plot_kwargs)
                 except ValueError:
                     if use_line_gradient:
                         ds.artist = self._add_gradient_line(
-                            target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2,
+                            target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
                             ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
                         )
                     else:
-                        (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
+                        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                         ds.artist = artist
             else:
                 # ★ 線ストロークグラデーション(項目79)は 'line'/'both' が
@@ -456,81 +475,67 @@ class MplCanvas(FigureCanvas):
                 if ds.plot_type == 'Line':
                     if use_line_gradient:
                         ds.artist = self._add_gradient_line(
-                            target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2,
+                            target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
                             ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
                         )
                     else:
-                        (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
+                        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                         ds.artist = artist
                 elif ds.plot_type == 'Scatter':
-                    artist = target_ax.scatter(ds.x_data, ds.y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=ds.name)
+                    artist = target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                     ds.artist = artist
                 elif ds.plot_type == 'Line+Scatter':
                     if use_line_gradient:
                         # LineCollectionはマーカーを描けないため、線はグラデーション、
                         # マーカーは別途ds.colorの単色scatterとして重ねて描画する。
                         ds.artist = self._add_gradient_line(
-                            target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2,
+                            target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
                             ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
                         )
-                        target_ax.scatter(ds.x_data, ds.y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha)
+                        target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **plot_kwargs)
                     else:
-                        (artist,) = target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=ds.name)
+                        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                         ds.artist = artist
                 elif ds.plot_type == 'Area':
                     # 塗りつぶし(エリア)プロット: 0を基準線としてY値との間を塗りつぶす。
                     # 輪郭を分かりやすくするため、上端に細い線も重ねて描画する。
                     # ★ グラデーション無効時は従来どおりの描画(回帰防止のため分岐を変えない)。
                     if not ds.gradient_enabled:
-                        artist = target_ax.fill_between(ds.x_data, ds.y_data, 0, color=ds.color, alpha=ds.alpha * 0.4, label=ds.name)
-                        target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha)
+                        artist = target_ax.fill_between(plot_x_data, plot_y_data, 0, color=ds.color, alpha=ds.alpha * 0.4, label=ds.name, **plot_kwargs)
+                        target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, **plot_kwargs)
                         ds.artist = artist
                     else:
                         use_fill_gradient = ds.gradient_target in ('fill', 'both')
                         use_area_line_gradient = ds.gradient_target in ('line', 'both')
                         if use_fill_gradient:
-                            artist = self._add_gradient_fill(target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2, ds.alpha * 0.4)
+                            artist = self._add_gradient_fill(target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2, ds.alpha * 0.4)
                         else:
-                            artist = target_ax.fill_between(ds.x_data, ds.y_data, 0, color=ds.color, alpha=ds.alpha * 0.4)
+                            artist = target_ax.fill_between(plot_x_data, plot_y_data, 0, color=ds.color, alpha=ds.alpha * 0.4, **plot_kwargs)
 
                         if use_area_line_gradient:
                             self._add_gradient_line(
-                                target_ax, ds.x_data, ds.y_data, ds.color, ds.gradient_color2,
+                                target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
                                 ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
                             )
                         else:
-                            target_ax.plot(ds.x_data, ds.y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name)
+                            target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                         ds.artist = artist
                 elif ds.plot_type == 'Bar':
                     # 棒グラフ: 文字列カテゴリ軸(項目31)との組み合わせを主な用途として想定。
-                    artist = target_ax.bar(ds.x_data, ds.y_data, color=ds.color, alpha=ds.alpha, label=ds.name)
+                    artist = target_ax.bar(plot_x_data, plot_y_data, color=ds.color, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                     ds.artist = artist
-                elif ds.plot_type == 'Waterfall':
-                    # ウォーターフォールプロット(項目80): X/Yを積み重ねインデックス分
-                    # ずらして重ね描きする。スタイルは'Line'と同じフィールド
-                    # (color/linestyle/linewidth/alpha)を流用する(ウォーターフォールは
-                    # あくまで「位置をずらす」技法であり、新しい見た目の種類ではないため)。
-                    # 分光データ等の慣習に合わせ、手前(インデックス0)のトレースが奥の
-                    # トレースを隠すように見せるため、zorderをインデックスの逆順に設定し、
-                    # 各トレースの下に軸背景色のfill_betweenを敷いて奥のトレースを隠す
-                    # (occlusion)。
-                    idx = waterfall_index.get(ds.dataset_id, 0)
-                    x_shifted = ds.x_data + idx * ds.waterfall_offset_x
-                    y_shifted = ds.y_data + idx * ds.waterfall_offset_y
-                    # 手前(idxが小さい)ほど大きいzorderになるようにし、後ろのトレースの
-                    # 上に重なって描画されるようにする。
-                    zorder = (waterfall_count - idx) * 2
-                    if len(x_shifted) > 0:
-                        bg_color = DARK_AXES_FACECOLOR if self.dark_mode else LIGHT_AXES_FACECOLOR
-                        target_ax.fill_between(
-                            x_shifted, y_shifted, waterfall_baseline,
-                            color=bg_color, alpha=1.0, zorder=zorder - 1, linewidth=0,
-                        )
-                    (artist,) = target_ax.plot(
-                        x_shifted, y_shifted, color=ds.color, linestyle=ds.linestyle,
-                        linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, zorder=zorder,
-                    )
-                    ds.artist = artist
+
+            # ウォーターフォール(項目80/109): 手前のトレースが奥のトレースを隠すよう、
+            # 描画したアーティストの下(waterfall_zorder - 1)に軸背景色のfill_betweenを
+            # 敷く(occlusion)。Areaは自身の塗りつぶしと二重になり見た目が煩雑になる
+            # ため対象外とする。plot_type分岐の後にまとめて行うことで、どの見た目
+            # (Line/Scatter/Line+Scatter/Bar)と組み合わせても同じ処理で済む。
+            if ds.waterfall_enabled and ds.plot_type != 'Area' and len(plot_x_data) > 0:
+                bg_color = DARK_AXES_FACECOLOR if self.dark_mode else LIGHT_AXES_FACECOLOR
+                target_ax.fill_between(
+                    plot_x_data, plot_y_data, waterfall_baseline,
+                    color=bg_color, alpha=1.0, zorder=waterfall_zorder - 1, linewidth=0,
+                )
 
             # ★ グラフ要素の直接クリック選択(項目35)のため、常にクリック検出を有効にする。
             # (データカーソルモードの ON/OFF とは独立。データカーソル自体のpick_event処理は
@@ -540,21 +545,23 @@ class MplCanvas(FigureCanvas):
 
             # ★ エラーバー (X/Y誤差列が設定されている場合のみ描画)
             # fmt='none' なので線やマーカーは追加せず、誤差の縦横棒のみを
-            # 元データ点 (平滑化前) の位置に重ねて描画する。
+            # 元データ点(平滑化前、ウォーターフォール有効時はずらした後)の
+            # 位置に重ねて描画する。
             if ds.x_err_col_name or ds.y_err_col_name:
                 target_ax.errorbar(
-                    ds.x_data, ds.y_data,
+                    plot_x_data, plot_y_data,
                     xerr=ds.x_err_data, yerr=ds.y_err_data,
                     fmt='none', ecolor=ds.color, elinewidth=ds.linewidth, alpha=ds.alpha, capsize=3
                 )
 
             # ★ データポイントラベル (各点の脇にY値、または指定列の値を表示)
-            # 平滑化が有効な場合でも、ラベルは元のデータ点の位置に表示する。
+            # 平滑化が有効な場合でも、ラベルは元のデータ点の位置に表示する
+            # (ウォーターフォール有効時はずらした後の位置)。
             # 点数が point_label_max_points を超える場合は、フリーズ防止のため描画しない
             # (ダイアログ側で有効化時に確認ポップアップを出しているが、これは別プロジェクトの
             #  読み込みなど確認を経ないケースも含めて描画時にも必ず効くようにするための保険)。
             if ds.show_point_labels and len(ds.visible_df) <= self.point_label_max_points:
-                self._draw_point_labels(target_ax, ds)
+                self._draw_point_labels(target_ax, ds, x_data=plot_x_data, y_data=plot_y_data)
 
     def set_highlighted_points(self, dataset, master_indices):
         """
@@ -612,11 +619,19 @@ class MplCanvas(FigureCanvas):
         self._highlight_artists[dataset.dataset_id] = artist
         self.draw_idle()
 
-    def _draw_point_labels(self, ax, ds):
+    def _draw_point_labels(self, ax, ds, x_data=None, y_data=None):
         """
         データセットの各点の脇に、Y値または指定列の値をテキストとして表示する。
         point_label_col_name が None ならY値そのもの、指定されていればその列の値を使う。
+        x_data/y_data を明示的に渡すと、そちらを表示位置として使う(ウォーターフォール
+        (項目80/109)有効時に、ずらした後の位置にラベルを追従させるため)。
+        省略時は ds.x_data/ds.y_data (元の位置) を使う。
         """
+        if x_data is None:
+            x_data = ds.x_data
+        if y_data is None:
+            y_data = ds.y_data
+
         if ds.point_label_col_name and ds.point_label_col_name in ds.df.columns:
             # ★ x_data/y_dataはvisible_df(マスクされた行を除いたもの)基準のため、
             # 同じ行と対応させるにはこちらもvisible_dfから取得する必要がある。
@@ -624,7 +639,7 @@ class MplCanvas(FigureCanvas):
         else:
             label_values = ds.y_data
 
-        for x, y, label_value in zip(ds.x_data, ds.y_data, label_values):
+        for x, y, label_value in zip(x_data, y_data, label_values):
             if pd.isna(x) or pd.isna(y):
                 continue
             if isinstance(label_value, (int, float, np.floating, np.integer)) and not isinstance(label_value, bool):
