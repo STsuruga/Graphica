@@ -196,3 +196,106 @@ def test_svg_export_with_fonttype_path_outlines_text_elements(canvas):
         canvas.fig.savefig(buf, format="svg")
     svg_text = buf.getvalue().decode("utf-8")
     assert "<text" not in svg_text
+
+
+# --- グリッド線の詳細カスタマイズ(項目82) ---
+# X軸/Y軸・主目盛/補助目盛それぞれに独立した線種・太さ・透過度を設定できることと、
+# 設定キーが無い(この機能追加前に保存された)プロジェクトを読み込んでも、
+# 従来通りの見た目になることを検証する。
+
+def _minor_gridlines(axis):
+    """軸(xaxis/yaxis)の補助目盛グリッド線Line2Dのリストを返す。
+    Axis.get_gridlines() は主目盛分しか返さないため、補助目盛側は
+    get_minor_ticks() 経由で各Tickの.gridlineを取る。"""
+    return [tick.gridline for tick in axis.get_minor_ticks()]
+
+
+def test_grid_hidden_by_default_when_grid_visible_false(canvas):
+    """grid_visible が無い(またはFalseの)設定では、主目盛グリッド線は非表示のまま"""
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert ax.xaxis.get_gridlines()[0].get_visible() is False
+    assert ax.yaxis.get_gridlines()[0].get_visible() is False
+
+
+def test_grid_major_style_defaults_match_previous_hardcoded_appearance():
+    """grid_visible=True だが線種/太さ/透過度のキーが無い(旧プロジェクト)場合、
+    この機能追加前と同じ見た目(実線・太さ0.8・alpha=1.0)になる(後方互換性)"""
+    c = MplCanvas(width=4, height=3, dpi=80)
+    ds = _make_dataset(5, show_point_labels=False)
+    c.redraw_all([ds], 1, 1, [{'grid_visible': True}])
+    ax = c.all_axes[0]
+    for gridline in (ax.xaxis.get_gridlines()[0], ax.yaxis.get_gridlines()[0]):
+        assert gridline.get_visible() is True
+        assert gridline.get_linestyle() == '-'
+        assert gridline.get_linewidth() == pytest.approx(0.8)
+        assert gridline.get_alpha() == pytest.approx(1.0)
+    plt.close(c.fig)
+
+
+def test_grid_minor_style_defaults_match_previous_hardcoded_appearance():
+    """補助グリッドについても同様に、旧来のデフォルト(破線・太さ0.5・alpha=1.0)を再現する"""
+    c = MplCanvas(width=4, height=3, dpi=80)
+    ds = _make_dataset(5, show_point_labels=False)
+    settings = {
+        'grid_visible': True, 'minor_grid_visible': True,
+        'x_minor_ticks_visible': True, 'x_minor_tick_interval': 0.5,
+        'y_minor_ticks_visible': True, 'y_minor_tick_interval': 0.5,
+    }
+    c.redraw_all([ds], 1, 1, [settings])
+    ax = c.all_axes[0]
+    for gridline in (_minor_gridlines(ax.xaxis)[0], _minor_gridlines(ax.yaxis)[0]):
+        assert gridline.get_visible() is True
+        assert gridline.get_linestyle() == '--'
+        assert gridline.get_linewidth() == pytest.approx(0.5)
+        assert gridline.get_alpha() == pytest.approx(1.0)
+    plt.close(c.fig)
+
+
+def test_grid_custom_style_applies_independently_per_axis_and_major_minor():
+    """X/Y軸・主/補助それぞれに指定した独立の線種/太さ/透過度が、
+    それぞれ対応するAxesのグリッド線にだけ反映されることを検証する"""
+    c = MplCanvas(width=4, height=3, dpi=80)
+    ds = _make_dataset(5, show_point_labels=False)
+    settings = {
+        'grid_visible': True, 'minor_grid_visible': True,
+        'x_minor_ticks_visible': True, 'x_minor_tick_interval': 0.5,
+        'y_minor_ticks_visible': True, 'y_minor_tick_interval': 0.5,
+        'x_major_grid_linestyle': ':', 'x_major_grid_width': 2.0, 'x_major_grid_alpha': 0.3,
+        'y_major_grid_linestyle': '-.', 'y_major_grid_width': 1.5, 'y_major_grid_alpha': 0.6,
+        'x_minor_grid_linestyle': '--', 'x_minor_grid_width': 0.3, 'x_minor_grid_alpha': 0.2,
+        'y_minor_grid_linestyle': ':', 'y_minor_grid_width': 0.4, 'y_minor_grid_alpha': 0.9,
+    }
+    c.redraw_all([ds], 1, 1, [settings])
+    ax = c.all_axes[0]
+
+    x_major = ax.xaxis.get_gridlines()[0]
+    assert (x_major.get_linestyle(), x_major.get_linewidth(), x_major.get_alpha()) == (':', pytest.approx(2.0), pytest.approx(0.3))
+
+    y_major = ax.yaxis.get_gridlines()[0]
+    assert (y_major.get_linestyle(), y_major.get_linewidth(), y_major.get_alpha()) == ('-.', pytest.approx(1.5), pytest.approx(0.6))
+
+    x_minor = _minor_gridlines(ax.xaxis)[0]
+    assert (x_minor.get_linestyle(), x_minor.get_linewidth(), x_minor.get_alpha()) == ('--', pytest.approx(0.3), pytest.approx(0.2))
+
+    y_minor = _minor_gridlines(ax.yaxis)[0]
+    assert (y_minor.get_linestyle(), y_minor.get_linewidth(), y_minor.get_alpha()) == (':', pytest.approx(0.4), pytest.approx(0.9))
+    plt.close(c.fig)
+
+
+def test_grid_minor_hidden_when_minor_grid_visible_false():
+    """主グリッドはONでも補助グリッドがOFFなら、補助目盛グリッド線は表示されない
+    (X/Y独立カスタマイズ導入後も、この既存の on/off 挙動は変わらない)"""
+    c = MplCanvas(width=4, height=3, dpi=80)
+    ds = _make_dataset(5, show_point_labels=False)
+    settings = {
+        'grid_visible': True, 'minor_grid_visible': False,
+        'x_minor_ticks_visible': True, 'x_minor_tick_interval': 0.5,
+        'y_minor_ticks_visible': True, 'y_minor_tick_interval': 0.5,
+    }
+    c.redraw_all([ds], 1, 1, [settings])
+    ax = c.all_axes[0]
+    assert _minor_gridlines(ax.xaxis)[0].get_visible() is False
+    assert _minor_gridlines(ax.yaxis)[0].get_visible() is False
+    plt.close(c.fig)

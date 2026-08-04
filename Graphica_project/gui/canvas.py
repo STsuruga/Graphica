@@ -614,10 +614,30 @@ class MplCanvas(FigureCanvas):
             if ax.get_legend() is not None: ax.get_legend().remove()
             if secondary_ax and secondary_ax.get_legend() is not None: secondary_ax.get_legend().remove()
 
+        # グリッド線の詳細カスタマイズ(項目82): X軸/Y軸・主目盛/補助目盛をそれぞれ
+        # 独立した線種(linestyle)・太さ(linewidth)・透過度(alpha)で描画できるようにする。
+        # settings に該当キーが無い場合(この機能追加前に保存されたプロジェクト等)は、
+        # 従来の固定値(主目盛: 実線・太さ0.8 / 補助目盛: 破線・太さ0.5、共にalpha=1.0)を
+        # そのままデフォルトとして使い、既存プロジェクトの見た目を変えない。
+        # 1回の ax.grid() 呼び出しは指定した which/axis の組み合わせにしか効かないため、
+        # X/Y × 主/補助 の4通りを個別に呼び分ける。
         if settings.get('grid_visible', False):
-            ax.grid(True, which='major', linestyle='-', linewidth=0.8)
-            if settings.get('minor_grid_visible', False): ax.grid(True, which='minor', linestyle='--', linewidth=0.5)
-            else: ax.grid(False, which='minor')
+            for grid_axis in ('x', 'y'):
+                ax.grid(
+                    True, which='major', axis=grid_axis,
+                    linestyle=settings.get(f'{grid_axis}_major_grid_linestyle', '-'),
+                    linewidth=settings.get(f'{grid_axis}_major_grid_width', 0.8),
+                    alpha=settings.get(f'{grid_axis}_major_grid_alpha', 1.0),
+                )
+                if settings.get('minor_grid_visible', False):
+                    ax.grid(
+                        True, which='minor', axis=grid_axis,
+                        linestyle=settings.get(f'{grid_axis}_minor_grid_linestyle', '--'),
+                        linewidth=settings.get(f'{grid_axis}_minor_grid_width', 0.5),
+                        alpha=settings.get(f'{grid_axis}_minor_grid_alpha', 1.0),
+                    )
+                else:
+                    ax.grid(False, which='minor', axis=grid_axis)
         else:
             ax.grid(False, which='both')
 

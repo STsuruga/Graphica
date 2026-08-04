@@ -244,6 +244,22 @@ class SettingsMixin:
         self._update_plot_appearance()
 
 
+    def _grid_linestyle_code(self, combo_index: int) -> str:
+        """グリッド線種コンボボックスの選択インデックスを、matplotlibのlinestyle文字列
+        ('-' / '--' / ':' / '-.') に変換する (項目82)。"""
+        choices = self.grid_linestyle_choices
+        if 0 <= combo_index < len(choices):
+            return choices[combo_index][1]
+        return '-'
+
+    def _grid_linestyle_index(self, linestyle_code: str) -> int:
+        """matplotlibのlinestyle文字列を、グリッド線種コンボボックスの選択インデックスに
+        逆変換する (項目82)。未知の値が来た場合は先頭(実線)を返す。"""
+        for i, (_label, code) in enumerate(self.grid_linestyle_choices):
+            if code == linestyle_code:
+                return i
+        return 0
+
     def _on_grid_visibility_changed(self):
         """
         メインのグリッド表示チェックボックスが変更されたときの処理
@@ -254,6 +270,21 @@ class SettingsMixin:
         # 「補助グリッドも表示」チェックボックスの有効/無効を切り替え
         # (メイングリッドが OFF なら、補助グリッドも選択不可にする)
         self.ui.minor_grid_visible_checkbox.setEnabled(is_visible)
+
+        # グリッド線の詳細カスタマイズ(項目82)コントロールの有効/無効も連動させる。
+        # 主目盛用(線種/太さ/透過度)はメイングリッドのON/OFFに、
+        # 補助目盛用はメイングリッド かつ 補助グリッド表示のON/OFFに従う。
+        is_minor_visible = is_visible and self.ui.minor_grid_visible_checkbox.isChecked()
+        for widget in (
+            self.x_major_grid_linestyle_combo, self.x_major_grid_width_spinbox, self.x_major_grid_alpha_spinbox,
+            self.y_major_grid_linestyle_combo, self.y_major_grid_width_spinbox, self.y_major_grid_alpha_spinbox,
+        ):
+            widget.setEnabled(is_visible)
+        for widget in (
+            self.x_minor_grid_linestyle_combo, self.x_minor_grid_width_spinbox, self.x_minor_grid_alpha_spinbox,
+            self.y_minor_grid_linestyle_combo, self.y_minor_grid_width_spinbox, self.y_minor_grid_alpha_spinbox,
+        ):
+            widget.setEnabled(is_minor_visible)
 
         self._update_plot_appearance()
 
@@ -484,6 +515,20 @@ class SettingsMixin:
             'legend_loc': self.legend_loc_combo.currentText(),
             'grid_visible': self.ui.grid_visible_checkbox.isChecked(),
             'minor_grid_visible': self.ui.minor_grid_visible_checkbox.isChecked(),
+
+            # グリッド線の詳細カスタマイズ(項目82): X/Y軸 × 主/補助目盛 それぞれ独立
+            'x_major_grid_linestyle': self._grid_linestyle_code(self.x_major_grid_linestyle_combo.currentIndex()),
+            'x_major_grid_width': self.x_major_grid_width_spinbox.value(),
+            'x_major_grid_alpha': self.x_major_grid_alpha_spinbox.value(),
+            'x_minor_grid_linestyle': self._grid_linestyle_code(self.x_minor_grid_linestyle_combo.currentIndex()),
+            'x_minor_grid_width': self.x_minor_grid_width_spinbox.value(),
+            'x_minor_grid_alpha': self.x_minor_grid_alpha_spinbox.value(),
+            'y_major_grid_linestyle': self._grid_linestyle_code(self.y_major_grid_linestyle_combo.currentIndex()),
+            'y_major_grid_width': self.y_major_grid_width_spinbox.value(),
+            'y_major_grid_alpha': self.y_major_grid_alpha_spinbox.value(),
+            'y_minor_grid_linestyle': self._grid_linestyle_code(self.y_minor_grid_linestyle_combo.currentIndex()),
+            'y_minor_grid_width': self.y_minor_grid_width_spinbox.value(),
+            'y_minor_grid_alpha': self.y_minor_grid_alpha_spinbox.value(),
             'major_tick_direction': self.major_tick_direction_combo.currentText(),
             'minor_tick_direction': self.minor_tick_direction_combo.currentText(),
             'major_tick_direction_y2': self.major_tick_direction_y2_combo.currentText(),
@@ -570,6 +615,26 @@ class SettingsMixin:
             self.legend_loc_combo.setCurrentText(settings.get('legend_loc', 'best'))
             self.ui.grid_visible_checkbox.setChecked(settings.get('grid_visible', False))
             self.ui.minor_grid_visible_checkbox.setChecked(settings.get('minor_grid_visible', False))
+
+            # グリッド線の詳細カスタマイズ(項目82)。旧プロジェクト(このキー群が
+            # 存在しない)を読み込んだ場合は、canvas.py 側と同じデフォルト値
+            # (主目盛: 実線・太さ0.8 / 補助目盛: 破線・太さ0.5、共にalpha=1.0)にする。
+            self.x_major_grid_linestyle_combo.setCurrentIndex(
+                self._grid_linestyle_index(settings.get('x_major_grid_linestyle', '-')))
+            self.x_major_grid_width_spinbox.setValue(settings.get('x_major_grid_width', 0.8))
+            self.x_major_grid_alpha_spinbox.setValue(settings.get('x_major_grid_alpha', 1.0))
+            self.x_minor_grid_linestyle_combo.setCurrentIndex(
+                self._grid_linestyle_index(settings.get('x_minor_grid_linestyle', '--')))
+            self.x_minor_grid_width_spinbox.setValue(settings.get('x_minor_grid_width', 0.5))
+            self.x_minor_grid_alpha_spinbox.setValue(settings.get('x_minor_grid_alpha', 1.0))
+            self.y_major_grid_linestyle_combo.setCurrentIndex(
+                self._grid_linestyle_index(settings.get('y_major_grid_linestyle', '-')))
+            self.y_major_grid_width_spinbox.setValue(settings.get('y_major_grid_width', 0.8))
+            self.y_major_grid_alpha_spinbox.setValue(settings.get('y_major_grid_alpha', 1.0))
+            self.y_minor_grid_linestyle_combo.setCurrentIndex(
+                self._grid_linestyle_index(settings.get('y_minor_grid_linestyle', '--')))
+            self.y_minor_grid_width_spinbox.setValue(settings.get('y_minor_grid_width', 0.5))
+            self.y_minor_grid_alpha_spinbox.setValue(settings.get('y_minor_grid_alpha', 1.0))
             self.major_tick_direction_combo.setCurrentText(settings.get('major_tick_direction', 'out'))
             self.minor_tick_direction_combo.setCurrentText(settings.get('minor_tick_direction', 'out'))
             self.major_tick_direction_y2_combo.setCurrentText(settings.get('major_tick_direction_y2', 'out'))
@@ -673,6 +738,18 @@ class SettingsMixin:
         self.legend_loc_combo.blockSignals(block)
         self.ui.grid_visible_checkbox.blockSignals(block)
         self.ui.minor_grid_visible_checkbox.blockSignals(block)
+        self.x_major_grid_linestyle_combo.blockSignals(block)
+        self.x_major_grid_width_spinbox.blockSignals(block)
+        self.x_major_grid_alpha_spinbox.blockSignals(block)
+        self.x_minor_grid_linestyle_combo.blockSignals(block)
+        self.x_minor_grid_width_spinbox.blockSignals(block)
+        self.x_minor_grid_alpha_spinbox.blockSignals(block)
+        self.y_major_grid_linestyle_combo.blockSignals(block)
+        self.y_major_grid_width_spinbox.blockSignals(block)
+        self.y_major_grid_alpha_spinbox.blockSignals(block)
+        self.y_minor_grid_linestyle_combo.blockSignals(block)
+        self.y_minor_grid_width_spinbox.blockSignals(block)
+        self.y_minor_grid_alpha_spinbox.blockSignals(block)
         self.ui.spine_width_spinbox.blockSignals(block)
         self.ui.spine_color_button.blockSignals(block)
         self.major_tick_direction_combo.blockSignals(block)

@@ -109,6 +109,23 @@ class UISetupMixin:
             # グリッド表示チェックは、_on_grid_visibility_changed にも接続 (補助グリッドの有効/無効化のため)
             self.ui.grid_visible_checkbox.stateChanged.connect(self._on_grid_visibility_changed)
             self.ui.minor_grid_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            # 補助グリッド表示チェックも、詳細カスタマイズ行の有効/無効切り替えのため
+            # _on_grid_visibility_changed に接続する
+            self.ui.minor_grid_visible_checkbox.stateChanged.connect(self._on_grid_visibility_changed)
+
+            # グリッド線の詳細カスタマイズ(項目82): 線種/太さ/透過度 × X/Y軸 × 主/補助目盛
+            for grid_style_widget in (
+                self.x_major_grid_linestyle_combo, self.x_minor_grid_linestyle_combo,
+                self.y_major_grid_linestyle_combo, self.y_minor_grid_linestyle_combo,
+            ):
+                grid_style_widget.currentIndexChanged.connect(self._on_axis_setting_changed)
+            for grid_style_widget in (
+                self.x_major_grid_width_spinbox, self.x_major_grid_alpha_spinbox,
+                self.x_minor_grid_width_spinbox, self.x_minor_grid_alpha_spinbox,
+                self.y_major_grid_width_spinbox, self.y_major_grid_alpha_spinbox,
+                self.y_minor_grid_width_spinbox, self.y_minor_grid_alpha_spinbox,
+            ):
+                grid_style_widget.valueChanged.connect(self._on_axis_setting_changed)
 
             self.ui.spine_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.spine_color_button.clicked.connect(self._on_change_spine_color)

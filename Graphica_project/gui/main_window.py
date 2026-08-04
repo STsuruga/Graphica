@@ -670,6 +670,79 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.formLayout_3.insertRow(5, self.tick_direction_label, dir_layout)
         self.ui.formLayout_3.insertRow(6, self.tick_direction_y2_label, dir_y2_layout)
 
+        # 7b. グリッド線の詳細カスタマイズ(項目82): X軸/Y軸・主目盛/補助目盛の
+        #     それぞれに独立した線種(実線/破線/点線/一点鎖線)・太さ・透過度を
+        #     設定できるようにする。「グリッドを表示」「補助グリッドの表示」の
+        #     チェックボックスのすぐ下に置きたいので、ハードコードした行番号では
+        #     なく minor_grid_visible_checkbox が実際に置かれている行を
+        #     getWidgetPosition() で動的に取得し、その直後へ insertRow する
+        #     (formLayout_3 への他の insertRow 呼び出しの並び順が将来変わっても
+        #     壊れないようにするため)。
+        self.grid_linestyle_choices = [
+            (tr("実線"), '-'), (tr("破線"), '--'), (tr("点線"), ':'), (tr("一点鎖線"), '-.'),
+        ]
+
+        def _make_grid_style_row(default_linestyle, default_width):
+            linestyle_combo = QComboBox()
+            for choice_label, _code in self.grid_linestyle_choices:
+                linestyle_combo.addItem(choice_label)
+            default_index = next(
+                (i for i, (_label, code) in enumerate(self.grid_linestyle_choices) if code == default_linestyle),
+                0
+            )
+            linestyle_combo.setCurrentIndex(default_index)
+            linestyle_combo.setToolTip(tr("線種"))
+            linestyle_combo.setMaximumWidth(90)
+
+            width_spinbox = QDoubleSpinBox()
+            width_spinbox.setRange(0.1, 10.0)
+            width_spinbox.setSingleStep(0.1)
+            width_spinbox.setDecimals(1)
+            width_spinbox.setValue(default_width)
+            width_spinbox.setToolTip(tr("太さ"))
+            width_spinbox.setMaximumWidth(65)
+
+            alpha_spinbox = QDoubleSpinBox()
+            alpha_spinbox.setRange(0.0, 1.0)
+            alpha_spinbox.setSingleStep(0.05)
+            alpha_spinbox.setDecimals(2)
+            alpha_spinbox.setValue(1.0)
+            alpha_spinbox.setToolTip(tr("透過度(アルファ)"))
+            alpha_spinbox.setMaximumWidth(65)
+
+            row_layout = QHBoxLayout()
+            row_layout.addWidget(linestyle_combo)
+            row_layout.addWidget(width_spinbox)
+            row_layout.addWidget(alpha_spinbox)
+            return linestyle_combo, width_spinbox, alpha_spinbox, row_layout
+
+        (self.x_major_grid_linestyle_combo, self.x_major_grid_width_spinbox,
+         self.x_major_grid_alpha_spinbox, x_major_grid_layout) = _make_grid_style_row('-', 0.8)
+        (self.x_minor_grid_linestyle_combo, self.x_minor_grid_width_spinbox,
+         self.x_minor_grid_alpha_spinbox, x_minor_grid_layout) = _make_grid_style_row('--', 0.5)
+        (self.y_major_grid_linestyle_combo, self.y_major_grid_width_spinbox,
+         self.y_major_grid_alpha_spinbox, y_major_grid_layout) = _make_grid_style_row('-', 0.8)
+        (self.y_minor_grid_linestyle_combo, self.y_minor_grid_width_spinbox,
+         self.y_minor_grid_alpha_spinbox, y_minor_grid_layout) = _make_grid_style_row('--', 0.5)
+
+        self.x_major_grid_style_label = QLabel(tr("X軸主目盛"))
+        self.x_minor_grid_style_label = QLabel(tr("X軸補助目盛"))
+        self.y_major_grid_style_label = QLabel(tr("Y軸主目盛"))
+        self.y_minor_grid_style_label = QLabel(tr("Y軸補助目盛"))
+
+        _minor_grid_row, _minor_grid_role = self.ui.formLayout_3.getWidgetPosition(
+            self.ui.minor_grid_visible_checkbox
+        )
+        _grid_style_insert_at = _minor_grid_row + 1
+        for _grid_style_label, _grid_style_layout in (
+            (self.x_major_grid_style_label, x_major_grid_layout),
+            (self.x_minor_grid_style_label, x_minor_grid_layout),
+            (self.y_major_grid_style_label, y_major_grid_layout),
+            (self.y_minor_grid_style_label, y_minor_grid_layout),
+        ):
+            self.ui.formLayout_3.insertRow(_grid_style_insert_at, _grid_style_label, _grid_style_layout)
+            _grid_style_insert_at += 1
+
         # 8. 目盛りの指数表記フォーマット切り替え(項目62)
         #    自動/軸端にまとめて指数表記/目盛りごとに指数表記/常に小数表記 から選択
         tick_format_choices = [
