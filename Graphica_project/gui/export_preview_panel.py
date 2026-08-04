@@ -72,6 +72,13 @@ class ExportPreviewPanel(QWidget):
         self.transparent_checkbox.setChecked(True)
         form.addRow(self.transparent_checkbox)
 
+        # SVG出力時の文字の扱い(項目88): ExportDialogと同じオプション
+        self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
+        self.svg_text_as_path_checkbox.setToolTip(
+            "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
+        )
+        form.addRow(self.svg_text_as_path_checkbox)
+
         layout.addLayout(form)
         apply_form_spacing(self)
 
@@ -118,6 +125,7 @@ class ExportPreviewPanel(QWidget):
             "unit": self.unit_combo.currentText(),
             "dpi": self.dpi_spinbox.value(),
             "transparent": self.transparent_checkbox.isChecked(),
+            "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),
         }
 
     def refresh_preview(self):
@@ -210,12 +218,12 @@ class ExportPreviewPanel(QWidget):
             logger.exception("エクスポートプレビューの生成に失敗しました。")
             return None
 
-    def _render_full_figure_bytes(self, width_in, height_in, dpi, fmt, transparent):
+    def _render_full_figure_bytes(self, width_in, height_in, dpi, fmt, transparent, svg_text_as_path=False):
         """
         現在の全プロットを、指定した形式('png'または'svg')・透過設定で保存し、
         そのバイト列を返す(コピー/保存で共有するヘルパー)。SVGの場合は
-        svg.fonttype='none' を一時的に適用し、目盛りの数字や凡例の文字が
-        パスではなくテキストとして出力されるようにする(項目108)。
+        svg.fonttype を一時的に適用し、目盛りの数字や凡例の文字をテキスト要素
+        (既定、項目108)またはパス(svg_text_as_path=True、項目88)として出力する。
         """
         try:
             temp_canvas = self._make_temp_canvas_for_full_figure(width_in, height_in, dpi)
@@ -227,7 +235,8 @@ class ExportPreviewPanel(QWidget):
                 if fmt != 'svg':
                     save_kwargs['dpi'] = dpi
                 if fmt == 'svg':
-                    with mpl.rc_context({'svg.fonttype': 'none'}):
+                    fonttype = 'path' if svg_text_as_path else 'none'
+                    with mpl.rc_context({'svg.fonttype': fonttype}):
                         temp_canvas.fig.savefig(buf, **save_kwargs)
                 else:
                     temp_canvas.fig.savefig(buf, **save_kwargs)
@@ -250,7 +259,8 @@ class ExportPreviewPanel(QWidget):
 
         if self.copy_format_combo.currentText() == "SVG":
             svg_bytes = self._render_full_figure_bytes(
-                width_in, height_in, options["dpi"], fmt='svg', transparent=options["transparent"]
+                width_in, height_in, options["dpi"], fmt='svg', transparent=options["transparent"],
+                svg_text_as_path=options["svg_text_as_path"]
             )
             if svg_bytes is None:
                 QMessageBox.warning(self, "コピーエラー", "コピーする画像がありません。")
@@ -303,7 +313,8 @@ class ExportPreviewPanel(QWidget):
             if file_ext not in ('pdf', 'svg'):
                 save_kwargs['dpi'] = options["dpi"]
             if file_ext == 'svg':
-                with mpl.rc_context({'svg.fonttype': 'none'}):
+                fonttype = 'path' if options.get("svg_text_as_path", False) else 'none'
+                with mpl.rc_context({'svg.fonttype': fonttype}):
                     temp_canvas.fig.savefig(file_path, **save_kwargs)
             else:
                 temp_canvas.fig.savefig(file_path, **save_kwargs)

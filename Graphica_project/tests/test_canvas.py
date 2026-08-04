@@ -181,3 +181,18 @@ def test_svg_export_with_fonttype_none_preserves_text_elements(canvas):
         canvas.fig.savefig(buf, format="svg")
     svg_text = buf.getvalue().decode("utf-8")
     assert "<text" in svg_text
+
+
+def test_svg_export_with_fonttype_path_outlines_text_elements(canvas):
+    """svg.fonttype='path'(項目88)では、文字が<text>要素として出力されない"""
+    import io
+    import matplotlib as mpl
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.all_axes[0].set_title("Sample Title")
+
+    buf = io.BytesIO()
+    with mpl.rc_context({"svg.fonttype": "path"}):
+        canvas.fig.savefig(buf, format="svg")
+    svg_text = buf.getvalue().decode("utf-8")
+    assert "<text" not in svg_text

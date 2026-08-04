@@ -896,6 +896,16 @@ class ExportDialog(QDialog):
         self.transparent_checkbox = QCheckBox("背景を透過")
         self.transparent_checkbox.setChecked(True)
 
+        # SVG出力時の文字の扱い(項目88): 既定はテキスト要素として保持(検索・
+        # 再編集がしやすい)。フォントが無い環境での文字化けを避けたい場合のみ
+        # チェックしてアウトライン化(パス化)する。PNG/PDFには影響しない。
+        self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
+        self.svg_text_as_path_checkbox.setToolTip(
+            "SVG出力時、目盛りの数字やラベルの文字をテキスト要素ではなく"
+            "パス(輪郭線)として出力します。フォントが無い環境でも見た目が"
+            "崩れませんが、テキストとしての検索・編集はできなくなります。"
+        )
+
         # --- プレビュー関連 ---
         self.preview_button = QPushButton("プレビュー更新")
         self.preview_button.setToolTip("現在の設定でプレビュー画像を生成します。")
@@ -921,6 +931,7 @@ class ExportDialog(QDialog):
         form_layout.addRow("単位", self.unit_combo)
         form_layout.addRow("解像度", self.dpi_spinbox)
         form_layout.addRow(self.transparent_checkbox)
+        form_layout.addRow(self.svg_text_as_path_checkbox)
 
         # 2. 全体をまとめる垂直レイアウト
         main_layout = QVBoxLayout()
@@ -946,6 +957,7 @@ class ExportDialog(QDialog):
             "unit": self.unit_combo.currentText(),
             "dpi": self.dpi_spinbox.value(),
             "transparent": self.transparent_checkbox.isChecked(),
+            "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),
         }
 
 
@@ -2015,6 +2027,14 @@ class BatchExportDialog(QDialog):
         self.transparent_checkbox.setChecked(True)
         form.addRow(self.transparent_checkbox)
 
+        # SVG出力時の文字の扱い(項目88): ExportDialogと同じオプション
+        self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
+        self.svg_text_as_path_checkbox.setToolTip(
+            "SVG出力時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
+            "PNG/PDF形式には影響しません。"
+        )
+        form.addRow(self.svg_text_as_path_checkbox)
+
         layout.addLayout(form)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -2062,6 +2082,7 @@ class BatchExportDialog(QDialog):
             'format': self.format_combo.currentText().lower(),
             'dpi': self.dpi_spinbox.value(),
             'transparent': self.transparent_checkbox.isChecked(),
+            'svg_text_as_path': self.svg_text_as_path_checkbox.isChecked(),
         }
 
 

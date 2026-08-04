@@ -86,3 +86,22 @@ def test_batch_export_dialog_transparent_defaults_true_and_reflected_in_options(
 
     dlg.transparent_checkbox.setChecked(False)
     assert dlg.get_common_options()["transparent"] is False
+
+
+# --- SVG文字のアウトライン化オプション(項目88) ---
+
+def test_export_dialog_svg_text_as_path_defaults_false_and_reflected_in_options():
+    dlg = ExportDialog()
+    assert dlg.svg_text_as_path_checkbox.isChecked() is False
+    assert dlg.get_options()["svg_text_as_path"] is False
+
+    dlg.svg_text_as_path_checkbox.setChecked(True)
+    assert dlg.get_options()["svg_text_as_path"] is True
+
+
+def test_batch_export_dialog_svg_text_as_path_defaults_false_and_reflected_in_options():
+    dlg = BatchExportDialog(subplot_count=2)
+    assert dlg.get_common_options()["svg_text_as_path"] is False
+
+    dlg.svg_text_as_path_checkbox.setChecked(True)
+    assert dlg.get_common_options()["svg_text_as_path"] is True

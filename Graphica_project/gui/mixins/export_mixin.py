@@ -141,14 +141,15 @@ class ExportMixin:
         """
         savefigのkwargsを、既存の単発エクスポートと同じ方針(bbox_inches='tight')で組み立てて保存する。
         透過背景の有無は options['transparent'] に従う(項目108、未指定時は従来どおりTrue)。
-        SVG形式では svg.fonttype='none' を一時的に適用し、目盛りの数字や凡例の文字が
-        パスではなくテキストとして出力されるようにする。
+        SVG形式では svg.fonttype を適用し、目盛りの数字や凡例の文字を
+        テキスト要素(既定、'none')またはパス('path'、項目88)として出力する。
         """
         save_kwargs = {'transparent': options.get('transparent', True), 'bbox_inches': 'tight'}
         if options['format'] not in ('pdf', 'svg'):
             save_kwargs['dpi'] = options['dpi']
         if options['format'] == 'svg':
-            with mpl.rc_context({'svg.fonttype': 'none'}):
+            fonttype = 'path' if options.get('svg_text_as_path', False) else 'none'
+            with mpl.rc_context({'svg.fonttype': fonttype}):
                 fig.savefig(out_path, **save_kwargs)
         else:
             fig.savefig(out_path, **save_kwargs)
@@ -279,10 +280,11 @@ class ExportMixin:
                         # ラスター形式 (png など) の場合は dpi を指定
                         save_kwargs['dpi'] = options["dpi"]
 
-                    # SVG形式では目盛りの数字・凡例の文字をパスではなくテキストとして
-                    # 出力する(項目108: 編集ソフトでの再編集・検索性を確保するため)
+                    # SVG形式では目盛りの数字・凡例の文字をテキスト(既定、項目108)
+                    # またはパス(項目88、svg_text_as_pathチェック時)として出力する
                     if file_ext == '.svg':
-                        with mpl.rc_context({'svg.fonttype': 'none'}):
+                        fonttype = 'path' if options.get('svg_text_as_path', False) else 'none'
+                        with mpl.rc_context({'svg.fonttype': fonttype}):
                             self.canvas.fig.savefig(file_path, **save_kwargs)
                     else:
                         self.canvas.fig.savefig(file_path, **save_kwargs)
