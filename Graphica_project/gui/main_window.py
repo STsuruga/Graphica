@@ -65,6 +65,12 @@ CONTROL_DOCK_WIDTH = 472  # 項目68/61: フィールドの見切れ解消のた
 EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT = 340  # エクスポートプレビューを下部ドックに分離した際の初期高さ
 SPIN_BOX_MAX_DECIMALS = 16
 
+# --- 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し)に関する定数 ---
+CANVAS_DETACHED_GEOMETRY_KEY = "canvas_detached_geometry"  # 切り離しウィンドウのサイズ/位置
+CANVAS_WAS_DETACHED_KEY = "canvas_was_detached"  # 前回終了時に切り離されていたか
+DEFAULT_DETACHED_CANVAS_WIDTH = 900
+DEFAULT_DETACHED_CANVAS_HEIGHT = 700
+
 # ドックの既定配置のバージョン。デフォルトの配置(どのドックをどのエリアに
 # 置くか)を変更したときはこの値を上げる。QSettingsに保存された前回のバージョンと
 # 異なる場合、保存済みの window_state を復元せず新しい既定配置を優先する
@@ -120,6 +126,7 @@ from ui_main_window import Ui_MainWindow
 from core.dataset import Dataset
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.minimap_widget import MinimapWidget
+from gui.detached_canvas_window import DetachedCanvasWindow
 from gui.theme import apply_form_spacing
 from gui.workers import DataLoadWorker
 from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
@@ -475,6 +482,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         plot_layout.addWidget(canvas_separator)
 
         plot_layout.addWidget(self.canvas) # 下部にキャンバス
+
+        # --- ★ 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し) ---
+        # 「元に戻す」操作時に self.canvas を寸分違わぬ元の位置
+        # (canvas_separatorの直後)へ挿入し直せるよう、レイアウトへの参照と
+        # 挿入位置(この時点でのインデックス)を保持しておく。この後に
+        # ミニマップ関連のウィジェットが追加されるが、それらはcanvasより後ろの
+        # インデックスに入るだけなので、ここで記録したインデックスは影響を受けない。
+        self._plot_layout = plot_layout
+        self._canvas_layout_index = plot_layout.indexOf(self.canvas)
+        self._canvas_detach_window = None
+        self.canvas_detached = False
 
         # --- ★ 項目83: レンジスライダー(ミニマップ) ---
         # グラフ下部に全体像の小さな概観を表示し、ドラッグ選択でX軸ズーム範囲を
@@ -1259,6 +1277,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #   後に復元することで解消する。
         QTimer.singleShot(0, self._restore_dock_layout)
 
+        # 項目86: 前回終了時にキャンバスを別ウィンドウへ切り離した状態のまま
+        # 終了していた場合、次回起動時も同じ状態(同じサイズ・位置)で復元する。
+        # ★ ドックのレイアウト(window_state)とは異なり、この設定はミニマップの
+        # 表示/非表示やダークモードと同じ「軽量なUI設定」の性質のものなので、
+        # 最初のタブ(run_startup_checks=True)に限定せず、常にQSettingsから
+        # 復元する(複数タブを開いていても、直近の状態を新しいタブにも
+        # 引き継ぐという設計)。ウィンドウが実際の最終サイズで表示された後
+        # (イベントループが一巡した後)に行う。
+        if self.settings.value(CANVAS_WAS_DETACHED_KEY, False, type=bool):
+            QTimer.singleShot(0, lambda: self._detach_canvas(restore_geometry=True))
+
         self.setAcceptDrops(True)
 
         # 起動直後に一度だけ、オートセーブからの復元が必要か確認する。
@@ -1313,6 +1342,33 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             # ドックの配置/表示状態を保存し、次回起動時に復元する
             self.settings.setValue("window_state", self.saveState())
             self.settings.setValue("dock_layout_version", DOCK_LAYOUT_VERSION)
+
+        # 項目86: 「元に戻す」を経由せず切り離した状態のまま終了した場合も、
+        # 次回起動時に同じ状態・ジオメトリで復元できるようここで保存する。
+        # ★ ミニマップの表示/非表示やダークモードと同じ「軽量なUI設定」の
+        # 性質のものなので、window_stateとは異なり最初のタブに限定しない。
+        if self.canvas_detached and self._canvas_detach_window is not None:
+            self.settings.setValue(
+                CANVAS_DETACHED_GEOMETRY_KEY, self._canvas_detach_window.saveGeometry()
+            )
+        self.settings.setValue(CANVAS_WAS_DETACHED_KEY, self.canvas_detached)
+
+        # 項目86: 切り離しウィンドウを開いたままこのタブ/アプリが閉じられると
+        # 孤立したトップレベルウィンドウが残ってしまうため、ここで明示的に
+        # 片付ける。★ 上で保存した「切り離されていた」状態をFalseに巻き戻して
+        # しまわないよう、通常の再アタッチ処理(_reattach_canvas、closedシグナル
+        # 経由でQSettingsを更新する)は経由せず、直接キャンバスを切り離して
+        # ウィンドウだけを破棄する(self.canvasの親としてぶら下がったまま
+        # deleteLater()されるとキャンバスごと破棄されてしまうため、
+        # 明示的にsetParent(None)しておく)。
+        if self._canvas_detach_window is not None:
+            self._canvas_detach_window.closed.disconnect(self._on_detach_window_closed)
+            self._canvas_detach_window.takeCentralWidget()
+            self.canvas.setParent(None)
+            self._canvas_detach_window.close()
+            self._canvas_detach_window.deleteLater()
+            self._canvas_detach_window = None
+
         super().closeEvent(event)
 
     def _check_autosave_recovery(self):
@@ -1592,6 +1648,116 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.minimap.setVisible(checked)
         self.minimap_separator.setVisible(checked)
         self.settings.setValue("minimap_visible", checked)
+
+    # --- ★ 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し) ---
+    #
+    # self.canvas (MplCanvas) は setParent() で再親付けされるだけで、
+    # 破棄・再生成は一切行わない。cursor_mixin/annotation_mixin/
+    # layout_edit_mixin/export_mixin/settings_mixin/project_io_mixin/
+    # ui_setup_mixin など、アプリ内の多数の箇所が self.canvas を
+    # インスタンス属性として直接参照し続けているため、同一性を保つことが
+    # この機能が成立するための絶対条件(同じオブジェクトの「住所」が
+    # 変わるだけ、という考え方)。
+
+    def _on_toggle_canvas_detached(self, checked):
+        """「表示」メニューの「キャンバスを別ウィンドウに切り離す」チェック状態が変更されたときの処理。"""
+        if checked:
+            self._detach_canvas()
+        else:
+            self._reattach_canvas()
+
+    def _sync_canvas_detach_action(self):
+        """
+        self.canvas_detached の値をメニューのチェック状態・表示文言に反映する
+        (二重トグル防止のためシグナルはブロックする)。切り離し中は「元に戻す」、
+        非切り離し中は「切り離す」と、状態に応じて文言そのものを切り替える。
+        """
+        if not hasattr(self, 'canvas_detach_action'):
+            return
+        self.canvas_detach_action.blockSignals(True)
+        self.canvas_detach_action.setChecked(self.canvas_detached)
+        self.canvas_detach_action.setText(
+            tr("キャンバスを元に戻す") if self.canvas_detached else tr("キャンバスを別ウィンドウに切り離す")
+        )
+        self.canvas_detach_action.blockSignals(False)
+
+    def _detach_canvas(self, restore_geometry=False):
+        """
+        self.canvas を plot_container のレイアウトから取り外し、独立した
+        トップレベルウィンドウ(DetachedCanvasWindow)へ再親付けする。
+        OS標準のウィンドウ移動/最大化がそのまま使えるため、サブモニターへ
+        ドラッグして最大化する、といった操作は呼び出し側では何もしなくてよい。
+
+        Args:
+            restore_geometry (bool): Trueの場合、QSettingsに保存された
+                前回のウィンドウサイズ・位置を復元する(起動時の状態復元用)。
+        """
+        if self.canvas_detached:
+            return
+
+        self._plot_layout.removeWidget(self.canvas)
+
+        title = f"{APP_NAME} - {tr('グラフキャンバス')}"
+        self._canvas_detach_window = DetachedCanvasWindow(title)
+        self._canvas_detach_window.setCentralWidget(self.canvas)
+        self._canvas_detach_window.closed.connect(self._on_detach_window_closed)
+
+        saved_geometry = self.settings.value(CANVAS_DETACHED_GEOMETRY_KEY) if restore_geometry else None
+        if saved_geometry is not None:
+            # ★ バグ修正済みパターンを踏襲: restoreGeometry() を show() より前
+            #   (=このウィンドウがまだ一度もOSに実体化されていない段階)で
+            #   呼ぶと、ウィンドウ枠の実寸が未確定なままジオメトリが復元され、
+            #   画面上の位置とQtの内部認識がズレる(gui/main_app_window.py の
+            #   同じ処理を参照)。winId()で先にネイティブハンドルを確定させる。
+            self._canvas_detach_window.winId()
+            self._canvas_detach_window.restoreGeometry(saved_geometry)
+        else:
+            self._canvas_detach_window.resize(DEFAULT_DETACHED_CANVAS_WIDTH, DEFAULT_DETACHED_CANVAS_HEIGHT)
+
+        self._canvas_detach_window.show()
+        self.canvas.show()
+
+        self.canvas_detached = True
+        self._sync_canvas_detach_action()
+        self.settings.setValue(CANVAS_WAS_DETACHED_KEY, True)
+
+    def _reattach_canvas(self):
+        """
+        切り離されたキャンバスを plot_container のレイアウトへ、元の位置
+        (canvas_separatorの直後)にそのまま戻す。「元に戻す」メニュー操作、
+        および切り離しウィンドウがOSの×ボタンで閉じられた場合の両方から
+        呼ばれる。
+        """
+        if not self.canvas_detached:
+            return
+
+        if self._canvas_detach_window is not None:
+            # 閉じる前に現在のサイズ・位置を保存しておく(次回の切り離し時、
+            # および次回起動時の復元に使う)。
+            self.settings.setValue(
+                CANVAS_DETACHED_GEOMETRY_KEY, self._canvas_detach_window.saveGeometry()
+            )
+            self._canvas_detach_window.closed.disconnect(self._on_detach_window_closed)
+            self._canvas_detach_window.takeCentralWidget()
+            self._canvas_detach_window.close()
+            self._canvas_detach_window.deleteLater()
+            self._canvas_detach_window = None
+
+        self.canvas.setParent(self.ui.plot_container)
+        self._plot_layout.insertWidget(self._canvas_layout_index, self.canvas)
+        self.canvas.show()
+
+        self.canvas_detached = False
+        self._sync_canvas_detach_action()
+        self.settings.setValue(CANVAS_WAS_DETACHED_KEY, False)
+
+    def _on_detach_window_closed(self):
+        """
+        切り離しウィンドウがOSの×ボタンで閉じられたときに呼ばれる
+        (DetachedCanvasWindow.closeEvent -> closed シグナル経由)。
+        「元に戻す」メニュー操作と全く同じ後処理(_reattach_canvas)に合流させる。
+        """
+        self._reattach_canvas()
 
     def _update_plot_appearance(self):
         """外観のみを更新する（MVC対応版）"""

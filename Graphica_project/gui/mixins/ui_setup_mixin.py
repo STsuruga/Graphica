@@ -347,6 +347,16 @@ class UISetupMixin:
             self.minimap_action.setChecked(self.minimap_visible)
             self.minimap_action.toggled.connect(self._on_toggle_minimap)
 
+            # 項目86: マルチモニター対応。キャンバスを独立したウィンドウへ
+            # 切り離し、サブモニターへドラッグ・最大化できるようにする。
+            # チェック状態は self.canvas_detached (この時点ではまだ復元前なので
+            # 常にFalse。起動時の復元は__init__側でQTimer経由の遅延処理として
+            # 行われ、その際に _sync_canvas_detach_action() 経由でここに反映される)。
+            self.canvas_detach_action = view_menu.addAction(tr("キャンバスを別ウィンドウに切り離す"))
+            self.canvas_detach_action.setCheckable(True)
+            self.canvas_detach_action.setChecked(self.canvas_detached)
+            self.canvas_detach_action.toggled.connect(self._on_toggle_canvas_detached)
+
             # 項目87: クイックアクセスのカスタムツールバー。ツールバー本体の作成と
             # 表示/非表示を切り替える表示メニュー項目の追加はここで行う。
             # ★ ピン留め済みアクションの実際の復元 (_restore_quick_access_actions) と
