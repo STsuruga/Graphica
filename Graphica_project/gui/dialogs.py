@@ -284,6 +284,59 @@ class HelpDialog(QDialog):
             <li><b>分数</b>: <code>$\frac{分子}{分母}$</code> (例: <code>$\frac{1}{2}$</code>)</li>
             <li><b>平方根 (ルート)</b>: <code>$\sqrt{...}$</code> (例: <code>$\sqrt{2}$</code>)</li>
         </ul>
+
+        <hr>
+
+        <h2>5. 総和・積分・極限などの演算子</h2>
+        <p>
+            <code>^</code>・<code>_</code>と組み合わせて、上下に添え字を付けられます。
+        </p>
+        <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+            <tr style="background-color: #f0f0f0;">
+                <th>表示したい記号</th>
+                <th>入力するテキスト</th>
+            </tr>
+            <tr><td>&sum; (総和)</td><td><code>$\sum_{i=0}^{n}$</code></td></tr>
+            <tr><td>&prod; (総乗)</td><td><code>$\prod_{i=1}^{n}$</code></td></tr>
+            <tr><td>&int; (積分)</td><td><code>$\int_{0}^{\infty}$</code></td></tr>
+            <tr><td>&part; (偏微分)</td><td><code>$\partial$</code></td></tr>
+            <tr><td>&nabla; (ナブラ)</td><td><code>$\nabla$</code></td></tr>
+            <tr><td>&infin; (無限大)</td><td><code>$\infty$</code></td></tr>
+        </table>
+
+        <h4>矢印・比較演算子</h4>
+        <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+            <tr style="background-color: #f0f0f0;">
+                <th>表示したい記号</th>
+                <th>入力するテキスト</th>
+            </tr>
+            <tr><td>&rarr; (右矢印)</td><td><code>$\rightarrow$</code></td></tr>
+            <tr><td>&harr; (両矢印)</td><td><code>$\leftrightarrow$</code></td></tr>
+            <tr><td>&le; (以下)</td><td><code>$\leq$</code></td></tr>
+            <tr><td>&ge; (以上)</td><td><code>$\geq$</code></td></tr>
+            <tr><td>&ne; (等しくない)</td><td><code>$\neq$</code></td></tr>
+        </table>
+
+        <h4>文字の上に記号を付ける</h4>
+        <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+            <tr style="background-color: #f0f0f0;">
+                <th>表示したい記号</th>
+                <th>入力するテキスト</th>
+            </tr>
+            <tr><td>x&#772; (上線・平均値など)</td><td><code>$\overline{x}$</code></td></tr>
+            <tr><td>x&#8407; (ベクトル)</td><td><code>$\vec{x}$</code></td></tr>
+            <tr><td>x&#770; (ハット)</td><td><code>$\hat{x}$</code></td></tr>
+        </table>
+
+        <p style="color:#888; margin-top: 12px;">
+            ※ ここに載っている記法は、いずれもタイトル/軸ラベル欄にそのまま
+            半角文字で入力すれば動作します(<code>Aa</code>ボタンの装飾メニューに
+            あるΩボタンからも、よく使うギリシャ文字を選択部分の挿入なしでカーソル
+            位置に差し込めます)。<br>
+            なお、これは matplotlib 内蔵の軽量な数式パーサー(mathtext)であり、
+            <code>\begin{matrix}</code> のような複雑なLaTeX環境や外部LaTeXパッケージ
+            には対応していません。
+        </p>
         """
         # HTMLコンテンツを QTextBrowser にセット
         text_browser.setHtml(help_html)

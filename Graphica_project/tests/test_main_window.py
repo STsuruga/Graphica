@@ -182,3 +182,38 @@ def test_properties_dock_vertical_scroll_still_works_after_collapse(tmp_path, mo
         app.processEvents()
 
     assert vbar.maximum() < max_before
+
+
+# --- ギリシャ文字/記号パレット(項目81: mathtext拡充) ---
+
+def test_label_symbol_palette_has_sixteen_unique_entries():
+    palette = main_window_module.LABEL_SYMBOL_PALETTE
+    assert len(palette) == 16
+    glyphs = [glyph for glyph, _ in palette]
+    macros = [macro for _, macro in palette]
+    assert len(set(glyphs)) == len(glyphs)
+    assert len(set(macros)) == len(macros)
+
+
+def test_label_symbol_click_inserts_at_cursor_when_no_selection(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    line_edit = window.ui.title_text_edit
+    line_edit.setText("VT")
+    line_edit.setCursorPosition(1)  # "V|T"
+    window._capture_label_format_selection('title', line_edit)
+
+    window._on_label_symbol_clicked('title', 'alpha')
+
+    assert line_edit.text() == r"V$\alpha$T"
+
+
+def test_label_symbol_click_replaces_selection(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    line_edit = window.ui.title_text_edit
+    line_edit.setText("Peak XYZ")
+    line_edit.setSelection(5, 3)  # "XYZ"
+    window._capture_label_format_selection('title', line_edit)
+
+    window._on_label_symbol_clicked('title', 'Omega')
+
+    assert line_edit.text() == r"Peak $\Omega$"

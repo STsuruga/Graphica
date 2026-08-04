@@ -376,6 +376,9 @@ class SettingsMixin:
             )
         else:
             self._label_format_pending_selection[field_key] = None
+        # 項目81: ギリシャ文字/記号パレットは選択が無くても押下時点のカーソル
+        # 位置に挿入できるようにするため、選択の有無に関わらず保持しておく。
+        self._label_format_pending_cursor[field_key] = line_edit.cursorPosition()
 
     def _apply_label_mathtext_format(self, field_key, wrap_fn):
         """
@@ -416,6 +419,27 @@ class SettingsMixin:
     def _on_label_subscript_clicked(self, field_key):
         """文字装飾メニューの「下付き文字」が選ばれた(項目61)"""
         self._apply_label_mathtext_format(field_key, lambda s: f"${{}}_{{{s}}}$")
+
+    def _on_label_symbol_clicked(self, field_key, macro):
+        """
+        文字装飾メニューのギリシャ文字/記号パレット(項目81: mathtext拡充)が選ばれたとき。
+        太字/イタリック等(_apply_label_mathtext_format)と異なり、選択文字列を
+        装飾するのではなく $\\macro$ という新しい断片を挿入するものなので、選択が
+        あればそれを置き換え、無ければ押下時点のカーソル位置に挿入する。
+        """
+        target = getattr(self.ui, self._LABEL_FIELD_ATTR_BY_KEY[field_key])
+        text = target.text()
+        pending_selection = self._label_format_pending_selection.get(field_key)
+        if pending_selection:
+            start, selected = pending_selection
+            end = start + len(selected)
+        else:
+            start = self._label_format_pending_cursor.get(field_key, len(text))
+            end = start
+
+        replacement = f"$\\{macro}$"
+        target.setText(text[:start] + replacement + text[end:])
+        target.setCursorPosition(start + len(replacement))
 
     def _on_edit_legend_order(self):
         """

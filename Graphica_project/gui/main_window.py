@@ -135,6 +135,17 @@ TOOLBAR_ICON_COLOR = "#3B3F42"
 # アプリ内の他のアイコンのみボタン(18px)ともトーンを揃える。
 TOOLBAR_ICON_SIZE = 18
 
+# 項目81(mathtext拡充): タイトル/軸ラベルの文字装飾パネルに追加する
+# ギリシャ文字・記号の4x4パレット。(表示するグリフ, 挿入するmathtextマクロ名
+# [バックスラッシュ抜き]) のタプル。マクロは matplotlib mathtext がそのまま
+# 解釈できるもの(\alpha 等)のみを収録している。
+LABEL_SYMBOL_PALETTE = [
+    ("α", "alpha"), ("β", "beta"), ("γ", "gamma"), ("δ", "delta"),
+    ("ε", "epsilon"), ("μ", "mu"), ("π", "pi"), ("ρ", "rho"),
+    ("Σ", "Sigma"), ("σ", "sigma"), ("τ", "tau"), ("Ω", "Omega"),
+    ("ω", "omega"), ("Δ", "Delta"), ("θ", "theta"), ("φ", "phi"),
+]
+
 
 def _svg_icon(name, size=20):
     """assets/icons/{name}.svg を統一トーンのQIconとして読み込む共通ヘルパー"""
@@ -804,6 +815,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.label_format_menu_buttons = {}
         self._label_format_menus = {}
         self._label_format_pending_selection = {}
+        # ★ 項目81: ギリシャ文字/記号パレットは選択なしでもカーソル位置に挿入
+        #   できる必要があるため、選択の有無に関わらず押下時点のカーソル位置も
+        #   別途保持しておく(_label_format_pending_selection は選択が無ければ
+        #   Noneのまま)。
+        self._label_format_pending_cursor = {}
         for field_key, line_edit in (
             ('title', self.ui.title_text_edit),
             ('x_label', self.ui.x_label_text_edit),
@@ -856,6 +872,39 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 deco_button.setFixedSize(28, 28)
                 panel_layout.addWidget(deco_button)
                 decoration_buttons[deco_key] = deco_button
+
+            # ★ 項目81(mathtext拡充): ギリシャ文字/記号をバックスラッシュ記法を
+            #   覚えなくても挿入できる、4x4のミニパレットをネストしたポップアップ
+            #   として追加する。押下時点のカーソル位置/選択範囲は装飾ボタンと
+            #   同じ仕組み(_capture_label_format_selection)で確定済みなので、
+            #   このサブメニューを開いても選択状態を失わない。
+            symbol_button = QToolButton()
+            symbol_button.setText("Ω")
+            symbol_button.setToolTip(tr("ギリシャ文字・記号を挿入"))
+            symbol_button.setProperty("iconOnly", True)
+            symbol_button.setFixedSize(28, 28)
+            symbol_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+
+            symbol_menu = QMenu(symbol_button)
+            symbol_panel = QWidget()
+            symbol_grid = QGridLayout(symbol_panel)
+            symbol_grid.setContentsMargins(6, 6, 6, 6)
+            symbol_grid.setSpacing(2)
+            for index, (glyph, macro) in enumerate(LABEL_SYMBOL_PALETTE):
+                symbol_item_button = QToolButton()
+                symbol_item_button.setText(glyph)
+                symbol_item_button.setToolTip(f"\\{macro}")
+                symbol_item_button.setFixedSize(26, 26)
+                symbol_item_button.clicked.connect(
+                    lambda checked=False, fk=field_key, m=macro, sm=symbol_menu:
+                        (self._on_label_symbol_clicked(fk, m), sm.close())
+                )
+                symbol_grid.addWidget(symbol_item_button, index // 4, index % 4)
+            symbol_widget_action = QWidgetAction(symbol_button)
+            symbol_widget_action.setDefaultWidget(symbol_panel)
+            symbol_menu.addAction(symbol_widget_action)
+            symbol_button.setMenu(symbol_menu)
+            panel_layout.addWidget(symbol_button)
 
             widget_action = QWidgetAction(format_button)
             widget_action.setDefaultWidget(panel)
