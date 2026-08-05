@@ -32,6 +32,7 @@ import os
 import sys
 
 from core.analysis import register_fit_function
+from core.plugin_types import PluginHookKind, PluginRegistrationError
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,37 @@ class GraphicaPluginAPI:
         self._main_window = main_window
         self._menu_actions = []  # (text, callback, shortcut) のリスト。メニュー構築側が読む。
 
+        # フック登録の失敗をプラグイン単位ではなくフック単位で隔離するための
+        # 記録先(フェーズA-2)。1プラグインが複数のフックを登録する場合、
+        # そのうち1つが失敗しても他のフックの登録は継続する。
+        # F-2(プラグイン管理UI)から読み出される想定。
+        self._registration_errors = []  # list[PluginRegistrationError]
+        # 現在register(api)を実行中のプラグイン名。PluginManager.load_all()が
+        # 各プラグインのregister()を呼ぶ直前に差し替える。register_xxx呼び出し
+        # 自体はどのプラグインが呼んでいるか知らないため、この経由で伝える。
+        self._current_plugin_name = "(不明なプラグイン)"
+
+    def _safe_register(self, hook_kind, fn, *args, **kwargs):
+        """
+        フック登録処理(fn)を実行し、例外が起きてもプラグイン全体を巻き込まず
+        このフック1件の失敗として隔離する(フェーズA-2)。
+
+        Returns:
+            bool: 登録に成功したかどうか。
+        """
+        try:
+            fn(*args, **kwargs)
+            return True
+        except Exception as e:
+            self._registration_errors.append(
+                PluginRegistrationError(self._current_plugin_name, hook_kind, str(e), e)
+            )
+            logger.warning(
+                "[plugin:%s] %s の登録に失敗しました: %s",
+                self._current_plugin_name, hook_kind.value, e,
+            )
+            return False
+
     def register_fit_function(self, name, func, param_names, p0=None):
         """
         カーブフィットの選択肢に、プラグイン提供の関数を追加する。
@@ -66,7 +98,9 @@ class GraphicaPluginAPI:
             p0 (list[float] | callable | None): 初期値のリスト、または
                 (x_data, y_data) -> list[float] を返す関数。省略時は全て1.0。
         """
-        register_fit_function(name, func, param_names, p0=p0)
+        return self._safe_register(
+            PluginHookKind.FIT_FUNCTION, register_fit_function, name, func, param_names, p0=p0
+        )
 
     def register_menu_action(self, text, callback, shortcut=None):
         """
@@ -80,11 +114,18 @@ class GraphicaPluginAPI:
                 属性経由でアクセスする)。
             shortcut (str | None): キーボードショートカット(例: "Ctrl+Shift+P")。
         """
-        self._menu_actions.append((text, callback, shortcut))
+        return self._safe_register(
+            PluginHookKind.MENU_ACTION, self._menu_actions.append, (text, callback, shortcut)
+        )
 
     @property
     def menu_actions(self):
         return list(self._menu_actions)
+
+    @property
+    def registration_errors(self):
+        """このプロセスで発生した、フック単位の登録失敗の一覧。"""
+        return list(self._registration_errors)
 
 
 class PluginManager:
@@ -151,6 +192,9 @@ class PluginManager:
                     raise PluginLoadError(
                         f"プラグイン '{plugin_name}' に {PLUGIN_REGISTER_FUNC}(api) 関数がありません。"
                     )
+                # register_xxx呼び出し自身はどのプラグインが呼んでいるか知らないため、
+                # ここで現在実行中のプラグイン名をapiに伝える(_safe_register参照)。
+                api._current_plugin_name = plugin_name
                 register_func(api)
 
             except Exception as e:
@@ -192,3 +236,12 @@ def load_plugins_once(plugins_dir):
 def get_loaded_plugin_records():
     """最後に load_plugins_once() で読み込まれたプラグインの一覧を返す(未読み込みならNone)"""
     return None if _singleton_manager is None else list(_singleton_manager.loaded_plugins)
+
+
+def get_plugin_registration_errors():
+    """
+    フック単位の登録失敗の一覧を返す(未読み込みならNone、フェーズA-2)。
+    プラグイン全体としては読み込みに成功していても、個別のregister_xxx呼び出しが
+    失敗している場合はここに記録される(get_loaded_plugin_recordsのerrorには現れない)。
+    """
+    return None if _singleton_api is None else _singleton_api.registration_errors

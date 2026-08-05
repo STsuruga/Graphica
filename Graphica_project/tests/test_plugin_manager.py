@@ -57,6 +57,19 @@ def register(api):
     raise RuntimeError("something went wrong during registration")
 '''
 
+# フック単位の隔離(フェーズA-2)を検証するためのプラグイン。
+# register_fit_function が(意図的に、既存名との衝突で)失敗しても、
+# その後の register_menu_action は実行され続けることを確認する。
+PARTIAL_FAILURE_PLUGIN_SOURCE = '''
+PLUGIN_INFO = {"name": "Partial Failure", "version": "1.0", "author": "test", "description": "d"}
+
+def register(api):
+    def dummy_func(x, a):
+        return a * x
+    api.register_fit_function("線形", dummy_func, ["a"])  # 組み込み名と衝突して必ず失敗する
+    api.register_menu_action("After the failure", lambda main_window: None)
+'''
+
 SYNTAX_ERROR_PLUGIN_SOURCE = '''
 this is not valid python (((
 '''
@@ -169,3 +182,50 @@ def test_register_menu_action_stores_shortcut():
     api = GraphicaPluginAPI()
     api.register_menu_action("Test Action", lambda mw: None, shortcut="Ctrl+Shift+T")
     assert api.menu_actions[0] == ("Test Action", api.menu_actions[0][1], "Ctrl+Shift+T")
+
+
+# --- フック単位の登録失敗の隔離(フェーズA-2) ---
+
+def test_hook_failure_does_not_abort_other_hooks_in_the_same_plugin(tmp_path):
+    """
+    1つのプラグインが複数のフックを登録する場合、そのうち1つ
+    (ここではregister_fit_functionが組み込み名と衝突して失敗)が失敗しても、
+    同じregister()内の後続のフック呼び出し(register_menu_action)は
+    実行され続けること。
+    """
+    _write_plugin(tmp_path, "partial_failure_plugin", PARTIAL_FAILURE_PLUGIN_SOURCE)
+
+    api = GraphicaPluginAPI()
+    manager = PluginManager(str(tmp_path))
+    records = manager.load_all(api)
+
+    # register()自体は例外を投げずに最後まで実行されるため、プラグイン全体としては成功扱い
+    assert records[0]["error"] is None
+    # だが後続のフックは登録されている
+    assert len(api.menu_actions) == 1
+    assert api.menu_actions[0][0] == "After the failure"
+
+
+def test_hook_failure_is_recorded_in_registration_errors(tmp_path):
+    _write_plugin(tmp_path, "partial_failure_plugin", PARTIAL_FAILURE_PLUGIN_SOURCE)
+
+    api = GraphicaPluginAPI()
+    manager = PluginManager(str(tmp_path))
+    manager.load_all(api)
+
+    assert len(api.registration_errors) == 1
+    error = api.registration_errors[0]
+    assert error.plugin_name == "partial_failure_plugin"
+    assert error.hook_kind.value == "fit_function"
+    assert "衝突" in error.message
+    assert isinstance(error.exception, ValueError)
+
+
+def test_registration_errors_empty_for_fully_successful_plugin(tmp_path):
+    _write_plugin(tmp_path, "valid_plugin", VALID_PLUGIN_SOURCE)
+
+    api = GraphicaPluginAPI()
+    manager = PluginManager(str(tmp_path))
+    manager.load_all(api)
+
+    assert api.registration_errors == []

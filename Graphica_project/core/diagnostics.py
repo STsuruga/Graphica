@@ -42,7 +42,7 @@ def _collect_environment_info():
 
 
 def _collect_plugin_info():
-    from core.plugin_api import get_loaded_plugin_records
+    from core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
     records = get_loaded_plugin_records()
     if records is None:
         return "プラグインは未読み込みです。"
@@ -56,6 +56,16 @@ def _collect_plugin_info():
         error = record.get("error")
         status = "OK" if error is None else f"読み込み失敗: {error}"
         lines.append(f"- {name} (v{version}): {status}")
+
+    # プラグイン全体としては読み込みに成功していても、個別のregister_xxx呼び出しが
+    # 失敗している場合はrecordのerrorには現れないため、別途一覧化する(フェーズA-2)。
+    registration_errors = get_plugin_registration_errors()
+    if registration_errors:
+        lines.append("")
+        lines.append("--- フック単位の登録失敗 ---")
+        for err in registration_errors:
+            lines.append(f"- [{err.plugin_name}] {err.hook_kind.value}: {err.message}")
+
     return "\n".join(lines)
 
 

@@ -39,9 +39,26 @@
 | C-1201 | 診断情報バンドル出力 | ✅ 完了 | `core/diagnostics.py`の`build_diagnostic_bundle()`(ログ・環境情報・設定値・プラグイン読込状況をzip化、core/はPySide6非依存)。ヘルプメニューに「診断情報をエクスポート...」 |
 | C-712 | パネルラベル自動採番 | ✅ 完了 | `ProjectModel.panel_labels_enabled`(プロジェクトごとの状態、保存/読込対応)。`gui/canvas.py`の`redraw_all()`に`panel_labels_enabled`引数追加、`_panel_label_for_index()`でExcel列名方式の(a)(b)...(aa)(ab)...を機械的に計算。表示メニューにトグル |
 
-## トラック1〜4
+## トラック1: プラグインAPI拡張(フェーズA〜G)
 
-未着手(トラック0完了が前提)。詳細は `Graphica_MASTER_SCHEDULE.md` / `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
+### フェーズA: 土台
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| A-1 | `PluginContext`/登録結果の型定義 | ✅ 完了 | 2026-08-05 | `core/plugin_types.py`新設(`PluginHookKind` Enum、`PluginRegistrationError` dataclass)。既存の`register_fit_function`/`register_menu_action`は外部から見た挙動を変えずに内部でこれらの型を使うようリファクタ |
+| A-2 | フック登録失敗の隔離を共通化 | ✅ 完了 | 2026-08-05 | `GraphicaPluginAPI._safe_register()`で各`register_xxx`をラップし、`self._registration_errors`に記録。従来はプラグイン単位(register()全体)でしか隔離していなかったが、フック単位に細分化(1つのフックが失敗しても同じプラグインの他のフックは登録され続ける)。`PluginManager.load_all()`が`api._current_plugin_name`を差し替えてどのプラグインの呼び出しか伝える。`core/diagnostics.py`(C-1201)の`plugins.txt`にもフック単位の失敗を追記 |
+| A-3 | プラグイン開発者向けテストダブル | ✅ 完了 | 2026-08-05 | `core/plugin_testing.py`新設。`FakeGraphicaPluginAPI`(本体非起動でプラグインのregister()呼び出しを単体テスト可能に)。フックメソッドは現時点で`register_fit_function`/`register_menu_action`のみ(B/C/Dで随時追加) |
+| A-4 | シグネチャ契約テスト | ✅ 完了 | 2026-08-05 | `tests/test_plugin_api_contract.py`。`FakeGraphicaPluginAPI`と本物`GraphicaPluginAPI`の`register_*`メソッドの引数名・デフォルト値が一致することを`inspect`で機械的に検証。以降のフェーズで新しいフックを追加した際、片方だけの実装漏れを検知する |
+
+**フェーズA完了条件**: 上記4項目が✅。**達成(2026-08-05)**。フェーズB(データ入出力フック)に着手可能。
+
+### フェーズB〜G
+
+未着手。詳細は `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
+
+## トラック2〜4
+
+未着手(トラック1完了が前提、トラック2はH-0のみ先行着手可)。詳細は `Graphica_MASTER_SCHEDULE.md` / `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
 
 ---
 
@@ -51,3 +68,4 @@
 - 2026-08-05: C-008・C-009・C-1205完了を反映。トラック0(必須4項目)が全て完了。
 - 2026-08-05: C-006・C-002(推奨2項目)完了を反映。トラック0の推奨分も含め全て完了。
 - 2026-08-05: トラック0'(クイックウィン9項目)完了を反映。
+- 2026-08-05: トラック1 フェーズA(A-1〜A-4)完了を反映。
