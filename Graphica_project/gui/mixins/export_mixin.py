@@ -143,6 +143,9 @@ class ExportMixin:
         透過背景の有無は options['transparent'] に従う(項目108、未指定時は従来どおりTrue)。
         SVG形式では svg.fonttype を適用し、目盛りの数字や凡例の文字を
         テキスト要素(既定、'none')またはパス('path'、項目88)として出力する。
+        PDF形式では pdf.fonttype/ps.fonttype を42(TrueType埋め込み)にする(項目C-801)。
+        matplotlibの既定(Type3)だとIllustrator等のベクター編集ソフトで開いた際に
+        テキストとして選択・編集できず、アウトライン化されたように見えてしまうため。
         """
         save_kwargs = {'transparent': options.get('transparent', True), 'bbox_inches': 'tight'}
         if options['format'] not in ('pdf', 'svg'):
@@ -150,6 +153,9 @@ class ExportMixin:
         if options['format'] == 'svg':
             fonttype = 'path' if options.get('svg_text_as_path', False) else 'none'
             with mpl.rc_context({'svg.fonttype': fonttype}):
+                fig.savefig(out_path, **save_kwargs)
+        elif options['format'] == 'pdf':
+            with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
                 fig.savefig(out_path, **save_kwargs)
         else:
             fig.savefig(out_path, **save_kwargs)
@@ -216,7 +222,8 @@ class ExportMixin:
                 temp_canvas.dark_mode = self.canvas.dark_mode
                 try:
                     temp_canvas.redraw_all(
-                        temp_project.datasets, rows, cols, temp_project.all_plot_settings, layout_mode=layout_mode
+                        temp_project.datasets, rows, cols, temp_project.all_plot_settings, layout_mode=layout_mode,
+                        panel_labels_enabled=temp_project.panel_labels_enabled,
                     )
                     self._save_figure_with_options(temp_canvas.fig, out_path, options)
                 finally:
@@ -285,6 +292,10 @@ class ExportMixin:
                     if file_ext == '.svg':
                         fonttype = 'path' if options.get('svg_text_as_path', False) else 'none'
                         with mpl.rc_context({'svg.fonttype': fonttype}):
+                            self.canvas.fig.savefig(file_path, **save_kwargs)
+                    elif file_ext == '.pdf':
+                        # フォントをTrueTypeとして埋め込む(項目C-801、_save_figure_with_optionsと同じ理由)
+                        with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
                             self.canvas.fig.savefig(file_path, **save_kwargs)
                     else:
                         self.canvas.fig.savefig(file_path, **save_kwargs)
