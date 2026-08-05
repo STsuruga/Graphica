@@ -1,13 +1,25 @@
 # tests/test_export_mixin.py
-"""gui/mixins/export_mixin.py の _save_figure_with_options に対するテスト(C-801)。
+"""gui/mixins/export_mixin.py の _save_figure_with_options に対するテスト
+(C-801、および項目B-2: register_exporter()の配線)。
 
 ExportMixin._save_figure_with_options は self.* を一切参照しないため、
 PlotterApp全体を組み立てずに直接呼び出せる。
 """
 import matplotlib as mpl
+import pytest
 from matplotlib.figure import Figure
 
+import core.plugin_api as plugin_api_module
+from core.plugin_api import GraphicaPluginAPI
+from core.plugin_types import PluginExecutionError
 from gui.mixins.export_mixin import ExportMixin
+
+
+@pytest.fixture(autouse=True)
+def _isolate_plugin_api_singleton():
+    yield
+    plugin_api_module._singleton_api = None
+    plugin_api_module._singleton_manager = None
 
 
 def _make_fig():
@@ -69,3 +81,52 @@ def test_svg_export_still_applies_svg_fonttype_unaffected_by_pdf_change(tmp_path
     )
     assert out_path.exists()
     assert 'path' in out_path.read_text(encoding='utf-8')[:2000] or out_path.stat().st_size > 0
+
+
+# --- register_exporter() の配線(項目B-2) ---
+
+def test_registered_exporter_is_used_instead_of_builtin_savefig(tmp_path):
+    fig = _make_fig()
+    out_path = tmp_path / "out.myf"
+    calls = []
+
+    def fake_writer(fig_arg, out_path_arg):
+        calls.append((fig_arg, out_path_arg))
+
+    api = GraphicaPluginAPI()
+    api.register_exporter("MyFormat", ".myf", fake_writer, name="MyPlugin")
+    plugin_api_module._singleton_api = api
+
+    ExportMixin._save_figure_with_options(object(), fig, str(out_path), {'format': 'myformat', 'dpi': 100})
+
+    assert calls == [(fig, str(out_path))]
+    assert not out_path.exists()  # フェイクのwriterは実際には何も書き出していない
+
+
+def test_builtin_formats_unaffected_when_plugin_exporters_registered(tmp_path):
+    """プラグインエクスポーターが登録されていても、PNG/PDF/SVGは既存のビルトイン処理のまま動く"""
+    fig = _make_fig()
+    out_path = tmp_path / "out.png"
+
+    api = GraphicaPluginAPI()
+    api.register_exporter("MyFormat", ".myf", lambda f, p: None, name="MyPlugin")
+    plugin_api_module._singleton_api = api
+
+    ExportMixin._save_figure_with_options(object(), fig, str(out_path), {'format': 'png', 'dpi': 100})
+    assert out_path.exists()
+
+
+def test_registered_exporter_failure_raises_plugin_execution_error(tmp_path):
+    fig = _make_fig()
+    out_path = tmp_path / "out.myf"
+
+    def broken_writer(fig_arg, out_path_arg):
+        raise RuntimeError("disk full")
+
+    api = GraphicaPluginAPI()
+    api.register_exporter("MyFormat", ".myf", broken_writer, name="MyPlugin")
+    plugin_api_module._singleton_api = api
+
+    with pytest.raises(PluginExecutionError, match="MyPlugin") as exc_info:
+        ExportMixin._save_figure_with_options(object(), fig, str(out_path), {'format': 'myformat', 'dpi': 100})
+    assert "disk full" in str(exc_info.value)

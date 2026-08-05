@@ -221,3 +221,23 @@ def test_batch_export_dialog_svg_text_as_path_defaults_false_and_reflected_in_op
 
     dlg.svg_text_as_path_checkbox.setChecked(True)
     assert dlg.get_common_options()["svg_text_as_path"] is True
+
+
+# --- register_exporter()由来の追加形式(項目B-2) ---
+
+def test_batch_export_dialog_default_formats_without_extra_formats():
+    dlg = BatchExportDialog(subplot_count=2)
+    items = [dlg.format_combo.itemText(i) for i in range(dlg.format_combo.count())]
+    assert items == ["PNG", "PDF", "SVG"]
+
+
+def test_batch_export_dialog_appends_extra_formats():
+    dlg = BatchExportDialog(subplot_count=2, extra_formats=["MyFormat"])
+    items = [dlg.format_combo.itemText(i) for i in range(dlg.format_combo.count())]
+    assert items == ["PNG", "PDF", "SVG", "MyFormat"]
+
+
+def test_batch_export_dialog_extra_format_selectable_and_lowercased_in_options():
+    dlg = BatchExportDialog(subplot_count=2, extra_formats=["MyFormat"])
+    dlg.format_combo.setCurrentText("MyFormat")
+    assert dlg.get_common_options()["format"] == "myformat"

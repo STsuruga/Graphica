@@ -38,11 +38,32 @@ def _detect_bom_encoding(file_path):
 
 def read_data_file(file_path):
     """
-    CSV/Excelファイルを読み込み、DataFrame を返す。
+    データファイルを読み込み、DataFrame を返す。
+
+    プラグインが register_importer() (項目B-1) で対応拡張子を登録している場合は
+    それを優先し、ビルトインのCSV/Excel読み込みは行わない(プラグイン未登録の
+    拡張子・プラグイン0件の場合は、従来通りのビルトイン処理のみが動く)。
     CSVはまずBOMから文字コードを検出し、判定できなければ複数の文字コードを
     順に試して、最初に成功したものを採用する。
     """
     ext = file_path.lower().split('.')[-1]
+
+    from core.plugin_api import get_plugin_api
+    from core.plugin_types import PluginExecutionError
+    api = get_plugin_api()
+    importer = api.get_importer_for_extension(ext) if api is not None else None
+    if importer is not None:
+        try:
+            result = importer.loader(file_path)
+        except Exception as e:
+            raise PluginExecutionError(importer.name, f"「{file_path}」の読み込みに失敗しました: {e}") from e
+        if not isinstance(result, pd.DataFrame):
+            raise PluginExecutionError(
+                importer.name,
+                "現在サポートされているのは単一のDataFrameを返すインポーターのみです"
+                "(複数シートを返す形式は未対応です)。"
+            )
+        return result
 
     if ext == 'csv':
         bom_encoding = _detect_bom_encoding(file_path)

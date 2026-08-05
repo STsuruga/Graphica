@@ -52,7 +52,17 @@
 
 **フェーズA完了条件**: 上記4項目が✅。**達成(2026-08-05)**。フェーズB(データ入出力フック)に着手可能。
 
-### フェーズB〜G
+### フェーズB: データ入出力フック
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| B-1 | `register_importer()` | ✅ 完了 | 2026-08-05 | `GraphicaPluginAPI.register_importer(extensions, loader, *, name=None, priority=0)`。実際の読み込みは`gui/workers.py`の`read_data_file()`の入口(唯一の拡張子判定の集約点だった)で優先的に参照し、未登録拡張子はビルトインCSV/Excel処理にフォールバック(プラグイン0件時は完全に従来通り)。D&D一括取込(項目77)の対応拡張子・データセット追加のファイルダイアログフィルタの両方に登録拡張子を自動反映。現時点では単一DataFrameを返すローダーのみ対応(複数シート返却は未対応、将来の拡張点として明記) |
+| B-2 | `register_exporter()` | ✅ 完了 | 2026-08-05 | `GraphicaPluginAPI.register_exporter(format_name, extension, writer, *, name=None)`。`BatchExportDialog`の形式コンボ・単発エクスポートの保存ダイアログフィルタの両方に登録形式を自動追加。`_save_figure_with_options()`/`_on_export_plot()`がビルトインsavefigより先にプラグインwriterを確認 |
+| B-3 | インポート/エクスポート失敗時UXの統一 | ✅ 完了 | 2026-08-05 | `core/plugin_types.py`に`PluginExecutionError`(登録時ではなく実行時の失敗、文字列化すると`[プラグイン名]`が必ず付く)を追加。新しいUIを作らず、既存のエラーダイアログ経路(`DataLoadWorker`→`QMessageBox.critical`、エクスポートの`QMessageBox.warning`/バッチ結果一覧)にそのまま乗せることで統一 |
+
+**フェーズB完了条件**: 上記3項目が✅。**達成(2026-08-05)**。フェーズC(データ処理フック)に着手可能。
+
+### フェーズC〜G
 
 未着手。詳細は `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
 
@@ -69,3 +79,4 @@
 - 2026-08-05: C-006・C-002(推奨2項目)完了を反映。トラック0の推奨分も含め全て完了。
 - 2026-08-05: トラック0'(クイックウィン9項目)完了を反映。
 - 2026-08-05: トラック1 フェーズA(A-1〜A-4)完了を反映。
+- 2026-08-05: トラック1 フェーズB(B-1〜B-3)完了を反映。

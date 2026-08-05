@@ -17,6 +17,8 @@ from matplotlib.figure import Figure
 from gui.dialogs import ExportDialog, BatchExportDialog
 from gui.canvas import MplCanvas
 from models.project import ProjectModel
+from core.plugin_api import get_plugin_api, get_registered_exporters
+from core.plugin_types import PluginExecutionError
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +108,8 @@ class ExportMixin:
         現在のプロジェクトの各サブプロットを個別画像として、または複数の
         プロジェクトファイル(.graphica/.pkl)をそれぞれの完成図として、まとめて書き出す。
         """
-        dialog = BatchExportDialog(len(self.project.all_plot_settings), self)
+        extra_formats = [exp.format_name for exp in get_registered_exporters()]
+        dialog = BatchExportDialog(len(self.project.all_plot_settings), self, extra_formats=extra_formats)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -146,7 +149,18 @@ class ExportMixin:
         PDF形式では pdf.fonttype/ps.fonttype を42(TrueType埋め込み)にする(項目C-801)。
         matplotlibの既定(Type3)だとIllustrator等のベクター編集ソフトで開いた際に
         テキストとして選択・編集できず、アウトライン化されたように見えてしまうため。
+        options['format'] がプラグイン登録済みの形式名と一致する場合は、
+        ビルトイン処理の代わりにプラグインのwriterを呼ぶ(項目B-2)。
         """
+        api = get_plugin_api()
+        exporter = api.get_exporter(options['format']) if api is not None else None
+        if exporter is not None:
+            try:
+                exporter.writer(fig, out_path)
+            except Exception as e:
+                raise PluginExecutionError(exporter.name, f"「{out_path}」への書き出しに失敗しました: {e}") from e
+            return
+
         save_kwargs = {'transparent': options.get('transparent', True), 'bbox_inches': 'tight'}
         if options['format'] not in ('pdf', 'svg'):
             save_kwargs['dpi'] = options['dpi']
@@ -256,8 +270,12 @@ class ExportMixin:
                 options = dialog.get_options()
 
                 # 5. 保存先ファイルパスを QFileDialog で取得
+                # プラグインがregister_exporter()(項目B-2)で登録した形式も選択肢に追加する
+                filter_parts = ["PNG (*.png)", "PDF (*.pdf)", "SVG (*.svg)"]
+                for exp in get_registered_exporters():
+                    filter_parts.append(f"{exp.format_name} (*{exp.extension})")
                 file_path, _ = QFileDialog.getSaveFileName(
-                    self, "プロットを保存", "", "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)"
+                    self, "プロットを保存", "", ";;".join(filter_parts)
                 )
                 if not file_path:
                     return # キャンセルされた
@@ -275,6 +293,18 @@ class ExportMixin:
                 try:
                     # ファイルパスの拡張子を取得 (小文字に変換)
                     file_ext = os.path.splitext(file_path)[1].lower()
+
+                    # プラグインが登録した拡張子ならそちらのwriterに委譲する(項目B-2)
+                    api = get_plugin_api()
+                    exporter = api.get_exporter_for_extension(file_ext) if api is not None else None
+                    if exporter is not None:
+                        try:
+                            exporter.writer(self.canvas.fig, file_path)
+                        except Exception as e:
+                            raise PluginExecutionError(
+                                exporter.name, f"「{file_path}」への書き出しに失敗しました: {e}"
+                            ) from e
+                        return
 
                     # 背景の透過(項目108): ExportDialogのチェックボックスに従う
                     save_kwargs = {'transparent': options.get('transparent', True)}

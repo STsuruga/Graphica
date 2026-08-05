@@ -22,8 +22,8 @@ Graphicaのプラグイン機構。
   アプリ本体の起動を止めない(例外はログに記録し、そのプラグインだけを
   スキップする)。
 - 拡張ポイントは現時点では「カーブフィット関数の追加」「メニューへの
-  アクション追加」の2つ。今後、列計算・エクスポート形式なども同様の
-  パターン(register_xxx メソッドを追加する)で拡張できる。
+  アクション追加」「データインポーターの追加」「エクスポート形式の追加」の4つ。
+  今後も同様のパターン(register_xxx メソッドを追加する)で拡張できる。
 """
 import importlib
 import importlib.util
@@ -32,12 +32,18 @@ import os
 import sys
 
 from core.analysis import register_fit_function
-from core.plugin_types import PluginHookKind, PluginRegistrationError
+from core.plugin_types import PluginExporter, PluginHookKind, PluginImporter, PluginRegistrationError
 
 logger = logging.getLogger(__name__)
 
 PLUGIN_MANIFEST_ATTR = "PLUGIN_INFO"
 PLUGIN_REGISTER_FUNC = "register"
+
+
+def _normalize_extension(extension):
+    """拡張子を先頭ピリオド付き・小文字の形に揃える(例: "JDX" -> ".jdx")。"""
+    ext = extension.lower()
+    return ext if ext.startswith('.') else '.' + ext
 
 
 class PluginLoadError(Exception):
@@ -54,6 +60,8 @@ class GraphicaPluginAPI:
     def __init__(self, main_window=None):
         self._main_window = main_window
         self._menu_actions = []  # (text, callback, shortcut) のリスト。メニュー構築側が読む。
+        self._importers = {}  # 拡張子(".jdx"等) -> list[PluginImporter](priority降順)
+        self._exporters = {}  # format_name.lower() -> PluginExporter
 
         # フック登録の失敗をプラグイン単位ではなくフック単位で隔離するための
         # 記録先(フェーズA-2)。1プラグインが複数のフックを登録する場合、
@@ -117,6 +125,97 @@ class GraphicaPluginAPI:
         return self._safe_register(
             PluginHookKind.MENU_ACTION, self._menu_actions.append, (text, callback, shortcut)
         )
+
+    def register_importer(self, extensions, loader, *, name=None, priority=0):
+        """
+        データファイルの読み込みに、プラグイン提供のローダーを追加する(項目B-1)。
+        登録した拡張子は、データ追加のファイルダイアログ・ドラッグ&ドロップ一括取込
+        (項目77)の両方で自動的に受け付けられるようになる(gui/workers.pyの
+        read_data_file()がファイル読み込みの入口で優先的に参照する)。
+
+        現時点では単一の pandas.DataFrame を返すローダーのみサポートする
+        (複数シート/複数データセットを一度に返す形式は未対応。将来的な拡張点)。
+
+        Args:
+            extensions (list[str]): 対応する拡張子のリスト(例: [".jdx", ".dx"]、
+                先頭のピリオドは省略可)。
+            loader (callable): ファイルパス(str)を受け取り、pandas.DataFrame を
+                返す関数。
+            name (str | None): エラーメッセージ等に表示する名前
+                (省略時は登録元のプラグイン名)。
+            priority (int): 同じ拡張子に複数のプラグインが登録した場合の優先順位
+                (値が大きいほど優先。同点の場合は登録順)。
+        """
+        return self._safe_register(
+            PluginHookKind.IMPORTER, self._do_register_importer, extensions, loader,
+            name=name or self._current_plugin_name, priority=priority,
+        )
+
+    def _do_register_importer(self, extensions, loader, *, name, priority):
+        for ext in extensions:
+            ext = _normalize_extension(ext)
+            importer = PluginImporter(extension=ext, loader=loader, name=name, priority=priority)
+            bucket = self._importers.setdefault(ext, [])
+            bucket.append(importer)
+            # 優先度の高い順に並べ替える(同点は登録順を保つ安定ソート)
+            bucket.sort(key=lambda imp: -imp.priority)
+
+    def get_importer_for_extension(self, extension):
+        """
+        指定した拡張子に対して最も優先度の高い登録済みインポーターを返す
+        (登録が無ければNone)。
+
+        Args:
+            extension (str): 先頭ピリオドの有無・大文字小文字を問わない。
+        """
+        bucket = self._importers.get(_normalize_extension(extension))
+        return bucket[0] if bucket else None
+
+    def get_importer_extensions(self):
+        """登録済みインポーターが対応する拡張子の一覧(重複無し、ソート済み)。"""
+        return sorted(self._importers.keys())
+
+    def register_exporter(self, format_name, extension, writer, *, name=None):
+        """
+        プロットのエクスポート形式に、プラグイン提供の書き出し処理を追加する
+        (項目B-2)。バッチエクスポートの「形式」コンボボックス・単発エクスポートの
+        保存ダイアログの両方から選べるようになる。
+
+        Args:
+            format_name (str): エクスポート形式の選択肢に表示される名前
+                (例: "MyFormat")。BatchExportDialogの形式コンボの選択値として
+                そのまま使われる。
+            extension (str): 出力ファイルの拡張子(先頭ピリオドは省略可)。
+            writer (callable): (matplotlib.figure.Figure, 出力パス:str) を受け取り、
+                ファイルへの書き出しを行う関数。戻り値は使われない。
+            name (str | None): エラーメッセージ等に表示する名前
+                (省略時は登録元のプラグイン名)。
+        """
+        return self._safe_register(
+            PluginHookKind.EXPORTER, self._do_register_exporter, format_name, extension, writer,
+            name=name or self._current_plugin_name,
+        )
+
+    def _do_register_exporter(self, format_name, extension, writer, *, name):
+        self._exporters[format_name.lower()] = PluginExporter(
+            format_name=format_name, extension=_normalize_extension(extension), writer=writer, name=name
+        )
+
+    def get_exporter(self, format_name):
+        """指定した形式名(大文字小文字を問わない)に対応する登録済みエクスポーターを返す。"""
+        return self._exporters.get(format_name.lower())
+
+    def get_exporter_for_extension(self, extension):
+        """指定した拡張子に対応する登録済みエクスポーターを返す(無ければNone)。"""
+        ext = _normalize_extension(extension)
+        for exporter in self._exporters.values():
+            if exporter.extension == ext:
+                return exporter
+        return None
+
+    def get_exporters(self):
+        """登録済みエクスポーターの一覧。"""
+        return list(self._exporters.values())
 
     @property
     def menu_actions(self):
@@ -245,3 +344,22 @@ def get_plugin_registration_errors():
     失敗している場合はここに記録される(get_loaded_plugin_recordsのerrorには現れない)。
     """
     return None if _singleton_api is None else _singleton_api.registration_errors
+
+
+def get_plugin_api():
+    """
+    現在ロード済みの GraphicaPluginAPI を返す(未読み込みなら None)。
+    plugins_dir を知らない呼び出し元(gui/workers.py 等、UIから離れた場所)向けの
+    アクセサ。load_plugins_once() と異なり、未読み込みでも新規ロードは行わない。
+    """
+    return _singleton_api
+
+
+def get_registered_importer_extensions():
+    """登録済みインポーターが対応する拡張子の一覧(未読み込みなら空リスト、項目B-1)。"""
+    return _singleton_api.get_importer_extensions() if _singleton_api is not None else []
+
+
+def get_registered_exporters():
+    """登録済みエクスポーターの一覧(未読み込みなら空リスト、項目B-2)。"""
+    return _singleton_api.get_exporters() if _singleton_api is not None else []

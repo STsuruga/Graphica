@@ -113,7 +113,7 @@ from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal
 from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
-from core.plugin_api import load_plugins_once
+from core.plugin_api import load_plugins_once, get_registered_importer_extensions
 
 # --- Matplotlib ---
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
@@ -2120,6 +2120,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         if file_paths:
             self._queue_data_files(file_paths)
 
+    def _all_supported_data_file_extensions(self):
+        """
+        ドラッグ&ドロップ一括取込・ファイルダイアログで受け付ける拡張子一覧。
+        ビルトイン対応分(SUPPORTED_DATA_FILE_EXTENSIONS)に、プラグインが
+        register_importer() (項目B-1) で登録した拡張子を加えたもの。
+        """
+        extensions = list(SUPPORTED_DATA_FILE_EXTENSIONS)
+        for ext in get_registered_importer_extensions():
+            if ext not in extensions:
+                extensions.append(ext)
+        return tuple(extensions)
+
     def _queue_data_files(self, file_paths):
         """
         ドロップ/一括指定された複数のファイルパスを、対応拡張子かどうかで
@@ -2129,8 +2141,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         valid_paths = []
         skipped_names = []
+        allowed_extensions = self._all_supported_data_file_extensions()
         for file_path in file_paths:
-            if file_path.lower().endswith(SUPPORTED_DATA_FILE_EXTENSIONS):
+            if file_path.lower().endswith(allowed_extensions):
                 valid_paths.append(file_path)
             else:
                 skipped_names.append(os.path.basename(file_path))

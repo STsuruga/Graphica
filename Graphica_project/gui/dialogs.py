@@ -2308,7 +2308,12 @@ class BatchExportDialog(QDialog):
     get_*() で取得した設定を使って行う。
     """
 
-    def __init__(self, subplot_count, parent=None):
+    def __init__(self, subplot_count, parent=None, extra_formats=None):
+        """
+        Args:
+            extra_formats (list[str] | None): プラグインが register_exporter()
+                (項目B-2) で登録した形式名を、既存のPNG/PDF/SVGに追加する。
+        """
         super().__init__(parent)
         self.setWindowTitle("バッチエクスポート")
         self.resize(480, 480)
@@ -2375,6 +2380,8 @@ class BatchExportDialog(QDialog):
 
         self.format_combo = QComboBox()
         self.format_combo.addItems(["PNG", "PDF", "SVG"])
+        if extra_formats:
+            self.format_combo.addItems(extra_formats)
         form.addRow("形式", self.format_combo)
 
         self.dpi_spinbox = QSpinBox()

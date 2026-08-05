@@ -26,9 +26,21 @@ class FakeGraphicaPluginAPI:
     def __init__(self):
         self.fit_functions = {}  # name -> {"func":..., "param_names":..., "p0":...}
         self.menu_actions = []   # (text, callback, shortcut) のリスト。実物と同じ形。
+        self.importers = {}      # 拡張子(".jdx"等) -> {"loader":..., "name":..., "priority":...}
+        self.exporters = {}      # format_name.lower() -> {"extension":..., "writer":..., "name":...}
 
     def register_fit_function(self, name, func, param_names, p0=None):
         self.fit_functions[name] = {"func": func, "param_names": param_names, "p0": p0}
 
     def register_menu_action(self, text, callback, shortcut=None):
         self.menu_actions.append((text, callback, shortcut))
+
+    def register_importer(self, extensions, loader, *, name=None, priority=0):
+        for ext in extensions:
+            ext = ext.lower()
+            if not ext.startswith('.'):
+                ext = '.' + ext
+            self.importers[ext] = {"loader": loader, "name": name, "priority": priority}
+
+    def register_exporter(self, format_name, extension, writer, *, name=None):
+        self.exporters[format_name.lower()] = {"extension": extension, "writer": writer, "name": name}

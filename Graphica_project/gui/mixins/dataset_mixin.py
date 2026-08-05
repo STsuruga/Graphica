@@ -27,6 +27,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, Q
 from core.analysis import calculate_curve_fit, calculate_peaks, calculate_savgol
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand
 from core.dataset import Dataset
+from core.plugin_api import get_registered_importer_extensions
 from core.safe_eval import safe_eval_column_formula
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
@@ -61,8 +62,12 @@ class DatasetMixin:
     def _on_add_dataset(self):
         """「データセット追加」ボタンからの読み込み（Excel対応版）"""
         # ★ .xls と .xlsx をフィルターに追加
+        # プラグインがregister_importer()(項目B-1)で登録した拡張子も追加する
+        plugin_extensions = get_registered_importer_extensions()
+        plugin_pattern = ''.join(f' *{ext}' for ext in plugin_extensions)
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "データファイルを選択", "", "Data Files (*.csv *.txt *.xls *.xlsx);;All Files (*)"
+            self, "データファイルを選択", "",
+            f"Data Files (*.csv *.txt *.xls *.xlsx{plugin_pattern});;All Files (*)"
         )
         if file_path:
             # 古い読み込み処理は捨てて、一番下にある load_data メソッドに処理を任せる
