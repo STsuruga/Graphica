@@ -2,7 +2,7 @@
 import re
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, savgol_filter
 
 from core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
 
@@ -80,8 +80,31 @@ def _build_custom_fit_func(formula, param_names):
     return custom_func
 
 
-def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None):
-    """曲線フィットの計算を行い、パラメータとフィット曲線のデータを返す"""
+def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_range=None):
+    """
+    曲線フィットの計算を行い、パラメータとフィット曲線のデータを返す。
+
+    Args:
+        sigma (array-like | None): 各点の重み付けに使う誤差(項目C-402)。
+            scipy.optimize.curve_fitにabsolute_sigma=Trueとともにそのまま渡す
+            (値が大きい=不確かさが大きい点ほどフィットへの影響が小さくなる)。
+            x_rangeで点を絞り込む場合は、絞り込み後の点数と揃うようここで
+            同じマスクを適用する。
+        x_range (tuple(float, float) | None): フィットに使うXの範囲(項目C-404、
+            両端を含む)。指定した場合、範囲外の点はp0の初期値推定も含めて
+            一切使わない(フィット後の曲線・残差もこの範囲の点のみに基づく)。
+    """
+    x_data = np.asarray(x_data)
+    y_data = np.asarray(y_data)
+    if sigma is not None:
+        sigma = np.asarray(sigma)
+    if x_range is not None:
+        x_min, x_max = x_range
+        range_mask = (x_data >= x_min) & (x_data <= x_max)
+        x_data, y_data = x_data[range_mask], y_data[range_mask]
+        if sigma is not None:
+            sigma = sigma[range_mask]
+
     def linear_func(x, a, b):
         return a * x + b
 
@@ -169,7 +192,10 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None):
 
     # 最適化の実行 (収束しないケースに備え、初期値と最大反復回数を指定)
     try:
-        popt, _ = curve_fit(fit_func, x_data, y_data, p0=p0, maxfev=CURVE_FIT_MAX_ITERATIONS)
+        popt, _ = curve_fit(
+            fit_func, x_data, y_data, p0=p0, maxfev=CURVE_FIT_MAX_ITERATIONS,
+            sigma=sigma, absolute_sigma=sigma is not None,
+        )
     except RuntimeError as e:
         raise RuntimeError(
             f"フィッティングが収束しませんでした（{fit_type}）。データの分布が"
@@ -212,8 +238,37 @@ def calculate_peaks(x_data, y_data, peak_type, settings):
         kwargs["distance"] = 1
 
     peak_indices, _ = find_peaks(y_data_to_find, **kwargs)
-    
+
     if len(peak_indices) == 0:
         return np.array([]), np.array([])
 
     return x_data[peak_indices], y_data[peak_indices]
+
+
+def calculate_savgol(x_data, y_data, window_length, polyorder, deriv=0):
+    """
+    Savitzky-Golayフィルタによる平滑化(deriv=0、項目C-301)または
+    微分スペクトル(deriv=1/2、項目C-302)を計算する。
+
+    x_dataは昇順に並んでいる保証がないため先にソートし、Xの間隔が
+    (概ね)等間隔であることを前提に、中央値ステップ幅をdeltaとして
+    scipy.signal.savgol_filterに渡す(deriv>=1のとき、出力がdy/dx相当の
+    スケールになるようにするため)。
+
+    Returns:
+        tuple (np.ndarray, np.ndarray): (ソート済みのx, フィルタ適用後のy)
+    """
+    if window_length % 2 == 0:
+        raise ValueError("窓幅(window_length)は奇数である必要があります。")
+    if polyorder >= window_length:
+        raise ValueError("多項式の次数は窓幅より小さくする必要があります。")
+    if window_length > len(y_data):
+        raise ValueError(f"窓幅({window_length})がデータ点数({len(y_data)})を超えています。")
+
+    order = np.argsort(x_data)
+    x_sorted, y_sorted = x_data[order], y_data[order]
+    diffs = np.diff(x_sorted)
+    dx = float(np.median(diffs)) if len(diffs) > 0 and np.median(diffs) > 0 else 1.0
+
+    y_result = savgol_filter(y_sorted, window_length, polyorder, deriv=deriv, delta=dx)
+    return x_sorted, y_result

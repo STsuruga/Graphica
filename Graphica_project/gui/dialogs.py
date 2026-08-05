@@ -676,19 +676,22 @@ class FitDialog(QDialog):
     どの関数モデル（線形、多項式など）を使用するかをユーザーに選択させるダイアログクラスです。
     """
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, x_min=None, x_max=None):
         """
         ダイアログのUIコンポーネントを初期化します。
-        
+
         Args:
             parent (QWidget, optional): 親ウィジェット。
+            x_min (float, optional): フィット範囲指定欄の初期値(最小X)。
+                通常は対象データセットの実際のXの最小値を渡す。
+            x_max (float, optional): フィット範囲指定欄の初期値(最大X)。
         """
         super().__init__(parent)
         self.setWindowTitle("曲線フィット")
-        
+
         # メインレイアウト (垂直)
         layout = QVBoxLayout(self)
-        
+
         layout.addWidget(QLabel("フィットする関数の種類を選択してください:"))
         
         # --- 関数選択のコンボボックス ---
@@ -720,6 +723,39 @@ class FitDialog(QDialog):
         layout.addWidget(self.custom_formula_label)
         layout.addWidget(self.custom_formula_edit)
 
+        # --- 重み付きフィット(項目C-402) ---
+        self.weighted_checkbox = QCheckBox("Y誤差列を重みとして使用する(設定されている場合)")
+        self.weighted_checkbox.setToolTip(
+            "誤差が大きい点ほどフィットへの影響を小さくする(scipy.optimize.curve_fitのsigma)。\n"
+            "対象データセットにY誤差列が設定されていない場合はチェックしても効果がありません。"
+        )
+        layout.addWidget(self.weighted_checkbox)
+
+        # --- フィット範囲の指定(項目C-404) ---
+        self.range_checkbox = QCheckBox("フィット範囲を指定する")
+        layout.addWidget(self.range_checkbox)
+
+        range_form = QFormLayout()
+        self.range_min_spinbox = QDoubleSpinBox()
+        self.range_min_spinbox.setRange(-1e12, 1e12)
+        self.range_min_spinbox.setDecimals(6)
+        self.range_min_spinbox.setEnabled(False)
+        if x_min is not None:
+            self.range_min_spinbox.setValue(x_min)
+        range_form.addRow("最小X", self.range_min_spinbox)
+
+        self.range_max_spinbox = QDoubleSpinBox()
+        self.range_max_spinbox.setRange(-1e12, 1e12)
+        self.range_max_spinbox.setDecimals(6)
+        self.range_max_spinbox.setEnabled(False)
+        if x_max is not None:
+            self.range_max_spinbox.setValue(x_max)
+        range_form.addRow("最大X", self.range_max_spinbox)
+        layout.addLayout(range_form)
+
+        self.range_checkbox.toggled.connect(self.range_min_spinbox.setEnabled)
+        self.range_checkbox.toggled.connect(self.range_max_spinbox.setEnabled)
+
         # --- OK / Cancel ボタン ---
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
@@ -733,26 +769,44 @@ class FitDialog(QDialog):
         self.custom_formula_label.setVisible(is_custom)
         self.custom_formula_edit.setVisible(is_custom)
 
+    def get_weighted(self):
+        """Y誤差列を重みとして使うかどうか"""
+        return self.weighted_checkbox.isChecked()
+
+    def get_x_range(self):
+        """
+        Returns:
+            tuple(float, float) | None: フィット範囲指定が有効なら(最小X, 最大X)、
+            無効ならNone。
+        """
+        if not self.range_checkbox.isChecked():
+            return None
+        return (self.range_min_spinbox.value(), self.range_max_spinbox.value())
+
     @staticmethod
-    def get_fit_type(parent=None):
+    def get_fit_type(parent=None, x_min=None, x_max=None):
         """
         【スタティックメソッド】
         ダイアログをモーダルで表示し、OKが押された場合は
-        (選択されたフィットタイプ名, カスタム数式またはNone) のタプルを、
-        Cancelが押された場合は (None, None) を返します。
+        (フィットタイプ名, カスタム数式またはNone, 重み付けを使うか, フィット範囲
+        またはNone) のタプルを、Cancelが押された場合は (None, None, False, None) を
+        返します。
 
         Args:
             parent (QWidget, optional): 親ウィジェット。
+            x_min (float, optional): フィット範囲指定欄の初期値(最小X)。
+            x_max (float, optional): フィット範囲指定欄の初期値(最大X)。
 
         Returns:
-            tuple (str or None, str or None): (フィットタイプ名, カスタム数式)
+            tuple (str|None, str|None, bool, tuple(float,float)|None):
+            (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲)
         """
-        dialog = FitDialog(parent)
+        dialog = FitDialog(parent, x_min=x_min, x_max=x_max)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             fit_type = dialog.fit_type_combo.currentText()
             custom_formula = dialog.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
-            return fit_type, custom_formula
-        return None, None
+            return fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range()
+        return None, None, False, None
 
 
 #==============================================================================
@@ -1721,6 +1775,82 @@ class NormalizeDatasetDialog(QDialog):
         mode = self.mode_combo.currentText()
         reference_x = self.reference_x_spinbox.value() if mode == self.MODE_X_VALUE else None
         return mode, reference_x, self.output_name_edit.text().strip()
+
+
+class SavGolDialog(QDialog):
+    """
+    Savitzky-Golayフィルタ(平滑化: 項目C-301、微分スペクトル: 項目C-302)の
+    設定を入力させるダイアログ。NormalizeDatasetDialogと同じ構成。
+    """
+
+    MODE_SMOOTH = "平滑化"
+    MODE_DERIV1 = "1次微分"
+    MODE_DERIV2 = "2次微分"
+    MODES = [MODE_SMOOTH, MODE_DERIV1, MODE_DERIV2]
+    _DERIV_BY_MODE = {MODE_SMOOTH: 0, MODE_DERIV1: 1, MODE_DERIV2: 2}
+    _SUFFIX_BY_MODE = {MODE_SMOOTH: "_smoothed", MODE_DERIV1: "_deriv1", MODE_DERIV2: "_deriv2"}
+
+    def __init__(self, name, max_window=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Savitzky-Golayフィルタ")
+        self.resize(380, 260)
+        self._name = name
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        form = QFormLayout()
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(self.MODES)
+        form.addRow("種類", self.mode_combo)
+
+        self.window_spinbox = QSpinBox()
+        self.window_spinbox.setRange(3, max_window if max_window else 999999)
+        self.window_spinbox.setSingleStep(2)
+        self.window_spinbox.setValue(min(5, max_window) if max_window else 5)
+        form.addRow("窓幅(奇数)", self.window_spinbox)
+
+        self.polyorder_spinbox = QSpinBox()
+        self.polyorder_spinbox.setRange(1, 10)
+        self.polyorder_spinbox.setValue(2)
+        form.addRow("多項式の次数", self.polyorder_spinbox)
+
+        self.output_name_edit = QLineEdit(f"{name}{self._SUFFIX_BY_MODE[self.MODE_SMOOTH]}")
+        form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(form)
+
+        self.mode_combo.currentTextChanged.connect(self._on_mode_changed)
+
+        info_label = QLabel(
+            "窓幅は奇数かつ多項式の次数より大きい値を指定してください。\n"
+            "微分はX軸の間隔が概ね等間隔であることを前提とします。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def _on_mode_changed(self, mode):
+        self.output_name_edit.setText(f"{self._name}{self._SUFFIX_BY_MODE[mode]}")
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (int, int, int, str): (窓幅, 多項式の次数, 微分階数(0/1/2), 出力データセット名)
+        """
+        mode = self.mode_combo.currentText()
+        return (
+            self.window_spinbox.value(),
+            self.polyorder_spinbox.value(),
+            self._DERIV_BY_MODE[mode],
+            self.output_name_edit.text().strip(),
+        )
 
 
 #==============================================================================

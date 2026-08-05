@@ -113,6 +113,11 @@ class ProjectModel:
         # (left, bottom, width, height) の正規化座標(0〜1)が保持される。
         self.layout_mode = 'grid'
 
+        # 複数サブプロットに (a)(b)(c)... の連番ラベルを自動表示するか(項目C-712)。
+        # サブプロットの並び順(all_plot_settingsのインデックス)に基づいて
+        # gui/canvas.py が描画時に自動計算するため、文字自体は保存しない。
+        self.panel_labels_enabled = False
+
     def save_project(self, filepath):
         """
         現在のアプリケーション状態を保存する。
@@ -159,6 +164,7 @@ class ProjectModel:
             'layout_rows': self.layout_rows,
             'layout_cols': self.layout_cols,
             'layout_mode': self.layout_mode,
+            'panel_labels_enabled': self.panel_labels_enabled,
         }
         with open(filepath, 'wb') as f:
             pickle.dump(data, f)
@@ -184,6 +190,7 @@ class ProjectModel:
         self.layout_rows = data.get('layout_rows', 1)
         self.layout_cols = data.get('layout_cols', 1)
         self.layout_mode = data.get('layout_mode', 'grid')
+        self.panel_labels_enabled = data.get('panel_labels_enabled', False)
 
     # --- .graphica (JSON) 形式 ---
 
@@ -232,6 +239,7 @@ class ProjectModel:
             'layout_rows': self.layout_rows,
             'layout_cols': self.layout_cols,
             'layout_mode': self.layout_mode,
+            'panel_labels_enabled': self.panel_labels_enabled,
         }
         # ensure_ascii=False: データセット名/フォルダ名に日本語が使われることが
         # 多いため、\uXXXXエスケープではなく読める形でファイルに残す。
@@ -263,3 +271,4 @@ class ProjectModel:
         self.layout_rows = data.get('layout_rows', 1)
         self.layout_cols = data.get('layout_cols', 1)
         self.layout_mode = data.get('layout_mode', 'grid')
+        self.panel_labels_enabled = data.get('panel_labels_enabled', False)

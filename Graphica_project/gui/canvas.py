@@ -156,7 +156,7 @@ class MplCanvas(FigureCanvas):
         bottom = min(0.55 - offset, 0.55) if index % 2 == 0 else min(0.1 + offset, 0.5)
         return (left, max(bottom, 0.08), 0.45, 0.38)
 
-    def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid'):
+    def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False):
         """メインウィンドウから呼ばれる、全体の再描画メソッド"""
         self.fig.clf()
         self.all_axes.clear()
@@ -202,6 +202,10 @@ class MplCanvas(FigureCanvas):
             self._apply_appearance(ax, index, settings)
             # 自由なテキスト注釈・矢印の描画
             self._draw_annotations(ax, index, settings)
+            # パネルラベルの自動採番(項目C-712): (a)(b)(c)...をサブプロットの
+            # 並び順(index)から機械的に計算する(文字自体は保存しない)。
+            if panel_labels_enabled:
+                self._draw_panel_label(ax, index)
 
             if self.all_secondary_axes[index] is not None:
                 is_secondary_visible_global = True
@@ -231,6 +235,33 @@ class MplCanvas(FigureCanvas):
         except ValueError:
             pass
         self.draw()
+
+    def _draw_panel_label(self, ax, index):
+        """
+        サブプロットの左上に (a)(b)(c)... の連番ラベルを描画する(項目C-712)。
+        ラベル文字自体は保存せず、サブプロットの並び順(index)から毎回
+        機械的に計算するため、並び替え・追加・削除しても自動的に振り直される。
+        """
+        label = self._panel_label_for_index(index)
+        text_color = DARK_TEXT_COLOR if self.dark_mode else LIGHT_TEXT_COLOR
+        ax.text(
+            -0.12, 1.08, f"({label})", transform=ax.transAxes,
+            fontsize=12, fontweight='bold', color=text_color,
+            ha='left', va='top', zorder=10,
+        )
+
+    @staticmethod
+    def _panel_label_for_index(index):
+        """0->a, 1->b, ..., 25->z, 26->aa, 27->ab, ... (Excel列名と同じ方式で26件超にも対応)"""
+        letters = []
+        n = index
+        while True:
+            n, remainder = divmod(n, 26)
+            letters.append(chr(ord('a') + remainder))
+            if n == 0:
+                break
+            n -= 1
+        return ''.join(reversed(letters))
 
     def _draw_annotations(self, ax, axis_index, settings):
         """
@@ -543,16 +574,26 @@ class MplCanvas(FigureCanvas):
             if ds.artist is not None:
                 self._enable_element_picking(ds.artist)
 
-            # ★ エラーバー (X/Y誤差列が設定されている場合のみ描画)
-            # fmt='none' なので線やマーカーは追加せず、誤差の縦横棒のみを
-            # 元データ点(平滑化前、ウォーターフォール有効時はずらした後)の
-            # 位置に重ねて描画する。
+            # ★ 誤差の表示(X/Y誤差列が設定されている場合のみ描画、項目C-502で
+            # 表示形式を選べるようにした)。fmt='none' なので線やマーカーは追加せず、
+            # 誤差の縦横棒のみを元データ点(平滑化前、ウォーターフォール有効時は
+            # ずらした後)の位置に重ねて描画する。
             if ds.x_err_col_name or ds.y_err_col_name:
-                target_ax.errorbar(
-                    plot_x_data, plot_y_data,
-                    xerr=ds.x_err_data, yerr=ds.y_err_data,
-                    fmt='none', ecolor=ds.color, elinewidth=ds.linewidth, alpha=ds.alpha, capsize=3
-                )
+                if ds.error_display in ('bar', 'both'):
+                    target_ax.errorbar(
+                        plot_x_data, plot_y_data,
+                        xerr=ds.x_err_data, yerr=ds.y_err_data,
+                        fmt='none', ecolor=ds.color, elinewidth=ds.linewidth, alpha=ds.alpha, capsize=3
+                    )
+                # 誤差バンド(fill_between): X誤差には対応せず、Y誤差の帯のみ描画する
+                # (2軸方向の帯は一般的でないため)。
+                if ds.error_display in ('band', 'both') and ds.y_err_data is not None:
+                    y_arr = np.asarray(plot_y_data)
+                    y_err = np.asarray(ds.y_err_data)
+                    target_ax.fill_between(
+                        plot_x_data, y_arr - y_err, y_arr + y_err,
+                        color=ds.color, alpha=ds.alpha * 0.25, linewidth=0,
+                    )
 
             # ★ データポイントラベル (各点の脇にY値、または指定列の値を表示)
             # 平滑化が有効な場合でも、ラベルは元のデータ点の位置に表示する

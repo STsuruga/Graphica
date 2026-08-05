@@ -542,3 +542,111 @@ def test_grid_minor_hidden_when_minor_grid_visible_false():
     assert _minor_gridlines(ax.xaxis)[0].get_visible() is False
     assert _minor_gridlines(ax.yaxis)[0].get_visible() is False
     plt.close(c.fig)
+
+
+# --- 誤差の表示形式(項目C-502: エラーバー/誤差バンド/両方) ---
+# matplotlibの errorbar(fmt='none') 自体もキャップ/バー用のLineCollectionを
+# ax.collectionsに追加するため、fill_between(PolyCollection)の有無は
+# 型で区別する。
+
+from matplotlib.collections import PolyCollection
+
+
+def _make_dataset_with_yerr(error_display='bar'):
+    df = pd.DataFrame({"x": [1.0, 2.0, 3.0], "y": [10.0, 20.0, 30.0], "yerr": [1.0, 2.0, 1.5]})
+    return Dataset(name="d", df=df, x_col_name="x", y_col_name="y", y_err_col_name="yerr",
+                    error_display=error_display)
+
+
+def _poly_collections(ax):
+    return [c for c in ax.collections if isinstance(c, PolyCollection)]
+
+
+def test_error_display_bar_draws_errorbar_but_no_band(canvas):
+    ds = _make_dataset_with_yerr(error_display='bar')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.containers) == 1  # errorbar
+    assert _poly_collections(ax) == []  # fill_between(誤差バンド)無し
+
+
+def test_error_display_band_draws_fill_between_but_no_errorbar(canvas):
+    ds = _make_dataset_with_yerr(error_display='band')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.containers) == 0
+    assert len(_poly_collections(ax)) == 1  # fill_between
+
+
+def test_error_display_both_draws_errorbar_and_band(canvas):
+    ds = _make_dataset_with_yerr(error_display='both')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.containers) == 1
+    assert len(_poly_collections(ax)) == 1
+
+
+def test_error_band_fill_between_covers_y_plus_minus_yerr(canvas):
+    ds = _make_dataset_with_yerr(error_display='band')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    band = _poly_collections(ax)[0]
+    path = band.get_paths()[0]
+    ys = path.vertices[:, 1]
+    # y ± yerr = [9,21], [18,22], [28.5,31.5] の範囲に収まっているはず
+    assert ys.min() == pytest.approx(9.0)
+    assert ys.max() == pytest.approx(31.5)
+
+
+def test_error_display_without_error_columns_draws_neither(canvas):
+    """X/Y誤差列が未設定なら、error_displayの値に関わらず何も描画しない"""
+    df = pd.DataFrame({"x": [1.0, 2.0], "y": [10.0, 20.0]})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y", error_display='both')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.containers) == 0
+    assert len(ax.collections) == 0
+
+
+def test_error_display_defaults_to_bar():
+    ds = Dataset(name="d", df=pd.DataFrame({'x': [1], 'y': [1]}), x_col_name='x', y_col_name='y')
+    assert ds.error_display == 'bar'
+
+
+# --- パネルラベルの自動採番(項目C-712) ---
+
+def test_panel_label_for_index_single_letters():
+    assert MplCanvas._panel_label_for_index(0) == 'a'
+    assert MplCanvas._panel_label_for_index(1) == 'b'
+    assert MplCanvas._panel_label_for_index(25) == 'z'
+
+
+def test_panel_label_for_index_double_letters_after_z():
+    assert MplCanvas._panel_label_for_index(26) == 'aa'
+    assert MplCanvas._panel_label_for_index(27) == 'ab'
+    assert MplCanvas._panel_label_for_index(51) == 'az'
+    assert MplCanvas._panel_label_for_index(52) == 'ba'
+
+
+def test_redraw_all_draws_panel_labels_when_enabled(canvas):
+    ds0 = _make_dataset(3, show_point_labels=False)
+    ds1 = Dataset(name="d2", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}], panel_labels_enabled=True)
+    texts0 = [t.get_text() for t in canvas.all_axes[0].texts]
+    texts1 = [t.get_text() for t in canvas.all_axes[1].texts]
+    assert "(a)" in texts0
+    assert "(b)" in texts1
+
+
+def test_redraw_all_omits_panel_labels_when_disabled(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}], panel_labels_enabled=False)
+    assert list(canvas.all_axes[0].texts) == []
+
+
+def test_redraw_all_panel_labels_default_to_disabled(canvas):
+    """panel_labels_enabled引数を省略した既存の呼び出し(後方互換)では描画されない"""
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert list(canvas.all_axes[0].texts) == []

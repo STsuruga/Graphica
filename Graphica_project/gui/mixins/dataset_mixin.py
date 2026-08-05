@@ -24,14 +24,14 @@ import pandas as pd
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu
 
-from core.analysis import calculate_curve_fit, calculate_peaks
+from core.analysis import calculate_curve_fit, calculate_peaks, calculate_savgol
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand
 from core.dataset import Dataset
 from core.safe_eval import safe_eval_column_formula
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
-                         NormalizeDatasetDialog)
+                         NormalizeDatasetDialog, SavGolDialog)
 from gui.dataset_style_icon import make_dataset_style_icon
 from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 
@@ -46,7 +46,12 @@ NO_ERROR_COLUMN_LABEL = "(なし)"
 
 # 「スタイルのコピー&ペースト」で複製対象とする、見た目に関する属性
 # (凡例名・X/Y列・エラーバー列・描画先など、データ/構造に関わるものは含めない)
-STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing', 'alpha')
+STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing', 'alpha',
+               'error_display')
+
+# カラーマップからの自動配色(項目C-805)で選ばせる候補。連続データの系列を
+# 表現するのに適した(知覚的に均一な、またはよく使われる)ものを厳選する。
+RECOMMENDED_COLORMAPS = ['viridis', 'plasma', 'cividis', 'coolwarm', 'turbo', 'rainbow']
 
 # データポイントラベルの「内容」コンボボックスで、Y値そのものを表示することを示す選択肢
 POINT_LABEL_Y_VALUE_LABEL = "Y値"
@@ -152,6 +157,11 @@ class DatasetMixin:
             # 存在する場合)に置く。データセット間演算(2件選択が必須)とは異なる。
             normalize_action = menu.addAction("規格化(ノーマライズ)...")
             normalize_action.triggered.connect(self._on_normalize_dataset)
+
+            # Savitzky-Golayフィルタ(平滑化/微分、項目C-301/C-302): 規格化と同じく
+            # カレント1件のデータセットから新しいデータセットを1つ作る操作。
+            savgol_action = menu.addAction("Savitzky-Golayフィルタ(平滑化/微分)...")
+            savgol_action.triggered.connect(self._on_savgol_dataset)
 
         selected_count = len(self._get_selected_datasets())
         if selected_count >= 2:
@@ -433,6 +443,45 @@ class DatasetMixin:
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
 
+    def _on_savgol_dataset(self):
+        """
+        「Savitzky-Golayフィルタ(平滑化/微分)...」メニューの処理(項目C-301/C-302)。
+        カレントの1つのデータセットに対して平滑化(deriv=0)または微分
+        (deriv=1/2)を行い、新しいデータセットとして追加する(非破壊)。
+        _on_normalize_dataset と同じ「カレント1件」パターン。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        x_data = np.asarray(original_dataset.x_data, dtype=float)
+        y_data = np.asarray(original_dataset.y_data, dtype=float)
+        valid = ~(np.isnan(x_data) | np.isnan(y_data))
+        x_data, y_data = x_data[valid], y_data[valid]
+
+        if len(x_data) < 3:
+            QMessageBox.warning(self, "Savitzky-Golayフィルタ", "有効なデータ点が不足しています。")
+            return
+
+        dialog = SavGolDialog(original_dataset.name, max_window=len(x_data), parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        window_length, polyorder, deriv, output_name = dialog.get_settings()
+        if not output_name:
+            QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+            return
+
+        try:
+            x_sorted, y_result = calculate_savgol(x_data, y_data, window_length, polyorder, deriv=deriv)
+        except ValueError as e:
+            QMessageBox.warning(self, "Savitzky-Golayフィルタ", str(e))
+            return
+
+        result_df = pd.DataFrame({'x': x_sorted, 'y': y_result})
+        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
     def _on_batch_column_calculate(self):
         """
         「バッチ列計算...」メニューの処理。
@@ -488,7 +537,9 @@ class DatasetMixin:
             QMessageBox.information(self, "バッチカーブフィット", "2つ以上のデータセットを選択してください。")
             return
 
-        fit_type, custom_formula = FitDialog.get_fit_type(self)
+        # 項目C-402(重み付け)/C-404(フィット範囲)は選択中の全データセットに
+        # 共通の設定として1回だけ選ばせ、各データセットに同じ条件で適用する。
+        fit_type, custom_formula, use_weighted, x_range = FitDialog.get_fit_type(self)
         if fit_type is None:
             return
 
@@ -496,9 +547,11 @@ class DatasetMixin:
         succeeded, failed = [], []
         for dataset in selected:
             x_data, y_data = dataset.x_data, dataset.y_data
+            sigma = dataset.y_err_data if use_weighted else None
             try:
                 popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
-                    x_data, y_data, fit_type, custom_formula=custom_formula
+                    x_data, y_data, fit_type, custom_formula=custom_formula,
+                    sigma=sigma, x_range=x_range,
                 )
             except Exception as e:
                 failed.append(f"{dataset.name}: {e}")
@@ -509,6 +562,10 @@ class DatasetMixin:
             for param_name, param_value in zip(params_info, popt):
                 result_text += f"  {param_name} = {param_value: .4e}\n"
             result_text += f"  R^2 = {r_squared: .5f}\n"
+            if sigma is not None:
+                result_text += "  (Y誤差列を重みとして使用)\n"
+            if x_range is not None:
+                result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
 
             fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
             fit_dataset = Dataset(
@@ -834,6 +891,8 @@ class DatasetMixin:
             self.waterfall_checkbox: ('waterfall_enabled', self.waterfall_checkbox.isChecked()),
             self.waterfall_offset_x_spinbox: ('waterfall_offset_x', self.waterfall_offset_x_spinbox.value()),
             self.waterfall_offset_y_spinbox: ('waterfall_offset_y', self.waterfall_offset_y_spinbox.value()),
+            # 誤差の表示形式(項目C-502)
+            self.error_display_combo: ('error_display', self.error_display_combo.currentData()),
         }
 
         changed = field_by_widget.get(self.sender())
@@ -971,6 +1030,42 @@ class DatasetMixin:
         if is_batch:
             self.undo_stack.endMacro()
 
+    def _on_auto_assign_colors_from_colormap(self):
+        """
+        「カラーマップから自動配色...」メニューの処理(項目C-805)。
+        _on_auto_assign_colors が離散パレットを順番に割り当てるのに対し、
+        こちらは連続カラーマップ(viridis等)から選択中のデータセット数ぶんを
+        均等サンプリングして割り当てる。時系列/濃度変化など、順序に意味のある
+        系列をグラデーションで表現したい場合向け。
+        """
+        selected_datasets = self._get_selected_datasets()
+        if not selected_datasets:
+            return
+
+        cmap_name, ok = QInputDialog.getItem(
+            self, "カラーマップから自動配色", "使用するカラーマップを選択してください:",
+            RECOMMENDED_COLORMAPS, 0, False
+        )
+        if not ok:
+            return
+
+        cmap = mpl.colormaps[cmap_name]
+        n = len(selected_datasets)
+        # n==1のときの0除算を避ける(1件ならカラーマップの中央値を使う)
+        positions = [0.5] if n == 1 else [i / (n - 1) for i in range(n)]
+        new_colors = [mpl.colors.to_hex(cmap(p)) for p in positions]
+
+        is_batch = n > 1
+        if is_batch:
+            self.undo_stack.beginMacro(f"カラーマップからの配色 ({n}件)")
+        for dataset, new_color in zip(selected_datasets, new_colors):
+            self._push_dataset_property_command(
+                dataset, {'color': dataset.color}, {'color': new_color},
+                description="カラーマップからの配色"
+            )
+        if is_batch:
+            self.undo_stack.endMacro()
+
     def _load_color_palettes(self):
         """QSettingsに保存されているカスタム配色パレット一式を辞書として読み込む"""
         raw = self.settings.value(COLOR_PALETTES_SETTINGS_KEY, "")
@@ -1049,6 +1144,7 @@ class DatasetMixin:
         self.y_col_combo.setEnabled(has_dataset_selection)
         self.x_err_col_combo.setEnabled(has_dataset_selection)
         self.y_err_col_combo.setEnabled(has_dataset_selection)
+        self.error_display_combo.setEnabled(has_dataset_selection)
 
         # 4. 【選択中】の場合: 選択された Dataset の内容をUIにロード
         #    (current_dataset は「カレント」アイテムがフォルダの場合や、
@@ -1077,6 +1173,7 @@ class DatasetMixin:
             self.waterfall_checkbox.blockSignals(True)
             self.waterfall_offset_x_spinbox.blockSignals(True)
             self.waterfall_offset_y_spinbox.blockSignals(True)
+            self.error_display_combo.blockSignals(True)
 
             # 4c. Dataset オブジェクトの値をUIにロード
             self.ui.legend_name_edit.setText(dataset.name)
@@ -1101,6 +1198,8 @@ class DatasetMixin:
             self.point_label_col_combo.setCurrentText(dataset.point_label_col_name or POINT_LABEL_Y_VALUE_LABEL)
             self.use_secondary_y_checkbox.setChecked(dataset.use_secondary_y)
             self.subplot_target_combo.setCurrentIndex(dataset.subplot_target)
+            error_display_index = self.error_display_combo.findData(dataset.error_display)
+            self.error_display_combo.setCurrentIndex(error_display_index if error_display_index != -1 else 0)
 
             # 4d. ★★★ シグナルを解除 ★★★
             self.ui.legend_name_edit.blockSignals(False)
@@ -1122,6 +1221,7 @@ class DatasetMixin:
             self.waterfall_checkbox.blockSignals(False)
             self.waterfall_offset_x_spinbox.blockSignals(False)
             self.waterfall_offset_y_spinbox.blockSignals(False)
+            self.error_display_combo.blockSignals(False)
             self._update_gradient_controls_visibility()
             self._update_waterfall_controls_visibility()
 
@@ -1363,19 +1463,35 @@ class DatasetMixin:
             return
         x_data, y_data = original_dataset.x_data, original_dataset.y_data
 
-        # ダイアログからフィットの種類を取得 (カスタム数式選択時は数式文字列も一緒に返る)
-        fit_type, custom_formula = FitDialog.get_fit_type(self)
+        # ダイアログからフィットの種類を取得(カスタム数式選択時は数式文字列も一緒に返る、
+        # 項目C-402: 重み付けを使うか、項目C-404: フィット範囲 も併せて返る)
+        x_min = float(np.min(x_data)) if len(x_data) else None
+        x_max = float(np.max(x_data)) if len(x_data) else None
+        fit_type, custom_formula, use_weighted, x_range = FitDialog.get_fit_type(
+            self, x_min=x_min, x_max=x_max
+        )
         if fit_type is None:
             return
+
+        sigma = original_dataset.y_err_data if use_weighted else None
 
         try:
             # ★ 計算はすべて分離したモジュールに丸投げ
             popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
-                x_data, y_data, fit_type, custom_formula=custom_formula
+                x_data, y_data, fit_type, custom_formula=custom_formula,
+                sigma=sigma, x_range=x_range,
             )
         except Exception as e:
             QMessageBox.warning(self, "フィットエラー", f"フィッティングに失敗しました:\n{e}")
             return
+
+        # フィット範囲を指定した場合、残差(residuals)は範囲内の点数だけになるため、
+        # 残差プロット用のxもそれに揃える(ResultDialogは長さが一致している前提)。
+        if x_range is not None:
+            range_mask = (x_data >= x_range[0]) & (x_data <= x_range[1])
+            residual_x = x_data[range_mask]
+        else:
+            residual_x = x_data
 
         # 結果文字列の作成 (カスタム数式の場合は入力された数式も表示する)
         fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
@@ -1383,6 +1499,10 @@ class DatasetMixin:
         for param_name, param_value in zip(params_info, popt):
             result_text += f"  {param_name} = {param_value: .4e}\n"
         result_text += f"  R^2 = {r_squared: .5f}\n"
+        if sigma is not None:
+            result_text += "  (Y誤差列を重みとして使用)\n"
+        if x_range is not None:
+            result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
 
         # UI/Modelへの反映 (Datasetの追加。元のデータセットと同じフォルダに追加する)
         fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
@@ -1411,7 +1531,7 @@ class DatasetMixin:
         })
         self.fit_result_dialog = ResultDialog(
             "フィッティング完了", result_text, self, csv_data=fit_csv_data,
-            residual_x=x_data, residual_y=residuals
+            residual_x=residual_x, residual_y=residuals
         )
         self.fit_result_dialog.show()
 

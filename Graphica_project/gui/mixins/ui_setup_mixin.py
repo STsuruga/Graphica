@@ -191,6 +191,9 @@ class UISetupMixin:
             self.point_labels_checkbox.toggled.connect(self._on_point_labels_toggled)
             self.point_label_col_combo.currentTextChanged.connect(self._on_property_changed)
 
+            # 誤差の表示形式(項目C-502)
+            self.error_display_combo.currentIndexChanged.connect(self._on_property_changed)
+
             self.fit_curve_button.clicked.connect(self._on_fit_curve)
             self.find_peaks_button.clicked.connect(self._on_find_peaks)
 
@@ -200,6 +203,7 @@ class UISetupMixin:
             self.duplicate_dataset_button.clicked.connect(self._on_duplicate_dataset)
             self.auto_color_button.clicked.connect(self._on_auto_assign_colors)
             self.manage_palette_action.triggered.connect(self._on_manage_color_palettes)
+            self.colormap_assign_action.triggered.connect(self._on_auto_assign_colors_from_colormap)
             self.view_edit_data_button.clicked.connect(self._on_show_data_editor)
 
             self.x_col_combo.currentTextChanged.connect(self._on_plot_column_changed)
@@ -357,6 +361,15 @@ class UISetupMixin:
             self.canvas_detach_action.setChecked(self.canvas_detached)
             self.canvas_detach_action.toggled.connect(self._on_toggle_canvas_detached)
 
+            # パネルラベルの自動採番(項目C-712): 複数サブプロットに(a)(b)(c)...を
+            # 自動表示する。プロジェクトごとの設定(self.project.panel_labels_enabled)
+            # なので、チェック状態はプロジェクト読み込み時にも同期される
+            # (_load_project_from_path参照)。
+            self.panel_labels_action = view_menu.addAction(tr("パネルラベルを自動表示 ((a)(b)(c)...)"))
+            self.panel_labels_action.setCheckable(True)
+            self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
+            self.panel_labels_action.toggled.connect(self._on_toggle_panel_labels)
+
             # 項目87: クイックアクセスのカスタムツールバー。ツールバー本体の作成と
             # 表示/非表示を切り替える表示メニュー項目の追加はここで行う。
             # ★ ピン留め済みアクションの実際の復元 (_restore_quick_access_actions) と
@@ -414,6 +427,13 @@ class UISetupMixin:
 
             shortcuts_action = help_menu.addAction(tr("キーボードショートカット一覧..."))
             shortcuts_action.triggered.connect(self._on_show_shortcuts)
+
+            help_menu.addSeparator()
+
+            # 診断情報バンドル出力(項目C-1201): バグ報告時に添付できるよう、
+            # ログ・環境情報・設定値・プラグイン読み込み状況を1つのzipにまとめる。
+            diagnostic_bundle_action = help_menu.addAction(tr("診断情報をエクスポート..."))
+            diagnostic_bundle_action.triggered.connect(self._on_export_diagnostic_bundle)
 
             help_menu.addSeparator()
 

@@ -189,3 +189,69 @@ def test_normalize_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     window._on_normalize_dataset()
 
     assert len(window.project.datasets) == before_count
+
+
+# --- カラーマップから自動配色(項目C-805) ---
+
+def _patch_colormap_choice(monkeypatch, cmap_name, accepted=True):
+    """QInputDialog.getItem を、実際にダイアログを表示せず指定の選択結果を返すフェイクに差し替える"""
+    def fake_get_item(*args, **kwargs):
+        return (cmap_name, accepted)
+    monkeypatch.setattr(dataset_mixin_module.QInputDialog, "getItem", staticmethod(fake_get_item))
+
+
+def _make_simple_dataset(name):
+    df = pd.DataFrame({'x': [0, 1, 2], 'y': [1.0, 2.0, 3.0]})
+    return Dataset(name=name, df=df, x_col_name='x', y_col_name='y')
+
+
+def test_colormap_auto_assign_applies_evenly_sampled_colors(tmp_path, monkeypatch):
+    import matplotlib as mpl
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_simple_dataset(f"d{i}") for i in range(3)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    window.ui.dataset_list_widget.selectAll()
+
+    _patch_colormap_choice(monkeypatch, "viridis")
+    window._on_auto_assign_colors_from_colormap()
+
+    cmap = mpl.colormaps["viridis"]
+    expected = [mpl.colors.to_hex(cmap(p)) for p in (0.0, 0.5, 1.0)]
+    assert [ds.color for ds in datasets] == expected
+
+
+def test_colormap_auto_assign_single_dataset_uses_midpoint_color(tmp_path, monkeypatch):
+    import matplotlib as mpl
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("solo")
+    _add_and_select_dataset(window, ds)
+
+    _patch_colormap_choice(monkeypatch, "plasma")
+    window._on_auto_assign_colors_from_colormap()
+
+    cmap = mpl.colormaps["plasma"]
+    assert ds.color == mpl.colors.to_hex(cmap(0.5))
+
+
+def test_colormap_auto_assign_cancelled_leaves_colors_unchanged(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    original_color = ds.color
+
+    _patch_colormap_choice(monkeypatch, "viridis", accepted=False)
+    window._on_auto_assign_colors_from_colormap()
+
+    assert ds.color == original_color
+
+
+def test_colormap_auto_assign_no_selection_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getItem",
+        staticmethod(lambda *a, **k: calls.append(1) or ("viridis", True))
+    )
+    window._on_auto_assign_colors_from_colormap()
+    assert calls == []  # ダイアログ自体を出さずに早期returnする

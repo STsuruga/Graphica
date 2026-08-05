@@ -188,7 +188,10 @@ class ExportPreviewPanel(QWidget):
 
         temp_canvas = MplCanvas(width=width_in, height=height_in, dpi=dpi)
         temp_canvas.dark_mode = mw.canvas.dark_mode
-        temp_canvas.redraw_all(mw.project.datasets, rows, cols, mw.project.all_plot_settings, layout_mode=layout_mode)
+        temp_canvas.redraw_all(
+            mw.project.datasets, rows, cols, mw.project.all_plot_settings, layout_mode=layout_mode,
+            panel_labels_enabled=mw.project.panel_labels_enabled,
+        )
         return temp_canvas
 
     def _render_full_figure_pixmap(self, width_in, height_in, dpi):

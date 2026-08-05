@@ -25,17 +25,19 @@
 
 ## トラック0': クイックウィン(トラック0と並行、いつでも着手可)
 
-| ID | 項目 | 状態 |
-|---|---|---|
-| C-801 | PDFフォント埋め込み | ⬜ 未着手 |
-| C-301/302 | Savitzky-Golay平滑化 + 微分スペクトル | ⬜ 未着手 |
-| C-402 | 重み付きフィット | ⬜ 未着手 |
-| C-404 | フィット範囲の指定 | ⬜ 未着手 |
-| C-502 | 誤差バンド | ⬜ 未着手 |
-| C-805 | カラーマップ自動配色 | ⬜ 未着手 |
-| C-901 / C-007 | Undo履歴パネル + QUndoGroup | ⬜ 未着手 |
-| C-1201 | 診断情報バンドル出力 | ⬜ 未着手 |
-| C-712 | パネルラベル自動採番 | ⬜ 未着手 |
+**全9項目完了(2026-08-05)。**
+
+| ID | 項目 | 状態 | 備考 |
+|---|---|---|---|
+| C-801 | PDFフォント埋め込み | ✅ 完了 | `gui/mixins/export_mixin.py`: PDF保存時に`mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42})`を適用(単発エクスポート・バッチエクスポート両方)。TrueType埋め込みでベクター編集ソフトでもテキストを選択・編集可能に |
+| C-301/302 | Savitzky-Golay平滑化 + 微分スペクトル | ✅ 完了 | `core/analysis.py`に`calculate_savgol()`追加(deriv=0/1/2)。`gui/dialogs.py`の`SavGolDialog` + `dataset_mixin.py`の`_on_savgol_dataset`(規格化と同じ「カレント1件→新規データセット」パターン) |
+| C-402 | 重み付きフィット | ✅ 完了 | `core/analysis.py`の`calculate_curve_fit()`に`sigma`引数追加(`scipy.optimize.curve_fit`にabsolute_sigma=Trueで渡す)。`FitDialog`に「Y誤差列を重みとして使用する」チェックボックス |
+| C-404 | フィット範囲の指定 | ✅ 完了 | `calculate_curve_fit()`に`x_range`引数追加(範囲外の点はp0推定にも一切使わない)。`FitDialog`にフィット範囲指定欄。C-402と同じダイアログ・同じコミットで実施(UI共有のため) |
+| C-502 | 誤差バンド | ✅ 完了 | `Dataset.error_display`フィールド('bar'/'band'/'both')追加。`gui/canvas.py`で`error_display in ('band','both')`時に`fill_between`で誤差帯を描画。UIは`formLayout_4`に「誤差の表示形式」コンボボックス追加 |
+| C-805 | カラーマップ自動配色 | ✅ 完了 | 既存の離散パレット自動配色(`_on_auto_assign_colors`)とは別に、`_on_auto_assign_colors_from_colormap`を追加。連続カラーマップ(viridis等)から選択数ぶんを均等サンプリング。オーバーフローメニューに追加 |
+| C-901 / C-007 | Undo履歴パネル + QUndoGroup | ✅ 完了 | `gui/main_app_window.py`に`QUndoGroup`を新設し、各タブの`undo_stack`(PlotterApp側は無改修)を`addStack`/`removeStack`で登録・タブ切替時に`setActiveStack`で追従。`QUndoView`をドックパネル化し、タブ横断で常にアクティブなタブの履歴を表示(既定は非表示、タブバー右上「履歴」ボタンで表示切替) |
+| C-1201 | 診断情報バンドル出力 | ✅ 完了 | `core/diagnostics.py`の`build_diagnostic_bundle()`(ログ・環境情報・設定値・プラグイン読込状況をzip化、core/はPySide6非依存)。ヘルプメニューに「診断情報をエクスポート...」 |
+| C-712 | パネルラベル自動採番 | ✅ 完了 | `ProjectModel.panel_labels_enabled`(プロジェクトごとの状態、保存/読込対応)。`gui/canvas.py`の`redraw_all()`に`panel_labels_enabled`引数追加、`_panel_label_for_index()`でExcel列名方式の(a)(b)...(aa)(ab)...を機械的に計算。表示メニューにトグル |
 
 ## トラック1〜4
 
@@ -48,3 +50,4 @@
 - 2026-08-05: 新規作成。C-001完了を反映。
 - 2026-08-05: C-008・C-009・C-1205完了を反映。トラック0(必須4項目)が全て完了。
 - 2026-08-05: C-006・C-002(推奨2項目)完了を反映。トラック0の推奨分も含め全て完了。
+- 2026-08-05: トラック0'(クイックウィン9項目)完了を反映。

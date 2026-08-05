@@ -601,6 +601,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.manage_palette_action = overflow_menu.addAction(
             _svg_icon("palette", size=16), tr("パレット管理...")
         )
+        # カラーマップから自動配色(項目C-805): 離散パレットの自動配色ボタンとは別に、
+        # 連続カラーマップから選択数ぶんを均等サンプリングして割り当てる。
+        self.colormap_assign_action = overflow_menu.addAction(
+            _svg_icon("palette", size=16), tr("カラーマップから自動配色...")
+        )
         self.dataset_overflow_button.setMenu(overflow_menu)
         self.ui.horizontalLayout_3.addWidget(self.dataset_overflow_button)
 
@@ -682,6 +687,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.point_label_col_label = QLabel("ラベルの内容")
         self.point_label_col_combo = QComboBox()
         self.ui.formLayout_4.addRow(self.point_label_col_label, self.point_label_col_combo)
+
+        # 2e. 誤差の表示形式(項目C-502): エラーバー('bar')・誤差バンド('band',
+        # fill_between)・両方('both')から選択する。X/Y誤差列が未設定なら
+        # どの設定でも何も描画されない。
+        self.error_display_label = QLabel(tr("誤差の表示形式"))
+        self.error_display_combo = QComboBox()
+        self.error_display_combo.addItem(tr("エラーバー"), "bar")
+        self.error_display_combo.addItem(tr("誤差バンド"), "band")
+        self.error_display_combo.addItem(tr("両方"), "both")
+        self.ui.formLayout_4.addRow(self.error_display_label, self.error_display_combo)
 
         # 3. 凡例の位置を選択するUIをコードで作成
         self.legend_loc_label = QLabel("凡例の位置")
@@ -1559,6 +1574,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             if not is_free_layout and self.layout_edit_action.isChecked():
                 self.layout_edit_action.setChecked(False)
                 self._toggle_layout_edit_mode(False)
+            self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
             self._block_all_signals(False)
 
             # UIにアクティブな設定を反映
@@ -1595,7 +1611,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # ★ 描画処理をすべてCanvasに「丸投げ」する！
         is_secondary_visible_global = self.canvas.redraw_all(
-            self.project.datasets, rows, cols, self.project.all_plot_settings, layout_mode=layout_mode
+            self.project.datasets, rows, cols, self.project.all_plot_settings, layout_mode=layout_mode,
+            panel_labels_enabled=self.project.panel_labels_enabled,
         )
 
         # ★ Canvasから返ってきた結果をもとに、UI（チェックボックス等）を制御する
@@ -1652,6 +1669,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.minimap.setVisible(checked)
         self.minimap_separator.setVisible(checked)
         self.settings.setValue("minimap_visible", checked)
+
+    def _on_toggle_panel_labels(self, checked):
+        """
+        「表示」メニューの「パネルラベルを自動表示」チェック状態が変更されたときの処理
+        (項目C-712)。QSettingsではなくプロジェクトごとの状態として保存する
+        (.graphica/.pklに含まれ、プロジェクトファイルを開き直すたびに復元される)。
+        """
+        self.project.panel_labels_enabled = checked
+        self._update_plot()
 
     # --- ★ 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し) ---
     #

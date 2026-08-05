@@ -143,6 +143,11 @@ class Dataset:
     x_err_col_name: str = field(default=None)
     y_err_col_name: str = field(default=None)
 
+    # 誤差の表示形式(項目C-502): 'bar'(エラーバー、既定) / 'band'(fill_betweenに
+    # よる誤差バンド) / 'both'(両方)。x_err_col_name/y_err_col_nameがどちらも
+    # Noneの場合はどの設定でも何も描画されない(gui/canvas.py参照)。
+    error_display: str = 'bar'
+
     # 外れ値のマスク機能(項目36): 行を削除せず「フィット/プロットから除外」する
     # ためのマーカー。df.index のラベルのリスト(位置ではなく)。
     # x_data/y_data/x_err_data/y_err_data はこのリストに含まれる行を自動的に除いて返す。
