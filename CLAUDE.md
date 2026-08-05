@@ -95,15 +95,20 @@ Traversing `self.menuBar().actions()` and then calling `.menu()` on each top-lev
 
 ## Planning documents and active roadmap
 
-Six planning documents live under `Graphica_project/docs/` and describe the current multi-session development plan (plugin API extension points, GUI modernization, and a 135-item feature backlog). These are living project-management documents, not architecture reference — for architecture, keep using the sections above and `docs/Graphica_SPEC.md`.
+**Session handoff (read this first, every session)**: `Graphica_project/docs/CURRENT_STATE.md` holds the current branch, the most recently completed roadmap item(s), what's next, and the operating rules the user and Claude have agreed on for this project (autonomous agent use, when to run the full test suite, the commit/push/update cadence). It's kept short and is overwritten at each work boundary — read it before touching anything else, especially when picking up after a gap (a new chat, a crashed desktop-app session, etc.) where prior conversation context may be gone. Update it as the last step of every completed unit of work.
 
-- `docs/Graphica_MASTER_SCHEDULE.md` — the entry point. Defines 5 execution tracks (Track 0: prerequisites, Track 0': quick wins, Track 1: plugin API phases A–G, Track 2: GUI modernization phase H, Track 3: remaining core features, Track 4: plugin development) and states which track/phase is currently active.
+The user tracks the full feature list as a single numbered checklist in `Graphica_project/docs/roadmap.html` (a self-contained HTML file, also published as a Claude Artifact for convenient browsing — the URL is recorded in `CURRENT_STATE.md`). The user instructs work by number against this list (e.g. "23-25実施"). The file's own `DATA` array is the source of truth for what's done (`true`/`false` per item) even if the Artifact URL is lost — always edit this file and re-publish from it, never edit only the published Artifact.
+
+Six further planning documents live under `Graphica_project/docs/` and describe the current multi-session development plan (plugin API extension points, GUI modernization, and a 135-item feature backlog) in more narrative detail than the roadmap checklist. These are living project-management documents, not architecture reference — for architecture, keep using the sections above and `docs/Graphica_SPEC.md`.
+
+- `docs/Graphica_MASTER_SCHEDULE.md` — Defines 5 execution tracks (Track 0: prerequisites, Track 0': quick wins, Track 1: plugin API phases A–G, Track 2: GUI modernization phase H, Track 3: remaining core features, Track 4: plugin development) and states which track/phase is currently active.
+- `docs/PLUGIN_API_PROGRESS.md` — detailed completion log (ID, status, completion date, implementation notes) per track/phase, updated every time a roadmap item finishes. This is where to look for *how* something was implemented; `CURRENT_STATE.md` is where to look for *where things stand right now*.
 - `docs/Graphica_SPEC.md` — full architecture/feature handoff doc (superset of this file, written for an AI picking up the project cold).
 - `docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md` — detailed phase-by-phase steps for Track 1 (plugin API) and Track 2 (GUI).
 - `docs/Graphica_CORE_BACKLOG.md` / `docs/Graphica_PLUGIN_BACKLOG.md` — the 135 core-app and 64 plugin backlog items referenced by ID (e.g. "C-001", "P-304") from the schedule and roadmap.
 - `docs/Graphica_INTEGRATION_REPORT.md` — background/rationale for how the backlogs were split; not required reading to execute a task.
 
-**Before starting any task from this roadmap**: read `docs/Graphica_MASTER_SCHEDULE.md` first and identify the current track and phase — do not assume which one is active from memory or from a prior session.
+**Before starting any task from this roadmap**: read `docs/CURRENT_STATE.md` first, then `docs/Graphica_MASTER_SCHEDULE.md`, and identify the current track and phase — do not assume which one is active from memory or from a prior session.
 
 **Track 0 gate**: Track 1 (plugin API) must not be started until Track 0's prerequisite items are confirmed complete. If asked to work on Track 1+ without confirmation that Track 0 is done, say so instead of silently implementing Track 0 first.
 
