@@ -1,0 +1,80 @@
+{
+  "datasets": [
+    {
+      "name": "旧バージョンの測定データ",
+      "x_col_name": "x",
+      "y_col_name": "y",
+      "plot_type": "Line",
+      "color": "#2ca02c",
+      "linestyle": "-",
+      "linewidth": 1.5,
+      "marker": "o",
+      "markersize": 6.0,
+      "smoothing": false,
+      "alpha": 1.0,
+      "gradient_enabled": false,
+      "gradient_color2": "#ffffff",
+      "gradient_target": "line",
+      "waterfall_enabled": false,
+      "waterfall_offset_x": 0.0,
+      "waterfall_offset_y": 1.0,
+      "show_point_labels": false,
+      "point_label_col_name": null,
+      "x_err_col_name": null,
+      "y_err_col_name": null,
+      "masked_row_indices": [],
+      "fit_info": null,
+      "use_secondary_y": false,
+      "subplot_target": 0,
+      "dataset_id": "6320ac06c3244412bdc9a6d445e12e87",
+      "df": {
+        "columns": [
+          "x",
+          "y"
+        ],
+        "index": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "index_dtype": "int64",
+        "data": {
+          "x": [
+            1.0,
+            2.0,
+            3.0,
+            4.0
+          ],
+          "y": [
+            10.0,
+            15.0,
+            13.0,
+            22.0
+          ]
+        },
+        "dtypes": {
+          "x": "float64",
+          "y": "float64"
+        }
+      }
+    }
+  ],
+  "dataset_group_tree": {
+    "name": "",
+    "children": [
+      {
+        "dataset_id": "6320ac06c3244412bdc9a6d445e12e87"
+      }
+    ]
+  },
+  "all_plot_settings": [
+    {
+      "title": "Plot 1"
+    }
+  ],
+  "active_axis_index": 0,
+  "layout_rows": 1,
+  "layout_cols": 1,
+  "layout_mode": "grid"
+}
