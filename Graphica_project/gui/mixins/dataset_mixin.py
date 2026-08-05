@@ -27,6 +27,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, Q
 from core.analysis import calculate_curve_fit, calculate_peaks
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand
 from core.dataset import Dataset
+from core.safe_eval import safe_eval_column_formula
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
@@ -435,7 +436,7 @@ class DatasetMixin:
     def _on_batch_column_calculate(self):
         """
         「バッチ列計算...」メニューの処理。
-        選択中の複数データセットに、同じ計算式(pandas.eval)を一括で適用する。
+        選択中の複数データセットに、同じ計算式(safe_eval_column_formula)を一括で適用する。
         列計算は既存の _on_calculate_column (data_editor.py) と同様、
         Undo/Redoスタックを経由しない (df を直接書き換える) 点に注意。
         """
@@ -460,7 +461,7 @@ class DatasetMixin:
         succeeded, failed = [], []
         for dataset in selected:
             try:
-                dataset.df[output_col] = dataset.df.eval(formula, engine='python')
+                dataset.df[output_col] = safe_eval_column_formula(dataset.df, formula)
                 succeeded.append(dataset.name)
             except Exception as e:
                 failed.append(f"{dataset.name}: {e}")

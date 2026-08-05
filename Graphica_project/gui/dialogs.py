@@ -364,7 +364,7 @@ class HelpDialog(QDialog):
 class CalcHelpDialog(QDialog):
     """
     データエディタの「列計算」機能のリファレンスを表示するヘルプダイアログクラスです。
-    pandas.eval() で使用できる構文について説明します。
+    core/safe_eval.py の safe_eval_column_formula() で使用できる構文について説明します。
     """
     
     def __init__(self, parent=None):
@@ -391,7 +391,7 @@ class CalcHelpDialog(QDialog):
         help_html = r"""
         <h1>列計算機能 リファレンス</h1>
         <p>
-            <b>pandas.eval()</b> 機能を利用して、列データを使った計算を行います。
+            計算式を使って、列データをまとめて計算します。
             「出力先の列」に指定した列に、計算式の結果が一度に適用されます（Excelのオートフィルのように、全行に適用されます）。
         </p>
         
@@ -413,8 +413,7 @@ class CalcHelpDialog(QDialog):
         
         <h2>2. 一般的な数学関数 📈</h2>
         <p>
-            pandas.eval() は内部で <a href="https://numexpr.readthedocs.io/en/latest/user_guide.html#supported-functions">NumExpr ライブラリ</a> 
-            がサポートする関数を利用可能です。
+            以下の関数が利用可能です。
         </p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
@@ -762,8 +761,8 @@ class FitDialog(QDialog):
 class ColumnCalculatorDialog(QDialog):
     """
     データエディタの「列の計算」機能で使用するダイアログクラスです。
-    出力先（新規または既存）の列名と、pandas.eval() で実行する計算式を
-    ユーザーに入力させます。
+    出力先（新規または既存）の列名と、safe_eval_column_formula() で実行する
+    計算式をユーザーに入力させます。
     """
     
     def __init__(self, column_names, parent=None):

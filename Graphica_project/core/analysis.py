@@ -4,6 +4,8 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 
+from core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
+
 CURVE_FIT_MAX_ITERATIONS = 5000
 
 # --- プラグインが追加するカーブフィット関数のレジストリ ---
@@ -46,14 +48,9 @@ def get_plugin_fit_type_names():
     """プラグインが登録したフィットタイプ名の一覧を返す(UIのコンボボックス表示用)"""
     return list(_PLUGIN_FIT_FUNCTIONS.keys())
 
-# --- カスタム数式で使用可能な関数・定数 (evalに渡す安全な名前空間) ---
-# 任意コード実行を防ぐため、__builtins__ を空にした上でこれらのみを許可する。
-_SAFE_FORMULA_NAMESPACE = {
-    'exp': np.exp, 'log': np.log, 'log10': np.log10, 'sqrt': np.sqrt,
-    'sin': np.sin, 'cos': np.cos, 'tan': np.tan, 'abs': np.abs,
-    'pi': np.pi, 'e': np.e,
-}
-_RESERVED_FORMULA_NAMES = set(_SAFE_FORMULA_NAMESPACE.keys()) | {'x'}
+# --- カスタム数式で使用可能な関数・定数 ---
+# 数式の評価自体は core/safe_eval.py の AST制限評価器が行う(eval/execは不使用)。
+_RESERVED_FORMULA_NAMES = set(DEFAULT_FUNCTIONS.keys()) | {'x'}
 
 
 def _extract_formula_params(formula):
@@ -74,11 +71,10 @@ def _extract_formula_params(formula):
 def _build_custom_fit_func(formula, param_names):
     """数式文字列から、curve_fit に渡せる関数 f(x, *params) を作る。"""
     def custom_func(x, *params):
-        local_ns = dict(_SAFE_FORMULA_NAMESPACE)
-        local_ns['x'] = x
-        local_ns.update(zip(param_names, params))
+        variables = {'x': x}
+        variables.update(zip(param_names, params))
         try:
-            return eval(formula, {"__builtins__": {}}, local_ns)
+            return safe_eval_formula(formula, variables)
         except Exception as e:
             raise ValueError(f"数式の評価に失敗しました: {e}") from e
     return custom_func
