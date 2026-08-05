@@ -124,6 +124,7 @@ from ui_main_window import Ui_MainWindow
 
 # --- 自分で分割したモジュール ---
 from core.dataset import Dataset
+from core.commands import AddDatasetCommand
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.minimap_widget import MinimapWidget
 from gui.detached_canvas_window import DetachedCanvasWindow
@@ -311,6 +312,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
         self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
         self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
+        self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_worker = None  # ファイル読み込み用バックグラウンドワーカーの保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
@@ -1969,6 +1971,35 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.ui.dataset_list_widget.setCurrentItem(new_item)
         self._update_plot()
         return new_item
+
+    def _add_dataset_with_undo(self, dataset, parent_folder=None, description="データセットの追加"):
+        """
+        _add_dataset() をUndo/Redo可能にしたバージョン(項目C-1、プラグインの
+        register_processor/register_analyzerが生成したDatasetの追加専用)。
+        AddDatasetCommand参照: 既存の他の追加経路(規格化・Savitzky-Golay等)は
+        意図的にUndo非対応のまま据え置いている。
+        """
+        def do_add():
+            self._add_dataset(dataset, parent_folder, select=True)
+
+        def do_remove():
+            row = self._find_dataset_row(dataset)
+            if row != -1:
+                del self.project.datasets[row]
+            item = self._get_dataset_tree_item(dataset)
+            if item is not None:
+                parent = item.parent()
+                if parent is not None:
+                    parent.removeChild(item)
+                else:
+                    idx = self.ui.dataset_list_widget.indexOfTopLevelItem(item)
+                    if idx != -1:
+                        self.ui.dataset_list_widget.takeTopLevelItem(idx)
+            self._update_ui_state()
+            self._update_plot()
+
+        command = AddDatasetCommand(do_add, do_remove, description=description)
+        self.undo_stack.push(command)
 
     def _add_dataset_folder_item(self, name, parent_item=None):
         """dataset_list_widget にフォルダ(内部ノード)を追加する共通ヘルパー"""

@@ -396,12 +396,17 @@ class UISetupMixin:
             apply_theme(QApplication.instance(), self.canvas.dark_mode)
 
 
-            # --- 4. 「プラグイン」メニュー (プラグインが1つも登録していない場合は作らない) ---
+            # --- 4. 「プラグイン」メニュー ---
             # ★ self.plugin_api は __init__ 側で _create_menu_bar() より前に
             #   load_plugins_once() 済み。フィット関数の登録はプロセス全体で
             #   1度だけだが、メニューアクションはタブごとの menuBar() に
             #   個別に追加する必要があるため、ここで毎回追加する。
-            if self.plugin_api.menu_actions:
+            # menu_actions・データ処理(register_processor、項目C-1)・
+            # 解析(register_analyzer、項目C-2)のいずれか1件でも登録されて
+            # いなければメニュー自体を作らない(既存の挙動を踏襲)。
+            processors = self.plugin_api.get_processors()
+            analyzers = self.plugin_api.get_analyzers()
+            if self.plugin_api.menu_actions or processors or analyzers:
                 plugin_menu = menu_bar.addMenu(tr("プラグイン(&P)"))
                 self._plugin_menu = plugin_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
                 for text, callback, shortcut in self.plugin_api.menu_actions:
@@ -414,6 +419,33 @@ class UISetupMixin:
                     action.triggered.connect(
                         lambda checked=False, cb=callback: cb(self)
                     )
+
+                # データ処理(項目C-1): カテゴリごとにサブメニューへグルーピングする
+                if processors:
+                    if self.plugin_api.menu_actions:
+                        plugin_menu.addSeparator()
+                    processing_menu = plugin_menu.addMenu(tr("データ処理"))
+                    by_category = {}
+                    for proc in processors:
+                        by_category.setdefault(proc.category, []).append(proc)
+                    for category in sorted(by_category.keys()):
+                        category_menu = processing_menu.addMenu(category)
+                        for proc in sorted(by_category[category], key=lambda p: p.name):
+                            action = category_menu.addAction(proc.name)
+                            action.triggered.connect(
+                                lambda checked=False, p=proc: self._on_run_plugin_processor(p)
+                            )
+
+                # 解析(項目C-2)
+                if analyzers:
+                    if self.plugin_api.menu_actions or processors:
+                        plugin_menu.addSeparator()
+                    analysis_menu = plugin_menu.addMenu(tr("解析"))
+                    for analyzer in sorted(analyzers, key=lambda a: a.name):
+                        action = analysis_menu.addAction(analyzer.name)
+                        action.triggered.connect(
+                            lambda checked=False, a=analyzer: self._on_run_plugin_analyzer(a)
+                        )
 
             # --- 5. 「ヘルプ」メニュー ---
             help_menu = menu_bar.addMenu(tr("ヘルプ(&H)"))

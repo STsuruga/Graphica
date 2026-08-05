@@ -32,7 +32,10 @@ import os
 import sys
 
 from core.analysis import register_fit_function
-from core.plugin_types import PluginExporter, PluginHookKind, PluginImporter, PluginRegistrationError
+from core.plugin_types import (
+    PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter,
+    PluginProcessor, PluginRegistrationError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +65,8 @@ class GraphicaPluginAPI:
         self._menu_actions = []  # (text, callback, shortcut) のリスト。メニュー構築側が読む。
         self._importers = {}  # 拡張子(".jdx"等) -> list[PluginImporter](priority降順)
         self._exporters = {}  # format_name.lower() -> PluginExporter
+        self._processors = {}  # name -> PluginProcessor
+        self._analyzers = {}  # name -> PluginAnalyzer
 
         # フック登録の失敗をプラグイン単位ではなくフック単位で隔離するための
         # 記録先(フェーズA-2)。1プラグインが複数のフックを登録する場合、
@@ -217,6 +222,83 @@ class GraphicaPluginAPI:
         """登録済みエクスポーターの一覧。"""
         return list(self._exporters.values())
 
+    def register_processor(self, name, fn, *, category="general", param_schema=None):
+        """
+        「現在のデータセット」に対する非破壊のデータ処理を、プラグインメニューの
+        「データ処理」配下に追加する(項目C-1)。
+
+        fn は元のDatasetを一切変更せず、新しいDatasetを返すこと(規格化・
+        Savitzky-Golay等の既存機能と同じ非破壊パターン)。実行結果の新規
+        Datasetの追加はAddDatasetCommand経由でUndo/Redoスタックにpushされる
+        ため、プラグイン側はUndoを一切意識する必要が無い。
+
+        Args:
+            name (str): メニューに表示される名前(他のプラグインの同名処理と
+                重複不可)。
+            fn (callable): (Dataset, dict) -> Dataset。第2引数はparam_schema
+                から自動生成されたフォームで入力された値の辞書
+                (param_schema省略時は空の辞書)。
+            category (str): メニューでのグルーピングに使うカテゴリ名。
+            param_schema (list[dict] | None): パラメータ入力フォームの自動生成に
+                使うスキーマ。各要素は少なくとも "name"(パラメータ名)と
+                "type"("int"/"float"/"str"/"bool"/"choice")を持つ辞書。
+                例: [{"name": "window", "label": "窓幅", "type": "int",
+                      "default": 5, "min": 1, "max": 999}]
+                省略時はパラメータ入力無しで即実行される。
+        """
+        return self._safe_register(
+            PluginHookKind.PROCESSOR, self._do_register_processor, name, fn,
+            category=category, param_schema=param_schema, plugin_name=self._current_plugin_name,
+        )
+
+    def _do_register_processor(self, name, fn, *, category, param_schema, plugin_name):
+        if name in self._processors:
+            raise ValueError(f"データ処理 '{name}' は既に登録されています。")
+        self._processors[name] = PluginProcessor(
+            name=name, fn=fn, category=category, param_schema=list(param_schema or []),
+            plugin_name=plugin_name,
+        )
+
+    def get_processors(self):
+        """登録済みデータ処理の一覧。"""
+        return list(self._processors.values())
+
+    def get_processor_categories(self):
+        """登録済みデータ処理のカテゴリ一覧(重複無し、ソート済み)。"""
+        return sorted({p.category for p in self._processors.values()})
+
+    def register_analyzer(self, name, fn, *, output_kind="table", param_schema=None):
+        """
+        「現在のデータセット」を解析し、構造化された結果(表・注釈・派生データセット)
+        を返すフックを、プラグインメニューの「解析」配下に追加する(項目C-2)。
+
+        Args:
+            name (str): メニューに表示される名前(他のプラグインの同名解析と
+                重複不可)。
+            fn (callable): (Dataset, dict) -> AnalysisResult。第2引数は
+                register_processorと同様、param_schemaから自動生成された
+                フォームの入力値。
+            output_kind (str): 解析結果の主な性質を表す分類用の文字列
+                (現状は表示上の分類用途のみで、動作は変えない)。
+            param_schema (list[dict] | None): register_processorと同じ形式。
+        """
+        return self._safe_register(
+            PluginHookKind.ANALYZER, self._do_register_analyzer, name, fn,
+            output_kind=output_kind, param_schema=param_schema, plugin_name=self._current_plugin_name,
+        )
+
+    def _do_register_analyzer(self, name, fn, *, output_kind, param_schema, plugin_name):
+        if name in self._analyzers:
+            raise ValueError(f"解析 '{name}' は既に登録されています。")
+        self._analyzers[name] = PluginAnalyzer(
+            name=name, fn=fn, output_kind=output_kind, param_schema=list(param_schema or []),
+            plugin_name=plugin_name,
+        )
+
+    def get_analyzers(self):
+        """登録済み解析処理の一覧。"""
+        return list(self._analyzers.values())
+
     @property
     def menu_actions(self):
         return list(self._menu_actions)
@@ -363,3 +445,13 @@ def get_registered_importer_extensions():
 def get_registered_exporters():
     """登録済みエクスポーターの一覧(未読み込みなら空リスト、項目B-2)。"""
     return _singleton_api.get_exporters() if _singleton_api is not None else []
+
+
+def get_registered_processors():
+    """登録済みデータ処理の一覧(未読み込みなら空リスト、項目C-1)。"""
+    return _singleton_api.get_processors() if _singleton_api is not None else []
+
+
+def get_registered_analyzers():
+    """登録済み解析処理の一覧(未読み込みなら空リスト、項目C-2)。"""
+    return _singleton_api.get_analyzers() if _singleton_api is not None else []

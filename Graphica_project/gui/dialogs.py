@@ -1853,6 +1853,87 @@ class SavGolDialog(QDialog):
         )
 
 
+class PluginParamDialog(QDialog):
+    """
+    register_processor()/register_analyzer() の param_schema から、パラメータ
+    入力フォームを自動生成するダイアログ(項目C-1/C-2)。
+
+    param_schema は dict のリストで、各要素は少なくとも "name" と "type" を持つ:
+        {"name": str, "label": str(省略時はname), "type": "int"|"float"|"str"|"bool"|"choice",
+         "default": 任意, "min"/"max": int|float(int/floatのみ), "choices": list(choiceのみ),
+         "decimals": int(floatのみ、省略時4)}
+    """
+
+    _INT_RANGE = (-2_147_483_647, 2_147_483_647)  # Qt QSpinBoxのネイティブ範囲に合わせる
+
+    def __init__(self, title, param_schema, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self._widgets = {}  # name -> (type, widget)
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        for spec in param_schema:
+            name = spec["name"]
+            label = spec.get("label", name)
+            ptype = spec.get("type", "str")
+            default = spec.get("default")
+            widget = self._build_widget(ptype, spec, default)
+            self._widgets[name] = (ptype, widget)
+            form.addRow(label, widget)
+        layout.addLayout(form)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def _build_widget(self, ptype, spec, default):
+        if ptype == "int":
+            widget = QSpinBox()
+            widget.setRange(spec.get("min", self._INT_RANGE[0]), spec.get("max", self._INT_RANGE[1]))
+            widget.setValue(int(default) if default is not None else 0)
+            return widget
+        if ptype == "float":
+            widget = QDoubleSpinBox()
+            widget.setDecimals(spec.get("decimals", 4))
+            widget.setRange(spec.get("min", -1e12), spec.get("max", 1e12))
+            widget.setValue(float(default) if default is not None else 0.0)
+            return widget
+        if ptype == "bool":
+            widget = QCheckBox()
+            widget.setChecked(bool(default))
+            return widget
+        if ptype == "choice":
+            widget = QComboBox()
+            widget.addItems([str(c) for c in spec.get("choices", [])])
+            if default is not None:
+                widget.setCurrentText(str(default))
+            return widget
+        # "str" および未知のtypeはテキスト入力にフォールバックする
+        widget = QLineEdit()
+        if default is not None:
+            widget.setText(str(default))
+        return widget
+
+    def get_values(self):
+        """Returns: dict {パラメータ名: 入力値(型はparam_schemaのtypeに従う)}"""
+        values = {}
+        for name, (ptype, widget) in self._widgets.items():
+            if ptype in ("int", "float"):
+                values[name] = widget.value()
+            elif ptype == "bool":
+                values[name] = widget.isChecked()
+            elif ptype == "choice":
+                values[name] = widget.currentText()
+            else:
+                values[name] = widget.text()
+        return values
+
+
 #==============================================================================
 # カスタムダイアログクラス: 環境設定 (Preferences)
 #==============================================================================

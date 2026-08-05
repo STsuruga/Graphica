@@ -19,8 +19,9 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 import gui.main_window as main_window_module
 import gui.mixins.dataset_mixin as dataset_mixin_module
 from gui.main_window import PlotterApp
-from gui.dialogs import NormalizeDatasetDialog
+from gui.dialogs import NormalizeDatasetDialog, PluginParamDialog
 from core.dataset import Dataset
+from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -255,3 +256,293 @@ def test_colormap_auto_assign_no_selection_does_nothing(tmp_path, monkeypatch):
     )
     window._on_auto_assign_colors_from_colormap()
     assert calls == []  # ダイアログ自体を出さずに早期returnする
+
+
+# --- register_processor()実行配線 (項目C-1: _on_run_plugin_processor) ---
+
+def _patch_info_capture(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        dataset_mixin_module.QMessageBox, "information",
+        staticmethod(lambda *a, **k: calls.append(a) or None)
+    )
+    return calls
+
+
+def _patch_critical_capture(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        dataset_mixin_module.QMessageBox, "critical",
+        staticmethod(lambda *a, **k: calls.append(a) or None)
+    )
+    return calls
+
+
+def _patch_plugin_param_dialog(monkeypatch, values, accepted=True):
+    class FakePluginParamDialog(PluginParamDialog):
+        def __init__(self, title, param_schema, parent=None):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
+
+        def get_values(self):
+            return values
+
+    monkeypatch.setattr(dataset_mixin_module, "PluginParamDialog", FakePluginParamDialog)
+
+
+def _make_processor(fn, name="Smooth", category="general", param_schema=None, plugin_name="my_plugin"):
+    return PluginProcessor(name=name, fn=fn, category=category,
+                            param_schema=list(param_schema or []), plugin_name=plugin_name)
+
+
+def _make_analyzer(fn, name="Peaks", output_kind="table", param_schema=None, plugin_name="my_plugin"):
+    return PluginAnalyzer(name=name, fn=fn, output_kind=output_kind,
+                           param_schema=list(param_schema or []), plugin_name=plugin_name)
+
+
+def test_run_plugin_processor_no_dataset_selected_shows_info_and_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    info_calls = _patch_info_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    processor = _make_processor(lambda ds, params: ds)
+    window._on_run_plugin_processor(processor)
+
+    assert len(info_calls) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_run_plugin_processor_success_adds_dataset_with_source_plugin(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+
+    def fn(dataset, params):
+        df = dataset.df.copy()
+        return Dataset(name="processed", df=df, x_col_name='x', y_col_name='y')
+
+    processor = _make_processor(fn, plugin_name="cool_plugin")
+    window._on_run_plugin_processor(processor)
+
+    assert len(window.project.datasets) == before_count + 1
+    new_dataset = window.project.datasets[-1]
+    assert new_dataset.name == "processed"
+    assert new_dataset.source_plugin == "cool_plugin"
+
+
+def test_run_plugin_processor_success_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+
+    def fn(dataset, params):
+        return Dataset(name="processed", df=dataset.df.copy(), x_col_name='x', y_col_name='y')
+
+    processor = _make_processor(fn)
+    window._on_run_plugin_processor(processor)
+    assert len(window.project.datasets) == before_count + 1
+
+    window.undo_stack.undo()
+    assert len(window.project.datasets) == before_count
+
+
+def test_run_plugin_processor_passes_param_dialog_values_to_fn(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+
+    received = {}
+
+    def fn(dataset, params):
+        received.update(params)
+        return Dataset(name="processed", df=dataset.df.copy(), x_col_name='x', y_col_name='y')
+
+    _patch_plugin_param_dialog(monkeypatch, {"window": 7})
+    processor = _make_processor(fn, param_schema=[{"name": "window", "type": "int"}])
+    window._on_run_plugin_processor(processor)
+
+    assert received == {"window": 7}
+
+
+def test_run_plugin_processor_param_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+
+    _patch_plugin_param_dialog(monkeypatch, {"window": 7}, accepted=False)
+    processor = _make_processor(
+        lambda dataset, params: Dataset(name="processed", df=dataset.df.copy(), x_col_name='x', y_col_name='y'),
+        param_schema=[{"name": "window", "type": "int"}],
+    )
+    window._on_run_plugin_processor(processor)
+
+    assert len(window.project.datasets) == before_count
+
+
+def test_run_plugin_processor_fn_raises_shows_critical_and_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+    critical_calls = _patch_critical_capture(monkeypatch)
+
+    def fn(dataset, params):
+        raise ValueError("boom")
+
+    processor = _make_processor(fn)
+    window._on_run_plugin_processor(processor)
+
+    assert len(critical_calls) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_run_plugin_processor_fn_returns_wrong_type_shows_critical(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+    critical_calls = _patch_critical_capture(monkeypatch)
+
+    processor = _make_processor(lambda dataset, params: "not a dataset")
+    window._on_run_plugin_processor(processor)
+
+    assert len(critical_calls) == 1
+    assert len(window.project.datasets) == before_count
+
+
+# --- register_analyzer()実行配線 (項目C-2: _on_run_plugin_analyzer) ---
+
+def test_run_plugin_analyzer_no_dataset_selected_shows_info(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    info_calls = _patch_info_capture(monkeypatch)
+
+    analyzer = _make_analyzer(lambda ds, params: AnalysisResult())
+    window._on_run_plugin_analyzer(analyzer)
+
+    assert len(info_calls) == 1
+
+
+def test_run_plugin_analyzer_fn_raises_shows_critical(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    critical_calls = _patch_critical_capture(monkeypatch)
+
+    def fn(dataset, params):
+        raise RuntimeError("boom")
+
+    analyzer = _make_analyzer(fn)
+    window._on_run_plugin_analyzer(analyzer)
+
+    assert len(critical_calls) == 1
+
+
+def test_run_plugin_analyzer_fn_returns_wrong_type_shows_critical(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    critical_calls = _patch_critical_capture(monkeypatch)
+
+    analyzer = _make_analyzer(lambda dataset, params: None)
+    window._on_run_plugin_analyzer(analyzer)
+
+    assert len(critical_calls) == 1
+
+
+def test_run_plugin_analyzer_new_datasets_added_with_source_plugin_and_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+
+    def fn(dataset, params):
+        new_ds = Dataset(name="derived", df=dataset.df.copy(), x_col_name='x', y_col_name='y')
+        return AnalysisResult(new_datasets=[new_ds])
+
+    analyzer = _make_analyzer(fn, plugin_name="cool_plugin")
+    window._on_run_plugin_analyzer(analyzer)
+
+    assert len(window.project.datasets) == before_count + 1
+    new_dataset = window.project.datasets[-1]
+    assert new_dataset.name == "derived"
+    assert new_dataset.source_plugin == "cool_plugin"
+
+    window.undo_stack.undo()
+    assert len(window.project.datasets) == before_count
+
+
+def test_run_plugin_analyzer_annotations_appended_to_active_plot_settings(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    active_index = window.project.active_axis_index
+    before_annotations = list(window.project.all_plot_settings[active_index].get('annotations', []))
+
+    new_annotation = {'id': 'peak1', 'type': 'text', 'text': 'peak', 'xy': (1, 2), 'xytext': (1, 2), 'color': '#000000'}
+
+    def fn(dataset, params):
+        return AnalysisResult(annotations=[new_annotation])
+
+    analyzer = _make_analyzer(fn)
+    window._on_run_plugin_analyzer(analyzer)
+
+    assert window.project.all_plot_settings[active_index]['annotations'] == before_annotations + [new_annotation]
+
+
+def test_run_plugin_analyzer_table_shown_in_result_dialog(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    assert window.plugin_analysis_result_dialog is None
+
+    def fn(dataset, params):
+        return AnalysisResult(table="a,b\n1,2\n")
+
+    analyzer = _make_analyzer(fn, name="Peaks")
+    window._on_run_plugin_analyzer(analyzer)
+
+    assert window.plugin_analysis_result_dialog is not None
+    window.plugin_analysis_result_dialog.close()
+
+
+def test_run_plugin_analyzer_passes_param_dialog_values_to_fn(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+
+    received = {}
+
+    def fn(dataset, params):
+        received.update(params)
+        return AnalysisResult()
+
+    _patch_plugin_param_dialog(monkeypatch, {"threshold": 0.5})
+    analyzer = _make_analyzer(fn, param_schema=[{"name": "threshold", "type": "float"}])
+    window._on_run_plugin_analyzer(analyzer)
+
+    assert received == {"threshold": 0.5}
+
+
+def test_run_plugin_analyzer_param_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("orig")
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+
+    calls = []
+
+    def fn(dataset, params):
+        calls.append(1)
+        return AnalysisResult()
+
+    _patch_plugin_param_dialog(monkeypatch, {"threshold": 0.5}, accepted=False)
+    analyzer = _make_analyzer(fn, param_schema=[{"name": "threshold", "type": "float"}])
+    window._on_run_plugin_analyzer(analyzer)
+
+    assert calls == []
+    assert len(window.project.datasets) == before_count

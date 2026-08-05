@@ -10,6 +10,7 @@ from core.commands import (
     AddColumnCommand, DeleteColumnCommand,
     SetDatasetPropertiesCommand, ReorderDatasetsCommand,
     SetAnnotationsCommand, SetMaskedRowsCommand, RenameColumnCommand,
+    AddDatasetCommand,
 )
 
 
@@ -211,3 +212,49 @@ def test_set_masked_rows_command_redo_undo():
     cmd.undo()
     assert ds.masked_row_indices == []
     np.testing.assert_array_equal(ds.x_data, [1.0, 2.0, 3.0])
+
+
+def test_add_dataset_command_redo_calls_add_callback():
+    calls = []
+    cmd = AddDatasetCommand(
+        add_callback=lambda: calls.append("add"),
+        remove_callback=lambda: calls.append("remove"),
+    )
+    cmd.redo()
+    assert calls == ["add"]
+
+
+def test_add_dataset_command_undo_calls_remove_callback():
+    calls = []
+    cmd = AddDatasetCommand(
+        add_callback=lambda: calls.append("add"),
+        remove_callback=lambda: calls.append("remove"),
+    )
+    cmd.redo()
+    cmd.undo()
+    assert calls == ["add", "remove"]
+
+
+def test_add_dataset_command_redo_undo_redo_round_trip():
+    calls = []
+    cmd = AddDatasetCommand(
+        add_callback=lambda: calls.append("add"),
+        remove_callback=lambda: calls.append("remove"),
+    )
+    cmd.redo()
+    cmd.undo()
+    cmd.redo()
+    assert calls == ["add", "remove", "add"]
+
+
+def test_add_dataset_command_default_description():
+    cmd = AddDatasetCommand(add_callback=lambda: None, remove_callback=lambda: None)
+    assert cmd.text() == "データセットの追加"
+
+
+def test_add_dataset_command_custom_description():
+    cmd = AddDatasetCommand(
+        add_callback=lambda: None, remove_callback=lambda: None,
+        description="データ処理: Smooth",
+    )
+    assert cmd.text() == "データ処理: Smooth"

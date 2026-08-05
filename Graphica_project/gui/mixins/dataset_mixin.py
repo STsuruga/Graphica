@@ -25,14 +25,15 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu
 
 from core.analysis import calculate_curve_fit, calculate_peaks, calculate_savgol
-from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand
+from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand
 from core.dataset import Dataset
 from core.plugin_api import get_registered_importer_extensions
+from core.plugin_types import AnalysisResult, PluginExecutionError
 from core.safe_eval import safe_eval_column_formula
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
-                         NormalizeDatasetDialog, SavGolDialog)
+                         NormalizeDatasetDialog, SavGolDialog, PluginParamDialog)
 from gui.dataset_style_icon import make_dataset_style_icon
 from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 
@@ -486,6 +487,104 @@ class DatasetMixin:
         new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    def _on_run_plugin_processor(self, processor):
+        """
+        プラグインの「データ処理」メニュー項目が選択されたときの処理(項目C-1)。
+        カレントの1つのデータセットに対して processor.fn を実行し、返された
+        新しいDatasetを非破壊に追加する。既存の規格化/Savitzky-Golayとは異なり、
+        _add_dataset_with_undo() 経由でAddDatasetCommandをpushするため、
+        追加した直後にUndoで取り消せる(プラグイン側はUndoを一切意識しない)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            QMessageBox.information(self, processor.name, "データセットを選択してください。")
+            return
+
+        params = {}
+        if processor.param_schema:
+            dialog = PluginParamDialog(processor.name, processor.param_schema, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            params = dialog.get_values()
+
+        try:
+            new_dataset = processor.fn(dataset, params)
+            if not isinstance(new_dataset, Dataset):
+                raise TypeError(f"Datasetを返しませんでした(型: {type(new_dataset).__name__})。")
+        except Exception as e:
+            QMessageBox.critical(
+                self, "データ処理エラー",
+                str(PluginExecutionError(processor.plugin_name, f"「{processor.name}」の実行に失敗しました: {e}"))
+            )
+            return
+
+        # 生成元プラグインをメタデータとして残す(項目C-3)
+        new_dataset.source_plugin = processor.plugin_name
+        self._add_dataset_with_undo(
+            new_dataset, self._get_target_folder_for_new_dataset(),
+            description=f"データ処理: {processor.name}"
+        )
+        self.statusBar().showMessage(f"「{new_dataset.name}」を追加しました", 3000)
+
+    def _on_run_plugin_analyzer(self, analyzer):
+        """
+        プラグインの「解析」メニュー項目が選択されたときの処理(項目C-2)。
+        analyzer.fn が返す AnalysisResult (表・注釈・派生データセット) を、
+        それぞれ既存の表示/Undo経路にそのまま反映する
+        (7章-7準拠: 結果は文字列ではなく構造化データとして保持する)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            QMessageBox.information(self, analyzer.name, "データセットを選択してください。")
+            return
+
+        params = {}
+        if analyzer.param_schema:
+            dialog = PluginParamDialog(analyzer.name, analyzer.param_schema, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            params = dialog.get_values()
+
+        try:
+            result = analyzer.fn(dataset, params)
+            if not isinstance(result, AnalysisResult):
+                raise TypeError(f"AnalysisResultを返しませんでした(型: {type(result).__name__})。")
+        except Exception as e:
+            QMessageBox.critical(
+                self, "解析エラー",
+                str(PluginExecutionError(analyzer.plugin_name, f"「{analyzer.name}」の実行に失敗しました: {e}"))
+            )
+            return
+
+        if result.new_datasets:
+            target_folder = self._get_target_folder_for_new_dataset()
+            for new_dataset in result.new_datasets:
+                new_dataset.source_plugin = analyzer.plugin_name  # 項目C-3
+                self._add_dataset_with_undo(
+                    new_dataset, target_folder, description=f"解析による追加: {analyzer.name}"
+                )
+
+        if result.annotations:
+            active_index = self.project.active_axis_index
+            if active_index < len(self.project.all_plot_settings):
+                old_annotations = list(self.project.all_plot_settings[active_index].get('annotations', []))
+                new_annotations = old_annotations + list(result.annotations)
+                command = SetAnnotationsCommand(
+                    self.project, active_index, old_annotations, new_annotations,
+                    self._update_plot_appearance, description=f"解析による注釈追加: {analyzer.name}"
+                )
+                self.undo_stack.push(command)
+
+        if result.table is not None:
+            if self.plugin_analysis_result_dialog is not None:
+                self.plugin_analysis_result_dialog.close()
+            self.plugin_analysis_result_dialog = ResultDialog(
+                analyzer.name, f"[{analyzer.name}] の解析結果", self, csv_data=result.table
+            )
+            self.plugin_analysis_result_dialog.show()
+
+        self.statusBar().showMessage(f"「{analyzer.name}」を実行しました", 3000)
 
     def _on_batch_column_calculate(self):
         """

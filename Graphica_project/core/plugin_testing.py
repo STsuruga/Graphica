@@ -28,6 +28,8 @@ class FakeGraphicaPluginAPI:
         self.menu_actions = []   # (text, callback, shortcut) のリスト。実物と同じ形。
         self.importers = {}      # 拡張子(".jdx"等) -> {"loader":..., "name":..., "priority":...}
         self.exporters = {}      # format_name.lower() -> {"extension":..., "writer":..., "name":...}
+        self.processors = {}     # name -> {"fn":..., "category":..., "param_schema":...}
+        self.analyzers = {}      # name -> {"fn":..., "output_kind":..., "param_schema":...}
 
     def register_fit_function(self, name, func, param_names, p0=None):
         self.fit_functions[name] = {"func": func, "param_names": param_names, "p0": p0}
@@ -44,3 +46,9 @@ class FakeGraphicaPluginAPI:
 
     def register_exporter(self, format_name, extension, writer, *, name=None):
         self.exporters[format_name.lower()] = {"extension": extension, "writer": writer, "name": name}
+
+    def register_processor(self, name, fn, *, category="general", param_schema=None):
+        self.processors[name] = {"fn": fn, "category": category, "param_schema": list(param_schema or [])}
+
+    def register_analyzer(self, name, fn, *, output_kind="table", param_schema=None):
+        self.analyzers[name] = {"fn": fn, "output_kind": output_kind, "param_schema": list(param_schema or [])}

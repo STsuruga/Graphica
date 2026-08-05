@@ -157,6 +157,11 @@ class Dataset:
     # default=None とすることで、初期化時に指定されなければ None が入ります
     fit_info: str = field(default=None) # 曲線フィットの結果文字列 (例: "y = 1.2x + 0.5")
 
+    # プラグインのregister_processor/register_analyzer(項目C-1/C-2)が生成した
+    # Datasetについて、生成元プラグイン名を残す(項目C-3、provenanceの土台)。
+    # プラグイン以外の通常の操作で作られたDatasetはNoneのまま。
+    source_plugin: str = field(default=None)
+
     # default=False とすることで、初期値は False になります
     use_secondary_y: bool = field(default=False) # 第2Y軸（右側）を使うかどうか
     subplot_target: int = field(default=0)     # 描画先のサブプロット番号 (0始まり)

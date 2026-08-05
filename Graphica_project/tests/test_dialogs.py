@@ -4,7 +4,7 @@
 ダイアログ自体のexec()(モーダル表示)は呼ばず、値の設定・取得ロジックのみを検証する。
 """
 from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
-                         FitDialog, SavGolDialog)
+                         FitDialog, SavGolDialog, PluginParamDialog)
 
 
 # --- NewDatasetDialog (項目63: 空のテーブルから新規データセットを作成) ---
@@ -241,3 +241,74 @@ def test_batch_export_dialog_extra_format_selectable_and_lowercased_in_options()
     dlg = BatchExportDialog(subplot_count=2, extra_formats=["MyFormat"])
     dlg.format_combo.setCurrentText("MyFormat")
     assert dlg.get_common_options()["format"] == "myformat"
+
+
+# --- PluginParamDialog (項目C-1/C-2: register_processor/register_analyzerの
+#     param_schemaからの自動フォーム生成) ---
+
+def test_plugin_param_dialog_int_widget_default_and_range():
+    schema = [{"name": "window", "label": "窓幅", "type": "int", "default": 5, "min": 1, "max": 99}]
+    dlg = PluginParamDialog("Smooth", schema)
+    assert dlg.get_values() == {"window": 5}
+
+
+def test_plugin_param_dialog_int_widget_defaults_to_zero_when_no_default():
+    schema = [{"name": "window", "type": "int"}]
+    dlg = PluginParamDialog("Smooth", schema)
+    assert dlg.get_values() == {"window": 0}
+
+
+def test_plugin_param_dialog_float_widget_default_and_decimals():
+    schema = [{"name": "threshold", "type": "float", "default": 0.25, "decimals": 2}]
+    dlg = PluginParamDialog("Peaks", schema)
+    assert dlg.get_values() == {"threshold": 0.25}
+
+
+def test_plugin_param_dialog_bool_widget_default():
+    schema = [{"name": "invert", "type": "bool", "default": True}]
+    dlg = PluginParamDialog("Smooth", schema)
+    assert dlg.get_values() == {"invert": True}
+
+
+def test_plugin_param_dialog_bool_widget_defaults_to_false():
+    schema = [{"name": "invert", "type": "bool"}]
+    dlg = PluginParamDialog("Smooth", schema)
+    assert dlg.get_values() == {"invert": False}
+
+
+def test_plugin_param_dialog_choice_widget_default_selection():
+    schema = [{"name": "mode", "type": "choice", "choices": ["A", "B", "C"], "default": "B"}]
+    dlg = PluginParamDialog("Smooth", schema)
+    assert dlg.get_values() == {"mode": "B"}
+
+
+def test_plugin_param_dialog_str_widget_default_and_unknown_type_fallback():
+    schema = [
+        {"name": "label", "type": "str", "default": "hello"},
+        {"name": "weird", "type": "unknown_type", "default": "fallback"},
+    ]
+    dlg = PluginParamDialog("Smooth", schema)
+    assert dlg.get_values() == {"label": "hello", "weird": "fallback"}
+
+
+def test_plugin_param_dialog_get_values_reflects_edited_widgets():
+    schema = [
+        {"name": "window", "type": "int", "default": 5},
+        {"name": "mode", "type": "choice", "choices": ["A", "B"], "default": "A"},
+    ]
+    dlg = PluginParamDialog("Smooth", schema)
+    window_widget = dlg._widgets["window"][1]
+    mode_widget = dlg._widgets["mode"][1]
+    window_widget.setValue(42)
+    mode_widget.setCurrentText("B")
+    assert dlg.get_values() == {"window": 42, "mode": "B"}
+
+
+def test_plugin_param_dialog_empty_schema_returns_empty_values():
+    dlg = PluginParamDialog("NoParams", [])
+    assert dlg.get_values() == {}
+
+
+def test_plugin_param_dialog_sets_window_title():
+    dlg = PluginParamDialog("My Processor", [])
+    assert dlg.windowTitle() == "My Processor"

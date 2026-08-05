@@ -62,7 +62,17 @@
 
 **フェーズB完了条件**: 上記3項目が✅。**達成(2026-08-05)**。フェーズC(データ処理フック)に着手可能。
 
-### フェーズC〜G
+### フェーズC: データ処理・解析フック
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| C-1 | `register_processor()` | ✅ 完了 | 2026-08-05 | `GraphicaPluginAPI.register_processor(name, fn, *, category="general", param_schema=None)`。`fn`は`(Dataset, dict) -> Dataset`で、元のDatasetを一切変更しない非破壊パターン(規格化・Savitzky-Golayと同じ)。プラグインメニューに「データ処理」サブメニューを追加し、`category`ごとにさらにサブメニューでグルーピング。`param_schema`(型ヒント方式ではなく明示的なdictリスト方式を採用、理由: ラベル・min/max・choices・デフォルト値をプラグイン作者が明示制御できる)から`PluginParamDialog`(`gui/dialogs.py`)が入力フォームを自動生成する |
+| C-2 | `register_analyzer()` | ✅ 完了 | 2026-08-05 | `GraphicaPluginAPI.register_analyzer(name, fn, *, output_kind="table", param_schema=None)`。`fn`は`(Dataset, dict) -> AnalysisResult`(`core/plugin_types.py`に新設、`table`/`annotations`/`new_datasets`の3種の結果をそれぞれ独立に保持可能な構造化データ)。プラグインメニューに「解析」サブメニューを追加。結果の`table`は既存`ResultDialog`、`annotations`は既存`SetAnnotationsCommand`、`new_datasets`はC-3のUndo経路にそのまま乗せる形で統合し、新しい表示UIは作らない |
+| C-3 | プラグイン処理結果のプロジェクト保存統合 | ✅ 完了 | 2026-08-05 | `Dataset.source_plugin`フィールド追加(生成元プラグイン名、通常操作で作られたDatasetは`None`のまま)。JSON/pickle双方とも`dataclasses.fields()`による既存の汎用シリアライズ経路にそのまま乗るため、追加のシリアライズコード不要で往復する(欠落時は`None`にフォールバック、後方互換)。C-1/C-2が生成した新規Datasetの追加は、既存の「データセット追加はUndo非対応」という設計境界を維持したまま、新設の`AddDatasetCommand`(`core/commands.py`)+`_add_dataset_with_undo()`(`gui/main_window.py`)経由でのみUndo/Redo可能にした(既存の規格化・Savitzky-Golay等は意図的に対象外のまま) |
+
+**フェーズC完了条件**: 上記3項目が✅。**達成(2026-08-05)**。フェーズD(GUI拡張フック)に着手可能。
+
+### フェーズD〜G
 
 未着手。詳細は `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
 
@@ -80,3 +90,4 @@
 - 2026-08-05: トラック0'(クイックウィン9項目)完了を反映。
 - 2026-08-05: トラック1 フェーズA(A-1〜A-4)完了を反映。
 - 2026-08-05: トラック1 フェーズB(B-1〜B-3)完了を反映。
+- 2026-08-05: トラック1 フェーズC(C-1〜C-3)完了を反映。

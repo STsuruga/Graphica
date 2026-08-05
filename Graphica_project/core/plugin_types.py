@@ -50,11 +50,44 @@ class PluginExporter:
     name: str                 # 診断表示用の名前(通常は登録元プラグイン名)
 
 
+@dataclass
+class PluginProcessor:
+    """register_processor() (項目C-1) で登録された1件のデータ処理。"""
+    name: str                 # メニューに表示される名前
+    fn: object                 # Callable[[Dataset, dict], Dataset] (非破壊、新規Datasetを返す)
+    category: str              # メニューでのグルーピングに使う
+    param_schema: list         # list[dict]。パラメータ入力フォームの自動生成に使う
+                                # (例: [{"name": "window", "label": "窓幅", "type": "int",
+                                #        "default": 5, "min": 1, "max": 999}])
+    plugin_name: str           # 診断表示用の名前(通常は登録元プラグイン名)
+
+
+@dataclass
+class AnalysisResult:
+    """
+    register_analyzer() (項目C-2) のfnが返す、構造化された解析結果。
+    7章-7の方針(結果は文字列ではなく構造化データで保持する)に準拠する。
+    """
+    table: object = None            # pandas.DataFrame | None。ResultDialogでCSV出力可能に表示する
+    annotations: list | None = None  # list[dict] | None。現在の軸にSetAnnotationsCommand経由で追加する
+    new_datasets: list | None = None  # list[Dataset] | None。AddDatasetCommand経由で非破壊に追加する
+
+
+@dataclass
+class PluginAnalyzer:
+    """register_analyzer() (項目C-2) で登録された1件の解析処理。"""
+    name: str                  # メニューに表示される名前
+    fn: object                  # Callable[[Dataset, dict], AnalysisResult]
+    output_kind: str            # "table" 等、解析結果の主な性質を表す(現状は表示上の分類用途)
+    param_schema: list          # list[dict]。PluginProcessorのparam_schemaと同じ形式
+    plugin_name: str            # 診断表示用の名前(通常は登録元プラグイン名)
+
+
 class PluginExecutionError(Exception):
     """
-    プラグイン提供のimporter/exporterを実際に実行した際の失敗を表す
-    (登録時ではなく実行時、項目B-3)。文字列化すると必ずプラグイン名を含むため、
-    既存のエラーダイアログ(QMessageBox.critical/warning)にそのまま渡せば
+    プラグイン提供のフック(importer/exporter/processor/analyzer)を実際に実行した
+    際の失敗を表す(登録時ではなく実行時、項目B-3)。文字列化すると必ずプラグイン名を
+    含むため、既存のエラーダイアログ(QMessageBox.critical/warning)にそのまま渡せば
     「どのプラグインが失敗したか」が自動的に表示される。
     """
     def __init__(self, plugin_name, message):
