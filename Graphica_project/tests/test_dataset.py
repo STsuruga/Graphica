@@ -416,3 +416,92 @@ def test_deepcopy_produces_independent_dataframe():
     # 複製直後は元データセットと同じ dataset_id を持つ (呼び出し側が
     # 意図的に新しいIDへ差し替えない限り一意性は保証されない)。
     assert clone.dataset_id == ds.dataset_id
+
+
+# ---------------------------------------------------------------------------
+# visible_df キャッシュ (C-002): 1描画あたり最大4回のフィルタ処理を1回に
+# ---------------------------------------------------------------------------
+
+def _masked_dataset():
+    df = pd.DataFrame({'x': [1.0, 2.0, 3.0, 4.0], 'y': [10.0, 20.0, 30.0, 40.0]})
+    ds = Dataset(name="D1", df=df, x_col_name='x', y_col_name='y')
+    ds.masked_row_indices = [1]
+    return ds
+
+
+def test_visible_df_is_cached_across_repeated_access():
+    """マスクあり(=フィルタ処理が実際に走る)の場合でも、何も変更していなければ
+    2回目以降のvisible_dfアクセスは同一オブジェクトを返す(再フィルタしない)。"""
+    ds = _masked_dataset()
+    first = ds.visible_df
+    second = ds.visible_df
+    assert first is second
+
+
+def test_visible_df_cache_invalidated_by_masked_row_indices_reassignment():
+    ds = _masked_dataset()
+    first = ds.visible_df
+    assert len(first) == 3
+    ds.masked_row_indices = [1, 2]
+    second = ds.visible_df
+    assert second is not first
+    assert len(second) == 2
+
+
+def test_visible_df_cache_invalidated_by_df_reassignment():
+    ds = _masked_dataset()  # masked_row_indices=[1]
+    _ = ds.visible_df  # キャッシュを作らせる
+    new_df = pd.DataFrame({'x': [5.0, 6.0, 7.0], 'y': [50.0, 60.0, 70.0]})
+    ds.df = new_df
+    # マスク自体は引き継がれる(index=1が引き続き除外される)ため、
+    # 新しいdfに対してマスクが正しく再適用されていることを確認する
+    # (=古いdfに対する結果がキャッシュされたまま使い回されていないこと)。
+    np.testing.assert_array_equal(ds.x_data, [5.0, 7.0])
+
+
+def test_visible_df_cache_invalidated_by_set_cell():
+    """set_cell はdfをインプレースで書き換えるため、Dataset自身が
+    invalidate_visible_df_cache() を呼んでキャッシュを無効化する。"""
+    ds = make_dataset()
+    _ = ds.visible_df  # キャッシュを作らせる
+    ds.set_cell(0, 'y', 999.0)
+    assert ds.visible_df.loc[0, 'y'] == 999.0
+
+
+def test_visible_df_cache_invalidated_by_add_column():
+    ds = make_dataset()
+    _ = ds.visible_df
+    ds.add_column('new_col')
+    assert 'new_col' in ds.visible_df.columns
+
+
+def test_visible_df_cache_invalidated_by_external_in_place_mutation_after_explicit_call():
+    """
+    dataset.df[col] = ... のような外部からのインプレース変更は自動検知できない
+    ため、呼び出し側が invalidate_visible_df_cache() を明示的に呼ぶ必要がある
+    (gui/data_editor.py, gui/mixins/dataset_mixin.py の列計算機能が実際に行っている)。
+    """
+    ds = make_dataset()
+    _ = ds.visible_df
+    ds.df['z'] = [100.0, 200.0, 300.0]
+    ds.invalidate_visible_df_cache()
+    assert 'z' in ds.visible_df.columns
+    np.testing.assert_array_equal(ds.visible_df['z'].values, [100.0, 200.0, 300.0])
+
+
+def test_visible_df_cache_not_included_in_pickle_state():
+    ds = _masked_dataset()
+    _ = ds.visible_df  # キャッシュを作らせる
+    state = ds.__getstate__()
+    assert '_visible_df_cache' not in state
+    assert '_visible_df_cache_version' not in state
+    assert '_version' not in state
+
+
+def test_visible_df_cache_survives_pickle_roundtrip_correctly():
+    ds = _masked_dataset()
+    _ = ds.visible_df
+    restored = pickle.loads(pickle.dumps(ds))
+    assert len(restored.visible_df) == 3
+    restored.masked_row_indices = [1, 2]
+    assert len(restored.visible_df) == 2

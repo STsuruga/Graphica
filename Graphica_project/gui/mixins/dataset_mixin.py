@@ -462,6 +462,7 @@ class DatasetMixin:
         for dataset in selected:
             try:
                 dataset.df[output_col] = safe_eval_column_formula(dataset.df, formula)
+                dataset.invalidate_visible_df_cache()
                 succeeded.append(dataset.name)
             except Exception as e:
                 failed.append(f"{dataset.name}: {e}")

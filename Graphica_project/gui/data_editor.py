@@ -555,6 +555,7 @@ class DataEditorDialog(QDialog):
                 # .dataset.df[output_col] = ... と代入することで、
                 # 既存列の上書き、または新規列の作成が自動的に行われます。
                 self.dataset.df[output_col] = safe_eval_column_formula(self.dataset.df, formula)
+                self.dataset.invalidate_visible_df_cache()
 
                 logger.info("計算完了: %s = %s", output_col, formula)
                 
@@ -624,6 +625,7 @@ class DataEditorDialog(QDialog):
 
             self.dataset.df[mean_col_name] = mean
             self.dataset.df[error_col_name] = error
+            self.dataset.invalidate_visible_df_cache()
 
             logger.info(
                 "誤差自動計算完了: %s, %s (元列: %s, 統計量: %s)",
