@@ -17,6 +17,7 @@ import traceback
 from PySide6.QtWidgets import QMessageBox
 
 from core.version import APP_NAME, LOG_FILE_NAME
+from core.app_paths import get_app_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
 
     logger.critical("未処理の例外が発生しました。", exc_info=(exc_type, exc_value, exc_traceback))
 
-    log_path = os.path.abspath(LOG_FILE_NAME)
+    log_path = os.path.join(get_app_data_dir(), LOG_FILE_NAME)
     detail = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
 
     try:

@@ -19,6 +19,7 @@ from gui.main_app_window import MainAppWindow
 from gui.crash_handler import install_crash_handler
 from gui.theme import disable_scroll_value_change
 from core.version import LOG_FILE_NAME
+from core.app_paths import get_app_data_dir
 
 # アプリ全体のUIフォント。既定の "MS Shell Dlg 2"(素朴な見た目)ではなく、
 # Windows 10/11 の設定アプリ等でも使われている「Yu Gothic UI」を明示的に使う。
@@ -28,8 +29,13 @@ APP_FONT_FAMILIES = ["Yu Gothic UI", "Meiryo UI", "Segoe UI"]
 APP_FONT_POINT_SIZE = 9.5
 
 def _setup_logging():
-    """アプリ全体のログ設定。.exe化するとコンソールが見えないため、ファイルにも出力する。"""
-    log_path = os.path.join(os.path.abspath("."), LOG_FILE_NAME)
+    """
+    アプリ全体のログ設定。.exe化するとコンソールが見えないため、ファイルにも出力する。
+    出力先は %LOCALAPPDATA%\\Graphica (get_app_data_dir()) に固定する。
+    カレントディレクトリ相対だと、Program Files 配下にインストールされた
+    exeでは書き込み権限エラーになりうるため。
+    """
+    log_path = os.path.join(get_app_data_dir(), LOG_FILE_NAME)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
