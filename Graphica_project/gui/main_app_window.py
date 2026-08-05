@@ -22,6 +22,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow, QTabWidget, QToolButton, QMessageBox
 
 from gui.main_window import PlotterApp, resource_path
+from gui.app_context import AppContext
 from gui.icon_utils import icon as svg_icon
 from core.version import APP_NAME, __version__
 
@@ -43,6 +44,11 @@ class MainAppWindow(QMainWindow):
         # ★ ウィンドウ全体のサイズ・位置(項目56)は、複数タブ化に伴い
         # このクラスが最上位ウィンドウの責務を持つようになったため、ここで管理する。
         self._settings = QSettings("Graphica", "Graphica")
+
+        # タブをまたいで共有されるグローバル状態(QSettings/最近使ったファイル/
+        # プラグインレジストリ)の集約点(項目C-006)。プロセスにつき1つ、
+        # ここで生成して以後使い回す。
+        self.app_context = AppContext(self)
 
         self._next_tab_id = 1
 
