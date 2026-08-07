@@ -114,6 +114,7 @@ from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
 from core.plugin_api import load_plugins_once, get_registered_importer_extensions
+from core.app_paths import get_user_plugins_dir
 
 # --- Matplotlib ---
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
@@ -201,6 +202,35 @@ def resource_path(relative_path):
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     return os.path.join(base_path, relative_path)
+
+
+def is_frozen():
+    """PyInstallerでexe化されたビルドとして実行されているかどうか。"""
+    return hasattr(sys, '_MEIPASS')
+
+
+def plugin_search_paths():
+    """
+    プラグインの探索対象ディレクトリを優先順位つきで返す(項目E-1)。
+    - ソース実行時のみ: resource_path("plugins")(開発者向け、従来通り)
+    - 常に: get_user_plugins_dir()(%LOCALAPPDATA%\\Graphica\\plugins。
+      exe配布環境でもユーザーが書き込める場所)
+    """
+    paths = []
+    if not is_frozen():
+        paths.append(resource_path("plugins"))
+    paths.append(get_user_plugins_dir())
+    return paths
+
+
+# register_panel() (項目D-1) の area 文字列 -> Qt.DockWidgetArea のマッピング。
+# coreはPySide6に依存しないため、この変換はGUI側(ここ)で行う。
+_PLUGIN_PANEL_AREA_MAP = {
+    "right": Qt.DockWidgetArea.RightDockWidgetArea,
+    "left": Qt.DockWidgetArea.LeftDockWidgetArea,
+    "top": Qt.DockWidgetArea.TopDockWidgetArea,
+    "bottom": Qt.DockWidgetArea.BottomDockWidgetArea,
+}
 
 #==============================================================================
 # メインアプリケーションクラス
@@ -1230,7 +1260,38 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # プロセス全体で1度だけ行う(load_plugins_once がキャッシュする)。
         # メニューへのアクション追加自体は、タブごとに自分の menuBar() へ
         # 個別に行う必要があるため、_create_menu_bar() 側で行う。
-        self.plugin_api = load_plugins_once(resource_path("plugins"))
+        self.plugin_api = load_plugins_once(plugin_search_paths())
+
+        # プラグイン製パネル (項目D-1、register_panel): タブ (このPlotterApp
+        # インスタンス) ごとに widget_factory を個別に呼び出し、専用の
+        # QDockWidget として追加する。表示メニューへのトグル項目の追加は
+        # _create_menu_bar() 側 (プラグインメニュー) で行うため、ドック自体は
+        # それより前のここで作る必要がある。1つのパネルの構築に失敗しても
+        # 他のパネル・タブ自体の起動は継続する(プラグイン機構全体の方針を踏襲)。
+        self._plugin_panel_docks = {}
+        for panel in self.plugin_api.get_panels():
+            try:
+                widget = panel.widget_factory(self.project, self.undo_stack)
+                if not isinstance(widget, QWidget):
+                    raise TypeError(f"QWidgetを返しませんでした(型: {type(widget).__name__})。")
+            except Exception as e:
+                logger.warning(
+                    "[plugin:%s] パネル '%s' の構築に失敗しました: %s",
+                    panel.plugin_name, panel.name, e,
+                )
+                continue
+            dock = QDockWidget(panel.name, self)
+            dock.setObjectName(f"PluginPanel_{panel.name}")
+            dock.setWidget(widget)
+            self.addDockWidget(_PLUGIN_PANEL_AREA_MAP.get(panel.area, Qt.DockWidgetArea.RightDockWidgetArea), dock)
+            dock.hide()  # 既定は非表示。表示状態はQSettingsのドックレイアウト復元に任せる
+            self._plugin_panel_docks[panel.name] = dock
+
+        # プラグイン製プロット種別 (項目D-2、register_plot_type) を、既存の
+        # 5種類 (Area/Barと同じく実行時追加) に続けてコンボボックスへ追加する。
+        # 実際の描画分岐は gui/canvas.py の _draw_data 側でフォールバックとして処理する。
+        for plot_type in self.plugin_api.get_plot_types():
+            self.ui.plot_type_combo.addItem(plot_type.type_name)
 
         # UIコントロールのシグナル接続を _connect_signals ヘルパーメソッドで実行
         self._connect_signals()

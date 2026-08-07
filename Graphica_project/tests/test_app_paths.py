@@ -2,7 +2,7 @@
 """core/app_paths.py (C-009: ログ出力先を%LOCALAPPDATA%に統一) のテスト。"""
 import os
 
-from core.app_paths import get_app_data_dir
+from core.app_paths import get_app_data_dir, get_user_plugins_dir
 from core.version import APP_NAME
 
 
@@ -42,3 +42,25 @@ def test_get_app_data_dir_falls_back_when_localappdata_unset(monkeypatch, tmp_pa
     result = get_app_data_dir()
     assert result == os.path.join(str(fake_home), '.local', 'share', APP_NAME)
     assert os.path.isdir(result)
+
+
+# --- get_user_plugins_dir() (項目E-1: exe配布環境でのプラグイン探索パス) ---
+
+def test_get_user_plugins_dir_ends_with_plugins_under_app_data_dir(monkeypatch, tmp_path):
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
+    result = get_user_plugins_dir()
+    assert result == os.path.join(str(tmp_path), APP_NAME, 'plugins')
+
+
+def test_get_user_plugins_dir_creates_directory_if_missing(monkeypatch, tmp_path):
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
+    result = get_user_plugins_dir()
+    assert os.path.isdir(result)
+
+
+def test_get_user_plugins_dir_is_stable_across_repeated_calls(monkeypatch, tmp_path):
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path))
+    first = get_user_plugins_dir()
+    second = get_user_plugins_dir()
+    assert first == second
+    assert os.path.isdir(second)

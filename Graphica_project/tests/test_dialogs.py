@@ -3,8 +3,12 @@
 
 ダイアログ自体のexec()(モーダル表示)は呼ばず、値の設定・取得ロジックのみを検証する。
 """
+from PySide6.QtWidgets import QFileDialog, QMessageBox
+
 from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
                          FitDialog, SavGolDialog, PluginParamDialog)
+import core.plugin_install as plugin_install_module
+from core.plugin_install import PluginInstallError
 
 
 # --- NewDatasetDialog (項目63: 空のテーブルから新規データセットを作成) ---
@@ -183,6 +187,69 @@ def test_preferences_dialog_clear_autosave_dir_resets_to_empty():
 
     assert dlg.get_settings()[3] == ""
     assert dlg.autosave_dir_edit.text() == ""
+
+
+# --- プラグインのzipインストール導線(項目E-2) ---
+
+def _patch_message_box_capture(monkeypatch):
+    """QMessageBox.information / .critical の呼び出しを記録するdictを返す"""
+    calls = {"information": [], "critical": []}
+
+    def fake_information(*args, **kwargs):
+        calls["information"].append(args)
+
+    def fake_critical(*args, **kwargs):
+        calls["critical"].append(args)
+
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(fake_information))
+    monkeypatch.setattr(QMessageBox, "critical", staticmethod(fake_critical))
+    return calls
+
+
+def test_install_plugin_cancelled_file_dialog_shows_nothing(monkeypatch):
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("", "")))
+    calls = _patch_message_box_capture(monkeypatch)
+
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
+    dlg._on_install_plugin()
+
+    assert calls["information"] == []
+    assert calls["critical"] == []
+
+
+def test_install_plugin_success_shows_next_launch_wording(monkeypatch):
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("/tmp/my_plugin.zip", ""))
+    )
+    monkeypatch.setattr(plugin_install_module, "install_plugin_zip", lambda zip_path: "my_plugin")
+    calls = _patch_message_box_capture(monkeypatch)
+
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
+    dlg._on_install_plugin()
+
+    assert calls["critical"] == []
+    assert len(calls["information"]) == 1
+    message = calls["information"][0][2]
+    assert "次回起動時" in message
+
+
+def test_install_plugin_failure_shows_critical_message(monkeypatch):
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("/tmp/bad_plugin.zip", ""))
+    )
+
+    def fake_install(zip_path):
+        raise PluginInstallError("これはテスト用のエラーメッセージです")
+
+    monkeypatch.setattr(plugin_install_module, "install_plugin_zip", fake_install)
+    calls = _patch_message_box_capture(monkeypatch)
+
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
+    dlg._on_install_plugin()
+
+    assert calls["information"] == []
+    assert len(calls["critical"]) == 1
+    assert "これはテスト用のエラーメッセージです" in calls["critical"][0][2]
 
 
 # --- 背景透過オプション(項目108) ---

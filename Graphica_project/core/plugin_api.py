@@ -22,8 +22,18 @@ Graphicaのプラグイン機構。
   アプリ本体の起動を止めない(例外はログに記録し、そのプラグインだけを
   スキップする)。
 - 拡張ポイントは現時点では「カーブフィット関数の追加」「メニューへの
-  アクション追加」「データインポーターの追加」「エクスポート形式の追加」の4つ。
+  アクション追加」「データインポーターの追加」「エクスポート形式の追加」
+  「データ処理の追加」「解析の追加」「パネルの追加」「プロット種別の追加」の8つ。
   今後も同様のパターン(register_xxx メソッドを追加する)で拡張できる。
+- 【項目D-3・方針決定】UIフック(register_panel/register_menu_action等)が
+  プラグイン側から渡す表示名(パネルのタイトル、メニュー項目名等)は、
+  現時点では英語表記のみサポートする。core/i18n.py の tr() による翻訳統合は
+  行わない(プラグイン側の文字列をtr()の辞書キーとして解決しようとすると、
+  プラグイン作者が本体の翻訳辞書の存在を意識する必要が生じてしまい、
+  過剰な結合になるため)。プラグインエコシステムが実際に育ち、多言語対応の
+  需要が具体化してから、プラグイン側にも言語別文字列を渡せる仕組み
+  (例: name引数をdictにする等)を改めて検討する。それまではこの制約を
+  docs/plugin_development.md(将来のF-3)にも明記すること。
 """
 import importlib
 import importlib.util
@@ -34,7 +44,7 @@ import sys
 from core.analysis import register_fit_function
 from core.plugin_types import (
     PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter,
-    PluginProcessor, PluginRegistrationError,
+    PluginPanel, PluginPlotType, PluginProcessor, PluginRegistrationError,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +57,15 @@ def _normalize_extension(extension):
     """拡張子を先頭ピリオド付き・小文字の形に揃える(例: "JDX" -> ".jdx")。"""
     ext = extension.lower()
     return ext if ext.startswith('.') else '.' + ext
+
+
+def _check_plugin_dependencies(info):
+    """PLUGIN_INFOのrequiresキー(あれば)を見て、importできないモジュール名を列挙して返す(項目E-3)。"""
+    missing = []
+    for module_name in info.get("requires", []) or []:
+        if importlib.util.find_spec(module_name) is None:
+            missing.append(module_name)
+    return missing
 
 
 class PluginLoadError(Exception):
@@ -67,6 +86,8 @@ class GraphicaPluginAPI:
         self._exporters = {}  # format_name.lower() -> PluginExporter
         self._processors = {}  # name -> PluginProcessor
         self._analyzers = {}  # name -> PluginAnalyzer
+        self._panels = {}  # name -> PluginPanel
+        self._plot_types = {}  # type_name -> PluginPlotType
 
         # フック登録の失敗をプラグイン単位ではなくフック単位で隔離するための
         # 記録先(フェーズA-2)。1プラグインが複数のフックを登録する場合、
@@ -299,6 +320,87 @@ class GraphicaPluginAPI:
         """登録済み解析処理の一覧。"""
         return list(self._analyzers.values())
 
+    def register_panel(self, name, widget_factory, *, area="right"):
+        """
+        プラグイン製のドックパネルを追加する(項目D-1)。register_dockという
+        別フックには分離せず、この1つに統合する(当初検討した分離案は
+        区別する実益が薄いため不採用)。
+
+        widget_factoryはタブ(PlotterAppインスタンス)ごとに、そのタブの
+        構築時に個別に呼ばれる。register_menu_action同様、GraphicaPluginAPI
+        自身は特定のタブへの参照を保持しない(shibokenのGC罠・古いタブへの
+        参照固定を避けるため、CLAUDE.md参照)。
+
+        Args:
+            name (str): パネルのタイトル(ドックのタイトルバー・表示メニューに
+                使われる。他のプラグインの同名パネルと重複不可)。
+            widget_factory (callable): (ProjectModel, QUndoStack) -> QWidget。
+                呼び出しはタブごとに1回。例外を投げた場合、そのタブでは
+                パネルを作らずログに警告を残す(他のパネル・タブ自体の
+                起動は継続する)。
+            area (str): "right"/"left"/"top"/"bottom"のいずれか。実際の
+                Qt.DockWidgetAreaへのマッピングはGUI側で行う(coreは
+                PySide6に依存しないため)。
+        """
+        return self._safe_register(
+            PluginHookKind.PANEL, self._do_register_panel, name, widget_factory,
+            area=area, plugin_name=self._current_plugin_name,
+        )
+
+    def _do_register_panel(self, name, widget_factory, *, area, plugin_name):
+        if name in self._panels:
+            raise ValueError(f"パネル '{name}' は既に登録されています。")
+        self._panels[name] = PluginPanel(
+            name=name, widget_factory=widget_factory, area=area, plugin_name=plugin_name,
+        )
+
+    def get_panels(self):
+        """登録済みパネルの一覧。"""
+        return list(self._panels.values())
+
+    def register_plot_type(self, type_name, drawer, *, requires_2d=False):
+        """
+        データセットのプロット種別(plot_type)に、プラグイン提供の描画方法を
+        追加する(項目D-2)。既存5種類('Line'/'Scatter'/'Line+Scatter'/'Area'/
+        'Bar')の描画コードは変更しない。gui/canvas.pyは未知のplot_typeに
+        遭遇した際にこのレジストリを引く、というフォールバック経路のみが
+        新設される(既存分岐を壊さない増分実装)。
+
+        Args:
+            type_name (str): ds.plot_typeに設定する値。データセットプロパティ
+                ダイアログのプロット種別コンボボックスにも表示される
+                (組み込み5種類・他のプラグインの同名と重複不可)。
+            drawer (callable): (Dataset, Axes, x_data, y_data) -> Artist | None。
+                x_data/y_dataは既にウォーターフォールのオフセット等が適用
+                済みの描画用配列(ds.x_data/ds.y_dataそのものではない場合が
+                ある)。返り値のArtistはds.artistにキャッシュされ、凡例表示に
+                使われる(不要ならNoneを返してよい)。ウォーターフォールの
+                隠蔽描画・グラデーション等の追加オーバーレイは組み込み
+                plot_typeのみの対応であり、プラグイン製plot_typeには
+                自動適用されない(既知の制限)。
+            requires_2d (bool): 現状は表示上の分類用途のみ(将来の2Dマップ系
+                プラグインplot_type向けの予約フラグ)。
+        """
+        return self._safe_register(
+            PluginHookKind.PLOT_TYPE, self._do_register_plot_type, type_name, drawer,
+            requires_2d=requires_2d, plugin_name=self._current_plugin_name,
+        )
+
+    def _do_register_plot_type(self, type_name, drawer, *, requires_2d, plugin_name):
+        if type_name in self._plot_types:
+            raise ValueError(f"プロット種別 '{type_name}' は既に登録されています。")
+        self._plot_types[type_name] = PluginPlotType(
+            type_name=type_name, drawer=drawer, requires_2d=requires_2d, plugin_name=plugin_name,
+        )
+
+    def get_plot_types(self):
+        """登録済みプロット種別の一覧。"""
+        return list(self._plot_types.values())
+
+    def get_plot_type(self, type_name):
+        """指定した名前に対応する登録済みプロット種別を返す(無ければNone)。"""
+        return self._plot_types.get(type_name)
+
     @property
     def menu_actions(self):
         return list(self._menu_actions)
@@ -315,29 +417,52 @@ class PluginManager:
     """
 
     def __init__(self, plugins_dir):
-        self.plugins_dir = plugins_dir
+        # plugins_dir は単一パス(str、既存の呼び出し元との後方互換)か、
+        # 優先順位つきの複数パス(list[str]、項目E-1)のどちらでも受け付ける。
+        self.plugins_dirs = [plugins_dir] if isinstance(plugins_dir, str) else list(plugins_dir)
         # 読み込み結果の記録: 各要素は
         # {"name": フォルダ名, "info": PLUGIN_INFO or None, "error": str or None}
         self.loaded_plugins = []
+        # discover_plugin_dirs() が最後に見つけた、プラグイン名 -> 発見元ディレクトリ。
+        # _load_module() が同じ呼び出し内でどのディレクトリから読むかを引くのに使う。
+        self._plugin_locations = {}
 
     def discover_plugin_dirs(self):
-        """plugins_dir 配下の、__init__.py を持つサブディレクトリ名の一覧を返す"""
-        if not os.path.isdir(self.plugins_dir):
-            return []
+        """
+        plugins_dirs を優先順位順に走査し、__init__.py を持つサブディレクトリ名の
+        一覧を返す(戻り値は従来通りフォルダ名のリスト、項目E-1)。
+        複数の探索パスに同名のプラグインフォルダが存在する場合、先に見つかった
+        方(＝探索順の早いパス)を採用し、後から見つかった方はログに警告を
+        出してスキップする。
+        """
+        self._plugin_locations = {}
         names = []
-        for entry in sorted(os.listdir(self.plugins_dir)):
-            entry_path = os.path.join(self.plugins_dir, entry)
-            if os.path.isdir(entry_path) and os.path.exists(os.path.join(entry_path, "__init__.py")):
+        for plugins_dir in self.plugins_dirs:
+            if not os.path.isdir(plugins_dir):
+                continue
+            for entry in sorted(os.listdir(plugins_dir)):
+                entry_path = os.path.join(plugins_dir, entry)
+                if not (os.path.isdir(entry_path) and os.path.exists(os.path.join(entry_path, "__init__.py"))):
+                    continue
+                if entry in self._plugin_locations:
+                    logger.warning(
+                        "プラグイン '%s' は複数の探索パスに存在するため、'%s' のものを使用します"
+                        "('%s' は無視されます)。",
+                        entry, self._plugin_locations[entry], plugins_dir,
+                    )
+                    continue
+                self._plugin_locations[entry] = plugins_dir
                 names.append(entry)
         return names
 
     def _load_module(self, plugin_name):
         """1つのプラグインパッケージを importlib で読み込み、モジュールオブジェクトを返す"""
-        init_path = os.path.join(self.plugins_dir, plugin_name, "__init__.py")
+        base_dir = self._plugin_locations[plugin_name]
+        init_path = os.path.join(base_dir, plugin_name, "__init__.py")
         module_name = f"graphica_plugin_{plugin_name}"
         spec = importlib.util.spec_from_file_location(
             module_name, init_path,
-            submodule_search_locations=[os.path.join(self.plugins_dir, plugin_name)],
+            submodule_search_locations=[os.path.join(base_dir, plugin_name)],
         )
         if spec is None or spec.loader is None:
             raise PluginLoadError(f"プラグイン '{plugin_name}' のモジュール仕様を作成できませんでした。")
@@ -367,6 +492,15 @@ class PluginManager:
                         f"プラグイン '{plugin_name}' に {PLUGIN_MANIFEST_ATTR} (dict) がありません。"
                     )
                 record["info"] = info
+
+                missing = _check_plugin_dependencies(info)
+                if missing:
+                    raise PluginLoadError(
+                        f"プラグイン '{plugin_name}' の依存パッケージが不足しています: "
+                        f"{', '.join(missing)}。プラグインは本体に同梱済みの依存"
+                        "(numpy/pandas/scipy/matplotlib/PySide6等)のみ使用できます。"
+                        "pip版のGraphicaであれば追加の依存パッケージを導入して動作させられます。"
+                    )
 
                 register_func = getattr(module, PLUGIN_REGISTER_FUNC, None)
                 if not callable(register_func):
@@ -407,7 +541,9 @@ def load_plugins_once(plugins_dir):
     if _singleton_api is not None:
         return _singleton_api
 
-    os.makedirs(plugins_dir, exist_ok=True)
+    dirs = [plugins_dir] if isinstance(plugins_dir, str) else list(plugins_dir)
+    for d in dirs:
+        os.makedirs(d, exist_ok=True)
     _singleton_api = GraphicaPluginAPI()
     _singleton_manager = PluginManager(plugins_dir)
     _singleton_manager.load_all(_singleton_api)
@@ -455,3 +591,13 @@ def get_registered_processors():
 def get_registered_analyzers():
     """登録済み解析処理の一覧(未読み込みなら空リスト、項目C-2)。"""
     return _singleton_api.get_analyzers() if _singleton_api is not None else []
+
+
+def get_registered_panels():
+    """登録済みパネルの一覧(未読み込みなら空リスト、項目D-1)。"""
+    return _singleton_api.get_panels() if _singleton_api is not None else []
+
+
+def get_registered_plot_types():
+    """登録済みプロット種別の一覧(未読み込みなら空リスト、項目D-2)。"""
+    return _singleton_api.get_plot_types() if _singleton_api is not None else []

@@ -555,6 +555,27 @@ class MplCanvas(FigureCanvas):
                     # 棒グラフ: 文字列カテゴリ軸(項目31)との組み合わせを主な用途として想定。
                     artist = target_ax.bar(plot_x_data, plot_y_data, color=ds.color, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                     ds.artist = artist
+                else:
+                    # 項目D-2: register_plot_type()でプラグインが追加した未知のplot_type。
+                    # 既存5種類の分岐は変更しない増分実装(ウォーターフォール等の追加
+                    # オーバーレイはプラグイン描画には自動適用されない、既知の制限)。
+                    from core.plugin_api import get_plugin_api
+                    api = get_plugin_api()
+                    plugin_plot_type = api.get_plot_type(ds.plot_type) if api is not None else None
+                    if plugin_plot_type is not None:
+                        try:
+                            artist = plugin_plot_type.drawer(ds, target_ax, plot_x_data, plot_y_data)
+                            if artist is not None:
+                                ds.artist = artist
+                        except Exception as e:
+                            logger.warning(
+                                "[plugin:%s] plot_type '%s' の描画に失敗しました: %s",
+                                plugin_plot_type.plugin_name, ds.plot_type, e,
+                            )
+                    else:
+                        logger.warning("未知のplot_type '%s' です。Lineとして描画します。", ds.plot_type)
+                        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+                        ds.artist = artist
 
             # ウォーターフォール(項目80/109): 手前のトレースが奥のトレースを隠すよう、
             # 描画したアーティストの下(waterfall_zorder - 1)に軸背景色のfill_betweenを

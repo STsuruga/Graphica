@@ -75,7 +75,28 @@
 
 **フェーズC完了条件**: 上記3項目が✅。**達成(2026-08-05)**。フェーズD(GUI拡張フック)に着手可能。
 
-### フェーズD〜G
+### フェーズD: UIフック
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| D-1 | `register_panel()` | ✅ 完了 | 2026-08-07 | `GraphicaPluginAPI.register_panel(name, widget_factory, *, area="right")`。`register_dock`という別フックには分離せず統合(当初検討した分離案は不採用)。`widget_factory: (ProjectModel, QUndoStack) -> QWidget`はタブ(`PlotterApp`インスタンス)ごとに個別に呼ばれ、`gui/main_window.py`の`__init__`で`QDockWidget`として追加(既定は非表示、表示状態はQSettingsのドックレイアウト復元に任せる)。構築失敗(例外・`QWidget`以外の返り値)は該当パネルのみスキップしログ警告、他のパネル・タブ自体の起動は継続する。表示切替は「プラグイン」メニューの「パネル」サブメニューに`toggleViewAction()`を集約 |
+| D-2 | `register_plot_type()` | ✅ 完了 | 2026-08-07 | `GraphicaPluginAPI.register_plot_type(type_name, drawer, *, requires_2d=False)`。既存5種類(Line/Scatter/Line+Scatter/Area/Bar)の`gui/canvas.py`の分岐は変更せず、未知の`plot_type`に遭遇した場合のみプラグインレジストリを引くフォールバックのelse節を新設(増分実装)。`drawer: (Dataset, Axes, x_data, y_data) -> Artist | None`。ウォーターフォール等の追加オーバーレイはプラグイン描画には自動適用されない既知の制限。データセットプロパティのプロット種別コンボボックスにも、Area/Barと同じ実行時追加方式で反映 |
+| D-3 | UIフックのi18n統合方針決定 | ✅ 完了 | 2026-08-07 | 【方針決定】プラグイン側の表示名(パネルタイトル・メニュー項目名等)は当面英語表記のみサポートし、`core/i18n.py`の`tr()`による翻訳統合は行わない(プラグイン作者に本体翻訳辞書への依存を強いる過剰な結合を避けるため)。プラグインエコシステムが育ってから再検討する、という判断を`core/plugin_api.py`のモジュールdocstringに明記 |
+
+**フェーズD完了条件**: 上記3項目が✅。**達成(2026-08-07)**。
+
+### フェーズE: exe配布環境でのプラグイン運用
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| E-1 | プラグイン探索パスを`%LOCALAPPDATA%`に追加 | ✅ 完了 | 2026-08-07 | `core/app_paths.py`に`get_user_plugins_dir()`追加(`get_app_data_dir()`配下の`plugins`)。`gui/main_window.py`に`is_frozen()`/`plugin_search_paths()`を新設し、ソース実行時のみ`resource_path("plugins")`(開発者向け)、常に`get_user_plugins_dir()`(exe配布環境でもユーザーが書き込める場所)を探索対象にする。`PluginManager`/`load_plugins_once()`は単一パス(str)・複数パス(list)の両方を受け付けるよう拡張(既存呼び出し元との後方互換を維持)。`discover_plugin_dirs()`の戻り値の形は変更せず、同名プラグインが複数パスに存在する場合は探索順の早い方を優先しログ警告 |
+| E-2 | プラグインのインストール導線(GUI) | ✅ 完了 | 2026-08-07 | `core/plugin_install.py`新設、`install_plugin_zip(zip_path, target_dir=None)`。環境設定ダイアログ(`PreferencesDialog`)に「プラグイン」グループ+「プラグインをインストール...」ボタンを追加(既存のOK/Cancelフローとは独立した即時実行、オートセーブ保存先の参照ボタンと同じ位置づけ)。zipの2レイアウト(単一フォルダに包まれている/`__init__.py`がzip直下)双方に対応し、成功時は次回起動時に有効になる旨をダイアログで明示 |
+| E-3 | 【方針決定】プラグインの依存パッケージ問題 | ✅ 完了 | 2026-08-07 | 【方針決定】プラグインは本体に同梱済みの依存(numpy/pandas/scipy/matplotlib/PySide6等)のみ使用可、という「純標準ライブラリ縛り+本体依存のみ」を採用。`PLUGIN_INFO`に任意の`"requires"`キー(モジュール名のリスト)を追加できるようにし、`core/plugin_api.py`の`_check_plugin_dependencies()`が`importlib.util.find_spec()`で不足を検出。`PluginManager.load_all()`に組み込み、依存不足のプラグインは既存の失敗隔離経路(`record["error"]`)でロードをスキップ、アプリはクラッシュしない |
+| E-4 | 単一インスタンス化(多重起動時のプラグイン二重ロード対策) | ✅ 完了 | 2026-08-07 | E-2の`install_plugin_zip()`に統合実装。zipは`target_dir`と同一ボリューム上の一時ステージングディレクトリへ展開してから`os.replace()`による単一のアトミックリネームで最終配置(再インストール時は既存フォルダを一時退避してから入れ替え)。ステージング中は`discover_plugin_dirs()`から見て壊れかけのプラグインとして誤検出されない(トップレベルに`__init__.py`が無い)よう設計。zip-slip対策(パストラバーサル)も同時に実装。本格的な`QLocalServer`ベースの単一インスタンス化はロードマップの範囲外として明記 |
+
+**フェーズE完了条件**: 上記4項目が✅。**達成(2026-08-07)**。フェーズF(マニフェスト・管理UI・安全性)に着手可能。
+
+### フェーズF〜G
 
 未着手。詳細は `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
 
@@ -94,3 +115,4 @@
 - 2026-08-05: トラック1 フェーズA(A-1〜A-4)完了を反映。
 - 2026-08-05: トラック1 フェーズB(B-1〜B-3)完了を反映。
 - 2026-08-05: トラック1 フェーズC(C-1〜C-3)完了を反映。
+- 2026-08-07: トラック1 フェーズD(D-1〜D-3)・フェーズE(E-1〜E-4)完了を反映。

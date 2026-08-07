@@ -229,3 +229,116 @@ def test_registration_errors_empty_for_fully_successful_plugin(tmp_path):
     manager.load_all(api)
 
     assert api.registration_errors == []
+
+
+# --- 複数探索パス(項目E-1) ---
+
+def _plugin_source_with_name(display_name):
+    return f'''
+PLUGIN_INFO = {{"name": "{display_name}", "version": "1.0", "author": "test", "description": "d"}}
+
+def register(api):
+    pass
+'''
+
+
+def test_plugin_manager_accepts_list_of_dirs_and_finds_plugin_in_second_path(tmp_path):
+    dir1 = tmp_path / "dir1"
+    dir2 = tmp_path / "dir2"
+    dir1.mkdir()
+    dir2.mkdir()
+    _write_plugin(dir2, "only_in_dir2", VALID_PLUGIN_SOURCE)
+
+    manager = PluginManager([str(dir1), str(dir2)])
+    assert manager.discover_plugin_dirs() == ["only_in_dir2"]
+
+    api = GraphicaPluginAPI()
+    records = manager.load_all(api)
+    assert len(records) == 1
+    assert records[0]["name"] == "only_in_dir2"
+    assert records[0]["error"] is None
+
+
+def test_plugin_manager_same_name_in_both_paths_first_path_wins(tmp_path):
+    dir1 = tmp_path / "dir1"
+    dir2 = tmp_path / "dir2"
+    dir1.mkdir()
+    dir2.mkdir()
+    _write_plugin(dir1, "dup_plugin", _plugin_source_with_name("From Dir1"))
+    _write_plugin(dir2, "dup_plugin", _plugin_source_with_name("From Dir2"))
+
+    manager = PluginManager([str(dir1), str(dir2)])
+    # discover_plugin_dirs()は重複を1回だけ返す
+    assert manager.discover_plugin_dirs() == ["dup_plugin"]
+
+    api = GraphicaPluginAPI()
+    records = manager.load_all(api)
+    assert len(records) == 1
+    assert records[0]["info"]["name"] == "From Dir1"
+
+
+def test_load_plugins_once_accepts_list_of_dirs(tmp_path):
+    dir1 = tmp_path / "dir1_not_created_yet"
+    dir2 = tmp_path / "dir2_not_created_yet"
+    assert not dir1.exists()
+    assert not dir2.exists()
+
+    load_plugins_once([str(dir1), str(dir2)])
+
+    assert dir1.exists()
+    assert dir2.exists()
+
+
+# --- 依存パッケージチェック(項目E-3) ---
+
+MISSING_DEPENDENCY_PLUGIN_SOURCE = '''
+PLUGIN_INFO = {"name": "Needs Missing Dep", "version": "1.0", "author": "test",
+                "description": "d", "requires": ["some_module_that_does_not_exist_xyz123"]}
+
+def register(api):
+    api.register_menu_action("Should not be registered", lambda main_window: None)
+'''
+
+EXISTING_DEPENDENCY_PLUGIN_SOURCE = '''
+PLUGIN_INFO = {"name": "Needs Real Dep", "version": "1.0", "author": "test",
+                "description": "d", "requires": ["numpy"]}
+
+def register(api):
+    api.register_menu_action("Registered fine", lambda main_window: None)
+'''
+
+
+def test_plugin_with_missing_dependency_is_skipped_and_not_registered(tmp_path):
+    _write_plugin(tmp_path, "missing_dep_plugin", MISSING_DEPENDENCY_PLUGIN_SOURCE)
+
+    api = GraphicaPluginAPI()
+    manager = PluginManager(str(tmp_path))
+    records = manager.load_all(api)
+
+    assert records[0]["error"] is not None
+    assert "some_module_that_does_not_exist_xyz123" in records[0]["error"]
+    assert api.menu_actions == []
+
+
+def test_plugin_with_existing_dependency_loads_normally(tmp_path):
+    _write_plugin(tmp_path, "real_dep_plugin", EXISTING_DEPENDENCY_PLUGIN_SOURCE)
+
+    api = GraphicaPluginAPI()
+    manager = PluginManager(str(tmp_path))
+    records = manager.load_all(api)
+
+    assert records[0]["error"] is None
+    assert len(api.menu_actions) == 1
+    assert api.menu_actions[0][0] == "Registered fine"
+
+
+def test_plugin_without_requires_key_is_unaffected(tmp_path):
+    """requiresキーを持たない(今までどおりの)プラグインは、依存チェックの影響を受けない。"""
+    _write_plugin(tmp_path, "valid_plugin", VALID_PLUGIN_SOURCE)
+
+    api = GraphicaPluginAPI()
+    manager = PluginManager(str(tmp_path))
+    records = manager.load_all(api)
+
+    assert records[0]["error"] is None
+    assert len(api.menu_actions) == 1

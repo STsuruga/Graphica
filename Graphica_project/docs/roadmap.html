@@ -362,7 +362,7 @@
   <div class="note">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
     <div>
-      <b>#1〜#25(トラック0全6項目+トラック0'クイックウィン全9項目+トラック1フェーズA・B・C全10項目)は全て完了済み。</b>次はトラック1フェーズD(#26〜、GUI拡張フック)です。
+      <b>#1〜#32(トラック0全6項目+トラック0'クイックウィン全9項目+トラック1フェーズA・B・C・D・E全17項目)は全て完了済み。</b>次はトラック1フェーズF(#33〜、マニフェスト・管理UI・安全性)です。
       なお元資料の集計値(CORE_BACKLOG「135件」/ PLUGIN_BACKLOG「64件」)は本文中の実項目数(140件/67件)と一致しないため、本表は実際に列挙されている全項目を採用しています。
     </div>
   </div>
@@ -428,15 +428,15 @@ const DATA = [
         [25, 'C-3', 'プラグイン処理結果のプロジェクト保存統合', true],
       ]},
       { label: 'フェーズD(並行) — UIフック', rows: [
-        [26, 'D-1', 'register_panel()(register_dock統合)', false],
-        [27, 'D-2', 'register_plot_type()', false],
-        [28, 'D-3', 'UIフックのi18n統合方針決定', false],
+        [26, 'D-1', 'register_panel()(register_dock統合)', true],
+        [27, 'D-2', 'register_plot_type()', true],
+        [28, 'D-3', 'UIフックのi18n統合方針決定', true],
       ]},
       { label: 'フェーズE(並行) — exe配布環境', rows: [
-        [29, 'E-1', 'プラグイン探索パスを%LOCALAPPDATA%に追加', false],
-        [30, 'E-2', 'プラグインのインストール導線(GUI、zip展開)', false],
-        [31, 'E-3', 'プラグイン依存パッケージ方針決定(純標準+本体依存縛り)', false],
-        [32, 'E-4', '単一インスタンス化(zip展開の排他ロック)', false],
+        [29, 'E-1', 'プラグイン探索パスを%LOCALAPPDATA%に追加', true],
+        [30, 'E-2', 'プラグインのインストール導線(GUI、zip展開)', true],
+        [31, 'E-3', 'プラグイン依存パッケージ方針決定(純標準+本体依存縛り)', true],
+        [32, 'E-4', '単一インスタンス化(zip展開の排他ロック)', true],
       ]},
       { label: 'フェーズF — マニフェスト・管理UI・安全性', rows: [
         [33, 'F-1', 'プラグインマニフェスト plugin.json', false],

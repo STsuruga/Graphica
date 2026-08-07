@@ -83,6 +83,31 @@ class PluginAnalyzer:
     plugin_name: str            # 診断表示用の名前(通常は登録元プラグイン名)
 
 
+@dataclass
+class PluginPanel:
+    """
+    register_panel() (項目D-1) で登録された1件のプラグイン製ドックパネル。
+    widget_factoryはタブ(PlotterAppインスタンス)ごとに個別に呼ばれる
+    (register_dockは別フックにせず、このフックに統合する方針)。
+    """
+    name: str                  # パネルのタイトル(ドックのタイトルバー・表示メニューに使う)
+    widget_factory: object     # Callable[[ProjectModel, QUndoStack], QWidget]
+    area: str                  # "right"/"left"/"top"/"bottom"。Qt.DockWidgetAreaへの
+                                # マッピングはGUI側(coreはPySide6に依存しないため)
+    plugin_name: str           # 診断表示用の名前(通常は登録元プラグイン名)
+
+
+@dataclass
+class PluginPlotType:
+    """register_plot_type() (項目D-2) で登録された1件のプラグイン製プロット種別。"""
+    type_name: str             # ds.plot_typeに設定される値、データセットプロパティの
+                                # プロット種別コンボボックスに表示される名前でもある
+    drawer: object              # Callable[[Dataset, Axes, np.ndarray, np.ndarray], Artist | None]
+                                # (dataset, ax, x_data, y_data) -> 描画したArtist(凡例用、無ければNone)
+    requires_2d: bool           # 現状は表示上の分類用途のみ(将来の2Dマップ系プラグインplot_type向け)
+    plugin_name: str           # 診断表示用の名前(通常は登録元プラグイン名)
+
+
 class PluginExecutionError(Exception):
     """
     プラグイン提供のフック(importer/exporter/processor/analyzer)を実際に実行した

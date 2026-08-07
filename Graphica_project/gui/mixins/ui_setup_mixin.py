@@ -402,11 +402,11 @@ class UISetupMixin:
             #   1度だけだが、メニューアクションはタブごとの menuBar() に
             #   個別に追加する必要があるため、ここで毎回追加する。
             # menu_actions・データ処理(register_processor、項目C-1)・
-            # 解析(register_analyzer、項目C-2)のいずれか1件でも登録されて
-            # いなければメニュー自体を作らない(既存の挙動を踏襲)。
+            # 解析(register_analyzer、項目C-2)・パネル(register_panel、項目D-1)の
+            # いずれか1件でも登録されていなければメニュー自体を作らない(既存の挙動を踏襲)。
             processors = self.plugin_api.get_processors()
             analyzers = self.plugin_api.get_analyzers()
-            if self.plugin_api.menu_actions or processors or analyzers:
+            if self.plugin_api.menu_actions or processors or analyzers or self._plugin_panel_docks:
                 plugin_menu = menu_bar.addMenu(tr("プラグイン(&P)"))
                 self._plugin_menu = plugin_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
                 for text, callback, shortcut in self.plugin_api.menu_actions:
@@ -446,6 +446,15 @@ class UISetupMixin:
                         action.triggered.connect(
                             lambda checked=False, a=analyzer: self._on_run_plugin_analyzer(a)
                         )
+
+                # パネル(項目D-1): 各ドックの標準の表示/非表示トグルアクションを
+                # そのまま流用する(既存の「表示」メニューのドック項目と同じ方式)。
+                if self._plugin_panel_docks:
+                    if self.plugin_api.menu_actions or processors or analyzers:
+                        plugin_menu.addSeparator()
+                    panel_menu = plugin_menu.addMenu(tr("パネル"))
+                    for name in sorted(self._plugin_panel_docks.keys()):
+                        panel_menu.addAction(self._plugin_panel_docks[name].toggleViewAction())
 
             # --- 5. 「ヘルプ」メニュー ---
             help_menu = menu_bar.addMenu(tr("ヘルプ(&H)"))

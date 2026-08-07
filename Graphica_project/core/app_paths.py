@@ -27,3 +27,20 @@ def get_app_data_dir():
     app_dir = os.path.join(base, APP_NAME)
     os.makedirs(app_dir, exist_ok=True)
     return app_dir
+
+
+def get_user_plugins_dir():
+    """
+    ユーザーが追加するプラグインの置き場所のパスを返す(無ければ作成する、項目E-1)。
+
+    exe化したビルドでは resource_path("plugins") が指す場所が PyInstaller の
+    _internal フォルダの奥に埋もれてしまい、Program Files 配下等インストール先
+    自体が読み取り専用のことも多く、ユーザーが自分でプラグインを配置できる
+    場所として機能しない。get_app_data_dir() 配下の常に書き込み可能な場所に
+    "plugins" を切ることで、exe配布環境でもユーザー自身がプラグインファイルを
+    置ける場所を用意する(gui/main_window.py の plugin_search_paths() から
+    resource_path("plugins") と併せて参照される)。
+    """
+    plugins_dir = os.path.join(get_app_data_dir(), 'plugins')
+    os.makedirs(plugins_dir, exist_ok=True)
+    return plugins_dir

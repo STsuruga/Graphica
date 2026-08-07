@@ -30,6 +30,8 @@ class FakeGraphicaPluginAPI:
         self.exporters = {}      # format_name.lower() -> {"extension":..., "writer":..., "name":...}
         self.processors = {}     # name -> {"fn":..., "category":..., "param_schema":...}
         self.analyzers = {}      # name -> {"fn":..., "output_kind":..., "param_schema":...}
+        self.panels = {}         # name -> {"widget_factory":..., "area":...}
+        self.plot_types = {}     # type_name -> {"drawer":..., "requires_2d":...}
 
     def register_fit_function(self, name, func, param_names, p0=None):
         self.fit_functions[name] = {"func": func, "param_names": param_names, "p0": p0}
@@ -52,3 +54,9 @@ class FakeGraphicaPluginAPI:
 
     def register_analyzer(self, name, fn, *, output_kind="table", param_schema=None):
         self.analyzers[name] = {"fn": fn, "output_kind": output_kind, "param_schema": list(param_schema or [])}
+
+    def register_panel(self, name, widget_factory, *, area="right"):
+        self.panels[name] = {"widget_factory": widget_factory, "area": area}
+
+    def register_plot_type(self, type_name, drawer, *, requires_2d=False):
+        self.plot_types[type_name] = {"drawer": drawer, "requires_2d": requires_2d}

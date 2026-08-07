@@ -2047,6 +2047,18 @@ class PreferencesDialog(QDialog):
         annotation_layout.addLayout(annotation_form)
         layout.addWidget(annotation_group)
 
+        # プラグインのzipインストール導線(項目E-2): このダイアログのOK/Cancel
+        # フロー(get_settings())とは独立した即時実行のボタン。オートセーブ
+        # 保存先の参照ボタン(_on_browse_autosave_dir)と同じ位置づけ。
+        plugin_group = QGroupBox(tr("プラグイン"))
+        plugin_layout = QHBoxLayout(plugin_group)
+        self.install_plugin_button = QPushButton(tr("プラグインをインストール..."))
+        self.install_plugin_button.setIcon(icon_utils.icon("download"))
+        self.install_plugin_button.clicked.connect(self._on_install_plugin)
+        plugin_layout.addWidget(self.install_plugin_button)
+        plugin_layout.addStretch()
+        layout.addWidget(plugin_group)
+
         layout.addStretch()
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -2069,6 +2081,28 @@ class PreferencesDialog(QDialog):
     def _on_clear_autosave_dir(self):
         self._autosave_dir = ""
         self.autosave_dir_edit.setText("")
+
+    def _on_install_plugin(self):
+        from core.i18n import tr
+        zip_path, _ = QFileDialog.getOpenFileName(
+            self, tr("プラグインをインストール"), "", tr("Zip files (*.zip)")
+        )
+        if not zip_path:
+            return
+
+        from core.plugin_install import install_plugin_zip, PluginInstallError
+        try:
+            installed_name = install_plugin_zip(zip_path)
+        except PluginInstallError as e:
+            QMessageBox.critical(self, tr("インストール失敗"), str(e))
+            return
+
+        QMessageBox.information(
+            self, tr("インストール完了"),
+            tr("プラグイン '{name}' をインストールしました。次回起動時に有効になります。").format(
+                name=installed_name
+            ),
+        )
 
     def get_settings(self):
         """
