@@ -73,16 +73,20 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
     # スラッシュ区切りに変換する。
     return path.replace(os.sep, "/")
 
-# フラット/ミニマルテーマの配色トークン。
+# フラット/ミニマルテーマの配色トークン(項目H-1: 唯一の定義箇所)。
 # チェックリスト(ロードマップ)アーティファクトで使ったものと近い、
 # ニュートラルグレー+ティール系アクセントの配色に揃えている。
-_LIGHT_TOKENS = {
+# 公開名(LIGHT_TOKENS/DARK_TOKENS)はロードマップH-1の完了条件に合わせたもの。
+# 現状これらを上書きするユーザー設定(QSettings)は存在しない
+# (docs/gui_style_audit.md 6節: 「カスタムカラーパレット」機能はデータセットの
+# 線色サイクルであり、このUIテーマのアクセントカラーとは無関係)。
+LIGHT_TOKENS = {
     "bg": "#F7F7F5", "surface": "#FFFFFF", "surface_2": "#EFF1EF",
     "border": "#DFE2E1", "border_strong": "#C9CDCB",
     "text_primary": "#1B1F1E", "text_secondary": "#5B6462", "text_muted": "#8B938F",
     "accent": "#1F6F78", "accent_soft": "#E4F0EF", "accent_text": "#FFFFFF",
 }
-_DARK_TOKENS = {
+DARK_TOKENS = {
     "bg": "#14171A", "surface": "#1B1F22", "surface_2": "#21262A",
     "border": "#2C3236", "border_strong": "#3A4147",
     "text_primary": "#EDEFEF", "text_secondary": "#A6AEB2", "text_muted": "#6E777B",
@@ -545,8 +549,13 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 """
 
 
-def _build_flat_qss(dark: bool) -> str:
-    tokens = _DARK_TOKENS if dark else _LIGHT_TOKENS
+def build_qss(tokens: dict) -> str:
+    """
+    トークン辞書(LIGHT_TOKENS/DARK_TOKENS、または将来の任意のカスタムトークン)
+    から、_FLAT_QSS_TEMPLATEの`{token_name}`プレースホルダを埋めた最終的な
+    QSS文字列を返す(項目H-1)。矢印アイコンのURLはトークンの`text_primary`色から
+    動的に生成して付加する。
+    """
     format_args = dict(tokens)
     format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_primary"])
     format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_primary"])
@@ -683,7 +692,7 @@ def apply_theme(app, dark: bool):
         _original_palette = QPalette(app.palette())
         _original_style_name = app.style().objectName()
 
-    tokens = _DARK_TOKENS if dark else _LIGHT_TOKENS
+    tokens = DARK_TOKENS if dark else LIGHT_TOKENS
     base_style = QStyleFactory.create('Fusion')
     _current_proxy_style = _FlatThemeProxyStyle(base_style, tokens)
     app.setStyle(_current_proxy_style)
@@ -694,7 +703,7 @@ def apply_theme(app, dark: bool):
 
     # パレットに加えて QSS を適用し、ツールバー/ボタン/入力欄/リスト等を
     # 角丸・フラットな見た目に統一する(モダンなミニマルテーマ)。
-    app.setStyleSheet(_build_flat_qss(dark))
+    app.setStyleSheet(build_qss(tokens))
 
 
 def apply_form_spacing(widget, spacing=12):

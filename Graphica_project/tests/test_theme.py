@@ -98,7 +98,7 @@ class TestFlatThemeProxyStyle:
 
     def test_standard_icon_replaced_for_tab_close_button(self, qapp):
         base_style = QStyleFactory.create('Fusion')
-        proxy = theme._FlatThemeProxyStyle(base_style, theme._LIGHT_TOKENS)
+        proxy = theme._FlatThemeProxyStyle(base_style, theme.LIGHT_TOKENS)
 
         icon = proxy.standardIcon(QStyle.StandardPixmap.SP_TabCloseButton)
         assert not icon.isNull()
@@ -108,7 +108,7 @@ class TestFlatThemeProxyStyle:
         # standardPixmap()経由でアイコンを取得しているため、こちらも
         # オーバーライドされている必要がある
         base_style = QStyleFactory.create('Fusion')
-        proxy = theme._FlatThemeProxyStyle(base_style, theme._LIGHT_TOKENS)
+        proxy = theme._FlatThemeProxyStyle(base_style, theme.LIGHT_TOKENS)
 
         pixmap = proxy.standardPixmap(QStyle.StandardPixmap.SP_TabCloseButton)
         assert not pixmap.isNull()
@@ -118,7 +118,7 @@ class TestFlatThemeProxyStyle:
         # 比較用の「素のFusion」は別インスタンスとして用意する
         # (同じインスタンスをproxy構築後に直接触るとPySide側で無効化される)
         reference_style = QStyleFactory.create('Fusion')
-        proxy = theme._FlatThemeProxyStyle(QStyleFactory.create('Fusion'), theme._LIGHT_TOKENS)
+        proxy = theme._FlatThemeProxyStyle(QStyleFactory.create('Fusion'), theme.LIGHT_TOKENS)
 
         # 他の標準アイコンには手を加えず、素のFusionと同じ結果になる
         icon = proxy.standardIcon(QStyle.StandardPixmap.SP_DialogOkButton)
@@ -130,7 +130,7 @@ class TestFlatThemeProxyStyle:
         # アイコンが描画されなくなるため、このサブコントロールに対する
         # プロパティ指定がQSSに含まれていないことを確認する。
         for dark in (False, True):
-            qss = theme._build_flat_qss(dark)
+            qss = theme.build_qss(theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS)
             assert not re.search(r"QTabBar::close-button\s*\{[^}]*\S[^}]*\}", qss)
 
     def test_generated_qss_does_not_style_checkbox_indicator(self):
@@ -138,7 +138,7 @@ class TestFlatThemeProxyStyle:
         # なくなるため、こちらもQSSにプロパティ指定が含まれていないことを
         # 確認する。
         for dark in (False, True):
-            qss = theme._build_flat_qss(dark)
+            qss = theme.build_qss(theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS)
             assert not re.search(r"QCheckBox::indicator[:\w]*\s*\{[^}]*\S[^}]*\}", qss)
 
     def test_draw_checkbox_indicator_does_not_raise_for_each_state(self, qapp):
@@ -147,7 +147,7 @@ class TestFlatThemeProxyStyle:
         from PySide6.QtWidgets import QStyleOptionButton
 
         base_style = QStyleFactory.create('Fusion')
-        proxy = theme._FlatThemeProxyStyle(base_style, theme._LIGHT_TOKENS)
+        proxy = theme._FlatThemeProxyStyle(base_style, theme.LIGHT_TOKENS)
 
         pixmap = QPixmap(20, 20)
         painter = QPainter(pixmap)
@@ -218,6 +218,54 @@ class TestSpinboxArrowIcons:
 
     def test_generated_qss_references_arrow_image_urls(self):
         for dark in (False, True):
-            qss = theme._build_flat_qss(dark)
+            qss = theme.build_qss(theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS)
             assert re.search(r"QSpinBox::up-arrow[^{]*\{[^}]*image:\s*url\(", qss)
             assert re.search(r"QSpinBox::down-arrow[^{]*\{[^}]*image:\s*url\(", qss)
+
+
+# --- デザイントークン(項目H-1) ---
+
+_REQUIRED_TOKEN_KEYS = {
+    "bg", "surface", "surface_2", "border", "border_strong",
+    "text_primary", "text_secondary", "text_muted",
+    "accent", "accent_soft", "accent_text",
+}
+
+
+def test_light_and_dark_tokens_are_public_and_have_required_keys():
+    assert _REQUIRED_TOKEN_KEYS <= set(theme.LIGHT_TOKENS.keys())
+    assert _REQUIRED_TOKEN_KEYS <= set(theme.DARK_TOKENS.keys())
+
+
+def test_light_and_dark_tokens_are_a_single_definition_used_by_apply_theme(monkeypatch):
+    """apply_theme()がLIGHT_TOKENS/DARK_TOKENSという単一の定義箇所を
+    経由してQSSを生成していること(H-1完了条件)を、build_qss()に渡される
+    実際の引数を捕捉して確認する。"""
+    captured = []
+    real_build_qss = theme.build_qss
+    monkeypatch.setattr(theme, "build_qss", lambda tokens: captured.append(tokens) or real_build_qss(tokens))
+
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance()
+    theme.apply_theme(app, dark=False)
+    theme.apply_theme(app, dark=True)
+
+    assert captured[-2] is theme.LIGHT_TOKENS
+    assert captured[-1] is theme.DARK_TOKENS
+
+
+def test_build_qss_accepts_arbitrary_token_dict():
+    """build_qss(tokens)はLIGHT_TOKENS/DARK_TOKENS以外の任意の辞書も
+    受け付ける(ロードマップH-1で示されたシグネチャ通り)。"""
+    custom_tokens = dict(theme.LIGHT_TOKENS)
+    custom_tokens["accent"] = "#FF00FF"
+
+    qss = theme.build_qss(custom_tokens)
+
+    assert "#FF00FF" in qss
+
+
+def test_build_qss_output_identical_for_light_and_dark_token_dicts_by_value():
+    """同じ内容のトークン辞書を渡せば、常に同じQSSが生成される(決定的)。"""
+    tokens_copy = dict(theme.LIGHT_TOKENS)
+    assert theme.build_qss(theme.LIGHT_TOKENS) == theme.build_qss(tokens_copy)

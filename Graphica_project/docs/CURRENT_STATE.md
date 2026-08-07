@@ -5,7 +5,9 @@
 このファイルは常に「現在地」だけを保つよう、作業の区切りごとに上書きする運用にする
 (過去の完了履歴を積み上げる場所ではない)。
 
-- 完了履歴の詳細(いつ・何を・どう実装したか): `docs/PLUGIN_API_PROGRESS.md`
+- 完了履歴の詳細(いつ・何を・どう実装したか): トラック1(プラグインAPI拡張)は
+  `docs/PLUGIN_API_PROGRESS.md`、トラック2(GUIモダン化)は
+  `docs/GUI_MODERNIZATION_PROGRESS.md`(役割は同じ、対象トラックが異なるだけ)
 - 全項目の通しナンバリング・チェックリスト: `docs/roadmap.html`
   (Artifactとしても公開: https://claude.ai/code/artifact/3305056d-6417-4056-8899-b5e2bca0c553 。
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
@@ -13,36 +15,44 @@
 
 ## 現在のブランチ
 
-`feature/format-version-and-foundations`(originにpush済み、upstream追跡設定済み)
+`feature/gui-modernization`(まだpush前。分岐元は`feature/format-version-and-foundations`
+で、そちらは既にoriginにpush済み・トラック1の全成果を含む)。ロードマップの
+フェーズH節が「このフェーズ単独で新しいブランチを切ることを推奨する」と明記して
+いたため、ユーザーに確認の上でこのブランチを新設した(トラック1とトラック2の
+変更を別PRに分離する狙い)。
 
 ## 直近の完了
 
-トラック1 フェーズG(ロードマップ#37: `register_render_backend()`の型定義のみ、
-実装は`gui/canvas.py`に未接続のまま骨組みだけ)完了。**これでトラック1(プラグイン
-API拡張、フェーズA〜G)が全て完了。** pytest全体グリーン確認済み。まだコミット・
-push・`docs/roadmap.html`の#37チェック更新・Artifact再publishは未実施
-(このセッションの直後の作業として残っている)。
+トラック2 フェーズH-0/H-1(ロードマップ#38〜39: H-0 既存QSS実装の現状調査
+`docs/gui_style_audit.md` / H-1 デザイントークンの整理)完了。pytest全体
+グリーン確認済み。まだコミット・push・`docs/roadmap.html`の#38〜39チェック
+更新・Artifact再publishは未実施(このセッションの直後の作業として残っている)。
 
-フェーズGは1項目のみの軽量タスクだったため、Agentを使わず自分で直接実装した。
+H-0の調査で判明した重要な事実(次のH-2以降で必ず踏まえること):
+- `gui/theme.py`が唯一のQt側QSS/パレット実装(別`.qss`ファイルは無い)。
+  トークン(`LIGHT_TOKENS`/`DARK_TOKENS`)は既に存在していたので、H-1は
+  ゼロから作るのではなく公開API化する最小限のリファクタで済んだ。
+- **matplotlib側(`gui/canvas.py`)とミニマップ(`gui/minimap_widget.py`)は、
+  `gui/theme.py`のトークンとは完全に独立した、それぞれ個別にハードコードされた
+  ダーク/ライト配色定数を持つ(値も一致していない)。今回のH-1ではこの2つを
+  統合していない**(意図的な差か単なるズレかの切り分けが必要なため、明示的に
+  スコープ外とした。docs/gui_style_audit.md 7節参照)。
+- 「カスタムカラーパレット」機能(QSettings永続化)はデータセットの線色サイクル
+  であり、UIテーマのアクセントカラーとは無関係と判明。H-1の完了条件にある
+  「関係整理」は「現状は上書き元となる既存のユーザー設定が無いので対応不要」
+  という結論になった。
 
 ## 次にやること
 
-トラック1が完了したため、次はユーザーから明示的な指示があるまで待機する。
-ユーザーが番号で指示してくる想定先(いずれもトラック1完了により着手可能になった):
-- トラック2(GUIモダン化、#38〜): 着手条件はフェーズA〜G完了(達成済み)。
-  ただしH-0(現状調査)以外は本来フェーズA〜G完了後という条件なので、全体が
-  着手可能になった。`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を
-  読んでから着手すること。
-- トラック4(プラグイン本体の開発、#163〜): トラック1完了時点で着手可能。
-  `docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」
-  (P-805, P-101, P-304を優先)を参照。
-- トラック3(残りの本体機能追加、#51〜)は本来トラック2完了後だが、ユーザーが
-  明示的に指定すれば着手して構わない(MASTER_SCHEDULE.mdの「新しい作業に着手する
-  前に必ずこのファイルで確認する」という原則通り、指示されたら都度確認する)。
+ユーザーから明示的に番号(例:「40実施」)で指示があるまで着手しない。
+次に来る想定はトラック2 フェーズH-2(#40〜、コンポーネント単位の磨き込み。
+H-0で洗い出したカスタムウィジェット単位で1つずつ差分として進める増分実装)。
+指示が来たらまず`docs/roadmap.html`の該当行と、`docs/gui_style_audit.md`
+(H-0の調査結果、H-2以降の土台)、必要なら
+`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を読んでから着手する。
 
-指示が来たらまず`docs/roadmap.html`の該当行と、必要なら
-`docs/Graphica_MASTER_SCHEDULE.md`/`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`の
-該当セクションを読んでから着手する。
+トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
+(`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
 
 ## 開発の進め方(ユーザーとの合意事項・運用ルール)
 
@@ -61,7 +71,9 @@ push・`docs/roadmap.html`の#37チェック更新・Artifact再publishは未実
      `Bash`の`run_in_background: true`で流し、完了通知を待つ。ポーリングしない)
   3. 失敗があれば原因を調査して修正する(テスト自体の実行順序依存など、
      実装バグでない場合もあるので切り分ける)
-  4. `docs/PLUGIN_API_PROGRESS.md`に完了項目の詳細(ID・状態・完了日・実装メモ)を追記
+  4. 対象トラックの進捗ファイル(トラック1なら`docs/PLUGIN_API_PROGRESS.md`、
+     トラック2なら`docs/GUI_MODERNIZATION_PROGRESS.md`)に完了項目の詳細
+     (ID・状態・完了日・実装メモ)を追記
   5. 明確なコミットメッセージでコミット(関連ファイルのみ`git add`、
      autosaveファイルや無関係な変更は含めない)
   6. push
