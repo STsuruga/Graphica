@@ -116,6 +116,10 @@ Six further planning documents live under `Graphica_project/docs/` and describe 
 
 **Scope discipline**: work only the track/phase/item the user specifies. Do not autonomously expand into adjacent tracks or "while I'm here" fixes elsewhere in the roadmap — the master schedule explicitly calls this out as a failure mode to avoid.
 
-**Regression bar**: the full `pytest` suite (248 tests as of 2026-08-04) must stay green. Run it before considering any roadmap task done.
+**Regression bar**: the full `pytest` suite must stay green, but running it after *every* small change is wasteful — it takes 25-30 minutes and most changes don't warrant that cost. Calibrate by blast radius:
+
+- **Small, isolated changes** (a single-component QSS/style tweak, a docstring, a change confined to one function with no shared/global state involved): run the changed test file(s) plus a relevant broader `pytest -k <keyword>` subset (e.g. `-k "quick_access or main_window"` for a GUI mixin change). That's sufficient before committing.
+- **Changes touching shared or global state, or core mechanisms** (anything in `core/`, `gui/theme.py`, the plugin registry singleton, `models/project.py` serialization, or anything else many other modules depend on): run the full suite before considering the change done. This isn't theoretical — two real bugs in this project only surfaced when running the full suite (global plugin-registry singleton state leaking between test files depending on execution order; a test-mock lambda whose fixed signature broke after an unrelated signature change elsewhere) and were invisible in any subset run.
+- **Regardless of the above**: run the full suite at some regular cadence before pushing — not necessarily after every single item, but every few items or at a natural phase/task boundary — so breakage never accumulates silently across several unverified commits.
 
 **Constraint inherited from `docs/Graphica_SPEC.md` §2.8**: do not add new Win32 DPI-awareness API calls, and do not add any code that depends on the process's current working directory — route resource loading through `resource_path()` / `icon_utils.icon()` as already established above.
