@@ -25,7 +25,8 @@ Graphicaのプラグイン機構。
   スキップする)。
 - 拡張ポイントは現時点では「カーブフィット関数の追加」「メニューへの
   アクション追加」「データインポーターの追加」「エクスポート形式の追加」
-  「データ処理の追加」「解析の追加」「パネルの追加」「プロット種別の追加」の8つ。
+  「データ処理の追加」「解析の追加」「パネルの追加」「プロット種別の追加」
+  「描画バックエンドの追加(項目G、骨組みのみで実装は未接続)」の9つ。
   今後も同様のパターン(register_xxx メソッドを追加する)で拡張できる。
 - 【項目D-3・方針決定】UIフック(register_panel/register_menu_action等)が
   プラグイン側から渡す表示名(パネルのタイトル、メニュー項目名等)は、
@@ -48,6 +49,7 @@ from core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestError, load_p
 from core.plugin_types import (
     PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter,
     PluginPanel, PluginPlotType, PluginProcessor, PluginRegistrationError,
+    PluginRenderBackend,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,6 +92,7 @@ class GraphicaPluginAPI:
         self._analyzers = {}  # name -> PluginAnalyzer
         self._panels = {}  # name -> PluginPanel
         self._plot_types = {}  # type_name -> PluginPlotType
+        self._render_backends = {}  # name -> PluginRenderBackend(項目G、骨組みのみ)
 
         # フック登録の失敗をプラグイン単位ではなくフック単位で隔離するための
         # 記録先(フェーズA-2)。1プラグインが複数のフックを登録する場合、
@@ -403,6 +406,37 @@ class GraphicaPluginAPI:
         """指定した名前に対応する登録済みプロット種別を返す(無ければNone)。"""
         return self._plot_types.get(type_name)
 
+    def register_render_backend(self, name, backend):
+        """
+        将来のusetex(LaTeX)差し替え等のためのプレースホルダ(項目G、骨組みのみ)。
+
+        【重要】現時点では gui/canvas.py のレンダリング経路には一切未接続。
+        このメソッドを呼んでも登録が記録されるだけで、実際の描画には何の
+        影響も無い。接続する場合はMplCanvasの初期化経路を変更する大きめの
+        変更になるため、別ロードマップとして切り出すこと(本ロードマップの
+        スコープ外)。backendの中身の契約(どんなメソッドを持つべきか)も
+        現時点では未定義(core.plugin_types.RenderBackend参照)。
+
+        Args:
+            name (str): バックエンドの識別名(他のプラグインの同名と重複不可)。
+            backend (RenderBackend): 現時点では契約未定義のプレースホルダ。
+        """
+        return self._safe_register(
+            PluginHookKind.RENDER_BACKEND, self._do_register_render_backend, name, backend,
+            plugin_name=self._current_plugin_name,
+        )
+
+    def _do_register_render_backend(self, name, backend, *, plugin_name):
+        if name in self._render_backends:
+            raise ValueError(f"描画バックエンド '{name}' は既に登録されています。")
+        self._render_backends[name] = PluginRenderBackend(
+            name=name, backend=backend, plugin_name=plugin_name,
+        )
+
+    def get_render_backends(self):
+        """登録済み描画バックエンドの一覧(骨組みのみ、項目G)。"""
+        return list(self._render_backends.values())
+
     @property
     def menu_actions(self):
         return list(self._menu_actions)
@@ -659,3 +693,8 @@ def get_registered_panels():
 def get_registered_plot_types():
     """登録済みプロット種別の一覧(未読み込みなら空リスト、項目D-2)。"""
     return _singleton_api.get_plot_types() if _singleton_api is not None else []
+
+
+def get_registered_render_backends():
+    """登録済み描画バックエンドの一覧(未読み込みなら空リスト、項目G、骨組みのみ)。"""
+    return _singleton_api.get_render_backends() if _singleton_api is not None else []

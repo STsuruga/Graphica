@@ -108,6 +108,26 @@ class PluginPlotType:
     plugin_name: str           # 診断表示用の名前(通常は登録元プラグイン名)
 
 
+class RenderBackend:
+    """
+    register_render_backend() (項目G) が受け取るbackendオブジェクトの型
+    プレースホルダ。将来のusetex(LaTeX)差し替え等を見越した骨組みのみで、
+    現時点では中身の契約(どんなメソッドを持つべきか)は未定義。
+    gui/canvas.pyのレンダリング経路には一切未接続(register_render_backend()を
+    呼んでも何も起きない)。接続する場合はMplCanvasの初期化経路を変更する
+    大きめの変更になるため、別ロードマップとして切り出すこと(本ロードマップの
+    スコープ外)。
+    """
+
+
+@dataclass
+class PluginRenderBackend:
+    """register_render_backend() (項目G) で登録された1件の描画バックエンド(骨組みのみ)。"""
+    name: str                  # バックエンドの識別名(他のプラグインの同名と重複不可)
+    backend: object             # RenderBackend(現時点では契約未定義のプレースホルダ)
+    plugin_name: str           # 診断表示用の名前(通常は登録元プラグイン名)
+
+
 class PluginExecutionError(Exception):
     """
     プラグイン提供のフック(importer/exporter/processor/analyzer)を実際に実行した

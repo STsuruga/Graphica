@@ -32,6 +32,7 @@ class FakeGraphicaPluginAPI:
         self.analyzers = {}      # name -> {"fn":..., "output_kind":..., "param_schema":...}
         self.panels = {}         # name -> {"widget_factory":..., "area":...}
         self.plot_types = {}     # type_name -> {"drawer":..., "requires_2d":...}
+        self.render_backends = {}  # name -> {"backend":...}(項目G、骨組みのみ)
 
     def register_fit_function(self, name, func, param_names, p0=None):
         self.fit_functions[name] = {"func": func, "param_names": param_names, "p0": p0}
@@ -60,3 +61,6 @@ class FakeGraphicaPluginAPI:
 
     def register_plot_type(self, type_name, drawer, *, requires_2d=False):
         self.plot_types[type_name] = {"drawer": drawer, "requires_2d": requires_2d}
+
+    def register_render_backend(self, name, backend):
+        self.render_backends[name] = {"backend": backend}

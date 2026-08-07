@@ -107,13 +107,17 @@
 
 **フェーズF完了条件**: 上記4項目が✅。**達成(2026-08-07)**。フェーズG(描画バックエンド差し替え、骨組みのみ)に着手可能。
 
-### フェーズG
+### フェーズG: 描画バックエンド差し替え(低優先度、骨組みのみ)
 
-未着手。詳細は `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| G | `register_render_backend()` 型定義のみ | ✅ 完了 | 2026-08-07 | `core/plugin_types.py`に`RenderBackend`(契約未定義のプレースホルダ型)・`PluginRenderBackend`dataclassを追加。`GraphicaPluginAPI.register_render_backend(name, backend)`は登録メカニズムのみで、`gui/canvas.py`のレンダリング経路には一切未接続(呼んでも描画には何の影響も無い、docstringに明記)。将来接続する場合はMplCanvasの初期化経路を変更する大きめの変更になるため、別ロードマップとして切り出す方針をそのまま踏襲 |
+
+**フェーズG完了条件**: 上記1項目が✅。**達成(2026-08-07)**。**これでトラック1(プラグインAPI拡張、フェーズA〜G)が全て完了。** 次はトラック2(GUIモダン化、フェーズH。ただしH-0のみ先行着手可)、またはトラック4(プラグイン本体の開発、トラック1完了時点で着手可能、`Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
 
 ## トラック2〜4
 
-未着手(トラック1完了が前提、トラック2はH-0のみ先行着手可)。詳細は `Graphica_MASTER_SCHEDULE.md` / `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
+未着手(トラック1完了済み、トラック2はH-0のみ先行着手可、トラック4はトラック1完了により着手可能)。詳細は `Graphica_MASTER_SCHEDULE.md` / `Graphica_ROADMAP_PLUGIN_AND_GUI.md` / `Graphica_PLUGIN_BACKLOG.md` を参照。
 
 ---
 
@@ -128,3 +132,4 @@
 - 2026-08-05: トラック1 フェーズC(C-1〜C-3)完了を反映。
 - 2026-08-07: トラック1 フェーズD(D-1〜D-3)・フェーズE(E-1〜E-4)完了を反映。
 - 2026-08-07: トラック1 フェーズF(F-1〜F-4)完了を反映。トラック1(プラグインAPI拡張)は残りフェーズGのみ。
+- 2026-08-07: トラック1 フェーズG(register_render_backend型定義のみ)完了を反映。**トラック1(プラグインAPI拡張、フェーズA〜G)が全完了**。
