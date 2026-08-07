@@ -56,6 +56,16 @@ def _find_action(window, text_fragment):
     raise AssertionError(f"'{text_fragment}' を含むアクションが見つかりませんでした")
 
 
+def test_quick_access_toolbar_is_not_movable(tmp_path, monkeypatch):
+    """
+    項目H-2-1(GUIモダン化): Qt標準のツールバー移動グリップ(ドラッグ用の
+    ハンドル)はフラット/ミニマルテーマと視覚的に馴染まないため、
+    setMovable(False)で無効化している。
+    """
+    window, _ = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.quick_access_toolbar.isMovable() is False
+
+
 def test_pin_action_adds_it_to_the_toolbar(tmp_path, monkeypatch):
     """アクションをピン留めすると、クイックアクセスツールバーに追加されること"""
     window, _ = _make_isolated_plotter_app(tmp_path, monkeypatch)

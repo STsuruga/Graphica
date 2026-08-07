@@ -22,12 +22,19 @@
 
 **フェーズH-0/H-1完了条件**: 上記2項目が✅。**達成(2026-08-07)**。H-2(コンポーネント単位の磨き込み)に着手可能。
 
-### H-2〜H-5
+## フェーズH-2: コンポーネント単位の磨き込み(推奨着手順1〜8のうち順に実施)
 
-未着手。詳細は`Graphica_ROADMAP_PLUGIN_AND_GUI.md`のH-2節以降を参照。
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| H-2-1 | メインツールバー・メニューバー | ✅ 完了 | 2026-08-07 | `gui/mixins/quick_access_mixin.py`の`_create_quick_access_toolbar()`に`toolbar.setMovable(False)`を追加。Qt標準ツールバーの移動グリップ(ドラッグ用ハンドル)が、上部固定・移動機能未提供のこのアプリのフラット/ミニマルテーマと視覚的に馴染んでいなかったため除去。実際に`window.grab()`でBefore/Afterスクリーンショット(ライト/ダーク)を撮って確認し、`docs/gui_style_audit.md`のH-2-1節に記録(`docs/screenshots/h2-1/`配下にPNG)。メニューバー自体(QMenuBar/QMenu)はH-1完了時点で既に十分なQSSカバレッジがあり、追加変更なし。`tests/test_quick_access_mixin.py::test_quick_access_toolbar_is_not_movable`を追加 |
+
+### H-2-2〜H-2-8、H-3〜H-5
+
+未着手。詳細は`Graphica_ROADMAP_PLUGIN_AND_GUI.md`のH-2節以降(推奨着手順2〜8)を参照。
 
 ---
 
 ## 更新履歴
 
 - 2026-08-07: 新規作成。H-0・H-1完了を反映。
+- 2026-08-07: H-2-1(メインツールバー・メニューバー)完了を反映。

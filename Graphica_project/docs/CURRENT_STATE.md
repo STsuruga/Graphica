@@ -15,41 +15,45 @@
 
 ## 現在のブランチ
 
-`feature/gui-modernization`(まだpush前。分岐元は`feature/format-version-and-foundations`
-で、そちらは既にoriginにpush済み・トラック1の全成果を含む)。ロードマップの
-フェーズH節が「このフェーズ単独で新しいブランチを切ることを推奨する」と明記して
-いたため、ユーザーに確認の上でこのブランチを新設した(トラック1とトラック2の
-変更を別PRに分離する狙い)。
+`feature/gui-modernization`(originにpush済み、upstream追跡設定済み。分岐元は
+`feature/format-version-and-foundations`で、そちらも既にoriginにpush済み・
+トラック1の全成果を含む)。ロードマップのフェーズH節が「このフェーズ単独で
+新しいブランチを切ることを推奨する」と明記していたため、ユーザーに確認の上で
+このブランチを新設した(トラック1とトラック2の変更を別PRに分離する狙い)。
 
 ## 直近の完了
 
-トラック2 フェーズH-0/H-1(ロードマップ#38〜39: H-0 既存QSS実装の現状調査
-`docs/gui_style_audit.md` / H-1 デザイントークンの整理)完了。pytest全体
-グリーン確認済み。まだコミット・push・`docs/roadmap.html`の#38〜39チェック
-更新・Artifact再publishは未実施(このセッションの直後の作業として残っている)。
+トラック2 フェーズH-2-1(ロードマップ#40: メインツールバー・メニューバーの
+磨き込み)完了。pytest全体グリーン確認済み。まだコミット・push・
+`docs/roadmap.html`の#40チェック更新・Artifact再publishは未実施
+(このセッションの直後の作業として残っている)。
 
-H-0の調査で判明した重要な事実(次のH-2以降で必ず踏まえること):
+H-2-1で実施した変更: `gui/mixins/quick_access_mixin.py`のツールバーに
+`setMovable(False)`を追加(Qt標準の移動グリップがフラットテーマと馴染んで
+いなかったため除去)。`window.grab()`で実際にBefore/Afterスクリーンショット
+(ライト/ダーク)を撮って確認し、`docs/gui_style_audit.md`のH-2-1節+
+`docs/screenshots/h2-1/`配下のPNGとして記録した。メニューバー自体はH-1時点で
+QSSカバレッジ済みのため追加変更なし。
+
+H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏まえること):
 - `gui/theme.py`が唯一のQt側QSS/パレット実装(別`.qss`ファイルは無い)。
-  トークン(`LIGHT_TOKENS`/`DARK_TOKENS`)は既に存在していたので、H-1は
-  ゼロから作るのではなく公開API化する最小限のリファクタで済んだ。
 - **matplotlib側(`gui/canvas.py`)とミニマップ(`gui/minimap_widget.py`)は、
   `gui/theme.py`のトークンとは完全に独立した、それぞれ個別にハードコードされた
-  ダーク/ライト配色定数を持つ(値も一致していない)。今回のH-1ではこの2つを
-  統合していない**(意図的な差か単なるズレかの切り分けが必要なため、明示的に
-  スコープ外とした。docs/gui_style_audit.md 7節参照)。
+  ダーク/ライト配色定数を持つ(値も一致していない)。統合するかは未判断のまま
+  スコープ外としている**(docs/gui_style_audit.md 7節参照)。
 - 「カスタムカラーパレット」機能(QSettings永続化)はデータセットの線色サイクル
-  であり、UIテーマのアクセントカラーとは無関係と判明。H-1の完了条件にある
-  「関係整理」は「現状は上書き元となる既存のユーザー設定が無いので対応不要」
-  という結論になった。
+  であり、UIテーマのアクセントカラーとは無関係。
 
 ## 次にやること
 
-ユーザーから明示的に番号(例:「40実施」)で指示があるまで着手しない。
-次に来る想定はトラック2 フェーズH-2(#40〜、コンポーネント単位の磨き込み。
-H-0で洗い出したカスタムウィジェット単位で1つずつ差分として進める増分実装)。
-指示が来たらまず`docs/roadmap.html`の該当行と、`docs/gui_style_audit.md`
-(H-0の調査結果、H-2以降の土台)、必要なら
-`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を読んでから着手する。
+ユーザーから明示的に番号(例:「41実施」)で指示があるまで着手しない。
+次に来る想定はトラック2 フェーズH-2-2(#41: データセットリスト・データテーブル
+の磨き込み)。H-2は8つのサブ項目(H-2-1〜H-2-8、ロードマップ#40〜47)を1つずつ
+順に進める増分実装のため、複数まとめて指示された場合もコンポーネント単位で
+区切ってコミットすること。指示が来たらまず`docs/roadmap.html`の該当行と、
+`docs/gui_style_audit.md`(H-0の調査結果+これまでのH-2 Before/After記録)、
+必要なら`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を読んでから
+着手する。
 
 トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
 (`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
@@ -115,6 +119,16 @@ H-0で洗い出したカスタムウィジェット単位で1つずつ差分と�
   `tests/test_quick_access_mixin.py`の`lambda plugins_dir: plugin_api`が
   新しいキーワード引数を受け付けずに壊れた実例がある(`lambda plugins_dir,
   disabled_names=None: plugin_api`に修正して解消)。
+- **H-2の「ライト/ダーク両モードでのスクリーンショット記録」完了条件は、実際に
+  Qtウィジェットを`QWidget.grab() -> QPixmap.save()`することで満たせる**
+  (実機の画面表示やブラウザ系ツールは不要。デスクトップアプリなのでBrowser系
+  ツールは使えないことに注意)。`run_startup_checks=False`で`PlotterApp`を作り、
+  QSettingsを一時iniにリダイレクト(既存テストの`_make_isolated_plotter_app`と
+  同じ手法)した上で、`window.show()`+`processEvents()`を数回回してからgrabすれば、
+  実際のレンダリング結果を確認できる。ダークモードは`window.dark_mode_action.
+  setChecked(True)`で切り替えてから再度grabする。スクリーンショットは
+  `docs/screenshots/h2-N/`配下にPNGで保存し、`docs/gui_style_audit.md`から
+  相対パスで埋め込む(実例: H-2-1、`docs/screenshots/h2-1/`)。
 - **Agentツールの`isolation: "worktree"`は、このセッションで一度、割り当てられた
   worktreeが理由不明のまま消失する事象が起きた**(`git worktree list`に登録が
   無くなり、パスもENOENT。エージェント自身が削除した形跡は無い)。再現条件は
