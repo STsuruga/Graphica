@@ -96,7 +96,18 @@
 
 **フェーズE完了条件**: 上記4項目が✅。**達成(2026-08-07)**。フェーズF(マニフェスト・管理UI・安全性)に着手可能。
 
-### フェーズF〜G
+### フェーズF: マニフェスト・管理UI・安全性
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| F-1 | プラグインマニフェスト`plugin.json` | ✅ 完了 | 2026-08-07 | `core/plugin_manifest.py`新設。各プラグインディレクトリ直下に`plugin.json`(必須キー: name/version/api_version)を必須化し、`__init__.py`内の`PLUGIN_INFO`辞書を置き換えた。`PLUGIN_API_VERSION = "1.0"`を固定し、不一致・欠落・不正なマニフェストは`__init__.py`を一切importせずロードをスキップ(A-2のエラー隔離経路)。`plugins/example_plugin/`・`tests/test_plugin_manager.py`の全フィクスチャをplugin.json方式に移行(`_write_plugin()`ヘルパーがmanifest引数を受け取る形に拡張、`manifest=False`で欠落ケースも再現可能) |
+| F-2 | プラグイン管理UI | ✅ 完了 | 2026-08-07 | 環境設定ダイアログ(`PreferencesDialog`)を`QTabWidget`化し、「一般」「プラグイン」の2タブに再編。プラグインタブに: ロード済み一覧(name/version/author、チェックボックスで個別ON/OFF)、フック単位の登録エラー一覧(A-2)、「プラグインフォルダを開く」ボタン(`QDesktopServices`)。個別ON/OFFは`disabled_plugins`のQSettingsキーに保存し次回起動時に反映(`PluginManager.load_all()`に`disabled_names`引数を追加、無効化されたプラグインはmanifestだけ読んで表示用情報を残しつつregister()は呼ばない) |
+| F-3 | プラグイン開発者向けドキュメント | ✅ 完了 | 2026-08-07 | `docs/plugin_development.md`新設(622行)。全8個の`register_*`フックを実シグネチャ付きで解説、plugin.json形式、依存ポリシー(E-3)、`FakeGraphicaPluginAPI`でのテスト方法、非破壊処理/構造化結果などの設計原則、D-3のi18n制約、将来のスタイルガイド用プレースホルダ節を含む |
+| F-4 | セーフモード起動 | ✅ 完了 | 2026-08-07 | 既存の`clean_exit`QSettings追跡を流用。`core/plugin_api.py`に`set_safe_mode()`/`is_safe_mode_enabled()`を追加し、有効時は`load_plugins_once()`がファイルシステムに一切触れず空のAPIを返す。`gui/crash_handler.py`に確認ダイアログ(`should_prompt_safe_mode`/`prompt_safe_mode_and_apply`)を追加、`main.py`が`--safe-mode`起動オプション(即時有効化)と、異常終了検出時の対話的な確認(QApplication構築後・MainAppWindow構築前というプラグインロード前のタイミングで実行)の両方を配線 |
+
+**フェーズF完了条件**: 上記4項目が✅。**達成(2026-08-07)**。フェーズG(描画バックエンド差し替え、骨組みのみ)に着手可能。
+
+### フェーズG
 
 未着手。詳細は `Graphica_ROADMAP_PLUGIN_AND_GUI.md` を参照。
 
@@ -116,3 +127,4 @@
 - 2026-08-05: トラック1 フェーズB(B-1〜B-3)完了を反映。
 - 2026-08-05: トラック1 フェーズC(C-1〜C-3)完了を反映。
 - 2026-08-07: トラック1 フェーズD(D-1〜D-3)・フェーズE(E-1〜E-4)完了を反映。
+- 2026-08-07: トラック1 フェーズF(F-1〜F-4)完了を反映。トラック1(プラグインAPI拡張)は残りフェーズGのみ。

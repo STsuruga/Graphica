@@ -24,7 +24,7 @@ import os
 from PySide6.QtCore import QSettings
 
 from core.plugin_api import load_plugins_once
-from gui.main_window import MAX_RECENT_FILES, plugin_search_paths
+from gui.main_window import MAX_RECENT_FILES, disabled_plugin_names, plugin_search_paths
 
 
 class AppContext:
@@ -64,7 +64,9 @@ class AppContext:
     @property
     def plugin_api(self):
         """プロセス全体で1つのGraphicaPluginAPI(未読み込みならこの時点で読み込む)"""
-        return load_plugins_once(plugin_search_paths())
+        return load_plugins_once(
+            plugin_search_paths(), disabled_names=disabled_plugin_names(self.settings)
+        )
 
     # --- 現在アクティブなタブへのアクセス ---
     # プラグインコールバック等が古いタブへの参照を保持し続けてしまわないよう、

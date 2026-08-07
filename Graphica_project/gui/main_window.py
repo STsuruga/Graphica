@@ -223,6 +223,21 @@ def plugin_search_paths():
     return paths
 
 
+DISABLED_PLUGINS_SETTINGS_KEY = "disabled_plugins"
+
+
+def disabled_plugin_names(settings):
+    """
+    QSettingsから、プラグイン管理UI(項目F-2)で個別に無効化されたプラグイン名の
+    集合を読み出す。get_recent_files()と同様、要素数1のリストがQSettings上では
+    単一の文字列として返ってくることがあるため補正する。
+    """
+    names = settings.value(DISABLED_PLUGINS_SETTINGS_KEY, [])
+    if isinstance(names, str):
+        names = [names]
+    return set(names) if names else set()
+
+
 # register_panel() (項目D-1) の area 文字列 -> Qt.DockWidgetArea のマッピング。
 # coreはPySide6に依存しないため、この変換はGUI側(ここ)で行う。
 _PLUGIN_PANEL_AREA_MAP = {
@@ -1260,7 +1275,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # プロセス全体で1度だけ行う(load_plugins_once がキャッシュする)。
         # メニューへのアクション追加自体は、タブごとに自分の menuBar() へ
         # 個別に行う必要があるため、_create_menu_bar() 側で行う。
-        self.plugin_api = load_plugins_once(plugin_search_paths())
+        self.plugin_api = load_plugins_once(
+            plugin_search_paths(), disabled_names=disabled_plugin_names(self.settings)
+        )
 
         # プラグイン製パネル (項目D-1、register_panel): タブ (このPlotterApp
         # インスタンス) ごとに widget_factory を個別に呼び出し、専用の

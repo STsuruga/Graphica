@@ -9,9 +9,9 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser,
                                QApplication, QFileDialog, QMessageBox, QGroupBox,
                                QTableWidget, QTableWidgetItem, QListWidget,
                                QListWidgetItem, QColorDialog, QInputDialog,
-                               QCheckBox, QStackedWidget, QWidget)
-from PySide6.QtCore import Qt, QTimer, QEvent
-from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence
+                               QCheckBox, QStackedWidget, QWidget, QTabWidget)
+from PySide6.QtCore import Qt, QTimer, QEvent, QUrl
+from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices
 
 from gui import icon_utils
 from gui.theme import apply_form_spacing
@@ -1947,7 +1947,15 @@ class PreferencesDialog(QDialog):
 
     def __init__(self, dark_mode, autosave_minutes, autosave_bounds=(0, 180), parent=None,
                  current_language=None, autosave_dir="", point_label_max_points=1000,
-                 snap_to_grid_enabled=False, snap_grid_interval_px=10):
+                 snap_to_grid_enabled=False, snap_grid_interval_px=10,
+                 plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None):
+        """
+        plugin_records/plugin_registration_errors/disabled_plugin_names は
+        「プラグイン」タブ(項目F-2)用。呼び出し側(gui/mixins/project_io_mixin.py)
+        が core.plugin_api.get_loaded_plugin_records() 等をそのまま渡す想定。
+        plugin_records=None は「一度もロードされていない(セーフモード含む)」を表し、
+        空リストの「1つも無い」とは区別して表示する。
+        """
         super().__init__(parent)
         from core.i18n import tr, SUPPORTED_LANGUAGES, get_language
         self.setWindowTitle(tr("環境設定"))
@@ -1956,9 +1964,16 @@ class PreferencesDialog(QDialog):
         #   (margin-top/padding-top)が以前より広くなったため、旧来のサイズ
         #   (360x260)のままだと3つのグループボックスがすべて収まりきらず
         #   文字が見切れてしまっていた。縦方向に余裕を持たせる。
-        self.resize(420, 420)
+        # 項目F-2でプラグイン管理タブを追加したため、さらに縦横に余裕を持たせる。
+        self.resize(480, 520)
 
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        tabs = QTabWidget()
+        outer_layout.addWidget(tabs)
+
+        general_tab = QWidget()
+        layout = QVBoxLayout(general_tab)
+        tabs.addTab(general_tab, tr("一般"))
 
         appearance_group = QGroupBox(tr("外観"))
         appearance_layout = QVBoxLayout(appearance_group)
@@ -2047,27 +2062,129 @@ class PreferencesDialog(QDialog):
         annotation_layout.addLayout(annotation_form)
         layout.addWidget(annotation_group)
 
-        # プラグインのzipインストール導線(項目E-2): このダイアログのOK/Cancel
-        # フロー(get_settings())とは独立した即時実行のボタン。オートセーブ
-        # 保存先の参照ボタン(_on_browse_autosave_dir)と同じ位置づけ。
-        plugin_group = QGroupBox(tr("プラグイン"))
-        plugin_layout = QHBoxLayout(plugin_group)
+        layout.addStretch()
+
+        # --- 「プラグイン」タブ(項目F-2) ---
+        plugin_tab = QWidget()
+        plugin_tab_layout = QVBoxLayout(plugin_tab)
+        tabs.addTab(plugin_tab, tr("プラグイン"))
+
+        # インストール・プラグインフォルダを開く(いずれもOK/Cancelフローとは
+        # 独立した即時実行のボタン。オートセーブ保存先の参照ボタンと同じ位置づけ)
+        plugin_actions_row = QHBoxLayout()
         self.install_plugin_button = QPushButton(tr("プラグインをインストール..."))
         self.install_plugin_button.setIcon(icon_utils.icon("download"))
         self.install_plugin_button.clicked.connect(self._on_install_plugin)
-        plugin_layout.addWidget(self.install_plugin_button)
-        plugin_layout.addStretch()
-        layout.addWidget(plugin_group)
+        plugin_actions_row.addWidget(self.install_plugin_button)
+        self.open_plugins_folder_button = QPushButton(tr("プラグインフォルダを開く"))
+        self.open_plugins_folder_button.setIcon(icon_utils.icon("folder"))
+        self.open_plugins_folder_button.clicked.connect(self._on_open_plugins_folder)
+        plugin_actions_row.addWidget(self.open_plugins_folder_button)
+        plugin_actions_row.addStretch()
+        plugin_tab_layout.addLayout(plugin_actions_row)
 
-        layout.addStretch()
+        # ロード済みプラグインの一覧(名前/バージョン/作者)+ 個別ON/OFF。
+        # チェック状態はダイアログを閉じる際にget_disabled_plugin_names()経由で
+        # 読み取られ、QSettingsへの反映(次回起動時に反映)は呼び出し側
+        # (gui/mixins/project_io_mixin.py の _on_show_preferences)が行う。
+        loaded_group = QGroupBox(tr("読み込み済みプラグイン"))
+        loaded_layout = QVBoxLayout(loaded_group)
+        self.plugin_list = QListWidget()
+        self._disabled_plugin_names = set(disabled_plugin_names or [])
+        self._populate_plugin_list(plugin_records, self._disabled_plugin_names)
+        loaded_layout.addWidget(self.plugin_list)
+        plugin_tab_layout.addWidget(loaded_group, 1)
+
+        # フック単位の登録失敗(項目A-2): プラグイン全体としてはロードに成功して
+        # いても、個々のregister_xxx呼び出しが(名前衝突等で)失敗している場合に
+        # ここに表示する(get_loaded_plugin_recordsのerrorには現れないため)。
+        hook_errors_group = QGroupBox(tr("フック単位の登録エラー"))
+        hook_errors_layout = QVBoxLayout(hook_errors_group)
+        self.plugin_hook_errors_list = QListWidget()
+        self._populate_hook_errors_list(plugin_registration_errors)
+        hook_errors_layout.addWidget(self.plugin_hook_errors_list)
+        plugin_tab_layout.addWidget(hook_errors_group)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        outer_layout.addWidget(button_box)
 
         apply_form_spacing(self)
+
+    def _populate_plugin_list(self, plugin_records, disabled_names):
+        """
+        「読み込み済みプラグイン」リストを構築する。plugin_records=Noneは
+        「一度もロードされていない」(セーフモード中含む)ことを表す特別扱いの
+        1行を出す。各行のチェック状態は現在の無効化設定を反映する(表示専用の
+        行=状態未読込プラグイン向けエラー行にはチェックボックスを付けない)。
+        """
+        from core.i18n import tr
+        self.plugin_list.clear()
+        if plugin_records is None:
+            item = QListWidgetItem(tr("(プラグインは読み込まれていません)"))
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+            self.plugin_list.addItem(item)
+            return
+        if not plugin_records:
+            item = QListWidgetItem(tr("(プラグインはありません)"))
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+            self.plugin_list.addItem(item)
+            return
+
+        for record in plugin_records:
+            name = record["name"]
+            info = record.get("info")
+            error = record.get("error")
+            disabled = record.get("disabled", False)
+
+            if disabled:
+                label = tr("{name} (無効化中)").format(name=name)
+            elif error:
+                label = tr("{name} — エラー: {error}").format(name=name, error=error)
+            elif info:
+                label = f"{info.get('name', name)} v{info.get('version', '?')} — {info.get('author', '?')}"
+            else:
+                label = name
+
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                Qt.CheckState.Unchecked if name in disabled_names else Qt.CheckState.Checked
+            )
+            self.plugin_list.addItem(item)
+
+    def _populate_hook_errors_list(self, plugin_registration_errors):
+        from core.i18n import tr
+        self.plugin_hook_errors_list.clear()
+        if not plugin_registration_errors:
+            item = QListWidgetItem(tr("(フック単位の登録エラーはありません)"))
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+            self.plugin_hook_errors_list.addItem(item)
+            return
+        for error in plugin_registration_errors:
+            text = f"[{error.plugin_name}] {error.hook_kind.value}: {error.message}"
+            self.plugin_hook_errors_list.addItem(QListWidgetItem(text))
+
+    def get_disabled_plugin_names(self):
+        """
+        「読み込み済みプラグイン」リストの現在のチェック状態から、無効化された
+        (チェックが外された)プラグイン名の集合を返す。呼び出し側がこれを
+        QSettingsのDISABLED_PLUGINS_SETTINGS_KEYへ保存する(次回起動時に反映)。
+        """
+        disabled = set()
+        for i in range(self.plugin_list.count()):
+            item = self.plugin_list.item(i)
+            name = item.data(Qt.ItemDataRole.UserRole)
+            if name is not None and item.checkState() == Qt.CheckState.Unchecked:
+                disabled.add(name)
+        return disabled
+
+    def _on_open_plugins_folder(self):
+        from core.app_paths import get_user_plugins_dir
+        QDesktopServices.openUrl(QUrl.fromLocalFile(get_user_plugins_dir()))
 
     def _on_browse_autosave_dir(self):
         from core.i18n import tr

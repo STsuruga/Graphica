@@ -3,17 +3,19 @@
 Graphicaのプラグイン機構。
 
 設計方針:
-- プラグインは `plugins/` ディレクトリ(resource_path("plugins")、実行ファイルの
-  隣。無ければ起動時に自動作成する)配下の、各サブフォルダとして配置する。
-  各サブフォルダは `__init__.py` を持つ通常のPythonパッケージで、以下の2つを
-  トップレベルに定義する:
-
-    PLUGIN_INFO = {"name": "...", "version": "...", "author": "...",
-                    "description": "..."}
+- プラグインは探索対象ディレクトリ(gui/main_window.py の
+  plugin_search_paths()、項目E-1: ソース実行時のみ resource_path("plugins")、
+  常に %LOCALAPPDATA%\\Graphica\\plugins)配下の、各サブフォルダとして配置する。
+  各サブフォルダは `__init__.py` と `plugin.json`(項目F-1、
+  core/plugin_manifest.py 参照。name/version/api_versionが必須キー)を
+  直下に持つ通常のPythonパッケージで、`__init__.py` はトップレベルに
+  以下を定義する:
 
     def register(api: GraphicaPluginAPI) -> None:
         ...  # api.register_fit_function(...) 等を呼ぶ
 
+  plugin.jsonが欠落・不正・api_version不一致の場合、__init__.pyは一切
+  importされずロードをスキップする(A-2のエラー隔離経路に乗る)。
 - プラグインはアプリと同じPythonプロセス内で実行される、サンドボックスなしの
   通常のPythonコードである。信頼できる配布元のプラグインのみ導入すること
   (models/project.py の pickle 復元における _RestrictedUnpickler の
@@ -42,6 +44,7 @@ import os
 import sys
 
 from core.analysis import register_fit_function
+from core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestError, load_plugin_manifest
 from core.plugin_types import (
     PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter,
     PluginPanel, PluginPlotType, PluginProcessor, PluginRegistrationError,
@@ -49,7 +52,6 @@ from core.plugin_types import (
 
 logger = logging.getLogger(__name__)
 
-PLUGIN_MANIFEST_ATTR = "PLUGIN_INFO"
 PLUGIN_REGISTER_FUNC = "register"
 
 
@@ -475,22 +477,40 @@ class PluginManager:
             raise PluginLoadError(f"プラグイン '{plugin_name}' の読み込み中にエラー: {e}") from e
         return module
 
-    def load_all(self, api):
+    def load_all(self, api, disabled_names=None):
         """
         plugins_dir 配下の全プラグインを読み込み、register(api) を呼び出す。
         1つのプラグインで例外が発生しても、他のプラグインの読み込みは継続する。
+
+        Args:
+            disabled_names (set[str] | None): プラグイン管理UI(項目F-2)で
+                個別に無効化されたプラグイン名の集合。ここに含まれる名前は
+                manifest(表示用のname/version等)だけ読み込み、依存チェック・
+                __init__.pyのimport・register()呼び出しは一切行わない
+                (次回起動反映でよい、という仕様のため、ここでスキップすれば
+                「無効化した状態での次回起動」がそのまま実現される)。
         """
+        disabled_names = disabled_names or set()
         self.loaded_plugins = []
         for plugin_name in self.discover_plugin_dirs():
-            record = {"name": plugin_name, "info": None, "error": None}
-            try:
-                module = self._load_module(plugin_name)
+            record = {"name": plugin_name, "info": None, "error": None, "disabled": False}
 
-                info = getattr(module, PLUGIN_MANIFEST_ATTR, None)
-                if not isinstance(info, dict):
-                    raise PluginLoadError(
-                        f"プラグイン '{plugin_name}' に {PLUGIN_MANIFEST_ATTR} (dict) がありません。"
-                    )
+            if plugin_name in disabled_names:
+                record["disabled"] = True
+                try:
+                    plugin_dir = os.path.join(self._plugin_locations[plugin_name], plugin_name)
+                    record["info"] = load_plugin_manifest(plugin_dir)
+                except Exception:
+                    pass  # 無効化中は表示用の名前・バージョンが取れないだけで致命的ではない
+                self.loaded_plugins.append(record)
+                continue
+
+            try:
+                # plugin.json(項目F-1)はモジュールをimportする前に検証する。
+                # api_version不一致等で弾く場合、プラグインのコード自体は
+                # 一切実行されない(信頼できないプラグインへの安全側の配慮)。
+                plugin_dir = os.path.join(self._plugin_locations[plugin_name], plugin_name)
+                info = load_plugin_manifest(plugin_dir)
                 record["info"] = info
 
                 missing = _check_plugin_dependencies(info)
@@ -502,6 +522,7 @@ class PluginManager:
                         "pip版のGraphicaであれば追加の依存パッケージを導入して動作させられます。"
                     )
 
+                module = self._load_module(plugin_name)
                 register_func = getattr(module, PLUGIN_REGISTER_FUNC, None)
                 if not callable(register_func):
                     raise PluginLoadError(
@@ -530,15 +551,52 @@ class PluginManager:
 _singleton_api = None
 _singleton_manager = None
 
+# セーフモード(項目F-4)のON/OFF。main.pyが起動直後、load_plugins_once()が
+# 最初に呼ばれるより前に set_safe_mode() で設定する想定。プロセス全体で1つの
+# フラグであり、_singleton_api 同様タブごとの状態は持たない。
+_safe_mode_enabled = False
 
-def load_plugins_once(plugins_dir):
+
+def set_safe_mode(enabled):
+    """
+    セーフモードのON/OFFを切り替える(項目F-4)。
+    load_plugins_once() の最初の呼び出しより後に呼んでも、既にキャッシュ済みの
+    _singleton_api には影響しない(既存のシングルトンキャッシュの仕組みと同じ)。
+    """
+    global _safe_mode_enabled
+    _safe_mode_enabled = bool(enabled)
+
+
+def is_safe_mode_enabled():
+    """現在セーフモードが有効かどうかを返す。"""
+    return _safe_mode_enabled
+
+
+def load_plugins_once(plugins_dir, disabled_names=None):
     """
     plugins_dir 配下のプラグインを、プロセス内で最初の呼び出し時にのみ読み込む。
     2回目以降の呼び出しは、キャッシュされた GraphicaPluginAPI をそのまま返す
     (新しいタブが開かれるたびに再読み込み・再登録が走らないようにするため)。
+
+    セーフモード(項目F-4)が有効な場合、プラグインディレクトリには一切触れず
+    (ディレクトリ作成すら行わない)、何も登録されていない空の GraphicaPluginAPI を
+    返す。これも通常時と同じくキャッシュされるため、2回目以降の呼び出しは
+    同じ空のAPIを返し続ける。
+
+    Args:
+        disabled_names (set[str] | None): プラグイン管理UI(項目F-2)で個別に
+            無効化されたプラグイン名の集合。PluginManager.load_all()にそのまま
+            渡す。セーフモード有効時は無視される(そもそも何も読み込まないため)。
     """
     global _singleton_api, _singleton_manager
     if _singleton_api is not None:
+        return _singleton_api
+
+    if is_safe_mode_enabled():
+        # 「プラグインを一切ロードしない」ことがセーフモードの本質のため、
+        # ディレクトリ作成を含むファイルシステムへのアクセスを一切行わない。
+        _singleton_api = GraphicaPluginAPI()
+        _singleton_manager = None
         return _singleton_api
 
     dirs = [plugins_dir] if isinstance(plugins_dir, str) else list(plugins_dir)
@@ -546,7 +604,7 @@ def load_plugins_once(plugins_dir):
         os.makedirs(d, exist_ok=True)
     _singleton_api = GraphicaPluginAPI()
     _singleton_manager = PluginManager(plugins_dir)
-    _singleton_manager.load_all(_singleton_api)
+    _singleton_manager.load_all(_singleton_api, disabled_names=disabled_names)
     return _singleton_api
 
 

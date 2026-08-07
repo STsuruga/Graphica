@@ -362,7 +362,7 @@
   <div class="note">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
     <div>
-      <b>#1〜#32(トラック0全6項目+トラック0'クイックウィン全9項目+トラック1フェーズA・B・C・D・E全17項目)は全て完了済み。</b>次はトラック1フェーズF(#33〜、マニフェスト・管理UI・安全性)です。
+      <b>#1〜#36(トラック0全6項目+トラック0'クイックウィン全9項目+トラック1フェーズA・B・C・D・E・F全21項目)は全て完了済み。</b>次はトラック1フェーズG(#37、描画バックエンド差し替えの型定義のみ)です。フェーズGが終わればトラック1(プラグインAPI拡張)全体が完了します。
       なお元資料の集計値(CORE_BACKLOG「135件」/ PLUGIN_BACKLOG「64件」)は本文中の実項目数(140件/67件)と一致しないため、本表は実際に列挙されている全項目を採用しています。
     </div>
   </div>
@@ -439,10 +439,10 @@ const DATA = [
         [32, 'E-4', '単一インスタンス化(zip展開の排他ロック)', true],
       ]},
       { label: 'フェーズF — マニフェスト・管理UI・安全性', rows: [
-        [33, 'F-1', 'プラグインマニフェスト plugin.json', false],
-        [34, 'F-2', 'プラグイン管理UI', false],
-        [35, 'F-3', 'プラグイン開発者向けドキュメント(plugin_development.md)', false],
-        [36, 'F-4', 'セーフモード起動 + --safe-mode オプション', false],
+        [33, 'F-1', 'プラグインマニフェスト plugin.json', true],
+        [34, 'F-2', 'プラグイン管理UI', true],
+        [35, 'F-3', 'プラグイン開発者向けドキュメント(plugin_development.md)', true],
+        [36, 'F-4', 'セーフモード起動 + --safe-mode オプション', true],
       ]},
       { label: 'フェーズG — 描画バックエンド差し替え(骨組みのみ)', rows: [
         [37, 'G', 'register_render_backend() 型定義のみ', false],

@@ -9,17 +9,18 @@ import logging
 #   アクセス拒否で失敗し、Qtの座標計算がV1相当の意図しないモードのまま動作して
 #   しまう。これが描画位置とクリック判定位置がずれる不具合の原因だった。
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QGuiApplication
 
 # 複数プロジェクトタブ(項目40)に対応した最上位ウィンドウ。
 # 内部で PlotterApp を各タブとして生成する。
 from gui.main_app_window import MainAppWindow
-from gui.crash_handler import install_crash_handler
+from gui.crash_handler import install_crash_handler, prompt_safe_mode_and_apply
 from gui.theme import disable_scroll_value_change
 from core.version import LOG_FILE_NAME
 from core.app_paths import get_app_data_dir
+from core.plugin_api import set_safe_mode
 
 # アプリ全体のUIフォント。既定の "MS Shell Dlg 2"(素朴な見た目)ではなく、
 # Windows 10/11 の設定アプリ等でも使われている「Yu Gothic UI」を明示的に使う。
@@ -45,6 +46,15 @@ def _setup_logging():
         ],
     )
 
+def _safe_mode_flag_requested(argv):
+    """
+    起動オプション --safe-mode が指定されているかどうかを返す(項目F-4)。
+    main() 本体から切り出したのは、QApplication/ウィンドウを実際に構築せずに
+    単体でテストできるようにするため(main.py はこれまでテストが無かった)。
+    """
+    return "--safe-mode" in argv
+
+
 def main():
     _setup_logging()
     # マルチモニターでDPI(拡大率)が異なる環境(例: メイン100%・サブ125%)で、
@@ -67,6 +77,20 @@ def main():
     # スクロール操作でスピンボックス/コンボボックスの値が意図せず変わって
     # しまうのを防ぐ(フォーカスしている時だけホイールで値を変更できる)
     disable_scroll_value_change()
+
+    # セーフモード起動(項目F-4)。プラグインの読み込みは最初のタブの
+    # PlotterApp.__init__ の中で(load_plugins_once()経由で)行われるため、
+    # MainAppWindow() を構築するより前に確定させておく必要がある。
+    if _safe_mode_flag_requested(sys.argv):
+        # コマンドラインで明示的に指定された場合は、ユーザーの意図が明らかなので
+        # 確認ダイアログは出さない。
+        set_safe_mode(True)
+    else:
+        # 前回異常終了していた場合のみ、プラグインを無効にして起動するかを尋ねる。
+        # これは読み取り専用の確認であり、clean_exitキー自体の書き換え
+        # (次回起動時の判定用リセット/復元)は引き続きPlotterApp側の
+        # 既存ロジックのみが行う。
+        prompt_safe_mode_and_apply(QSettings("Graphica", "Graphica"))
 
     # 最上位ウィンドウ (複数プロジェクトタブを管理する) のインスタンスを作成して表示
     window = MainAppWindow()

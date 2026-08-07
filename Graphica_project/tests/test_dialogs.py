@@ -3,12 +3,16 @@
 
 ダイアログ自体のexec()(モーダル表示)は呼ばず、値の設定・取得ロジックのみを検証する。
 """
+import os
+
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
                          FitDialog, SavGolDialog, PluginParamDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
+from core.plugin_types import PluginHookKind, PluginRegistrationError
 
 
 # --- NewDatasetDialog (項目63: 空のテーブルから新規データセットを作成) ---
@@ -379,3 +383,128 @@ def test_plugin_param_dialog_empty_schema_returns_empty_values():
 def test_plugin_param_dialog_sets_window_title():
     dlg = PluginParamDialog("My Processor", [])
     assert dlg.windowTitle() == "My Processor"
+
+
+# --- PreferencesDialogの「プラグイン」タブ(項目F-2) ---
+
+def test_preferences_dialog_plugin_tab_shows_not_loaded_placeholder_when_records_none():
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=None)
+    assert dlg.plugin_list.count() == 1
+    item = dlg.plugin_list.item(0)
+    assert not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable)
+
+
+def test_preferences_dialog_plugin_tab_shows_empty_placeholder_when_no_plugins():
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=[])
+    assert dlg.plugin_list.count() == 1
+    item = dlg.plugin_list.item(0)
+    assert not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable)
+
+
+def test_preferences_dialog_plugin_tab_lists_loaded_plugin_with_checkbox():
+    records = [{"name": "my_plugin", "info": {"name": "My Plugin", "version": "1.0",
+                                               "author": "test"}, "error": None, "disabled": False}]
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=records)
+    assert dlg.plugin_list.count() == 1
+    item = dlg.plugin_list.item(0)
+    assert "My Plugin" in item.text()
+    assert item.checkState() == Qt.CheckState.Checked
+
+
+def test_preferences_dialog_plugin_tab_shows_error_for_failed_plugin():
+    records = [{"name": "broken_plugin", "info": None, "error": "plugin.json が見つかりません",
+                "disabled": False}]
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=records)
+    item = dlg.plugin_list.item(0)
+    assert "plugin.json" in item.text()
+
+
+def test_preferences_dialog_plugin_tab_disabled_plugin_starts_unchecked():
+    records = [{"name": "my_plugin", "info": {"name": "My Plugin", "version": "1.0",
+                                               "author": "test"}, "error": None, "disabled": True}]
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=records,
+                             disabled_plugin_names={"my_plugin"})
+    item = dlg.plugin_list.item(0)
+    assert item.checkState() == Qt.CheckState.Unchecked
+    assert "無効化中" in item.text()
+
+
+def test_preferences_dialog_get_disabled_plugin_names_reflects_unchecked_items():
+    records = [
+        {"name": "plugin_a", "info": {"name": "A", "version": "1.0", "author": "t"},
+         "error": None, "disabled": False},
+        {"name": "plugin_b", "info": {"name": "B", "version": "1.0", "author": "t"},
+         "error": None, "disabled": False},
+    ]
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=records)
+    assert dlg.get_disabled_plugin_names() == set()
+
+    dlg.plugin_list.item(0).setCheckState(Qt.CheckState.Unchecked)
+    assert dlg.get_disabled_plugin_names() == {"plugin_a"}
+
+
+def test_preferences_dialog_get_disabled_plugin_names_preinitialized_from_constructor():
+    records = [{"name": "plugin_a", "info": {"name": "A", "version": "1.0", "author": "t"},
+                "error": None, "disabled": False}]
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=records,
+                             disabled_plugin_names={"plugin_a"})
+    assert dlg.get_disabled_plugin_names() == {"plugin_a"}
+
+
+def test_preferences_dialog_hook_errors_tab_shows_placeholder_when_none():
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_registration_errors=[])
+    assert dlg.plugin_hook_errors_list.count() == 1
+
+
+def test_preferences_dialog_hook_errors_tab_lists_errors():
+    errors = [PluginRegistrationError(
+        plugin_name="my_plugin", hook_kind=PluginHookKind.FIT_FUNCTION, message="衝突しました"
+    )]
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_registration_errors=errors)
+    assert dlg.plugin_hook_errors_list.count() == 1
+    text = dlg.plugin_hook_errors_list.item(0).text()
+    assert "my_plugin" in text
+    assert "fit_function" in text
+    assert "衝突しました" in text
+
+
+def test_preferences_dialog_open_plugins_folder_button_calls_desktop_services(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr("gui.dialogs.QDesktopServices.openUrl", staticmethod(lambda url: calls.append(url)))
+    monkeypatch.setattr("core.app_paths.get_user_plugins_dir", lambda: str(tmp_path))
+
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
+    dlg._on_open_plugins_folder()
+
+    assert len(calls) == 1
+    assert os.path.normpath(calls[0].toLocalFile()) == os.path.normpath(str(tmp_path))
+
+
+def test_preferences_dialog_shows_error_for_intentionally_broken_plugin_end_to_end(tmp_path, monkeypatch):
+    """
+    F-2の完了条件そのものの再現: 意図的に壊した(plugin.jsonの無い)ダミー
+    プラグインを置いた状態でロードし、その結果(get_loaded_plugin_records())を
+    そのままPreferencesDialogに渡すと、管理UIにエラー理由が表示されること。
+    """
+    import core.plugin_api as plugin_api_module
+
+    # _singleton_api はプロセス全体で共有されるため、他のテストが既にロード
+    # 済みだとload_plugins_once()が何もせずキャッシュを返してしまう。
+    # このテスト専用にNoneへ明示的に隔離してから読み込む
+    # (tests/test_source_plugin_field.pyで一度踏んだのと同じ罠)。
+    monkeypatch.setattr(plugin_api_module, "_singleton_api", None)
+    monkeypatch.setattr(plugin_api_module, "_singleton_manager", None)
+
+    plugin_dir = tmp_path / "broken_plugin"
+    plugin_dir.mkdir()
+    (plugin_dir / "__init__.py").write_text("def register(api):\n    pass\n", encoding="utf-8")
+    # plugin.json を意図的に置かない
+
+    plugin_api_module.load_plugins_once(str(tmp_path))
+    records = plugin_api_module.get_loaded_plugin_records()
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=records)
+
+    assert dlg.plugin_list.count() == 1
+    item_text = dlg.plugin_list.item(0).text()
+    assert "broken_plugin" in item_text
+    assert "plugin.json" in item_text

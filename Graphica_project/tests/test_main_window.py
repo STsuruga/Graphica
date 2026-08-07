@@ -144,6 +144,26 @@ def test_drop_event_skips_unsupported_extension_but_loads_the_rest(tmp_path, mon
 
 # --- register_importer()由来の拡張子(項目B-1) ---
 
+# --- 個別のプラグイン無効化(項目F-2) ---
+
+def test_disabled_plugin_names_empty_by_default(tmp_path):
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    assert main_window_module.disabled_plugin_names(settings) == set()
+
+
+def test_disabled_plugin_names_reads_stored_list(tmp_path):
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    settings.setValue(main_window_module.DISABLED_PLUGINS_SETTINGS_KEY, ["plugin_a", "plugin_b"])
+    assert main_window_module.disabled_plugin_names(settings) == {"plugin_a", "plugin_b"}
+
+
+def test_disabled_plugin_names_handles_single_item_stored_as_string(tmp_path):
+    """QSettingsは要素数1のリストを単一の文字列として返すことがある(get_recent_filesと同じ罠)。"""
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    settings.setValue(main_window_module.DISABLED_PLUGINS_SETTINGS_KEY, ["plugin_a"])
+    assert main_window_module.disabled_plugin_names(settings) == {"plugin_a"}
+
+
 def test_all_supported_data_file_extensions_without_plugins():
     """_all_supported_data_file_extensionsはself.*を参照しないため、
     PlotterAppを組み立てずに直接呼び出せる。"""

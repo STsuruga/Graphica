@@ -34,7 +34,10 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch, settings_path=None, plugin
     monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
 
     if plugin_api is not None:
-        monkeypatch.setattr(main_window_module, "load_plugins_once", lambda plugins_dir: plugin_api)
+        monkeypatch.setattr(
+            main_window_module, "load_plugins_once",
+            lambda plugins_dir, disabled_names=None: plugin_api
+        )
 
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)

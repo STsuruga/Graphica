@@ -1,9 +1,11 @@
 # tests/test_diagnostics.py
 """core/diagnostics.py (診断情報バンドル出力、C-1201) のテスト。"""
+import json
 import os
 import zipfile
 
 from core.diagnostics import build_diagnostic_bundle
+from core.plugin_manifest import PLUGIN_API_VERSION
 from core.version import LOG_FILE_NAME, __version__
 
 
@@ -96,12 +98,15 @@ def test_build_diagnostic_bundle_plugins_txt_includes_hook_level_registration_er
     plugin_dir = tmp_path / "plugins" / "partial_failure_plugin"
     plugin_dir.mkdir(parents=True)
     (plugin_dir / "__init__.py").write_text('''
-PLUGIN_INFO = {"name": "Partial Failure", "version": "1.0", "author": "test", "description": "d"}
-
 def register(api):
     api.register_fit_function("線形", lambda x, a: a * x, ["a"])  # 組み込み名と衝突して失敗
     api.register_menu_action("OK", lambda main_window: None)
 ''', encoding='utf-8')
+    (plugin_dir / "plugin.json").write_text(
+        json.dumps({"name": "Partial Failure", "version": "1.0", "author": "test",
+                    "api_version": PLUGIN_API_VERSION}),
+        encoding='utf-8'
+    )
 
     plugin_api_module.load_plugins_once(str(tmp_path / "plugins"))
 

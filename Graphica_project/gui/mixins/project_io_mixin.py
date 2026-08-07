@@ -77,13 +77,24 @@ class ProjectIOMixin:
             "snap_to_grid_enabled", DEFAULT_SNAP_TO_GRID_ENABLED, type=bool)
         current_snap_grid_interval = self.settings.value(
             "snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, type=int)
+
+        # プラグイン管理タブ(項目F-2)向けのデータ。
+        # gui.main_window はこのMixinを読み込む側(逆方向にimportすると循環
+        # importになる)なので、関数内でのローカルimportにする。
+        from core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
+        from gui.main_window import DISABLED_PLUGINS_SETTINGS_KEY, disabled_plugin_names
+        current_disabled_plugin_names = disabled_plugin_names(self.settings)
+
         dlg = PreferencesDialog(
             self.canvas.dark_mode, current_minutes,
             autosave_bounds=AUTOSAVE_INTERVAL_MIN_BOUNDS, parent=self,
             current_language=current_language, autosave_dir=current_autosave_dir,
             point_label_max_points=current_point_label_max,
             snap_to_grid_enabled=current_snap_to_grid,
-            snap_grid_interval_px=current_snap_grid_interval
+            snap_grid_interval_px=current_snap_grid_interval,
+            plugin_records=get_loaded_plugin_records(),
+            plugin_registration_errors=get_plugin_registration_errors(),
+            disabled_plugin_names=current_disabled_plugin_names,
         )
         if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
             return
@@ -91,6 +102,12 @@ class ProjectIOMixin:
         (new_dark_mode, new_autosave_minutes, new_language,
          new_autosave_dir, new_point_label_max,
          new_snap_to_grid, new_snap_grid_interval) = dlg.get_settings()
+
+        # プラグインの個別ON/OFF(項目F-2): 次回起動時に反映される
+        # (今回のロード済みプラグイン一覧をその場で入れ替える仕組みは持たない)。
+        new_disabled_plugin_names = dlg.get_disabled_plugin_names()
+        if new_disabled_plugin_names != current_disabled_plugin_names:
+            self.settings.setValue(DISABLED_PLUGINS_SETTINGS_KEY, list(new_disabled_plugin_names))
 
         # オートセーブの保存先フォルダ(項目: 環境設定からオートセーブ保存先を指定可能に)
         if new_autosave_dir != current_autosave_dir:
