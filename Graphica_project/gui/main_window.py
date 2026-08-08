@@ -537,6 +537,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._layout_edit_press_cid = None     # button_press_event の接続ID
         self._layout_edit_motion_cid = None    # motion_notify_event の接続ID
         self._layout_edit_release_cid = None   # button_release_event の接続ID
+        self._layout_edit_leave_cid = None     # figure_leave_event の接続ID(ドラッグ中に画面外へ出た時の保険)
         self._layout_drag_state = None         # ドラッグ中の状態 (dict) または None
         # 項目85: レイアウト編集モードでクリックして「選択」されているサブプロットの
         # 軸インデックス (ドラッグ中かどうかとは独立して保持する)。数値入力欄
@@ -580,8 +581,23 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # MplCanvas (グラフ描画領域) を作成
         self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
-        # ダークモード設定を復元 (QApplication側の配色は _create_menu_bar で適用する)
+        # ダークモード設定を復元
         self.canvas.dark_mode = self.settings.value("dark_mode", False, type=bool)
+        # ★ バグ修正: 以前はここでQApplication側の配色(QSS/パレット)を適用せず
+        # _create_menu_bar()まで先送りしていたが、この間(ツールバーの
+        # カーソル/注釈/レイアウト編集/ズームリセットボタン、データセット
+        # 操作ボタン群、フォント/色選択ボタン群など)に構築される多数の
+        # Tabler Iconsアイコンは、_svg_icon()が都度theme.current_tokens()から
+        # 色を解決する仕組みになっている。apply_theme()を一度も呼んでいない
+        # 時点ではtheme._current_tokensがNoneのままライト用トークンに
+        # フォールバックするため、「前回起動時にダークモードにしていた」
+        # ユーザーが次に起動すると、メインツールバーの各種アイコンだけ
+        # ライト用の暗いグレーで焼き込まれ、ダーク背景に対してほぼ見えない
+        # 状態になっていた(_on_toggle_dark_modeで一度手動でダークを
+        # 切り替え直すまで直らない)。アイコン構築が始まる前にここで
+        # 適用しておく(_create_menu_bar()側の呼び出しは、Fusionスタイルを
+        # 毎回確実に適用する目的もあり冪等なのでそのまま残す)。
+        theme.apply_theme(QApplication.instance(), self.canvas.dark_mode)
         # データ点ラベルの表示上限(環境設定、項目105: 大量データでのフリーズ防止)
         self.canvas.point_label_max_points = self.settings.value(
             "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
@@ -1552,6 +1568,26 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def closeEvent(self, event):
         """ウィンドウが閉じられる(正常終了する)ときに呼ばれる。"""
+        # ★ バグ修正: バックグラウンドでファイル読み込み中(DataLoadWorker、
+        # gui/workers.py)にタブ/アプリを閉じると、実行中のQThreadが破棄され
+        # Qtが即座にプロセスをfail-fast abortさせる(実機で再現確認済み、
+        # 例外機構を経由しないハードクラッシュのため他の全タブの未保存データも
+        # 道連れになる)。読み込みは通常CSV/Excelの読み取りのみで長時間には
+        # ならないため、閉じる前にここでブロッキング待機して完了させる。
+        # 待機後に signal をつなぎ直さず先に切断しておくことで、待機中に
+        # emit された load_succeeded/load_failed が、閉じている最中の
+        # ウィンドウに対して(キュー処理や再描画を伴う)通常のスロットを
+        # 実行してしまうのも防ぐ。
+        if self._data_load_worker is not None:
+            try:
+                self._data_load_worker.load_succeeded.disconnect()
+                self._data_load_worker.load_failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._data_load_worker.wait()
+            self._data_load_worker.deleteLater()
+            self._data_load_worker = None
+
         if self._run_startup_checks:
             self.settings.setValue("clean_exit", True)
             # ドックの配置/表示状態を保存し、次回起動時に復元する

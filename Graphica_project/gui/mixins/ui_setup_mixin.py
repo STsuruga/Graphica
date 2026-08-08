@@ -543,6 +543,67 @@ class UISetupMixin:
         #   統計/パレット系メニュー、折りたたみセクションのシェブロン)も
         #   同じ理由で再読み込みが必要(詳細は_refresh_custom_svg_icons参照)。
         self._refresh_custom_svg_icons()
+        # ★ バグ修正: データエディタ(gui/data_editor.py)は非モーダル(show())
+        #   で開いたまま操作を続けられるため、開いたままダークモードを切り替える
+        #   と、マスク済み行の背景色(_masked_row_background())が古いテーマの
+        #   ままになっていた。開いていれば再描画して追従させる。
+        if getattr(self, 'data_editor_dialog', None) is not None:
+            self.data_editor_dialog._populate_table()
+        # ★ バグ修正: HelpDialog/CalcHelpDialog(gui/dialogs.py)も同様に
+        #   非モーダルで開いたままダークモードを切り替えられるが、表見出しの
+        #   色(tr.header-row)は__init__時点のトークンをQTextDocumentへ
+        #   一度だけ焼き込む実装だったため、開いたまま切り替えると色が
+        #   古いテーマのまま取り残されていた。
+        for dialog_attr in ('help_dialog', 'calc_help_dialog'):
+            dialog = getattr(self, dialog_attr, None)
+            if dialog is not None and hasattr(dialog, 'refresh_theme'):
+                dialog.refresh_theme()
+        # ★ バグ修正: apply_theme() 自体はQApplication全体(=全タブ共有の
+        #   QSS/パレット)に対して即座に効くプロセス全体の操作だが、
+        #   このメソッドの残り(matplotlib配色・アイコン再読み込み・
+        #   ダークモードのメニューチェック状態)はすべて self (=操作した
+        #   タブ)にしか適用されない。各タブは完全に独立したPlotterApp
+        #   インスタンス(CLAUDE.mdの設計方針通り)であるため、他のタブを
+        #   開いたまま片方だけダークモードを切り替えると、Qtのチェコロム/
+        #   ドック等は(共有QSSのため)即座にダークになるのに、他のタブの
+        #   グラフやツールバーアイコン、メニューのチェック状態は古いまま
+        #   残る「二重人格」状態になっていた。
+        self._sync_dark_mode_to_sibling_tabs(checked)
+
+    def _sync_dark_mode_to_sibling_tabs(self, checked):
+        """
+        自分以外の全タブ(独立したPlotterAppインスタンス)にも、同じダーク
+        モード状態を反映する。MainAppWindow.tab_widgetの各ページが
+        PlotterAppインスタンスそのもの(main_app_window.pyのadd_new_project_tab
+        参照)であることを前提にしている。
+        """
+        main_app_window = self.window()
+        tab_widget = getattr(main_app_window, 'tab_widget', None)
+        if tab_widget is None:
+            return
+        for i in range(tab_widget.count()):
+            tab = tab_widget.widget(i)
+            if tab is None or tab is self:
+                continue
+            if not hasattr(tab, 'dark_mode_action') or not hasattr(tab, 'canvas'):
+                continue
+            if tab.canvas.dark_mode == checked:
+                continue
+            tab.canvas.dark_mode = checked
+            tab.settings.setValue("dark_mode", checked)
+            # ★ setChecked()がtoggledを発火すると、そのタブの
+            #   _on_toggle_dark_modeがapply_theme()の再実行や、さらに
+            #   自分自身への再同期を連鎖的に引き起こしてしまう(無害だが
+            #   無駄な二重処理になる)ため、シグナルを止めて直接状態だけ揃える。
+            tab.dark_mode_action.blockSignals(True)
+            tab.dark_mode_action.setChecked(checked)
+            tab.dark_mode_action.blockSignals(False)
+            tab._update_plot()
+            tab._refresh_all_label_previews()
+            tab.color_picker_widget.refresh_theme()
+            tab.gradient_color2_picker.refresh_theme()
+            tab._refresh_mpl_toolbar_icons()
+            tab._refresh_custom_svg_icons()
 
     def _refresh_mpl_toolbar_icons(self):
         """

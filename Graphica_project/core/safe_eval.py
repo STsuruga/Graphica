@@ -139,6 +139,13 @@ class _Evaluator:
 
         if isinstance(node, ast.Call):
             args = [self.eval(a) for a in node.args]
+            # ★ バグ修正: `**expr` 形式のキーワード展開はkw.argがNoneになる。
+            # 従来はNoneをそのまま辞書キーにしてしまい、その後の関数呼び出しで
+            # 未捕捉の`TypeError: keywords must be strings`が漏れ出ていた
+            # (この構文を厳密に拒否するのが本来のこのクラスの役目)。
+            for kw in node.keywords:
+                if kw.arg is None:
+                    raise SafeEvalError("この形式の関数呼び出し(**による引数展開)は許可されていません。")
             kwargs = {kw.arg: self.eval(kw.value) for kw in node.keywords}
             if isinstance(node.func, ast.Name):
                 name = node.func.id

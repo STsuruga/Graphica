@@ -75,6 +75,20 @@ class SettingsMixin:
                 #     リストの末尾から設定を削除
                 self.project.all_plot_settings = self.project.all_plot_settings[:total_plots]
 
+                # ★ バグ修正: 削除された(存在しなくなった)サブプロット番号を
+                # subplot_target に持つデータセットは、そのままだと
+                # gui/canvas.pyのdatasets-per-axisフィルタ(ds.subplot_target
+                # == axis_index)に一致する軸が無くなり、どのサブプロットにも
+                # 描画されず、エクスポート画像にも含まれなくなる。データ
+                # セット自体はリストに残り続け普通に選択・編集できてしまう
+                # ため、「データが消えた」ことに気づきにくいサイレントな
+                # バグだった(グリッドを再び広げると何事もなかったかのように
+                # 復活するため、原因の特定はさらに難しい)。存在する最後の
+                # サブプロットに割り当て直すことで、見えなくなることを防ぐ。
+                for dataset in self.project.datasets:
+                    if dataset.subplot_target >= total_plots:
+                        dataset.subplot_target = total_plots - 1
+
             # 3. アクティブな軸のインデックスが範囲外になったら 0 に戻す
             #    (例: 2x2=4 で P4 を編集中に 1x1=1 に変更した場合)
             if self.project.active_axis_index >= total_plots:

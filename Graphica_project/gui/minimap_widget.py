@@ -86,7 +86,18 @@ class MinimapWidget(FigureCanvas):
         SpanSelector を(再)生成する。ax.cla() は既存のSpanSelectorが
         axへ追加していたArtist(選択範囲を示す矩形)も一緒に消してしまうため、
         refresh() で ax.cla() した後は毎回作り直す必要がある。
+
+        ★ バグ修正: 古いSpanSelectorのイベント接続(press/motion/release)を
+        切断せずに上書きしていたため、refresh()が呼ばれるたび(データセット
+        追加やプロット設定変更のたびに毎回)に前のSpanSelectorがcanvasの
+        コールバック登録に生き残ったまま蓄積し、際限なくリークしていた
+        (matplotlibはcla()やGCで自動的に接続を切ってくれない)。1回の
+        ドラッグ操作のたびに、リークした数だけrange_selectedが重複発火
+        したり、ax.cla()で既に消えたArtistをuseblit=Trueの古いSelectorが
+        参照し続けて残像(ゴースト矩形)が出たりする実害があった。
         """
+        if getattr(self, '_span_selector', None) is not None:
+            self._span_selector.disconnect_events()
         span_color = DARK_SPAN_COLOR if self.dark_mode else LIGHT_SPAN_COLOR
         self._span_selector = SpanSelector(
             self.ax,

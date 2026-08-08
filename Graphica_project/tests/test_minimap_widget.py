@@ -80,6 +80,32 @@ def test_minimap_refresh_applies_light_theme_colors(minimap):
     )
 
 
+def test_minimap_refresh_does_not_leak_span_selector_event_connections(minimap):
+    """
+    回帰テスト: refresh() のたびに _create_span_selector() が新しい
+    SpanSelector を作るが、古い方の canvas イベント接続(press/motion/
+    release)を切断していなかったため、データセット追加やプロット設定変更の
+    たびに毎回リークし、1回のドラッグ操作で range_selected がリーク数だけ
+    重複発火するようになっていた。複数回 refresh() してもイベント接続数が
+    増え続けないことを確認する。
+    """
+    minimap.refresh([_make_dataset("a")], dark_mode=False)
+    counts_after_first = {
+        event: len(callbacks)
+        for event, callbacks in minimap.callbacks.callbacks.items()
+    }
+
+    for _ in range(4):
+        minimap.refresh([_make_dataset("a")], dark_mode=False)
+
+    counts_after_many = {
+        event: len(callbacks)
+        for event, callbacks in minimap.callbacks.callbacks.items()
+    }
+
+    assert counts_after_many == counts_after_first
+
+
 def test_minimap_span_selection_emits_range_selected_signal(minimap):
     minimap.refresh([_make_dataset("a")], dark_mode=False)
 

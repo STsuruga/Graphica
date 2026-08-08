@@ -15,6 +15,10 @@ dist/
 # 実行時に生成される一時ファイル
 *.log
 autosave.pkl
+# .pklから.graphica形式への移行後の実際のオートセーブファイル名
+# (無印+世代番号、複数タブ分の autosave_tab{N} 系列すべてを含む)
+autosave*.graphica
+autosave*.pkl
 
 # Git管理を始める前に手動で作っていた作業バックアップ
 Graphica_project_backup_*/

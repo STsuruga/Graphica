@@ -57,16 +57,19 @@ class CursorMixin:
                 self.canvas.mpl_disconnect(self.cursor_connection_id)
                 self.cursor_connection_id = None
 
-            # 2. ピック設定を解除 (任意だが推奨)
-            all_valid_axes = [ax for ax in self.all_axes + self.all_secondary_axes if ax is not None]
-            for ax in all_valid_axes:
-                for item in ax.get_lines() + ax.collections:
-                    try:
-                        item.set_picker(False)
-                    except AttributeError:
-                        pass # set_picker を持たないオブジェクトは無視
+            # ★ バグ修正: 以前はここで全Artistに set_picker(False) していたが、
+            # matplotlibのpickerは1アーティストにつき1つのフラグしか持てず、
+            # gui/canvas.py の _enable_element_picking() が (データカーソル
+            # モードのON/OFFと無関係に) 「クリックでデータセットを選択」機能
+            # (項目35、常時有効)のために同じArtistへ set_picker(5) を設定
+            # している。ここで無条件に False へ戻すと、データカーソルを
+            # オフにした瞬間から次のフル再描画が起きるまでの間、項目35の
+            # クリック選択が全く反応しなくなっていた(エラーも出ないため
+            # 気づきにくいサイレントな機能破壊)。ピック可否の制御は
+            # canvas.py側の責務に一本化し、ここでは pick_event の購読解除
+            # (=データカーソル自身の反応)だけを行う。
 
-            # 3. 表示中の注釈があれば削除
+            # 2. 表示中の注釈があれば削除
             if self.cursor_annotation:
                 self.cursor_annotation.remove()
                 self.cursor_annotation = None

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
                          FitDialog, SavGolDialog, PluginParamDialog, LabelEditDialog,
-                         ColorPaletteDialog, HelpDialog, CalcHelpDialog)
+                         ColorPaletteDialog, HelpDialog, CalcHelpDialog, ResultDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -785,3 +785,66 @@ def test_calc_help_dialog_header_row_stylesheet_uses_light_tokens_in_light_mode(
     stylesheet = text_browser.document().defaultStyleSheet()
     assert theme.LIGHT_TOKENS["surface_2"] in stylesheet
     assert theme.LIGHT_TOKENS["text_primary"] in stylesheet
+
+
+def test_help_dialog_refresh_theme_updates_stylesheet_after_live_toggle(qapp):
+    """
+    回帰テスト: HelpDialog/CalcHelpDialogは非モーダル(show())で開いたまま
+    ダークモードを切り替えられるが、以前は見出し行の色を__init__時点の
+    テーマトークンで固定していたため、開いたまま切り替えると古い色の
+    ままになっていた。refresh_theme()を呼べば現在のテーマに追従することを
+    確認する。
+    """
+    from gui import theme
+    from PySide6.QtWidgets import QTextBrowser
+
+    theme.apply_theme(qapp, dark=False)
+    dlg = HelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+    assert theme.LIGHT_TOKENS["surface_2"] in text_browser.document().defaultStyleSheet()
+
+    theme.apply_theme(qapp, dark=True)
+    dlg.refresh_theme()
+    assert theme.DARK_TOKENS["surface_2"] in text_browser.document().defaultStyleSheet()
+    theme.apply_theme(qapp, dark=False)  # 他のテストに影響しないよう戻す
+
+
+def test_calc_help_dialog_refresh_theme_updates_stylesheet_after_live_toggle(qapp):
+    from gui import theme
+    from PySide6.QtWidgets import QTextBrowser
+
+    theme.apply_theme(qapp, dark=False)
+    dlg = CalcHelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+
+    theme.apply_theme(qapp, dark=True)
+    dlg.refresh_theme()
+    assert theme.DARK_TOKENS["surface_2"] in text_browser.document().defaultStyleSheet()
+    theme.apply_theme(qapp, dark=False)
+
+
+# --- ResultDialog(曲線フィット結果の残差プロット) ---
+
+def test_result_dialog_residual_plot_uses_dark_theme_facecolor(qapp):
+    """
+    回帰テスト: 残差プロットはgui/canvas.pyのMplCanvasとは別の独立した
+    Figureをその場で作っており、以前はmatplotlib既定の白背景+黒文字の
+    まま固定されていた(ダイアログ本体はダークモードに追従するのに、
+    残差プロットだけ白いまま浮いて見えていた)。
+    """
+    import matplotlib.colors as mcolors
+    from gui import theme
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+
+    theme.apply_theme(qapp, dark=True)
+    try:
+        dlg = ResultDialog(
+            "フィット結果", "a=1.0", residual_x=[1, 2, 3], residual_y=[0.1, -0.1, 0.05]
+        )
+        canvas = dlg.findChild(FigureCanvasQTAgg)
+        assert canvas is not None
+        assert mcolors.to_rgba(canvas.figure.get_facecolor()) == mcolors.to_rgba(
+            theme.DARK_TOKENS['surface']
+        )
+    finally:
+        theme.apply_theme(qapp, dark=False)

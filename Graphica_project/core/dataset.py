@@ -208,13 +208,33 @@ class Dataset:
         deleted_data (削除前のインデックスラベルを保持したスライス) のラベルと
         噛み合わなくなり、Undo(復元)時に行の並び順が崩れてしまう
         (元は中間の行を削除して復元すると隣の行と入れ替わってしまうバグがあった)。
+
+        ★ バグ修正: masked_row_indices に削除対象のラベルが残っていると、
+        add_row() が (df.index.max() + 1 により) 同じラベルを新しい行に
+        再利用してしまい、その新規行が visible_df から除外されて
+        グラフ/フィット/ピーク検出に一切現れなくなる(マスクした行を
+        そのまま永久削除し、後で新しい行を追加した際に実際に発生する
+        サイレントなデータ欠落バグだった)。削除される行は「マスク解除」
+        したのと同じ意味になるため、ここで欠番を掃除しておく。
         """
         self.df = self.df.drop(row_indices)
+        if self.masked_row_indices:
+            deleted_set = set(row_indices)
+            remaining_mask = [idx for idx in self.masked_row_indices if idx not in deleted_set]
+            if len(remaining_mask) != len(self.masked_row_indices):
+                self.masked_row_indices = remaining_mask
 
     def restore_rows(self, deleted_data):
-        """delete_rows で削除した行 (元のインデックス付き) を、元の位置に復元する"""
+        """delete_rows で削除した行 (元のインデックス付き) を、元の位置に復元する。
+        ★ バグ修正: delete_rows と同じ理由で reset_index(drop=True) はしない。
+        ここでラベルを振り直すと、それ以前に(このUndoとは無関係に)別の行が
+        永久に削除されていた場合、既存の全行のラベルがずれてしまい、後続の
+        EditCellCommand.undo() 等が古いラベルで別の行(あるいは存在しない
+        ラベル=新規のゴースト行)を誤って操作してしまう(delete_rowsが
+        意図的に欠番を保持しているのと矛盾していた、実際に発生するデータ
+        破損バグだった)。"""
         restored_df = pd.concat([self.df, deleted_data])
-        self.df = restored_df.sort_index().reset_index(drop=True)
+        self.df = restored_df.sort_index()
 
     def is_column_in_use(self, col_name) -> bool:
         """列がプロットのX軸・Y軸、またはエラーバー用の誤差列として使用中かどうか"""

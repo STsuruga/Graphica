@@ -105,6 +105,25 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
         if sigma is not None:
             sigma = sigma[range_mask]
 
+    # ★ バグ修正: x_data/y_dataにNaN(欠損値、マスクしていない未入力セル等)が
+    # 含まれると、scipy.optimize.curve_fitが素の"array must not contain infs
+    # or NaNs"というValueErrorを送出し、下のRuntimeErrorハンドリング(収束
+    # しなかった場合の分かりやすいメッセージ)を素通りしてしまう。さらに
+    # ガウシアンフィットのp0推定(np.nanargmax)は、Y列が丸ごとNaNの場合
+    # "All-NaN slice encountered"で未捕捉のままクラッシュする。
+    # core/dataset.pyのnormalize/savgol/arithmetic等の他の演算系メソッドは
+    # いずれも同様にNaN行を除外してから計算しており、それと挙動を揃える。
+    nan_mask = np.isnan(x_data) | np.isnan(y_data)
+    if sigma is not None:
+        nan_mask |= np.isnan(sigma)
+    if nan_mask.any():
+        x_data, y_data = x_data[~nan_mask], y_data[~nan_mask]
+        if sigma is not None:
+            sigma = sigma[~nan_mask]
+
+    if len(x_data) == 0:
+        raise ValueError("有効なデータ点がありません(すべて欠損値です)。フィッティングできません。")
+
     def linear_func(x, a, b):
         return a * x + b
 
@@ -218,10 +237,19 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
 def calculate_peaks(x_data, y_data, peak_type, settings):
     """ピーク/谷検出の計算を行い、該当するX,Y座標を返す"""
     y_data_to_find = y_data
-    kwargs = {"height": settings["height"]}
+    height = settings["height"]
 
     if "下に凸" in peak_type:
-        y_data_to_find = -y_data 
+        # ★ バグ修正: 谷検出は find_peaks(-y_data) で行うため、しきい値も
+        # 符号を反転させないと噛み合わない。GUI側(PeakSettingsDialog)の
+        # ツールチップは「Y < -10 の谷のみ検出」のように谷側でも負の閾値を
+        # そのまま入力する使い方を明示しているため、この反転を怠ると
+        # 「-y_data >= height」という無関係な条件で判定してしまい、
+        # 意図と異なる(むしろ逆の)点がヒットしていた。
+        y_data_to_find = -y_data
+        height = -height
+
+    kwargs = {"height": height}
 
     if settings["prominence"] is not None:
         kwargs["prominence"] = settings["prominence"]

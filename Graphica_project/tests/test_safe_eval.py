@@ -68,6 +68,18 @@ def test_safe_eval_formula_rejects_string_constant():
         safe_eval_formula("'os'", {})
 
 
+def test_safe_eval_formula_rejects_double_star_kwargs_expansion():
+    """
+    回帰テスト: `func(**expr)` のようなキーワード引数展開は、以前は
+    kw.arg(Noneになる)をそのまま辞書キーとして使ってしまい、その後の
+    関数呼び出しで未捕捉のTypeError("keywords must be strings")が
+    そのまま漏れ出ていた。安全な構文だけを許可するのがこのモジュールの
+    役目のため、明示的にSafeEvalErrorとして拒否されることを確認する。
+    """
+    with pytest.raises(SafeEvalError):
+        safe_eval_formula("exp(**kw)", {'kw': {'x': 0.0}})
+
+
 def test_safe_eval_formula_rejects_unwhitelisted_function():
     with pytest.raises(SafeEvalError, match="許可されていない関数"):
         safe_eval_formula("open(1)", {})

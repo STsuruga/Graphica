@@ -349,30 +349,42 @@ class HelpDialog(QDialog):
         #   HTML側に残し、実際の色はQTextDocumentのdefault stylesheetで
         #   現在のテーマトークンから注入することで、ダーク/ライト両方で
         #   読めるようにする。
-        from gui import theme
-        _tokens = theme.current_tokens()
-        text_browser.document().setDefaultStyleSheet(
-            f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
-            f"color: {_tokens['text_primary']}; }}"
-        )
+        self._text_browser = text_browser
+        self.refresh_theme()
         # HTMLコンテンツを QTextBrowser にセット
         text_browser.setHtml(help_html)
         # --- HTML定義ここまで ---
 
         # レイアウトにテキストブラウザを追加
         layout.addWidget(text_browser)
-        
+
         # --- 閉じるボタンの追加 ---
         # QDialogButtonBox を使うと、プラットフォーム標準のボタン配置（OK, Cancel, Closeなど）
         # を簡単に実現できます。
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        
+
         # 'rejected' シグナル（CloseボタンやEscキー押下で発生）を、
         # QDialog の標準スロット 'reject'（ダイアログを閉じる処理）に接続します。
         button_box.rejected.connect(self.reject)
-        
+
         # レイアウトにボタンボックスを追加
         layout.addWidget(button_box)
+
+    def refresh_theme(self):
+        """
+        表見出し行(tr.header-row)の色を現在のテーマトークンに合わせて
+        再適用する。このダイアログは非モーダル(show())で開いたまま
+        メインウィンドウを操作できるため、開いたままダークモードを
+        切り替えられると、__init__時点のトークンで固定していた色が
+        古いテーマのまま取り残されるバグがあった
+        (gui/mixins/ui_setup_mixin.py の _on_toggle_dark_mode から呼ばれる)。
+        """
+        from gui import theme
+        _tokens = theme.current_tokens()
+        self._text_browser.document().setDefaultStyleSheet(
+            f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
+            f"color: {_tokens['text_primary']}; }}"
+        )
 
 
 #==============================================================================
@@ -462,15 +474,8 @@ class CalcHelpDialog(QDialog):
             <tr><td><code>not (A > 5)</code></td><td>Aが5より大きい、という条件を否定します (A <= 5 と同じ)。</td></tr>
         </table>
         """
-        # ★ 項目H-2-6(実機での目視確認で発覚): HelpDialogと同じく、見出し行の
-        #   背景色をハードコードせずテーマトークンから注入する
-        #   (詳しい経緯はHelpDialog.__init__のコメント参照)。
-        from gui import theme
-        _tokens = theme.current_tokens()
-        text_browser.document().setDefaultStyleSheet(
-            f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
-            f"color: {_tokens['text_primary']}; }}"
-        )
+        self._text_browser = text_browser
+        self.refresh_theme()
         text_browser.setHtml(help_html)
         # --- HTML定義ここまで ---
 
@@ -480,6 +485,16 @@ class CalcHelpDialog(QDialog):
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
+    def refresh_theme(self):
+        """表見出し行の色を現在のテーマトークンに合わせて再適用する
+        (詳しい経緯はHelpDialog.refresh_theme参照、同じバグ・同じ対処)。"""
+        from gui import theme
+        _tokens = theme.current_tokens()
+        self._text_browser.document().setDefaultStyleSheet(
+            f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
+            f"color: {_tokens['text_primary']}; }}"
+        )
 
 
 class ResultDialog(QDialog):
@@ -528,15 +543,26 @@ class ResultDialog(QDialog):
             layout.addWidget(QLabel("残差プロット (実測値 - フィット値)"))
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
             from matplotlib.figure import Figure
-            fig = Figure(figsize=(4, 2.2), dpi=100, tight_layout=True)
+            from gui import theme
+            # ★ バグ修正: この残差プロットはgui/canvas.pyのMplCanvasとは別の、
+            # 独立したFigureを都度その場で作っているため、canvas.py側の
+            # dark_mode分岐(facecolor/文字色/グリッド色)を一切継承しない。
+            # ダークモードで開くと、ダイアログ本体は暗いのに残差プロットだけ
+            # matplotlib既定の白背景+黒文字のまま浮いて見えていた。
+            _tokens = theme.current_tokens()
+            fig = Figure(figsize=(4, 2.2), dpi=100, tight_layout=True,
+                         facecolor=_tokens['surface'])
             canvas = FigureCanvasQTAgg(fig)
             canvas.setFixedHeight(200)
             ax = fig.add_subplot(111)
-            ax.axhline(0, color='gray', linewidth=0.8, linestyle='--')
+            ax.set_facecolor(_tokens['surface'])
+            ax.axhline(0, color=_tokens['border_strong'], linewidth=0.8, linestyle='--')
             ax.scatter(residual_x, residual_y, s=14, color='#1F6F78')
-            ax.set_xlabel("X", fontsize=8)
-            ax.set_ylabel("残差", fontsize=8)
-            ax.tick_params(labelsize=7)
+            ax.set_xlabel("X", fontsize=8, color=_tokens['text_primary'])
+            ax.set_ylabel("残差", fontsize=8, color=_tokens['text_primary'])
+            ax.tick_params(labelsize=7, colors=_tokens['text_primary'])
+            for spine in ax.spines.values():
+                spine.set_color(_tokens['border_strong'])
             layout.addWidget(canvas)
 
         button_layout = QHBoxLayout()

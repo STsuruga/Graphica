@@ -88,6 +88,42 @@ def _pump_events_until_queue_drained(window, max_iterations=300):
     raise AssertionError("読み込みキューが時間内に消化されませんでした")
 
 
+def test_close_event_waits_for_in_flight_data_load_worker_instead_of_crashing(tmp_path, monkeypatch):
+    """
+    回帰テスト: バックグラウンドでファイル読み込み中(DataLoadWorkerがまだ
+    isRunning())にウィンドウを閉じると、実行中のQThreadがそのまま破棄され、
+    Qtが例外機構を経由しないfail-fastアボートでプロセスごとクラッシュさせて
+    いた(closeEventが_data_load_workerを一切見ていなかったため)。
+    closeEventが読み込み完了までブロッキング待機し、ワーカーを片付けてから
+    閉じることを確認する。
+    """
+    import pandas as pd
+    import gui.workers as workers_module
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    def _slow_read_data_file(file_path):
+        time.sleep(0.3)
+        return pd.DataFrame({"x": [1, 2], "y": [3, 4]})
+
+    monkeypatch.setattr(workers_module, "read_data_file", _slow_read_data_file)
+
+    csv1 = tmp_path / "slow.csv"
+    csv1.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
+    window.load_data(str(csv1))
+
+    app = QApplication.instance()
+    app.processEvents()
+    assert window._data_load_worker is not None
+    assert window._data_load_worker.isRunning()
+
+    # 読み込み中にウィンドウを閉じてもクラッシュしない(このassert群まで
+    # 到達すること自体がプロセスが生き残っている証拠)。
+    window.close()
+
+    assert window._data_load_worker is None
+
+
 def test_drop_event_queues_and_loads_all_supported_files(tmp_path, monkeypatch):
     """
     項目77: 複数ファイルをドラッグ&ドロップすると、最初の1件だけでなく
@@ -723,6 +759,149 @@ def test_refresh_custom_svg_icons_updates_tracked_widgets_without_raising(tmp_pa
 
     after = window.cursor_action.icon().pixmap(20, 20).toImage()
     assert before != after
+
+
+def test_constructing_with_dark_mode_already_saved_uses_dark_icon_colors_from_the_start(tmp_path, monkeypatch):
+    """
+    回帰テスト: 以前はQApplication側の配色適用(theme.apply_theme)を
+    _create_menu_bar()まで先送りしていたため、それより前(ツールバーの
+    カーソル/注釈/レイアウト編集ボタン等)に構築されるアイコンは、
+    theme._current_tokensがまだNoneでLIGHT_TOKENSにフォールバックした
+    状態で焼き込まれていた。「前回起動時はダークモードだった」設定を
+    QSettingsに保存した状態で新規construction すると、__init__の
+    早い段階で既にダーク用の色になっていることを確認する
+    (_on_toggle_dark_modeで手動に切り替え直す必要がないこと)。
+    """
+    from gui import theme
+
+    settings_path = str(tmp_path / "test_settings.ini")
+
+    class IsolatedQSettings(QSettings):
+        def __init__(self, *args, **kwargs):
+            super().__init__(settings_path, QSettings.Format.IniFormat)
+
+    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    IsolatedQSettings().setValue("dark_mode", True)  # 「前回はダークモードだった」を再現
+
+    theme.apply_theme(QApplication.instance(), dark=False)  # プロセスの残留状態をリセット
+    window = PlotterApp(run_startup_checks=False, tab_id=2)
+    window.resize(1100, 500)
+    window.show()
+    app = QApplication.instance()
+    for _ in range(5):
+        app.processEvents()
+
+    at_construction = window.cursor_action.icon().pixmap(20, 20).toImage()
+
+    # 既に正しいダーク用の色であれば、明示的な再読み込みをしても見た目は変わらないはず
+    window._refresh_custom_svg_icons()
+    after_explicit_dark_refresh = window.cursor_action.icon().pixmap(20, 20).toImage()
+    assert at_construction == after_explicit_dark_refresh
+
+    # 対照確認: ライトへ切り替えた場合は実際に見た目が変わる(比較自体が
+    # 意味のあるものであることの確認)
+    theme.apply_theme(app, dark=False)
+    window._refresh_custom_svg_icons()
+    light_icon = window.cursor_action.icon().pixmap(20, 20).toImage()
+    assert light_icon != at_construction
+    theme.apply_theme(app, dark=False)
+
+
+def test_turning_off_cursor_mode_does_not_disable_click_to_select(tmp_path, monkeypatch):
+    """
+    回帰テスト: データカーソルモードをOFFにすると、以前は全Artistに
+    set_picker(False) していたため、データカーソルとは無関係な「クリックで
+    データセットを選択」機能(項目35、gui/canvas.pyのpicker管理により常時
+    有効)まで巻き添えで反応しなくなっていた(次のフル再描画まで直らない)。
+    データカーソルをON→OFFしても、線のpickerが有効(truthy)なまま残る
+    ことを確認する。
+    """
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2, 3], "y": [1, 4, 9]}),
+                 x_col_name="x", y_col_name="y")
+    window.project.datasets.append(ds)
+    window._update_plot()
+
+    line = window.canvas.all_axes[0].get_lines()[0]
+    assert line.get_picker()  # 項目35: 常時クリック選択可能なはず
+
+    window._toggle_cursor_mode(True)
+    window._toggle_cursor_mode(False)
+
+    line_after = window.canvas.all_axes[0].get_lines()[0]
+    assert line_after.get_picker(), (
+        "データカーソルをOFFにした後も、クリックでデータセットを選択する"
+        "機能(項目35)のpickerは有効なままであるべき"
+    )
+
+
+def test_reopening_data_editor_deletes_the_previous_dialog_instance(tmp_path, monkeypatch):
+    """
+    回帰テスト: 別のデータセットに切り替えて「データ表示/編集」を開き直すと、
+    古いDataEditorDialogインスタンスはclose()されるだけでC++オブジェクトは
+    破棄されず、非表示のままメインウィンドウにぶら下がり続けていた
+    (開き直すたびに蓄積するメモリリーク)。deleteLater()により、次のイベント
+    ループで実際に破棄されることを確認する。
+    """
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+                  x_col_name="x", y_col_name="y")
+    ds2 = Dataset(name="d2", df=pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
+                  x_col_name="x", y_col_name="y")
+    window.project.datasets.extend([ds1, ds2])
+    window._add_dataset_list_item(ds1)
+    window._add_dataset_list_item(ds2)
+    window._update_plot()
+
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(ds1))
+    window._on_show_data_editor()
+    first_dialog = window.data_editor_dialog
+
+    delete_later_calls = []
+    monkeypatch.setattr(
+        first_dialog, 'deleteLater',
+        lambda: delete_later_calls.append(True)
+    )
+
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(ds2))
+    window._on_show_data_editor()
+
+    assert delete_later_calls == [True]
+
+
+def test_shrinking_subplot_grid_reassigns_datasets_instead_of_hiding_them(tmp_path, monkeypatch):
+    """
+    回帰テスト: 2x2グリッドの4枚目(subplot_target=3)にデータセットを配置した
+    状態で1x1に縮小すると、all_plot_settingsは切り詰められるのに
+    dataset.subplot_targetはそのまま(=3)残っていたため、どの軸にも
+    描画されず、エクスポート画像からもサイレントに消えていた
+    (グリッドを再び広げると復活するため気づきにくい)。縮小時に、
+    存在しなくなった番号のデータセットは最後のサブプロットへ
+    割り当て直されることを確認する。
+    """
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.subplot_rows_spinbox.setValue(2)
+    window.subplot_cols_spinbox.setValue(2)
+
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+                 x_col_name="x", y_col_name="y", subplot_target=3)
+    window.project.datasets.append(ds)
+
+    window.subplot_rows_spinbox.setValue(1)
+    window.subplot_cols_spinbox.setValue(1)
+
+    assert ds.subplot_target == 0  # 唯一残ったサブプロット(index 0)に割り当て直される
+    assert len(window.canvas.all_axes) == 1
+    assert window.canvas.all_axes[0].get_lines()  # 実際にどこかの軸に描画されている
 
 
 def test_refresh_custom_svg_icons_updates_collapsible_toggle_buttons(tmp_path, monkeypatch):

@@ -126,6 +126,40 @@ def test_restore_rows_after_deleting_middle_row_keeps_correct_order():
     assert list(ds.df['x']) == [1.0, 2.0, 3.0, 4.0, 5.0]
 
 
+def test_restore_rows_does_not_relabel_unrelated_rows_after_an_earlier_permanent_deletion():
+    """
+    回帰テスト: restore_rows が reset_index(drop=True) していたため、それ以前に
+    (今回のUndoとは無関係に)別の行が既に永久削除されていて欠番がある状態で
+    delete_rows→restore_rows すると、既存の全行のラベルがずれて振り直されて
+    しまい、それを前提にラベルを保持しているはずの他のコマンド(例:
+    EditCellCommand.undo)が誤った行を書き換えたり、存在しないラベルへの
+    set_cell がゴースト行を新規作成したりする実データ破損バグがあった。
+    """
+    df = pd.DataFrame({'x': [0.0, 1.0, 2.0, 3.0, 4.0], 'y': [0.0, 10.0, 20.0, 30.0, 40.0]})
+    ds = Dataset(name="D", df=df, x_col_name='x', y_col_name='y')
+
+    # 1. 今回のUndo対象とは別の行(index 2)を、先に「普通に」永久削除しておく
+    #    (ユーザーが不要な行を消して、そのままUndoせず作業を続けたケース)。
+    ds.delete_rows([2])
+    assert list(ds.df.index) == [0, 1, 3, 4]
+
+    # 2. index 4 の行の値を編集(EditCellCommand相当)。
+    ds.set_cell(4, 'y', 999.0)
+
+    # 3. 別の行(index 3)を削除してUndo(restore_rows)する。
+    deleted_data = ds.df.loc[[3]]
+    ds.delete_rows([3])
+    ds.restore_rows(deleted_data)
+
+    # 4. 手順1の欠番(index 2)はrestore_rowsの後も保持されたままであるべきで、
+    #    手順2で編集した index 4 の値がそのまま(ラベルがずれずに)残っている
+    #    必要がある。
+    assert list(ds.df.index) == [0, 1, 3, 4]
+    assert ds.df.loc[4, 'y'] == 999.0
+    # ゴースト行(NaN埋めの余計な行)が増えていないこと。
+    assert len(ds.df) == 4
+
+
 def test_add_row_after_deleting_middle_row_does_not_collide():
     """delete_rows が残したインデックスの欠番と、add_row が新しく割り当てる
     ラベルが衝突しない(重複ラベルにならない)ことを確認する。"""
@@ -134,6 +168,33 @@ def test_add_row_after_deleting_middle_row_does_not_collide():
     ds.add_row()
     assert list(ds.df.index) == [0, 2, 3]
     assert ds.df.index.is_unique
+
+
+def test_delete_rows_prunes_stale_entries_from_masked_row_indices():
+    """
+    回帰テスト: マスクした行をそのまま永久削除すると、masked_row_indices に
+    その行のラベルが残ったままになっていた。その後 add_row() が
+    (df.index.max() + 1 で) 同じラベルを新しい行に再利用してしまい、
+    新規追加した行が visible_df から除外されてグラフ/フィット/ピーク検出に
+    一切現れなくなる(エラーも警告も出ない)というサイレントなデータ欠落
+    バグがあった。
+    """
+    ds = make_dataset()  # index [0, 1, 2]
+    ds.masked_row_indices = [2]
+    ds.delete_rows([2])  # マスクしていた行をそのまま永久削除
+    assert ds.masked_row_indices == []
+
+    ds.add_row()  # 新しい行が (欠番の) index 2 を再利用する
+    assert list(ds.df.index) == [0, 1, 2]
+    # 新規行が古いマスクの影響を受けず、visible_df に含まれること。
+    assert 2 in ds.visible_df.index
+
+
+def test_delete_rows_leaves_unrelated_masked_row_indices_untouched():
+    ds = make_dataset()  # index [0, 1, 2]
+    ds.masked_row_indices = [0]
+    ds.delete_rows([2])
+    assert ds.masked_row_indices == [0]
 
 
 def test_delete_multiple_rows():

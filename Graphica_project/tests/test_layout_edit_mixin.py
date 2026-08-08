@@ -156,6 +156,39 @@ def test_mouse_drag_press_motion_release_regression(tmp_path, monkeypatch):
     assert saved_rect[3] == pytest.approx(resized_pos.height, abs=1e-6)
 
 
+def test_mouse_leaving_canvas_mid_drag_ends_the_drag_instead_of_leaving_a_phantom(tmp_path, monkeypatch):
+    """
+    回帰テスト: ドラッグ中にマウスカーソルがアプリウィンドウの外まで出て
+    そこでボタンを離すと、canvasにはbutton_release_eventが届かず
+    _layout_drag_stateが残留していた。その状態のままカーソルを(ボタンを
+    押さずに)動かすだけで、_on_layout_motionが最後に触っていたサブプロット
+    を勝手に動かし続けてしまう「幽霊ドラッグ」バグがあった。
+    figure_leave_eventでドラッグ状態がきちんと確定・解除されることを確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _enable_free_layout_edit_mode(window)
+
+    ax = window.canvas.all_axes[0]
+    original_pos = ax.get_position()
+
+    _press(window, axis_index=0, near_corner=False)
+    start_x, start_y = window._layout_drag_state['start_mouse']
+    window._on_layout_motion(SimpleNamespace(x=start_x + 40, y=start_y - 20))
+    dragged_pos = ax.get_position()
+    assert dragged_pos.x0 != pytest.approx(original_pos.x0, abs=1e-6)
+
+    # ボタンを離さないままマウスがfigure領域を出た(button_release_eventは届かない)
+    window._on_layout_release(SimpleNamespace(x=None, y=None))  # figure_leave_eventに接続されたのと同じハンドラ
+    assert window._layout_drag_state is None
+
+    # この後、ボタンを押さずにマウスを動かしても(=ツールバーへ移動する等)、
+    # 直前のサブプロットが勝手に動いてはいけない。
+    settled_pos = ax.get_position()
+    window._on_layout_motion(SimpleNamespace(x=start_x + 200, y=start_y + 200))
+    assert ax.get_position().x0 == pytest.approx(settled_pos.x0, abs=1e-9)
+    assert ax.get_position().y0 == pytest.approx(settled_pos.y0, abs=1e-9)
+
+
 def test_clicking_outside_axis_deselects_and_hides_controls(tmp_path, monkeypatch):
     """
     サブプロット外をクリックすると選択が解除され、数値入力グループが隠れることを確認する。
@@ -171,6 +204,33 @@ def test_clicking_outside_axis_deselects_and_hides_controls(tmp_path, monkeypatc
     window._on_layout_press(SimpleNamespace(x=-100, y=-100))
     assert window._layout_selected_axis_index is None
     assert window.free_layout_position_group.isHidden()
+
+
+def test_removing_free_subplot_reassigns_datasets_instead_of_hiding_them(tmp_path, monkeypatch):
+    """
+    回帰テスト: 自由配置レイアウトで「- プロット削除」を押すと
+    all_plot_settingsの末尾が削除されるが、削除された番号を
+    subplot_targetに持つデータセットはそのままだと放置され、
+    どの軸にも描画されずサイレントに消えていた
+    (gui/mixins/settings_mixin.py の _on_layout_changed と同種のバグ)。
+    """
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.free_layout_checkbox.setChecked(True)
+    window._on_add_free_subplot()  # index 0, 1 の2枚構成にする
+    assert len(window.project.all_plot_settings) == 2
+
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+                 x_col_name="x", y_col_name="y", subplot_target=1)
+    window.project.datasets.append(ds)
+    window._update_plot()
+
+    window._on_remove_free_subplot()  # 1枚(index 0)に戻す
+
+    assert ds.subplot_target == 0
+    assert len(window.canvas.all_axes) == 1
 
 
 def test_numeric_controls_hidden_when_not_in_free_layout_mode(tmp_path, monkeypatch):

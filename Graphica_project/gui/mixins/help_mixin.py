@@ -26,6 +26,10 @@ class HelpMixin:
         """
         if getattr(self, 'help_dialog', None) is not None:
             self.help_dialog.close()
+            # ★ バグ修正: close()だけではC++オブジェクトは破棄されず、非表示の
+            # まま親(self)にぶら下がり続けてリークする(gui/data_editor.pyの
+            # DataEditorDialogと同種のバグ、詳細はそちら参照)。
+            self.help_dialog.deleteLater()
         self.help_dialog = HelpDialog(self)
         self.help_dialog.show()
         self.help_dialog.raise_()
@@ -38,6 +42,7 @@ class HelpMixin:
         """
         if getattr(self, 'calc_help_dialog', None) is not None:
             self.calc_help_dialog.close()
+            self.calc_help_dialog.deleteLater()  # 理由はHelpDialog側と同じ
         self.calc_help_dialog = CalcHelpDialog(self)
         self.calc_help_dialog.show()
         self.calc_help_dialog.raise_()

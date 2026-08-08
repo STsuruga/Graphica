@@ -69,6 +69,34 @@ def test_adding_second_tab_registers_its_stack_and_makes_it_active(tmp_path, mon
     assert window.undo_group.activeStack() is second_tab.undo_stack
 
 
+def test_toggling_dark_mode_on_one_tab_syncs_sibling_tabs(tmp_path, monkeypatch):
+    """
+    回帰テスト: 各タブは完全に独立したPlotterAppインスタンスのため、
+    片方のタブでダークモードを切り替えても、Qt側の共有QSS/パレット
+    (theme.apply_theme、プロセス全体に効く)はすぐ反映されるのに対し、
+    他のタブのmatplotlib配色・ツールバーアイコン・「ダークモード」
+    メニューのチェック状態は古いまま取り残される「二重人格」状態に
+    なっていた。トリガーしたタブ以外にも同じ状態が伝播することを確認する。
+    """
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    first_tab = window.tab_widget.widget(0)
+    second_tab = window.add_new_project_tab()
+
+    assert first_tab.canvas.dark_mode is False
+    assert second_tab.canvas.dark_mode is False
+
+    first_tab.dark_mode_action.setChecked(True)
+
+    assert first_tab.canvas.dark_mode is True
+    assert second_tab.canvas.dark_mode is True
+    assert second_tab.dark_mode_action.isChecked() is True
+
+    # 元に戻す方向の伝播も確認する。
+    first_tab.dark_mode_action.setChecked(False)
+    assert second_tab.canvas.dark_mode is False
+    assert second_tab.dark_mode_action.isChecked() is False
+
+
 def test_switching_tabs_follows_active_stack(tmp_path, monkeypatch):
     window = _make_isolated_main_app_window(tmp_path, monkeypatch)
     first_tab = window.tab_widget.widget(0)

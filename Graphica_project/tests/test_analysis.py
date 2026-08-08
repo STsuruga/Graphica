@@ -201,6 +201,38 @@ def test_register_fit_function_rejects_empty_param_names(clear_plugin_fit_regist
         register_fit_function("空パラメータテスト", lambda x: x, [])
 
 
+def test_curve_fit_ignores_nan_rows_instead_of_raising_raw_scipy_error():
+    """
+    回帰テスト: Y列に欠損値(NaN)が含まれると、以前はscipy.optimize.curve_fit
+    の素のValueError("array must not contain infs or NaNs")がそのまま
+    伝播していた。core/dataset.pyの正規化/Savitzky-Golay/四則演算等の他の
+    演算メソッドはすべて事前にNaN行を除外しており、フィットだけ仲間外れに
+    なっていた。NaN行を除外した上で計算が成功することを確認する。
+    """
+    x = np.linspace(0, 10, 20)
+    y = 2.0 * x + 1.0
+    y_with_nan = y.copy()
+    y_with_nan[[3, 7, 15]] = np.nan
+
+    popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
+        x, y_with_nan, "線形 (y = ax + b)"
+    )
+    np.testing.assert_allclose(popt, [2.0, 1.0], atol=1e-6)
+
+
+def test_curve_fit_all_nan_y_raises_friendly_value_error_instead_of_crashing():
+    """
+    回帰テスト: Y列が丸ごとNaNの場合、ガウシアンフィットのp0推定
+    (np.nanargmax)が「All-NaN slice encountered」で未捕捉のままクラッシュ
+    していた。NaN除外後に「有効なデータ点がありません」という分かりやすい
+    ValueErrorになることを確認する。
+    """
+    x = np.linspace(0, 10, 20)
+    y_all_nan = np.full_like(x, np.nan)
+    with pytest.raises(ValueError):
+        calculate_curve_fit(x, y_all_nan, "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)")
+
+
 # --- ピーク検出 ---
 
 def test_find_upward_peaks():
@@ -218,6 +250,30 @@ def test_find_downward_peaks_inverts_signal():
     settings = {"height": 0.5, "prominence": 0.3, "distance_x": 0}
     peak_x, peak_y = calculate_peaks(x, -y, "下に凸 (Valleys)", settings)
     assert len(peak_x) >= 1
+
+
+def test_downward_peak_height_threshold_uses_correct_sign_for_valleys():
+    """
+    回帰テスト: 「下に凸(谷)」検出はfind_peaks(-y_data)と信号を反転させて
+    行うが、以前はheightのしきい値だけ反転し忘れていた。PeakSettingsDialog
+    のツールチップ自体が「例: -10 を指定するとY < -10の谷のみ検出」と、
+    谷側にも負のしきい値をそのまま使う仕様を明示しているため、
+    height=-0.5 のような入力は実際によくある使い方。
+    深い谷(最小値 約-2)と浅い谷(最小値 約-0.2)を用意し、
+    height=-0.5 では深い谷だけがヒットすることを確認する
+    (修正前は符号を反転し忘れていたため、ほぼ全域がヒットしてしまっていた)。
+    """
+    x = np.linspace(0, 20, 400)
+    y = (
+        -2.0 * np.exp(-((x - 5) ** 2) / (2 * 0.3 ** 2))
+        - 0.2 * np.exp(-((x - 15) ** 2) / (2 * 0.3 ** 2))
+    )
+    settings = {"height": -0.5, "prominence": None, "distance_x": 0}
+    peak_x, peak_y = calculate_peaks(x, y, "下に凸 (Valleys)", settings)
+
+    assert len(peak_y) == 1
+    assert peak_y[0] == pytest.approx(-2.0, abs=0.05)
+    assert peak_x[0] == pytest.approx(5.0, abs=0.1)
 
 
 def test_find_peaks_returns_empty_when_none_found():

@@ -131,6 +131,32 @@ def test_load_all_isolates_plugin_that_raises_in_register(tmp_path):
     assert by_name["valid_plugin"]["error"] is None
 
 
+def test_load_all_logs_traceback_not_just_a_one_line_message(tmp_path, caplog):
+    """
+    回帰テスト: プラグイン読み込み失敗時のログはlogger.warning()で
+    トレースバックを一切残していなかった。このtry節はプラグイン自身の
+    コードだけでなく、マニフェスト解析・依存チェック・モジュールexecという
+    Graphica自身のコードも同じexcept節で受けているため、アプリ側のバグが
+    原因でも「このプラグインが壊れている」という一行のメッセージだけが
+    残り、原因の切り分けが困難だった。logger.exception()化により、
+    ログレコードにトレースバック情報(exc_info)が付くことを確認する。
+    """
+    import logging
+
+    _write_plugin(tmp_path, "raises_plugin", RAISES_ON_REGISTER_PLUGIN_SOURCE)
+
+    api = GraphicaPluginAPI()
+    manager = PluginManager(str(tmp_path))
+    with caplog.at_level(logging.WARNING, logger="core.plugin_api"):
+        manager.load_all(api)
+
+    matching = [r for r in caplog.records if "raises_plugin" in r.getMessage()]
+    assert matching, "プラグイン読み込み失敗のログが出力されていない"
+    assert matching[0].exc_info is not None, (
+        "トレースバック(exc_info)が記録されていない(logger.warningのまま)"
+    )
+
+
 def test_load_all_isolates_plugin_with_syntax_error(tmp_path):
     _write_plugin(tmp_path, "syntax_error_plugin", SYNTAX_ERROR_PLUGIN_SOURCE)
     _write_plugin(tmp_path, "valid_plugin", VALID_PLUGIN_SOURCE)
