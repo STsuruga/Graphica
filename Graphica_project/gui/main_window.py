@@ -165,14 +165,22 @@ TOOLBAR_ICON_COLOR = "#3B3F42"
 TOOLBAR_ICON_SIZE = 18
 
 # 項目81(mathtext拡充): タイトル/軸ラベルの文字装飾パネルに追加する
-# ギリシャ文字・記号の4x4パレット。(表示するグリフ, 挿入するmathtextマクロ名
+# ギリシャ文字・記号のパレット。(表示するグリフ, 挿入するmathtextマクロ名
 # [バックスラッシュ抜き]) のタプル。マクロは matplotlib mathtext がそのまま
-# 解釈できるもの(\alpha 等)のみを収録している。
+# 解釈できるもの(\alpha 等)のみを収録している(\sqrt{...}のように引数を
+# 必須とするマクロは、単純な「$\macro$」挿入方式と相性が悪いため対象外。
+# 平方根は引数不要な\surdで代用している)。
+# 前半16個はギリシャ文字、後半16個は実機フィードバック(「四則演算の記号とか
+# プロットでよく使う数学記号があるといいかも」)を受けて追加した算術・数学記号。
 LABEL_SYMBOL_PALETTE = [
     ("α", "alpha"), ("β", "beta"), ("γ", "gamma"), ("δ", "delta"),
     ("ε", "epsilon"), ("μ", "mu"), ("π", "pi"), ("ρ", "rho"),
     ("Σ", "Sigma"), ("σ", "sigma"), ("τ", "tau"), ("Ω", "Omega"),
     ("ω", "omega"), ("Δ", "Delta"), ("θ", "theta"), ("φ", "phi"),
+    ("×", "times"), ("÷", "div"), ("±", "pm"), ("∓", "mp"),
+    ("≈", "approx"), ("≠", "neq"), ("≤", "leq"), ("≥", "geq"),
+    ("∞", "infty"), ("→", "rightarrow"), ("←", "leftarrow"), ("∂", "partial"),
+    ("∇", "nabla"), ("∫", "int"), ("∝", "propto"), ("°", "degree"),
 ]
 
 
@@ -316,6 +324,41 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
             opt.state &= ~QStyle.StateFlag.State_Selected
 
         super().paint(painter, opt, index)
+
+
+class _ClickableMathPreviewLabel(QLabel):
+    """
+    タイトル/X軸ラベル/Y軸ラベル欄の見た目を担う、クリックで編集ダイアログを
+    開くプレビューラベル(項目H-2-4追加分、実機フィードバック: 「画像の
+    テキスト欄をクリックしたらポップアップが展開するようにして」「mathtextを
+    翻訳した形式をプレビューしといて」)。
+
+    実データは引き続き(非表示にした)元のQLineEditが保持している
+    (`_open_label_edit_dialog`が直接読み書きする対象、`textChanged`シグナルも
+    そのまま生きている)。このラベルは「クリックで開く」トリガーと
+    「レンダリング済みプレビューの表示」だけを担当する、見た目専用の
+    軽量ウィジェット。
+    """
+
+    clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("mathtext_preview_label")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMinimumHeight(28)
+        self.setToolTip(tr("クリックして編集"))
+        # ★ QLabelは既定でマウスホバーの追跡をしないため、QSSの:hover疑似
+        #   クラス(hover時に枠線をselection_accentへ)が反映されない。
+        #   WA_Hover属性を明示的に有効化する必要がある(QPushButton/
+        #   QToolButtonなどは既定で有効だが、QLabelのような一般的な
+        #   QWidgetでは無効)。
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 #==============================================================================
@@ -1013,39 +1056,26 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout_2.addRow(self.y_tick_format_label, self.y_tick_format_combo)
 
-        # 9. タイトル/軸ラベル入力欄に、文字装飾メニューボタンを直接埋め込む(項目61)。
-        #    ★ 改善(ユーザーフィードバックを受けて): 当初は入力欄から離れた場所に
-        #      共通ツールバーを1つ置く形だったが、「どの欄に効くのか分かりにくい」
-        #      「B/I/x²/x₂ のボタンが小さく見分けづらい」という指摘を受け、
-        #      各入力欄のすぐ右に「Aa」ボタンを1つだけ配置し、クリックすると
-        #      「太字」「イタリック」「上付き文字」「下付き文字」とフルテキストで
-        #      書かれたメニューが開く形に変更した(欄との対応が一目瞭然になり、
-        #      各項目が何をするかも省略なしで読める)。
-        #    ★ 修正(さらなるユーザーフィードバック): NoFocusにしていても、
-        #      ボタン押下(ポップアップメニューを開く動作)自体でテキスト欄の
-        #      選択範囲が失われてしまう環境があることが判明した(メニューが
-        #      開く際にフォーカスが他のウィジェットへ移り、選択がクリアされる)。
-        #      そのため、メニュー項目が選ばれた時点で選択範囲を読み直すのではなく、
-        #      ボタンが「押された瞬間」(pressed、まだ選択が生きている)に選択範囲を
-        #      保存しておき、メニュー項目のtriggeredではその保存値を使う。
-        # ★ ポップアップパネル化(項目101): 以前はテキストのみのQMenu
-        #   (「太字」「イタリック」「上付き文字」「下付き文字」を項目として
-        #   縦に並べただけ)だったが、ユーザーフィードバックを受けて、
-        #   アイコン付きのボタンを横一列に並べた小さなパネル
-        #   (QWidgetAction経由でQMenuに埋め込む)に変更した。見た目が
-        #   ツールバーに近くなり、どのボタンが何をするか記号でも判別しやすい。
-        self.label_format_menu_buttons = {}
-        self._label_format_menus = {}
-        self._label_format_pending_selection = {}
-        # ★ 項目81: ギリシャ文字/記号パレットは選択なしでもカーソル位置に挿入
-        #   できる必要があるため、選択の有無に関わらず押下時点のカーソル位置も
-        #   別途保持しておく(_label_format_pending_selection は選択が無ければ
-        #   Noneのまま)。
-        self._label_format_pending_cursor = {}
-        for field_key, line_edit in (
-            ('title', self.ui.title_text_edit),
-            ('x_label', self.ui.x_label_text_edit),
-            ('y_label', self.ui.y_label_text_edit),
+        # 9. タイトル/軸ラベル入力欄を、クリックで編集ダイアログを開く
+        #    mathtextプレビューラベルに差し替える(項目61/H-2-4追加分)。
+        #    ★ ポップアップウィンドウ化(実機フィードバック、レイアウト画像の
+        #      提示を受けて): 以前は「Aa」ボタンがQMenu(太字/イタリック/上付き/
+        #      下付きのアイコンボタン+ギリシャ文字/記号パレットをネストした
+        #      ポップアップパネル)を開く形だったが、独立したダイアログ
+        #      (LabelEditDialog、gui/dialogs.py)を開く形に変更した。
+        #    ★ さらなる実機フィードバック: 「画像のテキスト欄をクリックしたら
+        #      ポップアップが展開するように」「mathtextを翻訳した形式を
+        #      プレビューしといて」を受け、元のQLineEdit(line_edit)は実データの
+        #      保持と`textChanged`シグナルの発信源として非表示のまま裏に残し、
+        #      見た目は_ClickableMathPreviewLabelに置き換えた。このラベルは
+        #      クリックでLabelEditDialogを開くトリガーを兼ね、現在のテキストを
+        #      matplotlibで実際にレンダリングした見た目(gui/mathtext_preview.py)
+        #      をプレビュー表示する。
+        self._label_preview_widgets = []  # [(preview_label, line_edit, placeholder), ...]
+        for field_key, line_edit, dialog_title, placeholder in (
+            ('title', self.ui.title_text_edit, tr("タイトルを編集"), tr("タイトルを入力")),
+            ('x_label', self.ui.x_label_text_edit, tr("X軸ラベルを編集"), tr("X軸ラベルを入力")),
+            ('y_label', self.ui.y_label_text_edit, tr("Y軸ラベルを編集"), tr("Y軸ラベルを入力")),
         ):
             wrapper = QWidget()
             wrapper_layout = QHBoxLayout(wrapper)
@@ -1053,15 +1083,31 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             wrapper_layout.setSpacing(4)
 
             # ★ replaceWidget: 既存のline_editをformLayout_3上の同じ位置に残したまま、
-            #   [line_edit + ボタン] の複合ウィジェットに差し替える(項目65の
+            #   [プレビューラベル + ボタン] の複合ウィジェットに差し替える(項目65の
             #   ColorPickerWidget差し替えと同じ手法。行番号がずれないため安全)。
             self.ui.formLayout_3.replaceWidget(line_edit, wrapper)
-            wrapper_layout.addWidget(line_edit, 1)
+            # ★ line_editは実データの保持/textChangedシグナルの発信源として
+            #   残すが、見た目はプレビューラベルに任せるため非表示にする
+            #   (レイアウトには追加しない: 追加すると非表示でも余白計算に
+            #   関与することがあるため、親をwrapperにするだけに留める)。
+            line_edit.setParent(wrapper)
+            line_edit.hide()
+
+            preview_label = _ClickableMathPreviewLabel(wrapper)
+            wrapper_layout.addWidget(preview_label, 1)
+            preview_label.clicked.connect(
+                lambda le=line_edit, dt=dialog_title: self._open_label_edit_dialog(le, dt)
+            )
+            self._label_preview_widgets.append((preview_label, line_edit, placeholder))
+            line_edit.textChanged.connect(
+                lambda text, lbl=preview_label, ph=placeholder:
+                    self._refresh_label_preview(lbl, text, ph)
+            )
+            self._refresh_label_preview(preview_label, line_edit.text(), placeholder)
 
             format_button = QToolButton()
             format_button.setText("Aa")
-            format_button.setToolTip(tr("文字装飾(太字・イタリック・上付き・下付き)"))
-            format_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            format_button.setToolTip(tr("タイトル/ラベルを編集(書式・記号入力)"))
             format_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             # ★ 右側パネルの幅は限られているため、ボタンはできるだけ小さく保ち、
             #   タイトル/軸ラベル入力欄自体の幅を圧迫しないようにする。
@@ -1070,71 +1116,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             small_font.setPointSize(max(7, small_font.pointSize() - 2))
             format_button.setFont(small_font)
             wrapper_layout.addWidget(format_button)
-            format_button.pressed.connect(
-                lambda fk=field_key, le=line_edit: self._capture_label_format_selection(fk, le)
+            format_button.clicked.connect(
+                lambda checked=False, le=line_edit, dt=dialog_title:
+                    self._open_label_edit_dialog(le, dt)
             )
-
-            menu = QMenu(format_button)
-            panel = QWidget()
-            panel_layout = QHBoxLayout(panel)
-            panel_layout.setContentsMargins(6, 6, 6, 6)
-            panel_layout.setSpacing(4)
-
-            decoration_buttons = {}
-            for deco_key, icon_name, tooltip in (
-                ('bold', 'bold', tr("太字")),
-                ('italic', 'italic', tr("イタリック")),
-                ('superscript', 'superscript', tr("上付き文字")),
-                ('subscript', 'subscript', tr("下付き文字")),
-            ):
-                deco_button = QToolButton()
-                deco_button.setIcon(_svg_icon(icon_name, size=16))
-                deco_button.setToolTip(tooltip)
-                deco_button.setProperty("iconOnly", True)
-                deco_button.setFixedSize(28, 28)
-                panel_layout.addWidget(deco_button)
-                decoration_buttons[deco_key] = deco_button
-
-            # ★ 項目81(mathtext拡充): ギリシャ文字/記号をバックスラッシュ記法を
-            #   覚えなくても挿入できる、4x4のミニパレットをネストしたポップアップ
-            #   として追加する。押下時点のカーソル位置/選択範囲は装飾ボタンと
-            #   同じ仕組み(_capture_label_format_selection)で確定済みなので、
-            #   このサブメニューを開いても選択状態を失わない。
-            symbol_button = QToolButton()
-            symbol_button.setText("Ω")
-            symbol_button.setToolTip(tr("ギリシャ文字・記号を挿入"))
-            symbol_button.setProperty("iconOnly", True)
-            symbol_button.setFixedSize(28, 28)
-            symbol_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-
-            symbol_menu = QMenu(symbol_button)
-            symbol_panel = QWidget()
-            symbol_grid = QGridLayout(symbol_panel)
-            symbol_grid.setContentsMargins(6, 6, 6, 6)
-            symbol_grid.setSpacing(2)
-            for index, (glyph, macro) in enumerate(LABEL_SYMBOL_PALETTE):
-                symbol_item_button = QToolButton()
-                symbol_item_button.setText(glyph)
-                symbol_item_button.setToolTip(f"\\{macro}")
-                symbol_item_button.setFixedSize(26, 26)
-                symbol_item_button.clicked.connect(
-                    lambda checked=False, fk=field_key, m=macro, sm=symbol_menu:
-                        (self._on_label_symbol_clicked(fk, m), sm.close())
-                )
-                symbol_grid.addWidget(symbol_item_button, index // 4, index % 4)
-            symbol_widget_action = QWidgetAction(symbol_button)
-            symbol_widget_action.setDefaultWidget(symbol_panel)
-            symbol_menu.addAction(symbol_widget_action)
-            symbol_button.setMenu(symbol_menu)
-            panel_layout.addWidget(symbol_button)
-
-            widget_action = QWidgetAction(format_button)
-            widget_action.setDefaultWidget(panel)
-            menu.addAction(widget_action)
-            format_button.setMenu(menu)
-
-            self.label_format_menu_buttons[field_key] = decoration_buttons
-            self._label_format_menus[field_key] = menu
 
         # --- 7. UIの「動的リファクタリング」 (Designer のUI構造をコードで変更) ---
 

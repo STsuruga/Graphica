@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
-                         FitDialog, SavGolDialog, PluginParamDialog)
+                         FitDialog, SavGolDialog, PluginParamDialog, LabelEditDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -28,6 +28,23 @@ def test_new_dataset_dialog_column_names_dedup_strip_and_skip_empty():
     dlg = NewDatasetDialog()
     dlg.columns_edit.setText(" A, B ,A, ,C")
     assert dlg.get_column_names() == ["A", "B", "C"]
+
+
+# --- LabelEditDialog(項目H-2-4: タイトル/軸ラベルのポップアップ編集) ---
+
+_SAMPLE_PALETTE = [("α", "alpha"), ("Ω", "Omega")]
+
+
+def test_label_edit_dialog_prefills_initial_text_and_title():
+    dlg = LabelEditDialog("初期テキスト", "タイトルを編集", _SAMPLE_PALETTE)
+    assert dlg.get_text() == "初期テキスト"
+    assert dlg.windowTitle() == "タイトルを編集"
+
+
+def test_label_edit_dialog_get_text_reflects_manual_edits():
+    dlg = LabelEditDialog("", "X軸ラベルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setText("手入力したテキスト")
+    assert dlg.get_text() == "手入力したテキスト"
 
 
 def test_new_dataset_dialog_dataset_name_strips_whitespace():

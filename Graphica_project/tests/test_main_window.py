@@ -252,15 +252,34 @@ def test_properties_dock_vertical_scroll_still_works_after_collapse(tmp_path, mo
     assert vbar.maximum() < max_before
 
 
-# --- ギリシャ文字/記号パレット(項目81: mathtext拡充) ---
+# --- ギリシャ文字/記号パレット(項目81: mathtext拡充、H-2-4で算術/数学記号を追加) ---
 
-def test_label_symbol_palette_has_sixteen_unique_entries():
+def test_label_symbol_palette_has_thirty_two_unique_entries():
+    """
+    項目81のギリシャ文字16個に加え、実機フィードバック(「四則演算の記号とか
+    プロットでよく使う数学記号があるといいかも」)を受けて算術・数学記号16個を
+    追加し、合計32個になった。
+    """
     palette = main_window_module.LABEL_SYMBOL_PALETTE
-    assert len(palette) == 16
+    assert len(palette) == 32
     glyphs = [glyph for glyph, _ in palette]
     macros = [macro for _, macro in palette]
     assert len(set(glyphs)) == len(glyphs)
     assert len(set(macros)) == len(macros)
+
+
+def test_label_symbol_palette_macros_are_valid_matplotlib_mathtext():
+    """
+    パレットの全マクロが、$\\macro$という単純な埋め込み方式(引数不要)で
+    実際にmatplotlibのmathtextパーサーを通ることを確認する(\\sqrtのように
+    引数を必須とするマクロは、この挿入方式と相性が悪いため収録していない
+    ことの裏付け)。
+    """
+    from matplotlib.mathtext import MathTextParser
+
+    parser = MathTextParser('path')
+    for glyph, macro in main_window_module.LABEL_SYMBOL_PALETTE:
+        parser.parse(f"$\\{macro}$", dpi=100)  # 例外が出ないことを確認するだけでよい
 
 
 # --- データセットリスト・検索ボックス(項目H-2-2) ---
@@ -360,28 +379,244 @@ def test_dataset_tree_selection_delegate_paint_does_not_raise_when_selected(qapp
         painter.end()
 
 
-def test_label_symbol_click_inserts_at_cursor_when_no_selection(tmp_path, monkeypatch):
+# --- タイトル/軸ラベルのポップアップ編集ダイアログ(項目H-2-4、実機フィード
+#     バック: 「軸ラベル、タイトルは入力画面がポップアップウィンドウとして
+#     出てくるような形がいい」でLabelEditDialog(gui/dialogs.py)に置き換え) ---
+
+def test_open_label_edit_dialog_writes_back_accepted_text(tmp_path, monkeypatch):
+    """
+    「Aa」ボタン相当の_open_label_edit_dialog()が、ダイアログでOKされた結果を
+    実際のline_editへ書き戻すことを確認する(ダイアログのexec()は実際には
+    モーダルループを回してしまうため、LabelEditDialog.execを差し替えてテストする)。
+    """
+    from gui.dialogs import LabelEditDialog
+    from PySide6.QtWidgets import QDialog
+
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     line_edit = window.ui.title_text_edit
-    line_edit.setText("VT")
-    line_edit.setCursorPosition(1)  # "V|T"
-    window._capture_label_format_selection('title', line_edit)
+    line_edit.setText("orig title")
 
-    window._on_label_symbol_clicked('title', 'alpha')
+    def fake_exec(self):
+        self.text_edit.setText(r"edited $\alpha$")
+        return QDialog.DialogCode.Accepted
 
-    assert line_edit.text() == r"V$\alpha$T"
+    monkeypatch.setattr(LabelEditDialog, "exec", fake_exec)
+    window._open_label_edit_dialog(line_edit, "タイトルを編集")
+
+    assert line_edit.text() == r"edited $\alpha$"
 
 
-def test_label_symbol_click_replaces_selection(tmp_path, monkeypatch):
+def test_open_label_edit_dialog_leaves_text_unchanged_when_cancelled(tmp_path, monkeypatch):
+    from gui.dialogs import LabelEditDialog
+    from PySide6.QtWidgets import QDialog
+
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     line_edit = window.ui.title_text_edit
-    line_edit.setText("Peak XYZ")
-    line_edit.setSelection(5, 3)  # "XYZ"
-    window._capture_label_format_selection('title', line_edit)
+    line_edit.setText("orig title")
 
-    window._on_label_symbol_clicked('title', 'Omega')
+    def fake_exec(self):
+        self.text_edit.setText("should not be used")
+        return QDialog.DialogCode.Rejected
 
-    assert line_edit.text() == r"Peak $\Omega$"
+    monkeypatch.setattr(LabelEditDialog, "exec", fake_exec)
+    window._open_label_edit_dialog(line_edit, "タイトルを編集")
+
+    assert line_edit.text() == "orig title"
+
+
+def test_label_edit_dialog_symbol_click_inserts_at_cursor_when_no_selection(qapp):
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("VT", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setCursorPosition(1)  # "V|T"
+    dialog._capture_pending_selection()  # ボタンのpressedで起きる処理を模擬
+
+    dialog._insert_symbol('alpha')
+
+    assert dialog.get_text() == r"V$\alpha$T"
+
+
+def test_label_edit_dialog_symbol_click_replaces_selection(qapp):
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setSelection(5, 3)  # "XYZ"
+    dialog._capture_pending_selection()
+
+    dialog._insert_symbol('Omega')
+
+    assert dialog.get_text() == r"Peak $\Omega$"
+
+
+def test_label_edit_dialog_bold_wraps_selection(qapp):
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setSelection(0, 4)  # "Peak"
+    dialog._capture_pending_selection()
+
+    dialog._apply_wrap(lambda s: f"$\\mathbf{{{s}}}$")
+
+    assert dialog.get_text() == r"$\mathbf{Peak}$ XYZ"
+
+
+def test_label_edit_dialog_wrap_without_selection_shows_message(qapp, monkeypatch):
+    from gui.dialogs import LabelEditDialog
+    from PySide6.QtWidgets import QMessageBox
+
+    shown = []
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: shown.append(True)))
+
+    dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog._capture_pending_selection()  # 選択なしの状態を確定させる
+    dialog._apply_wrap(lambda s: f"$\\mathbf{{{s}}}$")
+
+    assert shown == [True]
+    assert dialog.get_text() == "Peak XYZ"  # 変更されない
+
+
+def test_label_edit_dialog_pressed_signal_captures_selection_before_focus_moves(qapp):
+    """
+    バグ回帰テスト: 「文字選択してハイライトされてからボタン押しても文字を
+    選択してって出る」。装飾ボタンのpressedシグナルが実際に
+    _capture_pending_selectionへ配線されており、text_editの選択範囲を
+    正しく捕捉することを、シグナルを実際に発火させて確認する
+    (_capture_pending_selectionを手動で呼ぶ他のテストと異なり、配線自体の
+    誤りも検出できる)。
+    """
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setSelection(0, 4)  # "Peak"
+
+    # 装飾ボタンはローカル変数のみで、インスタンス属性としては保持していない
+    # ため、ツールチップで特定してpressedを発火させる。
+    from PySide6.QtWidgets import QPushButton
+    bold_button = next(
+        b for b in dialog.findChildren(QPushButton) if b.toolTip() == "太字"
+    )
+    bold_button.pressed.emit()
+
+    assert dialog._pending_selection == (0, "Peak")
+
+
+# --- タイトル/軸ラベル欄クリックでダイアログを開く + mathtextライブプレビュー
+#     (項目H-2-4追加分、実機フィードバック: 「画像のテキスト欄をクリックしたら
+#     さっき作成したポップアップが展開するように」「画像のテキストボックスでは
+#     mathtextを翻訳した形式をプレビューしといて」) ---
+
+def test_label_preview_widgets_registered_for_title_and_both_axis_labels(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert len(window._label_preview_widgets) == 3
+    line_edits = {le for _preview, le, _placeholder in window._label_preview_widgets}
+    assert line_edits == {
+        window.ui.title_text_edit,
+        window.ui.x_label_text_edit,
+        window.ui.y_label_text_edit,
+    }
+
+
+def test_label_preview_widget_visible_while_backing_line_edit_is_hidden(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    preview, line_edit, _placeholder = window._label_preview_widgets[0]
+    assert line_edit.isHidden()
+    assert not preview.isHidden()
+
+
+def test_clicking_label_preview_opens_label_edit_dialog(tmp_path, monkeypatch):
+    from gui.dialogs import LabelEditDialog
+    from PySide6.QtWidgets import QDialog
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    preview, line_edit, _placeholder = window._label_preview_widgets[0]
+    line_edit.setText("orig title")
+
+    opened = []
+
+    def fake_exec(self):
+        opened.append(self.get_text())
+        self.text_edit.setText("clicked and edited")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(LabelEditDialog, "exec", fake_exec)
+    preview.clicked.emit()
+
+    assert opened == ["orig title"]
+    assert line_edit.text() == "clicked and edited"
+
+
+def test_label_preview_pixmap_updates_when_backing_text_changes(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    preview, line_edit, _placeholder = window._label_preview_widgets[0]
+
+    empty_pixmap = preview.pixmap()
+    assert empty_pixmap is not None and not empty_pixmap.isNull()
+
+    line_edit.setText("新しいタイトル")
+
+    filled_pixmap = preview.pixmap()
+    assert filled_pixmap is not None and not filled_pixmap.isNull()
+    # プレースホルダ("タイトルを入力")と実テキストとでは描画結果(サイズ)が
+    # 異なるはずで、textChanged→_refresh_label_preview の配線を検証できる
+    assert (filled_pixmap.width(), filled_pixmap.height()) != (
+        empty_pixmap.width(), empty_pixmap.height(),
+    )
+
+
+def test_refresh_all_label_previews_updates_every_registered_widget(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.ui.title_text_edit.setText("タイトル")
+    window.ui.x_label_text_edit.setText("X軸")
+    window.ui.y_label_text_edit.setText("Y軸")
+
+    before = [preview.pixmap().toImage() for preview, _le, _ph in window._label_preview_widgets]
+    window._refresh_all_label_previews()
+    after = [preview.pixmap().toImage() for preview, _le, _ph in window._label_preview_widgets]
+
+    for before_img, after_img in zip(before, after):
+        assert before_img.size() == after_img.size()
+
+
+def test_clickable_math_preview_label_emits_clicked_on_left_click(qapp):
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtGui import QMouseEvent
+    from gui.main_window import _ClickableMathPreviewLabel
+
+    label = _ClickableMathPreviewLabel()
+    received = []
+    label.clicked.connect(lambda: received.append(True))
+
+    pos = QPoint(5, 5)
+    event = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress, pos, pos, Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+    )
+    label.mousePressEvent(event)
+
+    assert received == [True]
+
+
+def test_clickable_math_preview_label_has_hover_attribute_enabled(qapp):
+    from PySide6.QtCore import Qt
+    from gui.main_window import _ClickableMathPreviewLabel
+
+    label = _ClickableMathPreviewLabel()
+    assert label.testAttribute(Qt.WidgetAttribute.WA_Hover)
+
+
+def test_toggling_dark_mode_refreshes_label_previews(tmp_path, monkeypatch):
+    """
+    ダークモード切り替え時にプレビューが再レンダリングされないと、テーマ変更前
+    (旧配色)の見た目のまま残ってしまう回帰を防ぐ(_on_toggle_dark_modeから
+    _refresh_all_label_previews()が呼ばれていることの確認)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window, "_refresh_all_label_previews", lambda: calls.append(True))
+
+    window._on_toggle_dark_mode(True)
+
+    assert calls == [True]
 
 
 # --- フォームラベルの末尾コロン除去(項目H-2-4、実機フィードバック:

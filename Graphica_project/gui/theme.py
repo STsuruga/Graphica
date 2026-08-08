@@ -93,7 +93,12 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
 # (docs/gui_style_audit.md 6節: 「カスタムカラーパレット」機能はデータセットの
 # 線色サイクルであり、このUIテーマのアクセントカラーとは無関係)。
 LIGHT_TOKENS = {
-    "bg": "#F7F7F5", "surface": "#FFFFFF", "surface_2": "#EFF1EF",
+    # ★ 実機フィードバック: 「背景色が若干黄色っぽい」との指摘を受け、
+    # bg/surface_2を寒色寄りのニュートラルグレーに変更した(旧値:
+    # bg=#F7F7F5, surface_2=#EFF1EF。両方ともG成分がわずかに高く、
+    # 暖色/黄み寄りだった)。3案(ニュートラル/寒色寄り/濃いめ寒色)を提示し、
+    # 「B: 寒色寄りグレー」が選ばれた。
+    "bg": "#F6F7F9", "surface": "#FFFFFF", "surface_2": "#EEF0F3",
     "border": "#DFE2E1", "border_strong": "#C9CDCB",
     "text_primary": "#1B1F1E", "text_secondary": "#5B6462", "text_muted": "#8B938F",
     "accent": "#1F6F78", "accent_soft": "#E4F0EF", "accent_text": "#FFFFFF",
@@ -104,6 +109,12 @@ LIGHT_TOKENS = {
     # rgbaの透過を持たせている(以前の「はっきりしたアクセント色の塗りつぶし」
     # という意図的な差別化が濃すぎると判断され、この色に変更した経緯がある)。
     "selection_highlight": "rgba(37, 99, 235, 0.12)",
+    # selection_highlightと同じ青相のopaque版(項目H-2-4、実機フィードバック:
+    # 「フォーカス時の色が緑のまま」「チェックボックスの塗りつぶしの色も」
+    # 「タブの選択色も」)。selection_highlightは枠線・チェックボックスの
+    # 塗りつぶしのような「完全に不透明であるべき」用途には透過が邪魔になるため、
+    # 同じ色相のopaque版を別トークンとして用意した。
+    "selection_accent": "#2563EB",
 }
 DARK_TOKENS = {
     "bg": "#14171A", "surface": "#1B1F22", "surface_2": "#21262A",
@@ -111,6 +122,7 @@ DARK_TOKENS = {
     "text_primary": "#EDEFEF", "text_secondary": "#A6AEB2", "text_muted": "#6E777B",
     "accent": "#5FB6BE", "accent_soft": "rgba(95, 182, 190, 0.16)", "accent_text": "#0E1113",
     "selection_highlight": "rgba(59, 130, 246, 0.22)",
+    "selection_accent": "#3B82F6",
 }
 
 _FLAT_QSS_TEMPLATE = """
@@ -224,6 +236,16 @@ QStatusBar {{
     background: {surface};
     border-top: 1px solid {border};
 }}
+/* ★ 実機フィードバック: 「プロパティウィンドウの方に無駄に枠線がある」の
+   正体。QScrollArea自体にQSSで何もスタイルしていなかったため、Qt(Fusion)の
+   既定の枠線(sunkenフレーム)がそのまま出ていた。プロパティドックの中身は
+   QScrollAreaでラップされている(gui/main_window.pyのmerged_scroll_area)が、
+   エクスポートプレビューはラップされていないため、両者の見た目が
+   意図せず不揃いになっていた。枠線を消してQDockWidget自体の枠(下記)だけに
+   揃える。 */
+QScrollArea {{
+    border: none;
+}}
 /* --- ドック全般(項目H-2-3): 境界線・タイトルバー・フォーカス時の強調 ---
    以前はQDockWidget自体に枠線が無く、タイトルバーの背景色だけが唯一の
    手がかりだったため、キャンバス周り(plot_container、1節参照)と違って
@@ -232,6 +254,12 @@ QStatusBar {{
    既存のQSplitter::handle(下記)による3pxの隙間が既にあるため、各ドックに
    フルの枠を付けても二重線が密着して見えることはない。 --- */
 QDockWidget {{
+    /* ★ 実機フィードバック: 「プロパティウィンドウの背景色がそのまま」の
+       正体。QDockWidget自体にはbackgroundの指定が無く、OSネイティブの
+       パレット既定色(Windowロール)がそのまま透けて見えていたため、背景色
+       トークンを変更してもここだけ反映されていなかった。QMainWindow/
+       QDialogと同じ{bg}を明示的に指定する。 */
+    background: {bg};
     border: 1px solid {border};
     border-radius: 8px;
 }}
@@ -247,12 +275,14 @@ QDockWidget::title {{
 /* ★ フォーカス時の強調: QDockWidget自体には「アクティブ」を示すQt標準の
    状態が無いため、Python側(install_dock_focus_highlight()、このファイル内)
    でフォーカス移動を監視し、動的プロパティdockActiveを付け外ししている。
-   ここではその結果をアクセント色の枠線として反映するだけ。 */
+   ここではその結果を枠線として反映するだけ。色は他のフォーカス表現
+   (下のQPushButton:focus等)と揃えてselection_accent(青)を使う
+   (実機フィードバック: 「フォーカス時の色が緑のまま」)。 */
 QDockWidget[dockActive="true"] {{
-    border: 1px solid {accent};
+    border: 1px solid {selection_accent};
 }}
 QDockWidget[dockActive="true"]::title {{
-    border-bottom: 1px solid {accent};
+    border-bottom: 1px solid {selection_accent};
 }}
 
 /* --- スプリッター(ドック/パネルの境界): 既定のOSハンドルはフラットテーマと
@@ -345,7 +375,11 @@ QPushButton {{
 }}
 QPushButton:hover {{
     background: {surface_2};
-    border-color: {accent};
+    /* ★ 実機フィードバック: 「クリックしてフォーカスしたときには青になって
+       いるのに、マウスを合わせたときの色が緑のまま」。:focus(下記)は
+       selection_accentに揃えたが、:hoverの枠線だけ旧来のティール系accentの
+       ままだったため、同じselection_accentに揃えた。 */
+    border-color: {selection_accent};
 }}
 QPushButton:pressed {{
     background: {accent_soft};
@@ -359,8 +393,13 @@ QPushButton:default {{
     border-color: {accent};
     color: {accent_text};
 }}
+/* ★ フォーカス枠の色は、選択・入力欄フォーカス等の他の「フォーカス/選択」
+   表現と揃えてselection_accent(青)を使う(実機フィードバック: 「スピン
+   ボックスとかをフォーカスしたときの色が緑のまま」)。ボタンの通常時/hover/
+   pressed/checkedの配色自体はアプリのブランドアクセント(ティール系accent)
+   のまま変えていない。 */
 QPushButton:focus, QToolButton:focus {{
-    border: 1px solid {accent};
+    border: 1px solid {selection_accent};
 }}
 
 /* --- アイコンのみの正方形ボタン(データセット操作ボタン行、GUI洗練) ---
@@ -380,11 +419,27 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {{
 }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QComboBox:focus, QTextEdit:focus, QPlainTextEdit:focus {{
-    border-color: {accent};
+    /* ★ 実機フィードバック: 「スピンボックスとかをフォーカスしたときの色が
+       緑のまま」を受け、selection_highlight/selection_accent(青)と揃えた。 */
+    border-color: {selection_accent};
 }}
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {{
     color: {text_muted};
     background: {surface_2};
+}}
+
+/* --- タイトル/軸ラベルのmathtextプレビューラベル(項目H-2-4追加分) ---
+   クリックでLabelEditDialogを開くトリガーを兼ねるため、QLineEditと同じ
+   見た目(背景・枠線・角丸・パディング)にして「入力欄に見える」ようにし、
+   hover時だけ枠線をselection_accentにして「クリックできる」ことを示す。 */
+QLabel#mathtext_preview_label {{
+    background: {surface};
+    border: 1px solid {border};
+    border-radius: 6px;
+    padding: 4px 8px;
+}}
+QLabel#mathtext_preview_label:hover {{
+    border-color: {selection_accent};
 }}
 
 /* --- スピンボックスの上下ボタン(GUI洗練) ---
@@ -566,8 +621,11 @@ QTabBar::tab:hover {{
 }}
 QTabBar::tab:selected {{
     background: {surface};
-    border-bottom: 2px solid {accent};
-    color: {accent};
+    /* ★ 実機フィードバック(画像提示): 選択中タブの下線・文字色が緑っぽい
+       ティール系accentのままだったのを、他の選択/フォーカス表現と揃えて
+       selection_accent(青)に変更した。 */
+    border-bottom: 2px solid {selection_accent};
+    color: {selection_accent};
     font-weight: 600;
 }}
 /* ★ QTabBar::close-button に何かひとつでもプロパティを指定すると(paddingや
@@ -601,8 +659,11 @@ QRadioButton::indicator {{
     background: {surface};
 }}
 QRadioButton::indicator:checked {{
-    background: {accent};
-    border-color: {accent};
+    /* ★ チェックボックス(下のPE_IndicatorCheckBox自前描画)のチェック時の
+       塗りつぶしと揃えて、selection_accent(青)を使う(実機フィードバック:
+       「チェックボックスの塗りつぶしの色も」と同じ理由での統一)。 */
+    background: {selection_accent};
+    border-color: {selection_accent};
 }}
 
 /* --- プログレスバー --- */
@@ -741,7 +802,10 @@ class _FlatThemeProxyStyle(QProxyStyle):
             fill = QColor(tokens["surface_2"])
             border = QColor(tokens["border"])
         elif checked or tristate:
-            fill = QColor(tokens["accent"])
+            # ★ 実機フィードバック: 「チェックボックスの塗りつぶしの色も」
+            #   緑(ティール系accent)から、他の選択/フォーカス表現と揃えた
+            #   selection_accent(青)に変更した。
+            fill = QColor(tokens["selection_accent"])
             border = fill
         else:
             fill = QColor(tokens["surface"])
@@ -809,6 +873,17 @@ def apply_theme(app, dark: bool):
     # パレットに加えて QSS を適用し、ツールバー/ボタン/入力欄/リスト等を
     # 角丸・フラットな見た目に統一する(モダンなミニマルテーマ)。
     app.setStyleSheet(build_qss(tokens))
+
+
+def current_tokens() -> dict:
+    """
+    現在適用中(ライト/ダーク)のトークン辞書(LIGHT_TOKENSまたはDARK_TOKENS)を
+    そのまま返す(項目H-2-4追加分: mathtextプレビュー(gui/mathtext_preview.py)
+    の文字色をテーマに追従させるため等、Python側から任意のトークン値を
+    参照したい場面向けの汎用アクセサ)。apply_theme()より前に呼ばれた場合
+    (通常は起こらない)はLIGHT_TOKENSにフォールバックする。
+    """
+    return _current_tokens or LIGHT_TOKENS
 
 
 def current_selection_highlight_qcolor() -> QColor:

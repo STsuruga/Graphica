@@ -75,19 +75,10 @@ class UISetupMixin:
             self.ui.x_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.x_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
             self.y_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-            # 文字装飾ポップアップパネル(項目101)のアイコンボタン。クリックされたら
-            # 装飾を適用したうえで、QWidgetAction経由のためクリックしても自動では
-            # 閉じないポップアップメニューを明示的に閉じる。
-            for field_key, buttons in self.label_format_menu_buttons.items():
-                menu = self._label_format_menus[field_key]
-                buttons['bold'].clicked.connect(
-                    lambda checked=False, k=field_key, m=menu: (self._on_label_bold_clicked(k), m.close()))
-                buttons['italic'].clicked.connect(
-                    lambda checked=False, k=field_key, m=menu: (self._on_label_italic_clicked(k), m.close()))
-                buttons['superscript'].clicked.connect(
-                    lambda checked=False, k=field_key, m=menu: (self._on_label_superscript_clicked(k), m.close()))
-                buttons['subscript'].clicked.connect(
-                    lambda checked=False, k=field_key, m=menu: (self._on_label_subscript_clicked(k), m.close()))
+            # ★ タイトル/軸ラベルの「Aa」ボタンは、ポップアップウィンドウ化
+            #   (項目H-2-4)によりLabelEditDialogを開くだけの単純なclicked接続に
+            #   なったため(gui/main_window.py側でline_editごとに直接connect
+            #   済み)、ここでの個別ボタン配線は不要になった。
             self.ui.y_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
 
             # (ラベル/書式タブ)
@@ -534,6 +525,11 @@ class UISetupMixin:
         self.canvas.dark_mode = checked
         self.settings.setValue("dark_mode", checked)
         self._update_plot() # 既存のグラフにも新しい配色を反映するため再描画
+        # ★ 項目H-2-4追加分: タイトル/軸ラベルのmathtextプレビュー
+        #   (gui/mathtext_preview.py)は文字色をtext_primary/text_mutedトークン
+        #   から都度レンダリングしているため、テーマが変わったら再描画しないと
+        #   古い配色のまま残ってしまう。
+        self._refresh_all_label_previews()
 
     def _set_initial_ui_state(self):
             """

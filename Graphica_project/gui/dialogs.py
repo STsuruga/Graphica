@@ -9,7 +9,8 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser,
                                QApplication, QFileDialog, QMessageBox, QGroupBox,
                                QTableWidget, QTableWidgetItem, QListWidget,
                                QListWidgetItem, QColorDialog, QInputDialog,
-                               QCheckBox, QStackedWidget, QWidget, QTabWidget)
+                               QCheckBox, QStackedWidget, QWidget, QTabWidget,
+                               QToolButton, QGridLayout, QMenu, QWidgetAction)
 from PySide6.QtCore import Qt, QTimer, QEvent, QUrl
 from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices
 
@@ -2474,6 +2475,193 @@ class ShortcutsDialog(QDialog):
         close_button = QPushButton("閉じる")
         close_button.clicked.connect(self.reject)
         layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
+
+
+#==============================================================================
+# カスタムダイアログクラス: タイトル/軸ラベルの編集(項目H-2-4追加分)
+#==============================================================================
+class LabelEditDialog(QDialog):
+    """
+    タイトル/X軸ラベル/Y軸ラベルを編集するためのポップアップダイアログ。
+
+    以前はプロパティパネルのQLineEdit直下に小さな「Aa」ボタンを置き、押すと
+    文字装飾(太字/イタリック/上付き/下付き)とギリシャ文字/記号パレットを
+    ネストしたQMenuとして開いていたが、実機フィードバック(レイアウト画像の
+    提示)を受けて、独立したポップアップウィンドウ形式に変更した。装飾ボタンを
+    ネストしたメニューの中に隠さず、テキスト入力欄のすぐ下に横一列で常に
+    見えるようにし、データセット操作ボタン列と同じ意匠
+    (`QPushButton[iconOnly="true"]`)の正方形アイコンボタンにしている。
+
+    書式適用のロジック(選択範囲をmathtextで包む/カーソル位置に記号を挿入する)
+    自体は、以前 gui/mixins/settings_mixin.py 側にあった
+    `_apply_label_mathtext_format`/`_on_label_symbol_clicked` と同じ考え方を、
+    このダイアログの内部QLineEdit(`self.text_edit`)に対して直接行う形に
+    移植している(ダイアログが受け持つのは自分自身が持つ1つの入力欄だけなので、
+    以前のfield_keyディクショナリ経由の間接参照は不要になった)。
+    """
+
+    def __init__(self, initial_text, window_title, symbol_palette, parent=None):
+        """
+        Args:
+            initial_text (str): 編集対象のQLineEditが現在持っているテキスト。
+            window_title (str): ダイアログのタイトルバーに出す文字列
+                (例: 「タイトルを編集」)。
+            symbol_palette (list[tuple[str, str]]): (表示グリフ, mathtextマクロ名)
+                のペアのリスト。呼び出し側(gui/main_window.py)の
+                LABEL_SYMBOL_PALETTEをそのまま渡す想定(dialogs.py は
+                main_window.py を逆import できないため、呼び出し側から渡す)。
+            parent (QWidget, optional): 親ウィジェット。
+        """
+        super().__init__(parent)
+        self.setWindowTitle(window_title)
+        self.setMinimumWidth(420)
+
+        layout = QVBoxLayout(self)
+
+        self.text_edit = QLineEdit(initial_text)
+        self.text_edit.setMinimumHeight(34)
+        larger_font = QFont(self.text_edit.font())
+        larger_font.setPointSize(larger_font.pointSize() + 1)
+        self.text_edit.setFont(larger_font)
+        layout.addWidget(self.text_edit)
+
+        button_row = QHBoxLayout()
+        button_row.setSpacing(4)
+
+        def _make_icon_button(icon_name, tooltip):
+            button = QPushButton()
+            button.setIcon(icon_utils.icon(icon_name, size=16))
+            button.setToolTip(tooltip)
+            button.setProperty("iconOnly", True)
+            button.setFixedSize(28, 28)
+            button_row.addWidget(button)
+            return button
+
+        bold_button = _make_icon_button("bold", "太字")
+        italic_button = _make_icon_button("italic", "イタリック")
+        superscript_button = _make_icon_button("superscript", "上付き文字")
+        subscript_button = _make_icon_button("subscript", "下付き文字")
+
+        # ★ 実機フィードバック(バグ報告): 「文字選択してハイライトされてから
+        #   ボタン押しても文字を選択してって出る」。QPushButton.clickedは
+        #   マウスの押下→解放が完了した後に発火するが、その間にボタンへ
+        #   フォーカスが移り、QLineEdit側の選択範囲が失われてしまう環境が
+        #   ある(以前の実装(gui/mixins/settings_mixin.py、削除済み)でも
+        #   全く同じ理由で「pressed時点で選択範囲を保存しておく」回避策を
+        #   取っていた)。このダイアログでも同じ回避策を踏襲する: 選択範囲は
+        #   pressed(フォーカスが移る前)の時点で確定させ、実際の装飾/挿入処理は
+        #   その確定値を使う。
+        self._pending_selection = None  # (start, selected_text) または選択なしならNone
+        self._pending_cursor = 0
+
+        for button in (bold_button, italic_button, superscript_button, subscript_button):
+            button.pressed.connect(self._capture_pending_selection)
+
+        bold_button.clicked.connect(lambda: self._apply_wrap(lambda s: f"$\\mathbf{{{s}}}$"))
+        italic_button.clicked.connect(lambda: self._apply_wrap(lambda s: f"$\\mathit{{{s}}}$"))
+        superscript_button.clicked.connect(lambda: self._apply_wrap(lambda s: f"${{}}^{{{s}}}$"))
+        subscript_button.clicked.connect(lambda: self._apply_wrap(lambda s: f"${{}}_{{{s}}}$"))
+
+        # ★ 項目81(mathtext拡充)のギリシャ文字/記号パレットは、以前と同じく
+        #   小さなグリッドパネルをQMenuに埋め込む形のポップオーバーとして残す
+        #   (32個の記号を常時ボタン表示すると場所を取りすぎるため、ここだけは
+        #   ドロップダウン形式が妥当と判断した)。
+        symbol_button = QToolButton()
+        symbol_button.setText("Ω")
+        symbol_button.setToolTip("ギリシャ文字・数学記号を挿入")
+        symbol_button.setProperty("iconOnly", True)
+        symbol_button.setFixedSize(28, 28)
+        symbol_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # ★ 上と同じ理由(ポップアップを開く動作自体でQLineEditの選択範囲が
+        #   失われうる)で、メニューが開く前のpressedで選択範囲を確定させる。
+        symbol_button.pressed.connect(self._capture_pending_selection)
+
+        symbol_menu = QMenu(symbol_button)
+        symbol_panel = QWidget()
+        symbol_grid = QGridLayout(symbol_panel)
+        symbol_grid.setContentsMargins(6, 6, 6, 6)
+        symbol_grid.setSpacing(2)
+        for index, (glyph, macro) in enumerate(symbol_palette):
+            item_button = QToolButton()
+            item_button.setText(glyph)
+            item_button.setToolTip(f"\\{macro}")
+            item_button.setFixedSize(26, 26)
+            item_button.clicked.connect(
+                lambda checked=False, m=macro, sm=symbol_menu: (self._insert_symbol(m), sm.close())
+            )
+            symbol_grid.addWidget(item_button, index // 4, index % 4)
+        symbol_widget_action = QWidgetAction(symbol_button)
+        symbol_widget_action.setDefaultWidget(symbol_panel)
+        symbol_menu.addAction(symbol_widget_action)
+        symbol_button.setMenu(symbol_menu)
+        button_row.addWidget(symbol_button)
+
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def _capture_pending_selection(self):
+        """
+        装飾/記号ボタンが「押された瞬間」(pressed)に呼ばれ、その時点の
+        text_editの選択範囲を_pending_selectionへ保存しておく。ボタンの
+        clicked(マウス押下→解放が完了した後に発火)まで待つと、その間に
+        フォーカスがボタン側へ移り、QLineEditの選択範囲が失われてしまう
+        環境があるため(実機で報告されたバグ)、フォーカスがまだtext_editに
+        残っているpressedの時点で確定させる。
+        """
+        if self.text_edit.hasSelectedText():
+            self._pending_selection = (
+                self.text_edit.selectionStart(), self.text_edit.selectedText()
+            )
+        else:
+            self._pending_selection = None
+        self._pending_cursor = self.text_edit.cursorPosition()
+
+    def _apply_wrap(self, wrap_fn):
+        """
+        太字/イタリック/上付き/下付きボタン共通の処理。pressed時点で確定させた
+        _pending_selection(選択範囲が失われる前に保存したもの、__init__の
+        _capture_pending_selection参照)を使い、選択されていた文字列を
+        wrap_fn()が返すmathtext片で置き換える(matplotlibはタイトル/ラベル
+        文字列中の$...$区間を自動的にmathtextとして解釈する)。
+        """
+        if not self._pending_selection:
+            QMessageBox.information(
+                self, "文字装飾", "装飾したい文字を選択してから、このボタンを押してください。"
+            )
+            return
+        start, selected = self._pending_selection
+        replacement = wrap_fn(selected)
+        text = self.text_edit.text()
+        self.text_edit.setText(text[:start] + replacement + text[start + len(selected):])
+        self.text_edit.setSelection(start, len(replacement))
+
+    def _insert_symbol(self, macro):
+        """
+        ギリシャ文字/記号パレットの1項目が選ばれたときの処理。装飾ボタンと
+        異なり、選択文字列を装飾するのではなく$\\macro$という新しい断片を
+        挿入するものなので、pressed時点の選択範囲(_pending_selection)が
+        あればそれを置き換え、無ければpressed時点のカーソル位置
+        (_pending_cursor)に挿入する。
+        """
+        text = self.text_edit.text()
+        if self._pending_selection:
+            start, selected = self._pending_selection
+            end = start + len(selected)
+        else:
+            start = end = self._pending_cursor
+        replacement = f"$\\{macro}$"
+        self.text_edit.setText(text[:start] + replacement + text[end:])
+        self.text_edit.setCursorPosition(start + len(replacement))
+
+    def get_text(self):
+        return self.text_edit.text()
 
 
 #==============================================================================

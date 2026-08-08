@@ -380,3 +380,178 @@ disconnectされる、の4パターン)を追加。`tests/test_main_window.py`�
 確認するテストを追加。`tests/test_main_window.py`に
 `TestStripTrailingColonFromLabels`クラス(末尾コロンのみ除去・末尾以外の
 コロンは残す・実際のPlotterAppのラベルで確認、の3パターン)を追加。
+
+### H-2-4 追加分(同日、さらなる実機フィードバック)
+
+一度H-2-4を完了とした後、実機でさらに気になった点を追加で反映した。
+
+1. **フォーカス/選択/チェック状態の色をすべて青(selection_accent)に統一**:
+   「プロパティウィンドウでスピンボックスとかをフォーカスしたときの色が緑の
+   まま」「チェックボックスの塗りつぶしの色も」「タブの選択色(画像で提示)も」
+   という指摘を受け、以下すべてをティール系`accent`/`accent_soft`から新設の
+   `selection_accent`(opaqueな青、`selection_highlight`と同じ色相)に統一した:
+   `QPushButton:focus`/`QToolButton:focus`の枠線、入力欄(`QLineEdit`等)の
+   `:focus`枠線、`QDockWidget[dockActive="true"]`(H-2-3のフォーカス強調)の
+   枠線、`QTabBar::tab:selected`の下線とテキスト色、`QRadioButton::indicator:
+   checked`の塗りつぶし、チェックボックス(`_FlatThemeProxyStyle.
+   _draw_checkbox_indicator`)のチェック時の塗りつぶし。ボタンの通常/hover/
+   pressed/checked背景や`QPushButton:default`などの「ブランドアクセント」
+   としてのティール系`accent`自体は変更していない(あくまで「選択・
+   フォーカス・チェック」を示す用途だけを青に揃えた)。
+2. **プロパティドックの余計な枠線を除去**: 「プロパティウィンドウの方に
+   無駄に枠線がある」の正体は、`QScrollArea`自体にQSSで何もスタイルして
+   いなかったため、Qt(Fusion)の既定の枠線(sunkenフレーム)がそのまま
+   出ていたこと。プロパティドックの中身だけが`QScrollArea`でラップされて
+   おり(`gui/main_window.py`の`merged_scroll_area`)、エクスポート
+   プレビューはラップされていないため、両者の見た目が意図せず不揃いに
+   なっていた。`QScrollArea { border: none; }`を追加して解消。
+3. **背景色を寒色寄りのニュートラルグレーに変更**: 「背景色が若干黄色っぽい」
+   との指摘を受け、`bg`/`surface_2`トークン(旧: `#F7F7F5`/`#EFF1EF`、共に
+   G成分がわずかに高く暖色/黄み寄りだった)を、3案(ニュートラル/寒色寄り/
+   濃いめ寒色)提示の上で選ばれた「寒色寄りグレー」(`bg=#F6F7F9`、
+   `surface_2=#EEF0F3`)に変更した。
+4. **タイトル/軸ラベルの編集をポップアップダイアログ化**: 「軸ラベル、
+   タイトルは入力画面がポップアップウィンドウとして出てくるような形が
+   いい」とレイアウト画像の提示を受け、以前はプロパティパネルの「Aa」
+   ボタンから開くQMenu(太字/イタリック/上付き/下付きのアイコンボタン+
+   ギリシャ文字/記号パレットをネストしたポップアップパネル)だった実装を、
+   独立した`LabelEditDialog`(`gui/dialogs.py`)に置き換えた。テキスト入力欄
+   + 装飾ボタン4種(常時見える横一列、データセット操作ボタン列と同じ
+   `QPushButton[iconOnly="true"]`の正方形アイコン)+ Ω記号パレット(引き続き
+   ポップオーバー)+ OK/Cancelという、提示されたレイアウト案の通りの構成。
+   ギリシャ文字/記号パレット(`LABEL_SYMBOL_PALETTE`)も、「四則演算の記号とか
+   プロットでよく使う数学記号があるといいかも」との追加要望を受けて、
+   従来のギリシャ文字16種に加えて×÷±∓≈≠≤≥∞→←∂∇∫∝°の16種
+   (算術・微積分・比例・度数記号)を追加し、計32種にした(`\sqrt{...}`の
+   ような引数必須のマクロは単純な`$\macro$`挿入方式と相性が悪いため、
+   引数不要なマクロのみを収録している。全マクロがmatplotlibのmathtext
+   パーサーで実際に解釈できることをテストで確認済み)。
+
+**Before/After**(タブ選択色):
+
+| ライト | ダーク |
+|---|---|
+| ![タブ(ライト)](screenshots/h2-4/after_tab_selection_color_light.png) | ![タブ(ダーク)](screenshots/h2-4/after_tab_selection_color_dark.png) |
+
+**After: フォーカス枠・ドックのフォーカス強調(いずれも青)**:
+
+| 入力欄フォーカス | ドックのフォーカス強調 |
+|---|---|
+| ![入力欄フォーカス](screenshots/h2-4/after_focus_border_color_light.png) | ![ドックフォーカス](screenshots/h2-4/after_dock_focus_color_light.png) |
+
+**Before/After**(プロパティドックの枠線・背景色、まとめて):
+
+| Before(旧背景色+余計な枠線) | After(新背景色、枠線解消) |
+|---|---|
+| ![Before](screenshots/h2-3/before_light.png) | ![After](screenshots/h2-4/after_bg_color_light.png) |
+
+**After: タイトル/軸ラベルのポップアップ編集ダイアログ**:
+
+| ライト | ダーク |
+|---|---|
+| ![ダイアログ(ライト)](screenshots/h2-4/after_label_edit_dialog_light.png) | ![ダイアログ(ダーク)](screenshots/h2-4/after_label_edit_dialog_dark.png) |
+
+**テスト(追加分)**: `tests/test_theme.py`に、`selection_accent`トークンの
+存在・opaqueであること、フォーカス枠線・ドックのフォーカス強調・タブ選択・
+ラジオボタンのQSSが`selection_accent`(`#2563EB`)を使っていること、
+チェックボックスの実際の描画ピクセル色が`selection_accent`と一致すること
+を検証するテストを追加。`tests/test_main_window.py`に、
+`_open_label_edit_dialog()`がOK/Cancelそれぞれで正しく振る舞うこと、
+`LabelEditDialog`の記号挿入・装飾ラップ・未選択時の案内メッセージ、
+パレットが32種で全マクロがmathtextとして解釈可能なことを検証するテストを
+追加。`tests/test_dialogs.py`にも`LabelEditDialog`の初期値/手入力反映の
+基本テストを追加。
+
+### H-2-4 追加分(続き、同日さらに続いた実機フィードバック5件)
+
+`LabelEditDialog`公開直後の実機確認で、さらに5件の指摘を受けて追加対応した。
+
+1. **プロパティドックの背景色が反映されていなかった真因**: 上記の背景色
+   トークン変更(`bg`/`surface_2`)後も「プロパティウィンドウの背景色が
+   そのまま」という指摘が続いた。調査の結果、`QDockWidget`のQSSルールには
+   `border`/`border-radius`(H-2-3)しかなく、`background`が一度も指定されて
+   いなかったため、OSネイティブパレットの既定色がそのまま透けて見えていた
+   ことが判明(H-2-3時点では気づかれなかった見落とし)。`background: {bg};`
+   を追加して解消。
+2. **`LabelEditDialog`の装飾ボタンで選択範囲が拾えないバグ**: 「文字選択して
+   ハイライトされてからボタン押しても文字を選択してって出る」。原因は
+   `QPushButton.clicked`がマウスの押下+離す操作の後、フォーカスが既に
+   クリックされたボタン側へ移ってから発火するため、その時点で
+   `text_edit.hasSelectedText()`が偽になっていたこと(本コードベースで
+   過去にも複数回踏んでいる既知のバグクラス)。装飾4ボタン+Ωボタンの
+   `pressed`シグナル(フォーカス移動前に発火)で選択範囲を先に捕捉する
+   `_capture_pending_selection()`を導入し、`_apply_wrap`/`_insert_symbol`は
+   捕捉済みの状態のみを参照するよう変更。
+3. **タイトル/軸ラベル欄クリックでダイアログが開くように**: 従来は
+   「Aa」ボタンを押した時だけダイアログが開いていたが、「画像のテキスト欄を
+   クリックしたらポップアップが展開するように」との指摘を受け、入力欄自体の
+   クリックでも開くよう変更。既存の`QLineEdit`(`title_text_edit`等)は
+   `.textChanged`等の既存シグナル配線を壊さないため非表示のまま温存し、
+   新規`_ClickableMathPreviewLabel`(`gui/main_window.py`)を可視/クリック
+   可能な代替ウィジェットとして`QHBoxLayout`でラップ、`formLayout_3`に
+   `replaceWidget`で差し込んだ。
+4. **mathtextのライブプレビュー**: 「画像のテキストボックスではmathtextを
+   翻訳した形式をプレビューしといて」との指摘を受け、上記プレビューラベルに
+   実際の描画結果を表示する`gui/mathtext_preview.py`を新規作成
+   (`matplotlib.figure.Figure`+`FigureCanvasAgg`で描画し、アルファ>0の
+   範囲だけクロップ)。`textChanged`およびダイアログAccept時に再レンダリング。
+   実装中、matplotlibの既定フォント(DejaVu Sans)が日本語グリフを持たず、
+   プレースホルダ("タイトルを入力"等)や日本語タイトルがtofuボックスに
+   なる不具合が発覚。`fig.text(..., family=["DejaVu Sans", "Yu Gothic",
+   "Meiryo", "MS Gothic"])`のフォールバックリストで解消した。
+   **既知の残課題**: このフォールバックはプレーンテキスト経路にのみ効き、
+   `"$\alpha$ vs 時間"`のようにmathtext記法と日本語が同一文字列に混在する
+   場合は、mathtextパーサがfamily指定を経由しない別のフォント解決経路
+   (`mathtext.fontset` rcParam)を使うため、日本語側は依然tofuのままになる
+   (`findfont()`自体は`.ttc`パスを正しく返すため、より内部のfreetype/
+   mathtextエンジン側の制約と推測)。これは本プレビュー機能固有の問題では
+   なく、実プロット本体(`gui/canvas.py`の`ax.set_title()`等、
+   `axis_label_font`未設定時)も同じ制約を抱えるアプリ全体の既存の限界。
+   `mathtext.fontset`はmatplotlibのグローバルrcParamsで、変更すると全プロット
+   描画に影響するため、対応はスコープ外として見送った。
+5. **ボタンhoverの色が緑のまま**: 「フォーカス時は青になっているのに、
+   マウスを合わせたときの色が緑のまま」。`QPushButton:hover`の
+   `border-color`だけ`{accent}`(ティール)のまま更新漏れになっていたのを
+   `{selection_accent}`に統一して解消。
+
+ダークモード切替時にプレビューラベルが旧配色のまま残らないよう、
+`_on_toggle_dark_mode`(`gui/mixins/ui_setup_mixin.py`)から
+`_refresh_all_label_previews()`を呼ぶよう追加。テーマトークンの汎用
+アクセサ`theme.current_tokens()`を新設(`_current_tokens`の非公開状態に
+Python側から安全にアクセスするため)。
+
+**Before/After**(プロパティドック背景・クリックで開くプレビュー、まとめて):
+
+| ライト | ダーク |
+|---|---|
+| ![プロパティ+プレビュー(ライト)](screenshots/h2-4/after_dock_bg_and_preview_light.png) | ![プロパティ+プレビュー(ダーク)](screenshots/h2-4/after_dock_bg_and_preview_dark.png) |
+
+**After: クリックでダイアログが開く**:
+
+![クリックで開くダイアログ](screenshots/h2-4/after_click_to_open_dialog.png)
+
+**After: 日本語mathtextライブプレビュー**:
+
+| ライト | ダーク |
+|---|---|
+| ![JPプレビュー(ライト)](screenshots/h2-4/after_jp_mathtext_preview_light.png) | ![JPプレビュー(ダーク)](screenshots/h2-4/after_jp_mathtext_preview_dark.png) |
+
+**After: ボタンhover色(青)**:
+
+![hover色](screenshots/h2-4/after_hover_color_blue.png)
+
+**テスト(追加分・続き)**: `tests/test_mathtext_preview.py`(新規)に、
+`render_mathtext_to_pixmap()`がプレーンテキスト/空文字列/正常なmathtext/
+壊れたmathtext構文それぞれで非空のQPixmapを返すこと、テキスト長に応じて
+幅が変わること、日本語テキストでグリフ欠落警告が出ないことを検証する
+テストを追加。`tests/test_theme.py`に、`QDockWidget`の`background`が
+`bg`トークンを使うこと、`QPushButton:hover`の`border-color`が
+`selection_accent`を使うこと、`current_tokens()`がテーマ切替に追従する
+ことを検証するテストを追加。`tests/test_main_window.py`に、
+プレビューウィジェットがタイトル/X軸/Y軸ラベルの3つ分登録されていること、
+バッキングの`QLineEdit`が非表示でプレビューラベルが可視であること、
+プレビューをクリックすると`LabelEditDialog`が開き結果が書き戻されること、
+`textChanged`でプレビューのpixmapが更新されること、ダークモード切替で
+`_refresh_all_label_previews()`が呼ばれること、`_ClickableMathPreviewLabel`
+が左クリックで`clicked`シグナルを発火し`WA_Hover`属性を持つことを検証する
+テストを追加。

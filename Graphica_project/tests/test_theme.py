@@ -11,7 +11,7 @@ QSpinBox/QDoubleSpinBox/QComboBoxは既定でマウスホイールにより値�
 import re
 
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QPainter, QWheelEvent
+from PySide6.QtGui import QColor, QPainter, QWheelEvent
 from PySide6.QtWidgets import (QApplication, QComboBox, QDoubleSpinBox, QMainWindow,
                                QStyle, QStyleFactory, QWidget, QVBoxLayout)
 
@@ -476,6 +476,119 @@ def test_generated_qss_does_not_use_teal_accent_for_any_selection_state():
     qss = theme.build_qss(theme.LIGHT_TOKENS)
     assert "selection-background-color: #1F6F78" not in qss
     assert "selection-background-color: #E4F0EF" not in qss
+
+
+# --- selection_accent(opaqueな青、H-2-4の追加フィードバック): 「フォーカス時
+#     の色が緑のまま」「チェックボックスの塗りつぶしの色も」「タブの選択色も」 ---
+
+
+def test_selection_accent_token_present_and_opaque_in_both_themes():
+    for tokens in (theme.LIGHT_TOKENS, theme.DARK_TOKENS):
+        assert "selection_accent" in tokens
+        color = QColor(tokens["selection_accent"])
+        assert color.isValid()
+        assert color.alpha() == 255  # opaque(枠線・塗りつぶし用途のため透過なし)
+
+
+def test_generated_qss_uses_selection_accent_for_focus_borders():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QPushButton:focus,\s*QToolButton:focus\s*\{[^}]*border:\s*1px solid #2563EB", qss
+    )
+    assert re.search(
+        r"QComboBox:focus,\s*QTextEdit:focus,\s*QPlainTextEdit:focus\s*\{[^}]*"
+        r"border-color:\s*#2563EB",
+        qss,
+    )
+
+
+def test_generated_qss_uses_selection_accent_for_dock_focus_highlight():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(r'QDockWidget\[dockActive="true"\]\s*\{[^}]*border:\s*1px solid #2563EB', qss)
+
+
+def test_generated_qss_uses_selection_accent_for_selected_tab():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QTabBar::tab:selected\s*\{[^}]*border-bottom:\s*2px solid #2563EB[^}]*color:\s*#2563EB",
+        qss,
+    )
+
+
+def test_generated_qss_uses_selection_accent_for_checked_radio_button():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QRadioButton::indicator:checked\s*\{[^}]*background:\s*#2563EB[^}]*border-color:\s*#2563EB",
+        qss,
+    )
+
+
+def test_checkbox_indicator_checked_fill_uses_selection_accent(qapp):
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtWidgets import QStyleOptionButton
+
+    base_style = QStyleFactory.create('Fusion')
+    proxy = theme._FlatThemeProxyStyle(base_style, theme.LIGHT_TOKENS)
+
+    pixmap = QPixmap(20, 20)
+    pixmap.fill(QColor("white"))
+    painter = QPainter(pixmap)
+    try:
+        option = QStyleOptionButton()
+        option.rect = QRect(2, 2, 14, 14)
+        option.state = QStyle.StateFlag.State_On | QStyle.StateFlag.State_Enabled
+        proxy.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorCheckBox, option, painter)
+    finally:
+        painter.end()
+
+    # (4, 4) はチェックマーク(レ点)のパスから離れた塗りつぶし部分のみの座標
+    # (中心付近はチェックマークのストロークと重なりアンチエイリアスで色が
+    # 混ざるため避ける)。
+    fill_color = pixmap.toImage().pixelColor(4, 4)
+    expected = QColor(theme.LIGHT_TOKENS["selection_accent"])
+    assert (fill_color.red(), fill_color.green(), fill_color.blue()) == (
+        expected.red(), expected.green(), expected.blue(),
+    )
+
+
+def test_generated_qss_gives_dock_widget_a_background(qapp):
+    """
+    実機フィードバック「プロパティウィンドウの背景色がそのまま」の回帰テスト。
+    QDockWidgetに{bg}の明示的なbackgroundが無いと、OSネイティブのパレット
+    既定色が透けて見えてしまう(bg/surface_2トークンを変更しても無反映になる)。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"^QDockWidget\s*\{[^}]*background:\s*#F6F7F9", qss, re.MULTILINE
+    )
+
+
+def test_generated_qss_uses_selection_accent_for_button_hover_border():
+    """
+    実機フィードバック「フォーカス時は青になっているのに、マウスを合わせた
+    ときの色が緑のまま」の回帰テスト。:hoverのborder-colorが:focusと同じ
+    selection_accentを使っていることを確認する。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QPushButton:hover\s*\{[^}]*border-color:\s*#2563EB", qss
+    )
+
+
+def test_current_tokens_returns_light_tokens_by_default(qapp, monkeypatch):
+    monkeypatch.setattr(theme, "_current_tokens", None)
+    assert theme.current_tokens() == theme.LIGHT_TOKENS
+
+
+def test_current_tokens_reflects_active_theme(qapp):
+    app = QApplication.instance()
+    theme.apply_theme(app, dark=True)
+    try:
+        assert theme.current_tokens() == theme.DARK_TOKENS
+    finally:
+        theme.apply_theme(app, dark=False)
+    assert theme.current_tokens() == theme.LIGHT_TOKENS
 
 
 class TestArrowIconSizesMatch:

@@ -11,8 +11,9 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFontDialog, QColorDialog, QMessageBox
 
 from core.i18n import tr
+from gui import theme
 from gui.color_history import get_color_with_history
-from gui.dialogs import LegendOrderDialog
+from gui.dialogs import LegendOrderDialog, LabelEditDialog
 
 logger = logging.getLogger(__name__)
 
@@ -356,90 +357,52 @@ class SettingsMixin:
             # 【★ バグ修正 ★】 (上記と同様の理由)
             self._on_axis_setting_changed()
 
-    # field_key ("title"/"x_label"/"y_label") -> 対応するui属性名
-    _LABEL_FIELD_ATTR_BY_KEY = {
-        'title': 'title_text_edit',
-        'x_label': 'x_label_text_edit',
-        'y_label': 'y_label_text_edit',
-    }
+    def _open_label_edit_dialog(self, line_edit, dialog_title):
+        """
+        タイトル/X軸ラベル/Y軸ラベルの「Aa」ボタンが押されたときの処理
+        (実機フィードバックによるポップアップウィンドウ化、項目61/81/H-2-4)。
+        LabelEditDialog(gui/dialogs.py)を開き、OKされたら結果をline_editへ
+        書き戻す(setText()なのでtextChanged経由の_on_axis_setting_changedが
+        通常通り発火し、既存の反映経路がそのまま使える)。
 
-    def _capture_label_format_selection(self, field_key, line_edit):
+        ★ LABEL_SYMBOL_PALETTEはgui/main_window.py側の定義を、循環import
+        (main_window.pyがこのMixinをインポートしているため)を避けるために
+        ここで遅延importして渡している。
         """
-        文字装飾メニューボタンが「押された瞬間」(pressed)に呼ばれ、その時点の
-        選択範囲を保存しておく。ポップアップメニューを開く動作自体でテキスト欄の
-        フォーカス・選択が失われる環境があるため、メニュー項目が実際に選ばれる
-        (triggered)まで選択範囲の情報を持ち越すために必要。
+        from gui.main_window import LABEL_SYMBOL_PALETTE
+
+        dialog = LabelEditDialog(line_edit.text(), dialog_title, LABEL_SYMBOL_PALETTE, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            line_edit.setText(dialog.get_text())
+
+    def _refresh_label_preview(self, preview_label, text, placeholder):
         """
-        if line_edit.hasSelectedText():
-            self._label_format_pending_selection[field_key] = (
-                line_edit.selectionStart(), line_edit.selectedText()
-            )
+        タイトル/X軸ラベル/Y軸ラベルのプレビューラベル(_ClickableMathPreviewLabel、
+        gui/main_window.py)の表示を、現在のテキストを実際にmatplotlibで
+        レンダリングした見た目に更新する(項目H-2-4追加分、実機フィードバック:
+        「mathtextを翻訳した形式をプレビューしといて」)。テキストが空の場合は
+        placeholderをtext_muted色で表示する(QLineEditのplaceholderTextと
+        同じ役割)。line_edit.textChanged、および初期表示・ダークモード切り替え
+        (_refresh_all_label_previews)から呼ばれる。
+        """
+        from gui.mathtext_preview import render_mathtext_to_pixmap
+
+        tokens = theme.current_tokens()
+        if text:
+            pixmap = render_mathtext_to_pixmap(text, color=tokens["text_primary"])
         else:
-            self._label_format_pending_selection[field_key] = None
-        # 項目81: ギリシャ文字/記号パレットは選択が無くても押下時点のカーソル
-        # 位置に挿入できるようにするため、選択の有無に関わらず保持しておく。
-        self._label_format_pending_cursor[field_key] = line_edit.cursorPosition()
+            pixmap = render_mathtext_to_pixmap(placeholder, color=tokens["text_muted"])
+        preview_label.setPixmap(pixmap)
 
-    def _apply_label_mathtext_format(self, field_key, wrap_fn):
+    def _refresh_all_label_previews(self):
         """
-        タイトル/X軸ラベル/Y軸ラベルの各入力欄に埋め込まれた文字装飾メニュー
-        (項目61)の項目が選ばれたときの共通処理。_capture_label_format_selection で
-        ボタン押下時点に保存しておいた選択範囲を使い、wrap_fn(選択文字列) が
-        返すmathtext片をsetText() で差し込む(matplotlibはタイトル/ラベル文字列中の
-        $...$ 区間を自動的にmathtextとして解釈するため、これだけで太字/イタリック/
-        上付き/下付きの見た目が反映される)。
+        ダークモード切り替え時に、タイトル/X軸ラベル/Y軸ラベルの全プレビューを
+        再レンダリングする(文字色がtext_primary/text_mutedトークン経由で
+        テーマに追従しているため、テーマが変わったら再描画しないと古い配色の
+        まま残ってしまう)。
         """
-        target = getattr(self.ui, self._LABEL_FIELD_ATTR_BY_KEY[field_key])
-        pending = self._label_format_pending_selection.get(field_key)
-        if not pending:
-            QMessageBox.information(
-                self, tr("文字装飾"),
-                tr("装飾したい文字を選択してから、このボタンを押してください。")
-            )
-            return
-
-        start, selected = pending
-        replacement = wrap_fn(selected)
-        text = target.text()
-        target.setText(text[:start] + replacement + text[start + len(selected):])
-        target.setSelection(start, len(replacement))
-
-    def _on_label_bold_clicked(self, field_key):
-        """文字装飾メニューの「太字」が選ばれた(項目61)"""
-        self._apply_label_mathtext_format(field_key, lambda s: f"$\\mathbf{{{s}}}$")
-
-    def _on_label_italic_clicked(self, field_key):
-        """文字装飾メニューの「イタリック」が選ばれた(項目61)"""
-        self._apply_label_mathtext_format(field_key, lambda s: f"$\\mathit{{{s}}}$")
-
-    def _on_label_superscript_clicked(self, field_key):
-        """文字装飾メニューの「上付き文字」が選ばれた(項目61)"""
-        self._apply_label_mathtext_format(field_key, lambda s: f"${{}}^{{{s}}}$")
-
-    def _on_label_subscript_clicked(self, field_key):
-        """文字装飾メニューの「下付き文字」が選ばれた(項目61)"""
-        self._apply_label_mathtext_format(field_key, lambda s: f"${{}}_{{{s}}}$")
-
-    def _on_label_symbol_clicked(self, field_key, macro):
-        """
-        文字装飾メニューのギリシャ文字/記号パレット(項目81: mathtext拡充)が選ばれたとき。
-        太字/イタリック等(_apply_label_mathtext_format)と異なり、選択文字列を
-        装飾するのではなく $\\macro$ という新しい断片を挿入するものなので、選択が
-        あればそれを置き換え、無ければ押下時点のカーソル位置に挿入する。
-        """
-        target = getattr(self.ui, self._LABEL_FIELD_ATTR_BY_KEY[field_key])
-        text = target.text()
-        pending_selection = self._label_format_pending_selection.get(field_key)
-        if pending_selection:
-            start, selected = pending_selection
-            end = start + len(selected)
-        else:
-            start = self._label_format_pending_cursor.get(field_key, len(text))
-            end = start
-
-        replacement = f"$\\{macro}$"
-        target.setText(text[:start] + replacement + text[end:])
-        target.setCursorPosition(start + len(replacement))
+        for preview_label, line_edit, placeholder in self._label_preview_widgets:
+            self._refresh_label_preview(preview_label, line_edit.text(), placeholder)
 
     def _on_edit_legend_order(self):
         """
