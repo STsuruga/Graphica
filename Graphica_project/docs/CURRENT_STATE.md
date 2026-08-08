@@ -160,17 +160,9 @@ H-2は8つのサブ項目(H-2-1〜H-2-8、ロードマップ#40〜47)を1つず�
 必要なら`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を読んでから
 着手する。
 
-**H-2-3/H-2-4完了直後の未実施タスク**: `git add`(`gui/theme.py`,
-`gui/main_window.py`, `gui/main_app_window.py`, `gui/dialogs.py`,
-`gui/mathtext_preview.py`(新規), `gui/mixins/settings_mixin.py`,
-`gui/mixins/ui_setup_mixin.py`, `tests/test_theme.py`,
-`tests/test_main_window.py`, `tests/test_main_app_window.py`,
-`tests/test_dialogs.py`, `tests/test_mathtext_preview.py`(新規),
-`docs/gui_style_audit.md`, `docs/GUI_MODERNIZATION_PROGRESS.md`,
-`docs/roadmap.html`, `docs/screenshots/h2-3/`, `docs/screenshots/h2-4/`,
-このファイル)→ コミット → push。H-2-3/H-2-4本体はフルスイート574件
-グリーン確認済み。**「H-2-4追加分」の5件修正もフルスイート616件グリーン
-確認済み(2026-08-08)**。この後コミット・pushを実施する。
+**H-2-3/H-2-4本体 + 「H-2-4追加分」+「H-2-4追加分(続き)」5件修正、すべて
+コミット・push済み**(コミット`15098f4`、2026-08-08、フルスイート616件
+グリーン確認済み)。H-2-4系の作業はこれで一区切り。
 
 トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
 (`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
