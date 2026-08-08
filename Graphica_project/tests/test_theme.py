@@ -269,3 +269,53 @@ def test_build_qss_output_identical_for_light_and_dark_token_dicts_by_value():
     """同じ内容のトークン辞書を渡せば、常に同じQSSが生成される(決定的)。"""
     tokens_copy = dict(theme.LIGHT_TOKENS)
     assert theme.build_qss(theme.LIGHT_TOKENS) == theme.build_qss(tokens_copy)
+
+
+# --- データセットリストの選択ハイライト(項目H-2-2) ---
+
+
+def test_selection_highlight_token_present_in_both_themes():
+    assert "selection_highlight" in theme.LIGHT_TOKENS
+    assert "selection_highlight" in theme.DARK_TOKENS
+
+
+def test_current_selection_highlight_qcolor_reflects_active_theme(qapp):
+    # rgba(...)形式のQSS文字列はQColor(str)コンストラクタでは解釈できず、
+    # 不透明の黒に無効フォールバックしてしまう(実機で確認)ため、
+    # current_selection_highlight_qcolor()が正しくパースして有効な色を
+    # 返すことを検証する。
+    theme.apply_theme(qapp, dark=False)
+    light_color = theme.current_selection_highlight_qcolor()
+    assert light_color.isValid()
+    assert (light_color.red(), light_color.green(), light_color.blue()) == (37, 99, 235)
+    assert 0.0 < light_color.alphaF() < 1.0
+
+    theme.apply_theme(qapp, dark=True)
+    dark_color = theme.current_selection_highlight_qcolor()
+    assert dark_color.isValid()
+    assert (dark_color.red(), dark_color.green(), dark_color.blue()) == (59, 130, 246)
+    assert 0.0 < dark_color.alphaF() < 1.0
+
+
+def test_dataset_list_item_radius_is_a_positive_int():
+    assert isinstance(theme.DATASET_LIST_ITEM_RADIUS, int)
+    assert theme.DATASET_LIST_ITEM_RADIUS > 0
+
+
+def test_generated_qss_removes_border_from_dataset_list_and_search_box():
+    # データセットリストと検索ボックスは、それぞれ独立した箱のまま(統合はしない)、
+    # 各箱自身の枠線だけを消す指定になっていることを確認する(実機フィードバック)。
+    for dark in (False, True):
+        qss = theme.build_qss(theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS)
+        assert re.search(r"QTreeWidget#dataset_list_widget\s*\{[^}]*border:\s*none[^}]*\}", qss)
+        assert re.search(r"QLineEdit#dataset_search_edit\s*\{[^}]*border:\s*none[^}]*\}", qss)
+
+
+def test_generated_qss_neutralizes_generic_item_selected_background_for_dataset_list():
+    # 汎用の QTreeWidget::item:selected { background: accent_soft; } が
+    # このリストの分岐(展開矢印)用インデント列に滲み出るのを打ち消すための
+    # 上書き規則が存在することを確認する(実機フィードバックで発見した経緯)。
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QTreeWidget#dataset_list_widget::item:selected\s*\{[^}]*background:\s*transparent[^}]*\}", qss
+    )

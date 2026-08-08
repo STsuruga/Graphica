@@ -23,17 +23,34 @@
 
 ## 直近の完了
 
-トラック2 フェーズH-2-1(ロードマップ#40: メインツールバー・メニューバーの
-磨き込み)完了。pytest全体グリーン確認済み。まだコミット・push・
-`docs/roadmap.html`の#40チェック更新・Artifact再publishは未実施
-(このセッションの直後の作業として残っている)。
+トラック2 フェーズH-2-2(ロードマップ#41: データセットリスト・データテーブルの
+磨き込み)完了。テスト追加・グリーン確認済み(`tests/test_theme.py`・
+`tests/test_main_window.py`)、フルスイートはバックグラウンドで実行中
+(このファイル更新時点ではまだ結果待ち。完了したら結果を確認してからコミット・
+pushすること)。`docs/roadmap.html`の#41チェック更新・Artifact再publish・
+`docs/gui_style_audit.md`/`docs/GUI_MODERNIZATION_PROGRESS.md`への記録は
+実施済み。**コミット・pushはまだ**(このセッションの直後の作業として残っている)。
 
-H-2-1で実施した変更: `gui/mixins/quick_access_mixin.py`のツールバーに
-`setMovable(False)`を追加(Qt標準の移動グリップがフラットテーマと馴染んで
-いなかったため除去)。`window.grab()`で実際にBefore/Afterスクリーンショット
-(ライト/ダーク)を撮って確認し、`docs/gui_style_audit.md`のH-2-1節+
-`docs/screenshots/h2-1/`配下のPNGとして記録した。メニューバー自体はH-1時点で
-QSSカバレッジ済みのため追加変更なし。
+H-2-2で実施した変更(実機フィードバックによる複数回の調整を経て確定):
+- `gui/theme.py`に`selection_highlight`トークンを新設(薄い青、透過あり)。
+  従来の「濃いアクセント色の塗りつぶし」を置き換えた。
+- 選択ハイライトの形状は、QSSの`::item:selected`だけでは実現できないことが
+  判明した(Qt/FusionスタイルがCE_ItemViewItem描画時にアイコン列とテキスト列を
+  別々の矩形として扱うため)。`_DatasetTreeSelectionDelegate`
+  (`gui/main_window.py`)を新設し、`dataset_list_widget.setItemDelegate()`で
+  登録。選択時の背景を自前のQPainterPathで1回だけ描画し、リスト自体の角丸
+  (8px、`theme.DATASET_LIST_ITEM_RADIUS`)と揃えている。
+- 分岐(展開矢印)用インデント列は`delegate.paint()`とは別経路
+  (`QTreeView::drawBranches()`)で描画されるため、汎用の`::item:selected`
+  スタイル(`accent_soft`)が滲み出る問題があり、`background: transparent`で
+  このリストに限り打ち消した。デリゲートの矩形も左端をビューポート0まで
+  伸ばし、インデント列分の隙間を埋めている。
+- リストと検索ボックスは、それぞれの`border: none`で枠線だけを消したが、
+  **統合(1つの箱にする)はしていない**(実機フィードバックで明確に区別された
+  要件)。間の余白は独立を保ったまま4px→6px(約1.5倍)に拡大。
+- `window.grab()`でBefore/Afterスクリーンショット(ライト/ダーク)を撮って
+  確認し、`docs/gui_style_audit.md`のH-2-2節+`docs/screenshots/h2-2/`配下の
+  PNGとして記録した。
 
 H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏まえること):
 - `gui/theme.py`が唯一のQt側QSS/パレット実装(別`.qss`ファイルは無い)。
@@ -46,14 +63,20 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
 
 ## 次にやること
 
-ユーザーから明示的に番号(例:「41実施」)で指示があるまで着手しない。
-次に来る想定はトラック2 フェーズH-2-2(#41: データセットリスト・データテーブル
-の磨き込み)。H-2は8つのサブ項目(H-2-1〜H-2-8、ロードマップ#40〜47)を1つずつ
-順に進める増分実装のため、複数まとめて指示された場合もコンポーネント単位で
-区切ってコミットすること。指示が来たらまず`docs/roadmap.html`の該当行と、
+ユーザーから明示的に番号(例:「42実施」)で指示があるまで着手しない。
+次に来る想定はトラック2 フェーズH-2-3(#42〜、H-2の残りコンポーネント磨き込み)。
+H-2は8つのサブ項目(H-2-1〜H-2-8、ロードマップ#40〜47)を1つずつ順に進める
+増分実装のため、複数まとめて指示された場合もコンポーネント単位で区切って
+コミットすること。指示が来たらまず`docs/roadmap.html`の該当行と、
 `docs/gui_style_audit.md`(H-0の調査結果+これまでのH-2 Before/After記録)、
 必要なら`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を読んでから
 着手する。
+
+**H-2-2完了直後の未実施タスク**: フルpytestスイートの結果確認 → 問題なければ
+`git add`(`gui/theme.py`, `gui/main_window.py`, `tests/test_theme.py`,
+`tests/test_main_window.py`, `docs/gui_style_audit.md`,
+`docs/GUI_MODERNIZATION_PROGRESS.md`, `docs/roadmap.html`,
+`docs/screenshots/h2-2/`, このファイル)→ コミット → push。
 
 トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
 (`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
@@ -153,3 +176,34 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
   `git reset`/`git clean`等の破壊的操作は絶対に指示しないこと。フェーズF以降は
   そもそも`isolation: "worktree"`を使わず、共有ツリー+明示的なファイル境界
   指示のバックグラウンドAgentに統一しており、今のところこちらは安定している。
+- **QTreeView/QTreeWidgetのQSSだけでは「アイコン列+テキスト列にまたがる単一の
+  角丸選択ハイライト」を実現できない**(H-2-2で判明)。Qt(Fusionスタイル)は
+  `CE_ItemViewItem`描画時にデコレーション(アイコン)列とテキスト(display)列を
+  別々の矩形として扱い、`::item:selected`の`background`/`border-radius`も
+  それぞれ独立に適用するため、2つの矩形の角丸がわずかにズレて隙間ができる。
+  QSSの`show-decoration-selected`はPySide6のQTreeView/QTreeWidgetに対応する
+  公開APIが無く、指定しても効果が無い。**解決策は`QStyledItemDelegate`を
+  サブクラス化し、選択時の背景をQPainterPathで自前描画した上で、
+  `option.state`から`State_Selected`を外してから基底実装(`super().paint()`)に
+  委譲すること**(実装例: `gui/main_window.py`の`_DatasetTreeSelectionDelegate`)。
+- **分岐(展開矢印)用インデント列は`delegate.paint()`とは別経路
+  (`QTreeView::drawBranches()`)で描画される**ため、デリゲート側で
+  `State_Selected`を外しても、そのフラグ解除の影響を受けない。汎用の
+  `::item:selected`スタイルがモデル側の実際の選択状態を見てそのまま
+  インデント列に滲み出るため、対象リストに限って`background: transparent`で
+  打ち消す必要がある(単に`selection-background-color: transparent`を
+  ウィジェットレベルで指定するだけでは不十分だった)。
+- **QColor(rgba_css_string)はCSSのrgba()関数記法を解釈できず、不透明の黒に
+  無効フォールバックする**(H-2-2で発覚。`"rgba(37, 99, 235, 0.12)"`のような
+  QSS埋め込み用トークン文字列をPython側でQColorとして直接使いたい場合、
+  `QColor(rgba_css_string)`は`isValid() == False`になり、代わりに不透明な
+  黒(0,0,0,255)が返る)。正規表現でr,g,b,aを抽出し、`QColor(r,g,b)`+
+  `setAlphaF(a)`で組み立てること(実装例:
+  `gui/theme.py`の`current_selection_highlight_qcolor()`)。
+- **実機フィードバックでUIの「見た目の意図」を早めに言語化してもらうと手戻りが
+  減る**(H-2-2の実例): 「検索ボックスとリストの境界線を消して」という指示を
+  「1つの箱に統合する」意味だと誤解して実装し、後から「統合することじゃない、
+  それぞれ独立した箱のまま枠線だけ消して」と訂正された。見た目の変更指示が
+  複数の解釈を許す場合(特に「境界線を消す」「くっつける」等)は、実装前に
+  「独立した箱のまま枠線を消すのか、1つの箱に統合するのか」を確認するか、
+  最初の実装を小さく留めて早い段階でスクリーンショットを見せるとよい。

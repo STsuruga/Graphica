@@ -107,9 +107,10 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDial
                                QDockWidget, QScrollArea, QMessageBox,
                                QLineEdit, QHBoxLayout, QFormLayout, QAbstractItemView,
                                QDialog, QTreeWidget, QTreeWidgetItem, QGridLayout,
-                               QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction)
-from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack
-from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal
+                               QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction,
+                               QStyledItemDelegate, QStyleOptionViewItem, QStyle)
+from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack, QPainter, QPainterPath
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal, QRectF
 from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
@@ -129,6 +130,7 @@ from core.commands import AddDatasetCommand
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.minimap_widget import MinimapWidget
 from gui.detached_canvas_window import DetachedCanvasWindow
+from gui import theme
 from gui.theme import apply_form_spacing
 from gui.workers import DataLoadWorker
 from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
@@ -246,6 +248,58 @@ _PLUGIN_PANEL_AREA_MAP = {
     "top": Qt.DockWidgetArea.TopDockWidgetArea,
     "bottom": Qt.DockWidgetArea.BottomDockWidgetArea,
 }
+
+class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
+    """
+    dataset_list_widget専用のアイテムデリゲート(項目H-2-2、実機フィードバックで
+    複数回の調整を経て導入)。
+
+    QSSの `QTreeWidget::item:selected { background: ...; border-radius: ...px; }`
+    だけでは、選択時のハイライトを「アイコン列+テキスト列にまたがる単一の
+    角丸矩形」として描画できない。Qt(Fusionスタイル)は、CE_ItemViewItemの
+    描画時にデコレーション(アイコン)列とテキスト(display)列をそれぞれ独立した
+    矩形として扱い、::item:selectedのbackground/border-radiusを両方に別々に
+    適用するため、2つの矩形の角丸がわずかにズレて隙間が生じる(実機でピクセルを
+    直接比較して確認済み。border-radiusを0にすれば隙間自体は消えるが、今度は
+    行の見た目が完全な直角になり、リスト自体の角丸(border-radius: 8px)と
+    揃わなくなる)。
+
+    そのため、選択時の背景描画だけはこのデリゲートで自前に行う: paint()の中で
+    選択状態を検知したら先に単一のQPainterPathで角丸矩形を1回だけ塗り、その後
+    option.stateからState_Selectedを外してから基底実装に委譲することで、Qt標準の
+    (2矩形に分かれた)選択背景描画を無効化する。アイコン・テキスト自体の描画は
+    引き続き基底実装(QStyledItemDelegate.paint)に任せる。
+    """
+
+    def paint(self, painter, option, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+
+        if opt.state & QStyle.StateFlag.State_Selected:
+            painter.save()
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            # ★ opt.rect はデコレーション(アイコン)+テキスト部分だけの矩形で、
+            #   分岐(展開矢印)用インデント列の分だけ左端が空く(実機フィードバックで
+            #   「ここの隙間」として指摘された)。インデント列はこのリストでは
+            #   何も描画されない(::item:selectedのbackgroundをtransparentに
+            #   している)ため、左端をビューポートの0まで伸ばしてハイライトで
+            #   埋めても他の描画と衝突しない。
+            rect = QRectF(opt.rect)
+            rect.setLeft(0)
+            path = QPainterPath()
+            path.addRoundedRect(
+                rect, theme.DATASET_LIST_ITEM_RADIUS, theme.DATASET_LIST_ITEM_RADIUS
+            )
+            painter.fillPath(path, theme.current_selection_highlight_qcolor())
+            painter.restore()
+            # ★ 基底実装(super().paint)がQt標準の選択背景を重ねて描画しないよう、
+            #   ここでフラグを落としてから委譲する。アイコン/テキストの見た目は
+            #   選択・非選択で変えていないため(色は{text_primary}で共通)、
+            #   これによる副作用は無い。
+            opt.state &= ~QStyle.StateFlag.State_Selected
+
+        super().paint(painter, opt, index)
+
 
 #==============================================================================
 # メインアプリケーションクラス
@@ -1965,9 +2019,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         container = QWidget(parent_widget)
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(4)
+        # ★ 項目H-2-2(実機フィードバック): 検索ボックスとリストの間の余白を
+        #   狭すぎると感じたとの指摘を受け、元の4pxから約1.5倍の6pxに広げた。
+        container_layout.setSpacing(6)
 
         search_edit = QLineEdit(container)
+        # ★ 項目H-2-2: 検索ボックス単体の枠線を消すQSS(theme.py側
+        #   #dataset_search_edit)をスコープするためのobjectName。リストと
+        #   統合するためではなく、あくまで検索ボックス自身の見た目調整用。
+        search_edit.setObjectName("dataset_search_edit")
         search_edit.setPlaceholderText("データセットを検索...")
         search_edit.setClearButtonEnabled(True)
         container_layout.addWidget(search_edit)
@@ -1984,6 +2044,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #   このリストはsizeHint任せだと窮屈すぎる高さまで縮む可能性がある。
         #   データが2〜3件程度でも下に大きな空白ができない程度の高さを確保する。
         tree.setMinimumHeight(90)
+        # ★ 項目H-2-2: 選択ハイライトをアイコン列+テキスト列にまたがる単一の
+        #   角丸矩形として描画するための専用デリゲート(理由は
+        #   _DatasetTreeSelectionDelegateのdocstringを参照)。
+        tree.setItemDelegate(_DatasetTreeSelectionDelegate(tree))
         container_layout.addWidget(tree)
 
         # 項目69: リストとボタン行の間の余白を、選択中データセットのミニ統計で埋める

@@ -194,3 +194,73 @@ H-1時点で既に`gui/theme.py`のQSS(`QMenuBar`/`QMenu`セクション)でカ�
 
 **テスト**: `tests/test_quick_access_mixin.py::test_quick_access_toolbar_is_not_movable`
 を追加。既存のUIテスト(オフスクリーン)は全てグリーン。
+
+## H-2-2. データセットリスト・データテーブル
+
+**変更内容**: `gui/theme.py`(選択ハイライトの配色・枠線)と
+`gui/main_window.py`(専用アイテムデリゲート・検索ボックスの間隔)の両方に渡る。
+
+1. **選択ハイライトの配色**: `LIGHT_TOKENS`/`DARK_TOKENS`に`selection_highlight`
+   トークンを新設(ライト: `rgba(37, 99, 235, 0.12)`、ダーク:
+   `rgba(59, 130, 246, 0.22)`)。従来の「はっきりしたアクセント色(ティール系)の
+   塗りつぶし」から、透明度を持たせた薄い青に変更した。
+2. **選択ハイライトの形状**: `_DatasetTreeSelectionDelegate`
+   (`gui/main_window.py`)を新設し、`dataset_list_widget`の`setItemDelegate()`で
+   登録。選択時の背景描画をこのデリゲートが自前で行い、アイコン列+テキスト列+
+   分岐(展開矢印)用インデント列を含む行全体を、リスト自体の角丸(8px、
+   `DATASET_LIST_ITEM_RADIUS`)と揃えた単一の角丸矩形として描画する。
+3. **リスト・検索ボックスそれぞれの枠線**: `QTreeWidget#dataset_list_widget`と
+   `QLineEdit#dataset_search_edit`(新設objectName)の両方に`border: none;`を
+   追加し、灰色の枠線を消した。**リストと検索ボックスを1つの箱に統合するのが
+   目的ではない**(実機フィードバックで明確に区別された)ため、両者の間の
+   レイアウト間隔(`container_layout.setSpacing()`)はそのまま独立を保っており、
+   むしろ実機フィードバックを受けて4px→6px(約1.5倍)に広げている。
+
+**理由・経緯(実機フィードバックによる複数回の調整)**:
+
+- 当初のQSS(`::item:selected { background; border-radius; }`)だけでは、
+  選択ハイライトを「アイコン列+テキスト列にまたがる単一の角丸矩形」として
+  描画できないことが実機検証で判明した。Qt(Fusionスタイル)は
+  `CE_ItemViewItem`の描画時にデコレーション(アイコン)列とテキスト
+  (display)列を別々の矩形として扱い、`background`/`border-radius`もそれぞれ
+  独立に適用するため、2つの矩形の角丸がわずかにズレて隙間から地の色が
+  透けて見えていた。`border-radius: 0`にすれば隙間自体は消えるが、今度は
+  リスト自体の角丸(8px)と揃わなくなる。QSSの`show-decoration-selected`
+  プロパティで1矩形に統合できないか試したが、PySide6の
+  `QTreeView`/`QTreeWidget`にはこのプロパティに対応する公開APIが無く
+  (`hasattr()`で確認済み)、QSS指定も実機で効果が無かった。
+- 分岐(展開矢印)用インデント列は、`delegate.paint()`とは別の
+  `QTreeView::drawBranches()`という独自の経路で描画されており、モデル側の
+  実際の選択状態を見るため、汎用のリスト共通スタイル(`accent_soft`を使う
+  `QTreeWidget::item:selected`規則)がそのまま滲み出てしまう。このリストに
+  限って`background: transparent`で打ち消している。
+- デリゲートが描く矩形は当初アイコン+テキスト部分(`opt.rect`)だけで、
+  分岐用インデント列の分だけ左端に隙間が空いてしまっていた
+  (「ここの隙間空いちゃうのは直せる?」という実機フィードバックで発覚)。
+  インデント列は何も描画されない(上記の理由で`transparent`)ため、
+  デリゲートの矩形の左端をビューポートの0まで伸ばして埋めても他の描画と
+  衝突しないことを確認し、修正した。
+
+**Before/After**(ライトモード):
+
+| Before | After |
+|---|---|
+| ![Before(ライト)](screenshots/h2-2/before_light.png) | ![After(ライト)](screenshots/h2-2/after_light.png) |
+
+**Before/After**(ダークモード):
+
+| Before | After |
+|---|---|
+| ![Before(ダーク)](screenshots/h2-2/before_dark.png) | ![After(ダーク)](screenshots/h2-2/after_dark.png) |
+
+選択行が、濃いアクセント色の塗りつぶし(かつ左端に色の異なる箱が独立して
+見えていた)から、リストの角丸と揃った単一の薄い青の帯に変わった。検索
+ボックス・リストそれぞれの灰色の枠線も消え、間隔だけが独立した箱として
+保たれている。
+
+**テスト**: `tests/test_theme.py`に`selection_highlight`トークンの存在、
+`current_selection_highlight_qcolor()`のrgba()パース、生成QSSの
+`border: none`/`background: transparent`指定を検証するテストを追加。
+`tests/test_main_window.py`に、デリゲートが実際に設定されていること・
+検索ボックスのobjectName・間隔(6px)・デリゲートのpaint()が例外を出さない
+ことを検証するテストを追加。

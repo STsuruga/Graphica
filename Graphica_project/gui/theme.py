@@ -7,6 +7,7 @@ QSS (Qtスタイルシート) でツールバー・ボタン・入力欄・リ�
 角丸/フラットに統一し、よりモダンな印象にしている。
 """
 import os
+import re
 import tempfile
 
 from PySide6.QtCore import QRectF, Qt
@@ -20,6 +21,14 @@ _original_palette = None
 _original_style_name = None
 _wheel_value_change_disabled = False
 _current_proxy_style = None  # QApplication.setStyle()に渡したオブジェクトへの参照を保持
+_current_tokens = None  # 現在適用中のLIGHT_TOKENS/DARK_TOKENS(項目H-2-2:
+                         # QSSだけでは表現できない選択ハイライトをカスタム
+                         # デリゲートで描く際に、ライト/ダーク現在値を参照するため)
+
+# データセットリストの角丸(選択ハイライト用デリゲートが、リスト自体の角丸
+# (下のQTreeWidget, QListWidget, QTableWidget規則のborder-radius)と揃える
+# ために参照する値。QSS文字列側の値を変更したら、こちらも合わせて変更すること。
+DATASET_LIST_ITEM_RADIUS = 8
 
 # スピンボックスの上下矢印アイコンのキャッシュ先。
 # ★ QSpinBox::up-button/down-buttonにQSSで何かプロパティを指定すると
@@ -85,12 +94,20 @@ LIGHT_TOKENS = {
     "border": "#DFE2E1", "border_strong": "#C9CDCB",
     "text_primary": "#1B1F1E", "text_secondary": "#5B6462", "text_muted": "#8B938F",
     "accent": "#1F6F78", "accent_soft": "#E4F0EF", "accent_text": "#FFFFFF",
+    # データセットリストの選択ハイライト専用(項目H-2-2)。アプリ全体のアクセント
+    # 色(ティール系)とは別に、実機フィードバックで明示的に要望された「青」を
+    # 使う専用トークン(他の淡いリスト/テーブルが使うaccent_softとは意図的に
+    # 別トークンにしている)。accent_softは不透明な淡色だが、こちらは実際に
+    # rgbaの透過を持たせている(以前の「はっきりしたアクセント色の塗りつぶし」
+    # という意図的な差別化が濃すぎると判断され、この色に変更した経緯がある)。
+    "selection_highlight": "rgba(37, 99, 235, 0.12)",
 }
 DARK_TOKENS = {
     "bg": "#14171A", "surface": "#1B1F22", "surface_2": "#21262A",
     "border": "#2C3236", "border_strong": "#3A4147",
     "text_primary": "#EDEFEF", "text_secondary": "#A6AEB2", "text_muted": "#6E777B",
     "accent": "#5FB6BE", "accent_soft": "rgba(95, 182, 190, 0.16)", "accent_text": "#0E1113",
+    "selection_highlight": "rgba(59, 130, 246, 0.22)",
 }
 
 _FLAT_QSS_TEMPLATE = """
@@ -434,12 +451,59 @@ QTreeWidget::item, QListWidget::item {{
     border-radius: 5px;
 }}
 
-/* --- データセットリストは選択状態がひと目でわかるよう、はっきりした
-   アクセント色の塗りつぶしにする(他の淡いリスト/テーブルの選択色とは
-   意図的に差をつける) --- */
+/* --- データセットリストの選択ハイライト(項目H-2-2、実機フィードバックで
+   複数回調整): 当初はQSSの ::item:selected 規則(background/border-radius)だけで
+   実現しようとしたが、Qt(Fusionスタイル)はCE_ItemViewItemの描画時に
+   デコレーション(アイコン)列とテキスト(display)列を“別々の矩形”として扱い、
+   background/border-radiusもそれぞれ独立に適用する。そのためアイコン列と
+   テキスト列の角丸が微妙にズレて隙間から地の色が透けて見える、あるいは
+   border-radiusを0にすれば隙間は消えるがリスト自体の角丸(下のQTreeWidget/
+   QListWidget/QTableWidget規則のborder-radius: 8px)と揃わない、という
+   問題が残った(実機でピクセルを直接比較して確認済み)。QSSの
+   show-decoration-selectedプロパティで1矩形に統合できないか試したが、
+   PySide6のQTreeView/QTreeWidgetにはこのプロパティに対応する公開APIが無く
+   (hasattr確認済み)、QSS指定も実機で効果が無かった。
+   最終的に、選択時の背景描画だけは_DatasetTreeSelectionDelegate
+   (gui/main_window.py)が自前で行うようにした: 1つのQPainterPathでリストと
+   同じ角丸(DATASET_LIST_ITEM_RADIUS)の矩形を1回だけ塗り、Qt標準の選択背景
+   描画はoption.stateからState_Selectedを外すことで無効化している。
+   ただし「分岐(展開矢印)用インデント列」だけはこのState_Selected解除の
+   影響を受けない: QTreeViewはインデント列をdelegate.paint()とは別の
+   drawBranches()という独自の経路で描画しており、こちらはモデル側の実際の
+   選択状態を見るため、汎用のリスト共通スタイル(上の
+   QTreeWidget::item:selected, QListWidget::item:selected,
+   QTableWidget::item:selected 規則、背景にaccent_softを使うもの)が
+   そのままインデント列に滲み出てしまう(実機で確認: このリストのアイテムのみ
+   薄いティール色の四角がインデント列に残っていた)。下のbackground:
+   transparentは、このリストに限ってその汎用ルールを打ち消すための指定。 --- */
+QTreeWidget#dataset_list_widget {{
+    selection-background-color: transparent;
+    selection-color: {text_primary};
+    /* ★ outline: none が無いと、選択+キーボードフォーカス時にQtが項目の
+       テキスト周りへ点線のフォーカス矩形を描画し、デリゲートの角丸ハイライトの
+       上にもう1つ四角い枠が重なって見えてしまう(実機フィードバックで発見)。
+       QComboBox QAbstractItemViewの選択済み項目でも同じ理由でoutline: none
+       を使っている(このファイル内の別箇所を参照)。 */
+    outline: none;
+    /* ★ 項目H-2-2(実機フィードバック): リスト自体の枠線を消してほしい、
+       という指示を受けての指定。検索ボックスと統合するわけではなく、
+       あくまで「それぞれの箱の線を消す/背景色と同じにする」ため、
+       枠線だけを消して背景・角丸(上のQTreeWidget/QListWidget/QTableWidget
+       規則のborder-radius: 8px)はそのまま活かす。 */
+    border: none;
+}}
+/* ★ 上のコメント(drawBranches()の件)で説明した、汎用::item:selectedルールの
+   インデント列への滲み出しを、このリストに限って打ち消す。デリゲートが背景を
+   自前描画するため、item本体の見た目には影響しない。 */
 QTreeWidget#dataset_list_widget::item:selected {{
-    background: {accent};
-    color: {accent_text};
+    background: transparent;
+}}
+
+/* --- データセット検索ボックスの枠線を消す(項目H-2-2、実機フィードバック):
+   リストと統合する意図ではなく、検索ボックス単体の枠線を消して背景色との
+   境目を目立たなくするための指定(下のリストの枠線消しと対になる)。 --- */
+QLineEdit#dataset_search_edit {{
+    border: none;
 }}
 
 /* --- タブ --- */
@@ -687,12 +751,13 @@ def apply_theme(app, dark: bool):
     ボタンサイズや余白などQStyle依存の見た目がモードごとに変わってしまうため、
     スタイルは固定してモード間の見た目の一貫性を保つ。
     """
-    global _original_palette, _original_style_name, _current_proxy_style
+    global _original_palette, _original_style_name, _current_proxy_style, _current_tokens
     if _original_palette is None:
         _original_palette = QPalette(app.palette())
         _original_style_name = app.style().objectName()
 
     tokens = DARK_TOKENS if dark else LIGHT_TOKENS
+    _current_tokens = tokens
     base_style = QStyleFactory.create('Fusion')
     _current_proxy_style = _FlatThemeProxyStyle(base_style, tokens)
     app.setStyle(_current_proxy_style)
@@ -704,6 +769,30 @@ def apply_theme(app, dark: bool):
     # パレットに加えて QSS を適用し、ツールバー/ボタン/入力欄/リスト等を
     # 角丸・フラットな見た目に統一する(モダンなミニマルテーマ)。
     app.setStyleSheet(build_qss(tokens))
+
+
+def current_selection_highlight_qcolor() -> QColor:
+    """
+    現在適用中(ライト/ダーク)のselection_highlightトークンをQColorとして返す
+    (項目H-2-2)。データセットリストの選択ハイライトはQSSのbackgroundだけでは
+    行全体を単一の角丸矩形として描画できない(Qtがアイコン列とテキスト列を
+    別々の矩形として描画するため、実機検証済み)ため、
+    _DatasetTreeSelectionDelegate(gui/main_window.py)が自前で背景を描画している。
+    トークン値は "rgba(r, g, b, a)" 形式のQSS埋め込み用文字列であり、
+    QColor(str)コンストラクタでは解釈できない(QColorはCSSのrgba()関数記法を
+    理解せず、不透明の黒に無効フォールバックしてしまうことを実機で確認した)ため、
+    ここで正規表現パースしてQColorを直接返す。apply_theme()より前に呼ばれた
+    場合(通常は起こらない)はLIGHT_TOKENSにフォールバックする。
+    """
+    tokens = _current_tokens or LIGHT_TOKENS
+    raw = tokens["selection_highlight"]
+    match = re.match(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)", raw)
+    if not match:
+        return QColor(raw)
+    r, g, b, a = match.groups()
+    color = QColor(int(r), int(g), int(b))
+    color.setAlphaF(float(a))
+    return color
 
 
 def apply_form_spacing(widget, spacing=12):

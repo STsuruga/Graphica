@@ -27,10 +27,11 @@
 | ID | 項目 | 状態 | 完了日 | 備考 |
 |---|---|---|---|---|
 | H-2-1 | メインツールバー・メニューバー | ✅ 完了 | 2026-08-07 | `gui/mixins/quick_access_mixin.py`の`_create_quick_access_toolbar()`に`toolbar.setMovable(False)`を追加。Qt標準ツールバーの移動グリップ(ドラッグ用ハンドル)が、上部固定・移動機能未提供のこのアプリのフラット/ミニマルテーマと視覚的に馴染んでいなかったため除去。実際に`window.grab()`でBefore/Afterスクリーンショット(ライト/ダーク)を撮って確認し、`docs/gui_style_audit.md`のH-2-1節に記録(`docs/screenshots/h2-1/`配下にPNG)。メニューバー自体(QMenuBar/QMenu)はH-1完了時点で既に十分なQSSカバレッジがあり、追加変更なし。`tests/test_quick_access_mixin.py::test_quick_access_toolbar_is_not_movable`を追加 |
+| H-2-2 | データセットリスト・データテーブル | ✅ 完了 | 2026-08-08 | `gui/theme.py`に`selection_highlight`トークン(薄い青、透過あり)を新設し、従来の濃いアクセント色塗りつぶしを置き換え。選択ハイライトの形状はQSSの`::item:selected`だけでは(アイコン列とテキスト列が別矩形で描画されるQtの制約により)単一の角丸矩形にできないことが実機検証で判明したため、専用の`_DatasetTreeSelectionDelegate`(`gui/main_window.py`)を新設して自前描画に切り替え、リスト自体の角丸(8px)と揃えた。分岐(展開矢印)用インデント列への汎用スタイルの滲み出しは`background: transparent`で打ち消し、デリゲートの矩形の左端をビューポート0まで伸ばして隙間を解消。検索ボックス・リストそれぞれの枠線(`border: none`)も個別に消したが、**統合はせず独立した箱のまま**、間隔は実機フィードバックを受けて4px→6pxに拡大。`tests/test_theme.py`・`tests/test_main_window.py`にテスト追加、`docs/gui_style_audit.md`のH-2-2節にBefore/After記録(`docs/screenshots/h2-2/`) |
 
-### H-2-2〜H-2-8、H-3〜H-5
+### H-2-3〜H-2-8、H-3〜H-5
 
-未着手。詳細は`Graphica_ROADMAP_PLUGIN_AND_GUI.md`のH-2節以降(推奨着手順2〜8)を参照。
+未着手。詳細は`Graphica_ROADMAP_PLUGIN_AND_GUI.md`のH-2節以降(推奨着手順3〜8)を参照。
 
 ---
 
@@ -38,3 +39,4 @@
 
 - 2026-08-07: 新規作成。H-0・H-1完了を反映。
 - 2026-08-07: H-2-1(メインツールバー・メニューバー)完了を反映。
+- 2026-08-08: H-2-2(データセットリスト・データテーブル)完了を反映。

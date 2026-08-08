@@ -263,6 +263,74 @@ def test_label_symbol_palette_has_sixteen_unique_entries():
     assert len(set(macros)) == len(macros)
 
 
+# --- データセットリスト・検索ボックス(項目H-2-2) ---
+
+def test_dataset_list_widget_uses_selection_delegate(tmp_path, monkeypatch):
+    """
+    選択ハイライトをアイコン列+テキスト列にまたがる単一の角丸矩形として
+    描画するため、専用デリゲート(_DatasetTreeSelectionDelegate)が
+    dataset_list_widgetに設定されていることを確認する(実機フィードバックで
+    QSSだけでは実現できないことが判明した経緯は_DatasetTreeSelectionDelegate
+    のdocstring、およびgui/theme.pyの該当コメントを参照)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    delegate = window.ui.dataset_list_widget.itemDelegate()
+    assert isinstance(delegate, main_window_module._DatasetTreeSelectionDelegate)
+
+
+def test_dataset_search_edit_has_object_name_for_qss_scoping(tmp_path, monkeypatch):
+    """
+    検索ボックス単体の枠線を消すQSS(#dataset_search_edit)をスコープするため、
+    objectNameが設定されていることを確認する。リストとの統合ではなく、
+    検索ボックス自身の見た目調整のためのobjectNameであることに注意
+    (実機フィードバックで「統合することじゃない」と明確に区別された)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.dataset_search_edit.objectName() == "dataset_search_edit"
+
+
+def test_dataset_search_edit_and_list_remain_separate_boxes_with_spacing(tmp_path, monkeypatch):
+    """
+    検索ボックスとリストは統合された1つの箱ではなく、間に余白を持つ独立した
+    箱のままであることを確認する(実機フィードバックで「隙間を1.5倍くらい
+    広く」と指定され、4px→6pxに変更した経緯がある)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    container_layout = window.dataset_search_edit.parentWidget().layout()
+    assert container_layout.spacing() == 6
+
+
+def test_dataset_tree_selection_delegate_paint_does_not_raise_when_selected(qapp):
+    """
+    _DatasetTreeSelectionDelegate.paint()が選択状態でも例外を出さず、
+    Qt標準の選択背景描画(State_Selected)を自前描画に置き換えた後も
+    基底実装への委譲が正常に完了することを確認する回帰テスト。
+    """
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QPainter, QPixmap
+    from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem
+
+    from gui import theme
+    theme.apply_theme(qapp, dark=False)
+
+    tree = QTreeWidget()
+    tree.setColumnCount(1)
+    item = QTreeWidgetItem(["sample_dataset.csv"])
+    tree.addTopLevelItem(item)
+    delegate = main_window_module._DatasetTreeSelectionDelegate(tree)
+    tree.setItemDelegate(delegate)
+
+    pixmap = QPixmap(200, 30)
+    painter = QPainter(pixmap)
+    try:
+        option = QStyleOptionViewItem()
+        option.rect = QRect(0, 0, 200, 30)
+        option.state = QStyle.StateFlag.State_Selected | QStyle.StateFlag.State_Enabled
+        delegate.paint(painter, option, tree.indexFromItem(item))
+    finally:
+        painter.end()
+
+
 def test_label_symbol_click_inserts_at_cursor_when_no_selection(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     line_edit = window.ui.title_text_edit
