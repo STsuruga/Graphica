@@ -264,3 +264,119 @@ H-1時点で既に`gui/theme.py`のQSS(`QMenuBar`/`QMenu`セクション)でカ�
 `tests/test_main_window.py`に、デリゲートが実際に設定されていること・
 検索ボックスのobjectName・間隔(6px)・デリゲートのpaint()が例外を出さない
 ことを検証するテストを追加。
+
+## H-2-3. ドック全般
+
+**変更内容**: `gui/theme.py`(QDockWidgetの枠線・角丸・フォーカス時強調のQSS)
+と、`gui/main_window.py`/`gui/main_app_window.py`(新設の
+`theme.install_dock_focus_highlight()`呼び出し)の両方に渡る。
+
+1. **境界線**: `QDockWidget { border: 1px solid {border}; border-radius: 8px; }`
+   を追加。以前はタイトルバーの背景色だけが手がかりで、キャンバス周り
+   (`plot_container`、1節参照)のような「1枚のカード」として認識しにくかった。
+   `QDockWidget::title`にも上端の角丸(`border-top-left-radius`/
+   `border-top-right-radius`)を追加し、ドック本体の角丸と揃えている。
+2. **タイトルバー**: 既存のQSS(背景・パディング・太字)は変更なし。角丸の
+   追加のみ。
+3. **フォーカス時の強調**: QDockWidget自体には「アクティブ」を示すQt標準の
+   状態が無いため、`theme.install_dock_focus_highlight(window)`を新設し、
+   `QApplication.focusChanged`を監視してフォーカスされたウィジェットの祖先を
+   たどりQDockWidgetを特定、動的プロパティ`dockActive`をQSSの属性セレクタ
+   (`QDockWidget[dockActive="true"]`)経由で反映する。フォーカスが当たった
+   ドックの枠線がアクセント色になる。プラグイン製パネル(項目D-1)も祖先を
+   たどる方式のため個別登録なしで自動カバーされる。**複数タブ対応の注意点**:
+   `focusChanged`はプロセス内全体で共有される単一のシグナルのため、
+   見つかったドックが自分の管轄する`window`のものでない場合は無視する
+   ガードが必須(各PlotterAppタブは完全に独立したウィンドウという設計方針、
+   本ファイル冒頭の注意点参照)。`undo_history_dock`はPlotterApp(各タブ)
+   ではなく`MainAppWindow`自身が持つドックのため、`gui/main_window.py`側の
+   呼び出しとは別に`gui/main_app_window.py`側でも個別に組み込んでいる。
+
+**Before/After**(ライトモード、上: 非フォーカス時、下: フォーカス時):
+
+| Before | After(非フォーカス) | After(フォーカス) |
+|---|---|---|
+| ![Before(ライト)](screenshots/h2-3/before_light.png) | ![After非フォーカス(ライト)](screenshots/h2-3/after_resting_light.png) | ![Afterフォーカス(ライト)](screenshots/h2-3/after_focused_light.png) |
+
+**Before/After**(ダークモード):
+
+| Before | After(非フォーカス) | After(フォーカス) |
+|---|---|---|
+| ![Before(ダーク)](screenshots/h2-3/before_dark.png) | ![After非フォーカス(ダーク)](screenshots/h2-3/after_resting_dark.png) | ![Afterフォーカス(ダーク)](screenshots/h2-3/after_focused_dark.png) |
+
+**テスト**: `tests/test_theme.py`に、生成QSSがQDockWidgetへ枠線・角丸・
+`dockActive`属性セレクタを持つことを確認するテストと、
+`TestDockFocusHighlight`クラス(フォーカス移動でdockActiveが立つ/外れる、
+他ウィンドウのドックには影響しない、ウィンドウ破棄後にハンドラが
+disconnectされる、の4パターン)を追加。`tests/test_main_window.py`・
+`tests/test_main_app_window.py`にも、それぞれのウィンドウで実際に
+`install_dock_focus_highlight()`が呼ばれていることを確認するテストを追加。
+
+## H-2-4. ボタン・入力フィールド・コンボボックス
+
+**変更内容**: 実機フィードバックによる複数回の調整。`gui/theme.py`
+(スピンボックス/コンボボックスの矢印・選択色)と`gui/main_window.py`
+(フォームラベルの末尾コロン除去)の両方に渡る。
+
+1. **スピンボックスの上下ボタン**: 以前はフィールド右端に直接くっついた
+   「外側の角だけ丸い」1つの帯だったが、参考イメージの提示を受け、上下
+   それぞれが独立した小さな角丸ボックスに見えるよう全4隅を丸め、marginで
+   枠線・フィールドの双方から少し離した。さらに「透明にして枠線も消して」
+   との追加フィードバックを受け、ボタン自体の背景・枠線は常時透明にし、
+   矢印アイコンだけが浮いて見えるミニマルな見た目に変更(hover/pressed時
+   のみ背景色を出す)。
+2. **矢印マークのサイズ**: 「もう少し大きく」とのフィードバックを受け、
+   矢印画像の生成元(`_spinbox_arrow_icon_url()`)自体の三角形サイズを
+   拡大(表示サイズだけを大きくしても、透明パディングの多い元画像を
+   ただ引き伸ばすだけで見た目が小さいままだったため、キャンバスサイズ
+   ごと見直した)。あわせて、キャッシュファイル名にサイズを含めるよう
+   変更し(`spin_arrow_{direction}_{color}_{size}.png`)、寸法変更のたびに
+   一時ディレクトリの旧サイズPNGを誤って使い回すことがないようにした。
+   **回帰**: スピンボックス側のみ12pxに拡大し、コンボボックスの矢印が
+   旧サイズ(10px)のまま揃っていなかった不具合が実機フィードバック
+   (「コンボボックスとスピンボックスでマークの大きさそろってる?」)で
+   発覚し、12pxに統一した。
+3. **選択色をデータセットリストに揃える**: 「選択時とかポップアップとか
+   色が緑だからデータセットリストの方に色合わせて」とのフィードバックを
+   受け、テキスト選択(`QWidget`の`selection-background-color`)、
+   メニュー/メニューバーの`::item:selected`、コンボボックスのポップアップ
+   (`QComboBox QAbstractItemView`)、汎用のリスト/テーブルの
+   `::item:selected`を、いずれもティール系の`accent`/`accent_soft`から、
+   データセットリスト(H-2-2)で導入した薄い青の`selection_highlight`
+   トークンに統一した。ボタンのhover/pressedやフォーカス枠など「選択」
+   以外のアクセント表現は従来通り`accent`のまま変更していない。
+4. **フォームラベルの末尾コロン除去**: 「各設定項目のあとの：はなくして」
+   とのフィードバックを受けて対応。`ui_main_window.py`(Qt Designer/
+   pyside6-uic生成物)の`retranslateUi()`には、多くのフォームラベルに
+   全角コロン「：」(`：`のエスケープ形式で埋め込まれており、リテラル
+   文字列としての単純なgrepでは見つからないので注意)が焼き込まれている。
+   `.ui`ソースファイル自体がこのリポジトリに存在せず再生成もできないため、
+   `PlotterApp.__init__`の最後(全てのラベル構築が終わった後)で
+   `_strip_trailing_colon_from_labels()`を呼び、QLabelのtext()を
+   走査して末尾の「：」だけを取り除く形で対応した(Designer側の元データは
+   変更していない)。
+
+**Before/After**(スピンボックス、ライトモード):
+
+| Before | After |
+|---|---|
+| ![Before](screenshots/h2-4/before_spinbox_zoom.png) | ![After](screenshots/h2-4/after_combobox_spinbox_zoom.png) |
+
+**After: コンボボックスのポップアップ選択色**:
+
+| ライト | ダーク |
+|---|---|
+| ![ポップアップ(ライト)](screenshots/h2-4/after_combobox_popup_light.png) | ![ポップアップ(ダーク)](screenshots/h2-4/after_combobox_popup_dark.png) |
+
+**After: フォームラベルのコロン除去**:
+
+| ライト | ダーク |
+|---|---|
+| ![ラベル(ライト)](screenshots/h2-4/after_labels_no_colon_light.png) | ![ラベル(ダーク)](screenshots/h2-4/after_labels_no_colon_dark.png) |
+
+**テスト**: `tests/test_theme.py`に、選択系プロパティが軒並み
+`selection_highlight`を使っていること・旧ティール色がもう使われていない
+こと・コンボボックスとスピンボックスの矢印サイズが一致していることを
+確認するテストを追加。`tests/test_main_window.py`に
+`TestStripTrailingColonFromLabels`クラス(末尾コロンのみ除去・末尾以外の
+コロンは残す・実際のPlotterAppのラベルで確認、の3パターン)を追加。

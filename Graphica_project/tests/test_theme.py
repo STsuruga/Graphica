@@ -319,3 +319,185 @@ def test_generated_qss_neutralizes_generic_item_selected_background_for_dataset_
     assert re.search(
         r"QTreeWidget#dataset_list_widget::item:selected\s*\{[^}]*background:\s*transparent[^}]*\}", qss
     )
+
+
+# --- ドック全般: 境界線・タイトルバー・フォーカス時の強調(項目H-2-3) ---
+
+
+def test_generated_qss_gives_dock_widgets_border_and_rounded_corners():
+    for dark in (False, True):
+        qss = theme.build_qss(theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS)
+        assert re.search(r"QDockWidget\s*\{[^}]*border:\s*1px solid[^}]*border-radius:\s*8px[^}]*\}", qss)
+
+
+def test_generated_qss_highlights_active_dock_with_accent_border():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(r'QDockWidget\[dockActive="true"\]\s*\{[^}]*border:\s*1px solid[^}]*\}', qss)
+
+
+class TestDockFocusHighlight:
+    """
+    theme.install_dock_focus_highlight()のテスト。
+
+    QDockWidget自体には「アクティブ」を示すQt標準の状態が無いため、
+    QApplication.focusChangedを監視して動的プロパティdockActiveを
+    付け外しする自前の仕組みになっている(gui/theme.pyの該当docstring参照)。
+    複数タブ(main_app_window.py、各タブが完全に独立したウィンドウという
+    設計方針)を想定し、他のウィンドウのドックには一切影響しないことも確認する。
+    """
+
+    def _make_window_with_dock(self, qapp):
+        """
+        ドック内のQLineEditと、ドックの外(ウィンドウ直下)のQLineEditを両方
+        持つウィンドウを作る。install_dock_focus_highlight()は
+        window.show()より前(実際のPlotterApp.__init__と同じ順序)に
+        呼び出すこと: show()時にフォーカス可能な唯一のウィジェットへ自動的に
+        フォーカスが当たるが、これを先にinstallしておかないと最初の
+        focusChangedイベントを取りこぼす。
+        """
+        from PySide6.QtWidgets import QDockWidget, QLineEdit, QMainWindow, QWidget, QVBoxLayout
+
+        window = QMainWindow()
+        theme.install_dock_focus_highlight(window)
+
+        dock = QDockWidget("テストドック", window)
+        line_edit = QLineEdit(dock)
+        dock.setWidget(line_edit)
+        window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+
+        central = QWidget(window)
+        central_layout = QVBoxLayout(central)
+        outside_edit = QLineEdit(central)
+        central_layout.addWidget(outside_edit)
+        window.setCentralWidget(central)
+
+        window.show()
+        for _ in range(5):
+            qapp.processEvents()
+        return window, dock, line_edit, outside_edit
+
+    def test_focusing_widget_inside_dock_sets_dock_active_property(self, qapp):
+        window, dock, line_edit, outside_edit = self._make_window_with_dock(qapp)
+
+        line_edit.setFocus()
+        for _ in range(5):
+            qapp.processEvents()
+
+        assert dock.property("dockActive") is True
+        window.close()
+
+    def test_focus_leaving_dock_clears_active_property(self, qapp):
+        window, dock, line_edit, outside_edit = self._make_window_with_dock(qapp)
+
+        line_edit.setFocus()
+        for _ in range(5):
+            qapp.processEvents()
+        outside_edit.setFocus()
+        for _ in range(5):
+            qapp.processEvents()
+
+        assert dock.property("dockActive") is False
+        window.close()
+
+    def test_focus_in_a_different_window_does_not_activate_this_windows_dock(self, qapp):
+        window_a, dock_a, edit_a, _ = self._make_window_with_dock(qapp)
+        window_b, dock_b, edit_b, _ = self._make_window_with_dock(qapp)
+
+        edit_b.setFocus()
+        for _ in range(5):
+            qapp.processEvents()
+
+        assert dock_b.property("dockActive") is True
+        assert dock_a.property("dockActive") in (None, False)
+        window_a.close()
+        window_b.close()
+
+    def test_window_destroyed_disconnects_focus_handler_without_raising(self, qapp):
+        from PySide6.QtWidgets import QLineEdit
+
+        window, dock, line_edit, outside_edit = self._make_window_with_dock(qapp)
+        window.close()
+        window.deleteLater()
+        for _ in range(5):
+            qapp.processEvents()
+
+        # ハンドラがdisconnectされていれば、以降のフォーカス変化で例外は出ない
+        other_edit = QLineEdit()
+        other_edit.show()
+        other_edit.setFocus()
+        for _ in range(5):
+            qapp.processEvents()
+        other_edit.close()
+
+
+# --- 選択色をデータセットリストに揃える(項目H-2-4、実機フィードバック:
+#     「選択時とかポップアップとか色が緑だからデータセットリストの方に
+#     色合わせて」) ---
+
+def test_generated_qss_uses_selection_highlight_for_text_selection():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QWidget\s*\{[^}]*selection-background-color:\s*\{?selection_highlight\}?", qss
+    ) or "selection-background-color: rgba(37, 99, 235, 0.12)" in qss
+
+
+def test_generated_qss_uses_selection_highlight_for_menu_and_menubar():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QMenuBar::item:selected\s*\{[^}]*background:\s*rgba\(37, 99, 235, 0\.12\)", qss
+    )
+    assert re.search(
+        r"QMenu::item:selected\s*\{[^}]*background:\s*rgba\(37, 99, 235, 0\.12\)", qss
+    )
+
+
+def test_generated_qss_uses_selection_highlight_for_combobox_popup():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QComboBox QAbstractItemView\s*\{[^}]*selection-background-color:\s*rgba\(37, 99, 235, 0\.12\)",
+        qss,
+    )
+
+
+def test_generated_qss_uses_selection_highlight_for_generic_lists():
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QTreeWidget::item:selected,\s*QListWidget::item:selected,\s*"
+        r"QTableWidget::item:selected\s*\{[^}]*background:\s*rgba\(37, 99, 235, 0\.12\)",
+        qss,
+    )
+
+
+def test_generated_qss_does_not_use_teal_accent_for_any_selection_state():
+    # 「緑っぽい」の原因だったティール系accent/accent_softが、選択系の
+    # プロパティ(selection-background-color、::item:selected、
+    # ::item(menu/menubar):selectedのbackground)にもう使われていないことを
+    # 回帰的に確認する。
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert "selection-background-color: #1F6F78" not in qss
+    assert "selection-background-color: #E4F0EF" not in qss
+
+
+class TestArrowIconSizesMatch:
+    """
+    スピンボックスとコンボボックスの矢印マークのサイズが揃っていることを
+    確認する回帰テスト(実機フィードバック: 「コンボボックスとスピンボックスで
+    マークの大きさそろってる?」で発覚した、コンボボックス側だけ旧サイズの
+    ままだった不具合の再発防止)。
+    """
+
+    @staticmethod
+    def _extract_arrow_size(qss, selector):
+        match = re.search(
+            re.escape(selector) + r"\s*\{[^}]*width:\s*(\d+)px;\s*height:\s*(\d+)px;", qss
+        )
+        assert match, f"{selector} の矢印サイズが見つかりません"
+        return int(match.group(1)), int(match.group(2))
+
+    def test_combobox_and_spinbox_arrow_sizes_are_identical(self):
+        qss = theme.build_qss(theme.LIGHT_TOKENS)
+        spin_up = self._extract_arrow_size(qss, "QSpinBox::up-arrow, QDoubleSpinBox::up-arrow")
+        spin_down = self._extract_arrow_size(qss, "QSpinBox::down-arrow, QDoubleSpinBox::down-arrow")
+        combo_down = self._extract_arrow_size(qss, "QComboBox::down-arrow")
+
+        assert spin_up == spin_down == combo_down

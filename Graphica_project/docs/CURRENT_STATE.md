@@ -23,34 +23,43 @@
 
 ## 直近の完了
 
-トラック2 フェーズH-2-2(ロードマップ#41: データセットリスト・データテーブルの
-磨き込み)完了。テスト追加・グリーン確認済み(`tests/test_theme.py`・
-`tests/test_main_window.py`)、フルスイートはバックグラウンドで実行中
-(このファイル更新時点ではまだ結果待ち。完了したら結果を確認してからコミット・
-pushすること)。`docs/roadmap.html`の#41チェック更新・Artifact再publish・
+トラック2 フェーズH-2-3(ロードマップ#42: ドック全般)・H-2-4(#43: ボタン・
+入力フィールド・コンボボックス)完了。フルスイート574件グリーン確認済み。
+`docs/roadmap.html`の#42/#43チェック更新・Artifact再publish・
 `docs/gui_style_audit.md`/`docs/GUI_MODERNIZATION_PROGRESS.md`への記録は
 実施済み。**コミット・pushはまだ**(このセッションの直後の作業として残っている)。
 
-H-2-2で実施した変更(実機フィードバックによる複数回の調整を経て確定):
-- `gui/theme.py`に`selection_highlight`トークンを新設(薄い青、透過あり)。
-  従来の「濃いアクセント色の塗りつぶし」を置き換えた。
-- 選択ハイライトの形状は、QSSの`::item:selected`だけでは実現できないことが
-  判明した(Qt/FusionスタイルがCE_ItemViewItem描画時にアイコン列とテキスト列を
-  別々の矩形として扱うため)。`_DatasetTreeSelectionDelegate`
-  (`gui/main_window.py`)を新設し、`dataset_list_widget.setItemDelegate()`で
-  登録。選択時の背景を自前のQPainterPathで1回だけ描画し、リスト自体の角丸
-  (8px、`theme.DATASET_LIST_ITEM_RADIUS`)と揃えている。
-- 分岐(展開矢印)用インデント列は`delegate.paint()`とは別経路
-  (`QTreeView::drawBranches()`)で描画されるため、汎用の`::item:selected`
-  スタイル(`accent_soft`)が滲み出る問題があり、`background: transparent`で
-  このリストに限り打ち消した。デリゲートの矩形も左端をビューポート0まで
-  伸ばし、インデント列分の隙間を埋めている。
-- リストと検索ボックスは、それぞれの`border: none`で枠線だけを消したが、
-  **統合(1つの箱にする)はしていない**(実機フィードバックで明確に区別された
-  要件)。間の余白は独立を保ったまま4px→6px(約1.5倍)に拡大。
-- `window.grab()`でBefore/Afterスクリーンショット(ライト/ダーク)を撮って
-  確認し、`docs/gui_style_audit.md`のH-2-2節+`docs/screenshots/h2-2/`配下の
-  PNGとして記録した。
+H-2-3で実施した変更:
+- `QDockWidget`に枠線+角丸(8px)を追加(`plot_container`と同じ「1枚の
+  カード」の考え方)。
+- フォーカス時の強調は、QDockWidget自体に「アクティブ」を示すQt標準の状態が
+  無いため、新設の`theme.install_dock_focus_highlight(window)`が
+  `QApplication.focusChanged`を監視し、フォーカスされたウィジェットの祖先を
+  たどってQDockWidgetを特定、動的プロパティ`dockActive`をQSSの属性セレクタ
+  (`QDockWidget[dockActive="true"]`)経由で反映する自前実装。**複数タブ対応の
+  注意点**: `focusChanged`はプロセス内全体で共有される単一のシグナルのため、
+  見つかったドックが管轄する`window`のものでない場合は無視するガードが必須
+  (各PlotterAppタブは完全に独立したウィンドウという設計方針)。
+  `undo_history_dock`は`MainAppWindow`自身が持つドックのため、
+  `gui/main_window.py`側とは別に`gui/main_app_window.py`側でも個別に
+  組み込んだ。
+
+H-2-4で実施した変更(実機フィードバックによる複数回の調整):
+- スピンボックスの上下ボタンを、独立した角丸ボックス(参考イメージ提示を
+  受けて全4隅を丸め、margin付き)に変更し、さらに背景・枠線を常時透明にして
+  矢印だけが浮くミニマルな見た目にした。
+- 矢印マーク自体の三角形サイズを拡大(`_spinbox_arrow_icon_url()`のキャンバス
+  サイズごと見直し、キャッシュファイル名にサイズを含めて旧サイズの使い回しを
+  防止)。コンボボックス側の矢印だけ旧サイズ(10px)のまま揃っていなかった
+  不具合(実機フィードバックで発覚)も12pxに統一して解消。
+- テキスト選択・メニュー/メニューバーの`::item:selected`・コンボボックスの
+  ポップアップ・汎用リスト/テーブルの`::item:selected`を、いずれもティール系
+  `accent`/`accent_soft`からH-2-2の`selection_highlight`(青)に統一
+  (「選択時とかポップアップの色が緑っぽい」との指摘に対応)。ボタンの
+  hover/pressedやフォーカス枠は`accent`のまま変更していない。
+- `ui_main_window.py`(Designer生成物、手で編集しない方針)に焼き込まれた
+  フォームラベルの末尾全角コロン「：」を、`PlotterApp.__init__`最後で
+  `_strip_trailing_colon_from_labels()`により実行時に除去した。
 
 H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏まえること):
 - `gui/theme.py`が唯一のQt側QSS/パレット実装(別`.qss`ファイルは無い)。
@@ -63,8 +72,8 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
 
 ## 次にやること
 
-ユーザーから明示的に番号(例:「42実施」)で指示があるまで着手しない。
-次に来る想定はトラック2 フェーズH-2-3(#42〜、H-2の残りコンポーネント磨き込み)。
+ユーザーから明示的に番号(例:「44実施」)で指示があるまで着手しない。
+次に来る想定はトラック2 フェーズH-2-5(#44〜、H-2の残りコンポーネント磨き込み)。
 H-2は8つのサブ項目(H-2-1〜H-2-8、ロードマップ#40〜47)を1つずつ順に進める
 増分実装のため、複数まとめて指示された場合もコンポーネント単位で区切って
 コミットすること。指示が来たらまず`docs/roadmap.html`の該当行と、
@@ -72,11 +81,13 @@ H-2は8つのサブ項目(H-2-1〜H-2-8、ロードマップ#40〜47)を1つず�
 必要なら`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を読んでから
 着手する。
 
-**H-2-2完了直後の未実施タスク**: フルpytestスイートの結果確認 → 問題なければ
-`git add`(`gui/theme.py`, `gui/main_window.py`, `tests/test_theme.py`,
-`tests/test_main_window.py`, `docs/gui_style_audit.md`,
-`docs/GUI_MODERNIZATION_PROGRESS.md`, `docs/roadmap.html`,
-`docs/screenshots/h2-2/`, このファイル)→ コミット → push。
+**H-2-3/H-2-4完了直後の未実施タスク**: `git add`(`gui/theme.py`,
+`gui/main_window.py`, `gui/main_app_window.py`, `tests/test_theme.py`,
+`tests/test_main_window.py`, `tests/test_main_app_window.py`,
+`docs/gui_style_audit.md`, `docs/GUI_MODERNIZATION_PROGRESS.md`,
+`docs/roadmap.html`, `docs/screenshots/h2-3/`, `docs/screenshots/h2-4/`,
+このファイル)→ コミット → push。フルスイートは本セッション内で既に
+574件グリーン確認済み。
 
 トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
 (`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
@@ -207,3 +218,20 @@ H-2は8つのサブ項目(H-2-1〜H-2-8、ロードマップ#40〜47)を1つず�
   複数の解釈を許す場合(特に「境界線を消す」「くっつける」等)は、実装前に
   「独立した箱のまま枠線を消すのか、1つの箱に統合するのか」を確認するか、
   最初の実装を小さく留めて早い段階でスクリーンショットを見せるとよい。
+- **`ui_main_window.py`(pyside6-uic生成物)のテキストは`\uXXXX`エスケープ
+  形式で埋め込まれている**ため、日本語の語句(例:「凡例名」)や記号
+  (例: 全角コロン「：」)をこのファイル内でリテラル文字列として検索しても
+  ヒットしない(H-2-4で発覚。`grep`はもちろん、Pythonの`"文字列" in content`
+  でも同様に失敗する)。存在確認は`\uXXXX`のコードポイント、またはPySide6を
+  実際にimportしてオブジェクトの`.text()`を読む方法で行うこと。
+- **QPixmap/QPainterの生成は、QApplicationインスタンスが存在しない状態だと
+  不安定(クラッシュしてPythonの例外機構すら通らず、exit code 127で
+  トレースバック無しに落ちることがある)**(H-2-4で発覚。同じ`python -c`の
+  ワンライナーが、セッション内の別の時点では成功していたにもかかわらず、
+  後になって突然この形で落ちるようになった。原因は特定できていないが、
+  再現条件は「QApplication未生成のままQPixmap/QPainterを触る」ことに
+  一貫して関連している)。`gui/theme.py`の`build_qss()`(内部で矢印アイコンの
+  QPixmap/QPainterを生成する)をスクリプトから単体で検証する際は、必ず先に
+  `QApplication.instance() or QApplication(sys.argv)`を作ってから呼ぶこと。
+  pytest経由(`conftest.py`の`qapp`フィクスチャ)では常にQApplicationが
+  用意されているため、この問題は発生しない。

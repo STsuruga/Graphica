@@ -53,6 +53,23 @@ def _enable_scientific_notation_input(spin_box, minimum, maximum, single_step=0.
     spin_box.validate = types.MethodType(_scientific_validate, spin_box)
     spin_box.setSingleStep(single_step)
 
+
+def _strip_trailing_colon_from_labels(widget):
+    """
+    widget配下の全QLabelについて、末尾の全角コロン「：」を取り除く(実機
+    フィードバック: 「各設定項目のあとの：はなくして」)。ui_main_window.py
+    (Qt Designer/pyside6-uic生成物)のretranslateUi()には多くのフォーム
+    ラベルにこの記号が焼き込まれているが、.uiソースファイル自体がこの
+    リポジトリに存在せず再生成できないため、構築完了後にQLabel.text()を
+    上書きする形で対応する(呼び出しは動的に追加されたラベルも全て構築
+    済みの、__init__の最後の方で行うこと)。
+    """
+    from PySide6.QtWidgets import QLabel
+    for label in widget.findChildren(QLabel):
+        text = label.text()
+        if text.endswith('：'):
+            label.setText(text[:-1])
+
 # --- ウィンドウ/レイアウトに関する定数 ---
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
@@ -1358,6 +1375,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             dock.hide()  # 既定は非表示。表示状態はQSettingsのドックレイアウト復元に任せる
             self._plugin_panel_docks[panel.name] = dock
 
+        # ★ 項目H-2-3: ドックのフォーカス時強調(枠線をアクセント色に)。
+        #   祖先をたどってQDockWidgetを特定する方式のため、上のプラグイン製
+        #   パネルも含め、このタブが持つ全てのQDockWidgetを個別登録なしで
+        #   自動的にカバーする(詳細はtheme.install_dock_focus_highlight()の
+        #   docstringを参照)。
+        theme.install_dock_focus_highlight(self)
+
         # プラグイン製プロット種別 (項目D-2、register_plot_type) を、既存の
         # 5種類 (Area/Barと同じく実行時追加) に続けてコンボボックスへ追加する。
         # 実際の描画分岐は gui/canvas.py の _draw_data 側でフォールバックとして処理する。
@@ -1384,6 +1408,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.project.all_plot_settings.append(default_settings)
         # 3. 不要なUI (第2Y軸ラベルなど) を非表示にする
         self._set_initial_ui_state()
+        # ★ GUI洗練(実機フィードバック): 「各設定項目のあとの：はなくして」。
+        #   ui_main_window.py(Qt Designer/pyside6-uic生成物、手で編集しない
+        #   方針)のretranslateUi()には、多くのフォームラベルに全角コロン
+        #   「：」が焼き込まれている(例: 凡例名：、種別：、色：)。.uiソース
+        #   ファイル自体はこのリポジトリに存在しないため再生成もできず、
+        #   Designerファイルを直接書き換えるわけにもいかないので、構築完了後の
+        #   ここでQLabelのtext()を上書きして末尾の「：」だけを取り除く
+        #   (動的に追加されたラベルも、この時点までに全て構築済みのため
+        #   同様にカバーされる)。
+        _strip_trailing_colon_from_labels(self)
         # 項目69: ミニ統計ラベル分の高さを見込んで、リスト自体の上限は少し控えめにする
         self.ui.dataset_list_widget.setMaximumHeight(175)
         # (複数選択・ドラッグ&ドロップの設定は _replace_dataset_list_with_tree で設定済み)

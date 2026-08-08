@@ -135,3 +135,27 @@ def test_undo_history_dock_toggle_action_shows_it(tmp_path, monkeypatch):
     assert action.isChecked() is False
     action.trigger()
     assert action.isChecked() is True
+
+
+def test_undo_history_dock_gets_focus_highlight_installed(tmp_path, monkeypatch):
+    """
+    undo_history_dockはPlotterApp(各タブ)ではなくMainAppWindow自身が持つ
+    ドックのため、項目H-2-3のフォーカス時強調(theme.
+    install_dock_focus_highlight())をgui/main_window.py側の呼び出しとは
+    別に、MainAppWindow.__init__側でも個別に組み込む必要がある。ここでは
+    実際にウィジェットへフォーカスを移し、dockActiveプロパティが立つことで
+    組み込み済みであることを確認する。
+    """
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    window.show()
+    app = QApplication.instance()
+    for _ in range(5):
+        app.processEvents()
+
+    window.undo_history_dock.setVisible(True)
+    undo_view = window.undo_history_dock.widget()
+    undo_view.setFocus()
+    for _ in range(5):
+        app.processEvents()
+
+    assert window.undo_history_dock.property("dockActive") is True

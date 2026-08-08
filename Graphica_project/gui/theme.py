@@ -50,11 +50,14 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
     """
     os.makedirs(_ARROW_ICON_CACHE_DIR, exist_ok=True)
     safe_color = color.lstrip("#")
-    filename = f"spin_arrow_{direction}_{safe_color}.png"
+    # ★ ファイル名にサイズを含めることで、実機フィードバックを受けて矢印を
+    #   大きくした際(項目H-2-4)のような将来の寸法変更時に、キャッシュ
+    #   ディレクトリに残った旧サイズのPNGを誤って使い回さないようにしている。
+    size = 14
+    filename = f"spin_arrow_{direction}_{safe_color}_{size}.png"
     path = os.path.join(_ARROW_ICON_CACHE_DIR, filename)
 
     if not os.path.exists(path):
-        size = 12
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
@@ -63,7 +66,7 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
         painter.setBrush(QColor(color))
 
         cx, cy = size / 2, size / 2
-        aw, ah = 3.5, 2.6
+        aw, ah = 4.4, 3.3
         arrow_path = QPainterPath()
         if direction == "up":
             arrow_path.moveTo(cx - aw, cy + ah * 0.5)
@@ -116,8 +119,13 @@ QMainWindow, QDialog {{
 }}
 QWidget {{
     color: {text_primary};
-    selection-background-color: {accent};
-    selection-color: {accent_text};
+    /* ★ 実機フィードバック: テキスト選択やポップアップの選択色が(アプリ全体の
+       ティール系アクセントのままだと)緑っぽく見えるとの指摘を受け、データ
+       セットリスト(H-2-2)で使っている薄い青のselection_highlightに揃えた。
+       ボタンのhover/pressedやフォーカス枠など「選択」以外のアクセント表現は
+       従来通りaccent(ティール系)のまま変えていない。 */
+    selection-background-color: {selection_highlight};
+    selection-color: {text_primary};
 }}
 QToolTip {{
     background: {surface};
@@ -139,8 +147,8 @@ QMenuBar::item {{
     border-radius: 4px;
 }}
 QMenuBar::item:selected {{
-    background: {accent_soft};
-    color: {accent};
+    background: {selection_highlight};
+    color: {text_primary};
 }}
 QMenu {{
     background: {surface};
@@ -153,8 +161,8 @@ QMenu::item {{
     border-radius: 6px;
 }}
 QMenu::item:selected {{
-    background: {accent_soft};
-    color: {accent};
+    background: {selection_highlight};
+    color: {text_primary};
 }}
 QMenu::separator {{
     height: 1px;
@@ -216,12 +224,35 @@ QStatusBar {{
     background: {surface};
     border-top: 1px solid {border};
 }}
+/* --- ドック全般(項目H-2-3): 境界線・タイトルバー・フォーカス時の強調 ---
+   以前はQDockWidget自体に枠線が無く、タイトルバーの背景色だけが唯一の
+   手がかりだったため、キャンバス周り(plot_container、1節参照)と違って
+   「1枚のカード」として認識しにくかった。同じ考え方(枠+角丸)をドックにも
+   適用し、見た目の一貫性を取る。上下に積み重なったドック同士の間には
+   既存のQSplitter::handle(下記)による3pxの隙間が既にあるため、各ドックに
+   フルの枠を付けても二重線が密着して見えることはない。 --- */
+QDockWidget {{
+    border: 1px solid {border};
+    border-radius: 8px;
+}}
 QDockWidget::title {{
     background: {surface_2};
     padding: 6px 8px;
     border-bottom: 1px solid {border};
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
     font-weight: 600;
     letter-spacing: .01em;
+}}
+/* ★ フォーカス時の強調: QDockWidget自体には「アクティブ」を示すQt標準の
+   状態が無いため、Python側(install_dock_focus_highlight()、このファイル内)
+   でフォーカス移動を監視し、動的プロパティdockActiveを付け外ししている。
+   ここではその結果をアクセント色の枠線として反映するだけ。 */
+QDockWidget[dockActive="true"] {{
+    border: 1px solid {accent};
+}}
+QDockWidget[dockActive="true"]::title {{
+    border-bottom: 1px solid {accent};
 }}
 
 /* --- スプリッター(ドック/パネルの境界): 既定のOSハンドルはフラットテーマと
@@ -345,7 +376,7 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {{
     border: 1px solid {border};
     border-radius: 6px;
     padding: 4px 8px;
-    selection-background-color: {accent};
+    selection-background-color: {selection_highlight};
 }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QComboBox:focus, QTextEdit:focus, QPlainTextEdit:focus {{
@@ -365,28 +396,36 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
    オーバーライドが安定して反映されないことを検証済み)。矢印だけは実際の
    画像ファイル(image: url(...))として与えることで確実に表示される。 */
 QSpinBox, QDoubleSpinBox {{
-    padding-right: 16px;
+    padding-right: 20px;
 }}
+/* ★ GUI洗練(実機フィードバック、参考イメージ提示): 以前は上下ボタンが
+   フィールドの右端に直接くっついた「外側の角だけ丸い」1つの帯だったが、
+   参考イメージに合わせて、それぞれが独立した小さな角丸ボックスに見えるよう
+   全4隅を丸め、marginで枠線・フィールドの双方から少し離した。矢印画像
+   (::up-arrow/::down-arrow)の扱いは変更なし(上のコメント参照、実ファイル
+   画像で確実に表示する方式のまま)。さらに実機フィードバックを受け、
+   ボタン自体の背景・枠線は常時は透明にし、矢印アイコンだけが浮いて見える
+   ミニマルな見た目にした(hover/pressed時のみ背景色を出して、押せる場所だと
+   分かるようにする)。 */
 QSpinBox::up-button, QDoubleSpinBox::up-button {{
     subcontrol-origin: border;
     subcontrol-position: top right;
     width: 16px;
-    height: 12px;
-    border: none;
-    border-left: 1px solid {border};
-    background: {surface_2};
-    border-top-right-radius: 5px;
+    height: 13px;
+    margin: 1px 2px 1px 1px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
 }}
 QSpinBox::down-button, QDoubleSpinBox::down-button {{
     subcontrol-origin: border;
     subcontrol-position: bottom right;
     width: 16px;
-    height: 12px;
-    border: none;
-    border-left: 1px solid {border};
-    border-top: 1px solid {border};
-    background: {surface_2};
-    border-bottom-right-radius: 5px;
+    height: 13px;
+    margin: 1px 2px 1px 1px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
 }}
 QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
 QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
@@ -398,13 +437,13 @@ QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
 }}
 QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
     image: url({spin_up_arrow_url});
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
 }}
 QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
     image: url({spin_down_arrow_url});
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
 }}
 QComboBox::drop-down {{
     border: none;
@@ -412,16 +451,17 @@ QComboBox::drop-down {{
 }}
 QComboBox::down-arrow {{
     /* スピンボックスと同じ理由(QSSでwidth/heightを指定するだけで矢印自体が
-       描画されなくなる)により、画像として与える */
+       描画されなくなる)により、画像として与える。サイズもスピンボックスの
+       矢印(上記::up-arrow/::down-arrow)と揃えている(実機フィードバック)。 */
     image: url({spin_down_arrow_url});
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
 }}
 QComboBox QAbstractItemView {{
     background: {surface};
     border: 1px solid {border};
-    selection-background-color: {accent_soft};
-    selection-color: {accent};
+    selection-background-color: {selection_highlight};
+    selection-color: {text_primary};
     outline: none;
 }}
 
@@ -443,7 +483,7 @@ QTreeWidget::item, QListWidget::item, QTableWidget::item {{
     padding: 3px;
 }}
 QTreeWidget::item:selected, QListWidget::item:selected, QTableWidget::item:selected {{
-    background: {accent_soft};
+    background: {selection_highlight};
     color: {text_primary};
 }}
 QTreeWidget::item, QListWidget::item {{
@@ -793,6 +833,61 @@ def current_selection_highlight_qcolor() -> QColor:
     color = QColor(int(r), int(g), int(b))
     color.setAlphaF(float(a))
     return color
+
+
+def install_dock_focus_highlight(window):
+    """
+    windowが持つQDockWidget群に、キーボード/クリックでフォーカスが当たって
+    いる間だけ枠線をアクセント色で強調する仕組みを組み込む(項目H-2-3)。
+
+    QDockWidget自体には「アクティブ」を示すQt標準の状態が無いため、
+    `QApplication.focusChanged`信号でアプリ全体のフォーカス移動を監視し、
+    フォーカスされたウィジェットの祖先をたどってQDockWidgetを特定した上で、
+    動的プロパティ`dockActive`をQSSの属性セレクタ(`QDockWidget[dockActive=
+    "true"]`、上の_FLAT_QSS_TEMPLATE参照)経由で反映する。プラグイン製パネル
+    (項目D-1)のように後から追加されるQDockWidgetも、祖先を都度たどる方式
+    のため個別登録なしで自動的にカバーされる。
+
+    ★ 複数タブ(main_app_window.py)対応の注意点: `focusChanged`はプロセス内
+    全体で共有される単一のシグナルであり、他のタブ/ウィンドウでのフォーカス
+    移動でもこのハンドラは呼ばれる。見つかったドックが`window`の管轄でない
+    場合は「このwindowにとってはフォーカスが外れた」ものとして扱い、
+    自分のドックのハイライトだけを解除する(他のタブのドックには一切触れない)。
+    各PlotterAppタブは完全に独立したウィンドウという設計方針
+    (CLAUDE.mdのアーキテクチャ節参照)を、この機能でも守っている。
+    """
+    from PySide6.QtWidgets import QApplication, QDockWidget
+
+    def _dock_ancestor(widget):
+        while widget is not None and not isinstance(widget, QDockWidget):
+            widget = widget.parentWidget()
+        return widget
+
+    def _set_active(dock, active):
+        if dock is None:
+            return
+        dock.setProperty("dockActive", active)
+        style = dock.style()
+        style.unpolish(dock)
+        style.polish(dock)
+
+    state = {"active": None}
+
+    def _on_focus_changed(old, new):
+        dock = _dock_ancestor(new) if new is not None else None
+        if dock is not None and dock.window() is not window:
+            dock = None
+        if dock is state["active"]:
+            return
+        _set_active(state["active"], False)
+        _set_active(dock, True)
+        state["active"] = dock
+
+    app = QApplication.instance()
+    app.focusChanged.connect(_on_focus_changed)
+    # windowが破棄された後もconnectionが残ってゾンビハンドラにならないよう、
+    # window自身の破棄時にdisconnectする。
+    window.destroyed.connect(lambda: app.focusChanged.disconnect(_on_focus_changed))
 
 
 def apply_form_spacing(widget, spacing=12):

@@ -300,6 +300,35 @@ def test_dataset_search_edit_and_list_remain_separate_boxes_with_spacing(tmp_pat
     assert container_layout.spacing() == 6
 
 
+# --- ドックのフォーカス時強調(項目H-2-3) ---
+
+def test_control_dock_gets_focus_highlight_installed(tmp_path, monkeypatch):
+    """
+    theme.install_dock_focus_highlight()がPlotterApp.__init__内で
+    (プラグイン製パネルの構築後、_connect_signals()より前に)呼ばれており、
+    プロパティドックにフォーカスが入るとdockActiveプロパティが立つことを
+    確認する。
+    """
+    from PySide6.QtWidgets import QLineEdit, QWidget
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    # データセット未選択だと大半のプロパティ欄はdisabledで(disabledな
+    # ウィジェットはフォーカスを受け取れずno-opになる)、常にenabledな欄を
+    # 探して使う(タイトル/軸ラベル欄など、プロット全体設定は選択不要のため)。
+    candidates = window.ui.control_dock_widget.findChildren(QWidget)
+    field = next(
+        (w for w in candidates if isinstance(w, QLineEdit) and w.isEnabled() and w.isVisible()), None
+    )
+    assert field is not None
+    field.setFocus()
+
+    app = QApplication.instance()
+    for _ in range(5):
+        app.processEvents()
+
+    assert window.ui.control_dock_widget.property("dockActive") is True
+
+
 def test_dataset_tree_selection_delegate_paint_does_not_raise_when_selected(qapp):
     """
     _DatasetTreeSelectionDelegate.paint()が選択状態でも例外を出さず、
@@ -353,3 +382,45 @@ def test_label_symbol_click_replaces_selection(tmp_path, monkeypatch):
     window._on_label_symbol_clicked('title', 'Omega')
 
     assert line_edit.text() == r"Peak $\Omega$"
+
+
+# --- フォームラベルの末尾コロン除去(項目H-2-4、実機フィードバック:
+#     「各設定項目のあとの：はなくして」) ---
+
+class TestStripTrailingColonFromLabels:
+    def test_strips_trailing_fullwidth_colon(self, qapp):
+        from PySide6.QtWidgets import QLabel, QWidget
+
+        parent = QWidget()
+        label = QLabel("凡例名：", parent)
+        main_window_module._strip_trailing_colon_from_labels(parent)
+
+        assert label.text() == "凡例名"
+
+    def test_leaves_labels_without_trailing_colon_unchanged(self, qapp):
+        from PySide6.QtWidgets import QLabel, QWidget
+
+        parent = QWidget()
+        label = QLabel("X軸の列", parent)
+        main_window_module._strip_trailing_colon_from_labels(parent)
+
+        assert label.text() == "X軸の列"
+
+    def test_only_strips_trailing_colon_not_colon_mid_text(self, qapp):
+        from PySide6.QtWidgets import QLabel, QWidget
+
+        parent = QWidget()
+        label = QLabel("「Speed」と表示したい場合：例", parent)
+        main_window_module._strip_trailing_colon_from_labels(parent)
+
+        assert label.text() == "「Speed」と表示したい場合：例"
+
+    def test_real_app_form_labels_have_no_trailing_colon(self, tmp_path, monkeypatch):
+        """
+        ui_main_window.py(Qt Designer生成物)に焼き込まれたコロン付き
+        ラベルが、実際のPlotterApp構築後には除去されていることを確認する
+        (回帰テスト)。
+        """
+        window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+        assert window.ui.legend_name_label.text() == "凡例名"
+        assert window.ui.color_label.text() == "色"

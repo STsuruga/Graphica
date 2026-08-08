@@ -28,10 +28,12 @@
 |---|---|---|---|---|
 | H-2-1 | メインツールバー・メニューバー | ✅ 完了 | 2026-08-07 | `gui/mixins/quick_access_mixin.py`の`_create_quick_access_toolbar()`に`toolbar.setMovable(False)`を追加。Qt標準ツールバーの移動グリップ(ドラッグ用ハンドル)が、上部固定・移動機能未提供のこのアプリのフラット/ミニマルテーマと視覚的に馴染んでいなかったため除去。実際に`window.grab()`でBefore/Afterスクリーンショット(ライト/ダーク)を撮って確認し、`docs/gui_style_audit.md`のH-2-1節に記録(`docs/screenshots/h2-1/`配下にPNG)。メニューバー自体(QMenuBar/QMenu)はH-1完了時点で既に十分なQSSカバレッジがあり、追加変更なし。`tests/test_quick_access_mixin.py::test_quick_access_toolbar_is_not_movable`を追加 |
 | H-2-2 | データセットリスト・データテーブル | ✅ 完了 | 2026-08-08 | `gui/theme.py`に`selection_highlight`トークン(薄い青、透過あり)を新設し、従来の濃いアクセント色塗りつぶしを置き換え。選択ハイライトの形状はQSSの`::item:selected`だけでは(アイコン列とテキスト列が別矩形で描画されるQtの制約により)単一の角丸矩形にできないことが実機検証で判明したため、専用の`_DatasetTreeSelectionDelegate`(`gui/main_window.py`)を新設して自前描画に切り替え、リスト自体の角丸(8px)と揃えた。分岐(展開矢印)用インデント列への汎用スタイルの滲み出しは`background: transparent`で打ち消し、デリゲートの矩形の左端をビューポート0まで伸ばして隙間を解消。検索ボックス・リストそれぞれの枠線(`border: none`)も個別に消したが、**統合はせず独立した箱のまま**、間隔は実機フィードバックを受けて4px→6pxに拡大。`tests/test_theme.py`・`tests/test_main_window.py`にテスト追加、`docs/gui_style_audit.md`のH-2-2節にBefore/After記録(`docs/screenshots/h2-2/`) |
+| H-2-3 | ドック全般 | ✅ 完了 | 2026-08-08 | `QDockWidget`に枠線+角丸(8px、`plot_container`と同じ考え方)を追加。フォーカス時の強調は、QDockWidget自体に「アクティブ」を示すQt標準の状態が無いため、新設の`theme.install_dock_focus_highlight(window)`が`QApplication.focusChanged`を監視し、フォーカスされたウィジェットの祖先からQDockWidgetを特定して動的プロパティ`dockActive`を付け外しする自前実装で対応(QSS側は`QDockWidget[dockActive="true"]`の属性セレクタで枠線をアクセント色に)。複数タブ(各PlotterAppタブが完全に独立したウィンドウという設計方針)を踏まえ、見つかったドックが管轄`window`のものでない場合は無視するガードを実装。`undo_history_dock`は`MainAppWindow`自身が持つドックのため、`gui/main_window.py`側とは別に`gui/main_app_window.py`側でも個別に組み込んだ。`tests/test_theme.py`(QSS検証+`TestDockFocusHighlight`4パターン)・`tests/test_main_window.py`・`tests/test_main_app_window.py`にテスト追加、`docs/gui_style_audit.md`のH-2-3節にBefore/After記録(`docs/screenshots/h2-3/`) |
+| H-2-4 | ボタン・入力フィールド・コンボボックス | ✅ 完了 | 2026-08-08 | 実機フィードバックによる複数回の調整。(1) スピンボックスの上下ボタンを、フィールド右端に直接くっついた「外側の角だけ丸い帯」から、それぞれ独立した角丸ボックス(参考イメージ提示を受けて全4隅を丸め、margin付き)に変更。さらに背景・枠線を常時透明にし矢印だけが浮くミニマルな見た目に。(2) 矢印マーク(`_spinbox_arrow_icon_url()`で生成するPNG)自体の三角形サイズを拡大、キャッシュファイル名にサイズを含めて旧サイズの使い回しを防止。コンボボックス側の矢印サイズがスピンボックスと揃っていなかった不具合(実機フィードバックで発覚)も12pxに統一して解消。(3) テキスト選択・メニュー/メニューバーの`::item:selected`・コンボボックスのポップアップ・汎用リスト/テーブルの`::item:selected`を、いずれもティール系`accent`/`accent_soft`からH-2-2で導入した青の`selection_highlight`に統一(「選択時とかポップアップの色が緑っぽい」との指摘に対応)。ボタンのhover/pressedやフォーカス枠は`accent`のまま変更なし。(4) `ui_main_window.py`(Designer生成物、手で編集しない方針)に焼き込まれたフォームラベルの末尾全角コロン「：」を、`PlotterApp.__init__`最後で`_strip_trailing_colon_from_labels()`により実行時に除去。`tests/test_theme.py`・`tests/test_main_window.py`にテスト追加、`docs/gui_style_audit.md`のH-2-4節にBefore/After記録(`docs/screenshots/h2-4/`) |
 
-### H-2-3〜H-2-8、H-3〜H-5
+### H-2-5〜H-2-8、H-3〜H-5
 
-未着手。詳細は`Graphica_ROADMAP_PLUGIN_AND_GUI.md`のH-2節以降(推奨着手順3〜8)を参照。
+未着手。詳細は`Graphica_ROADMAP_PLUGIN_AND_GUI.md`のH-2節以降(推奨着手順5〜8)を参照。
 
 ---
 
@@ -40,3 +42,4 @@
 - 2026-08-07: 新規作成。H-0・H-1完了を反映。
 - 2026-08-07: H-2-1(メインツールバー・メニューバー)完了を反映。
 - 2026-08-08: H-2-2(データセットリスト・データテーブル)完了を反映。
+- 2026-08-08: H-2-3(ドック全般)・H-2-4(ボタン・入力フィールド・コンボボックス)完了を反映。

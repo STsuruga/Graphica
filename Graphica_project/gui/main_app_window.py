@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QMessageBox
 from gui.main_window import PlotterApp, resource_path
 from gui.app_context import AppContext
 from gui.icon_utils import icon as svg_icon
+from gui import theme
 from core.version import APP_NAME, __version__
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,12 @@ class MainAppWindow(QMainWindow):
         # 常にアクティブなタブの履歴を表示する。
         self.undo_group = QUndoGroup(self)
         self._create_undo_history_dock()
+        # ★ 項目H-2-3: ドックのフォーカス時強調(枠線をアクセント色に)。
+        #   undo_history_dockはPlotterApp(各タブ)ではなくこのウィンドウ自身が
+        #   持つドックのため、gui/main_window.py側の呼び出しとは別に、
+        #   ここでも個別に組み込む必要がある(詳細はtheme.
+        #   install_dock_focus_highlight()のdocstringを参照)。
+        theme.install_dock_focus_highlight(self)
 
         self._next_tab_id = 1
 
