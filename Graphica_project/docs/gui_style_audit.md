@@ -894,3 +894,140 @@ Matplotlib既定パレット(青・オレンジ・緑、以前は白文字選択
 | ライト | ダーク |
 |---|---|
 | ![プラグインタブ(ライト)](screenshots/h2-7/preferences_plugin_tab_light.png) | ![プラグインタブ(ダーク)](screenshots/h2-7/preferences_plugin_tab_dark.png) |
+
+## H-2-8. ステータスバー・通知トースト類
+
+対象は`QMainWindow`下部の`QStatusBar`(座標表示ラベル`self.coordinate_label`
++ 各所からの`self.statusBar().showMessage(...)`による一時メッセージ)。
+このアプリに専用の「トースト」ウィジェットは存在せず、Qt標準のステータス
+バー一時メッセージ機構がその役割を担っている。
+
+実際に一時メッセージと座標ラベルを同時に表示させてライト/ダーク両モードで
+確認したところ、`gui/theme.py`の既存`QStatusBar`規則(背景・上部境界線)を
+問題なく継承しており、ハードコードされた色や既定Qtスタイルの sunken枠のような
+不整合は見つからなかった。**追加のスタイル対応は不要と判断した**
+(H-2-7と同じく、既存のグローバルスタイリングが正しく機能しているケース)。
+
+**Before/After**(一時メッセージ+座標ラベル表示中):
+
+| ライト | ダーク |
+|---|---|
+| ![ステータスバー(ライト)](screenshots/h2-8/statusbar_light.png) | ![ステータスバー(ダーク)](screenshots/h2-8/statusbar_dark.png) |
+
+## H-3. matplotlib(Figure)側の配色連動
+
+`gui/canvas.py`は以前、`DARK_FIGURE_FACECOLOR = '#2b2b2b'`のような個別の
+ハードコード値を持ち、`gui/theme.py`のデザイントークンとは完全に無関係
+だった(H-0調査で判明していた既知の不整合、3節参照)。値が近いだけで一致は
+しておらず、Qtの寒色寄りグレー(R<G<Bの傾向)とmatplotlib側の無彩色グレー
+(R=G=B)がわずかに食い違っていた。`gui/theme.py`の`LIGHT_TOKENS`/
+`DARK_TOKENS`を直接参照するよう変更し、今後トークン側を変更すればグラフ
+側にも自動的に反映されるようにした。
+
+- **Figure(外側の余白)/Axes(データが描かれる領域)**: 両方とも`surface`
+  トークンに統一。`plot_container`(`gui/main_window.py`)がキャンバス周囲に
+  6pxのQtレベルの余白を持ち、その背景色も`{surface}`そのものであるため、
+  FigureとAxesを同じ`surface`に揃えることで、Qt側の余白とmatplotlib側の
+  余白の間に色の継ぎ目ができないようにしている(実機で6px余白を含む
+  キャプチャを撮り、継ぎ目が無いことを確認済み)。ライトモードは元々
+  両方`#ffffff`で一致していたため、この設計を踏襲した形。
+- **テキスト色(タイトル/軸ラベル/目盛/パネルラベル)**: `text_primary`
+  トークンに統一。
+- **凡例**: 面色を`surface_2`、枠線を`border_strong`トークンに変更。
+  以前はライトモードで凡例の面色が軸背景と同じ`#ffffff`のままで、枠線
+  だけで辛うじて視認できる状態だった(`frame.set_alpha(0.92)`の半透明も
+  同色背景の上ではほぼ効果が無かった)。`surface_2`により、軸背景と
+  明確に区別できる「一段乗ったチップ」の見た目になった(実機確認)。
+- **グリッド線**: 以前は色を指定しておらず、matplotlibの既定値
+  (rcParams、テーマと無関係な固定の薄灰色)に任せきりだった。
+  `border_strong`トークンを明示的に指定し、背景色との調和を取った。
+
+なお、ロードマップ文書に記載されていた「データセットごとに背景色を個別
+設定できる場合の優先順位」という要確認事項は、実装を確認した結果
+該当しないことが分かった(`ax.set_facecolor()`は常にテーマ駆動で、
+ユーザーがAxes背景色を個別上書きできる設定項目は現状存在しない)。
+
+**Before/After**(凡例・グリッド線・パネルラベルを含む実際のプロット):
+
+| ライト | ダーク |
+|---|---|
+| ![プロット(ライト)](screenshots/h3/canvas_tokens_light.png) | ![プロット(ダーク)](screenshots/h3/canvas_tokens_dark.png) |
+
+**継ぎ目が無いことの確認**(plot_containerの6pxのQt余白 vs Figureの背景色):
+
+| ライト | ダーク |
+|---|---|
+| ![継ぎ目確認(ライト)](screenshots/h3/seam_check_light.png) | ![継ぎ目確認(ダーク)](screenshots/h3/seam_check_dark.png) |
+
+## H-4. アイコンセットの見直し
+
+**判断**: Tabler Icons SVGセット自体の刷新は見送り(既存アイコンで
+十分にモダンな見た目が保たれており、追加の依存を増やす理由が無い)。
+
+一方、H-0調査で「未検証」として記録されていた懸念(`gui/icon_utils.py`
+の`DEFAULT_ICON_COLOR = '#3B3F42'`という固定のダークグレーがダークモードで
+どう見えるか)を実機で確認したところ、**深刻な視認性バグを発見した**:
+
+1. **`gui/main_window.py`のメインツールバー(home/back/forward/pan/zoom/
+   subplot-config/save)のアイコンが、ダークモードでほぼ見えなくなって
+   いた**。原因は2つ複合していた:
+   - matplotlib純正の`NavigationToolbar2QT._icon()`はアイコン読み込み時に
+     `QPalette`の背景明度を見て自動的にダークモード配色へ切り替える仕組みを
+     内蔵しているが、これはツールバー構築時(=常にライトモードのパレットで
+     初期化されるアプリ起動時)に一度だけ実行され、以後ダークモードに
+     切り替えてもアイコンは再読み込みされない。
+   - カーソル/注釈/レイアウト編集ツールのような自前のTabler Iconsアイコンは、
+     固定色`TOOLBAR_ICON_COLOR = '#3B3F42'`(暗いグレー)を使っており、
+     ダークモードのボタン背景に対してほぼ同化していた。
+2. **ダイアログ内のアイコン(フォルダ参照/更新/ダウンロード/装飾ボタン等)も
+   同じ理由でダークモードで視認性が低かった**(`gui/icon_utils.py`の
+   `icon()`のデフォルト色が同じ固定値だったため)。
+
+**対応**:
+- `gui/icon_utils.py`の`icon()`・`gui/main_window.py`の`_svg_icon()`: 色を
+  省略した場合、呼び出しの都度`gui.theme.current_tokens()`の
+  `text_secondary`トークンから動的に解決するよう変更(固定のデフォルト
+  引数値ではなく、関数本体で都度解決する形に変更)。
+- ダイアログ内のアイコン(H-2-6の対象、都度新規構築される)はこれだけで
+  解決する。
+- 永続的なウィジェット(メインツールバーのボタン、データセット操作
+  ボタン群、フォント/色選択ボタン群、統計/パレット系メニュー、折りたたみ
+  セクションのシェブロン)は構築時に一度だけ`setIcon()`されるため、
+  `_on_toggle_dark_mode`から明示的に再読み込みする
+  `_refresh_custom_svg_icons()`(`gui/mixins/ui_setup_mixin.py`)を新設。
+- matplotlib純正のナビゲーションツールバーは、非公開の`toolitems`/
+  `_actions`属性を使って各アクションのアイコンを手動で再読み込みする
+  `_refresh_mpl_toolbar_icons()`を新設(将来のmatplotlibバージョンで
+  構造が変わる可能性を考慮し、属性が存在しない場合は何もしない安全側の
+  実装にしている)。
+
+**Before/After**(メインツールバー、ダークモード):
+
+| Before(見えない) | After(視認可能) |
+|---|---|
+| ![Before](screenshots/h4/before_toolbar_icons_dark.png) | ![After](screenshots/h4/after_toolbar_icons_dark.png) |
+
+**Before**(プラグインタブのダイアログ内アイコン、ダークモード):
+
+![Before](screenshots/h4/before_dialog_icons_dark.png)
+
+**After**(データセット操作ボタン群、ダークモード):
+
+![After](screenshots/h4/after_dataset_buttons_dark.png)
+
+**テスト**: `tests/test_icon_utils.py`に`icon()`が色省略時に現在のテーマの
+`text_secondary`トークンを使うこと(ライト/ダーク双方)、明示的な色指定は
+テーマより優先されることを確認するテストを追加。`tests/test_canvas.py`に
+Figure/Axes/凡例/グリッド線の各色定数がテーマトークンと一致すること、
+`dark_mode`フラグに応じてAxes背景・グリッド線色が実際に切り替わることを
+確認するテストを追加。`tests/test_main_window.py`に、`_on_toggle_dark_mode`
+が`_refresh_mpl_toolbar_icons`/`_refresh_custom_svg_icons`の両方を呼ぶこと、
+`mpl_toolbar`属性が`NavigationToolbar2QT`のインスタンスであること、
+実際にダークモード切替でアイコンのピクセル内容が変化すること(matplotlib
+純正アイコン・自前SVGアイコン・折りたたみシェブロンそれぞれ)を確認する
+テストを追加。テスト実装中、グローバルなテーマ状態(`gui.theme.
+_current_tokens`)がテスト実行順序によって前のテストの影響を受ける
+既知のクラスの不具合を新たに踏んだため(前のテストがダークモードのままに
+していると、次のテストの「ライトから開始する」前提が崩れる)、各テストで
+明示的に`theme.apply_theme(qapp, dark=False)`してから検証を開始するよう
+修正した。

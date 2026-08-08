@@ -534,6 +534,81 @@ class UISetupMixin:
         #   トークンを参照するようになったため、同様に再描画が必要。
         self.color_picker_widget.refresh_theme()
         self.gradient_color2_picker.refresh_theme()
+        # ★ 項目H-4: matplotlib純正のナビゲーションツールバー(home/back/
+        #   forward/pan/zoom/save)のアイコンは構築時のパレットで固定される
+        #   ため、同様に再読み込みが必要(詳細は_refresh_mpl_toolbar_icons参照)。
+        self._refresh_mpl_toolbar_icons()
+        # ★ 項目H-4: 自前のTabler Icons SVGアイコン(カーソル/注釈/レイアウト
+        #   編集ツール、データセット操作ボタン群、フォント/色選択ボタン群、
+        #   統計/パレット系メニュー、折りたたみセクションのシェブロン)も
+        #   同じ理由で再読み込みが必要(詳細は_refresh_custom_svg_icons参照)。
+        self._refresh_custom_svg_icons()
+
+    def _refresh_mpl_toolbar_icons(self):
+        """
+        matplotlib純正のNavigationToolbar2QTのアイコンを、現在のQPaletteに
+        合わせて再読み込みする(_on_toggle_dark_modeから呼ばれる)。
+
+        NavigationToolbar2QT._icon()は読み込み時にQPaletteのbackgroundRole()
+        の明度を見て自動的にダークモード用の配色へ切り替える仕組みを内蔵して
+        いるが、これはアイコン読み込み時(=ツールバー構築時)に一度だけ実行
+        されるため、実行中にダークモードを切り替えても再読み込みされずアイコン
+        が古いテーマの色のまま残ってしまう(実機で発覚)。matplotlib非公開の
+        `toolitems`/`_actions`属性を使って手動で再読み込みする(将来の
+        matplotlibバージョンでこれらの属性が無くなる可能性があるため、
+        存在しない場合は何もしない安全側の実装にしている)。
+        """
+        toolbar = getattr(self, 'mpl_toolbar', None)
+        if toolbar is None:
+            return
+        toolitems = getattr(toolbar, 'toolitems', None)
+        actions = getattr(toolbar, '_actions', None)
+        if toolitems is None or actions is None:
+            return
+        for text, _tooltip_text, image_file, callback in toolitems:
+            if text is None:
+                continue
+            action = actions.get(callback)
+            if action is not None:
+                action.setIcon(toolbar._icon(image_file + '.png'))
+
+    def _refresh_custom_svg_icons(self):
+        """
+        自前のTabler Icons SVGアイコン(gui/main_window.pyの_svg_icon()経由で
+        setIcon()した永続的なウィジェット/アクション)を、現在のテーマに
+        合わせて再読み込みする(_on_toggle_dark_modeから呼ばれる)。
+
+        _svg_icon()自体は呼び出しの都度、現在のテーマから色を解決するように
+        なっているが、それはあくまで「次にsetIcon()された時」に反映される
+        だけで、既にsetIcon()済みのQIconオブジェクトが自動的に更新される
+        わけではない。ダイアログ内のアイコン(H-2-6で対応済み)はダイアログが
+        毎回新規に構築されるため問題にならないが、ここで挙げるものは
+        PlotterApp.__init__で一度だけ構築される永続的なウィジェットのため、
+        明示的な再設定が必要。
+        """
+        from gui.main_window import _svg_icon
+
+        if hasattr(self, 'cursor_action'):
+            self.cursor_action.setIcon(_svg_icon("pointer"))
+        if hasattr(self, 'annotation_action'):
+            self.annotation_action.setIcon(_svg_icon("message-2"))
+        if hasattr(self, 'layout_edit_action'):
+            self.layout_edit_action.setIcon(_svg_icon("layout-grid"))
+        if hasattr(self, 'stats_toolbar_button'):
+            self.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
+        if hasattr(self, 'manage_palette_action'):
+            self.manage_palette_action.setIcon(_svg_icon("palette", size=16))
+        if hasattr(self, 'colormap_assign_action'):
+            self.colormap_assign_action.setIcon(_svg_icon("palette", size=16))
+
+        for button, (icon_name, _label) in getattr(self, '_dataset_action_button_icons', {}).items():
+            button.setIcon(_svg_icon(icon_name, size=18))
+        for button, icon_name in getattr(self, '_field_icon_buttons', {}).items():
+            button.setIcon(_svg_icon(icon_name, size=16))
+        for toggle_button in getattr(self, '_collapsible_toggle_buttons', []):
+            toggle_button.setIcon(
+                _svg_icon("chevron-down" if toggle_button.isChecked() else "chevron-right", size=14)
+            )
 
     def _set_initial_ui_state(self):
             """

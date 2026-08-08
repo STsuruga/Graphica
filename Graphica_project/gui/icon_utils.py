@@ -22,11 +22,31 @@ ICONS_DIR = os.path.join("assets", "icons")
 # これにより、gui/main_window.py を経由しない他のモジュール(data_editor.py、
 # dialogs.py 等)からも、cwdに関係なく確実にアイコンを読み込める。
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# ★ 項目H-4(アイコンセットの見直し): 以前はここに固定のダークグレー
+#   ('#3B3F42')を持っており、ダークモードのボタン背景(暗色)に対して
+#   ほぼ同化して見えなくなっていた(H-0調査で「未検証」として記録されていた
+#   懸念が、実機のスクリーンショットで実際に確認された)。DEFAULT_ICON_COLOR
+#   はもう「呼び出し時に一度だけ評価される固定のデフォルト引数値」としては
+#   使わず、下のicon()内で呼び出しの都度、現在のテーマから解決するように
+#   変更した。定数自体は後方互換(他モジュールから参照されている可能性)の
+#   ため残すが、実際には使われない。
 DEFAULT_ICON_COLOR = "#3B3F42"
 
 
-def icon(name, color=DEFAULT_ICON_COLOR, size=16):
-    """assets/icons/{name}.svg を統一トーンのQIconとして読み込む共通ヘルパー"""
+def icon(name, color=None, size=16):
+    """
+    assets/icons/{name}.svg を統一トーンのQIconとして読み込む共通ヘルパー。
+
+    color省略時は、現在適用中のテーマ(gui.theme.current_tokens())の
+    text_secondaryトークンを使う(呼び出しの都度解決するため、ダーク/ライト
+    どちらのテーマで呼ばれても正しい色になる)。このダイアログ内アイコンは
+    いずれもダイアログ構築のたびに新規に呼ばれるため、H-2-4の
+    _ClickableMathPreviewLabel等のような明示的な再描画フックは不要
+    (ダイアログを開き直せば常に最新のテーマ色を拾う)。
+    """
+    if color is None:
+        from gui import theme
+        color = theme.current_tokens()["text_secondary"]
     svg_path = os.path.join(_PROJECT_ROOT, ICONS_DIR, f"{name}.svg")
     return load_svg_icon(svg_path, color=color, size=size)
 

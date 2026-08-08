@@ -154,8 +154,13 @@ from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialo
 from gui.color_picker_widget import ColorPickerWidget
 from gui.icon_utils import load_svg_icon, ICONS_DIR
 
-# ツールバー/ボタンのアイコン(項目67・70)。matplotlibツールバー標準アイコンと
-# 近いトーンになるよう、中間的な濃さのニュートラルグレーで統一する。
+# ツールバー/ボタンのアイコン(項目67・70)。
+# ★ 項目H-4(アイコンセットの見直し): 以前はここに固定のダークグレー
+#   ('#3B3F42')を持っており、ダークモードのボタン背景に対してほぼ同化して
+#   見えなくなっていた(H-0調査で「未検証」として記録した懸念が、実機の
+#   スクリーンショットで確認された)。gui/icon_utils.py の icon() と同じ方針で
+#   テーマのtext_secondaryトークンを呼び出しの都度解決するように変更したため、
+#   この定数自体はもう _svg_icon() から使われない(後方互換のため残置)。
 TOOLBAR_ICON_COLOR = "#3B3F42"
 
 # キャンバス上部ツールバーのアイコンサイズ(px)。Qtの既定は24pxだが、
@@ -185,9 +190,19 @@ LABEL_SYMBOL_PALETTE = [
 
 
 def _svg_icon(name, size=20):
-    """assets/icons/{name}.svg を統一トーンのQIconとして読み込む共通ヘルパー"""
+    """
+    assets/icons/{name}.svg を統一トーンのQIconとして読み込む共通ヘルパー。
+    色は呼び出しの都度、現在のテーマ(gui.theme.current_tokens())の
+    text_secondaryトークンから解決する(gui/icon_utils.py の icon() と同じ方針、
+    項目H-4)。ボタン/アクションに一度setIcon()した後は、テーマが変わっても
+    自動更新はされないため、永続的なウィジェット(メインツールバーのボタン等)
+    については_on_toggle_dark_mode側で明示的に再設定する
+    (_refresh_custom_svg_icons、gui/mixins/ui_setup_mixin.py参照)。
+    """
+    from gui import theme
+    color = theme.current_tokens()["text_secondary"]
     return load_svg_icon(resource_path(os.path.join(ICONS_DIR, f"{name}.svg")),
-                          color=TOOLBAR_ICON_COLOR, size=size)
+                          color=color, size=size)
 from core.excel_utils import find_unevaluated_formula_cells
 from gui.export_preview_panel import ExportPreviewPanel
 from gui.dataset_style_icon import make_dataset_style_icon
@@ -572,6 +587,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
         # Matplotlib 標準のナビゲーションツールバーを作成
         toolbar = NavigationToolbar(self.canvas, self)
+        # ★ 項目H-4: matplotlib純正のNavigationToolbar2QTは、アイコン読み込み
+        #   (_icon())時にQPaletteのbackgroundRole()の明度を見て自動的に
+        #   ダークモード配色へ切り替える仕組みを内蔵しているが、これはツール
+        #   バー構築時(=常にライトモードのパレットで初期化されるアプリ起動時)
+        #   に一度だけ実行され、以後ダークモードに切り替えてもアイコンは
+        #   再読み込みされない(実機で発覚: home/back/forward/pan/zoom/save
+        #   アイコンがダークモードで見えにくいまま残っていた)。
+        #   _on_toggle_dark_mode(gui/mixins/ui_setup_mixin.py)から再読み込み
+        #   できるよう、インスタンス属性として保持しておく。
+        self.mpl_toolbar = toolbar
         # ★ バグ修正: このツールバーはQMainWindowのツールバー領域ではなく
         #   plot_container の通常のレイアウトに入れているため、幅が足りなくなると
         #   はみ出したボタンが幅12pxほどの極小の「>>」ボタンの中に押し込まれ、
@@ -708,7 +733,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #     常設せず、「…」オーバーフローメニューに移す。
         #     (シグナル接続は _connect_signals 側で従来どおり各ボタンに対して行うため、
         #      ここではアイコン付与とレイアウト上の並びだけを変更し、ロジックには触れない)
-        _button_icons = {
+        # ★ 項目H-4: このマッピングはインスタンス属性として保持しておき、
+        #   _on_toggle_dark_mode側でアイコンを再読み込みできるようにする
+        #   (_refresh_custom_svg_icons、gui/mixins/ui_setup_mixin.py参照)。
+        self._dataset_action_button_icons = {
             self.ui.add_dataset_button: ("file-plus", tr("データ追加")),
             self.new_dataset_button: ("table", tr("新規作成")),
             self.duplicate_dataset_button: ("copy", tr("複製")),
@@ -722,7 +750,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # ★ GUI洗練: テキスト付きボタンではなく、アイコンのみの正方形ボタンにする。
         #   ラベルはツールチップに残すため発見しやすさは保ちつつ、9個並んだ状態でも
         #   横幅を大きく取らず、右パネル全体の余白・サイズ感を改善する。
-        for button, (icon_name, short_label) in _button_icons.items():
+        for button, (icon_name, short_label) in self._dataset_action_button_icons.items():
             button.setToolTip(button.text() or short_label)
             button.setText("")
             button.setIcon(_svg_icon(icon_name, size=18))
@@ -884,15 +912,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.formLayout_3.insertRow(10, self.legend_order_button)
 
         # フォント選択/色選択ボタン群にアイコンを追加(ユーザーフィードバックを受けて)
-        for button, icon_name in (
-            (self.ui.tick_font_button, "typography"),
-            (self.ui.tick_color_button, "color-swatch"),
-            (self.ui.axis_label_font_button, "typography"),
-            (self.ui.axis_label_color_button, "color-swatch"),
-            (self.ui.spine_color_button, "color-swatch"),
-            (self.legend_font_button, "typography"),
-            (self.legend_color_button, "color-swatch"),
-        ):
+        # ★ 項目H-4: インスタンス属性として保持し、_refresh_custom_svg_iconsから
+        #   再読み込みできるようにする。
+        self._field_icon_buttons = {
+            self.ui.tick_font_button: "typography",
+            self.ui.tick_color_button: "color-swatch",
+            self.ui.axis_label_font_button: "typography",
+            self.ui.axis_label_color_button: "color-swatch",
+            self.ui.spine_color_button: "color-swatch",
+            self.legend_font_button: "typography",
+            self.legend_color_button: "color-swatch",
+        }
+        for button, icon_name in self._field_icon_buttons.items():
             button.setIcon(_svg_icon(icon_name, size=16))
 
         # 4. フィット情報表示用のUI (非表示で) 追加
@@ -2003,6 +2034,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             btn.setIcon(_svg_icon("chevron-down" if checked else "chevron-right", size=14))
 
         toggle_button.toggled.connect(_on_toggled)
+        # ★ 項目H-4: このメソッドは複数のグループボックスに対して繰り返し
+        #   呼ばれるため、生成した各トグルボタンをリストに蓄積しておき、
+        #   _refresh_custom_svg_icons側で一括してアイコンを再読み込みできる
+        #   ようにする。
+        if not hasattr(self, '_collapsible_toggle_buttons'):
+            self._collapsible_toggle_buttons = []
+        self._collapsible_toggle_buttons.append(toggle_button)
 
         wrapper_layout.addWidget(toggle_button)
         wrapper_layout.addWidget(group_box)

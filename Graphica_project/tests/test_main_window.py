@@ -668,6 +668,79 @@ def test_toggling_dark_mode_refreshes_color_picker_swatch_borders(tmp_path, monk
     assert set(calls) == {"main", "gradient"}
 
 
+# --- 項目H-4(アイコンセットの見直し): 永続的なウィジェットのアイコンは
+#     テーマ切り替え時に明示的に再読み込みしないと、構築時のテーマの色の
+#     まま残ってしまう ---
+
+def test_toggling_dark_mode_refreshes_mpl_toolbar_and_custom_icons(tmp_path, monkeypatch):
+    """
+    _on_toggle_dark_modeが_refresh_mpl_toolbar_icons/_refresh_custom_svg_icons
+    の両方を呼ぶことを確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window, "_refresh_mpl_toolbar_icons", lambda: calls.append("mpl"))
+    monkeypatch.setattr(window, "_refresh_custom_svg_icons", lambda: calls.append("custom"))
+
+    window._on_toggle_dark_mode(True)
+
+    assert set(calls) == {"mpl", "custom"}
+
+
+def test_mpl_toolbar_attribute_is_the_navigation_toolbar(tmp_path, monkeypatch):
+    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert isinstance(window.mpl_toolbar, NavigationToolbar2QT)
+
+
+def test_refresh_mpl_toolbar_icons_updates_action_icons_without_raising(tmp_path, monkeypatch):
+    from gui import theme
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
+    window._refresh_mpl_toolbar_icons()
+    home_action = window.mpl_toolbar._actions.get('home')
+    assert home_action is not None
+    before = home_action.icon().pixmap(24, 24).toImage()
+
+    window._on_toggle_dark_mode(True)
+
+    after = home_action.icon().pixmap(24, 24).toImage()
+    # ダークモードへの切り替えでピクセル内容(色)が実際に変わっていること
+    assert before != after
+
+
+def test_refresh_custom_svg_icons_updates_tracked_widgets_without_raising(tmp_path, monkeypatch):
+    from gui import theme
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
+    window._refresh_custom_svg_icons()
+    before = window.cursor_action.icon().pixmap(20, 20).toImage()
+
+    window._on_toggle_dark_mode(True)
+
+    after = window.cursor_action.icon().pixmap(20, 20).toImage()
+    assert before != after
+
+
+def test_refresh_custom_svg_icons_updates_collapsible_toggle_buttons(tmp_path, monkeypatch):
+    from gui import theme
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
+    assert len(window._collapsible_toggle_buttons) > 0
+    btn = window._collapsible_toggle_buttons[0]
+    window._refresh_custom_svg_icons()
+    before = btn.icon().pixmap(14, 14).toImage()
+
+    window._on_toggle_dark_mode(True)
+
+    after = btn.icon().pixmap(14, 14).toImage()
+    assert before != after
+
+
 # --- フォームラベルの末尾コロン除去(項目H-2-4、実機フィードバック:
 #     「各設定項目のあとの：はなくして」) ---
 
