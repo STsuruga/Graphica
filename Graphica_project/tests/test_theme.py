@@ -607,6 +607,25 @@ def test_generated_qss_uses_selection_highlight_for_button_pressed_background():
     )
 
 
+def test_generated_qss_uses_selection_colors_for_toolbutton_pressed_and_checked():
+    """
+    項目H-2-5(クイックアクセスツールバーの実機確認で発覚)の回帰テスト。
+    QPushButton側は:pressed/:hoverとも青系へ統一済みだったが、QToolButton側
+    (ツールバーの全ボタンはQToolButton)は同じ更新が漏れており、クイック
+    アクセスに登録したボタンを押すと依然ティール系accent_softの緑っぽい色に
+    なっていた。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QToolButton:pressed\s*\{[^}]*background:\s*rgba\(37, 99, 235", qss
+    )
+    assert re.search(
+        r"QToolButton:checked\s*\{[^}]*background:\s*rgba\(37, 99, 235[^}]*"
+        r"border:\s*1px solid #2563EB",
+        qss,
+    )
+
+
 def test_current_tokens_returns_light_tokens_by_default(qapp, monkeypatch):
     monkeypatch.setattr(theme, "_current_tokens", None)
     assert theme.current_tokens() == theme.LIGHT_TOKENS

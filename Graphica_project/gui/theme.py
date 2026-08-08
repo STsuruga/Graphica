@@ -227,11 +227,17 @@ QToolButton {{
 QToolButton:hover {{
     background: {surface_2};
 }}
-QToolButton:pressed, QToolButton:checked {{
-    background: {accent_soft};
+/* ★ 項目H-2-5(クイックアクセスツールバーの実機確認で発覚): QPushButton側は
+   :hover/:pressed共にselection_accent系(青)へ統一済みだったが、
+   QToolButton側は同じ更新が漏れておりティール系accent_softのままだった
+   (ツールバーのボタンは全てQToolButton、QPushButtonの修正だけでは
+   カバーされない)。他の選択/フォーカス/チェック状態と揃えて青に統一する。 */
+QToolButton:pressed {{
+    background: {selection_highlight};
 }}
 QToolButton:checked {{
-    border: 1px solid {accent};
+    background: {selection_highlight};
+    border: 1px solid {selection_accent};
 }}
 QStatusBar {{
     background: {surface};

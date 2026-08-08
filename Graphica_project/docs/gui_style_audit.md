@@ -748,6 +748,44 @@ window.py`に**実際にウィジェットを描画してピクセル色を検�
 に軸背景色が無彩色グレーではなく寒色寄りの色相を持つこと、既存の
 `surface_2`/`bg`トークンより暗いことを確認するテストを追加。
 
+## H-2-5. クイックアクセスツールバー(#87)
+
+`gui/mixins/quick_access_mixin.py`の`_create_quick_access_toolbar()`を
+確認した。H-0調査時点の所見通り、独自のインラインスタイルは一切無く
+`QToolBar`+既存メニューの`QAction`をそのまま再利用するだけの実装で、
+移動グリップの無効化(`setMovable(False)`)もH-2-1で既に対応済みだった。
+
+実際にボタンを押下状態・チェック状態にして確認したところ、**1件のバグを
+発見した**: `QPushButton`側は`:hover`/`:pressed`とも既にH-2-4追加分で
+`selection_accent`/`selection_highlight`(青系)へ統一済みだったが、
+**`QToolButton`側は同じ更新が漏れており、`:pressed`/`:checked`が依然
+ティール系`accent_soft`のままだった**。ツールバー上のボタン(クイック
+アクセスにピン留めしたボタンも、カーソルツール/注釈ツール等の既存トグルも
+含む)は全て`QToolButton`のため、クイックアクセスにピン留めしたボタンを
+押すと緑っぽい色になる、カーソルツールを選択した状態の枠線が緑になる、
+という状態だった。`QPushButton:pressed`と同じ`selection_highlight`
+(半透明の青)を背景に、`:checked`は`selection_accent`(不透明の青)を
+枠線に使うよう統一した。
+
+**Before/After**(クイックアクセスツールバー全体、ライト/ダーク):
+
+| ライト | ダーク |
+|---|---|
+| ![ツールバー(ライト)](screenshots/h2-5/quick_access_toolbar_light.png) | ![ツールバー(ダーク)](screenshots/h2-5/quick_access_toolbar_dark.png) |
+
+**Before/After**(ボタンのpressed/checked色、青に統一):
+
+| pressed | checked |
+|---|---|
+| ![pressed](screenshots/h2-5/after_pressed_color_blue.png) | ![checked](screenshots/h2-5/after_checked_color_blue.png) |
+
+**テスト**: `tests/test_theme.py`に、`QToolButton:pressed`の背景が
+`selection_highlight`、`QToolButton:checked`の背景/枠線が
+`selection_highlight`/`selection_accent`を使うことを確認するテストを
+追加。既存の`tests/test_quick_access_mixin.py`(ピン留め/解除・永続化・
+コンテキストメニュー等の機能テスト、全11件)は無関係のため変更なし、
+全件グリーンのまま。
+
 ## H-2-6. ダイアログ群(環境設定/エクスポート設定/フィット等)
 
 `gui/dialogs.py`配下の25個の`QDialog`サブクラス全てを、ライト/ダーク両モードで
