@@ -343,13 +343,29 @@ QGroupBox {{
 QGroupBox::title {{
     subcontrol-origin: margin;
     left: 10px;
-    top: -6px;
+    /* ★ 実機フィードバック(画像提示、環境設定・フォント選択ダイアログ):
+       「外観/言語/保存...やEffect/Sampleのチップが見切れてる」。以前は
+       top: -6pxで、グループボックスの外枠より上に6pxはみ出す形で「境界線に
+       半分乗ったラベル」の見た目にしていた。この方式はグループボックスの
+       margin-top(下記、20px)で確保した領域にチップが浮き出る前提だが、
+       自前で構築するダイアログ(PreferencesDialog等)ではmargin-topが正しく
+       効いていて問題なかった一方、QFontDialog/QColorDialogのようなQt標準の
+       ダイアログ(内部レイアウトを直接制御できない)では、この上方向の
+       突き出し分の余白が確保されず、チップの上端が周囲の要素に隠れて
+       見切れていた(実機のスクリーンショットで確認)。外枠の外へ一切
+       はみ出さない0pxに変更し、周囲のレイアウト側の余白に依存しない
+       (=どんなダイアログでも安全な)配置にする。 */
+    top: 0px;
     padding: 2px 8px;
-    color: {accent};
+    /* ★ 実機フィードバック: 「ポップアップウィンドウのボタンの色が緑の
+       まま」と同様の指摘(画像提示、複数ダイアログ)。グループ見出しチップも
+       ブランドアクセント(ティール系accent)のままだったのを、他の強調表現と
+       揃えてselection_accent(青)に統一した。 */
+    color: {selection_accent};
     font-size: 12.5px;
     font-weight: 600;
     letter-spacing: .02em;
-    background: {accent_soft};
+    background: {selection_highlight};
     border-radius: 5px;
 }}
 
@@ -422,8 +438,20 @@ QPushButton:disabled {{
     border-color: {border};
 }}
 QPushButton:default {{
-    background: {accent};
-    border-color: {accent};
+    /* ★ 実機フィードバック(画像提示、複数のポップアップダイアログ):
+       「実行/OK/Closeのようなデフォルトボタンの色が緑のまま」。フォーカス/
+       選択/チェック状態は既に全てselection_accent(青)に統一済みだったが、
+       ダイアログの主要アクションボタン(Enterキーで実行される既定ボタン)
+       だけはブランドアクセント(ティール系accent)のまま意図的に残して
+       いた。実機で複数のダイアログを横断的に見ると、この1箇所だけ色相が
+       違うことがかえって「まだ緑が残っている」という印象を与えていたため、
+       他の全ての強調表現と同じselection_accentに統一する。文字色は
+       チェックボックスのチェック時塗りつぶし(_draw_checkbox_indicator)と
+       同じ理由でaccent_textとの組み合わせを踏襲する(ライト/ダーク双方で
+       selection_accent背景に対して十分なコントラストが取れることを実機で
+       確認済み)。 */
+    background: {selection_accent};
+    border-color: {selection_accent};
     color: {accent_text};
 }}
 /* ★ フォーカス枠の色は、選択・入力欄フォーカス等の他の「フォーカス/選択」

@@ -626,6 +626,63 @@ def test_generated_qss_uses_selection_colors_for_toolbutton_pressed_and_checked(
     )
 
 
+def test_generated_qss_uses_selection_accent_for_default_button():
+    """
+    実機フィードバック(画像提示、複数のポップアップダイアログ: バッチ
+    エクスポートの「実行」、環境設定/フォント選択/色選択/メッセージボックス
+    の「OK」、ヘルプの「Close」)の回帰テスト。ダイアログの既定ボタン
+    (Enterキーで実行される、QDialogButtonBoxが自動的にdefaultにする
+    ボタン)は他の全ての強調表現と揃っていなかった唯一の箇所で、ティール系
+    accentのまま残っていた。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QPushButton:default\s*\{[^}]*background:\s*#2563EB[^}]*"
+        r"border-color:\s*#2563EB",
+        qss,
+    )
+    assert "background: #1F6F78;" not in re.search(
+        r"QPushButton:default\s*\{[^}]*\}", qss
+    ).group(0)
+
+
+def test_generated_qss_uses_selection_colors_for_groupbox_title_chip():
+    """
+    実機フィードバック(画像提示、環境設定/フォント選択ダイアログ)の回帰
+    テスト:「外観/言語/保存...やEffect/Sampleのチップの色が緑」。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    match = re.search(r"^QGroupBox::title\s*\{([^}]*)\}", qss, re.MULTILINE)
+    assert match, "QGroupBox::title のルールが見つかりません"
+    body = match.group(1)
+    assert "#2563EB" in body  # color: selection_accent
+    assert "rgba(37, 99, 235" in body  # background: selection_highlight
+    assert "#1F6F78" not in body
+    assert "#E4F0EF" not in body
+
+
+def test_generated_qss_groupbox_title_chip_does_not_overflow_above_border():
+    """
+    バグ回帰テスト:「外観/言語/保存...やEffect/Sampleのチップが見切れてる」。
+    以前は`top: -6px`でグループボックスの外枠より上に突き出す配置にしており、
+    自前で構築するダイアログでは問題なかったが、QFontDialog/QColorDialogの
+    ようなQt標準ダイアログ(内部レイアウトを直接制御できない)では、この
+    突き出し分の外側の余白が確保されずチップの上端が見切れていた(実機の
+    スクリーンショットで確認済み)。外枠の外へ一切はみ出さない0px以上に
+    することを確認する(周囲のレイアウト側の余白に依存しない安全な配置)。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    match = re.search(r"^QGroupBox::title\s*\{([^}]*)\}", qss, re.MULTILINE)
+    assert match
+    # ブロック内のコメント(実装経緯の説明文に"top: -6px"という過去の値への
+    # 言及が含まれる)を取り除いてから実際のCSSプロパティ値を検証する
+    # (コメントの地の文を誤ってマッチしないようにするため)。
+    body_without_comments = re.sub(r"/\*.*?\*/", "", match.group(1), flags=re.DOTALL)
+    top_matches = re.findall(r"top:\s*(-?\d+)px", body_without_comments)
+    assert top_matches, "QGroupBox::title に top プロパティが見つかりません"
+    assert all(int(value) >= 0 for value in top_matches)
+
+
 def test_current_tokens_returns_light_tokens_by_default(qapp, monkeypatch):
     monkeypatch.setattr(theme, "_current_tokens", None)
     assert theme.current_tokens() == theme.LIGHT_TOKENS

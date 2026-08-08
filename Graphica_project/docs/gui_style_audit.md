@@ -871,6 +871,71 @@ Matplotlib既定パレット(青・オレンジ・緑、以前は白文字選択
 `ColorPickerWidget`インスタンスの`refresh_theme()`を呼ぶことを確認する
 テストを追加。
 
+### H-2-6 追加分(実機フィードバック: ポップアップの既定ボタン+グループ見出しチップの色)
+
+H-2-6完了後、複数のダイアログ(バッチエクスポート・環境設定・
+サンプルプラグインのメッセージボックス・ヘルプ・フォント選択・色選択)の
+スクリーンショット提示を受け、2件追加で対応した。
+
+1. **ダイアログの既定ボタン(実行/OK/Close)の色が緑のまま**: フォーカス/
+   選択/チェック状態・ボタンのhover/pressedは既に全てselection_accent
+   (青)に統一済みだったが、`QPushButton:default`(`QDialogButtonBox`が
+   Enterキー実行用に自動的にdefaultにするボタン)だけはブランドアクセント
+   (ティール系`accent`)のまま意図的に残していた。複数のダイアログを横断
+   して見ると、この1箇所だけ色相が違うことがかえって「まだ緑が残っている」
+   という印象を与えていたため、背景/枠線を`selection_accent`に統一した
+   (文字色は`accent_text`のまま、チェックボックスのチェック時塗りつぶしと
+   同じ組み合わせを踏襲)。
+2. **環境設定/フォント選択ダイアログのグループ見出しチップ(「外観」
+   「言語」「保存」やQFontDialogの「Effects」「Sample」)が緑+見切れて
+   いる**: 色は上記と同じ理由でselection_accent/selection_highlightに
+   統一。見切れ(クリッピング)は別原因で、`QGroupBox::title`が
+   `top: -6px`(グループボックス自身の外枠より6px上に突き出す配置)を
+   使っており、これは`QGroupBox`側の`margin-top: 20px`で確保した外側の
+   余白にチップが浮き出る前提の実装だった。自前で構築するダイアログ
+   (`PreferencesDialog`等)ではこの余白が正しく効いていて問題なかったが、
+   `QFontDialog`/`QColorDialog`のようなQt標準ダイアログ(内部レイアウトを
+   直接制御できない)では、この上方向の突き出し分の外側の余白が確保されず、
+   チップの上端(丸みを帯びた部分)が周囲の要素に隠れて見切れていた
+   (拡大スクリーンショットで、チップ上端の角丸が欠けていることを確認)。
+   `top: 0px`に変更し、グループボックスの外枠の外へ一切はみ出さない
+   (=周囲のレイアウト側の余白に依存しない、どんなダイアログでも安全な)
+   配置にして解消した。
+
+**Before/After**(バッチエクスポートの「実行」ボタン):
+
+| ライト | ダーク |
+|---|---|
+| ![実行ボタン(ライト)](screenshots/h2-4/after_default_button_blue_light.png) | ![実行ボタン(ダーク)](screenshots/h2-4/after_default_button_blue_dark.png) |
+
+**Before/After**(グループ見出しチップの色+クリッピング、QFontDialogの
+「Effects」チップを拡大):
+
+| Before(緑+上端が見切れている) | After(青+完全な角丸) |
+|---|---|
+| ![Before](screenshots/h2-4/before_groupbox_chip_clipped.png) | ![After](screenshots/h2-4/after_groupbox_chip_not_clipped.png) |
+
+**Before/After**(環境設定ダイアログ全体):
+
+| ライト | ダーク |
+|---|---|
+| ![環境設定(ライト)](screenshots/h2-4/after_groupbox_chip_blue_light.png) | ![環境設定(ダーク)](screenshots/h2-4/after_groupbox_chip_blue_dark.png) |
+
+**After**(メッセージボックス・色選択ダイアログのOKボタン):
+
+| メッセージボックス | 色選択 |
+|---|---|
+| ![メッセージボックス](screenshots/h2-4/after_messagebox_ok_blue.png) | ![色選択](screenshots/h2-4/after_colordialog_ok_blue.png) |
+
+**テスト**: `tests/test_theme.py`に、`QPushButton:default`の背景/枠線が
+`selection_accent`を使いティール系`accent`を使っていないこと、
+`QGroupBox::title`の文字色/背景が`selection_accent`/`selection_highlight`
+を使うこと、`top`オフセットが負の値でない(グループボックスの外枠の外に
+はみ出さない)ことを確認するテストを追加。テスト実装中、自分自身が書いた
+説明コメント文中に旧仕様の値(`"top: -6px"`)を文章として含めていたため、
+正規表現が実際のCSSプロパティではなくコメントの地の文を誤ってマッチして
+しまう不具合を踏んだ(コメントを除去してから検証するよう修正)。
+
 ## H-2-7. プラグイン管理UI(F-2)へのスタイル適用
 
 `PreferencesDialog`の「プラグイン」タブを、実際のプラグイン一覧

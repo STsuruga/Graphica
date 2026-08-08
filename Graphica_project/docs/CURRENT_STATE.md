@@ -27,17 +27,29 @@
 4ラウンドの追加対応込み)・H-2-5(#44、クイックアクセスツールバー)・
 H-2-6(#45、ダイアログ群)・H-2-7(#46、プラグイン管理UIへのスタイル適用)・
 H-2-8(#47、ステータスバー)・H-3(#48、matplotlib配色連動)・H-4(#49、
-アイコンセットの見直し)完了。**詳細はこのファイルではなく
-`docs/GUI_MODERNIZATION_PROGRESS.md`の該当行(表形式)と
+アイコンセットの見直し)完了。加えてH-2-6完了後、実機スクリーンショット
+提示(ポップアップの既定ボタン・グループ見出しチップが緑のまま/見切れる)
+を受けて追加修正(`QPushButton:default`と`QGroupBox::title`を
+`selection_accent`/`selection_highlight`に統一、チップのクリッピングは
+`top`オフセットを`-6px`→`0px`に変更して解消)。**詳細はこのファイルではなく
+`docs/GUI_MODERNIZATION_PROGRESS.md`の該当行(表形式、「H-2-6追加分」行)と
 `docs/gui_style_audit.md`の対応する節(Before/After画像付き)を参照すること**
 (このファイルは過去の完了履歴を積み上げる場所ではない)。
 
-**H-2-5〜H-4はいずれもフルスイート未実行(2026-08-09時点)**: ユーザーから
-「full testは50(H-5)の後でいい」と明示的な指示があったため、都度ファイル
-影響範囲のサブセットのグリーン確認のみでコミット・push済み。**H-5(#50)
-着手時、完了した時点でH-2-5〜H-5まとめてフルスイートを1回実行すること**
-(このセッション内での約束、CLAUDE.mdの通常のRegression bar運用を今回に
-限りユーザーの指示で一時的に後ろ倒しにしている)。
+**H-2-5〜H-4・H-2-6追加分はサブセットのみで確認・push済み(2026-08-09
+時点)、文字通りのフルスイートは未実行**: ユーザーから「full testは50
+(H-5)の後でいい」と明示的な指示があったため。ただしH-2-6追加分は
+`gui/theme.py`という共有ファイルの変更を含むため、`test_theme.py`単体に
+加えて`test_canvas.py`・`test_canvas_detach.py`・
+`test_canvas_plugin_plot_type.py`・`test_icon_utils.py`・
+`test_main_window.py`・`test_main_app_window.py`・
+`test_quick_access_mixin.py`・`test_minimap_widget.py`を含む計198件の
+広めのサブセットをバックグラウンドで実行し、全件グリーンを確認済み
+(`docs/dialogs.py`系・`core/`系・プロジェクトI/O系等は未実行のまま残って
+いるので、これは"広いサブセット"であって"フルスイート"ではないことに注意)。
+**H-5(#50)着手時、完了した時点でH-2-5〜H-5まとめて文字通りのフル
+スイートを1回実行すること**(このセッション内での約束、CLAUDE.mdの通常の
+Regression bar運用を今回に限りユーザーの指示で一時的に後ろ倒しにしている)。
 
 **H-3/H-4で得た重要な発見**: matplotlib純正の`NavigationToolbar2QT`は
 アイコン読み込み時にQPalette明度からダークモード配色へ自動的に切り替わる
