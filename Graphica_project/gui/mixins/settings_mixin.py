@@ -392,7 +392,15 @@ class SettingsMixin:
             pixmap = render_mathtext_to_pixmap(text, color=tokens["text_primary"])
         else:
             pixmap = render_mathtext_to_pixmap(placeholder, color=tokens["text_muted"])
-        preview_label.setPixmap(pixmap)
+        # ★ 実機フィードバック: 「ここの文字サイズを枠内に収まるようにして」
+        #   (長いmathtext文字列がプレビュー欄の枠からはみ出していた)。
+        #   set_natural_pixmap()は「等倍」のpixmapを保持しておき、ウィジェット
+        #   自身の実際の幅が確定するたび(resizeEvent、タブ切り替え・
+        #   ウィンドウリサイズ等を含む)自動的に収まるよう再フィットする
+        #   (単純なsetPixmap()だと、この呼び出し時点でのwidth()が
+        #   まだ実際のレイアウト確定値と一致しない場合にはみ出したままに
+        #   なる、FitWidthPixmapLabel参照)。
+        preview_label.set_natural_pixmap(pixmap)
 
     def _refresh_all_label_previews(self):
         """

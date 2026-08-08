@@ -47,6 +47,150 @@ def test_label_edit_dialog_get_text_reflects_manual_edits():
     assert dlg.get_text() == "手入力したテキスト"
 
 
+def test_label_edit_dialog_decoration_buttons_have_no_focus_policy(qapp):
+    """
+    バグ回帰テスト(実機フィードバック: 「選択してボタン押しても文字選択しろと
+    出る」が一度直したはずなのに再発)。
+
+    当初はQPushButton.pressedで選択範囲を先読みする方式で対処したが、
+    QTest.mouseClick()で実際のクリックを再現するとそれでも直っていなかった
+    (下のtest_label_edit_dialog_bold_button_survives_a_real_mouse_click参照)。
+    真因は「clickedが遅い」ことではなく、QPushButtonの既定フォーカスポリシー
+    (StrongFocus)により、Qtがマウス押下イベントをボタンへ配送する前にフォーカス
+    をボタン側へ移してしまい、その時点でtext_edit側の選択状態が失われていた
+    こと。本質的な修正は装飾ボタン自体にフォーカスを渡さないことなので、
+    focusPolicyがNoFocusになっていることを直接検証する。
+    """
+    from PySide6.QtWidgets import QPushButton, QToolButton
+
+    dlg = LabelEditDialog("Peak XYZ", "タイトルを編集", _SAMPLE_PALETTE)
+    decoration_tooltips = {"太字", "イタリック", "上付き文字", "下付き文字"}
+    decoration_buttons = [
+        b for b in dlg.findChildren(QPushButton) if b.toolTip() in decoration_tooltips
+    ]
+    assert len(decoration_buttons) == 4  # OK/Cancel(QDialogButtonBox側)は対象外
+    for button in decoration_buttons:
+        assert button.focusPolicy() == Qt.FocusPolicy.NoFocus
+    for button in dlg.findChildren(QToolButton):
+        assert button.focusPolicy() == Qt.FocusPolicy.NoFocus
+
+
+def test_label_edit_dialog_bold_button_survives_a_real_mouse_click(qapp):
+    """
+    上と対になる、実際のマウスクリック(QTest.mouseClick、press+releaseを
+    通常のイベントパイプライン経由で配送する)を使った回帰テスト。
+    .pressed.emit()や_capture_pending_selection()を手動で呼ぶテストは
+    「配線が正しいか」までしか検証できず、Qtの実際のフォーカス遷移タイミングに
+    起因するこのバグを見逃していた実例(このテスト自体がその教訓)。
+    """
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QPushButton
+
+    dlg = LabelEditDialog("Peak XYZ", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.show()
+    dlg.text_edit.setFocus()
+    dlg.text_edit.setSelection(0, 4)  # "Peak"
+    assert dlg.text_edit.hasSelectedText()
+
+    bold_button = next(
+        b for b in dlg.findChildren(QPushButton) if b.toolTip() == "太字"
+    )
+    QTest.mouseClick(bold_button, Qt.MouseButton.LeftButton)
+
+    assert dlg.get_text() == r"$\mathbf{Peak}$ XYZ"
+    dlg.close()
+
+
+# --- 複数のmathtext装飾を重ねて適用する(実機フィードバック: 「mathtextを
+#     複数適用しようとすると(例: イタリック+ボールド、上付き+ボールド)
+#     バグる」) ---
+
+def test_apply_wrap_combines_bold_then_italic_into_boldsymbol(qapp):
+    """
+    太字を適用した直後の選択範囲(装飾操作後は結果全体が自動選択される)に
+    続けてイタリックを適用すると、単純な入れ子("$\\mathit{$\\mathbf{...}}$"
+    のような不正な二重$)にはならず、太字とイタリックを同時に表現できる
+    \\boldsymbolに置き換わることを確認する。
+    """
+    dlg = LabelEditDialog("wavelength", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setSelection(0, len("wavelength"))
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+    assert dlg.get_text() == r"$\mathbf{wavelength}$"
+
+    dlg._capture_pending_selection()  # 直前の結果全体が選択されている状態を再現
+    dlg._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}")
+
+    assert dlg.get_text() == r"$\boldsymbol{wavelength}$"
+    assert dlg.get_text().count("$") == 2  # $の入れ子になっていない
+
+
+def test_apply_wrap_combines_italic_then_bold_into_boldsymbol(qapp):
+    """上と対称のケース(先にイタリック、後から太字)。"""
+    dlg = LabelEditDialog("wavelength", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setSelection(0, len("wavelength"))
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}")
+
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    assert dlg.get_text() == r"$\boldsymbol{wavelength}$"
+
+
+def test_apply_wrap_combines_superscript_then_bold_without_nested_dollar_signs(qapp):
+    """
+    「上付き+ボールド」の組み合わせも回帰対象。太字/イタリックのような
+    フォントクラスの合成(\\boldsymbol化)は不要だが、単純な二重$のバグは
+    こちらにも共通するため、有効なmathtext構文になることを確認する。
+    """
+    import matplotlib.mathtext as mathtext
+
+    dlg = LabelEditDialog("wavelength", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setSelection(0, len("wavelength"))
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("super", lambda s: f"{{}}^{{{s}}}")
+
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    text = dlg.get_text()
+    assert text.count("$") == 2
+    mathtext.MathTextParser('path').parse(text, dpi=100)  # 例外を投げなければOK
+
+
+def test_apply_wrap_without_prior_wrapping_still_wraps_plain_selection(qapp):
+    """通常の(初回の)装飾適用は従来通り動作することの回帰確認。"""
+    dlg = LabelEditDialog("Peak XYZ", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setSelection(0, 4)  # "Peak"
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    assert dlg.get_text() == r"$\mathbf{Peak}$ XYZ"
+
+
+# --- ダイアログ内のライブプレビュー(実機フィードバック: 「ボタンを押して
+#     mathtext形式で書かれたラベルが出力されるんじゃなくて実際にボールドとか
+#     イタリックとかが適用されてるテキストが見れるようにしたい」) ---
+
+def test_label_edit_dialog_has_preview_label_rendering_initial_text(qapp):
+    dlg = LabelEditDialog("wavelength", "タイトルを編集", _SAMPLE_PALETTE)
+    pixmap = dlg.preview_label.pixmap()
+    assert pixmap is not None and not pixmap.isNull()
+
+
+def test_label_edit_dialog_preview_updates_when_text_changes(qapp):
+    dlg = LabelEditDialog("", "タイトルを編集", _SAMPLE_PALETTE)
+    empty_pixmap = dlg.preview_label.pixmap()
+
+    dlg.text_edit.setText("wavelength")
+
+    filled_pixmap = dlg.preview_label.pixmap()
+    assert (filled_pixmap.width(), filled_pixmap.height()) != (
+        empty_pixmap.width(), empty_pixmap.height(),
+    )
+
+
 def test_new_dataset_dialog_dataset_name_strips_whitespace():
     dlg = NewDatasetDialog()
     dlg.name_edit.setText("  My Data  ")

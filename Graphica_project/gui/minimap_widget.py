@@ -31,11 +31,18 @@ MINIMAP_HEIGHT_PX = 70
 
 # gui/canvas.py の配色定数と揃える(ダーク/ライト両テーマで浮かないように)
 DARK_FIGURE_FACECOLOR = '#2b2b2b'
-DARK_AXES_FACECOLOR = '#1e1e1e'
+# ★ 実機フィードバック: 「ミニマップの灰色も他の所の背景と色のテイストを
+#   そろえて、同じ色にはしないで少しだけ暗い色にして」。以前はフラットな
+#   無彩色グレー(#f2f2f2 / #1e1e1e)で、gui/theme.pyのトークン(寒色寄りの
+#   グレー、bg=#F6F7F9/surface_2=#EEF0F3、ダークはbg=#14171A/surface_2=
+#   #21262A)と色味が揃っていなかった。同じ色相(寒色寄り、R<G<Bの傾向)を
+#   保ちつつ、周囲のパネル背景そのものと同一にはせず、ミニマップが「一段
+#   窪んだ」独立領域だと分かる程度にわずかに暗くしている。
+DARK_AXES_FACECOLOR = '#0E1114'
 DARK_LINE_COLOR = '#8ab4f8'
 DARK_SPAN_COLOR = '#8ab4f8'
 LIGHT_FIGURE_FACECOLOR = '#ffffff'
-LIGHT_AXES_FACECOLOR = '#f2f2f2'
+LIGHT_AXES_FACECOLOR = '#E3E6EB'
 LIGHT_LINE_COLOR = '#1a73e8'
 LIGHT_SPAN_COLOR = '#1a73e8'
 

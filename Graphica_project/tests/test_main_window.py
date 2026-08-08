@@ -455,7 +455,7 @@ def test_label_edit_dialog_bold_wraps_selection(qapp):
     dialog.text_edit.setSelection(0, 4)  # "Peak"
     dialog._capture_pending_selection()
 
-    dialog._apply_wrap(lambda s: f"$\\mathbf{{{s}}}$")
+    dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
 
     assert dialog.get_text() == r"$\mathbf{Peak}$ XYZ"
 
@@ -469,7 +469,7 @@ def test_label_edit_dialog_wrap_without_selection_shows_message(qapp, monkeypatc
 
     dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog._capture_pending_selection()  # 選択なしの状態を確定させる
-    dialog._apply_wrap(lambda s: f"$\\mathbf{{{s}}}$")
+    dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
 
     assert shown == [True]
     assert dialog.get_text() == "Peak XYZ"  # 変更されない
@@ -602,6 +602,39 @@ def test_clickable_math_preview_label_has_hover_attribute_enabled(qapp):
 
     label = _ClickableMathPreviewLabel()
     assert label.testAttribute(Qt.WidgetAttribute.WA_Hover)
+
+
+def test_properties_dock_content_actually_renders_bg_token_color(tmp_path, monkeypatch):
+    """
+    実際にウィジェットをレンダリングしてピクセル色を確認する統合テスト
+    (実機フィードバック「プロパティウィンドウの背景色が他と違う」の回帰、
+    QDockWidgetにbackgroundを追加した後も再発した2回目の修正)。
+
+    QSSの文字列に`background: {bg}`が含まれているかどうかを確認するだけの
+    テスト(test_theme.pyのgenerated_qss系)では、実際に画面へ出る色までは
+    検証できず、本バグ(QScrollAreaの中身のwidgetがアプリ全体QSSの副作用で
+    OSネイティブパレット色に不透明に塗りつぶされ、QSSの指定が実際には
+    見えなくなっていた)を検出できなかった実例。QWidget.grab()で実際に
+    描画させ、ピクセル色がbgトークンと一致することを直接確認する。
+    """
+    from PySide6.QtGui import QColor
+    from gui import theme
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    theme.apply_theme(QApplication.instance(), dark=False)
+    app = QApplication.instance()
+    for _ in range(3):
+        app.processEvents()
+
+    scroll_area = window.ui.control_dock_widget.widget()
+    content_widget = scroll_area.widget()
+    image = content_widget.grab().toImage()
+    # 左上の余白部分(データセットのプロパティグループボックスの枠外)をサンプル
+    sample = image.pixelColor(2, 2)
+    expected = QColor(theme.LIGHT_TOKENS["bg"])
+    assert (sample.red(), sample.green(), sample.blue()) == (
+        expected.red(), expected.green(), expected.blue(),
+    )
 
 
 def test_toggling_dark_mode_refreshes_label_previews(tmp_path, monkeypatch):

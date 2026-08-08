@@ -197,10 +197,11 @@ QLabel#dataset_mini_stats_label {{
     padding: 2px 4px;
 }}
 
-/* --- キャンバス周り(項目72): プロット領域を1枚のカードとして視覚的に区切る --- */
+/* --- キャンバス周り(項目72): プロット領域を1枚のカードとして視覚的に区切る ---
+   ★ 実機フィードバック: 「プロットパネルの枠線も消して」。角丸の背景カード
+   としての体裁(background/border-radius)は維持しつつ、枠線だけ削除する。 */
 QWidget#plot_container {{
     background: {surface};
-    border: 1px solid {border};
     border-radius: 8px;
 }}
 QFrame#canvas_separator {{
@@ -242,9 +243,30 @@ QStatusBar {{
    QScrollAreaでラップされている(gui/main_window.pyのmerged_scroll_area)が、
    エクスポートプレビューはラップされていないため、両者の見た目が
    意図せず不揃いになっていた。枠線を消してQDockWidget自体の枠(下記)だけに
-   揃える。 */
+   揃える。
+   ★ 追加の実機フィードバック: 枠線を消した後も「プロパティウィンドウの
+   背景色が他と違う」という指摘が続いた。実測(widgetAt()でピクセル座標の
+   実ウィジェットを特定 + QWidget.grab()での分離検証)したところ、犯人は
+   ビューポート(QAbstractScrollArea::viewport()、QScrollArea直下の子
+   QWidget)そのものではなく、その中に`setWidget()`で入れている中身のwidget
+   (gui/main_window.pyのmerged_properties_container、QScrollArea直下の
+   孫QWidget)だった。app.setStyleSheet()でアプリ全体にQSSを適用すると
+   (Qtの既知の挙動として)全QWidgetがWA_StyledBackground扱いになり、
+   明示的なbackground指定が無いプレーンなQWidgetでもQPaletteのWindowロール
+   色(このアプリではライトモードでOSネイティブパレットをそのまま使っている
+   ため実測 #F0F0F0)で不透明に塗りつぶされてしまう。ビューポート自身は
+   中身のwidgetに完全に覆われて見えなくなるため、ビューポートにだけ{bg}を
+   指定しても効果が無かった。QScrollArea自体・ビューポート(直下の子)・
+   中身のwidget(直下の孫)の3階層すべてに明示的に{bg}を指定して解消する。 */
 QScrollArea {{
     border: none;
+    background: {bg};
+}}
+QScrollArea > QWidget {{
+    background: {bg};
+}}
+QScrollArea > QWidget > QWidget {{
+    background: {bg};
 }}
 /* --- ドック全般(項目H-2-3): 境界線・タイトルバー・フォーカス時の強調 ---
    以前はQDockWidget自体に枠線が無く、タイトルバーの背景色だけが唯一の
@@ -382,7 +404,12 @@ QPushButton:hover {{
     border-color: {selection_accent};
 }}
 QPushButton:pressed {{
-    background: {accent_soft};
+    /* ★ 実機フィードバック: 「フォント選択/色選択ボタンのクリックした瞬間の
+       色が緑のまま」。:hover/:focusは既にselection_accent系(青)に揃えて
+       いたが、:pressed(実際に押し込んでいる間)の背景だけティール系
+       accent_softのままだったため、同じ色相のselection_highlight(薄い青の
+       半透明オーバーレイ)に統一した。 */
+    background: {selection_highlight};
 }}
 QPushButton:disabled {{
     color: {text_muted};
@@ -789,6 +816,15 @@ class _FlatThemeProxyStyle(QProxyStyle):
     def drawPrimitive(self, element, option, painter, widget=None):
         if element == QStyle.PrimitiveElement.PE_IndicatorCheckBox:
             self._draw_checkbox_indicator(option, painter)
+            return
+        if element == QStyle.PrimitiveElement.PE_FrameTabBarBase:
+            # ★ 実機フィードバック(画像提示): 「プロパティ/エクスポート
+            #   プレビュー」タブ(タブ化したQDockWidget)の上に、灰色の横線が
+            #   残っていた。これはQTabBar::tab等のQSSでは制御できない別の
+            #   プリミティブ(タブバーを内容ペインに接続する「土台」線、
+            #   Fusionスタイルが独自に描画する)が原因で、QSSからは一切
+            #   スタイルできない(チェックボックスの項目と同じ理由でここに
+            #   実装している)。何も描画せずに抑制することで解消する。
             return
         super().drawPrimitive(element, option, painter, widget)
 

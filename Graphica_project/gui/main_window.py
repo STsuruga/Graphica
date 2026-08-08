@@ -191,6 +191,7 @@ def _svg_icon(name, size=20):
 from core.excel_utils import find_unevaluated_formula_cells
 from gui.export_preview_panel import ExportPreviewPanel
 from gui.dataset_style_icon import make_dataset_style_icon
+from gui.mathtext_preview import FitWidthPixmapLabel
 from gui.color_history import load_recent_colors_into_picker
 
 # --- 責務ごとに分割した Mixin (God Object 化を避けるための構成) ---
@@ -326,7 +327,7 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
         super().paint(painter, opt, index)
 
 
-class _ClickableMathPreviewLabel(QLabel):
+class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
     """
     タイトル/X軸ラベル/Y軸ラベル欄の見た目を担う、クリックで編集ダイアログを
     開くプレビューラベル(項目H-2-4追加分、実機フィードバック: 「画像の
@@ -337,7 +338,8 @@ class _ClickableMathPreviewLabel(QLabel):
     (`_open_label_edit_dialog`が直接読み書きする対象、`textChanged`シグナルも
     そのまま生きている)。このラベルは「クリックで開く」トリガーと
     「レンダリング済みプレビューの表示」だけを担当する、見た目専用の
-    軽量ウィジェット。
+    軽量ウィジェット。表示の幅フィット処理はFitWidthPixmapLabel(gui/
+    mathtext_preview.py)から継承している。
     """
 
     clicked = Signal()

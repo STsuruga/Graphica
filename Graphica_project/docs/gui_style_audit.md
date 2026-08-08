@@ -555,3 +555,195 @@ Python側から安全にアクセスするため)。
 `_refresh_all_label_previews()`が呼ばれること、`_ClickableMathPreviewLabel`
 が左クリックで`clicked`シグナルを発火し`WA_Hover`属性を持つことを検証する
 テストを追加。
+
+### H-2-4 追加分(3回目、「直したはずが直っていなかった」2件の再修正)
+
+前回の修正の直後、実機でさらに2件の指摘が届いた。いずれも「一度直したはずが
+実際には直っていなかった」もので、原因調査の過程で当初の理解が誤っていた
+ことが判明した。
+
+1. **`LabelEditDialog`の装飾ボタン、選択範囲バグの再発**: 「選択してボタン
+   押しても文字選択しろって出る」。前回はQPushButton.clickedがマウス押下
+   →解放完了後に発火する「遅さ」が原因と考え、pressed(押下の瞬間)で選択
+   範囲を先読みする対処をしたが、これは`.pressed.emit()`を手動で発火させる
+   テストでしか検証しておらず、実際のマウスクリック(`QTest.mouseClick()`)
+   で再現したところ直っていないことが判明した。真因を掘り下げた結果、
+   「clickedが遅い」のではなく、**QPushButtonの既定フォーカスポリシー
+   (StrongFocus)により、Qtがマウス押下イベントをボタン自身へ配送する前の
+   段階でフォーカスをボタン側へ移してしまい、その時点でQLineEdit側の選択
+   状態が既に失われている**ことが真因だった(この経路はボタン自身の
+   pressed/clickedシグナルよりも早く走るため、pressedで捕捉しても手遅れ)。
+   本質的な修正は、装飾ボタン(太字/イタリック/上付き/下付き/Ω/記号パレット
+   各項目)すべてに`setFocusPolicy(Qt.NoFocus)`を設定し、そもそもフォーカスを
+   渡さないようにすること。pressedでの先読みロジック自体は無害なので保険
+   として残した。
+2. **プロパティウィンドウの背景色、再度の不一致**: 「プロパティウィンドウの
+   背景色が他と違う」。前回`QDockWidget`に`background: {bg}`を追加したが、
+   実機ではまだ違って見えるとの指摘。`app.widgetAt()`でピクセル座標の実体を
+   特定し`QWidget.grab()`で個別に検証したところ、犯人は`QDockWidget`でも
+   `QScrollArea`のビューポート(直下の子)でもなく、その中に`setWidget()`で
+   入れている中身のwidget(`QScrollArea`直下の"孫"、
+   `gui/main_window.py`の`merged_properties_container`)だった。
+   `app.setStyleSheet()`でアプリ全体にQSSを適用すると、Qtの既知の挙動として
+   全`QWidget`が`WA_StyledBackground`扱いになり、明示的な`background`指定の
+   無いプレーンな`QWidget`でも`QPalette`のWindowロール色(このアプリの
+   ライトモードはOSネイティブパレットをそのまま使っているため実測
+   `#F0F0F0`、狙いの`bg`トークン`#F6F7F9`とは肉眼でも判別しづらいほど近いが
+   別の色)で不透明に塗りつぶされてしまい、`QDockWidget`側の`background`
+   指定は完全に覆われて見えなくなっていた。`QScrollArea`・その子(ビュー
+   ポート)・その孫(中身のwidget)の3階層すべてに`{bg}`を明示することで解消。
+3. **`QPushButton:pressed`の背景色も緑のまま**: 「フォント選択/色選択
+   ボタンのクリックした瞬間の色が緑のまま」。`:hover`/`:focus`の枠線は
+   既に`selection_accent`(青)に揃えていたが、`:pressed`の背景だけ
+   ティール系`accent_soft`のまま取り残されていたのを、他の選択系と同じ
+   色相の`selection_highlight`(薄い青の半透明オーバーレイ)に統一した。
+
+**教訓**: QSSの文字列に目的のプロパティが含まれているかどうかを確認する
+テスト(`test_generated_qss_*`系)だけでは、実際に画面へ出る色までは検証
+できない。今回のケースでは`QDockWidget`への`background`追加は正しく実装
+されテストも通っていたが、それより手前の層(`QScrollArea`の中身のwidget)が
+完全に覆い隠していたため、実機では効果が無かった。同様に、シグナルの配線を
+`.pressed.emit()`のように手動で発火させて検証するテストは「配線が正しいか」
+までしか確認できず、Qtの実際のフォーカス遷移タイミングに起因する不具合を
+見逃す。今回のような「実際に描画・実際にクリックさせて確認する」統合テスト
+(`QWidget.grab()`でのピクセル色検証、`QTest.mouseClick()`での実クリック
+再現)を、疑わしい箇所には追加で用意することにした。
+
+**Before/After**(プロパティ背景・pressed色、まとめて):
+
+| ライト | ダーク |
+|---|---|
+| ![プロパティ背景修正(ライト)](screenshots/h2-4/after_properties_bg_fixed_light.png) | ![プロパティ背景修正(ダーク)](screenshots/h2-4/after_properties_bg_fixed_dark.png) |
+
+**After: ボタンpressed色(青)**:
+
+![pressed色](screenshots/h2-4/after_pressed_color_blue.png)
+
+**テスト(追加分・3回目)**: `tests/test_theme.py`に、`QScrollArea`・
+ビューポート・中身のwidgetの3階層すべてに`background: {bg}`が指定されて
+いること、`QPushButton:pressed`の背景が`selection_highlight`を使うことを
+確認するQSS文字列テストを追加。それに加えて今回初めて、`tests/test_main_
+window.py`に**実際にウィジェットを描画してピクセル色を検証する統合テスト**
+(`test_properties_dock_content_actually_renders_bg_token_color`)を追加し、
+`tests/test_dialogs.py`に装飾ボタンの`focusPolicy()`が`NoFocus`である
+ことの確認と、`QTest.mouseClick()`による**実クリック**で選択範囲が正しく
+装飾されることを確認する回帰テスト
+(`test_label_edit_dialog_bold_button_survives_a_real_mouse_click`)を追加した。
+
+### H-2-4 追加分(4回目、mathtextダイアログの複数装飾バグ+レイアウト系8件)
+
+実機フィードバックで一度に8件の指摘が届いた。
+
+1. **プレビュー欄の文字サイズが枠からはみ出す**: 長いmathtext文字列
+   (例: `$\mathbf{wavelength}$ analysis result long title`)がタイトル/
+   軸ラベルのプレビュー欄からはみ出していた。事前にレンダリング時の
+   フォントサイズを縮小する方式(`render_mathtext_to_pixmap(...,
+   max_width_px=...)`)を最初に試したが、呼び出し時点の`widget.width()`が
+   QTabWidgetの非アクティブタブ内や初回表示前は実際のレイアウト確定値と
+   一致しないため、タブ切り替え直後に文字がはみ出したまま更新されない
+   ケースが残った。最終的に**「等倍pixmapを保持しておき、ウィジェット
+   自身の`resizeEvent()`で実際の幅/高さが確定するたびQPixmap.scaled()で
+   都度フィットし直す」**`FitWidthPixmapLabel`(`gui/mathtext_preview.py`
+   新設)に置き換えて解消。タイトル/軸ラベル欄の`_ClickableMathPreviewLabel`
+   (`gui/main_window.py`)とダイアログ内プレビュー(後述)の両方がこれを
+   継承している。
+   - **続報バグ**: 「入力したあとの文字は治ったけど入力する前の
+     『～を入力』はまだボックスにおさまってない」。`_apply_fitted_pixmap()`
+     が幅の超過だけを見て縮小するかどうか判定しており、高さの超過を
+     見ていなかったため、プレースホルダのような幅は十分収まるが天地
+     (高さ31px)がラベルの高さ(18px)を超える短いテキストは、一度も
+     幅方向の縮小条件に引っかからず縦にはみ出したまま残っていた
+     (実際に入力するテキストはmathtext記法込みで横幅が長くなりやすく、
+     その際は幅方向の縮小のついでに高さも比例して縮んでいたため、
+     このケースだけ気づかれずに残っていた)。幅・高さ両方の超過を見て、
+     `QPixmap.scaled(..., Qt.AspectRatioMode.KeepAspectRatio, ...)`で
+     縮小するよう修正して解消。
+2. **mathtextを複数適用するとバグる(例: イタリック+ボールド、上付き+
+   ボールド)**: `LabelEditDialog._apply_wrap()`は装飾操作のたびに結果全体を
+   自動選択する(次の操作に備えるため)。ところが、選択文字列が既に
+   `$\mathbf{wavelength}$`のような「前後を$で囲まれた1個のmathtext断片」に
+   なっていることに気づかず、単純にその断片ごと新しい`$...$`でさらに包んで
+   いたため、`$\mathit{$\mathbf{wavelength}$}$`のように**$が入れ子になった
+   不正なmathtext構文**になっていた。選択文字列が既に$で囲まれた単一の
+   断片であれば中身(内側の$無し部分)だけを取り出してから改めて$で
+   囲み直すよう修正。
+   - さらに、太字(`\mathbf`)とイタリック(`\mathit`)は共にmatplotlib
+     mathtextの「フォントクラス」指定であり、`$\mathit{\mathbf{x}}$`の
+     ように入れ子にしても**内側の指定で上書きされるだけで実際には合成
+     されない**ことを実機検証で確認した(`\mathbf{\mathit{x}}$`はイタリック
+     のみ、`$\mathit{\mathbf{x}}$`はボールドのみになる)。太字と
+     イタリックを組み合わせようとしている場合は、代わりに両方を同時に
+     表現できる`\boldsymbol{...}`(matplotlibのmathtextパーサ内部で
+     Latin文字/ギリシャ文字に対して"bfit"という太字+イタリック合成フォント
+     クラスを直接割り当てる特殊コマンド)に置き換えるようにした。
+3. **実際にボールド/イタリックが適用されたテキストが見たい**: `text_edit`
+   はプレーンな`QLineEdit`のため部分的なリッチテキスト表示はできない
+   (生のmathtext構文のままにせざるを得ない)。代わりに、ダイアログ内に
+   `text_edit`の実描画結果を表示する`preview_label`
+   (`FitWidthPixmapLabel`)を新設し、装飾を適用するたびに実際の見た目
+   (太字/イタリック/上付き/下付き/記号すべて反映済み)を確認できるように
+   した。
+4. **プロパティウィンドウの右側が見切れる**: 3度目の背景色不一致の指摘
+   だったが、実際には既存の`{bg}`指定は効いており、真因は別にあった。
+   プレビューラベルのpixmapがウィジェット自身の幅より大きいままだと、
+   `QLabel`の`sizeHint()`がそのpixmapサイズをそのまま報告し、
+   `formLayout_3`のフィールド列がそのぶん押し広げられて`CONTROL_DOCK_WIDTH`
+   の想定幅を超えてしまう(結果としてドックの右側が見切れる)ことが
+   判明。項目1の`FitWidthPixmapLabel`導入(pixmapを常にウィジェット幅に
+   収める)により、この見切れも副次的に解消された(長いタイトル文字列を
+   全フィールドに同時投入するストレステストで、水平スクロールバーが
+   一切出ないことを確認済み)。
+5. **タブの上に灰色の横線が残っている**(「プロパティ」「エクスポート
+   プレビュー」タブ化ドック): `QTabBar::tab`/`QTabWidget::pane`のQSSでは
+   制御できない別のプリミティブ(タブバーを内容ペインに接続する「土台」線、
+   `PE_FrameTabBarBase`、Fusionスタイルが独自に描画する)が原因と判明。
+   `QTabBar::close-button`やチェックボックスの描画と同じ理由(QSSで
+   スタイルできないサブコントロール)で、`_FlatThemeProxyStyle.
+   drawPrimitive()`にこのプリミティブの描画を丸ごと抑制するケースを追加
+   して解消。
+6. **ドックタイトル下の線も消したい**: 項目5と同じ`PE_FrameTabBarBase`
+   プリミティブが原因である可能性が高く、同じ修正で併せて解消したと
+   考えられる(スタイル全体に適用されるプロキシスタイルの修正のため)。
+7. **プロットパネルの枠線を消す**: `QWidget#plot_container`の`border`
+   プロパティを削除(`background`/`border-radius`によるカード風の背景・
+   角丸は維持)。
+8. **ミニマップの灰色の色味を他の背景と揃える(ただし同じ色にはしない、
+   少し暗く)**: 以前の`#f2f2f2`(ライト)/`#1e1e1e`(ダーク)は無彩色
+   (R=G=B)のフラットグレーで、`gui/theme.py`のトークン(寒色寄り、
+   R<G<Bの傾向)と色味が揃っていなかった。同じ色相を保ちつつ、周囲の
+   パネル背景そのもの(`surface_2`/`bg`)より一段暗いトーン
+   (`#E3E6EB`/`#0E1114`)に変更し、「一段窪んだ独立領域」であることが
+   分かるようにした。
+
+**Before/After**(プレースホルダの縦方向フィット):
+
+| ライト | ダーク |
+|---|---|
+| ![プレースホルダ(ライト)](screenshots/h2-4/after_placeholder_fit_light.png) | ![プレースホルダ(ダーク)](screenshots/h2-4/after_placeholder_fit_dark.png) |
+
+**After: 太字+イタリックの組み合わせ(\boldsymbol)+ダイアログ内プレビュー**:
+
+![boldsymbol合成](screenshots/h2-4/after_boldsymbol_combine.png)
+
+**Before/After**(タブ上部の灰色の線):
+
+![タブ線消去後](screenshots/h2-4/after_tabbar_base_line_removed.png)
+
+**Before/After**(プロットパネルの枠線):
+
+| ライト | ダーク |
+|---|---|
+| ![枠線なし(ライト)](screenshots/h2-4/after_plotpanel_no_border_light.png) | ![枠線なし(ダーク)](screenshots/h2-4/after_plotpanel_no_border_dark.png) |
+
+**テスト(追加分・4回目)**: `tests/test_mathtext_preview.py`に
+`FitWidthPixmapLabel`が既に収まる場合はそのまま・幅超過時は縮小・
+**高さのみ超過**の場合も縮小・`resizeEvent()`での再フィット追従・
+`_natural_pixmap`未設定時にクラッシュしないことを確認するテストを追加。
+`tests/test_dialogs.py`に太字→イタリック/イタリック→太字それぞれの
+`\boldsymbol`合成、上付き+太字の二重$なし合成、通常の単発装飾、ダイアログ内
+プレビューの初期表示・textChanged追従を確認するテストを追加。
+`tests/test_theme.py`に`QWidget#plot_container`の`border`が無いこと、
+`_FlatThemeProxyStyle`が`PE_FrameTabBarBase`の描画を基底スタイルへ
+委譲しない(抑制する)ことを確認するテストを追加。`tests/test_minimap_widget.py`
+に軸背景色が無彩色グレーではなく寒色寄りの色相を持つこと、既存の
+`surface_2`/`bg`トークンより暗いことを確認するテストを追加。

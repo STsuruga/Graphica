@@ -27,15 +27,34 @@
 入力フィールド・コンボボックス)完了。フルスイート574件グリーン確認済み。
 `docs/roadmap.html`の#42/#43チェック更新・Artifact再publish・
 `docs/gui_style_audit.md`/`docs/GUI_MODERNIZATION_PROGRESS.md`への記録は
-実施済み。この後、H-2-4完了後にもさらに実機フィードバックが続き、
-「H-2-4追加分」として同日中に追加対応し、さらにその後の実機フィードバック
-5件(下記「さらにその後の実機フィードバックで5件追加対応」)にも対応した。
-フルスイート616件グリーン確認済み(2026-08-08)。ロードマップの#42/#43自体は
-既にtrueなので追加の番号更新は不要、`docs/gui_style_audit.md`/
-`docs/GUI_MODERNIZATION_PROGRESS.md`への記録は実施済み。この後コミット・
-pushする。
+実施済み。H-2-4完了後、実機フィードバックが4ラウンド続き(「追加分」
+「追加分(続き)」「追加分(3回目)」「追加分(4回目)」)、いずれも対応・
+テスト追加・フルスイートグリーン確認済み。**詳細はこのファイルではなく
+`docs/GUI_MODERNIZATION_PROGRESS.md`の該当行(表形式)と
+`docs/gui_style_audit.md`の対応する節(Before/After画像付き)を参照すること**
+(このファイルは過去の完了履歴を積み上げる場所ではないため、詳細記述は
+移した)。
 
-**H-2-4追加分で実施した変更**:
+**H-2-4追加分(4回目)もフルスイート636件グリーン確認済み**(2026-08-08)。
+
+**教訓(4ラウンド通じて繰り返し得られた重要な知見、今後も踏まえること)**:
+- QSS文字列の存在チェックだけのテストでは実際の描画色/レイアウトを検証
+  できない(QDockWidgetへの`background`指定は正しかったが、その手前の層
+  ―QScrollAreaの中身のwidget、あるいはpixmapサイズがsizeHintを押し広げる
+  ―が実際の見た目を決めていた、という「対策した箇所より手前/奥に真因が
+  あった」パターンが複数回発生した)。疑わしい箇所には`QWidget.grab()`での
+  ピクセル色検証や実際のwidgetサイズ検証を伴う統合テストを追加すること。
+- シグナルを`.pressed.emit()`のように手動発火するテストは「配線が正しいか」
+  までしか検証できず、Qtの実際のフォーカス遷移タイミングに起因する不具合
+  (今回はQPushButtonの既定フォーカスポリシーがマウス押下配送前にフォーカス
+  を奪う問題)を見逃す。疑わしい箇所には`QTest.mouseClick()`による実クリック
+  再現を伴うテストを追加すること。
+- 「幅方向だけ対策して高さ方向を見落とす」「長い/複雑な入力でしか再現しない
+  不具合が短い/単純な入力(プレースホルダ等)にも実は残っている」ケースが
+  あるため、修正後は両極端な入力(最短/最長、装飾なし/複数装飾の組み合わせ)
+  で個別に確認すること。
+
+**H-2-4追加分で実施した変更(1回目)**:
 - フォーカス/選択/チェック状態の色をすべて新設`selection_accent`
   (opaqueな青、`#2563EB`/`#3B82F6`)に統一: ボタン/入力欄の`:focus`枠線、
   `QDockWidget[dockActive="true"]`(H-2-3)の枠線、`QTabBar::tab:selected`の
@@ -53,60 +72,13 @@ pushする。
   (`LABEL_SYMBOL_PALETTE`)もギリシャ文字16種+算術・数学記号16種の計32種に
   拡張。`gui/mixins/settings_mixin.py`/`gui/mixins/ui_setup_mixin.py`の
   旧実装(`_capture_label_format_selection`等)は削除。
-- **さらにその後の実機フィードバックで5件追加対応(この節が最新)**:
-  1. `QDockWidget`に`background: {bg};`が無く(border/border-radiusのみ)、
-     OSネイティブパレット色が透けていたのが「プロパティウィンドウの背景色が
-     そのまま」の真因と判明→追加して解消。
-  2. `LabelEditDialog`のB/I/x²/x₂/Ωボタンが`QPushButton.clicked`(フォーカス
-     移動後に発火)経由で選択状態を見ていたため、「選択してからボタンを押すと
-     未選択と言われる」バグが再発→過去にも踏んだのと同じ「`pressed`シグナルで
-     選択範囲を先に捕捉する」パターンで解消(`_capture_pending_selection`を
-     4ボタン+Ωボタンの`pressed`に接続、`_apply_wrap`/`_insert_symbol`は
-     捕捉済み状態のみを参照)。
-  3. タイトル/軸ラベルの入力欄自体をクリックしたら`LabelEditDialog`が開くよう
-     変更。既存の`QLineEdit`(`title_text_edit`等)は非表示のまま
-     データ保持・シグナル配線用に残し、可視/クリック可能な新規ウィジェット
-     `_ClickableMathPreviewLabel`(`gui/main_window.py`)を`QHBoxLayout`で
-     ラップして`formLayout_3`に`replaceWidget`。
-  4. 上記プレビューラベルにmathtextの実描画結果(pixmap)を表示する
-     `gui/mathtext_preview.py`を新規作成(`matplotlib.figure.Figure`+
-     `FigureCanvasAgg`で描画→アルファ>0の範囲だけクロップ)。`textChanged`
-     およびダイアログAccept時に再レンダリング。
-     - **日本語グリフの欠落に対処**: matplotlibの既定フォント(DejaVu Sans)は
-       日本語グリフを持たないため、プレースホルダ("タイトルを入力"等)や
-       実際の日本語タイトルがtofuボックスになる不具合が発覚。
-       `fig.text(..., family=["DejaVu Sans", "Yu Gothic", "Meiryo",
-       "MS Gothic"])`のフォールバックリストで解消(`main.py`の
-       `APP_FONT_FAMILIES`はQtのフォント名で"UI"サフィックス付きのため
-       matplotlibのfont_managerには見つからない→別途matplotlib側で存在
-       確認済みの名前を用意した)。
-       **既知の残課題**: この対処はプレーンテキスト経路のみに効き、
-       `"$\alpha$ vs 時間"`のようにmathtext記法と日本語が同一文字列に
-       混在する場合は、mathtextパーサがfamily指定を経由しない独自の
-       フォントセット(`mathtext.fontset` rcParam)で描画するため、日本語側は
-       依然tofuになる(matplotlibのmathtextエンジンがWindowsの`.ttc`書体から
-       グリフを正しく解決できないことに起因すると推測、`findfont()`自体は
-       正常に`.ttc`パスを返すため原因はより深い)。これは本プレビュー機能
-       固有の問題ではなく、実際のプロット本体(`gui/canvas.py`の
-       `ax.set_title()`等、`axis_label_font`未設定時)も同じ制約を抱える
-       アプリ全体の既存の限界であり、`mathtext.fontset`はmatplotlibの
-       rcParams(プロセス全体のグローバル状態)を書き換える必要があって
-       全プロット描画に影響するため、対応はスコープ外として見送った。
-  5. `QPushButton:hover`の`border-color`だけ`{accent}`(ティール)のまま
-     更新漏れになっていたのを`{selection_accent}`に統一(「フォーカスは
-     青なのにhoverが緑のまま」を解消)。
-  - ダークモード切替時にプレビューが旧配色のまま残らないよう、
-    `_on_toggle_dark_mode`(`gui/mixins/ui_setup_mixin.py`)から
-    `_refresh_all_label_previews()`を呼ぶよう追加。テーマトークンへの
-    汎用アクセサ`theme.current_tokens()`を新設。
-  - テスト追加: `tests/test_mathtext_preview.py`(新規)、
-    `tests/test_theme.py`(dock背景/hover色/`current_tokens`)、
-    `tests/test_main_window.py`(プレビューウィジェット登録・クリックで
-    ダイアログが開く・textChangedでpixmap更新・ダークモード切替での
-    再レンダリング・`_ClickableMathPreviewLabel`のシグナル/hover属性)。
-  - スクリーンショット: `docs/screenshots/h2-4/after_dock_bg_and_preview_*.png`,
-    `after_click_to_open_dialog.png`, `after_hover_color_blue.png`,
-    `after_jp_mathtext_preview_*.png`。
+- タイトル/軸ラベルのmathtextライブプレビュー(`gui/mathtext_preview.py`、
+  日本語グリフフォールバック、`FitWidthPixmapLabel`による幅/高さ自動フィット)、
+  クリックで`LabelEditDialog`が開く`_ClickableMathPreviewLabel`、複数装飾の
+  合成(`\boldsymbol`)、タブ上部の灰色線・プロットパネル枠線・ミニマップ配色
+  等、以降の4ラウンドの詳細は`docs/GUI_MODERNIZATION_PROGRESS.md`の
+  「H-2-4追加分」〜「H-2-4追加分(4回目)」行と`docs/gui_style_audit.md`の
+  対応節(Before/After画像付き)を参照。
 
 H-2-3で実施した変更:
 - `QDockWidget`に枠線+角丸(8px)を追加(`plot_container`と同じ「1枚の
@@ -160,9 +132,9 @@ H-2は8つのサブ項目(H-2-1〜H-2-8、ロードマップ#40〜47)を1つず�
 必要なら`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を読んでから
 着手する。
 
-**H-2-3/H-2-4本体 + 「H-2-4追加分」+「H-2-4追加分(続き)」5件修正、すべて
-コミット・push済み**(コミット`15098f4`、2026-08-08、フルスイート616件
-グリーン確認済み)。H-2-4系の作業はこれで一区切り。
+**H-2-3/H-2-4本体 + 「H-2-4追加分」〜「H-2-4追加分(4回目)」まで、すべて
+フルスイートグリーン確認済み**(2026-08-08、最終636件)。この後コミット・
+pushする。H-2-4系の作業はこれで一区切り。
 
 トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
 (`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。

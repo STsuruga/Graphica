@@ -1,4 +1,5 @@
 import logging
+import re
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
@@ -16,6 +17,7 @@ from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices
 
 from gui import icon_utils
 from gui.theme import apply_form_spacing
+from gui.mathtext_preview import FitWidthPixmapLabel
 
 logger = logging.getLogger(__name__)
 
@@ -2525,6 +2527,21 @@ class LabelEditDialog(QDialog):
         self.text_edit.setFont(larger_font)
         layout.addWidget(self.text_edit)
 
+        # ★ 実機フィードバック: 「ボタンを押してmathtext形式で書かれたラベルが
+        #   出力されるんじゃなくて実際にボールドとかイタリックとかが適用
+        #   されてるテキストが見れるようにしたい」。text_edit自体はQLineEdit
+        #   なので部分的なリッチテキスト表示はできない(生のmathtext構文の
+        #   ままにせざるを得ない)。代わりに、実際の描画結果をレンダリングする
+        #   プレビュー欄をtext_editの下に常設し、太字/イタリック等を適用する
+        #   たびに実際に適用された見た目を確認できるようにする(タイトル/
+        #   軸ラベル欄本体のプレビュー、gui/mathtext_preview.pyを流用)。
+        self.preview_label = FitWidthPixmapLabel()
+        self.preview_label.setObjectName("mathtext_preview_label")
+        self.preview_label.setMinimumHeight(36)
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.preview_label)
+        self.text_edit.textChanged.connect(self._refresh_preview)
+
         button_row = QHBoxLayout()
         button_row.setSpacing(4)
 
@@ -2534,6 +2551,9 @@ class LabelEditDialog(QDialog):
             button.setToolTip(tooltip)
             button.setProperty("iconOnly", True)
             button.setFixedSize(28, 28)
+            # ★ 実機フィードバック(バグ報告、下記参照): この装飾ボタンが
+            #   フォーカスを奪わないようにするための本質的な修正。
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             button_row.addWidget(button)
             return button
 
@@ -2543,24 +2563,36 @@ class LabelEditDialog(QDialog):
         subscript_button = _make_icon_button("subscript", "下付き文字")
 
         # ★ 実機フィードバック(バグ報告): 「文字選択してハイライトされてから
-        #   ボタン押しても文字を選択してって出る」。QPushButton.clickedは
-        #   マウスの押下→解放が完了した後に発火するが、その間にボタンへ
-        #   フォーカスが移り、QLineEdit側の選択範囲が失われてしまう環境が
-        #   ある(以前の実装(gui/mixins/settings_mixin.py、削除済み)でも
-        #   全く同じ理由で「pressed時点で選択範囲を保存しておく」回避策を
-        #   取っていた)。このダイアログでも同じ回避策を踏襲する: 選択範囲は
-        #   pressed(フォーカスが移る前)の時点で確定させ、実際の装飾/挿入処理は
-        #   その確定値を使う。
+        #   ボタン押しても文字を選択してって出る」。
+        #   当初は「QPushButton.clickedはマウスの押下→解放が完了した後に発火
+        #   するため、pressed(押下の瞬間)で選択範囲を保存しておけば間に合う」
+        #   という仮説で対処したが、実際にQTest.mouseClick()で実クリックを
+        #   再現したところ、pressedが発火する時点で既にtext_edit.
+        #   hasSelectedText()がFalseになっており、直っていなかったことが判明。
+        #   真因は「clickedが遅い」ことではなく、QAbstractButton系ウィジェットの
+        #   既定フォーカスポリシー(StrongFocus)により、Qtがマウス押下イベントを
+        #   ボタンへ配送する"前"にフォーカスをボタン側へ移してしまい、その
+        #   フォーカスアウトでQLineEdit側の選択状態が失われてしまうこと
+        #   (この経路はボタン自身のpressed/clickedシグナルより早く走るため、
+        #   pressedで捕捉しても既に手遅れ)。
+        #   本質的な修正は、これらの装飾ボタンにフォーカスを一切渡さないこと
+        #   (上の_make_icon_button内でsetFocusPolicy(Qt.NoFocus)を設定)。
+        #   これによりボタンをクリックしてもtext_edit側のフォーカス・選択状態が
+        #   維持されたまま保たれる。pressedでの事前捕捉ロジック自体は無害かつ
+        #   (フォーカスが移らない環境が万一あった場合の)保険として残す。
         self._pending_selection = None  # (start, selected_text) または選択なしならNone
         self._pending_cursor = 0
 
         for button in (bold_button, italic_button, superscript_button, subscript_button):
             button.pressed.connect(self._capture_pending_selection)
 
-        bold_button.clicked.connect(lambda: self._apply_wrap(lambda s: f"$\\mathbf{{{s}}}$"))
-        italic_button.clicked.connect(lambda: self._apply_wrap(lambda s: f"$\\mathit{{{s}}}$"))
-        superscript_button.clicked.connect(lambda: self._apply_wrap(lambda s: f"${{}}^{{{s}}}$"))
-        subscript_button.clicked.connect(lambda: self._apply_wrap(lambda s: f"${{}}_{{{s}}}$"))
+        # ★ 実機フィードバック(バグ報告): 「mathtextを複数適用しようとすると
+        #   (例: イタリック+ボールド、上付き+ボールド)バグる」。
+        #   kind引数の意味とバグの詳細は_apply_wrap()のdocstring参照。
+        bold_button.clicked.connect(lambda: self._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}"))
+        italic_button.clicked.connect(lambda: self._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}"))
+        superscript_button.clicked.connect(lambda: self._apply_wrap("super", lambda s: f"{{}}^{{{s}}}"))
+        subscript_button.clicked.connect(lambda: self._apply_wrap("sub", lambda s: f"{{}}_{{{s}}}"))
 
         # ★ 項目81(mathtext拡充)のギリシャ文字/記号パレットは、以前と同じく
         #   小さなグリッドパネルをQMenuに埋め込む形のポップオーバーとして残す
@@ -2572,6 +2604,9 @@ class LabelEditDialog(QDialog):
         symbol_button.setProperty("iconOnly", True)
         symbol_button.setFixedSize(28, 28)
         symbol_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # QToolButtonは既定でNoFocus(QPushButtonと異なりStrongFocusではない)
+        # だが、上の装飾ボタンと同じ理由により明示的に指定しておく。
+        symbol_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         # ★ 上と同じ理由(ポップアップを開く動作自体でQLineEditの選択範囲が
         #   失われうる)で、メニューが開く前のpressedで選択範囲を確定させる。
         symbol_button.pressed.connect(self._capture_pending_selection)
@@ -2586,6 +2621,7 @@ class LabelEditDialog(QDialog):
             item_button.setText(glyph)
             item_button.setToolTip(f"\\{macro}")
             item_button.setFixedSize(26, 26)
+            item_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             item_button.clicked.connect(
                 lambda checked=False, m=macro, sm=symbol_menu: (self._insert_symbol(m), sm.close())
             )
@@ -2606,6 +2642,27 @@ class LabelEditDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
+        self._refresh_preview()
+
+    def _refresh_preview(self):
+        """
+        text_editの現在の内容を実際にレンダリングし、preview_labelへ反映する。
+        タイトル/軸ラベル欄本体のライブプレビュー(gui/mixins/settings_mixin.py
+        の_refresh_label_preview)と同じ考え方・同じレンダラ(gui/
+        mathtext_preview.py)を、このダイアログ内のtext_edit用に流用している。
+        """
+        from gui import theme
+        from gui.mathtext_preview import render_mathtext_to_pixmap
+
+        tokens = theme.current_tokens()
+        text = self.text_edit.text()
+        color = tokens["text_primary"] if text else tokens["text_muted"]
+        pixmap = render_mathtext_to_pixmap(text if text else " ", color=color, fontsize=15)
+        # ★ 実機フィードバック: 「ここの文字サイズを枠内に収まるようにして」。
+        #   set_natural_pixmap()がpreview_label自身の実際の幅に合わせて
+        #   自動的に縮小する(FitWidthPixmapLabel、gui/mathtext_preview.py参照)。
+        self.preview_label.set_natural_pixmap(pixmap)
+
     def _capture_pending_selection(self):
         """
         装飾/記号ボタンが「押された瞬間」(pressed)に呼ばれ、その時点の
@@ -2623,13 +2680,44 @@ class LabelEditDialog(QDialog):
             self._pending_selection = None
         self._pending_cursor = self.text_edit.cursorPosition()
 
-    def _apply_wrap(self, wrap_fn):
+    # 既に$...$で囲まれた1個のmathtext断片全体(ちょうど直前の装飾操作の結果)が
+    # 選択されているかどうかを判定するための正規表現群。_apply_wrap()参照。
+    _MATH_SPAN_RE = re.compile(r'^\$(.*)\$$', re.DOTALL)
+    _MATHBF_RE = re.compile(r'^\\mathbf\{(.*)\}$', re.DOTALL)
+    _MATHIT_RE = re.compile(r'^\\mathit\{(.*)\}$', re.DOTALL)
+
+    def _apply_wrap(self, kind, wrap_fn):
         """
         太字/イタリック/上付き/下付きボタン共通の処理。pressed時点で確定させた
         _pending_selection(選択範囲が失われる前に保存したもの、__init__の
         _capture_pending_selection参照)を使い、選択されていた文字列を
-        wrap_fn()が返すmathtext片で置き換える(matplotlibはタイトル/ラベル
-        文字列中の$...$区間を自動的にmathtextとして解釈する)。
+        wrap_fn()が返すmathtextの中身(前後の$は含まない)で置き換え、
+        改めて$...$で囲む。
+
+        Args:
+            kind (str): "bold"/"italic"/"super"/"sub"のいずれか。
+                "bold"/"italic"の組み合わせ検出にのみ使う。
+            wrap_fn (callable): 中身の文字列を受け取り、装飾後の中身
+                (前後の$は含まない断片、例: "\\mathbf{...}")を返す関数。
+
+        ★ 実機フィードバック(バグ報告): 「mathtextを複数適用しようとすると
+        (例: イタリック+ボールド、上付き+ボールド)バグる」。
+        このダイアログは各装飾操作の後、置き換えた範囲を丸ごと選択状態にする
+        (末尾のsetSelection参照)ため、続けて別の装飾ボタンを押すと、選択
+        文字列は既に"$\\mathbf{wavelength}$"のような、前後を$で囲まれた
+        1個のmathtext断片になっている。これに気づかず単純にwrap_fn()の結果を
+        新しい$...$でさらに包んでいたため、"$\\mathit{$\\mathbf{wavelength}$}$"
+        のように$が入れ子になった不正なmathtext構文になっていた。
+        対策として、選択文字列が既に$...$で囲まれた単一の断片であれば、まず
+        中身(内側の$無し部分)だけを取り出してから改めて$...$で囲み直す。
+
+        さらに、太字(\\mathbf)とイタリック(\\mathit)は共にmatplotlib
+        mathtextの「フォントクラス」指定であり、$\\mathit{\\mathbf{x}}$の
+        ように入れ子にしても内側の指定で上書きされるだけで実際には合成
+        されない(実機検証済み)。太字とイタリックを組み合わせようとしている
+        場合(既存の中身が\\mathbf{...}でこれからイタリックを適用する、また
+        はその逆)は、代わりに太字とイタリックを同時に表現できる
+        \\boldsymbol{...}に置き換える。
         """
         if not self._pending_selection:
             QMessageBox.information(
@@ -2637,7 +2725,21 @@ class LabelEditDialog(QDialog):
             )
             return
         start, selected = self._pending_selection
-        replacement = wrap_fn(selected)
+        span_match = self._MATH_SPAN_RE.match(selected)
+        inner = span_match.group(1) if span_match else selected
+
+        combined = None
+        if kind == "bold":
+            m = self._MATHIT_RE.match(inner)
+            if m:
+                combined = f"\\boldsymbol{{{m.group(1)}}}"
+        elif kind == "italic":
+            m = self._MATHBF_RE.match(inner)
+            if m:
+                combined = f"\\boldsymbol{{{m.group(1)}}}"
+
+        new_inner = combined if combined is not None else wrap_fn(inner)
+        replacement = f"${new_inner}$"
         text = self.text_edit.text()
         self.text_edit.setText(text[:start] + replacement + text[start + len(selected):])
         self.text_edit.setSelection(start, len(replacement))

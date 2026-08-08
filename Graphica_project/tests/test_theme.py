@@ -576,6 +576,37 @@ def test_generated_qss_uses_selection_accent_for_button_hover_border():
     )
 
 
+def test_generated_qss_gives_scroll_area_and_its_content_widget_a_background():
+    """
+    実機フィードバック「プロパティウィンドウの背景色が他と違う」の回帰テスト
+    (QDockWidgetにbackgroundを追加した後も再発した、その2回目の修正)。
+
+    実測(widgetAt()での特定+QWidget.grab()での分離検証)の結果、QScrollArea
+    自体やそのビューポート(QScrollArea直下の子QWidget)にbackgroundを
+    指定しただけでは不十分で、setWidget()で入れている中身のwidget
+    (QScrollArea直下の"孫"QWidget)がアプリ全体QSSの副作用でOSネイティブの
+    パレットWindowロール色を不透明に描画してしまい、これが実際に見えている
+    色だったと判明した。QScrollArea・その子・その孫の3階層すべてに{bg}が
+    指定されていることを確認する。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(r"^QScrollArea\s*\{[^}]*background:\s*#F6F7F9", qss, re.MULTILINE)
+    assert re.search(r"QScrollArea > QWidget\s*\{[^}]*background:\s*#F6F7F9", qss)
+    assert re.search(r"QScrollArea > QWidget > QWidget\s*\{[^}]*background:\s*#F6F7F9", qss)
+
+
+def test_generated_qss_uses_selection_highlight_for_button_pressed_background():
+    """
+    実機フィードバック「フォント選択/色選択ボタンのクリックした瞬間の色が
+    緑のまま」の回帰テスト。:hover/:focusの枠線は既に青系に揃えていたが、
+    :pressedの背景だけティール系accent_softのまま取り残されていた。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    assert re.search(
+        r"QPushButton:pressed\s*\{[^}]*background:\s*rgba\(37, 99, 235", qss
+    )
+
+
 def test_current_tokens_returns_light_tokens_by_default(qapp, monkeypatch):
     monkeypatch.setattr(theme, "_current_tokens", None)
     assert theme.current_tokens() == theme.LIGHT_TOKENS
@@ -614,3 +645,38 @@ class TestArrowIconSizesMatch:
         combo_down = self._extract_arrow_size(qss, "QComboBox::down-arrow")
 
         assert spin_up == spin_down == combo_down
+
+
+def test_generated_qss_removes_border_from_plot_container():
+    """
+    実機フィードバック「プロットパネルの枠線も消して」の回帰テスト。
+    背景・角丸は維持しつつborderプロパティが無いことを確認する。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    match = re.search(r"QWidget#plot_container\s*\{([^}]*)\}", qss)
+    assert match, "QWidget#plot_container のルールが見つかりません"
+    body = match.group(1)
+    assert "border:" not in body
+    assert "background:" in body
+    assert "border-radius:" in body
+
+
+def test_flat_theme_proxy_style_suppresses_tab_bar_base_frame(qapp):
+    """
+    実機フィードバック(画像提示)「プロパティ/エクスポートプレビュー」タブ
+    (タブ化したQDockWidget)の上に出ていた灰色の横線の回帰テスト。
+    QTabBar::tab等のQSSでは制御できないPE_FrameTabBarBaseプリミティブを
+    _FlatThemeProxyStyle.drawPrimitive()で抑制していることを確認する。
+    """
+    from unittest.mock import MagicMock
+    from PySide6.QtWidgets import QStyleOptionTabBarBase
+
+    base_style = QStyleFactory.create('Fusion')
+    base_style.drawPrimitive = MagicMock()
+    proxy = theme._FlatThemeProxyStyle(base_style, theme.LIGHT_TOKENS)
+
+    option = QStyleOptionTabBarBase()
+    painter = QPainter()
+    proxy.drawPrimitive(QStyle.PrimitiveElement.PE_FrameTabBarBase, option, painter, None)
+
+    base_style.drawPrimitive.assert_not_called()
