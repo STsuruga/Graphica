@@ -648,6 +648,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.layout_edit_action.triggered.connect(self._toggle_layout_edit_mode)
         toolbar.addAction(self.layout_edit_action)
 
+        # --- ★ ツールバーにカスタムボタン (ズームリセット) を追加 ★ ---
+        # マウスドラッグ/矩形選択等で拡大した表示を、設定通りの既定表示に戻す。
+        self.reset_zoom_action = QAction(
+            _svg_icon("refresh"),  # Tabler Icons "refresh"
+            tr("表示をリセット (拡大/パンを元に戻す)"),
+            self
+        )
+        self.reset_zoom_action.triggered.connect(self._reset_zoom)
+        toolbar.addAction(self.reset_zoom_action)
+
         # ★ 統計情報ボタン(項目106)はこの時点ではまだ self.stats_summary_label が
         #   存在しないため、それが作られた後のセクションでこの `toolbar` 変数を
         #   使って追加する(__init__の同じメソッドスコープ内なので参照可能)。
@@ -1779,6 +1789,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.project_state_changed.emit()
         except Exception as e:
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
+
+    def _reset_zoom(self):
+        """
+        ツールバー/マウスドラッグ等で拡大・パンした表示を、設定通りの既定表示
+        (各軸のautoscale設定に従った全データ表示、または明示的に指定された
+        軸範囲)に戻す。matplotlib純正のNavigationToolbar2QT自身のHomeボタンは
+        内部で拡大操作時のAxesをキャッシュしているが、このアプリでは
+        _update_plot()がfig.clf()で毎回Axesを作り直すため、作り直しを挟んだ
+        後はHomeボタンのキャッシュが古いAxesを指したまま効かなくなることが
+        ある(gui/canvas.pyのdocstring記載の既知の制約と同根)。ここでは
+        キャッシュに頼らず、常に効く_update_plot()のフル再描画をそのまま
+        使うことで確実にリセットする。
+        """
+        self._update_plot()
 
     def _update_plot(self):
         """グラフ全体を再描画する（MVC対応版）"""

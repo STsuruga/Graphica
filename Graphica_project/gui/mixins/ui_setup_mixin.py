@@ -594,6 +594,8 @@ class UISetupMixin:
             self.annotation_action.setIcon(_svg_icon("message-2"))
         if hasattr(self, 'layout_edit_action'):
             self.layout_edit_action.setIcon(_svg_icon("layout-grid"))
+        if hasattr(self, 'reset_zoom_action'):
+            self.reset_zoom_action.setIcon(_svg_icon("refresh"))
         if hasattr(self, 'stats_toolbar_button'):
             self.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
         if hasattr(self, 'manage_palette_action'):

@@ -88,18 +88,23 @@ class MainAppWindow(QMainWindow):
         add_tab_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         add_tab_button.clicked.connect(lambda: self.add_new_project_tab())
 
-        # Undo履歴パネルの表示/非表示切り替えボタン(項目C-901)。専用アイコンの
-        # 手持ちが無いため(assets/icons/参照、外部から新規調達するほどでもない
-        # ため)、他の低頻度操作ボタン(dataset_overflow_button の "⋯")と同じ
-        # 方針でテキストボタンにする。
+        # Undo履歴パネルの表示/非表示切り替えボタン(項目C-901)。他のツールバー
+        # 類と統一感を持たせるため、Tabler Iconsの"history"アイコンを使う。
+        # ★ setDefaultAction()はボタンのアイコン/ツールチップ/チェック状態を
+        #   紐付けたQAction側のものに同期させる(=後からボタン側にsetIcon()/
+        #   setToolTip()しても上書きされて消える)ため、アイコン/ツールチップは
+        #   必ずQAction(toggleViewAction()の戻り値)側に設定してから
+        #   setDefaultAction()に渡す。
+        undo_history_action = self.undo_history_dock.toggleViewAction()
+        undo_history_action.setIcon(svg_icon("history", size=18))
+        undo_history_action.setToolTip("Undo履歴パネルの表示/非表示")
         undo_history_button = QToolButton()
         undo_history_button.setObjectName("undo_history_button")
-        undo_history_button.setText("履歴")
-        undo_history_button.setToolTip("Undo履歴パネルの表示/非表示")
+        undo_history_button.setIconSize(QSize(18, 18))
         undo_history_button.setCursor(Qt.CursorShape.PointingHandCursor)
         undo_history_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         undo_history_button.setCheckable(True)
-        undo_history_button.setDefaultAction(self.undo_history_dock.toggleViewAction())
+        undo_history_button.setDefaultAction(undo_history_action)
 
         corner_widget = QWidget()
         corner_layout = QHBoxLayout(corner_widget)
