@@ -747,3 +747,112 @@ window.py`に**実際にウィジェットを描画してピクセル色を検�
 委譲しない(抑制する)ことを確認するテストを追加。`tests/test_minimap_widget.py`
 に軸背景色が無彩色グレーではなく寒色寄りの色相を持つこと、既存の
 `surface_2`/`bg`トークンより暗いことを確認するテストを追加。
+
+## H-2-6. ダイアログ群(環境設定/エクスポート設定/フィット等)
+
+`gui/dialogs.py`配下の25個の`QDialog`サブクラス全てを、ライト/ダーク両モードで
+実際にレンダリングして目視確認した(バックグラウンドAgent2体を並行展開し、
+13件・12件に分けて監査)。**大半(22/25)は既にH-2-1〜H-2-4のグローバルQSSを
+自動的に継承しており、追加の個別対応は不要**という結果だった(ボタンの
+hover/pressed/focus、チェックボックス、リストの選択ハイライト等が
+いずれも既存の`selection_accent`/`selection_highlight`規約通り)。
+実際に問題が見つかったのは3件で、いずれも**「QSSではなく個別ウィジェットの
+実装に起因するバグ」**という共通点があった。
+
+1. **`ColorPaletteDialog`(配色パレット管理ダイアログ)の色見本が読めない
+   (最重要)**: `_refresh_color_list()`が`QListWidgetItem.setBackground()`/
+   `setForeground()`で行全体をパレット色に塗り、明るさに応じて文字色を
+   白/黒に自動選択していた。ところが`gui/theme.py`の
+   `QTreeWidget::item, QListWidget::item, QTableWidget::item { padding:
+   3px; }`規則が、パディングの指定だけであっても`::item`サブコントロールを
+   「QSSでカスタム描画されるもの」とみなしてしまい、Qtは
+   `BackgroundRole`/`ForegroundRole`(=`setBackground`/`setForeground`が
+   書き込む先)を描画時に無視するようになる。これは本コードベースで
+   既に複数回踏んでいる既知のQt/QSSの癖(`QTabBar::close-button`の
+   アイコン消失、チェックボックスのチェックマーク消失と同根)で、
+   実機では常にリストの地の色(`surface`トークン)がそのまま描画され、
+   文字色だけが(見えない背景を前提に選ばれた)白または黒になっていた
+   結果、ライトモードでは明るい色(青・緑)が白地に白文字で、ダークモードでは
+   逆に暗い色が暗い地に暗い文字で、それぞれ消えて見えなくなっていた。
+   対策として、行の描画をQSSに委ねず`setItemWidget()`で小さな正方形の
+   スウォッチ(`ColorPickerWidget`と同じ意匠、枠線は`border_strong`
+   トークン)+通常のテーマ文字色のテキストラベルという専用ウィジェットに
+   置き換えた。テキストが常にテーマの通常文字色で描画されるため、
+   スウォッチがどんな明るさでも可読性の問題が起きなくなった。
+2. **`HelpDialog`/`CalcHelpDialog`の表見出し行がダークモードで見えない**:
+   mathtextリファレンス・列計算リファレンスの各表(計9箇所)が、見出し行に
+   `style="background-color: #f0f0f0;"`という固定の薄いグレーをHTML内に
+   直接ハードコードしていた。ライトモードでは問題なかったが、ダーク
+   モードでは薄グレーの塊がほぼ見えないまま浮き、見出し文字も判読できない
+   状態だった。HTML内の該当箇所を`class="header-row"`に置き換え、実際の
+   色は`QTextDocument.setDefaultStyleSheet()`経由で現在のテーマトークン
+   (`surface_2`/`text_primary`)から注入するようにした(ダイアログは
+   都度新規に構築されるため、テーマ切替の都度再生成する仕組みは不要)。
+3. **`ColorPickerWidget`のスウォッチ枠線が固定色(H-0で既知)**: データセット
+   プロパティの色選択欄が`rgba(128, 128, 128, 110)`という`gui/theme.py`の
+   トークンと無関係な固定グレー枠線を使っていた。`border_strong`トークンを
+   参照するよう変更し、ダークモード切替時に再描画する`refresh_theme()`を
+   新設(`_on_toggle_dark_mode`から呼ぶ)。
+
+**Before/After**(ColorPaletteDialog、色が全て読めるようになった):
+
+| ライト(カスタムパレット) | ダーク(カスタムパレット) |
+|---|---|
+| ![カスタム(ライト)](screenshots/h2-6/after_colorpalette_fixed_light.png) | ![カスタム(ダーク)](screenshots/h2-6/after_colorpalette_fixed_dark.png) |
+
+Matplotlib既定パレット(青・オレンジ・緑、以前は白文字選択の青・緑が
+ライトモードで見えなかった組み合わせ):
+
+![既定パレット(ライト)](screenshots/h2-6/after_colorpalette_default_light.png)
+
+**Before/After**(HelpDialog、表見出し行):
+
+| ライト | ダーク |
+|---|---|
+| ![HelpDialog(ライト)](screenshots/h2-6/after_helpdialog_light.png) | ![HelpDialog(ダーク)](screenshots/h2-6/after_helpdialog_dark.png) |
+
+**After**(CalcHelpDialog、ダークモード、2つの表とも見出しが読める):
+
+![CalcHelpDialog(ダーク)](screenshots/h2-6/after_calchelpdialog_dark.png)
+
+**Before/After**(ColorPickerWidgetのスウォッチ枠線):
+
+| ライト | ダーク |
+|---|---|
+| ![スウォッチ(ライト)](screenshots/h2-6/after_colorpicker_swatch_light.png) | ![スウォッチ(ダーク)](screenshots/h2-6/after_colorpicker_swatch_dark.png) |
+
+**テスト**: `tests/test_dialogs.py`に`ColorPaletteDialog`の行数・
+スウォッチ/テキストラベルの分離・`setBackground`/`setForeground`ロールに
+戻っていないことの確認・行選択(`currentRow()`)による色削除が引き続き
+機能すること・Matplotlib既定パレットの件数一致、`HelpDialog`/
+`CalcHelpDialog`の`#f0f0f0`ハードコード不在・`setDefaultStyleSheet()`が
+現在のテーマトークンを含むことを確認するテストを追加。
+`tests/test_color_picker_widget.py`に`border_strong`トークン使用・
+`refresh_theme()`によるダークモード追従を確認するテストを追加。
+`tests/test_main_window.py`に`_on_toggle_dark_mode`が両方の
+`ColorPickerWidget`インスタンスの`refresh_theme()`を呼ぶことを確認する
+テストを追加。
+
+## H-2-7. プラグイン管理UI(F-2)へのスタイル適用
+
+`PreferencesDialog`の「プラグイン」タブを、実際のプラグイン一覧
+(有効/無効化中/エラーの3状態混在)を使って目視確認した。**H-2-6の
+ダイアログ全体スタイリングが既に自動的に反映されており、追加のQSS対応は
+不要**と判断した: タブの選択下線・読み込み済みプラグインリストの
+チェックボックス(青の塗りつぶし角丸四角)・グループ見出しのアクセント
+チップ・フック単位のエラー一覧、いずれもH-2-2〜H-2-4で確立した規約
+(青=`selection_accent`、チップ見出し等)通りに描画されていることを
+スクリーンショットで確認した。
+
+**任意の改善案(未実施)**: 無効化中/エラーのプラグイン行は現状テキストの
+文言(「(無効化中)」「— エラー: ...」)だけで区別しており、色やアイコンでの
+視覚的な区別は無い。将来的に一覧が長くなった場合のスキャン性向上として
+検討の余地はあるが、今回のスコープ(既存スタイルの適用確認)を超えるため
+見送った。
+
+**Before/After**: 「プラグイン」タブ(有効1件・無効化中1件・エラー1件・
+フック登録エラー1件を含む):
+
+| ライト | ダーク |
+|---|---|
+| ![プラグインタブ(ライト)](screenshots/h2-7/preferences_plugin_tab_light.png) | ![プラグインタブ(ダーク)](screenshots/h2-7/preferences_plugin_tab_dark.png) |

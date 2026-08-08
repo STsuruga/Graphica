@@ -9,7 +9,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
-                         FitDialog, SavGolDialog, PluginParamDialog, LabelEditDialog)
+                         FitDialog, SavGolDialog, PluginParamDialog, LabelEditDialog,
+                         ColorPaletteDialog, HelpDialog, CalcHelpDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -669,3 +670,118 @@ def test_preferences_dialog_shows_error_for_intentionally_broken_plugin_end_to_e
     item_text = dlg.plugin_list.item(0).text()
     assert "broken_plugin" in item_text
     assert "plugin.json" in item_text
+
+
+# --- ColorPaletteDialog(項目H-2-6、実機での目視確認で発覚したバグの回帰) ---
+
+def test_color_palette_dialog_lists_one_row_per_color(qapp):
+    palettes = {"カスタム": ["#e6194b", "#3cb44b"]}
+    dlg = ColorPaletteDialog(palettes, "カスタム")
+    assert dlg.color_list.count() == 2
+
+
+def test_color_palette_dialog_row_widget_shows_readable_hex_text(qapp):
+    """
+    バグ回帰テスト: 以前はQListWidgetItem.setBackground()/setForeground()で
+    行全体を色で塗り明るさに応じて白/黒文字にしていたが、QSSが::itemに
+    何かひとつでもプロパティを当てるとBackgroundRole/ForegroundRoleを
+    無視してしまうため、実機ではリストの地の色のまま文字色だけが適用され、
+    明るい色/暗い色の一部が読めなくなっていた(例: ライトモードで青・緑は
+    白文字を選択するため白地に白文字で消える)。setItemWidget()による
+    スウォッチ+通常文字色のテキストラベルに置き換えたことを確認する。
+    """
+    from PySide6.QtWidgets import QLabel
+
+    palettes = {"カスタム": ["#1f77b4", "#ff7f0e"]}
+    dlg = ColorPaletteDialog(palettes, "カスタム")
+
+    row_widget = dlg.color_list.itemWidget(dlg.color_list.item(0))
+    assert row_widget is not None
+    labels = row_widget.findChildren(QLabel)
+    text_label = next(l for l in labels if l.text() == "#1f77b4")
+    # テキストラベル自体には色固有のスタイルが付いていない
+    # (=常にテーマの通常文字色で描画され、可読性の問題が起きない)
+    assert "background-color" not in text_label.styleSheet()
+
+    # 色そのものはスウォッチ(小さな正方形)側にだけ反映されている
+    swatch = next(l for l in labels if "#1f77b4" in l.styleSheet())
+    assert "background-color: #1f77b4" in swatch.styleSheet()
+
+
+def test_color_palette_dialog_no_longer_uses_background_foreground_roles(qapp):
+    """
+    setBackground()/setForeground()経由の着色に戻っていないことを確認する
+    (QSSに無視される既知の問題があるため、意図的にsetItemWidget方式へ
+    移行した)。
+    """
+    from PySide6.QtCore import Qt
+
+    palettes = {"カスタム": ["#e6194b"]}
+    dlg = ColorPaletteDialog(palettes, "カスタム")
+    item = dlg.color_list.item(0)
+    assert item.background().style() == Qt.BrushStyle.NoBrush  # 未設定(デフォルト)のまま
+
+
+def test_color_palette_dialog_remove_selected_color_uses_row_selection(qapp):
+    """setItemWidget化した後もcurrentRow()による行選択が機能することの確認
+    (_on_remove_colorが依存している)。"""
+    palettes = {"カスタム": ["#e6194b", "#3cb44b"]}
+    dlg = ColorPaletteDialog(palettes, "カスタム")
+    dlg.color_list.setCurrentRow(0)
+
+    dlg._on_remove_color()
+
+    assert dlg.palettes["カスタム"] == ["#3cb44b"]
+
+
+def test_color_palette_dialog_default_palette_uses_matplotlib_cycle(qapp):
+    import matplotlib as mpl
+
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+    expected_count = len(mpl.rcParams['axes.prop_cycle'].by_key()['color'])
+    assert dlg.color_list.count() == expected_count
+
+
+# --- HelpDialog/CalcHelpDialog(項目H-2-6、実機での目視確認で発覚したバグの
+#     回帰): 表の見出し行が背景色#f0f0f0をハードコードしており、ダークモードで
+#     ほぼ見えなくなっていた ---
+
+def test_help_dialog_does_not_hardcode_header_row_background(qapp):
+    from PySide6.QtWidgets import QTextBrowser
+
+    dlg = HelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+    assert "#f0f0f0" not in text_browser.toHtml()
+
+
+def test_help_dialog_header_row_stylesheet_uses_dark_tokens_in_dark_mode(qapp):
+    from gui import theme
+
+    theme.apply_theme(qapp, dark=True)
+    dlg = HelpDialog()
+    from PySide6.QtWidgets import QTextBrowser
+    text_browser = dlg.findChild(QTextBrowser)
+    stylesheet = text_browser.document().defaultStyleSheet()
+    assert theme.DARK_TOKENS["surface_2"] in stylesheet
+    assert theme.DARK_TOKENS["text_primary"] in stylesheet
+    theme.apply_theme(qapp, dark=False)  # 他のテストに影響しないよう戻す
+
+
+def test_calc_help_dialog_does_not_hardcode_header_row_background(qapp):
+    from PySide6.QtWidgets import QTextBrowser
+
+    dlg = CalcHelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+    assert "#f0f0f0" not in text_browser.toHtml()
+
+
+def test_calc_help_dialog_header_row_stylesheet_uses_light_tokens_in_light_mode(qapp):
+    from gui import theme
+    from PySide6.QtWidgets import QTextBrowser
+
+    theme.apply_theme(qapp, dark=False)
+    dlg = CalcHelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+    stylesheet = text_browser.document().defaultStyleSheet()
+    assert theme.LIGHT_TOKENS["surface_2"] in stylesheet
+    assert theme.LIGHT_TOKENS["text_primary"] in stylesheet

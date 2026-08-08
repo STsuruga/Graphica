@@ -652,6 +652,22 @@ def test_toggling_dark_mode_refreshes_label_previews(tmp_path, monkeypatch):
     assert calls == [True]
 
 
+def test_toggling_dark_mode_refreshes_color_picker_swatch_borders(tmp_path, monkeypatch):
+    """
+    項目H-2-6の回帰テスト: ColorPickerWidgetのスウォッチ枠線もテーマの
+    border_strongトークンを参照するようになったため、ダークモード切り替え時に
+    再描画(refresh_theme())されないと旧テーマの枠線色のまま残ってしまう。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window.color_picker_widget, "refresh_theme", lambda: calls.append("main"))
+    monkeypatch.setattr(window.gradient_color2_picker, "refresh_theme", lambda: calls.append("gradient"))
+
+    window._on_toggle_dark_mode(True)
+
+    assert set(calls) == {"main", "gradient"}
+
+
 # --- フォームラベルの末尾コロン除去(項目H-2-4、実機フィードバック:
 #     「各設定項目のあとの：はなくして」) ---
 

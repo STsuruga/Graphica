@@ -530,6 +530,10 @@ class UISetupMixin:
         #   から都度レンダリングしているため、テーマが変わったら再描画しないと
         #   古い配色のまま残ってしまう。
         self._refresh_all_label_previews()
+        # ★ 項目H-2-6: ColorPickerWidgetのスウォッチ枠線もテーマのborder_strong
+        #   トークンを参照するようになったため、同様に再描画が必要。
+        self.color_picker_widget.refresh_theme()
+        self.gradient_color2_picker.refresh_theme()
 
     def _set_initial_ui_state(self):
             """

@@ -219,7 +219,7 @@ class HelpDialog(QDialog):
         <p>文字が1文字以上の場合は、<code>{}</code>（中括弧）で囲みます。</p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい文字</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -247,7 +247,7 @@ class HelpDialog(QDialog):
         
         <h4>ギリシャ文字</h4>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい文字</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -269,7 +269,7 @@ class HelpDialog(QDialog):
 
         <h4>単位・記号</h4>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい文字</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -295,7 +295,7 @@ class HelpDialog(QDialog):
             <code>^</code>・<code>_</code>と組み合わせて、上下に添え字を付けられます。
         </p>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい記号</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -309,7 +309,7 @@ class HelpDialog(QDialog):
 
         <h4>矢印・比較演算子</h4>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい記号</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -322,7 +322,7 @@ class HelpDialog(QDialog):
 
         <h4>文字の上に記号を付ける</h4>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい記号</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -341,10 +341,24 @@ class HelpDialog(QDialog):
             には対応していません。
         </p>
         """
+        # ★ 項目H-2-6(実機での目視確認で発覚): 表内の見出し行はHTML内に
+        #   `background-color: #f0f0f0`のような固定の薄いグレーをハード
+        #   コードしていたため、ダークモードでは見出しセルがほぼ見えない
+        #   薄グレーの塊になり、文字も読めなくなっていた(ライトモードは
+        #   問題なかった)。見出し行はクラス名(class="header-row")だけを
+        #   HTML側に残し、実際の色はQTextDocumentのdefault stylesheetで
+        #   現在のテーマトークンから注入することで、ダーク/ライト両方で
+        #   読めるようにする。
+        from gui import theme
+        _tokens = theme.current_tokens()
+        text_browser.document().setDefaultStyleSheet(
+            f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
+            f"color: {_tokens['text_primary']}; }}"
+        )
         # HTMLコンテンツを QTextBrowser にセット
         text_browser.setHtml(help_html)
         # --- HTML定義ここまで ---
-        
+
         # レイアウトにテキストブラウザを追加
         layout.addWidget(text_browser)
         
@@ -404,7 +418,7 @@ class CalcHelpDialog(QDialog):
         <p>列名（例: <code>A</code>, <code>B</code>）や数値をそのまま使えます。</p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;"><th>計算式 (入力例)</th><th>実行内容</th></tr>
+            <tr class="header-row"><th>計算式 (入力例)</th><th>実行内容</th></tr>
             <tr><td><code>A + B</code></td><td>A列とB列の各行を足し算します。</td></tr>
             <tr><td><code>A * 100</code></td><td>A列の全データを100倍します。</td></tr>
             <tr><td><code>(A + B) / 2</code></td><td>A列とB列の平均値を計算します。</td></tr>
@@ -420,7 +434,7 @@ class CalcHelpDialog(QDialog):
         </p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;"><th>関数 (入力例)</th><th>意味</th></tr>
+            <tr class="header-row"><th>関数 (入力例)</th><th>意味</th></tr>
             <tr><td><code>sqrt(A)</code></td><td>Aの平方根 (&radic;A)</td></tr>
             <tr><td><code>log(A)</code></td><td>Aの自然対数 (ln A)</td></tr>
             <tr><td><code>log10(A)</code></td><td>Aの常用対数 (log₁₀ A)</td></tr>
@@ -440,7 +454,7 @@ class CalcHelpDialog(QDialog):
         </p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;"><th>計算式 (入力例)</th><th>実行内容</th></tr>
+            <tr class="header-row"><th>計算式 (入力例)</th><th>実行内容</th></tr>
             <tr><td><code>A > 10</code></td><td>A列の値が10より大きい行はTrueになります。</td></tr>
             <tr><td><code>A == B</code></td><td>A列とB列の値が等しい行はTrueになります。</td></tr>
             <tr><td><code>A > 5 and B < 3</code></td><td>Aが5より大きく、<b>かつ</b> Bが3未満の行だけTrueになります。</td></tr>
@@ -448,11 +462,20 @@ class CalcHelpDialog(QDialog):
             <tr><td><code>not (A > 5)</code></td><td>Aが5より大きい、という条件を否定します (A <= 5 と同じ)。</td></tr>
         </table>
         """
+        # ★ 項目H-2-6(実機での目視確認で発覚): HelpDialogと同じく、見出し行の
+        #   背景色をハードコードせずテーマトークンから注入する
+        #   (詳しい経緯はHelpDialog.__init__のコメント参照)。
+        from gui import theme
+        _tokens = theme.current_tokens()
+        text_browser.document().setDefaultStyleSheet(
+            f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
+            f"color: {_tokens['text_primary']}; }}"
+        )
         text_browser.setHtml(help_html)
         # --- HTML定義ここまで ---
-        
+
         layout.addWidget(text_browser)
-        
+
         # 閉じるボタン
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         button_box.rejected.connect(self.reject)
@@ -1389,19 +1412,52 @@ class ColorPaletteDialog(QDialog):
         self.remove_color_button.setEnabled(editable)
 
     def _refresh_color_list(self):
+        # ★ 項目H-2-6(実機での目視確認で発覚): 以前はQListWidgetItem.
+        #   setBackground()/setForeground()で行全体を色のパレットで塗り、
+        #   明るさに応じて文字色を白/黒に切り替えることで常に読めるように
+        #   していた。ところがQSSで::item(padding指定のみ)に何かひとつでも
+        #   プロパティを当てると、Qtはそのサブコントロールを「スタイル
+        #   シートでカスタム描画されるもの」とみなし、setBackground()/
+        #   setForeground()で設定したBackgroundRole/ForegroundRoleを描画時に
+        #   無視するようになる(本コードベースで既に複数回踏んでいる既知の
+        #   Qt/QSSの癖、QTabBar::close-buttonのアイコン消失やチェックボックスの
+        #   チェックマーク消失と同じ原因)。結果として実機では常にリストの
+        #   地の色(surfaceトークン)がそのまま描画され、明るい色(例: 青・緑)は
+        #   白文字と、暗い背景では逆に暗い色(黒文字)の行が、それぞれ
+        #   ほぼ同化して読めなくなっていた。
+        #   対策として、行の描画をQSSに委ねず、setItemWidget()で小さな
+        #   スウォッチ(色見本)+通常のテーマ文字色のテキストラベルという
+        #   専用ウィジェットに置き換えた(ColorPickerWidgetのスウォッチと
+        #   同じ意匠)。テキストが常にテーマの通常文字色で描画されるため、
+        #   スウォッチの色がどんな明るさでも可読性が保たれる。
         self.color_list.clear()
         name = self.palette_combo.currentText()
         if name == self.DEFAULT_PALETTE_NAME:
             colors = list(mpl.rcParams['axes.prop_cycle'].by_key()['color'])
         else:
             colors = self.palettes.get(name, [])
+        from gui import theme
+        border_color = theme.current_tokens()["border_strong"]
         for color_hex in colors:
-            item = QListWidgetItem(color_hex)
-            qcolor = QColor(color_hex)
-            item.setBackground(qcolor)
-            # 背景の明るさに応じて文字色を切り替え、常に読めるようにする
-            item.setForeground(QColor('#ffffff') if qcolor.lightnessF() < 0.5 else QColor('#000000'))
+            item = QListWidgetItem()
             self.color_list.addItem(item)
+
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(6, 2, 6, 2)
+            row_layout.setSpacing(8)
+
+            swatch = QLabel()
+            swatch.setFixedSize(20, 20)
+            swatch.setStyleSheet(
+                f"background-color: {color_hex}; border: 1px solid {border_color}; "
+                f"border-radius: 4px;"
+            )
+            row_layout.addWidget(swatch)
+            row_layout.addWidget(QLabel(color_hex), 1)
+
+            item.setSizeHint(row_widget.sizeHint())
+            self.color_list.setItemWidget(item, row_widget)
 
     def _on_palette_selected(self, _name):
         self._refresh_color_list()

@@ -68,6 +68,29 @@ def test_hex_edit_same_color_does_not_emit_signal():
     assert received == []
 
 
+# --- スウォッチ枠線のテーマ連動(項目H-2-6、H-0調査で判明した
+#     rgba(128,128,128,110)ハードコードの解消) ---
+
+def test_swatch_border_uses_theme_border_strong_token(qapp):
+    from gui import theme
+    theme.apply_theme(qapp, dark=False)
+    widget = ColorPickerWidget(settings=None, initial_color="#123456")
+    assert theme.LIGHT_TOKENS["border_strong"] in widget.swatch_button.styleSheet()
+    assert "rgba(128, 128, 128, 110)" not in widget.swatch_button.styleSheet()
+
+
+def test_refresh_theme_updates_swatch_border_after_dark_mode_toggle(qapp):
+    from gui import theme
+    theme.apply_theme(qapp, dark=False)
+    widget = ColorPickerWidget(settings=None, initial_color="#123456")
+    assert theme.LIGHT_TOKENS["border_strong"] in widget.swatch_button.styleSheet()
+
+    theme.apply_theme(qapp, dark=True)
+    widget.refresh_theme()
+
+    assert theme.DARK_TOKENS["border_strong"] in widget.swatch_button.styleSheet()
+
+
 def test_block_signals_propagates_to_children():
     """dataset_mixin.py の「UI一括更新中はシグナルを止める」パターンで使われるため、
     親のblockSignals()呼び出しが内部のswatch/hex_edit両方に伝播する必要がある。"""
