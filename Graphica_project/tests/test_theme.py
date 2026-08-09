@@ -254,6 +254,35 @@ def test_light_and_dark_tokens_are_a_single_definition_used_by_apply_theme(monke
     assert captured[-1] is theme.DARK_TOKENS
 
 
+def test_apply_theme_reuses_the_same_proxy_style_instance_across_calls():
+    """
+    回帰テスト: apply_theme()は以前、呼び出しのたびに新しいQProxyStyleを
+    作ってapp.setStyle()で丸ごと差し替えていた。QApplication.setStyle()は
+    差し替え前の古いスタイルオブジェクトを削除する仕様のため、その古い
+    スタイルを他の(まだ生きている)ウィンドウ/ウィジェットが参照し続けて
+    いると、削除済みオブジェクトへのアクセスでネイティブクラッシュ
+    ("Windows fatal exception: access violation")を起こす実害があった
+    (このアプリは複数タブ=複数の独立したPlotterAppを同一QApplication上に
+    同時に持つ設計のため、ダークモード切替のたびにこれが起きうる)。
+    スタイルオブジェクト自体は使い回され、setStyle()も複数回は呼ばれない
+    ことを確認する。
+    """
+    from PySide6.QtWidgets import QApplication
+    app = QApplication.instance()
+
+    theme.apply_theme(app, dark=False)
+    style_after_first = app.style()
+
+    theme.apply_theme(app, dark=True)
+    style_after_second = app.style()
+
+    theme.apply_theme(app, dark=False)
+    style_after_third = app.style()
+
+    assert style_after_first is style_after_second is style_after_third
+    theme.apply_theme(app, dark=False)  # 他のテストに影響しないよう戻す
+
+
 def test_build_qss_accepts_arbitrary_token_dict():
     """build_qss(tokens)はLIGHT_TOKENS/DARK_TOKENS以外の任意の辞書も
     受け付ける(ロードマップH-1で示されたシグネチャ通り)。"""

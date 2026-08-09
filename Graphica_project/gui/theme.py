@@ -829,6 +829,14 @@ class _FlatThemeProxyStyle(QProxyStyle):
     """
     def __init__(self, base_style, tokens):
         super().__init__(base_style)
+        self.update_tokens(tokens)
+
+    def update_tokens(self, tokens):
+        """
+        ダーク/ライト切り替え時に、既存のインスタンスの色情報だけを
+        更新する(新しいインスタンスをapp.setStyle()で差し替えない)。
+        理由はapply_theme()側のコメント参照。
+        """
         self._tokens = tokens
         self._close_icon = _svg_icon("x", color=tokens["text_secondary"], size=14)
         self._close_pixmap = self._close_icon.pixmap(14, 14)
@@ -932,9 +940,25 @@ def apply_theme(app, dark: bool):
 
     tokens = DARK_TOKENS if dark else LIGHT_TOKENS
     _current_tokens = tokens
-    base_style = QStyleFactory.create('Fusion')
-    _current_proxy_style = _FlatThemeProxyStyle(base_style, tokens)
-    app.setStyle(_current_proxy_style)
+    # ★ バグ修正: 以前は呼び出しのたびに新しい QProxyStyle(+ラップ元の新しい
+    # Fusionスタイル)を作ってapp.setStyle()で丸ごと差し替えていた。
+    # QApplication.setStyle()は「差し替え前の古いスタイルオブジェクトを
+    # 削除する」仕様のため、その古いスタイルオブジェクトを、まだ生きている
+    # 他のウィンドウ/ウィジェット(このアプリは複数タブ=複数の独立した
+    # PlotterAppを同一QApplication上で同時に持つ設計、CLAUDE.md参照)が
+    # 参照し続けていると、削除済みオブジェクトへのアクセスで
+    # "Windows fatal exception: access violation" のようなネイティブ
+    # クラッシュを起こす(実際にCI上のフルテスト実行で複数タブ相当の
+    # ウィンドウが多数生きた状態のままダークモード切替を繰り返した際に
+    # 再現した)。スタイルオブジェクト自体はQApplicationにつき1つだけ生成し
+    # (app.setStyle()も一度だけ呼ぶ)、ダーク/ライト切替時はその既存
+    # インスタンスの色情報だけをupdate_tokens()で書き換える。
+    if _current_proxy_style is None:
+        base_style = QStyleFactory.create('Fusion')
+        _current_proxy_style = _FlatThemeProxyStyle(base_style, tokens)
+        app.setStyle(_current_proxy_style)
+    else:
+        _current_proxy_style.update_tokens(tokens)
     if dark:
         app.setPalette(_build_dark_palette())
     else:
