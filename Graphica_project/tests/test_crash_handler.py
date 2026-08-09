@@ -1,10 +1,16 @@
 # tests/test_crash_handler.py
 """gui/crash_handler.py のセーフモード起動プロンプト(項目F-4)に対するテスト。"""
+import sys
+
 import pytest
 
 import core.plugin_api as plugin_api_module
 import gui.crash_handler as crash_handler_module
-from gui.crash_handler import prompt_safe_mode_and_apply, should_prompt_safe_mode
+from gui.crash_handler import (
+    install_crash_handler,
+    prompt_safe_mode_and_apply,
+    should_prompt_safe_mode,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -79,3 +85,71 @@ def test_prompt_safe_mode_and_apply_no_leaves_safe_mode_disabled(monkeypatch):
 
     assert result is False
     assert plugin_api_module.is_safe_mode_enabled() is False
+
+
+# --- install_crash_handler() / _handle_uncaught_exception() ---
+
+
+def test_install_crash_handler_replaces_sys_excepthook(monkeypatch):
+    """install_crash_handler() は sys.excepthook を差し替える(項目29行目)。"""
+    sentinel_hook = object()
+    monkeypatch.setattr(sys, "excepthook", sentinel_hook)
+
+    install_crash_handler()
+
+    assert sys.excepthook is crash_handler_module._handle_uncaught_exception
+
+
+def test_handle_uncaught_exception_keyboard_interrupt_delegates_to_original(monkeypatch):
+    """KeyboardInterruptは案内ダイアログを出さず、元のexcepthookに委譲する。"""
+    calls = []
+    monkeypatch.setattr(
+        crash_handler_module, "_original_excepthook",
+        lambda *a: calls.append(a),
+    )
+    monkeypatch.setattr(
+        crash_handler_module.QMessageBox, "exec",
+        lambda self: pytest.fail("KeyboardInterruptなのにダイアログが表示された"),
+    )
+
+    exc = KeyboardInterrupt()
+    crash_handler_module._handle_uncaught_exception(KeyboardInterrupt, exc, None)
+
+    assert calls == [(KeyboardInterrupt, exc, None)]
+
+
+def test_handle_uncaught_exception_shows_dialog_for_normal_exception(monkeypatch):
+    """通常の未処理例外では、案内ダイアログが構築・表示される。"""
+    exec_calls = []
+    monkeypatch.setattr(
+        crash_handler_module.QMessageBox, "exec",
+        lambda self: exec_calls.append(self) or 0,
+    )
+
+    try:
+        raise ValueError("boom")
+    except ValueError:
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        crash_handler_module._handle_uncaught_exception(exc_type, exc_value, exc_tb)
+
+    assert len(exec_calls) == 1
+    shown_box = exec_calls[0]
+    assert "予期しないエラー" in shown_box.text()
+    assert "boom" in shown_box.detailedText()
+
+
+def test_handle_uncaught_exception_dialog_failure_is_swallowed(monkeypatch, caplog):
+    """案内ダイアログの表示自体が失敗しても、例外を伝播させずログに残すだけにする。"""
+
+    def _raise_on_exec(self):
+        raise RuntimeError("dialog display failed")
+
+    monkeypatch.setattr(crash_handler_module.QMessageBox, "exec", _raise_on_exec)
+
+    try:
+        raise ValueError("boom")
+    except ValueError:
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        with caplog.at_level("CRITICAL"):
+            # 例外を投げずに正常に戻ってくることを確認する。
+            crash_handler_module._handle_uncaught_exception(exc_type, exc_value, exc_tb)

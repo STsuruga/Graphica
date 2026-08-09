@@ -67,6 +67,12 @@ class QuickAccessMixin:
         # QMainWindow::saveState()/restoreState() がツールバーの表示状態・配置を
         # 一意に識別できるよう、objectNameを設定しておく(未設定だと警告が出る)。
         toolbar.setObjectName("quick_access_toolbar")
+        # 項目H-2-1(GUIモダン化): Qt標準のツールバーはドラッグで再配置・
+        # フローティング化できる「移動グリップ」(ドット状のハンドル)を左端に
+        # 描画するが、このアプリでは上部固定の1本のみを想定しており移動機能を
+        # 使わないため、フラット/ミニマルテーマと馴染まないこのグリップの
+        # 表示自体をQtの標準機能で無効化する(QSSでは隠せない見た目のため)。
+        toolbar.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         self.quick_access_toolbar = toolbar
 

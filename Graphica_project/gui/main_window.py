@@ -53,6 +53,23 @@ def _enable_scientific_notation_input(spin_box, minimum, maximum, single_step=0.
     spin_box.validate = types.MethodType(_scientific_validate, spin_box)
     spin_box.setSingleStep(single_step)
 
+
+def _strip_trailing_colon_from_labels(widget):
+    """
+    widget配下の全QLabelについて、末尾の全角コロン「：」を取り除く(実機
+    フィードバック: 「各設定項目のあとの：はなくして」)。ui_main_window.py
+    (Qt Designer/pyside6-uic生成物)のretranslateUi()には多くのフォーム
+    ラベルにこの記号が焼き込まれているが、.uiソースファイル自体がこの
+    リポジトリに存在せず再生成できないため、構築完了後にQLabel.text()を
+    上書きする形で対応する(呼び出しは動的に追加されたラベルも全て構築
+    済みの、__init__の最後の方で行うこと)。
+    """
+    from PySide6.QtWidgets import QLabel
+    for label in widget.findChildren(QLabel):
+        text = label.text()
+        if text.endswith('：'):
+            label.setText(text[:-1])
+
 # --- ウィンドウ/レイアウトに関する定数 ---
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
@@ -107,9 +124,10 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDial
                                QDockWidget, QScrollArea, QMessageBox,
                                QLineEdit, QHBoxLayout, QFormLayout, QAbstractItemView,
                                QDialog, QTreeWidget, QTreeWidgetItem, QGridLayout,
-                               QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction)
-from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack
-from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal
+                               QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction,
+                               QStyledItemDelegate, QStyleOptionViewItem, QStyle)
+from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack, QPainter, QPainterPath
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal, QRectF
 from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
@@ -129,14 +147,20 @@ from core.commands import AddDatasetCommand
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.minimap_widget import MinimapWidget
 from gui.detached_canvas_window import DetachedCanvasWindow
+from gui import theme
 from gui.theme import apply_form_spacing
 from gui.workers import DataLoadWorker
 from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
 from gui.color_picker_widget import ColorPickerWidget
 from gui.icon_utils import load_svg_icon, ICONS_DIR
 
-# ツールバー/ボタンのアイコン(項目67・70)。matplotlibツールバー標準アイコンと
-# 近いトーンになるよう、中間的な濃さのニュートラルグレーで統一する。
+# ツールバー/ボタンのアイコン(項目67・70)。
+# ★ 項目H-4(アイコンセットの見直し): 以前はここに固定のダークグレー
+#   ('#3B3F42')を持っており、ダークモードのボタン背景に対してほぼ同化して
+#   見えなくなっていた(H-0調査で「未検証」として記録した懸念が、実機の
+#   スクリーンショットで確認された)。gui/icon_utils.py の icon() と同じ方針で
+#   テーマのtext_secondaryトークンを呼び出しの都度解決するように変更したため、
+#   この定数自体はもう _svg_icon() から使われない(後方互換のため残置)。
 TOOLBAR_ICON_COLOR = "#3B3F42"
 
 # キャンバス上部ツールバーのアイコンサイズ(px)。Qtの既定は24pxだが、
@@ -146,24 +170,43 @@ TOOLBAR_ICON_COLOR = "#3B3F42"
 TOOLBAR_ICON_SIZE = 18
 
 # 項目81(mathtext拡充): タイトル/軸ラベルの文字装飾パネルに追加する
-# ギリシャ文字・記号の4x4パレット。(表示するグリフ, 挿入するmathtextマクロ名
+# ギリシャ文字・記号のパレット。(表示するグリフ, 挿入するmathtextマクロ名
 # [バックスラッシュ抜き]) のタプル。マクロは matplotlib mathtext がそのまま
-# 解釈できるもの(\alpha 等)のみを収録している。
+# 解釈できるもの(\alpha 等)のみを収録している(\sqrt{...}のように引数を
+# 必須とするマクロは、単純な「$\macro$」挿入方式と相性が悪いため対象外。
+# 平方根は引数不要な\surdで代用している)。
+# 前半16個はギリシャ文字、後半16個は実機フィードバック(「四則演算の記号とか
+# プロットでよく使う数学記号があるといいかも」)を受けて追加した算術・数学記号。
 LABEL_SYMBOL_PALETTE = [
     ("α", "alpha"), ("β", "beta"), ("γ", "gamma"), ("δ", "delta"),
     ("ε", "epsilon"), ("μ", "mu"), ("π", "pi"), ("ρ", "rho"),
     ("Σ", "Sigma"), ("σ", "sigma"), ("τ", "tau"), ("Ω", "Omega"),
     ("ω", "omega"), ("Δ", "Delta"), ("θ", "theta"), ("φ", "phi"),
+    ("×", "times"), ("÷", "div"), ("±", "pm"), ("∓", "mp"),
+    ("≈", "approx"), ("≠", "neq"), ("≤", "leq"), ("≥", "geq"),
+    ("∞", "infty"), ("→", "rightarrow"), ("←", "leftarrow"), ("∂", "partial"),
+    ("∇", "nabla"), ("∫", "int"), ("∝", "propto"), ("°", "degree"),
 ]
 
 
 def _svg_icon(name, size=20):
-    """assets/icons/{name}.svg を統一トーンのQIconとして読み込む共通ヘルパー"""
+    """
+    assets/icons/{name}.svg を統一トーンのQIconとして読み込む共通ヘルパー。
+    色は呼び出しの都度、現在のテーマ(gui.theme.current_tokens())の
+    text_secondaryトークンから解決する(gui/icon_utils.py の icon() と同じ方針、
+    項目H-4)。ボタン/アクションに一度setIcon()した後は、テーマが変わっても
+    自動更新はされないため、永続的なウィジェット(メインツールバーのボタン等)
+    については_on_toggle_dark_mode側で明示的に再設定する
+    (_refresh_custom_svg_icons、gui/mixins/ui_setup_mixin.py参照)。
+    """
+    from gui import theme
+    color = theme.current_tokens()["text_secondary"]
     return load_svg_icon(resource_path(os.path.join(ICONS_DIR, f"{name}.svg")),
-                          color=TOOLBAR_ICON_COLOR, size=size)
+                          color=color, size=size)
 from core.excel_utils import find_unevaluated_formula_cells
 from gui.export_preview_panel import ExportPreviewPanel
 from gui.dataset_style_icon import make_dataset_style_icon
+from gui.mathtext_preview import FitWidthPixmapLabel
 from gui.color_history import load_recent_colors_into_picker
 
 # --- 責務ごとに分割した Mixin (God Object 化を避けるための構成) ---
@@ -246,6 +289,94 @@ _PLUGIN_PANEL_AREA_MAP = {
     "top": Qt.DockWidgetArea.TopDockWidgetArea,
     "bottom": Qt.DockWidgetArea.BottomDockWidgetArea,
 }
+
+class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
+    """
+    dataset_list_widget専用のアイテムデリゲート(項目H-2-2、実機フィードバックで
+    複数回の調整を経て導入)。
+
+    QSSの `QTreeWidget::item:selected { background: ...; border-radius: ...px; }`
+    だけでは、選択時のハイライトを「アイコン列+テキスト列にまたがる単一の
+    角丸矩形」として描画できない。Qt(Fusionスタイル)は、CE_ItemViewItemの
+    描画時にデコレーション(アイコン)列とテキスト(display)列をそれぞれ独立した
+    矩形として扱い、::item:selectedのbackground/border-radiusを両方に別々に
+    適用するため、2つの矩形の角丸がわずかにズレて隙間が生じる(実機でピクセルを
+    直接比較して確認済み。border-radiusを0にすれば隙間自体は消えるが、今度は
+    行の見た目が完全な直角になり、リスト自体の角丸(border-radius: 8px)と
+    揃わなくなる)。
+
+    そのため、選択時の背景描画だけはこのデリゲートで自前に行う: paint()の中で
+    選択状態を検知したら先に単一のQPainterPathで角丸矩形を1回だけ塗り、その後
+    option.stateからState_Selectedを外してから基底実装に委譲することで、Qt標準の
+    (2矩形に分かれた)選択背景描画を無効化する。アイコン・テキスト自体の描画は
+    引き続き基底実装(QStyledItemDelegate.paint)に任せる。
+    """
+
+    def paint(self, painter, option, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+
+        if opt.state & QStyle.StateFlag.State_Selected:
+            painter.save()
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            # ★ opt.rect はデコレーション(アイコン)+テキスト部分だけの矩形で、
+            #   分岐(展開矢印)用インデント列の分だけ左端が空く(実機フィードバックで
+            #   「ここの隙間」として指摘された)。インデント列はこのリストでは
+            #   何も描画されない(::item:selectedのbackgroundをtransparentに
+            #   している)ため、左端をビューポートの0まで伸ばしてハイライトで
+            #   埋めても他の描画と衝突しない。
+            rect = QRectF(opt.rect)
+            rect.setLeft(0)
+            path = QPainterPath()
+            path.addRoundedRect(
+                rect, theme.DATASET_LIST_ITEM_RADIUS, theme.DATASET_LIST_ITEM_RADIUS
+            )
+            painter.fillPath(path, theme.current_selection_highlight_qcolor())
+            painter.restore()
+            # ★ 基底実装(super().paint)がQt標準の選択背景を重ねて描画しないよう、
+            #   ここでフラグを落としてから委譲する。アイコン/テキストの見た目は
+            #   選択・非選択で変えていないため(色は{text_primary}で共通)、
+            #   これによる副作用は無い。
+            opt.state &= ~QStyle.StateFlag.State_Selected
+
+        super().paint(painter, opt, index)
+
+
+class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
+    """
+    タイトル/X軸ラベル/Y軸ラベル欄の見た目を担う、クリックで編集ダイアログを
+    開くプレビューラベル(項目H-2-4追加分、実機フィードバック: 「画像の
+    テキスト欄をクリックしたらポップアップが展開するようにして」「mathtextを
+    翻訳した形式をプレビューしといて」)。
+
+    実データは引き続き(非表示にした)元のQLineEditが保持している
+    (`_open_label_edit_dialog`が直接読み書きする対象、`textChanged`シグナルも
+    そのまま生きている)。このラベルは「クリックで開く」トリガーと
+    「レンダリング済みプレビューの表示」だけを担当する、見た目専用の
+    軽量ウィジェット。表示の幅フィット処理はFitWidthPixmapLabel(gui/
+    mathtext_preview.py)から継承している。
+    """
+
+    clicked = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("mathtext_preview_label")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMinimumHeight(28)
+        self.setToolTip(tr("クリックして編集"))
+        # ★ QLabelは既定でマウスホバーの追跡をしないため、QSSの:hover疑似
+        #   クラス(hover時に枠線をselection_accentへ)が反映されない。
+        #   WA_Hover属性を明示的に有効化する必要がある(QPushButton/
+        #   QToolButtonなどは既定で有効だが、QLabelのような一般的な
+        #   QWidgetでは無効)。
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
 
 #==============================================================================
 # メインアプリケーションクラス
@@ -406,6 +537,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._layout_edit_press_cid = None     # button_press_event の接続ID
         self._layout_edit_motion_cid = None    # motion_notify_event の接続ID
         self._layout_edit_release_cid = None   # button_release_event の接続ID
+        self._layout_edit_leave_cid = None     # figure_leave_event の接続ID(ドラッグ中に画面外へ出た時の保険)
         self._layout_drag_state = None         # ドラッグ中の状態 (dict) または None
         # 項目85: レイアウト編集モードでクリックして「選択」されているサブプロットの
         # 軸インデックス (ドラッグ中かどうかとは独立して保持する)。数値入力欄
@@ -449,13 +581,38 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # MplCanvas (グラフ描画領域) を作成
         self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
-        # ダークモード設定を復元 (QApplication側の配色は _create_menu_bar で適用する)
+        # ダークモード設定を復元
         self.canvas.dark_mode = self.settings.value("dark_mode", False, type=bool)
+        # ★ バグ修正: 以前はここでQApplication側の配色(QSS/パレット)を適用せず
+        # _create_menu_bar()まで先送りしていたが、この間(ツールバーの
+        # カーソル/注釈/レイアウト編集/ズームリセットボタン、データセット
+        # 操作ボタン群、フォント/色選択ボタン群など)に構築される多数の
+        # Tabler Iconsアイコンは、_svg_icon()が都度theme.current_tokens()から
+        # 色を解決する仕組みになっている。apply_theme()を一度も呼んでいない
+        # 時点ではtheme._current_tokensがNoneのままライト用トークンに
+        # フォールバックするため、「前回起動時にダークモードにしていた」
+        # ユーザーが次に起動すると、メインツールバーの各種アイコンだけ
+        # ライト用の暗いグレーで焼き込まれ、ダーク背景に対してほぼ見えない
+        # 状態になっていた(_on_toggle_dark_modeで一度手動でダークを
+        # 切り替え直すまで直らない)。アイコン構築が始まる前にここで
+        # 適用しておく(_create_menu_bar()側の呼び出しは、Fusionスタイルを
+        # 毎回確実に適用する目的もあり冪等なのでそのまま残す)。
+        theme.apply_theme(QApplication.instance(), self.canvas.dark_mode)
         # データ点ラベルの表示上限(環境設定、項目105: 大量データでのフリーズ防止)
         self.canvas.point_label_max_points = self.settings.value(
             "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
         # Matplotlib 標準のナビゲーションツールバーを作成
         toolbar = NavigationToolbar(self.canvas, self)
+        # ★ 項目H-4: matplotlib純正のNavigationToolbar2QTは、アイコン読み込み
+        #   (_icon())時にQPaletteのbackgroundRole()の明度を見て自動的に
+        #   ダークモード配色へ切り替える仕組みを内蔵しているが、これはツール
+        #   バー構築時(=常にライトモードのパレットで初期化されるアプリ起動時)
+        #   に一度だけ実行され、以後ダークモードに切り替えてもアイコンは
+        #   再読み込みされない(実機で発覚: home/back/forward/pan/zoom/save
+        #   アイコンがダークモードで見えにくいまま残っていた)。
+        #   _on_toggle_dark_mode(gui/mixins/ui_setup_mixin.py)から再読み込み
+        #   できるよう、インスタンス属性として保持しておく。
+        self.mpl_toolbar = toolbar
         # ★ バグ修正: このツールバーはQMainWindowのツールバー領域ではなく
         #   plot_container の通常のレイアウトに入れているため、幅が足りなくなると
         #   はみ出したボタンが幅12pxほどの極小の「>>」ボタンの中に押し込まれ、
@@ -506,6 +663,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.layout_edit_action.setEnabled(False)
         self.layout_edit_action.triggered.connect(self._toggle_layout_edit_mode)
         toolbar.addAction(self.layout_edit_action)
+
+        # --- ★ ツールバーにカスタムボタン (ズームリセット) を追加 ★ ---
+        # マウスドラッグ/矩形選択等で拡大した表示を、設定通りの既定表示に戻す。
+        self.reset_zoom_action = QAction(
+            _svg_icon("refresh"),  # Tabler Icons "refresh"
+            tr("表示をリセット (拡大/パンを元に戻す)"),
+            self
+        )
+        self.reset_zoom_action.triggered.connect(self._reset_zoom)
+        toolbar.addAction(self.reset_zoom_action)
 
         # ★ 統計情報ボタン(項目106)はこの時点ではまだ self.stats_summary_label が
         #   存在しないため、それが作られた後のセクションでこの `toolbar` 変数を
@@ -592,7 +759,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #     常設せず、「…」オーバーフローメニューに移す。
         #     (シグナル接続は _connect_signals 側で従来どおり各ボタンに対して行うため、
         #      ここではアイコン付与とレイアウト上の並びだけを変更し、ロジックには触れない)
-        _button_icons = {
+        # ★ 項目H-4: このマッピングはインスタンス属性として保持しておき、
+        #   _on_toggle_dark_mode側でアイコンを再読み込みできるようにする
+        #   (_refresh_custom_svg_icons、gui/mixins/ui_setup_mixin.py参照)。
+        self._dataset_action_button_icons = {
             self.ui.add_dataset_button: ("file-plus", tr("データ追加")),
             self.new_dataset_button: ("table", tr("新規作成")),
             self.duplicate_dataset_button: ("copy", tr("複製")),
@@ -606,7 +776,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # ★ GUI洗練: テキスト付きボタンではなく、アイコンのみの正方形ボタンにする。
         #   ラベルはツールチップに残すため発見しやすさは保ちつつ、9個並んだ状態でも
         #   横幅を大きく取らず、右パネル全体の余白・サイズ感を改善する。
-        for button, (icon_name, short_label) in _button_icons.items():
+        for button, (icon_name, short_label) in self._dataset_action_button_icons.items():
             button.setToolTip(button.text() or short_label)
             button.setText("")
             button.setIcon(_svg_icon(icon_name, size=18))
@@ -768,15 +938,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.formLayout_3.insertRow(10, self.legend_order_button)
 
         # フォント選択/色選択ボタン群にアイコンを追加(ユーザーフィードバックを受けて)
-        for button, icon_name in (
-            (self.ui.tick_font_button, "typography"),
-            (self.ui.tick_color_button, "color-swatch"),
-            (self.ui.axis_label_font_button, "typography"),
-            (self.ui.axis_label_color_button, "color-swatch"),
-            (self.ui.spine_color_button, "color-swatch"),
-            (self.legend_font_button, "typography"),
-            (self.legend_color_button, "color-swatch"),
-        ):
+        # ★ 項目H-4: インスタンス属性として保持し、_refresh_custom_svg_iconsから
+        #   再読み込みできるようにする。
+        self._field_icon_buttons = {
+            self.ui.tick_font_button: "typography",
+            self.ui.tick_color_button: "color-swatch",
+            self.ui.axis_label_font_button: "typography",
+            self.ui.axis_label_color_button: "color-swatch",
+            self.ui.spine_color_button: "color-swatch",
+            self.legend_font_button: "typography",
+            self.legend_color_button: "color-swatch",
+        }
+        for button, icon_name in self._field_icon_buttons.items():
             button.setIcon(_svg_icon(icon_name, size=16))
 
         # 4. フィット情報表示用のUI (非表示で) 追加
@@ -942,39 +1115,26 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout_2.addRow(self.y_tick_format_label, self.y_tick_format_combo)
 
-        # 9. タイトル/軸ラベル入力欄に、文字装飾メニューボタンを直接埋め込む(項目61)。
-        #    ★ 改善(ユーザーフィードバックを受けて): 当初は入力欄から離れた場所に
-        #      共通ツールバーを1つ置く形だったが、「どの欄に効くのか分かりにくい」
-        #      「B/I/x²/x₂ のボタンが小さく見分けづらい」という指摘を受け、
-        #      各入力欄のすぐ右に「Aa」ボタンを1つだけ配置し、クリックすると
-        #      「太字」「イタリック」「上付き文字」「下付き文字」とフルテキストで
-        #      書かれたメニューが開く形に変更した(欄との対応が一目瞭然になり、
-        #      各項目が何をするかも省略なしで読める)。
-        #    ★ 修正(さらなるユーザーフィードバック): NoFocusにしていても、
-        #      ボタン押下(ポップアップメニューを開く動作)自体でテキスト欄の
-        #      選択範囲が失われてしまう環境があることが判明した(メニューが
-        #      開く際にフォーカスが他のウィジェットへ移り、選択がクリアされる)。
-        #      そのため、メニュー項目が選ばれた時点で選択範囲を読み直すのではなく、
-        #      ボタンが「押された瞬間」(pressed、まだ選択が生きている)に選択範囲を
-        #      保存しておき、メニュー項目のtriggeredではその保存値を使う。
-        # ★ ポップアップパネル化(項目101): 以前はテキストのみのQMenu
-        #   (「太字」「イタリック」「上付き文字」「下付き文字」を項目として
-        #   縦に並べただけ)だったが、ユーザーフィードバックを受けて、
-        #   アイコン付きのボタンを横一列に並べた小さなパネル
-        #   (QWidgetAction経由でQMenuに埋め込む)に変更した。見た目が
-        #   ツールバーに近くなり、どのボタンが何をするか記号でも判別しやすい。
-        self.label_format_menu_buttons = {}
-        self._label_format_menus = {}
-        self._label_format_pending_selection = {}
-        # ★ 項目81: ギリシャ文字/記号パレットは選択なしでもカーソル位置に挿入
-        #   できる必要があるため、選択の有無に関わらず押下時点のカーソル位置も
-        #   別途保持しておく(_label_format_pending_selection は選択が無ければ
-        #   Noneのまま)。
-        self._label_format_pending_cursor = {}
-        for field_key, line_edit in (
-            ('title', self.ui.title_text_edit),
-            ('x_label', self.ui.x_label_text_edit),
-            ('y_label', self.ui.y_label_text_edit),
+        # 9. タイトル/軸ラベル入力欄を、クリックで編集ダイアログを開く
+        #    mathtextプレビューラベルに差し替える(項目61/H-2-4追加分)。
+        #    ★ ポップアップウィンドウ化(実機フィードバック、レイアウト画像の
+        #      提示を受けて): 以前は「Aa」ボタンがQMenu(太字/イタリック/上付き/
+        #      下付きのアイコンボタン+ギリシャ文字/記号パレットをネストした
+        #      ポップアップパネル)を開く形だったが、独立したダイアログ
+        #      (LabelEditDialog、gui/dialogs.py)を開く形に変更した。
+        #    ★ さらなる実機フィードバック: 「画像のテキスト欄をクリックしたら
+        #      ポップアップが展開するように」「mathtextを翻訳した形式を
+        #      プレビューしといて」を受け、元のQLineEdit(line_edit)は実データの
+        #      保持と`textChanged`シグナルの発信源として非表示のまま裏に残し、
+        #      見た目は_ClickableMathPreviewLabelに置き換えた。このラベルは
+        #      クリックでLabelEditDialogを開くトリガーを兼ね、現在のテキストを
+        #      matplotlibで実際にレンダリングした見た目(gui/mathtext_preview.py)
+        #      をプレビュー表示する。
+        self._label_preview_widgets = []  # [(preview_label, line_edit, placeholder), ...]
+        for field_key, line_edit, dialog_title, placeholder in (
+            ('title', self.ui.title_text_edit, tr("タイトルを編集"), tr("タイトルを入力")),
+            ('x_label', self.ui.x_label_text_edit, tr("X軸ラベルを編集"), tr("X軸ラベルを入力")),
+            ('y_label', self.ui.y_label_text_edit, tr("Y軸ラベルを編集"), tr("Y軸ラベルを入力")),
         ):
             wrapper = QWidget()
             wrapper_layout = QHBoxLayout(wrapper)
@@ -982,15 +1142,31 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             wrapper_layout.setSpacing(4)
 
             # ★ replaceWidget: 既存のline_editをformLayout_3上の同じ位置に残したまま、
-            #   [line_edit + ボタン] の複合ウィジェットに差し替える(項目65の
+            #   [プレビューラベル + ボタン] の複合ウィジェットに差し替える(項目65の
             #   ColorPickerWidget差し替えと同じ手法。行番号がずれないため安全)。
             self.ui.formLayout_3.replaceWidget(line_edit, wrapper)
-            wrapper_layout.addWidget(line_edit, 1)
+            # ★ line_editは実データの保持/textChangedシグナルの発信源として
+            #   残すが、見た目はプレビューラベルに任せるため非表示にする
+            #   (レイアウトには追加しない: 追加すると非表示でも余白計算に
+            #   関与することがあるため、親をwrapperにするだけに留める)。
+            line_edit.setParent(wrapper)
+            line_edit.hide()
+
+            preview_label = _ClickableMathPreviewLabel(wrapper)
+            wrapper_layout.addWidget(preview_label, 1)
+            preview_label.clicked.connect(
+                lambda le=line_edit, dt=dialog_title: self._open_label_edit_dialog(le, dt)
+            )
+            self._label_preview_widgets.append((preview_label, line_edit, placeholder))
+            line_edit.textChanged.connect(
+                lambda text, lbl=preview_label, ph=placeholder:
+                    self._refresh_label_preview(lbl, text, ph)
+            )
+            self._refresh_label_preview(preview_label, line_edit.text(), placeholder)
 
             format_button = QToolButton()
             format_button.setText("Aa")
-            format_button.setToolTip(tr("文字装飾(太字・イタリック・上付き・下付き)"))
-            format_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+            format_button.setToolTip(tr("タイトル/ラベルを編集(書式・記号入力)"))
             format_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             # ★ 右側パネルの幅は限られているため、ボタンはできるだけ小さく保ち、
             #   タイトル/軸ラベル入力欄自体の幅を圧迫しないようにする。
@@ -999,71 +1175,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             small_font.setPointSize(max(7, small_font.pointSize() - 2))
             format_button.setFont(small_font)
             wrapper_layout.addWidget(format_button)
-            format_button.pressed.connect(
-                lambda fk=field_key, le=line_edit: self._capture_label_format_selection(fk, le)
+            format_button.clicked.connect(
+                lambda checked=False, le=line_edit, dt=dialog_title:
+                    self._open_label_edit_dialog(le, dt)
             )
-
-            menu = QMenu(format_button)
-            panel = QWidget()
-            panel_layout = QHBoxLayout(panel)
-            panel_layout.setContentsMargins(6, 6, 6, 6)
-            panel_layout.setSpacing(4)
-
-            decoration_buttons = {}
-            for deco_key, icon_name, tooltip in (
-                ('bold', 'bold', tr("太字")),
-                ('italic', 'italic', tr("イタリック")),
-                ('superscript', 'superscript', tr("上付き文字")),
-                ('subscript', 'subscript', tr("下付き文字")),
-            ):
-                deco_button = QToolButton()
-                deco_button.setIcon(_svg_icon(icon_name, size=16))
-                deco_button.setToolTip(tooltip)
-                deco_button.setProperty("iconOnly", True)
-                deco_button.setFixedSize(28, 28)
-                panel_layout.addWidget(deco_button)
-                decoration_buttons[deco_key] = deco_button
-
-            # ★ 項目81(mathtext拡充): ギリシャ文字/記号をバックスラッシュ記法を
-            #   覚えなくても挿入できる、4x4のミニパレットをネストしたポップアップ
-            #   として追加する。押下時点のカーソル位置/選択範囲は装飾ボタンと
-            #   同じ仕組み(_capture_label_format_selection)で確定済みなので、
-            #   このサブメニューを開いても選択状態を失わない。
-            symbol_button = QToolButton()
-            symbol_button.setText("Ω")
-            symbol_button.setToolTip(tr("ギリシャ文字・記号を挿入"))
-            symbol_button.setProperty("iconOnly", True)
-            symbol_button.setFixedSize(28, 28)
-            symbol_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-
-            symbol_menu = QMenu(symbol_button)
-            symbol_panel = QWidget()
-            symbol_grid = QGridLayout(symbol_panel)
-            symbol_grid.setContentsMargins(6, 6, 6, 6)
-            symbol_grid.setSpacing(2)
-            for index, (glyph, macro) in enumerate(LABEL_SYMBOL_PALETTE):
-                symbol_item_button = QToolButton()
-                symbol_item_button.setText(glyph)
-                symbol_item_button.setToolTip(f"\\{macro}")
-                symbol_item_button.setFixedSize(26, 26)
-                symbol_item_button.clicked.connect(
-                    lambda checked=False, fk=field_key, m=macro, sm=symbol_menu:
-                        (self._on_label_symbol_clicked(fk, m), sm.close())
-                )
-                symbol_grid.addWidget(symbol_item_button, index // 4, index % 4)
-            symbol_widget_action = QWidgetAction(symbol_button)
-            symbol_widget_action.setDefaultWidget(symbol_panel)
-            symbol_menu.addAction(symbol_widget_action)
-            symbol_button.setMenu(symbol_menu)
-            panel_layout.addWidget(symbol_button)
-
-            widget_action = QWidgetAction(format_button)
-            widget_action.setDefaultWidget(panel)
-            menu.addAction(widget_action)
-            format_button.setMenu(menu)
-
-            self.label_format_menu_buttons[field_key] = decoration_buttons
-            self._label_format_menus[field_key] = menu
 
         # --- 7. UIの「動的リファクタリング」 (Designer のUI構造をコードで変更) ---
 
@@ -1304,6 +1419,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             dock.hide()  # 既定は非表示。表示状態はQSettingsのドックレイアウト復元に任せる
             self._plugin_panel_docks[panel.name] = dock
 
+        # ★ 項目H-2-3: ドックのフォーカス時強調(枠線をアクセント色に)。
+        #   祖先をたどってQDockWidgetを特定する方式のため、上のプラグイン製
+        #   パネルも含め、このタブが持つ全てのQDockWidgetを個別登録なしで
+        #   自動的にカバーする(詳細はtheme.install_dock_focus_highlight()の
+        #   docstringを参照)。
+        theme.install_dock_focus_highlight(self)
+
         # プラグイン製プロット種別 (項目D-2、register_plot_type) を、既存の
         # 5種類 (Area/Barと同じく実行時追加) に続けてコンボボックスへ追加する。
         # 実際の描画分岐は gui/canvas.py の _draw_data 側でフォールバックとして処理する。
@@ -1330,6 +1452,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.project.all_plot_settings.append(default_settings)
         # 3. 不要なUI (第2Y軸ラベルなど) を非表示にする
         self._set_initial_ui_state()
+        # ★ GUI洗練(実機フィードバック): 「各設定項目のあとの：はなくして」。
+        #   ui_main_window.py(Qt Designer/pyside6-uic生成物、手で編集しない
+        #   方針)のretranslateUi()には、多くのフォームラベルに全角コロン
+        #   「：」が焼き込まれている(例: 凡例名：、種別：、色：)。.uiソース
+        #   ファイル自体はこのリポジトリに存在しないため再生成もできず、
+        #   Designerファイルを直接書き換えるわけにもいかないので、構築完了後の
+        #   ここでQLabelのtext()を上書きして末尾の「：」だけを取り除く
+        #   (動的に追加されたラベルも、この時点までに全て構築済みのため
+        #   同様にカバーされる)。
+        _strip_trailing_colon_from_labels(self)
         # 項目69: ミニ統計ラベル分の高さを見込んで、リスト自体の上限は少し控えめにする
         self.ui.dataset_list_widget.setMaximumHeight(175)
         # (複数選択・ドラッグ&ドロップの設定は _replace_dataset_list_with_tree で設定済み)
@@ -1436,6 +1568,26 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def closeEvent(self, event):
         """ウィンドウが閉じられる(正常終了する)ときに呼ばれる。"""
+        # ★ バグ修正: バックグラウンドでファイル読み込み中(DataLoadWorker、
+        # gui/workers.py)にタブ/アプリを閉じると、実行中のQThreadが破棄され
+        # Qtが即座にプロセスをfail-fast abortさせる(実機で再現確認済み、
+        # 例外機構を経由しないハードクラッシュのため他の全タブの未保存データも
+        # 道連れになる)。読み込みは通常CSV/Excelの読み取りのみで長時間には
+        # ならないため、閉じる前にここでブロッキング待機して完了させる。
+        # 待機後に signal をつなぎ直さず先に切断しておくことで、待機中に
+        # emit された load_succeeded/load_failed が、閉じている最中の
+        # ウィンドウに対して(キュー処理や再描画を伴う)通常のスロットを
+        # 実行してしまうのも防ぐ。
+        if self._data_load_worker is not None:
+            try:
+                self._data_load_worker.load_succeeded.disconnect()
+                self._data_load_worker.load_failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._data_load_worker.wait()
+            self._data_load_worker.deleteLater()
+            self._data_load_worker = None
+
         if self._run_startup_checks:
             self.settings.setValue("clean_exit", True)
             # ドックの配置/表示状態を保存し、次回起動時に復元する
@@ -1673,6 +1825,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.project_state_changed.emit()
         except Exception as e:
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
+
+    def _reset_zoom(self):
+        """
+        ツールバー/マウスドラッグ等で拡大・パンした表示を、設定通りの既定表示
+        (各軸のautoscale設定に従った全データ表示、または明示的に指定された
+        軸範囲)に戻す。matplotlib純正のNavigationToolbar2QT自身のHomeボタンは
+        内部で拡大操作時のAxesをキャッシュしているが、このアプリでは
+        _update_plot()がfig.clf()で毎回Axesを作り直すため、作り直しを挟んだ
+        後はHomeボタンのキャッシュが古いAxesを指したまま効かなくなることが
+        ある(gui/canvas.pyのdocstring記載の既知の制約と同根)。ここでは
+        キャッシュに頼らず、常に効く_update_plot()のフル再描画をそのまま
+        使うことで確実にリセットする。
+        """
+        self._update_plot()
 
     def _update_plot(self):
         """グラフ全体を再描画する（MVC対応版）"""
@@ -1928,6 +2094,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             btn.setIcon(_svg_icon("chevron-down" if checked else "chevron-right", size=14))
 
         toggle_button.toggled.connect(_on_toggled)
+        # ★ 項目H-4: このメソッドは複数のグループボックスに対して繰り返し
+        #   呼ばれるため、生成した各トグルボタンをリストに蓄積しておき、
+        #   _refresh_custom_svg_icons側で一括してアイコンを再読み込みできる
+        #   ようにする。
+        if not hasattr(self, '_collapsible_toggle_buttons'):
+            self._collapsible_toggle_buttons = []
+        self._collapsible_toggle_buttons.append(toggle_button)
 
         wrapper_layout.addWidget(toggle_button)
         wrapper_layout.addWidget(group_box)
@@ -1965,9 +2138,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         container = QWidget(parent_widget)
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
-        container_layout.setSpacing(4)
+        # ★ 項目H-2-2(実機フィードバック): 検索ボックスとリストの間の余白を
+        #   狭すぎると感じたとの指摘を受け、元の4pxから約1.5倍の6pxに広げた。
+        container_layout.setSpacing(6)
 
         search_edit = QLineEdit(container)
+        # ★ 項目H-2-2: 検索ボックス単体の枠線を消すQSS(theme.py側
+        #   #dataset_search_edit)をスコープするためのobjectName。リストと
+        #   統合するためではなく、あくまで検索ボックス自身の見た目調整用。
+        search_edit.setObjectName("dataset_search_edit")
         search_edit.setPlaceholderText("データセットを検索...")
         search_edit.setClearButtonEnabled(True)
         container_layout.addWidget(search_edit)
@@ -1984,6 +2163,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #   このリストはsizeHint任せだと窮屈すぎる高さまで縮む可能性がある。
         #   データが2〜3件程度でも下に大きな空白ができない程度の高さを確保する。
         tree.setMinimumHeight(90)
+        # ★ 項目H-2-2: 選択ハイライトをアイコン列+テキスト列にまたがる単一の
+        #   角丸矩形として描画するための専用デリゲート(理由は
+        #   _DatasetTreeSelectionDelegateのdocstringを参照)。
+        tree.setItemDelegate(_DatasetTreeSelectionDelegate(tree))
         container_layout.addWidget(tree)
 
         # 項目69: リストとボタン行の間の余白を、選択中データセットのミニ統計で埋める

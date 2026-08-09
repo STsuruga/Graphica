@@ -12,7 +12,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QInputDialog
+from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
 import gui.main_window as main_window_module
 from gui.main_window import PlotterApp
@@ -229,3 +229,282 @@ def test_snap_to_grid_settings_persist_and_restore_via_qsettings(tmp_path, monke
 def test_snap_to_grid_defaults_match_module_constants():
     assert DEFAULT_SNAP_TO_GRID_ENABLED is False
     assert DEFAULT_SNAP_GRID_INTERVAL_PX == 10
+
+
+# --------------------------------------------------------------------
+# _toggle_annotation_mode
+# --------------------------------------------------------------------
+
+def test_toggle_annotation_mode_on_turns_off_cursor_mode_first(tmp_path, monkeypatch):
+    """注釈モードとデータカーソルモードは排他: 注釈ONでカーソルモードが自動的にOFFになる"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.cursor_action.setChecked(True)
+    window.cursor_mode_enabled = True
+
+    window._toggle_annotation_mode(True)
+
+    assert window.cursor_action.isChecked() is False
+    assert window.cursor_mode_enabled is False
+    assert window.annotation_mode_enabled is True
+    assert window._annotation_press_cid is not None
+    assert window._annotation_release_cid is not None
+    assert window.statusBar().currentMessage() != ""
+
+
+def test_toggle_annotation_mode_off_disconnects_and_clears_drag_state(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._toggle_annotation_mode(True)
+    assert window._annotation_press_cid is not None
+    window._annotation_drag_start = (window.all_axes[0], 1.0, 2.0)
+
+    window._toggle_annotation_mode(False)
+
+    assert window.annotation_mode_enabled is False
+    assert window._annotation_press_cid is None
+    assert window._annotation_release_cid is None
+    assert window._annotation_drag_start is None
+
+
+# --------------------------------------------------------------------
+# _find_axis_index
+# --------------------------------------------------------------------
+
+def test_find_axis_index_returns_secondary_axis_position(tmp_path, monkeypatch):
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+                 x_col_name="x", y_col_name="y", use_secondary_y=True)
+    window.project.datasets.append(ds)
+    window._update_plot()
+    sec_ax = window.all_secondary_axes[0]
+    assert sec_ax is not None
+
+    assert window._find_axis_index(sec_ax) == 0
+
+
+def test_find_axis_index_returns_none_for_unknown_axes(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    stray_fig, stray_ax = plt.subplots()
+    try:
+        assert window._find_axis_index(stray_ax) is None
+    finally:
+        plt.close(stray_fig)
+
+
+# --------------------------------------------------------------------
+# _on_annotation_press / _on_annotation_release: 早期returnとガード条件
+# --------------------------------------------------------------------
+
+def test_on_annotation_press_ignored_when_mode_disabled(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = False
+    ax = window.all_axes[0]
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
+
+    assert window._annotation_drag_start is None
+
+
+def test_on_annotation_press_ignored_when_outside_axes(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+
+    window._on_annotation_press(_FakeMplEvent(None, None, None))
+
+    assert window._annotation_drag_start is None
+
+
+def test_on_annotation_press_right_click_attempts_deletion_instead_of_starting_drag(tmp_path, monkeypatch):
+    """右クリック(button==3)は既存注釈の削除を試み、ドラッグ開始状態を作らない"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    calls = []
+    monkeypatch.setattr(window, "_try_delete_annotation_near", lambda event: calls.append(event))
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0, button=3))
+
+    assert len(calls) == 1
+    assert window._annotation_drag_start is None
+
+
+def test_on_annotation_release_ignored_when_mode_disabled(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = False
+    window._annotation_drag_start = (window.all_axes[0], 1.0, 2.0)
+
+    window._on_annotation_release(_FakeMplEvent(window.all_axes[0], 1.0, 2.0))
+
+    # ガード節で即returnし、drag_startは(このメソッドによっては)変更されない
+    assert window._annotation_drag_start == (window.all_axes[0], 1.0, 2.0)
+
+
+def test_on_annotation_release_ignored_when_no_drag_in_progress(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    window._annotation_drag_start = None
+
+    window._on_annotation_release(_FakeMplEvent(window.all_axes[0], 1.0, 2.0))
+
+    assert window.project.all_plot_settings[0]['annotations'] == []
+
+
+def test_on_annotation_release_ignored_when_released_on_different_axes(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.free_layout_checkbox.setChecked(True)
+    window._on_add_free_subplot()
+    assert len(window.all_axes) == 2
+    window.annotation_mode_enabled = True
+
+    window._on_annotation_press(_FakeMplEvent(window.all_axes[0], 1.0, 2.0))
+    window._on_annotation_release(_FakeMplEvent(window.all_axes[1], 1.0, 2.0))
+
+    assert window.project.all_plot_settings[0]['annotations'] == []
+    assert window.project.all_plot_settings[1]['annotations'] == []
+    assert window._annotation_drag_start is None  # 消費はされている
+
+
+def test_on_annotation_release_ignored_when_axis_index_cannot_be_resolved(tmp_path, monkeypatch):
+    """開始/終了したAxesがall_axes/all_secondary_axesのどちらにも属さない場合は何もしない"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    stray_fig, stray_ax = plt.subplots()
+    try:
+        window._on_annotation_press(_FakeMplEvent(stray_ax, 1.0, 2.0))
+        window._on_annotation_release(_FakeMplEvent(stray_ax, 1.0, 2.0))
+        assert window.project.all_plot_settings[0]['annotations'] == []
+    finally:
+        plt.close(stray_fig)
+
+
+# --------------------------------------------------------------------
+# _on_annotation_release: クリック(=テキスト注釈)経路の成功/キャンセル
+# --------------------------------------------------------------------
+
+def test_click_without_drag_adds_text_annotation(tmp_path, monkeypatch):
+    """ほぼ動かないクリックはテキスト注釈として追加される(ドラッグでなくクリック判定の成功経路)"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("メモ", True)))
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
+    window._on_annotation_release(_FakeMplEvent(ax, 1.0, 2.0))  # 同じ位置=クリック扱い
+
+    annotations = window.project.all_plot_settings[0]['annotations']
+    assert len(annotations) == 1
+    assert annotations[0]['type'] == 'text'
+    assert annotations[0]['text'] == 'メモ'
+    assert annotations[0]['xy'] == (1.0, 2.0)
+
+
+def test_click_without_drag_cancelled_dialog_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("", False)))
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
+    window._on_annotation_release(_FakeMplEvent(ax, 1.0, 2.0))
+
+    assert window.project.all_plot_settings[0]['annotations'] == []
+
+
+def test_drag_cancelled_arrow_dialog_adds_nothing(tmp_path, monkeypatch):
+    """十分に動いた(ドラッグ)場合でも、ラベル入力ダイアログをキャンセルすれば何も追加されない"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("", False)))
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
+    window._on_annotation_release(_FakeMplEvent(ax, 5.0, 8.0))
+
+    assert window.project.all_plot_settings[0]['annotations'] == []
+
+
+# --------------------------------------------------------------------
+# _try_delete_annotation_near
+# --------------------------------------------------------------------
+
+def test_delete_annotation_near_ignored_when_axis_unresolvable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    stray_fig, stray_ax = plt.subplots()
+    try:
+        window._try_delete_annotation_near(_FakeMplEvent(stray_ax, 1.0, 2.0))  # 例外なく何もしない
+    finally:
+        plt.close(stray_fig)
+
+
+def test_delete_annotation_near_ignored_when_no_annotations_exist(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    assert window.project.all_plot_settings[0].get('annotations', []) == []
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 1.0, 2.0))  # 例外なく何もしない
+
+
+def _seed_annotation(window, axis_index=0, xy=(1.0, 2.0), text="消す注釈"):
+    window.project.all_plot_settings[axis_index]['annotations'] = [{
+        'id': 'test-id', 'type': 'text', 'text': text,
+        'xy': xy, 'xytext': xy, 'color': '#000000',
+    }]
+
+
+def test_delete_annotation_near_confirmed_removes_it_via_undoable_command(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    _seed_annotation(window, xy=(1.0, 2.0))
+    monkeypatch.setattr(QMessageBox, "question",
+                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 1.0, 2.0))
+
+    assert window.project.all_plot_settings[0]['annotations'] == []
+    assert window.undo_stack.count() == 1
+    window.undo_stack.undo()
+    assert len(window.project.all_plot_settings[0]['annotations']) == 1
+
+
+def test_delete_annotation_near_declined_keeps_it(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    _seed_annotation(window, xy=(1.0, 2.0))
+    monkeypatch.setattr(QMessageBox, "question",
+                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 1.0, 2.0))
+
+    assert len(window.project.all_plot_settings[0]['annotations']) == 1
+
+
+def test_delete_annotation_near_too_far_is_ignored(tmp_path, monkeypatch):
+    """クリック位置が許容ピクセル距離より遠い場合は削除しない"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    _seed_annotation(window, xy=(1.0, 1.0))
+    monkeypatch.setattr(QMessageBox, "question",
+                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 99.0, 99.0))  # 遠く離れた位置
+
+    assert len(window.project.all_plot_settings[0]['annotations']) == 1
+
+
+def test_right_click_press_deletes_nearest_annotation_end_to_end(tmp_path, monkeypatch):
+    """_on_annotation_pressから右クリック経由で削除まで通しで動くことを確認する統合テスト"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    _seed_annotation(window, xy=(1.0, 2.0))
+    monkeypatch.setattr(QMessageBox, "question",
+                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0, button=3))
+
+    assert window.project.all_plot_settings[0]['annotations'] == []
+    assert window._annotation_drag_start is None

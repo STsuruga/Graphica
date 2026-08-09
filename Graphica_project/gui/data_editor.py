@@ -18,9 +18,19 @@ from core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
 from core.safe_eval import safe_eval_column_formula
 from gui.dialogs import ColumnCalculatorDialog, ReplicateErrorDialog
 from gui import icon_utils
+from gui import theme
 
-# 外れ値のマスク機能(項目36): 除外中の行をテーブル上でひと目で分かるように示す背景色
-MASKED_ROW_BACKGROUND = QColor(220, 220, 220)
+
+def _masked_row_background():
+    """マスク済み行の背景色を、現在のテーマトークンから解決する。"""
+    return QColor(theme.current_tokens()["surface_2"])
+
+# 外れ値のマスク機能(項目36): 除外中の行をテーブル上でひと目で分かるように示す背景色。
+# ★ バグ修正: 以前はライトモード専用の固定色(#DCDCDC)がハードコードされて
+# おり、ダークモード(surfaceが#1B1F22のような暗色)ではほぼ白に近いこの色が
+# 逆に浮いて見え、「除外中で目立たなくする」という意図と真逆の派手な表示に
+# なっていた。gui/theme.pyのトークンから都度解決するようにする
+# (_populate_table()呼び出しの都度動的に取得、_masked_row_background()参照)。
 
 #==============================================================================
 # データ構造とMatplotlibキャンバスクラス (2)
@@ -207,7 +217,7 @@ class DataEditorDialog(QDialog):
 
                 item = QTableWidgetItem(item_text)
                 if is_masked:
-                    item.setBackground(MASKED_ROW_BACKGROUND)
+                    item.setBackground(_masked_row_background())
                     item.setToolTip("この行はフィット/プロットから除外されています")
                 self.table_widget.setItem(i, j, item)
         
@@ -340,15 +350,32 @@ class DataEditorDialog(QDialog):
                 
                 # 型変換を試みる
                 try:
-                    # np.dtype(original_dtype).type は、
-                    # np.float64 や np.int64 などの型コンストラクタを返す
-                    new_value = np.dtype(original_dtype).type(new_value_str)
+                    # ★ バグ修正: bool列は特別扱いが必要。np.dtype(bool).type(s)は
+                    # Pythonのbool("文字列")と同じ「空文字列以外は全てTrue」という
+                    # 挙動になり、"False"や"0"のような入力すら真偽反転せずTrueに
+                    # なってしまう(列の計算/フィルタ機能で "A > 10" のような比較式
+                    # からbool列が作られるため、これは実際に到達しうる列型)。
+                    if np.issubdtype(original_dtype, np.bool_):
+                        normalized = new_value_str.strip().lower()
+                        if normalized in ("true", "1", "yes"):
+                            new_value = True
+                        elif normalized in ("false", "0", "no"):
+                            new_value = False
+                        else:
+                            raise ValueError(f"'{new_value_str}' を真偽値として解釈できません")
+                    else:
+                        # np.dtype(original_dtype).type は、
+                        # np.float64 や np.int64 などの型コンストラクタを返す
+                        new_value = np.dtype(original_dtype).type(new_value_str)
                 except (ValueError, TypeError):
                     # 型変換に失敗した場合 (例: 数値列に "abc" と入力)
-                    # もし元の型が数値系 (number) なら NaN にする
-                    if np.issubdtype(original_dtype, np.number):
+                    # もし元の型が数値系(number)またはbool系ならNaNにする
+                    # (boolはnumberのサブタイプではないため個別にチェックする必要がある。
+                    # 素の文字列をbool列にそのまま代入すると列全体がobject dtypeに
+                    # 暗黙アップキャストされてしまうため、数値列と同じくNaN扱いにする)
+                    if np.issubdtype(original_dtype, np.number) or np.issubdtype(original_dtype, np.bool_):
                         new_value = np.nan
-                    else: 
+                    else:
                         # 文字列型 (object) の場合は、入力された文字列をそのまま使う
                         new_value = new_value_str
             

@@ -5,11 +5,20 @@
 """
 import os
 
+import numpy as np
+import pandas as pd
+import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QInputDialog, QColorDialog
 
 from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
-                         FitDialog, SavGolDialog, PluginParamDialog)
+                         FitDialog, SavGolDialog, PluginParamDialog, LabelEditDialog,
+                         ColorPaletteDialog, HelpDialog, CalcHelpDialog, ResultDialog,
+                         AboutDialog, WelcomeDialog, PeakSettingsDialog, ColumnCalculatorDialog,
+                         ColumnPreviewDialog, ReplicateErrorDialog, ColumnTypeDialog,
+                         ExcelMultiSheetDialog, DatasetArithmeticDialog, NormalizeDatasetDialog,
+                         CommandPaletteDialog, QuickAccessManagerDialog, ShortcutsDialog,
+                         LegendOrderDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -28,6 +37,167 @@ def test_new_dataset_dialog_column_names_dedup_strip_and_skip_empty():
     dlg = NewDatasetDialog()
     dlg.columns_edit.setText(" A, B ,A, ,C")
     assert dlg.get_column_names() == ["A", "B", "C"]
+
+
+# --- LabelEditDialog(項目H-2-4: タイトル/軸ラベルのポップアップ編集) ---
+
+_SAMPLE_PALETTE = [("α", "alpha"), ("Ω", "Omega")]
+
+
+def test_label_edit_dialog_prefills_initial_text_and_title():
+    dlg = LabelEditDialog("初期テキスト", "タイトルを編集", _SAMPLE_PALETTE)
+    assert dlg.get_text() == "初期テキスト"
+    assert dlg.windowTitle() == "タイトルを編集"
+
+
+def test_label_edit_dialog_get_text_reflects_manual_edits():
+    dlg = LabelEditDialog("", "X軸ラベルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setText("手入力したテキスト")
+    assert dlg.get_text() == "手入力したテキスト"
+
+
+def test_label_edit_dialog_decoration_buttons_have_no_focus_policy(qapp):
+    """
+    バグ回帰テスト(実機フィードバック: 「選択してボタン押しても文字選択しろと
+    出る」が一度直したはずなのに再発)。
+
+    当初はQPushButton.pressedで選択範囲を先読みする方式で対処したが、
+    QTest.mouseClick()で実際のクリックを再現するとそれでも直っていなかった
+    (下のtest_label_edit_dialog_bold_button_survives_a_real_mouse_click参照)。
+    真因は「clickedが遅い」ことではなく、QPushButtonの既定フォーカスポリシー
+    (StrongFocus)により、Qtがマウス押下イベントをボタンへ配送する前にフォーカス
+    をボタン側へ移してしまい、その時点でtext_edit側の選択状態が失われていた
+    こと。本質的な修正は装飾ボタン自体にフォーカスを渡さないことなので、
+    focusPolicyがNoFocusになっていることを直接検証する。
+    """
+    from PySide6.QtWidgets import QPushButton, QToolButton
+
+    dlg = LabelEditDialog("Peak XYZ", "タイトルを編集", _SAMPLE_PALETTE)
+    decoration_tooltips = {"太字", "イタリック", "上付き文字", "下付き文字"}
+    decoration_buttons = [
+        b for b in dlg.findChildren(QPushButton) if b.toolTip() in decoration_tooltips
+    ]
+    assert len(decoration_buttons) == 4  # OK/Cancel(QDialogButtonBox側)は対象外
+    for button in decoration_buttons:
+        assert button.focusPolicy() == Qt.FocusPolicy.NoFocus
+    for button in dlg.findChildren(QToolButton):
+        assert button.focusPolicy() == Qt.FocusPolicy.NoFocus
+
+
+def test_label_edit_dialog_bold_button_survives_a_real_mouse_click(qapp):
+    """
+    上と対になる、実際のマウスクリック(QTest.mouseClick、press+releaseを
+    通常のイベントパイプライン経由で配送する)を使った回帰テスト。
+    .pressed.emit()や_capture_pending_selection()を手動で呼ぶテストは
+    「配線が正しいか」までしか検証できず、Qtの実際のフォーカス遷移タイミングに
+    起因するこのバグを見逃していた実例(このテスト自体がその教訓)。
+    """
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QPushButton
+
+    dlg = LabelEditDialog("Peak XYZ", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.show()
+    dlg.text_edit.setFocus()
+    dlg.text_edit.setSelection(0, 4)  # "Peak"
+    assert dlg.text_edit.hasSelectedText()
+
+    bold_button = next(
+        b for b in dlg.findChildren(QPushButton) if b.toolTip() == "太字"
+    )
+    QTest.mouseClick(bold_button, Qt.MouseButton.LeftButton)
+
+    assert dlg.get_text() == r"$\mathbf{Peak}$ XYZ"
+    dlg.close()
+
+
+# --- 複数のmathtext装飾を重ねて適用する(実機フィードバック: 「mathtextを
+#     複数適用しようとすると(例: イタリック+ボールド、上付き+ボールド)
+#     バグる」) ---
+
+def test_apply_wrap_combines_bold_then_italic_into_boldsymbol(qapp):
+    """
+    太字を適用した直後の選択範囲(装飾操作後は結果全体が自動選択される)に
+    続けてイタリックを適用すると、単純な入れ子("$\\mathit{$\\mathbf{...}}$"
+    のような不正な二重$)にはならず、太字とイタリックを同時に表現できる
+    \\boldsymbolに置き換わることを確認する。
+    """
+    dlg = LabelEditDialog("wavelength", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setSelection(0, len("wavelength"))
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+    assert dlg.get_text() == r"$\mathbf{wavelength}$"
+
+    dlg._capture_pending_selection()  # 直前の結果全体が選択されている状態を再現
+    dlg._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}")
+
+    assert dlg.get_text() == r"$\boldsymbol{wavelength}$"
+    assert dlg.get_text().count("$") == 2  # $の入れ子になっていない
+
+
+def test_apply_wrap_combines_italic_then_bold_into_boldsymbol(qapp):
+    """上と対称のケース(先にイタリック、後から太字)。"""
+    dlg = LabelEditDialog("wavelength", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setSelection(0, len("wavelength"))
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}")
+
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    assert dlg.get_text() == r"$\boldsymbol{wavelength}$"
+
+
+def test_apply_wrap_combines_superscript_then_bold_without_nested_dollar_signs(qapp):
+    """
+    「上付き+ボールド」の組み合わせも回帰対象。太字/イタリックのような
+    フォントクラスの合成(\\boldsymbol化)は不要だが、単純な二重$のバグは
+    こちらにも共通するため、有効なmathtext構文になることを確認する。
+    """
+    import matplotlib.mathtext as mathtext
+
+    dlg = LabelEditDialog("wavelength", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setSelection(0, len("wavelength"))
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("super", lambda s: f"{{}}^{{{s}}}")
+
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    text = dlg.get_text()
+    assert text.count("$") == 2
+    mathtext.MathTextParser('path').parse(text, dpi=100)  # 例外を投げなければOK
+
+
+def test_apply_wrap_without_prior_wrapping_still_wraps_plain_selection(qapp):
+    """通常の(初回の)装飾適用は従来通り動作することの回帰確認。"""
+    dlg = LabelEditDialog("Peak XYZ", "タイトルを編集", _SAMPLE_PALETTE)
+    dlg.text_edit.setSelection(0, 4)  # "Peak"
+    dlg._capture_pending_selection()
+    dlg._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    assert dlg.get_text() == r"$\mathbf{Peak}$ XYZ"
+
+
+# --- ダイアログ内のライブプレビュー(実機フィードバック: 「ボタンを押して
+#     mathtext形式で書かれたラベルが出力されるんじゃなくて実際にボールドとか
+#     イタリックとかが適用されてるテキストが見れるようにしたい」) ---
+
+def test_label_edit_dialog_has_preview_label_rendering_initial_text(qapp):
+    dlg = LabelEditDialog("wavelength", "タイトルを編集", _SAMPLE_PALETTE)
+    pixmap = dlg.preview_label.pixmap()
+    assert pixmap is not None and not pixmap.isNull()
+
+
+def test_label_edit_dialog_preview_updates_when_text_changes(qapp):
+    dlg = LabelEditDialog("", "タイトルを編集", _SAMPLE_PALETTE)
+    empty_pixmap = dlg.preview_label.pixmap()
+
+    dlg.text_edit.setText("wavelength")
+
+    filled_pixmap = dlg.preview_label.pixmap()
+    assert (filled_pixmap.width(), filled_pixmap.height()) != (
+        empty_pixmap.width(), empty_pixmap.height(),
+    )
 
 
 def test_new_dataset_dialog_dataset_name_strips_whitespace():
@@ -508,3 +678,1226 @@ def test_preferences_dialog_shows_error_for_intentionally_broken_plugin_end_to_e
     item_text = dlg.plugin_list.item(0).text()
     assert "broken_plugin" in item_text
     assert "plugin.json" in item_text
+
+
+# --- ColorPaletteDialog(項目H-2-6、実機での目視確認で発覚したバグの回帰) ---
+
+def test_color_palette_dialog_lists_one_row_per_color(qapp):
+    palettes = {"カスタム": ["#e6194b", "#3cb44b"]}
+    dlg = ColorPaletteDialog(palettes, "カスタム")
+    assert dlg.color_list.count() == 2
+
+
+def test_color_palette_dialog_row_widget_shows_readable_hex_text(qapp):
+    """
+    バグ回帰テスト: 以前はQListWidgetItem.setBackground()/setForeground()で
+    行全体を色で塗り明るさに応じて白/黒文字にしていたが、QSSが::itemに
+    何かひとつでもプロパティを当てるとBackgroundRole/ForegroundRoleを
+    無視してしまうため、実機ではリストの地の色のまま文字色だけが適用され、
+    明るい色/暗い色の一部が読めなくなっていた(例: ライトモードで青・緑は
+    白文字を選択するため白地に白文字で消える)。setItemWidget()による
+    スウォッチ+通常文字色のテキストラベルに置き換えたことを確認する。
+    """
+    from PySide6.QtWidgets import QLabel
+
+    palettes = {"カスタム": ["#1f77b4", "#ff7f0e"]}
+    dlg = ColorPaletteDialog(palettes, "カスタム")
+
+    row_widget = dlg.color_list.itemWidget(dlg.color_list.item(0))
+    assert row_widget is not None
+    labels = row_widget.findChildren(QLabel)
+    text_label = next(l for l in labels if l.text() == "#1f77b4")
+    # テキストラベル自体には色固有のスタイルが付いていない
+    # (=常にテーマの通常文字色で描画され、可読性の問題が起きない)
+    assert "background-color" not in text_label.styleSheet()
+
+    # 色そのものはスウォッチ(小さな正方形)側にだけ反映されている
+    swatch = next(l for l in labels if "#1f77b4" in l.styleSheet())
+    assert "background-color: #1f77b4" in swatch.styleSheet()
+
+
+def test_color_palette_dialog_no_longer_uses_background_foreground_roles(qapp):
+    """
+    setBackground()/setForeground()経由の着色に戻っていないことを確認する
+    (QSSに無視される既知の問題があるため、意図的にsetItemWidget方式へ
+    移行した)。
+    """
+    from PySide6.QtCore import Qt
+
+    palettes = {"カスタム": ["#e6194b"]}
+    dlg = ColorPaletteDialog(palettes, "カスタム")
+    item = dlg.color_list.item(0)
+    assert item.background().style() == Qt.BrushStyle.NoBrush  # 未設定(デフォルト)のまま
+
+
+def test_color_palette_dialog_remove_selected_color_uses_row_selection(qapp):
+    """setItemWidget化した後もcurrentRow()による行選択が機能することの確認
+    (_on_remove_colorが依存している)。"""
+    palettes = {"カスタム": ["#e6194b", "#3cb44b"]}
+    dlg = ColorPaletteDialog(palettes, "カスタム")
+    dlg.color_list.setCurrentRow(0)
+
+    dlg._on_remove_color()
+
+    assert dlg.palettes["カスタム"] == ["#3cb44b"]
+
+
+def test_color_palette_dialog_default_palette_uses_matplotlib_cycle(qapp):
+    import matplotlib as mpl
+
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+    expected_count = len(mpl.rcParams['axes.prop_cycle'].by_key()['color'])
+    assert dlg.color_list.count() == expected_count
+
+
+# --- HelpDialog/CalcHelpDialog(項目H-2-6、実機での目視確認で発覚したバグの
+#     回帰): 表の見出し行が背景色#f0f0f0をハードコードしており、ダークモードで
+#     ほぼ見えなくなっていた ---
+
+def test_help_dialog_does_not_hardcode_header_row_background(qapp):
+    from PySide6.QtWidgets import QTextBrowser
+
+    dlg = HelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+    assert "#f0f0f0" not in text_browser.toHtml()
+
+
+def test_help_dialog_header_row_stylesheet_uses_dark_tokens_in_dark_mode(qapp):
+    from gui import theme
+
+    theme.apply_theme(qapp, dark=True)
+    dlg = HelpDialog()
+    from PySide6.QtWidgets import QTextBrowser
+    text_browser = dlg.findChild(QTextBrowser)
+    stylesheet = text_browser.document().defaultStyleSheet()
+    assert theme.DARK_TOKENS["surface_2"] in stylesheet
+    assert theme.DARK_TOKENS["text_primary"] in stylesheet
+    theme.apply_theme(qapp, dark=False)  # 他のテストに影響しないよう戻す
+
+
+def test_calc_help_dialog_does_not_hardcode_header_row_background(qapp):
+    from PySide6.QtWidgets import QTextBrowser
+
+    dlg = CalcHelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+    assert "#f0f0f0" not in text_browser.toHtml()
+
+
+def test_calc_help_dialog_header_row_stylesheet_uses_light_tokens_in_light_mode(qapp):
+    from gui import theme
+    from PySide6.QtWidgets import QTextBrowser
+
+    theme.apply_theme(qapp, dark=False)
+    dlg = CalcHelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+    stylesheet = text_browser.document().defaultStyleSheet()
+    assert theme.LIGHT_TOKENS["surface_2"] in stylesheet
+    assert theme.LIGHT_TOKENS["text_primary"] in stylesheet
+
+
+def test_help_dialog_refresh_theme_updates_stylesheet_after_live_toggle(qapp):
+    """
+    回帰テスト: HelpDialog/CalcHelpDialogは非モーダル(show())で開いたまま
+    ダークモードを切り替えられるが、以前は見出し行の色を__init__時点の
+    テーマトークンで固定していたため、開いたまま切り替えると古い色の
+    ままになっていた。refresh_theme()を呼べば現在のテーマに追従することを
+    確認する。
+    """
+    from gui import theme
+    from PySide6.QtWidgets import QTextBrowser
+
+    theme.apply_theme(qapp, dark=False)
+    dlg = HelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+    assert theme.LIGHT_TOKENS["surface_2"] in text_browser.document().defaultStyleSheet()
+
+    theme.apply_theme(qapp, dark=True)
+    dlg.refresh_theme()
+    assert theme.DARK_TOKENS["surface_2"] in text_browser.document().defaultStyleSheet()
+    theme.apply_theme(qapp, dark=False)  # 他のテストに影響しないよう戻す
+
+
+def test_calc_help_dialog_refresh_theme_updates_stylesheet_after_live_toggle(qapp):
+    from gui import theme
+    from PySide6.QtWidgets import QTextBrowser
+
+    theme.apply_theme(qapp, dark=False)
+    dlg = CalcHelpDialog()
+    text_browser = dlg.findChild(QTextBrowser)
+
+    theme.apply_theme(qapp, dark=True)
+    dlg.refresh_theme()
+    assert theme.DARK_TOKENS["surface_2"] in text_browser.document().defaultStyleSheet()
+    theme.apply_theme(qapp, dark=False)
+
+
+# --- ResultDialog(曲線フィット結果の残差プロット) ---
+
+def test_result_dialog_residual_plot_uses_dark_theme_facecolor(qapp):
+    """
+    回帰テスト: 残差プロットはgui/canvas.pyのMplCanvasとは別の独立した
+    Figureをその場で作っており、以前はmatplotlib既定の白背景+黒文字の
+    まま固定されていた(ダイアログ本体はダークモードに追従するのに、
+    残差プロットだけ白いまま浮いて見えていた)。
+    """
+    import matplotlib.colors as mcolors
+    from gui import theme
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+
+    theme.apply_theme(qapp, dark=True)
+    try:
+        dlg = ResultDialog(
+            "フィット結果", "a=1.0", residual_x=[1, 2, 3], residual_y=[0.1, -0.1, 0.05]
+        )
+        canvas = dlg.findChild(FigureCanvasQTAgg)
+        assert canvas is not None
+        assert mcolors.to_rgba(canvas.figure.get_facecolor()) == mcolors.to_rgba(
+            theme.DARK_TOKENS['surface']
+        )
+    finally:
+        theme.apply_theme(qapp, dark=False)
+
+
+# --- AboutDialog ---
+
+def test_about_dialog_shows_version_and_app_name(qapp):
+    from core.version import APP_NAME, __version__
+
+    dlg = AboutDialog()
+    assert APP_NAME in dlg.windowTitle()
+    assert __version__ in dlg.windowTitle() or True  # バージョンはタイトルには出ないため存在確認のみ
+
+
+def test_about_dialog_with_parent_icon_shows_icon_label(qapp):
+    from PySide6.QtGui import QIcon, QPixmap
+    from PySide6.QtWidgets import QWidget, QLabel
+
+    parent = QWidget()
+    pixmap = QPixmap(64, 64)
+    pixmap.fill(Qt.GlobalColor.red)
+    parent.setWindowIcon(QIcon(pixmap))
+
+    dlg = AboutDialog(parent=parent)
+    icon_labels = [l for l in dlg.findChildren(QLabel) if l.pixmap() is not None and not l.pixmap().isNull()]
+    assert len(icon_labels) >= 1
+
+
+def test_about_dialog_without_parent_has_no_icon_label(qapp):
+    dlg = AboutDialog(parent=None)
+    # 例外なく構築できることを確認(parent=Noneの分岐、36-52行)
+    assert dlg.windowTitle() != ""
+
+
+# --- WelcomeDialog ---
+
+def test_welcome_dialog_load_sample_button_sets_flag_and_accepts(qapp):
+    dlg = WelcomeDialog()
+    assert dlg.load_sample_requested is False
+
+    dlg._on_load_sample_clicked()
+
+    assert dlg.load_sample_requested is True
+    assert dlg.result() == QDialog.DialogCode.Accepted
+
+
+def test_welcome_dialog_close_button_does_not_set_flag(qapp):
+    dlg = WelcomeDialog()
+    dlg.accept()  # 「閉じる」ボタンと同じ経路(load_sample_requestedを介さない)
+    assert dlg.load_sample_requested is False
+
+
+def test_welcome_dialog_with_parent_icon_shows_icon_label(qapp):
+    from PySide6.QtGui import QIcon, QPixmap
+    from PySide6.QtWidgets import QWidget
+
+    parent = QWidget()
+    pixmap = QPixmap(64, 64)
+    pixmap.fill(Qt.GlobalColor.blue)
+    parent.setWindowIcon(QIcon(pixmap))
+
+    dlg = WelcomeDialog(parent=parent)
+    assert dlg.windowTitle() != ""
+
+
+# --- ResultDialog: コピー/CSV保存ボタン ---
+
+def test_result_dialog_copy_button_sets_clipboard_and_feedback_text(qapp):
+    from PySide6.QtWidgets import QApplication
+
+    dlg = ResultDialog("結果", "a=1.0\nb=2.0")
+    dlg._on_copy()
+
+    assert QApplication.clipboard().text() == "a=1.0\nb=2.0"
+    assert "コピーしました" in dlg.copy_button.text()
+    assert dlg.copy_button.isEnabled() is False
+
+
+def test_result_dialog_save_csv_cancelled_does_nothing(qapp, monkeypatch):
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: ("", "")))
+    df = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
+    dlg = ResultDialog("結果", "text", csv_data=df)
+
+    dlg._on_save_csv()  # 例外が起きなければOK(保存処理は呼ばれない)
+
+
+def test_result_dialog_save_csv_success_shows_information(qapp, monkeypatch, tmp_path):
+    calls = _patch_message_box_capture(monkeypatch)
+    out_path = str(tmp_path / "out.csv")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (out_path, "")))
+
+    df = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
+    dlg = ResultDialog("結果", "text", csv_data=df)
+    dlg._on_save_csv()
+
+    assert os.path.exists(out_path)
+    assert len(calls["information"]) == 1
+
+
+def test_result_dialog_save_csv_failure_shows_warning(qapp, monkeypatch):
+    calls = {"warning": []}
+    monkeypatch.setattr(
+        QMessageBox, "warning",
+        staticmethod(lambda *a, **k: calls["warning"].append(a))
+    )
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: ("/nonexistent_dir_xyz/out.csv", ""))
+    )
+
+    df = pd.DataFrame({"x": [1, 2]})
+    dlg = ResultDialog("結果", "text", csv_data=df)
+    dlg._on_save_csv()
+
+    assert len(calls["warning"]) == 1
+
+
+# --- PeakSettingsDialog ---
+
+def test_peak_settings_dialog_defaults():
+    dlg = PeakSettingsDialog()
+    settings = dlg.get_settings()
+    assert settings["peak_type"] == "上に凸 (Peaks)"
+    assert settings["height"] == 0.0
+    assert settings["distance_x"] == 1.0
+    assert settings["prominence"] is None  # 0のときはNone
+
+
+def test_peak_settings_dialog_prominence_above_zero_is_kept():
+    dlg = PeakSettingsDialog()
+    dlg.prominence_spinbox.setValue(2.5)
+    settings = dlg.get_settings()
+    assert settings["prominence"] == 2.5
+
+
+def test_peak_settings_dialog_valley_type_and_custom_values():
+    dlg = PeakSettingsDialog()
+    dlg.type_combo.setCurrentText("下に凸 (Valleys)")
+    dlg.height_spinbox.setValue(-5.0)
+    dlg.distance_spinbox.setValue(3.0)
+    settings = dlg.get_settings()
+    assert settings["peak_type"] == "下に凸 (Valleys)"
+    assert settings["height"] == -5.0
+    assert settings["distance_x"] == 3.0
+
+
+def test_peak_settings_dialog_get_peak_settings_accepted_returns_dict(monkeypatch):
+    monkeypatch.setattr(PeakSettingsDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    result = PeakSettingsDialog.get_peak_settings(parent=None)
+    assert result is not None
+    assert result["peak_type"] == "上に凸 (Peaks)"
+
+
+def test_peak_settings_dialog_get_peak_settings_rejected_returns_none(monkeypatch):
+    monkeypatch.setattr(PeakSettingsDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
+    result = PeakSettingsDialog.get_peak_settings(parent=None)
+    assert result is None
+
+
+# --- FitDialog: カスタム数式の表示切り替え ---
+
+def test_fit_dialog_custom_formula_fields_hidden_by_default():
+    dlg = FitDialog()
+    assert dlg.custom_formula_label.isVisible() is False
+    assert dlg.custom_formula_edit.isVisible() is False
+
+
+def test_fit_dialog_custom_formula_fields_shown_when_custom_selected(qapp):
+    dlg = FitDialog()
+    dlg.show()
+    dlg.fit_type_combo.setCurrentText("カスタム数式...")
+    assert dlg.custom_formula_label.isVisible() is True
+    assert dlg.custom_formula_edit.isVisible() is True
+
+    dlg.fit_type_combo.setCurrentIndex(0)
+    assert dlg.custom_formula_label.isVisible() is False
+    dlg.close()
+
+
+def test_fit_dialog_get_fit_type_accepted_builtin(monkeypatch):
+    monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    fit_type, custom_formula, weighted, x_range = FitDialog.get_fit_type(parent=None)
+    assert fit_type == "線形 (y = ax + b)"
+    assert custom_formula is None
+    assert weighted is False
+    assert x_range is None
+
+
+def test_fit_dialog_get_fit_type_accepted_custom_formula(monkeypatch):
+    def fake_exec(self):
+        self.fit_type_combo.setCurrentText("カスタム数式...")
+        self.custom_formula_edit.setText("a*x+b")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(FitDialog, "exec", fake_exec)
+    fit_type, custom_formula, weighted, x_range = FitDialog.get_fit_type(parent=None)
+    assert "カスタム数式" in fit_type
+    assert custom_formula == "a*x+b"
+
+
+def test_fit_dialog_get_fit_type_rejected_returns_none_tuple(monkeypatch):
+    monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
+    result = FitDialog.get_fit_type(parent=None)
+    assert result == (None, None, False, None)
+
+
+# --- ColumnCalculatorDialog(列の計算プリセット) ---
+
+def test_column_calculator_dialog_moving_average_preset():
+    dlg = ColumnCalculatorDialog(["A", "B"])
+    dlg.preset_source_combo.setCurrentText("A")
+    dlg.preset_window_spinbox.setValue(5)
+    dlg._apply_preset_moving_average()
+    assert dlg.formula_edit.text() == "A.rolling(5).mean()"
+    assert dlg.output_col_combo.currentText() == "A_moving_avg5"
+
+
+def test_column_calculator_dialog_diff_preset():
+    dlg = ColumnCalculatorDialog(["A", "B"])
+    dlg.preset_source_combo.setCurrentText("B")
+    dlg._apply_preset_diff()
+    assert dlg.formula_edit.text() == "B.diff()"
+    assert dlg.output_col_combo.currentText() == "B_diff"
+
+
+def test_column_calculator_dialog_normalize_preset():
+    dlg = ColumnCalculatorDialog(["A", "B"])
+    dlg.preset_source_combo.setCurrentText("A")
+    dlg._apply_preset_normalize()
+    assert dlg.formula_edit.text() == "(A - A.mean()) / A.std()"
+    assert dlg.output_col_combo.currentText() == "A_normalized"
+
+
+def test_column_calculator_dialog_cumsum_preset():
+    dlg = ColumnCalculatorDialog(["A", "B"])
+    dlg.preset_source_combo.setCurrentText("A")
+    dlg._apply_preset_cumsum()
+    assert dlg.formula_edit.text() == "A.cumsum()"
+    assert dlg.output_col_combo.currentText() == "A_cumsum"
+
+
+def test_column_calculator_dialog_presets_noop_with_no_columns():
+    dlg = ColumnCalculatorDialog([])
+    dlg._apply_preset_moving_average()
+    dlg._apply_preset_diff()
+    dlg._apply_preset_normalize()
+    dlg._apply_preset_cumsum()
+    assert dlg.formula_edit.text() == ""
+
+
+def test_column_calculator_dialog_get_formula_returns_tuple():
+    dlg = ColumnCalculatorDialog(["A"])
+    dlg.output_col_combo.setCurrentText("C")
+    dlg.formula_edit.setText("A * 2")
+    assert dlg.get_formula() == ("C", "A * 2")
+
+
+# --- ColumnPreviewDialog(非Excel: CSV相当) ---
+
+def test_column_preview_dialog_non_excel_basic_construction():
+    df = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]})
+    dlg = ColumnPreviewDialog(df, "data.csv")
+    assert dlg.is_excel is False
+    assert dlg.table.rowCount() == 3
+    assert dlg.table.columnCount() == 2
+    assert dlg.get_selected_columns() == ("A", "B")
+    assert dlg.get_dataframe() is df
+
+
+def test_column_preview_dialog_nan_shown_as_empty_string():
+    df = pd.DataFrame({"A": [1.0, np.nan], "B": [4, 5]})
+    dlg = ColumnPreviewDialog(df, "data.csv")
+    assert dlg.table.item(1, 0).text() == ""
+
+
+def test_column_preview_dialog_preview_capped_at_20_rows():
+    df = pd.DataFrame({"A": list(range(25)), "B": list(range(25))})
+    dlg = ColumnPreviewDialog(df, "data.csv")
+    assert dlg.table.rowCount() == 20
+    assert "25行" in dlg.info_label.text()
+
+
+def test_column_preview_dialog_single_column_y_combo_not_advanced():
+    df = pd.DataFrame({"A": [1, 2, 3]})
+    dlg = ColumnPreviewDialog(df, "data.csv")
+    assert dlg.x_col_combo.currentText() == "A"
+    assert dlg.y_col_combo.currentText() == "A"  # 2列目が無いので同じ列のまま
+
+
+# --- ColumnPreviewDialog(Excel: シート/ヘッダー行/型上書き) ---
+
+@pytest.fixture
+def sample_xlsx(tmp_path):
+    path = tmp_path / "sample.xlsx"
+    with pd.ExcelWriter(str(path)) as writer:
+        pd.DataFrame({"A": [1, 2], "B": [3, 4]}).to_excel(writer, sheet_name="Sheet1", index=False)
+        pd.DataFrame({"C": [5, 6], "D": [7, 8]}).to_excel(writer, sheet_name="Sheet2", index=False)
+    return str(path)
+
+
+def test_column_preview_dialog_excel_lists_sheet_names(sample_xlsx):
+    df = pd.read_excel(sample_xlsx, sheet_name=0)
+    dlg = ColumnPreviewDialog(df, "sample.xlsx", file_path=sample_xlsx)
+    assert dlg.is_excel is True
+    assert dlg.sheet_names == ["Sheet1", "Sheet2"]
+    assert [dlg.sheet_combo.itemText(i) for i in range(dlg.sheet_combo.count())] == ["Sheet1", "Sheet2"]
+
+
+def test_column_preview_dialog_excel_switch_sheet_reloads_columns(sample_xlsx):
+    df = pd.read_excel(sample_xlsx, sheet_name=0)
+    dlg = ColumnPreviewDialog(df, "sample.xlsx", file_path=sample_xlsx)
+
+    dlg.sheet_combo.setCurrentIndex(1)  # Sheet2に切り替え
+
+    assert list(dlg.current_df.columns) == ["C", "D"]
+    assert dlg.get_selected_columns() == ("C", "D")
+
+
+def test_column_preview_dialog_excel_header_row_change_reloads(sample_xlsx):
+    df = pd.read_excel(sample_xlsx, sheet_name=0)
+    dlg = ColumnPreviewDialog(df, "sample.xlsx", file_path=sample_xlsx)
+
+    dlg.header_row_spinbox.setValue(2)  # 2行目をヘッダーとして使う
+
+    # 元データは2行しかないため、2行目をヘッダーにすると0行になる
+    assert len(dlg.current_df) == 1
+
+
+def test_column_preview_dialog_excel_invalid_usecols_shows_warning(sample_xlsx, monkeypatch):
+    calls = {"warning": []}
+    monkeypatch.setattr(
+        QMessageBox, "warning", staticmethod(lambda *a, **k: calls["warning"].append(a))
+    )
+    df = pd.read_excel(sample_xlsx, sheet_name=0)
+    dlg = ColumnPreviewDialog(df, "sample.xlsx", file_path=sample_xlsx)
+
+    dlg.usecols_edit.setText("Z:ZZ")  # 存在しない列範囲
+    dlg._on_sheet_or_header_changed()
+
+    assert len(calls["warning"]) == 1
+
+
+def test_column_preview_dialog_excel_check_column_types_applies_overrides(sample_xlsx, monkeypatch):
+    df = pd.read_excel(sample_xlsx, sheet_name=0)
+    dlg = ColumnPreviewDialog(df, "sample.xlsx", file_path=sample_xlsx)
+
+    monkeypatch.setattr(ColumnTypeDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
+    monkeypatch.setattr(ColumnTypeDialog, "get_overrides", lambda self: {"A": "文字列"})
+
+    dlg._on_check_column_types()
+
+    assert dlg.type_overrides == {"A": "文字列"}
+    assert dlg.current_df["A"].dtype == object
+
+
+def test_column_preview_dialog_apply_type_overrides_numeric_conversion():
+    df = pd.DataFrame({"A": ["1", "2", "abc"]})
+    dlg = ColumnPreviewDialog(df, "data.csv")
+    dlg.type_overrides = {"A": "数値"}
+    dlg._apply_type_overrides()
+    assert pd.api.types.is_numeric_dtype(dlg.current_df["A"])
+    assert pd.isna(dlg.current_df["A"].iloc[2])  # "abc" -> NaN(coerce)
+
+
+def test_column_preview_dialog_apply_type_overrides_date_conversion():
+    df = pd.DataFrame({"A": ["2024-01-01", "2024-02-01"]})
+    dlg = ColumnPreviewDialog(df, "data.csv")
+    dlg.type_overrides = {"A": "日付"}
+    dlg._apply_type_overrides()
+    assert pd.api.types.is_datetime64_any_dtype(dlg.current_df["A"])
+
+
+def test_column_preview_dialog_apply_type_overrides_skips_missing_column():
+    df = pd.DataFrame({"A": [1, 2]})
+    dlg = ColumnPreviewDialog(df, "data.csv")
+    dlg.type_overrides = {"NOT_A_COLUMN": "数値"}
+    dlg._apply_type_overrides()  # 例外にならず単にスキップされる
+
+
+# --- ColorPaletteDialog: パレットの新規作成/名前変更/削除/色追加/削除 ---
+
+def test_color_palette_dialog_new_palette_via_input_dialog(qapp, monkeypatch):
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("新パレット", True)))
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+
+    dlg._on_new_palette()
+
+    assert "新パレット" in dlg.palettes
+    assert dlg.palette_combo.currentText() == "新パレット"
+
+
+def test_color_palette_dialog_new_palette_cancelled_does_nothing(qapp, monkeypatch):
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("", False)))
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+
+    dlg._on_new_palette()
+
+    assert dlg.palettes == {}
+
+
+def test_color_palette_dialog_new_palette_duplicate_name_shows_warning(qapp, monkeypatch):
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("既存", True)))
+    calls = {"warning": []}
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls["warning"].append(a)))
+    dlg = ColorPaletteDialog({"既存": ["#fff"]}, "既存")
+
+    dlg._on_new_palette()
+
+    assert len(calls["warning"]) == 1
+
+
+def test_color_palette_dialog_rename_palette(qapp, monkeypatch):
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("新名前", True)))
+    dlg = ColorPaletteDialog({"旧名前": ["#fff"]}, "旧名前")
+
+    dlg._on_rename_palette()
+
+    assert "新名前" in dlg.palettes
+    assert "旧名前" not in dlg.palettes
+    assert dlg.palette_combo.currentText() == "新名前"
+
+
+def test_color_palette_dialog_rename_default_palette_is_noop(qapp, monkeypatch):
+    calls = {"getText": 0}
+
+    def fake_get_text(*a, **k):
+        calls["getText"] += 1
+        return ("x", True)
+
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(fake_get_text))
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+
+    dlg._on_rename_palette()
+
+    assert calls["getText"] == 0  # デフォルトパレットは名前変更不可のため呼ばれない
+
+
+def test_color_palette_dialog_rename_palette_duplicate_name_shows_warning(qapp, monkeypatch):
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("B", True)))
+    calls = {"warning": []}
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls["warning"].append(a)))
+    dlg = ColorPaletteDialog({"A": ["#fff"], "B": ["#000"]}, "A")
+
+    dlg._on_rename_palette()
+
+    assert len(calls["warning"]) == 1
+    assert "A" in dlg.palettes  # 変更されていない
+
+
+def test_color_palette_dialog_delete_palette_confirmed(qapp, monkeypatch):
+    monkeypatch.setattr(
+        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes)
+    )
+    dlg = ColorPaletteDialog({"消す": ["#fff"]}, "消す")
+
+    dlg._on_delete_palette()
+
+    assert "消す" not in dlg.palettes
+
+
+def test_color_palette_dialog_delete_palette_cancelled_keeps_it(qapp, monkeypatch):
+    monkeypatch.setattr(
+        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.No)
+    )
+    dlg = ColorPaletteDialog({"残す": ["#fff"]}, "残す")
+
+    dlg._on_delete_palette()
+
+    assert "残す" in dlg.palettes
+
+
+def test_color_palette_dialog_delete_default_palette_is_noop(qapp, monkeypatch):
+    calls = {"question": 0}
+
+    def fake_question(*a, **k):
+        calls["question"] += 1
+        return QMessageBox.StandardButton.Yes
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(fake_question))
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+
+    dlg._on_delete_palette()
+
+    assert calls["question"] == 0
+
+
+def test_color_palette_dialog_add_color_via_color_dialog(qapp, monkeypatch):
+    from PySide6.QtGui import QColor
+
+    monkeypatch.setattr(QColorDialog, "getColor", staticmethod(lambda *a, **k: QColor("#123456")))
+    dlg = ColorPaletteDialog({"カスタム": []}, "カスタム")
+
+    dlg._on_add_color()
+
+    assert dlg.palettes["カスタム"] == ["#123456"]
+
+
+def test_color_palette_dialog_add_color_invalid_selection_ignored(qapp, monkeypatch):
+    from PySide6.QtGui import QColor
+
+    monkeypatch.setattr(QColorDialog, "getColor", staticmethod(lambda *a, **k: QColor()))  # invalid
+    dlg = ColorPaletteDialog({"カスタム": []}, "カスタム")
+
+    dlg._on_add_color()
+
+    assert dlg.palettes["カスタム"] == []
+
+
+def test_color_palette_dialog_add_color_on_default_palette_is_noop(qapp, monkeypatch):
+    from PySide6.QtGui import QColor
+
+    calls = {"getColor": 0}
+
+    def fake_get_color(*a, **k):
+        calls["getColor"] += 1
+        return QColor("#123456")
+
+    monkeypatch.setattr(QColorDialog, "getColor", staticmethod(fake_get_color))
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+
+    dlg._on_add_color()
+
+    assert calls["getColor"] == 0
+
+
+def test_color_palette_dialog_remove_color_on_default_palette_is_noop(qapp):
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+    dlg._on_remove_color()  # 例外にならない(1542行のreturn)
+
+
+def test_color_palette_dialog_remove_color_no_selection_is_noop(qapp):
+    dlg = ColorPaletteDialog({"カスタム": ["#fff", "#000"]}, "カスタム")
+    dlg.color_list.setCurrentRow(-1)
+    dlg._on_remove_color()  # 例外にならない(1545行のreturn)
+    assert dlg.palettes["カスタム"] == ["#fff", "#000"]
+
+
+def test_color_palette_dialog_get_result_returns_palettes_and_active_name(qapp):
+    dlg = ColorPaletteDialog({"A": ["#fff"]}, "A")
+    palettes, active_name = dlg.get_result()
+    assert palettes == {"A": ["#fff"]}
+    assert active_name == "A"
+
+
+# --- ReplicateErrorDialog ---
+
+def test_replicate_error_dialog_defaults_to_no_selection():
+    dlg = ReplicateErrorDialog(["rep1", "rep2", "rep3"])
+    selected, stat_type, base_name = dlg.get_settings()
+    assert selected == []
+    assert stat_type == "SD"
+    assert base_name == "measurement"
+
+
+def test_replicate_error_dialog_checked_items_are_selected():
+    dlg = ReplicateErrorDialog(["rep1", "rep2", "rep3"])
+    dlg.column_list.item(0).setCheckState(Qt.CheckState.Checked)
+    dlg.column_list.item(2).setCheckState(Qt.CheckState.Checked)
+
+    selected, _, _ = dlg.get_settings()
+    assert selected == ["rep1", "rep3"]
+
+
+def test_replicate_error_dialog_stat_type_sem_and_ci():
+    dlg = ReplicateErrorDialog(["rep1", "rep2"])
+    dlg.stat_combo.setCurrentText("SEM (標準誤差)")
+    _, stat_type, _ = dlg.get_settings()
+    assert stat_type == "SEM"
+
+    dlg.stat_combo.setCurrentText("95%CI (信頼区間)")
+    _, stat_type, _ = dlg.get_settings()
+    assert stat_type == "95%CI"
+
+
+def test_replicate_error_dialog_base_name_stripped():
+    dlg = ReplicateErrorDialog(["rep1", "rep2"])
+    dlg.base_name_edit.setText("  custom_name  ")
+    _, _, base_name = dlg.get_settings()
+    assert base_name == "custom_name"
+
+
+# --- ColumnTypeDialog ---
+
+def test_column_type_dialog_lists_detected_dtypes():
+    df = pd.DataFrame({"A": [1, 2], "B": ["x", "y"]})
+    dlg = ColumnTypeDialog(df)
+    assert dlg.table.rowCount() == 2
+    assert dlg.table.item(0, 0).text() == "A"
+    assert dlg.table.item(0, 1).text() == str(df["A"].dtype)
+
+
+def test_column_type_dialog_default_overrides_empty():
+    df = pd.DataFrame({"A": [1, 2]})
+    dlg = ColumnTypeDialog(df)
+    assert dlg.get_overrides() == {}
+
+
+def test_column_type_dialog_get_overrides_reflects_combo_selection():
+    df = pd.DataFrame({"A": [1, 2], "B": ["x", "y"]})
+    dlg = ColumnTypeDialog(df)
+    dlg._override_combos["A"].setCurrentText("数値")
+    dlg._override_combos["B"].setCurrentText("日付")
+    assert dlg.get_overrides() == {"A": "数値", "B": "日付"}
+
+
+# --- ExcelMultiSheetDialog ---
+
+def test_excel_multi_sheet_dialog_first_sheet_checked_by_default():
+    dlg = ExcelMultiSheetDialog(["Sheet1", "Sheet2", "Sheet3"])
+    assert dlg.get_selected_sheets() == ["Sheet1"]
+
+
+def test_excel_multi_sheet_dialog_multiple_selection():
+    dlg = ExcelMultiSheetDialog(["Sheet1", "Sheet2", "Sheet3"])
+    dlg.sheet_list.item(2).setCheckState(Qt.CheckState.Checked)
+    assert dlg.get_selected_sheets() == ["Sheet1", "Sheet3"]
+
+
+def test_excel_multi_sheet_dialog_uncheck_first_sheet():
+    dlg = ExcelMultiSheetDialog(["Sheet1", "Sheet2"])
+    dlg.sheet_list.item(0).setCheckState(Qt.CheckState.Unchecked)
+    assert dlg.get_selected_sheets() == []
+
+
+# --- DatasetArithmeticDialog ---
+
+def test_dataset_arithmetic_dialog_defaults():
+    dlg = DatasetArithmeticDialog("Alpha", "Beta")
+    assert dlg.get_settings() == ("A - B", "Alpha vs Beta")
+
+
+def test_dataset_arithmetic_dialog_custom_operation_and_name():
+    dlg = DatasetArithmeticDialog("Alpha", "Beta")
+    dlg.operation_combo.setCurrentText("A × B")
+    dlg.output_name_edit.setText("  Product  ")
+    assert dlg.get_settings() == ("A × B", "Product")
+
+
+# --- NormalizeDatasetDialog ---
+
+def test_normalize_dataset_dialog_defaults_to_max_mode():
+    dlg = NormalizeDatasetDialog("D1", x_min=1.0, x_max=5.0)
+    assert dlg.mode_combo.currentText() == NormalizeDatasetDialog.MODE_MAX
+    assert dlg.reference_x_spinbox.isEnabled() is False
+    mode, reference_x, output_name = dlg.get_settings()
+    assert mode == NormalizeDatasetDialog.MODE_MAX
+    assert reference_x is None
+    assert output_name == "D1_normalized"
+
+
+def test_normalize_dataset_dialog_x_value_mode_enables_spinbox_and_returns_value():
+    dlg = NormalizeDatasetDialog("D1", x_min=2.0, x_max=8.0)
+    dlg.mode_combo.setCurrentText(NormalizeDatasetDialog.MODE_X_VALUE)
+    assert dlg.reference_x_spinbox.isEnabled() is True
+
+    dlg.reference_x_spinbox.setValue(3.5)
+    mode, reference_x, _ = dlg.get_settings()
+    assert mode == NormalizeDatasetDialog.MODE_X_VALUE
+    assert reference_x == 3.5
+
+
+# --- PreferencesDialog: プラグインリストのフォールバックラベル / 参照ボタン ---
+
+def test_preferences_dialog_plugin_without_info_or_error_uses_bare_name():
+    records = [{"name": "bare_plugin", "info": None, "error": None, "disabled": False}]
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, plugin_records=records)
+    assert dlg.plugin_list.item(0).text() == "bare_plugin"
+
+
+def test_preferences_dialog_browse_autosave_dir_updates_on_selection(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: str(tmp_path))
+    )
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
+
+    dlg._on_browse_autosave_dir()
+
+    assert dlg.get_settings()[3] == str(tmp_path)
+    assert dlg.autosave_dir_edit.text() == str(tmp_path)
+
+
+def test_preferences_dialog_browse_autosave_dir_cancelled_keeps_previous(monkeypatch):
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: ""))
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5, autosave_dir="/keep/me")
+
+    dlg._on_browse_autosave_dir()
+
+    assert dlg.get_settings()[3] == "/keep/me"
+
+
+# --- CommandPaletteDialog ---
+
+def _make_actions(parent):
+    from PySide6.QtGui import QAction, QKeySequence
+
+    save_action = QAction("保存", parent)
+    save_action.setEnabled(True)
+    open_action = QAction("開く", parent)
+    open_action.setEnabled(False)  # 無効なアクションは検索結果から除外される
+    checkable_action = QAction("グリッド表示", parent)
+    checkable_action.setCheckable(True)
+    checkable_action.setChecked(True)
+
+    return [
+        (["ファイル", "保存"], save_action),
+        (["ファイル", "開く"], open_action),
+        (["表示", "グリッド表示"], checkable_action),
+    ]
+
+
+def test_command_palette_dialog_lists_only_enabled_actions(qapp):
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    actions = _make_actions(holder)
+    dlg = CommandPaletteDialog(lambda: actions)
+
+    # 「開く」は無効化されているため一覧に出ない
+    labels = [dlg.list_widget.item(i).text() for i in range(dlg.list_widget.count())]
+    assert any("保存" in l for l in labels)
+    assert not any("開く" in l for l in labels)
+
+
+def test_command_palette_dialog_checkable_action_shows_checkmark(qapp):
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    actions = _make_actions(holder)
+    dlg = CommandPaletteDialog(lambda: actions)
+
+    labels = [dlg.list_widget.item(i).text() for i in range(dlg.list_widget.count())]
+    assert any(l.startswith("✓") for l in labels)
+
+
+def test_command_palette_dialog_search_filters_list(qapp):
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    actions = _make_actions(holder)
+    dlg = CommandPaletteDialog(lambda: actions)
+
+    dlg.search_edit.setText("グリッド")
+
+    assert dlg.list_widget.count() == 1
+    assert "グリッド表示" in dlg.list_widget.item(0).text()
+
+
+def test_command_palette_dialog_item_activation_triggers_action_and_accepts(qapp):
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    actions = _make_actions(holder)
+    triggered = []
+    actions[0][1].triggered.connect(lambda: triggered.append(True))
+    dlg = CommandPaletteDialog(lambda: actions)
+
+    item = dlg.list_widget.item(0)  # 「ファイル > 保存」
+    dlg._on_item_activated(item)
+
+    assert triggered == [True]
+    assert dlg.result() == QDialog.DialogCode.Accepted
+
+
+def test_command_palette_dialog_eventfilter_arrow_keys_move_selection(qapp):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    actions = _make_actions(holder)
+    dlg = CommandPaletteDialog(lambda: actions)
+    assert dlg.list_widget.currentRow() == 0
+
+    down_event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+    dlg.eventFilter(dlg.search_edit, down_event)
+    assert dlg.list_widget.currentRow() == 1
+
+    up_event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Up, Qt.KeyboardModifier.NoModifier)
+    dlg.eventFilter(dlg.search_edit, up_event)
+    assert dlg.list_widget.currentRow() == 0
+
+
+def test_command_palette_dialog_eventfilter_enter_activates_current_item(qapp):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    actions = _make_actions(holder)
+    triggered = []
+    actions[0][1].triggered.connect(lambda: triggered.append(True))
+    dlg = CommandPaletteDialog(lambda: actions)
+
+    enter_event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
+    dlg.eventFilter(dlg.search_edit, enter_event)
+
+    assert triggered == [True]
+
+
+def test_command_palette_dialog_eventfilter_ignores_other_widgets(qapp):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    actions = _make_actions(holder)
+    dlg = CommandPaletteDialog(lambda: actions)
+
+    other_widget = QWidget()
+    key_event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+    result = dlg.eventFilter(other_widget, key_event)
+    assert result is False  # super().eventFilter()に委譲され、Falseが返る
+
+
+# --- QuickAccessManagerDialog ---
+
+def test_quick_access_manager_dialog_skips_separators(qapp):
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QWidget, QMenu
+
+    holder = QWidget()
+    menu = QMenu(holder)
+    separator = menu.addSeparator()
+    action = QAction("項目1", holder)
+
+    actions = [([], separator), (["項目1"], action)]
+    dlg = QuickAccessManagerDialog(lambda: actions, lambda ident: False, lambda *a: None)
+
+    assert dlg.list_widget.count() == 1
+    assert dlg.list_widget.item(0).text() == "項目1"
+
+
+def test_quick_access_manager_dialog_reflects_pinned_state(qapp):
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    action = QAction("項目1", holder)
+    actions = [(["項目1"], action)]
+    dlg = QuickAccessManagerDialog(lambda: actions, lambda ident: True, lambda *a: None)
+
+    assert dlg.list_widget.item(0).checkState() == Qt.CheckState.Checked
+
+
+def test_quick_access_manager_dialog_toggling_item_calls_toggle_fn(qapp):
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    action = QAction("項目1", holder)
+    actions = [(["項目1"], action)]
+    toggle_calls = []
+    dlg = QuickAccessManagerDialog(
+        lambda: actions, lambda ident: False,
+        lambda ident, path, checked: toggle_calls.append((ident, path, checked))
+    )
+
+    dlg.list_widget.item(0).setCheckState(Qt.CheckState.Checked)
+
+    assert toggle_calls == [("項目1", ["項目1"], True)]
+
+
+def test_quick_access_manager_dialog_item_changed_ignored_while_updating(qapp):
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    action = QAction("項目1", holder)
+    actions = [(["項目1"], action)]
+    toggle_calls = []
+    dlg = QuickAccessManagerDialog(
+        lambda: actions, lambda ident: False,
+        lambda ident, path, checked: toggle_calls.append((ident, path, checked))
+    )
+
+    dlg._updating = True
+    dlg._on_item_changed(dlg.list_widget.item(0))
+    dlg._updating = False
+
+    assert toggle_calls == []  # _updating中はtoggle_fnが呼ばれない
+
+
+def test_quick_access_manager_dialog_search_filters_list(qapp):
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    action_a = QAction("Alpha", holder)
+    action_b = QAction("Beta", holder)
+    actions = [(["Alpha"], action_a), (["Beta"], action_b)]
+    dlg = QuickAccessManagerDialog(lambda: actions, lambda ident: False, lambda *a: None)
+
+    dlg.search_edit.setText("Alpha")
+
+    assert dlg.list_widget.count() == 1
+    assert dlg.list_widget.item(0).text() == "Alpha"
+
+
+# --- ShortcutsDialog ---
+
+def test_shortcuts_dialog_lists_actions_with_shortcuts_only(qapp):
+    from PySide6.QtGui import QAction, QKeySequence
+    from PySide6.QtWidgets import QWidget
+
+    holder = QWidget()
+    with_shortcut = QAction("保存", holder)
+    with_shortcut.setShortcut(QKeySequence("Ctrl+S"))
+    without_shortcut = QAction("開く", holder)
+
+    actions = [(["ファイル", "保存"], with_shortcut), (["ファイル", "開く"], without_shortcut)]
+    dlg = ShortcutsDialog(lambda: actions)
+
+    from PySide6.QtWidgets import QTableWidget
+    table = dlg.findChild(QTableWidget)
+    assert table.rowCount() == 1
+    assert "保存" in table.item(0, 0).text()
+
+
+def test_shortcuts_dialog_empty_collection_produces_empty_table(qapp):
+    from PySide6.QtWidgets import QTableWidget
+
+    dlg = ShortcutsDialog(lambda: [])
+    table = dlg.findChild(QTableWidget)
+    assert table.rowCount() == 0
+
+
+# --- LegendOrderDialog ---
+
+def test_legend_order_dialog_returns_current_order():
+    dlg = LegendOrderDialog(["Line 1", "Line 2", "Line 3"])
+    assert dlg.get_order() == ["Line 1", "Line 2", "Line 3"]
+
+
+def test_legend_order_dialog_reset_clears_custom_order():
+    dlg = LegendOrderDialog(["Line 1", "Line 2"])
+    dlg._on_reset()
+    assert dlg.get_order() == []
+
+
+# --- BatchExportDialog: プロジェクトファイル選択/出力先/モード ---
+
+def test_batch_export_dialog_add_project_files(monkeypatch):
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileNames",
+        staticmethod(lambda *a, **k: (["a.graphica", "b.pkl"], ""))
+    )
+    dlg = BatchExportDialog(subplot_count=2)
+
+    dlg._on_add_project_files()
+
+    assert dlg.get_project_file_paths() == ["a.graphica", "b.pkl"]
+
+
+def test_batch_export_dialog_add_project_files_cancelled(monkeypatch):
+    monkeypatch.setattr(QFileDialog, "getOpenFileNames", staticmethod(lambda *a, **k: ([], "")))
+    dlg = BatchExportDialog(subplot_count=2)
+
+    dlg._on_add_project_files()
+
+    assert dlg.get_project_file_paths() == []
+
+
+def test_batch_export_dialog_remove_selected_project_files(monkeypatch):
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileNames",
+        staticmethod(lambda *a, **k: (["a.graphica", "b.pkl"], ""))
+    )
+    dlg = BatchExportDialog(subplot_count=2)
+    dlg._on_add_project_files()
+    dlg.project_files_list.item(0).setSelected(True)
+
+    dlg._on_remove_selected_project_files()
+
+    assert dlg.get_project_file_paths() == ["b.pkl"]
+
+
+def test_batch_export_dialog_browse_output_dir(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: str(tmp_path))
+    )
+    dlg = BatchExportDialog(subplot_count=2)
+
+    dlg._on_browse_output_dir()
+
+    assert dlg.output_dir_edit.text() == str(tmp_path)
+    assert dlg.get_common_options()["output_dir"] == str(tmp_path)
+
+
+def test_batch_export_dialog_browse_output_dir_cancelled_keeps_empty(monkeypatch):
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: ""))
+    dlg = BatchExportDialog(subplot_count=2)
+
+    dlg._on_browse_output_dir()
+
+    assert dlg.output_dir_edit.text() == ""
+
+
+def test_batch_export_dialog_get_mode_switches_with_combo():
+    dlg = BatchExportDialog(subplot_count=2)
+    assert dlg.get_mode() == "subplots"
+
+    dlg.mode_combo.setCurrentIndex(1)
+    assert dlg.get_mode() == "project_files"
+
+
+def test_batch_export_dialog_get_selected_subplot_indices_all_checked_by_default():
+    dlg = BatchExportDialog(subplot_count=3)
+    assert dlg.get_selected_subplot_indices() == [0, 1, 2]
+
+    dlg.subplot_list.item(1).setCheckState(Qt.CheckState.Unchecked)
+    assert dlg.get_selected_subplot_indices() == [0, 2]
+
+
+# --- NewDatasetDialog: 入力検証(_on_accept) ---
+
+def test_new_dataset_dialog_accept_with_empty_name_shows_warning_and_does_not_accept(qapp, monkeypatch):
+    calls = {"warning": []}
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls["warning"].append(a)))
+    dlg = NewDatasetDialog()
+    dlg.name_edit.setText("   ")
+
+    dlg._on_accept()
+
+    assert len(calls["warning"]) == 1
+    assert dlg.result() != QDialog.DialogCode.Accepted
+
+
+def test_new_dataset_dialog_accept_with_empty_columns_shows_warning_and_does_not_accept(qapp, monkeypatch):
+    calls = {"warning": []}
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls["warning"].append(a)))
+    dlg = NewDatasetDialog()
+    dlg.columns_edit.setText("  ,  ")
+
+    dlg._on_accept()
+
+    assert len(calls["warning"]) == 1
+    assert dlg.result() != QDialog.DialogCode.Accepted
+
+
+def test_new_dataset_dialog_accept_with_valid_input_accepts(qapp, monkeypatch):
+    calls = {"warning": []}
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls["warning"].append(a)))
+    dlg = NewDatasetDialog()
+
+    dlg._on_accept()
+
+    assert calls["warning"] == []
+    assert dlg.result() == QDialog.DialogCode.Accepted

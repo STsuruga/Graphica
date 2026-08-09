@@ -56,4 +56,15 @@ def make_dataset_style_icon(dataset):
         painter.drawEllipse(width // 2 - r, y - r, r * 2, r * 2)
 
     painter.end()
-    return QIcon(pixmap)
+
+    # ★ 項目H-2-2(GUIモダン化): QIcon(pixmap) のように単一のPixmapだけを渡すと、
+    #   ツリー項目が選択された際にQt(Fusionスタイル)が「選択時用アイコン」を
+    #   自動生成しようとし、この透明背景の線プレビューに対してはハイライト色で
+    #   塗り潰したような空白の四角として描画されてしまう(実機で報告・確認済み)。
+    #   同じPixmapをSelectedモードにも明示的に登録することで、この自動生成を
+    #   起こさせず、選択時も非選択時と同じ見た目(色付きの線/マーカー)のまま
+    #   表示させる。
+    icon = QIcon()
+    icon.addPixmap(pixmap, QIcon.Mode.Normal)
+    icon.addPixmap(pixmap, QIcon.Mode.Selected)
+    return icon

@@ -569,7 +569,14 @@ class PluginManager:
 
             except Exception as e:
                 record["error"] = str(e)
-                logger.warning("プラグイン '%s' の読み込みに失敗しました: %s", plugin_name, e)
+                # ★ バグ修正: logger.warning()はトレースバックを一切残さない。
+                # このtryブロックはプラグイン自身のコード(register_func)だけで
+                # なく、マニフェスト解析・依存チェック・モジュールexecという
+                # このアプリ自身のコードも同じexcept節で受けているため、
+                # Graphica側のバグが原因でも「このプラグインが壊れている」と
+                # 一行のメッセージだけがログに残り、原因の切り分けが極めて
+                # 困難だった。logger.exception()でスタックトレースも残す。
+                logger.exception("プラグイン '%s' の読み込みに失敗しました: %s", plugin_name, e)
 
             self.loaded_plugins.append(record)
 

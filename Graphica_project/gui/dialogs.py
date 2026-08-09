@@ -1,4 +1,5 @@
 import logging
+import re
 import numpy as np
 import pandas as pd
 import matplotlib as mpl
@@ -9,12 +10,14 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser,
                                QApplication, QFileDialog, QMessageBox, QGroupBox,
                                QTableWidget, QTableWidgetItem, QListWidget,
                                QListWidgetItem, QColorDialog, QInputDialog,
-                               QCheckBox, QStackedWidget, QWidget, QTabWidget)
+                               QCheckBox, QStackedWidget, QWidget, QTabWidget,
+                               QToolButton, QGridLayout, QMenu, QWidgetAction)
 from PySide6.QtCore import Qt, QTimer, QEvent, QUrl
 from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices
 
 from gui import icon_utils
 from gui.theme import apply_form_spacing
+from gui.mathtext_preview import FitWidthPixmapLabel
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +219,7 @@ class HelpDialog(QDialog):
         <p>文字が1文字以上の場合は、<code>{}</code>（中括弧）で囲みます。</p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい文字</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -244,7 +247,7 @@ class HelpDialog(QDialog):
         
         <h4>ギリシャ文字</h4>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい文字</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -266,7 +269,7 @@ class HelpDialog(QDialog):
 
         <h4>単位・記号</h4>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい文字</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -292,7 +295,7 @@ class HelpDialog(QDialog):
             <code>^</code>・<code>_</code>と組み合わせて、上下に添え字を付けられます。
         </p>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい記号</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -306,7 +309,7 @@ class HelpDialog(QDialog):
 
         <h4>矢印・比較演算子</h4>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい記号</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -319,7 +322,7 @@ class HelpDialog(QDialog):
 
         <h4>文字の上に記号を付ける</h4>
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;">
+            <tr class="header-row">
                 <th>表示したい記号</th>
                 <th>入力するテキスト</th>
             </tr>
@@ -338,24 +341,50 @@ class HelpDialog(QDialog):
             には対応していません。
         </p>
         """
+        # ★ 項目H-2-6(実機での目視確認で発覚): 表内の見出し行はHTML内に
+        #   `background-color: #f0f0f0`のような固定の薄いグレーをハード
+        #   コードしていたため、ダークモードでは見出しセルがほぼ見えない
+        #   薄グレーの塊になり、文字も読めなくなっていた(ライトモードは
+        #   問題なかった)。見出し行はクラス名(class="header-row")だけを
+        #   HTML側に残し、実際の色はQTextDocumentのdefault stylesheetで
+        #   現在のテーマトークンから注入することで、ダーク/ライト両方で
+        #   読めるようにする。
+        self._text_browser = text_browser
+        self.refresh_theme()
         # HTMLコンテンツを QTextBrowser にセット
         text_browser.setHtml(help_html)
         # --- HTML定義ここまで ---
-        
+
         # レイアウトにテキストブラウザを追加
         layout.addWidget(text_browser)
-        
+
         # --- 閉じるボタンの追加 ---
         # QDialogButtonBox を使うと、プラットフォーム標準のボタン配置（OK, Cancel, Closeなど）
         # を簡単に実現できます。
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        
+
         # 'rejected' シグナル（CloseボタンやEscキー押下で発生）を、
         # QDialog の標準スロット 'reject'（ダイアログを閉じる処理）に接続します。
         button_box.rejected.connect(self.reject)
-        
+
         # レイアウトにボタンボックスを追加
         layout.addWidget(button_box)
+
+    def refresh_theme(self):
+        """
+        表見出し行(tr.header-row)の色を現在のテーマトークンに合わせて
+        再適用する。このダイアログは非モーダル(show())で開いたまま
+        メインウィンドウを操作できるため、開いたままダークモードを
+        切り替えられると、__init__時点のトークンで固定していた色が
+        古いテーマのまま取り残されるバグがあった
+        (gui/mixins/ui_setup_mixin.py の _on_toggle_dark_mode から呼ばれる)。
+        """
+        from gui import theme
+        _tokens = theme.current_tokens()
+        self._text_browser.document().setDefaultStyleSheet(
+            f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
+            f"color: {_tokens['text_primary']}; }}"
+        )
 
 
 #==============================================================================
@@ -401,7 +430,7 @@ class CalcHelpDialog(QDialog):
         <p>列名（例: <code>A</code>, <code>B</code>）や数値をそのまま使えます。</p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;"><th>計算式 (入力例)</th><th>実行内容</th></tr>
+            <tr class="header-row"><th>計算式 (入力例)</th><th>実行内容</th></tr>
             <tr><td><code>A + B</code></td><td>A列とB列の各行を足し算します。</td></tr>
             <tr><td><code>A * 100</code></td><td>A列の全データを100倍します。</td></tr>
             <tr><td><code>(A + B) / 2</code></td><td>A列とB列の平均値を計算します。</td></tr>
@@ -417,7 +446,7 @@ class CalcHelpDialog(QDialog):
         </p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;"><th>関数 (入力例)</th><th>意味</th></tr>
+            <tr class="header-row"><th>関数 (入力例)</th><th>意味</th></tr>
             <tr><td><code>sqrt(A)</code></td><td>Aの平方根 (&radic;A)</td></tr>
             <tr><td><code>log(A)</code></td><td>Aの自然対数 (ln A)</td></tr>
             <tr><td><code>log10(A)</code></td><td>Aの常用対数 (log₁₀ A)</td></tr>
@@ -437,7 +466,7 @@ class CalcHelpDialog(QDialog):
         </p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-            <tr style="background-color: #f0f0f0;"><th>計算式 (入力例)</th><th>実行内容</th></tr>
+            <tr class="header-row"><th>計算式 (入力例)</th><th>実行内容</th></tr>
             <tr><td><code>A > 10</code></td><td>A列の値が10より大きい行はTrueになります。</td></tr>
             <tr><td><code>A == B</code></td><td>A列とB列の値が等しい行はTrueになります。</td></tr>
             <tr><td><code>A > 5 and B < 3</code></td><td>Aが5より大きく、<b>かつ</b> Bが3未満の行だけTrueになります。</td></tr>
@@ -445,15 +474,27 @@ class CalcHelpDialog(QDialog):
             <tr><td><code>not (A > 5)</code></td><td>Aが5より大きい、という条件を否定します (A <= 5 と同じ)。</td></tr>
         </table>
         """
+        self._text_browser = text_browser
+        self.refresh_theme()
         text_browser.setHtml(help_html)
         # --- HTML定義ここまで ---
-        
+
         layout.addWidget(text_browser)
-        
+
         # 閉じるボタン
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
+    def refresh_theme(self):
+        """表見出し行の色を現在のテーマトークンに合わせて再適用する
+        (詳しい経緯はHelpDialog.refresh_theme参照、同じバグ・同じ対処)。"""
+        from gui import theme
+        _tokens = theme.current_tokens()
+        self._text_browser.document().setDefaultStyleSheet(
+            f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
+            f"color: {_tokens['text_primary']}; }}"
+        )
 
 
 class ResultDialog(QDialog):
@@ -502,15 +543,26 @@ class ResultDialog(QDialog):
             layout.addWidget(QLabel("残差プロット (実測値 - フィット値)"))
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
             from matplotlib.figure import Figure
-            fig = Figure(figsize=(4, 2.2), dpi=100, tight_layout=True)
+            from gui import theme
+            # ★ バグ修正: この残差プロットはgui/canvas.pyのMplCanvasとは別の、
+            # 独立したFigureを都度その場で作っているため、canvas.py側の
+            # dark_mode分岐(facecolor/文字色/グリッド色)を一切継承しない。
+            # ダークモードで開くと、ダイアログ本体は暗いのに残差プロットだけ
+            # matplotlib既定の白背景+黒文字のまま浮いて見えていた。
+            _tokens = theme.current_tokens()
+            fig = Figure(figsize=(4, 2.2), dpi=100, tight_layout=True,
+                         facecolor=_tokens['surface'])
             canvas = FigureCanvasQTAgg(fig)
             canvas.setFixedHeight(200)
             ax = fig.add_subplot(111)
-            ax.axhline(0, color='gray', linewidth=0.8, linestyle='--')
+            ax.set_facecolor(_tokens['surface'])
+            ax.axhline(0, color=_tokens['border_strong'], linewidth=0.8, linestyle='--')
             ax.scatter(residual_x, residual_y, s=14, color='#1F6F78')
-            ax.set_xlabel("X", fontsize=8)
-            ax.set_ylabel("残差", fontsize=8)
-            ax.tick_params(labelsize=7)
+            ax.set_xlabel("X", fontsize=8, color=_tokens['text_primary'])
+            ax.set_ylabel("残差", fontsize=8, color=_tokens['text_primary'])
+            ax.tick_params(labelsize=7, colors=_tokens['text_primary'])
+            for spine in ax.spines.values():
+                spine.set_color(_tokens['border_strong'])
             layout.addWidget(canvas)
 
         button_layout = QHBoxLayout()
@@ -1386,19 +1438,52 @@ class ColorPaletteDialog(QDialog):
         self.remove_color_button.setEnabled(editable)
 
     def _refresh_color_list(self):
+        # ★ 項目H-2-6(実機での目視確認で発覚): 以前はQListWidgetItem.
+        #   setBackground()/setForeground()で行全体を色のパレットで塗り、
+        #   明るさに応じて文字色を白/黒に切り替えることで常に読めるように
+        #   していた。ところがQSSで::item(padding指定のみ)に何かひとつでも
+        #   プロパティを当てると、Qtはそのサブコントロールを「スタイル
+        #   シートでカスタム描画されるもの」とみなし、setBackground()/
+        #   setForeground()で設定したBackgroundRole/ForegroundRoleを描画時に
+        #   無視するようになる(本コードベースで既に複数回踏んでいる既知の
+        #   Qt/QSSの癖、QTabBar::close-buttonのアイコン消失やチェックボックスの
+        #   チェックマーク消失と同じ原因)。結果として実機では常にリストの
+        #   地の色(surfaceトークン)がそのまま描画され、明るい色(例: 青・緑)は
+        #   白文字と、暗い背景では逆に暗い色(黒文字)の行が、それぞれ
+        #   ほぼ同化して読めなくなっていた。
+        #   対策として、行の描画をQSSに委ねず、setItemWidget()で小さな
+        #   スウォッチ(色見本)+通常のテーマ文字色のテキストラベルという
+        #   専用ウィジェットに置き換えた(ColorPickerWidgetのスウォッチと
+        #   同じ意匠)。テキストが常にテーマの通常文字色で描画されるため、
+        #   スウォッチの色がどんな明るさでも可読性が保たれる。
         self.color_list.clear()
         name = self.palette_combo.currentText()
         if name == self.DEFAULT_PALETTE_NAME:
             colors = list(mpl.rcParams['axes.prop_cycle'].by_key()['color'])
         else:
             colors = self.palettes.get(name, [])
+        from gui import theme
+        border_color = theme.current_tokens()["border_strong"]
         for color_hex in colors:
-            item = QListWidgetItem(color_hex)
-            qcolor = QColor(color_hex)
-            item.setBackground(qcolor)
-            # 背景の明るさに応じて文字色を切り替え、常に読めるようにする
-            item.setForeground(QColor('#ffffff') if qcolor.lightnessF() < 0.5 else QColor('#000000'))
+            item = QListWidgetItem()
             self.color_list.addItem(item)
+
+            row_widget = QWidget()
+            row_layout = QHBoxLayout(row_widget)
+            row_layout.setContentsMargins(6, 2, 6, 2)
+            row_layout.setSpacing(8)
+
+            swatch = QLabel()
+            swatch.setFixedSize(20, 20)
+            swatch.setStyleSheet(
+                f"background-color: {color_hex}; border: 1px solid {border_color}; "
+                f"border-radius: 4px;"
+            )
+            row_layout.addWidget(swatch)
+            row_layout.addWidget(QLabel(color_hex), 1)
+
+            item.setSizeHint(row_widget.sizeHint())
+            self.color_list.setItemWidget(item, row_widget)
 
     def _on_palette_selected(self, _name):
         self._refresh_color_list()
@@ -2474,6 +2559,293 @@ class ShortcutsDialog(QDialog):
         close_button = QPushButton("閉じる")
         close_button.clicked.connect(self.reject)
         layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
+
+
+#==============================================================================
+# カスタムダイアログクラス: タイトル/軸ラベルの編集(項目H-2-4追加分)
+#==============================================================================
+class LabelEditDialog(QDialog):
+    """
+    タイトル/X軸ラベル/Y軸ラベルを編集するためのポップアップダイアログ。
+
+    以前はプロパティパネルのQLineEdit直下に小さな「Aa」ボタンを置き、押すと
+    文字装飾(太字/イタリック/上付き/下付き)とギリシャ文字/記号パレットを
+    ネストしたQMenuとして開いていたが、実機フィードバック(レイアウト画像の
+    提示)を受けて、独立したポップアップウィンドウ形式に変更した。装飾ボタンを
+    ネストしたメニューの中に隠さず、テキスト入力欄のすぐ下に横一列で常に
+    見えるようにし、データセット操作ボタン列と同じ意匠
+    (`QPushButton[iconOnly="true"]`)の正方形アイコンボタンにしている。
+
+    書式適用のロジック(選択範囲をmathtextで包む/カーソル位置に記号を挿入する)
+    自体は、以前 gui/mixins/settings_mixin.py 側にあった
+    `_apply_label_mathtext_format`/`_on_label_symbol_clicked` と同じ考え方を、
+    このダイアログの内部QLineEdit(`self.text_edit`)に対して直接行う形に
+    移植している(ダイアログが受け持つのは自分自身が持つ1つの入力欄だけなので、
+    以前のfield_keyディクショナリ経由の間接参照は不要になった)。
+    """
+
+    def __init__(self, initial_text, window_title, symbol_palette, parent=None):
+        """
+        Args:
+            initial_text (str): 編集対象のQLineEditが現在持っているテキスト。
+            window_title (str): ダイアログのタイトルバーに出す文字列
+                (例: 「タイトルを編集」)。
+            symbol_palette (list[tuple[str, str]]): (表示グリフ, mathtextマクロ名)
+                のペアのリスト。呼び出し側(gui/main_window.py)の
+                LABEL_SYMBOL_PALETTEをそのまま渡す想定(dialogs.py は
+                main_window.py を逆import できないため、呼び出し側から渡す)。
+            parent (QWidget, optional): 親ウィジェット。
+        """
+        super().__init__(parent)
+        self.setWindowTitle(window_title)
+        self.setMinimumWidth(420)
+
+        layout = QVBoxLayout(self)
+
+        self.text_edit = QLineEdit(initial_text)
+        self.text_edit.setMinimumHeight(34)
+        larger_font = QFont(self.text_edit.font())
+        larger_font.setPointSize(larger_font.pointSize() + 1)
+        self.text_edit.setFont(larger_font)
+        layout.addWidget(self.text_edit)
+
+        # ★ 実機フィードバック: 「ボタンを押してmathtext形式で書かれたラベルが
+        #   出力されるんじゃなくて実際にボールドとかイタリックとかが適用
+        #   されてるテキストが見れるようにしたい」。text_edit自体はQLineEdit
+        #   なので部分的なリッチテキスト表示はできない(生のmathtext構文の
+        #   ままにせざるを得ない)。代わりに、実際の描画結果をレンダリングする
+        #   プレビュー欄をtext_editの下に常設し、太字/イタリック等を適用する
+        #   たびに実際に適用された見た目を確認できるようにする(タイトル/
+        #   軸ラベル欄本体のプレビュー、gui/mathtext_preview.pyを流用)。
+        self.preview_label = FitWidthPixmapLabel()
+        self.preview_label.setObjectName("mathtext_preview_label")
+        self.preview_label.setMinimumHeight(36)
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.preview_label)
+        self.text_edit.textChanged.connect(self._refresh_preview)
+
+        button_row = QHBoxLayout()
+        button_row.setSpacing(4)
+
+        def _make_icon_button(icon_name, tooltip):
+            button = QPushButton()
+            button.setIcon(icon_utils.icon(icon_name, size=16))
+            button.setToolTip(tooltip)
+            button.setProperty("iconOnly", True)
+            button.setFixedSize(28, 28)
+            # ★ 実機フィードバック(バグ報告、下記参照): この装飾ボタンが
+            #   フォーカスを奪わないようにするための本質的な修正。
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            button_row.addWidget(button)
+            return button
+
+        bold_button = _make_icon_button("bold", "太字")
+        italic_button = _make_icon_button("italic", "イタリック")
+        superscript_button = _make_icon_button("superscript", "上付き文字")
+        subscript_button = _make_icon_button("subscript", "下付き文字")
+
+        # ★ 実機フィードバック(バグ報告): 「文字選択してハイライトされてから
+        #   ボタン押しても文字を選択してって出る」。
+        #   当初は「QPushButton.clickedはマウスの押下→解放が完了した後に発火
+        #   するため、pressed(押下の瞬間)で選択範囲を保存しておけば間に合う」
+        #   という仮説で対処したが、実際にQTest.mouseClick()で実クリックを
+        #   再現したところ、pressedが発火する時点で既にtext_edit.
+        #   hasSelectedText()がFalseになっており、直っていなかったことが判明。
+        #   真因は「clickedが遅い」ことではなく、QAbstractButton系ウィジェットの
+        #   既定フォーカスポリシー(StrongFocus)により、Qtがマウス押下イベントを
+        #   ボタンへ配送する"前"にフォーカスをボタン側へ移してしまい、その
+        #   フォーカスアウトでQLineEdit側の選択状態が失われてしまうこと
+        #   (この経路はボタン自身のpressed/clickedシグナルより早く走るため、
+        #   pressedで捕捉しても既に手遅れ)。
+        #   本質的な修正は、これらの装飾ボタンにフォーカスを一切渡さないこと
+        #   (上の_make_icon_button内でsetFocusPolicy(Qt.NoFocus)を設定)。
+        #   これによりボタンをクリックしてもtext_edit側のフォーカス・選択状態が
+        #   維持されたまま保たれる。pressedでの事前捕捉ロジック自体は無害かつ
+        #   (フォーカスが移らない環境が万一あった場合の)保険として残す。
+        self._pending_selection = None  # (start, selected_text) または選択なしならNone
+        self._pending_cursor = 0
+
+        for button in (bold_button, italic_button, superscript_button, subscript_button):
+            button.pressed.connect(self._capture_pending_selection)
+
+        # ★ 実機フィードバック(バグ報告): 「mathtextを複数適用しようとすると
+        #   (例: イタリック+ボールド、上付き+ボールド)バグる」。
+        #   kind引数の意味とバグの詳細は_apply_wrap()のdocstring参照。
+        bold_button.clicked.connect(lambda: self._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}"))
+        italic_button.clicked.connect(lambda: self._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}"))
+        superscript_button.clicked.connect(lambda: self._apply_wrap("super", lambda s: f"{{}}^{{{s}}}"))
+        subscript_button.clicked.connect(lambda: self._apply_wrap("sub", lambda s: f"{{}}_{{{s}}}"))
+
+        # ★ 項目81(mathtext拡充)のギリシャ文字/記号パレットは、以前と同じく
+        #   小さなグリッドパネルをQMenuに埋め込む形のポップオーバーとして残す
+        #   (32個の記号を常時ボタン表示すると場所を取りすぎるため、ここだけは
+        #   ドロップダウン形式が妥当と判断した)。
+        symbol_button = QToolButton()
+        symbol_button.setText("Ω")
+        symbol_button.setToolTip("ギリシャ文字・数学記号を挿入")
+        symbol_button.setProperty("iconOnly", True)
+        symbol_button.setFixedSize(28, 28)
+        symbol_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # QToolButtonは既定でNoFocus(QPushButtonと異なりStrongFocusではない)
+        # だが、上の装飾ボタンと同じ理由により明示的に指定しておく。
+        symbol_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # ★ 上と同じ理由(ポップアップを開く動作自体でQLineEditの選択範囲が
+        #   失われうる)で、メニューが開く前のpressedで選択範囲を確定させる。
+        symbol_button.pressed.connect(self._capture_pending_selection)
+
+        symbol_menu = QMenu(symbol_button)
+        symbol_panel = QWidget()
+        symbol_grid = QGridLayout(symbol_panel)
+        symbol_grid.setContentsMargins(6, 6, 6, 6)
+        symbol_grid.setSpacing(2)
+        for index, (glyph, macro) in enumerate(symbol_palette):
+            item_button = QToolButton()
+            item_button.setText(glyph)
+            item_button.setToolTip(f"\\{macro}")
+            item_button.setFixedSize(26, 26)
+            item_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            item_button.clicked.connect(
+                lambda checked=False, m=macro, sm=symbol_menu: (self._insert_symbol(m), sm.close())
+            )
+            symbol_grid.addWidget(item_button, index // 4, index % 4)
+        symbol_widget_action = QWidgetAction(symbol_button)
+        symbol_widget_action.setDefaultWidget(symbol_panel)
+        symbol_menu.addAction(symbol_widget_action)
+        symbol_button.setMenu(symbol_menu)
+        button_row.addWidget(symbol_button)
+
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self._refresh_preview()
+
+    def _refresh_preview(self):
+        """
+        text_editの現在の内容を実際にレンダリングし、preview_labelへ反映する。
+        タイトル/軸ラベル欄本体のライブプレビュー(gui/mixins/settings_mixin.py
+        の_refresh_label_preview)と同じ考え方・同じレンダラ(gui/
+        mathtext_preview.py)を、このダイアログ内のtext_edit用に流用している。
+        """
+        from gui import theme
+        from gui.mathtext_preview import render_mathtext_to_pixmap
+
+        tokens = theme.current_tokens()
+        text = self.text_edit.text()
+        color = tokens["text_primary"] if text else tokens["text_muted"]
+        pixmap = render_mathtext_to_pixmap(text if text else " ", color=color, fontsize=15)
+        # ★ 実機フィードバック: 「ここの文字サイズを枠内に収まるようにして」。
+        #   set_natural_pixmap()がpreview_label自身の実際の幅に合わせて
+        #   自動的に縮小する(FitWidthPixmapLabel、gui/mathtext_preview.py参照)。
+        self.preview_label.set_natural_pixmap(pixmap)
+
+    def _capture_pending_selection(self):
+        """
+        装飾/記号ボタンが「押された瞬間」(pressed)に呼ばれ、その時点の
+        text_editの選択範囲を_pending_selectionへ保存しておく。ボタンの
+        clicked(マウス押下→解放が完了した後に発火)まで待つと、その間に
+        フォーカスがボタン側へ移り、QLineEditの選択範囲が失われてしまう
+        環境があるため(実機で報告されたバグ)、フォーカスがまだtext_editに
+        残っているpressedの時点で確定させる。
+        """
+        if self.text_edit.hasSelectedText():
+            self._pending_selection = (
+                self.text_edit.selectionStart(), self.text_edit.selectedText()
+            )
+        else:
+            self._pending_selection = None
+        self._pending_cursor = self.text_edit.cursorPosition()
+
+    # 既に$...$で囲まれた1個のmathtext断片全体(ちょうど直前の装飾操作の結果)が
+    # 選択されているかどうかを判定するための正規表現群。_apply_wrap()参照。
+    _MATH_SPAN_RE = re.compile(r'^\$(.*)\$$', re.DOTALL)
+    _MATHBF_RE = re.compile(r'^\\mathbf\{(.*)\}$', re.DOTALL)
+    _MATHIT_RE = re.compile(r'^\\mathit\{(.*)\}$', re.DOTALL)
+
+    def _apply_wrap(self, kind, wrap_fn):
+        """
+        太字/イタリック/上付き/下付きボタン共通の処理。pressed時点で確定させた
+        _pending_selection(選択範囲が失われる前に保存したもの、__init__の
+        _capture_pending_selection参照)を使い、選択されていた文字列を
+        wrap_fn()が返すmathtextの中身(前後の$は含まない)で置き換え、
+        改めて$...$で囲む。
+
+        Args:
+            kind (str): "bold"/"italic"/"super"/"sub"のいずれか。
+                "bold"/"italic"の組み合わせ検出にのみ使う。
+            wrap_fn (callable): 中身の文字列を受け取り、装飾後の中身
+                (前後の$は含まない断片、例: "\\mathbf{...}")を返す関数。
+
+        ★ 実機フィードバック(バグ報告): 「mathtextを複数適用しようとすると
+        (例: イタリック+ボールド、上付き+ボールド)バグる」。
+        このダイアログは各装飾操作の後、置き換えた範囲を丸ごと選択状態にする
+        (末尾のsetSelection参照)ため、続けて別の装飾ボタンを押すと、選択
+        文字列は既に"$\\mathbf{wavelength}$"のような、前後を$で囲まれた
+        1個のmathtext断片になっている。これに気づかず単純にwrap_fn()の結果を
+        新しい$...$でさらに包んでいたため、"$\\mathit{$\\mathbf{wavelength}$}$"
+        のように$が入れ子になった不正なmathtext構文になっていた。
+        対策として、選択文字列が既に$...$で囲まれた単一の断片であれば、まず
+        中身(内側の$無し部分)だけを取り出してから改めて$...$で囲み直す。
+
+        さらに、太字(\\mathbf)とイタリック(\\mathit)は共にmatplotlib
+        mathtextの「フォントクラス」指定であり、$\\mathit{\\mathbf{x}}$の
+        ように入れ子にしても内側の指定で上書きされるだけで実際には合成
+        されない(実機検証済み)。太字とイタリックを組み合わせようとしている
+        場合(既存の中身が\\mathbf{...}でこれからイタリックを適用する、また
+        はその逆)は、代わりに太字とイタリックを同時に表現できる
+        \\boldsymbol{...}に置き換える。
+        """
+        if not self._pending_selection:
+            QMessageBox.information(
+                self, "文字装飾", "装飾したい文字を選択してから、このボタンを押してください。"
+            )
+            return
+        start, selected = self._pending_selection
+        span_match = self._MATH_SPAN_RE.match(selected)
+        inner = span_match.group(1) if span_match else selected
+
+        combined = None
+        if kind == "bold":
+            m = self._MATHIT_RE.match(inner)
+            if m:
+                combined = f"\\boldsymbol{{{m.group(1)}}}"
+        elif kind == "italic":
+            m = self._MATHBF_RE.match(inner)
+            if m:
+                combined = f"\\boldsymbol{{{m.group(1)}}}"
+
+        new_inner = combined if combined is not None else wrap_fn(inner)
+        replacement = f"${new_inner}$"
+        text = self.text_edit.text()
+        self.text_edit.setText(text[:start] + replacement + text[start + len(selected):])
+        self.text_edit.setSelection(start, len(replacement))
+
+    def _insert_symbol(self, macro):
+        """
+        ギリシャ文字/記号パレットの1項目が選ばれたときの処理。装飾ボタンと
+        異なり、選択文字列を装飾するのではなく$\\macro$という新しい断片を
+        挿入するものなので、pressed時点の選択範囲(_pending_selection)が
+        あればそれを置き換え、無ければpressed時点のカーソル位置
+        (_pending_cursor)に挿入する。
+        """
+        text = self.text_edit.text()
+        if self._pending_selection:
+            start, selected = self._pending_selection
+            end = start + len(selected)
+        else:
+            start = end = self._pending_cursor
+        replacement = f"$\\{macro}$"
+        self.text_edit.setText(text[:start] + replacement + text[end:])
+        self.text_edit.setCursorPosition(start + len(replacement))
+
+    def get_text(self):
+        return self.text_edit.text()
 
 
 #==============================================================================

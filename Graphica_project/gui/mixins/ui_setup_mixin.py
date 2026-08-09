@@ -75,19 +75,10 @@ class UISetupMixin:
             self.ui.x_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.x_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
             self.y_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-            # 文字装飾ポップアップパネル(項目101)のアイコンボタン。クリックされたら
-            # 装飾を適用したうえで、QWidgetAction経由のためクリックしても自動では
-            # 閉じないポップアップメニューを明示的に閉じる。
-            for field_key, buttons in self.label_format_menu_buttons.items():
-                menu = self._label_format_menus[field_key]
-                buttons['bold'].clicked.connect(
-                    lambda checked=False, k=field_key, m=menu: (self._on_label_bold_clicked(k), m.close()))
-                buttons['italic'].clicked.connect(
-                    lambda checked=False, k=field_key, m=menu: (self._on_label_italic_clicked(k), m.close()))
-                buttons['superscript'].clicked.connect(
-                    lambda checked=False, k=field_key, m=menu: (self._on_label_superscript_clicked(k), m.close()))
-                buttons['subscript'].clicked.connect(
-                    lambda checked=False, k=field_key, m=menu: (self._on_label_subscript_clicked(k), m.close()))
+            # ★ タイトル/軸ラベルの「Aa」ボタンは、ポップアップウィンドウ化
+            #   (項目H-2-4)によりLabelEditDialogを開くだけの単純なclicked接続に
+            #   なったため(gui/main_window.py側でline_editごとに直接connect
+            #   済み)、ここでの個別ボタン配線は不要になった。
             self.ui.y_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
 
             # (ラベル/書式タブ)
@@ -534,6 +525,153 @@ class UISetupMixin:
         self.canvas.dark_mode = checked
         self.settings.setValue("dark_mode", checked)
         self._update_plot() # 既存のグラフにも新しい配色を反映するため再描画
+        # ★ 項目H-2-4追加分: タイトル/軸ラベルのmathtextプレビュー
+        #   (gui/mathtext_preview.py)は文字色をtext_primary/text_mutedトークン
+        #   から都度レンダリングしているため、テーマが変わったら再描画しないと
+        #   古い配色のまま残ってしまう。
+        self._refresh_all_label_previews()
+        # ★ 項目H-2-6: ColorPickerWidgetのスウォッチ枠線もテーマのborder_strong
+        #   トークンを参照するようになったため、同様に再描画が必要。
+        self.color_picker_widget.refresh_theme()
+        self.gradient_color2_picker.refresh_theme()
+        # ★ 項目H-4: matplotlib純正のナビゲーションツールバー(home/back/
+        #   forward/pan/zoom/save)のアイコンは構築時のパレットで固定される
+        #   ため、同様に再読み込みが必要(詳細は_refresh_mpl_toolbar_icons参照)。
+        self._refresh_mpl_toolbar_icons()
+        # ★ 項目H-4: 自前のTabler Icons SVGアイコン(カーソル/注釈/レイアウト
+        #   編集ツール、データセット操作ボタン群、フォント/色選択ボタン群、
+        #   統計/パレット系メニュー、折りたたみセクションのシェブロン)も
+        #   同じ理由で再読み込みが必要(詳細は_refresh_custom_svg_icons参照)。
+        self._refresh_custom_svg_icons()
+        # ★ バグ修正: データエディタ(gui/data_editor.py)は非モーダル(show())
+        #   で開いたまま操作を続けられるため、開いたままダークモードを切り替える
+        #   と、マスク済み行の背景色(_masked_row_background())が古いテーマの
+        #   ままになっていた。開いていれば再描画して追従させる。
+        if getattr(self, 'data_editor_dialog', None) is not None:
+            self.data_editor_dialog._populate_table()
+        # ★ バグ修正: HelpDialog/CalcHelpDialog(gui/dialogs.py)も同様に
+        #   非モーダルで開いたままダークモードを切り替えられるが、表見出しの
+        #   色(tr.header-row)は__init__時点のトークンをQTextDocumentへ
+        #   一度だけ焼き込む実装だったため、開いたまま切り替えると色が
+        #   古いテーマのまま取り残されていた。
+        for dialog_attr in ('help_dialog', 'calc_help_dialog'):
+            dialog = getattr(self, dialog_attr, None)
+            if dialog is not None and hasattr(dialog, 'refresh_theme'):
+                dialog.refresh_theme()
+        # ★ バグ修正: apply_theme() 自体はQApplication全体(=全タブ共有の
+        #   QSS/パレット)に対して即座に効くプロセス全体の操作だが、
+        #   このメソッドの残り(matplotlib配色・アイコン再読み込み・
+        #   ダークモードのメニューチェック状態)はすべて self (=操作した
+        #   タブ)にしか適用されない。各タブは完全に独立したPlotterApp
+        #   インスタンス(CLAUDE.mdの設計方針通り)であるため、他のタブを
+        #   開いたまま片方だけダークモードを切り替えると、Qtのチェコロム/
+        #   ドック等は(共有QSSのため)即座にダークになるのに、他のタブの
+        #   グラフやツールバーアイコン、メニューのチェック状態は古いまま
+        #   残る「二重人格」状態になっていた。
+        self._sync_dark_mode_to_sibling_tabs(checked)
+
+    def _sync_dark_mode_to_sibling_tabs(self, checked):
+        """
+        自分以外の全タブ(独立したPlotterAppインスタンス)にも、同じダーク
+        モード状態を反映する。MainAppWindow.tab_widgetの各ページが
+        PlotterAppインスタンスそのもの(main_app_window.pyのadd_new_project_tab
+        参照)であることを前提にしている。
+        """
+        main_app_window = self.window()
+        tab_widget = getattr(main_app_window, 'tab_widget', None)
+        if tab_widget is None:
+            return
+        for i in range(tab_widget.count()):
+            tab = tab_widget.widget(i)
+            if tab is None or tab is self:
+                continue
+            if not hasattr(tab, 'dark_mode_action') or not hasattr(tab, 'canvas'):
+                continue
+            if tab.canvas.dark_mode == checked:
+                continue
+            tab.canvas.dark_mode = checked
+            tab.settings.setValue("dark_mode", checked)
+            # ★ setChecked()がtoggledを発火すると、そのタブの
+            #   _on_toggle_dark_modeがapply_theme()の再実行や、さらに
+            #   自分自身への再同期を連鎖的に引き起こしてしまう(無害だが
+            #   無駄な二重処理になる)ため、シグナルを止めて直接状態だけ揃える。
+            tab.dark_mode_action.blockSignals(True)
+            tab.dark_mode_action.setChecked(checked)
+            tab.dark_mode_action.blockSignals(False)
+            tab._update_plot()
+            tab._refresh_all_label_previews()
+            tab.color_picker_widget.refresh_theme()
+            tab.gradient_color2_picker.refresh_theme()
+            tab._refresh_mpl_toolbar_icons()
+            tab._refresh_custom_svg_icons()
+
+    def _refresh_mpl_toolbar_icons(self):
+        """
+        matplotlib純正のNavigationToolbar2QTのアイコンを、現在のQPaletteに
+        合わせて再読み込みする(_on_toggle_dark_modeから呼ばれる)。
+
+        NavigationToolbar2QT._icon()は読み込み時にQPaletteのbackgroundRole()
+        の明度を見て自動的にダークモード用の配色へ切り替える仕組みを内蔵して
+        いるが、これはアイコン読み込み時(=ツールバー構築時)に一度だけ実行
+        されるため、実行中にダークモードを切り替えても再読み込みされずアイコン
+        が古いテーマの色のまま残ってしまう(実機で発覚)。matplotlib非公開の
+        `toolitems`/`_actions`属性を使って手動で再読み込みする(将来の
+        matplotlibバージョンでこれらの属性が無くなる可能性があるため、
+        存在しない場合は何もしない安全側の実装にしている)。
+        """
+        toolbar = getattr(self, 'mpl_toolbar', None)
+        if toolbar is None:
+            return
+        toolitems = getattr(toolbar, 'toolitems', None)
+        actions = getattr(toolbar, '_actions', None)
+        if toolitems is None or actions is None:
+            return
+        for text, _tooltip_text, image_file, callback in toolitems:
+            if text is None:
+                continue
+            action = actions.get(callback)
+            if action is not None:
+                action.setIcon(toolbar._icon(image_file + '.png'))
+
+    def _refresh_custom_svg_icons(self):
+        """
+        自前のTabler Icons SVGアイコン(gui/main_window.pyの_svg_icon()経由で
+        setIcon()した永続的なウィジェット/アクション)を、現在のテーマに
+        合わせて再読み込みする(_on_toggle_dark_modeから呼ばれる)。
+
+        _svg_icon()自体は呼び出しの都度、現在のテーマから色を解決するように
+        なっているが、それはあくまで「次にsetIcon()された時」に反映される
+        だけで、既にsetIcon()済みのQIconオブジェクトが自動的に更新される
+        わけではない。ダイアログ内のアイコン(H-2-6で対応済み)はダイアログが
+        毎回新規に構築されるため問題にならないが、ここで挙げるものは
+        PlotterApp.__init__で一度だけ構築される永続的なウィジェットのため、
+        明示的な再設定が必要。
+        """
+        from gui.main_window import _svg_icon
+
+        if hasattr(self, 'cursor_action'):
+            self.cursor_action.setIcon(_svg_icon("pointer"))
+        if hasattr(self, 'annotation_action'):
+            self.annotation_action.setIcon(_svg_icon("message-2"))
+        if hasattr(self, 'layout_edit_action'):
+            self.layout_edit_action.setIcon(_svg_icon("layout-grid"))
+        if hasattr(self, 'reset_zoom_action'):
+            self.reset_zoom_action.setIcon(_svg_icon("refresh"))
+        if hasattr(self, 'stats_toolbar_button'):
+            self.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
+        if hasattr(self, 'manage_palette_action'):
+            self.manage_palette_action.setIcon(_svg_icon("palette", size=16))
+        if hasattr(self, 'colormap_assign_action'):
+            self.colormap_assign_action.setIcon(_svg_icon("palette", size=16))
+
+        for button, (icon_name, _label) in getattr(self, '_dataset_action_button_icons', {}).items():
+            button.setIcon(_svg_icon(icon_name, size=18))
+        for button, icon_name in getattr(self, '_field_icon_buttons', {}).items():
+            button.setIcon(_svg_icon(icon_name, size=16))
+        for toggle_button in getattr(self, '_collapsible_toggle_buttons', []):
+            toggle_button.setIcon(
+                _svg_icon("chevron-down" if toggle_button.isChecked() else "chevron-right", size=14)
+            )
 
     def _set_initial_ui_state(self):
             """

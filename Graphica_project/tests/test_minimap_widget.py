@@ -80,6 +80,32 @@ def test_minimap_refresh_applies_light_theme_colors(minimap):
     )
 
 
+def test_minimap_refresh_does_not_leak_span_selector_event_connections(minimap):
+    """
+    回帰テスト: refresh() のたびに _create_span_selector() が新しい
+    SpanSelector を作るが、古い方の canvas イベント接続(press/motion/
+    release)を切断していなかったため、データセット追加やプロット設定変更の
+    たびに毎回リークし、1回のドラッグ操作で range_selected がリーク数だけ
+    重複発火するようになっていた。複数回 refresh() してもイベント接続数が
+    増え続けないことを確認する。
+    """
+    minimap.refresh([_make_dataset("a")], dark_mode=False)
+    counts_after_first = {
+        event: len(callbacks)
+        for event, callbacks in minimap.callbacks.callbacks.items()
+    }
+
+    for _ in range(4):
+        minimap.refresh([_make_dataset("a")], dark_mode=False)
+
+    counts_after_many = {
+        event: len(callbacks)
+        for event, callbacks in minimap.callbacks.callbacks.items()
+    }
+
+    assert counts_after_many == counts_after_first
+
+
 def test_minimap_span_selection_emits_range_selected_signal(minimap):
     minimap.refresh([_make_dataset("a")], dark_mode=False)
 
@@ -189,3 +215,40 @@ def test_minimap_visibility_persists_and_restores_via_qsettings(tmp_path, monkey
     assert window2.minimap_visible is False
     assert window2.minimap_action.isChecked() is False
     assert window2.minimap.isVisible() is False
+
+
+# --- ミニマップの配色をアプリ全体のテーマと揃える(実機フィードバック:
+#     「ミニマップの灰色も他の所の背景と色のテイストをそろえて、同じ色には
+#     しないで少しだけ暗い色にして」) ---
+
+def test_minimap_axes_facecolor_is_not_a_flat_neutral_gray():
+    """
+    以前の#f2f2f2(ライト)/#1e1e1e(ダーク)は R=G=B の無彩色グレーで、
+    gui/theme.pyの寒色寄りトークン(R<G<Bの傾向)と色味が揃っていなかった。
+    """
+    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from PySide6.QtGui import QColor
+
+    for hex_color in (LIGHT_AXES_FACECOLOR, DARK_AXES_FACECOLOR):
+        color = QColor(hex_color)
+        assert color.isValid()
+        # 無彩色(R=G=B)ではなく、bg/surface_2トークンと同じ寒色寄りの傾向
+        # (R <= G <= B)を持つことを確認する。
+        assert not (color.red() == color.green() == color.blue())
+        assert color.red() <= color.green() <= color.blue()
+
+
+def test_minimap_axes_facecolor_is_darker_than_nearest_theme_surface():
+    """
+    「他の所の背景と同じ色にはしないで少しだけ暗い色に」の回帰テスト。
+    ライトはsurface_2(#EEF0F3)より、ダークはbg(#14171A)より暗いことを確認する。
+    """
+    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from PySide6.QtGui import QColor
+
+    def luminance(hex_color):
+        c = QColor(hex_color)
+        return c.red() + c.green() + c.blue()
+
+    assert luminance(LIGHT_AXES_FACECOLOR) < luminance(LIGHT_TOKENS["surface_2"])
+    assert luminance(DARK_AXES_FACECOLOR) < luminance(DARK_TOKENS["bg"])

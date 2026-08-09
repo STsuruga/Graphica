@@ -10,7 +10,7 @@ import pytest
 import core.plugin_api as plugin_api_module
 from core.plugin_api import GraphicaPluginAPI
 from core.plugin_types import PluginExecutionError
-from gui.workers import read_data_file
+from gui.workers import DataLoadWorker, read_data_file
 
 
 @pytest.fixture(autouse=True)
@@ -134,3 +134,89 @@ def test_plugin_importer_returning_non_dataframe_raises_clear_error(tmp_path):
 
     with pytest.raises(PluginExecutionError, match="MultiSheetPlugin"):
         read_data_file(str(path))
+
+
+# --- BOM検出 (_detect_bom_encoding) ---
+
+def test_read_csv_with_utf16_bom_is_detected_and_read(tmp_path):
+    """UTF-16 BOM付きCSVは _detect_bom_encoding() で検出され、正しく読める。"""
+    path = tmp_path / "data_utf16.csv"
+    path.write_text("x,y\n1,2\n3,4\n", encoding='utf-16')  # 'utf-16'書き込みはBOM付与される
+
+    df = read_data_file(str(path))
+
+    assert list(df.columns) == ['x', 'y']
+    assert len(df) == 2
+
+
+def test_read_csv_with_utf8_sig_bom_that_fails_falls_back_and_raises(tmp_path):
+    """UTF-8 BOMが付いているが実際にはデコード/パース不能なCSVは、
+    BOM由来のエンコーディングでの読み込み失敗(except節)を経て、
+    通常のフォールバック一覧も全て失敗し最終的にValueErrorになる。"""
+    path = tmp_path / "data_broken.csv"
+    # UTF-8 BOM + 引用符が閉じられていない不正なCSV(ASCIIのみなのでデコード自体は
+    # utf-8-sig/cp932/latin-1いずれでも成功するが、トークナイズがどのエンコーディング
+    # でも失敗するため、全フォールバックがParserErrorで失敗する)。
+    path.write_bytes(b'\xef\xbb\xbfa,b\n"unterminated\n')
+
+    with pytest.raises(ValueError, match="文字コードを判定できませんでした"):
+        read_data_file(str(path))
+
+
+# --- DataLoadWorker.run() ---
+
+def test_data_load_worker_run_emits_load_succeeded(qapp, tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("x,y\n1,2\n3,4\n", encoding='utf-8')
+
+    worker = DataLoadWorker(str(path))
+    succeeded_calls = []
+    failed_calls = []
+    worker.load_succeeded.connect(lambda df, fp: succeeded_calls.append((df, fp)))
+    worker.load_failed.connect(lambda msg, fp: failed_calls.append((msg, fp)))
+
+    worker.run()
+
+    assert failed_calls == []
+    assert len(succeeded_calls) == 1
+    df, fp = succeeded_calls[0]
+    assert list(df.columns) == ['x', 'y']
+    assert fp == str(path)
+
+
+def test_data_load_worker_run_emits_load_failed_when_fewer_than_two_columns(qapp, tmp_path):
+    """1列しかないデータは読み込み自体は成功するが、run()内のバリデーションで
+    ValueErrorを送出しload_failedになる。"""
+    path = tmp_path / "single_col.csv"
+    path.write_text("x\n1\n2\n", encoding='utf-8')
+
+    worker = DataLoadWorker(str(path))
+    succeeded_calls = []
+    failed_calls = []
+    worker.load_succeeded.connect(lambda df, fp: succeeded_calls.append((df, fp)))
+    worker.load_failed.connect(lambda msg, fp: failed_calls.append((msg, fp)))
+
+    worker.run()
+
+    assert succeeded_calls == []
+    assert len(failed_calls) == 1
+    msg, fp = failed_calls[0]
+    assert "2列" in msg
+    assert fp == str(path)
+
+
+def test_data_load_worker_run_emits_load_failed_on_read_error(qapp, tmp_path):
+    """未対応拡張子など、read_data_file() が例外を投げるケースもload_failedになる。"""
+    path = tmp_path / "data.foo"
+    path.write_text("dummy", encoding='utf-8')
+
+    worker = DataLoadWorker(str(path))
+    failed_calls = []
+    worker.load_failed.connect(lambda msg, fp: failed_calls.append((msg, fp)))
+
+    worker.run()
+
+    assert len(failed_calls) == 1
+    msg, fp = failed_calls[0]
+    assert "未対応" in msg
+    assert fp == str(path)

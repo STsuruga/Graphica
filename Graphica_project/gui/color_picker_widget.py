@@ -83,11 +83,25 @@ class ColorPickerWidget(QWidget):
         return super().blockSignals(block)
 
     def _update_swatch(self):
+        # ★ 項目H-2-6(H-0調査で判明): 以前はborder色をrgba(128,128,128,110)で
+        #   ハードコードしており、gui/theme.pyのトークンと無関係な固定グレーだった
+        #   (ライト/ダーク双方で同じ見た目になり、他のUI要素との統一感が無かった)。
+        #   現在テーマのborder_strongトークンを参照するよう変更。
+        from gui import theme
+        border_color = theme.current_tokens()["border_strong"]
         self.swatch_button.setStyleSheet(
             f"background-color: {self._color.name()};"
-            f"border: 1px solid rgba(128, 128, 128, 110);"
+            f"border: 1px solid {border_color};"
             f"border-radius: 4px;"
         )
+
+    def refresh_theme(self):
+        """
+        ダークモード切り替え時に呼ばれ、スウォッチの枠線色を現在のテーマに
+        合わせて再描画する(スウォッチの背景色自体はユーザーが選んだデータ色
+        なのでテーマとは無関係、枠線色だけがテーマ依存)。
+        """
+        self._update_swatch()
 
     def _on_swatch_clicked(self):
         color = get_color_with_history(self._settings, self, initial=self._color)

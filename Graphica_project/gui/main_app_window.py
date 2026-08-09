@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QMessageBox
 from gui.main_window import PlotterApp, resource_path
 from gui.app_context import AppContext
 from gui.icon_utils import icon as svg_icon
+from gui import theme
 from core.version import APP_NAME, __version__
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,12 @@ class MainAppWindow(QMainWindow):
         # 常にアクティブなタブの履歴を表示する。
         self.undo_group = QUndoGroup(self)
         self._create_undo_history_dock()
+        # ★ 項目H-2-3: ドックのフォーカス時強調(枠線をアクセント色に)。
+        #   undo_history_dockはPlotterApp(各タブ)ではなくこのウィンドウ自身が
+        #   持つドックのため、gui/main_window.py側の呼び出しとは別に、
+        #   ここでも個別に組み込む必要がある(詳細はtheme.
+        #   install_dock_focus_highlight()のdocstringを参照)。
+        theme.install_dock_focus_highlight(self)
 
         self._next_tab_id = 1
 
@@ -81,18 +88,23 @@ class MainAppWindow(QMainWindow):
         add_tab_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         add_tab_button.clicked.connect(lambda: self.add_new_project_tab())
 
-        # Undo履歴パネルの表示/非表示切り替えボタン(項目C-901)。専用アイコンの
-        # 手持ちが無いため(assets/icons/参照、外部から新規調達するほどでもない
-        # ため)、他の低頻度操作ボタン(dataset_overflow_button の "⋯")と同じ
-        # 方針でテキストボタンにする。
+        # Undo履歴パネルの表示/非表示切り替えボタン(項目C-901)。他のツールバー
+        # 類と統一感を持たせるため、Tabler Iconsの"history"アイコンを使う。
+        # ★ setDefaultAction()はボタンのアイコン/ツールチップ/チェック状態を
+        #   紐付けたQAction側のものに同期させる(=後からボタン側にsetIcon()/
+        #   setToolTip()しても上書きされて消える)ため、アイコン/ツールチップは
+        #   必ずQAction(toggleViewAction()の戻り値)側に設定してから
+        #   setDefaultAction()に渡す。
+        undo_history_action = self.undo_history_dock.toggleViewAction()
+        undo_history_action.setIcon(svg_icon("history", size=18))
+        undo_history_action.setToolTip("Undo履歴パネルの表示/非表示")
         undo_history_button = QToolButton()
         undo_history_button.setObjectName("undo_history_button")
-        undo_history_button.setText("履歴")
-        undo_history_button.setToolTip("Undo履歴パネルの表示/非表示")
+        undo_history_button.setIconSize(QSize(18, 18))
         undo_history_button.setCursor(Qt.CursorShape.PointingHandCursor)
         undo_history_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         undo_history_button.setCheckable(True)
-        undo_history_button.setDefaultAction(self.undo_history_dock.toggleViewAction())
+        undo_history_button.setDefaultAction(undo_history_action)
 
         corner_widget = QWidget()
         corner_layout = QHBoxLayout(corner_widget)

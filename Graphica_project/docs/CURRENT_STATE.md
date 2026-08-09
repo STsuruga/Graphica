@@ -5,44 +5,313 @@
 このファイルは常に「現在地」だけを保つよう、作業の区切りごとに上書きする運用にする
 (過去の完了履歴を積み上げる場所ではない)。
 
-- 完了履歴の詳細(いつ・何を・どう実装したか): `docs/PLUGIN_API_PROGRESS.md`
+- 完了履歴の詳細(いつ・何を・どう実装したか): トラック1(プラグインAPI拡張)は
+  `docs/PLUGIN_API_PROGRESS.md`、トラック2(GUIモダン化)は
+  `docs/GUI_MODERNIZATION_PROGRESS.md`(役割は同じ、対象トラックが異なるだけ)
 - 全項目の通しナンバリング・チェックリスト: `docs/roadmap.html`
   (Artifactとしても公開: https://claude.ai/code/artifact/3305056d-6417-4056-8899-b5e2bca0c553 。
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
+## 現在の状況(2026-08-09時点、最優先で読むこと)
+
+**トラック2 フェーズH(GUIモダン化、H-0〜H-5)は全項目完了した。** 続けて
+「50を実施、フルテストも。バグが無いか徹底的に検証して」という指示を受け、
+H-5(画像回帰テスト)実装 + 背景Agent4体によるコードベース全体のバグ監査
+(core/プラグイン層・main_window/canvas/theme・ダイアログ群・mixin群の
+4分割) + 確定した19件のバグ修正(それぞれに回帰テスト追加)を行い、
+フルスイート701件全件グリーン・カバレッジ70%を確認してコミット・push済み。
+
+続けて「カバレッジの内訳は?」「上げるには?」「全部やって、agentは適宜
+展開」という指示を受け、テストカバレッジを大幅に引き上げる作業を実施した。
+低カバレッジだった`gui/mixins/project_io_mixin.py`・`export_mixin.py`・
+`help_mixin.py`・`color_history.py`・`cursor_mixin.py`・
+`annotation_mixin.py`・`quick_access_mixin.py`・`dataset_mixin.py`(最大、
+955行)・`gui/dialogs.py`(最大、1560行)・`data_editor.py`・
+`export_preview_panel.py`・`canvas.py`・`main_window.py`・
+`crash_handler.py`・`workers.py`・`core/json_utils.py`・`core/i18n.py`に
+テストを大量追加した。**結果: 1256件全件グリーン(失敗0件)、カバレッジ
+70%→97%(8450 stmts中272 miss)。**
+
+**作業中に判明した重要な環境上の注意点(今後も踏まえること)**:
+- **`_make_isolated_plotter_app`で毎回フルの`PlotterApp`(matplotlib
+  Figure・Qtウィンドウ一式)を構築するテストを、1つのpytestプロセス内で
+  数十〜100件以上連続実行すると、蓄積したQt/matplotlibリソースにより
+  1テストあたりの所要時間が徐々に増大し、実質的に完了しなくなる**
+  (`test_dataset_mixin.py`164件を1プロセスで流したところ、90分のCPU時間を
+  消費してもまだ完走しなかった。一方、28件程度のチャンクに分割し、
+  チャンクごとに新規プロセスで実行すると、チャンクあたり約4分で安定して
+  完走した)。これはテストのロジック自体のバグではなく、環境側の制約
+  (Qtオブジェクトが明示的に`close()`/`deleteLater()`されないまま
+  プロセス内に蓄積することが一因と推測)。**フルスイートやこの種の
+  重いテストファイルを再実行する際は、1プロセスに全部流し込まず、
+  ファイル単位(30件超なら30件ずつのチャンク単位)で新規プロセスに
+  分割して実行し、`pytest-cov`の`--cov-append`で結果を積み上げるか、
+  `coverage combine`で複数の`.coverage.*`ファイルを結合すること。**
+- サブエージェント(Agentツール)は、自分が起動したバックグラウンドの
+  bashプロセスやMonitorの完了通知を待てず、「待ちます」と言って
+  そのままターンを終えてしまう挙動を何度も示した(オーケストレーター
+  である自分とは異なり、サブエージェントはバックグラウンドタスクの
+  完了通知で自動的に再開されない)。この種の機械的な並列実行タスクは、
+  Agentツールを介さず自分自身の直接的なバックグラウンドBash呼び出し
+  (`run_in_background: true`)で行う方が確実。
+
+ユーザーは続けて「一旦パブリッシュしたい、手順をまとめておいて実行はしない
+で」とも指示している。`docs/RELEASE_CHECKLIST.md`(新設)に手順のドラフトを
+まとめてあるが、**いずれの手順も実行していない**(PR作成・バージョン更新・
+タグ付け・ビルド等は一切未着手)。
+
+### 今回のバグ監査で見つかり、修正したもの(19件、それぞれに回帰テスト追加)
+
+**重大(データ破損・クラッシュ)**:
+- `core/dataset.py`の`restore_rows()`が`reset_index(drop=True)`していたため、
+  それ以前に別の行が永久削除されていた状態で削除→Undoすると、既存の全行の
+  ラベルがずれ、他のUndoコマンドが誤った行を書き換える/ゴースト行を生成する
+  実データ破損バグ。`delete_rows()`と同じ理由で`reset_index`を削除して解消。
+- `gui/main_window.py`: バックグラウンドでファイル読み込み中(`DataLoadWorker`
+  がまだ`isRunning()`)にタブ/アプリを閉じると、実行中のQThreadが破棄され
+  Qtがプロセスをfail-fast abortさせるハードクラッシュ(他タブの未保存データ
+  も道連れ)。`closeEvent`で読み込み完了までブロッキング待機するよう修正。
+
+**高(サイレントな機能破壊・データ不整合)**:
+- `core/dataset.py`の`add_row()`: マスクした行をそのまま永久削除すると
+  `masked_row_indices`に欠番が残り、後で追加した新規行が同じラベルを再利用
+  してグラフ/フィットから消える。`delete_rows()`で欠番を掃除するよう修正。
+- `gui/mixins/cursor_mixin.py`: データカーソルをOFFにすると、無関係な
+  「クリックでデータセットを選択」機能(項目35、常時有効)まで巻き添えで
+  効かなくなっていた(matplotlibのpickerフラグを誤って共有していたため)。
+- `gui/mixins/layout_edit_mixin.py`: 自由配置レイアウトのドラッグ中に
+  マウスがウィンドウ外に出てボタンを離すと、`button_release_event`が届かず
+  「幽霊ドラッグ」状態が残留し続けた。`figure_leave_event`で確定処理をする
+  よう修正。
+- `gui/mixins/settings_mixin.py`/`layout_edit_mixin.py`: サブプロットグリッド
+  を縮小すると、削除された番号を`subplot_target`に持つデータセットがどの
+  軸にも描画されずサイレントに消えていた(エクスポート画像からも消える)。
+  存在する最後のサブプロットへ割り当て直すよう修正。
+- `gui/mixins/ui_setup_mixin.py`: 複数タブを開いた状態で片方だけダーク
+  モードを切り替えると、Qtの共有QSSは即座に反映されるのに、他のタブの
+  matplotlib配色・アイコン・メニューのチェック状態が古いまま取り残される
+  「二重人格」状態になっていた。`_sync_dark_mode_to_sibling_tabs()`を新設。
+- `gui/data_editor.py`: bool型の列のセルに"False"と入力しても、
+  `np.dtype(bool).type("False")`が空文字列以外を全てTrueとして解釈するため
+  実際にはTrueのままになっていた(「列の計算」の比較式から作られるbool列
+  で実際に到達しうる)。
+
+**中(視認性・原因不明のエラー・データ精度)**:
+- `core/analysis.py`: Y列にNaNが含まれるとcurve_fitが生の`ValueError`を
+  投げていた(他の正規化/Savitzky-Golay等はNaN行を除外済みなのに、
+  フィットだけ仲間外れだった)、ガウシアンフィットのY列が丸ごとNaNだと
+  `np.nanargmax`が未捕捉クラッシュしていた。両方ともNaN行を事前に除外する
+  よう修正(`dataset_mixin.py`のフィット呼び出し元も自動的に恩恵を受ける)。
+- `core/analysis.py`の`calculate_peaks`: 「下に凸(谷)」検出は
+  `find_peaks(-y_data)`と信号を反転するが、heightのしきい値だけ反転し
+  忘れていた(ダイアログのツールチップ自体が「例:-10で谷のみ検出」と
+  谷側にも負の値をそのまま使う仕様を明示しており、実際によくある使い方)。
+- `gui/main_window.py`: 前回起動時がダークモードだった場合、`apply_theme()`
+  が`_create_menu_bar()`まで呼ばれず、それより前に構築されるツールバー等の
+  アイコンがライト用の色で焼き込まれ、ダーク背景でほぼ見えなくなっていた。
+  アイコン構築前にダークモード設定を反映するよう修正。
+- `gui/minimap_widget.py`: `refresh()`のたびに古い`SpanSelector`のイベント
+  接続を切断せず作り直しており、操作のたびに際限なくリークしていた
+  (1回のドラッグでrange_selectedが重複発火する等の実害)。
+- `gui/data_editor.py`: マスク済み行の背景色がライトモード専用の固定色
+  (`#DCDCDC`)で、ダークモードでは逆に浮いて見えていた。テーマトークンから
+  動的に解決するよう修正。
+- `gui/dialogs.py`のHelpDialog/CalcHelpDialog: 非モーダルで開いたまま
+  ダークモードを切り替えると、表見出しの色が古いテーマのまま残っていた。
+  `refresh_theme()`を新設し`_on_toggle_dark_mode`から呼ぶよう配線。
+- `gui/dialogs.py`のResultDialog(フィット結果の残差プロット): 独立した
+  Figureのため、ダイアログ本体はダークモードに追従するのに残差プロットだけ
+  matplotlib既定の白背景+黒文字のまま浮いていた。
+
+**低(リソースリーク・診断性・プラグインAPI周辺)**:
+- `gui/mixins/dataset_mixin.py`のDataEditorDialog、`gui/mixins/help_mixin.py`
+  のHelpDialog/CalcHelpDialog: 別のダイアログに切り替える際`close()`のみで
+  `deleteLater()`されておらず、開き直すたびにメモリリークしていた。
+- `core/plugin_api.py`: プラグイン読み込み失敗時のログが`logger.warning`で
+  トレースバックを残していなかった。このtry節はプラグイン自身のコードだけ
+  でなくGraphica自身のコード(マニフェスト解析等)も同じexcept節で受けて
+  いるため、アプリ側のバグでも「プラグインが壊れている」としか分からず
+  切り分けが困難だった。`logger.exception`に変更。
+- `core/plugin_testing.py`の`FakeGraphicaPluginAPI`: 実物は
+  fit_function/processor/analyzer/panel/plot_type/render_backendの重複登録
+  をValueErrorで拒否するが、Fakeは黙って上書きしていた(プラグイン開発者が
+  Fakeでの単体テストだけを頼りにすると、重複登録のミスに気づけない)。
+  実物と同じ重複チェックを追加。
+- `core/safe_eval.py`: `func(**expr)`形式のキーワード引数展開が未捕捉の
+  `TypeError`を漏らしていた。明示的に`SafeEvalError`で拒否するよう修正。
+
+### 意図的に修正を見送った(バグ監査で見つかったが今回は対応しない)もの
+
+- `models/project.py`の`_RestrictedUnpickler`許可リストが`numpy`/`pandas`
+  パッケージ全体を許可しており、理論上の攻撃面がやや広い(具体的な悪用
+  経路は未確認)。またタイムゾーン付き日時列を含む`.pkl`が読み込めない
+  可能性がある。セキュリティ境界の変更は誤りのリスクが高いため、今回は
+  見送り記録のみ(修正するなら実際に必要な再構築ヘルパーだけを個別に
+  許可リスト化する、moderateなコスト)。
+- `gui/mixins/quick_access_mixin.py`: プラグインメニューのように2階層以上
+  ネストしたメニュー項目は、右クリックでの「クイックアクセスに追加」が
+  無反応(サブメニューにコンテキストメニューポリシーが設定されていない)。
+  「クイックアクセスの管理...」ダイアログからは同じ操作が可能なため、
+  致命度は低いと判断し見送り。
+- `gui/mixins/dataset_mixin.py`のデータセット削除がUndoスタックを経由しない
+  (Ctrl+Zで戻せない)。同ファイル内の別コメントが「データセットの追加/
+  削除/複製は現状Undo非対応」と明記しており、意図的な設計上の割り切りと
+  判断(Undo対応するなら`RemoveDatasetCommand`の新設が必要、large相当)。
+
 ## 現在のブランチ
 
-`feature/format-version-and-foundations`(originにpush済み、upstream追跡設定済み)
+`feature/gui-modernization`(originにpush済み、upstream追跡設定済み。分岐元は
+`feature/format-version-and-foundations`で、そちらも既にoriginにpush済み・
+トラック1の全成果を含む)。ロードマップのフェーズH節が「このフェーズ単独で
+新しいブランチを切ることを推奨する」と明記していたため、ユーザーに確認の上で
+このブランチを新設した(トラック1とトラック2の変更を別PRに分離する狙い)。
 
 ## 直近の完了
 
-トラック1 フェーズG(ロードマップ#37: `register_render_backend()`の型定義のみ、
-実装は`gui/canvas.py`に未接続のまま骨組みだけ)完了。**これでトラック1(プラグイン
-API拡張、フェーズA〜G)が全て完了。** pytest全体グリーン確認済み。まだコミット・
-push・`docs/roadmap.html`の#37チェック更新・Artifact再publishは未実施
-(このセッションの直後の作業として残っている)。
+トラック2 フェーズH-2-3(#42)・H-2-4(#43、実機フィードバックによる
+4ラウンドの追加対応込み)・H-2-5(#44、クイックアクセスツールバー)・
+H-2-6(#45、ダイアログ群)・H-2-7(#46、プラグイン管理UIへのスタイル適用)・
+H-2-8(#47、ステータスバー)・H-3(#48、matplotlib配色連動)・H-4(#49、
+アイコンセットの見直し)完了。加えてH-2-6完了後、実機スクリーンショット
+提示(ポップアップの既定ボタン・グループ見出しチップが緑のまま/見切れる)
+を受けて追加修正(`QPushButton:default`と`QGroupBox::title`を
+`selection_accent`/`selection_highlight`に統一、チップのクリッピングは
+`top`オフセットを`-6px`→`0px`に変更して解消)。**詳細はこのファイルではなく
+`docs/GUI_MODERNIZATION_PROGRESS.md`の該当行(表形式、「H-2-6追加分」行)と
+`docs/gui_style_audit.md`の対応する節(Before/After画像付き)を参照すること**
+(このファイルは過去の完了履歴を積み上げる場所ではない)。
 
-フェーズGは1項目のみの軽量タスクだったため、Agentを使わず自分で直接実装した。
+**H-5実装+バグ監査19件の修正を反映した、文字通りのフルスイート
+(カバレッジ計測込み)を実行し、701件全件グリーン(失敗0件)を確認済み
+(2026-08-09、実行時間2時間23分)。カバレッジはTOTAL 70%(8450 stmts /
+2546 miss、H-5実装のみ・バグ修正前のベースライン66%から改善)。
+`docs/roadmap.html`の#50は`true`に更新・再publish済み。
+
+**H-3/H-4で得た重要な発見**: matplotlib純正の`NavigationToolbar2QT`は
+アイコン読み込み時にQPalette明度からダークモード配色へ自動的に切り替わる
+仕組みを内蔵しているが、これはツールバー構築時(常にライトモード)に
+一度だけ実行され、以後ダークモードに切り替えても再読み込みされない
+(`_refresh_mpl_toolbar_icons`で対応)。自前のTabler Iconsアイコンも
+固定のダークグレー既定色を持っており、H-0調査で「未検証」と記録されていた
+ダークモード視認性の懸念が、メインツールバーがほぼ見えなくなるという
+実際のバグとして確認された(`_refresh_custom_svg_icons`で対応)。
+**「永続的に構築される(ダイアログのように毎回作り直されない)ウィジェットの
+アイコン/色は、テーマ切替時に明示的な再読み込みフックが無いと古いテーマの
+まま残る」というパターンは、これまでのColorPickerWidget・mathtextプレビュー
+と同じ教訓であり、今後も新しいUI要素を追加する際は要注意。**
+
+**H-2-5/H-2-6/H-2-7で得た知見(今後も踏まえること)**: `gui/dialogs.py`の
+25ダイアログをバックグラウンドAgent2体で並行監査した結果、22/25は既存の
+グローバルQSSを自動継承済みで無問題だった。見つかった3件はいずれも
+「QSSが`QListWidgetItem.setBackground()`/`setForeground()`のロールを
+無視する」「HTML内に固定色をハードコードしていてダークモード非対応」という、
+**QSS自体の調整ではなく個別ウィジェット実装側のバグ**だった
+(`ColorPaletteDialog`の色見本が読めない、`HelpDialog`/`CalcHelpDialog`の
+表見出しがダークモードで見えない)。さらにH-2-5(クイックアクセスツール
+バー)では、`QPushButton`の`:pressed`/`:hover`はH-2-4追加分で青系に統一
+済みだったのに**`QToolButton`側の同じ更新が漏れていた**バグを発見(ツール
+バー上のボタンは全てQToolButtonのため、この見落としに今まで気づけて
+いなかった)。H-2以降の残り項目でも、(1)「QSSトークンの調整だけでなく、
+個別ウィジェットが独自にColorRole/HTMLへ色を直接書き込んでいないか」、
+(2)「類似ウィジェットクラス(QPushButton/QToolButtonのような)に同じ規約を
+適用したはずが、片方だけ漏れていないか」の両方を確認する価値がある。
+
+**教訓(4ラウンド通じて繰り返し得られた重要な知見、今後も踏まえること)**:
+- QSS文字列の存在チェックだけのテストでは実際の描画色/レイアウトを検証
+  できない(QDockWidgetへの`background`指定は正しかったが、その手前の層
+  ―QScrollAreaの中身のwidget、あるいはpixmapサイズがsizeHintを押し広げる
+  ―が実際の見た目を決めていた、という「対策した箇所より手前/奥に真因が
+  あった」パターンが複数回発生した)。疑わしい箇所には`QWidget.grab()`での
+  ピクセル色検証や実際のwidgetサイズ検証を伴う統合テストを追加すること。
+- シグナルを`.pressed.emit()`のように手動発火するテストは「配線が正しいか」
+  までしか検証できず、Qtの実際のフォーカス遷移タイミングに起因する不具合
+  (今回はQPushButtonの既定フォーカスポリシーがマウス押下配送前にフォーカス
+  を奪う問題)を見逃す。疑わしい箇所には`QTest.mouseClick()`による実クリック
+  再現を伴うテストを追加すること。
+- 「幅方向だけ対策して高さ方向を見落とす」「長い/複雑な入力でしか再現しない
+  不具合が短い/単純な入力(プレースホルダ等)にも実は残っている」ケースが
+  あるため、修正後は両極端な入力(最短/最長、装飾なし/複数装飾の組み合わせ)
+  で個別に確認すること。
+
+**H-2-4追加分で実施した変更(1回目)**:
+- フォーカス/選択/チェック状態の色をすべて新設`selection_accent`
+  (opaqueな青、`#2563EB`/`#3B82F6`)に統一: ボタン/入力欄の`:focus`枠線、
+  `QDockWidget[dockActive="true"]`(H-2-3)の枠線、`QTabBar::tab:selected`の
+  下線・文字色、`QRadioButton::indicator:checked`、チェックボックスの
+  チェック時塗りつぶし。ブランドアクセントとしての`accent`(ボタン背景等)
+  自体は変更していない。
+- プロパティドックの余計な枠線は`QScrollArea`に一切QSSが無く、Qt既定の
+  sunkenフレームがそのまま出ていたのが原因(`QScrollArea { border: none; }`
+  で解消)。
+- 背景色`bg`/`surface_2`を寒色寄りグレー(`bg=#F6F7F9`, `surface_2=
+  #EEF0F3`)に変更(3案提示→ユーザー選択)。
+- タイトル/軸ラベル編集を、旧QMenuベースのポップアップパネルから独立
+  ポップアップダイアログ`LabelEditDialog`(`gui/dialogs.py`、レイアウト画像
+  提示に沿った構成)に置き換え。ギリシャ文字/記号パレット
+  (`LABEL_SYMBOL_PALETTE`)もギリシャ文字16種+算術・数学記号16種の計32種に
+  拡張。`gui/mixins/settings_mixin.py`/`gui/mixins/ui_setup_mixin.py`の
+  旧実装(`_capture_label_format_selection`等)は削除。
+- タイトル/軸ラベルのmathtextライブプレビュー(`gui/mathtext_preview.py`、
+  日本語グリフフォールバック、`FitWidthPixmapLabel`による幅/高さ自動フィット)、
+  クリックで`LabelEditDialog`が開く`_ClickableMathPreviewLabel`、複数装飾の
+  合成(`\boldsymbol`)、タブ上部の灰色線・プロットパネル枠線・ミニマップ配色
+  等、以降の4ラウンドの詳細は`docs/GUI_MODERNIZATION_PROGRESS.md`の
+  「H-2-4追加分」〜「H-2-4追加分(4回目)」行と`docs/gui_style_audit.md`の
+  対応節(Before/After画像付き)を参照。
+
+H-2-3で実施した変更:
+- `QDockWidget`に枠線+角丸(8px)を追加(`plot_container`と同じ「1枚の
+  カード」の考え方)。
+- フォーカス時の強調は、QDockWidget自体に「アクティブ」を示すQt標準の状態が
+  無いため、新設の`theme.install_dock_focus_highlight(window)`が
+  `QApplication.focusChanged`を監視し、フォーカスされたウィジェットの祖先を
+  たどってQDockWidgetを特定、動的プロパティ`dockActive`をQSSの属性セレクタ
+  (`QDockWidget[dockActive="true"]`)経由で反映する自前実装。**複数タブ対応の
+  注意点**: `focusChanged`はプロセス内全体で共有される単一のシグナルのため、
+  見つかったドックが管轄する`window`のものでない場合は無視するガードが必須
+  (各PlotterAppタブは完全に独立したウィンドウという設計方針)。
+  `undo_history_dock`は`MainAppWindow`自身が持つドックのため、
+  `gui/main_window.py`側とは別に`gui/main_app_window.py`側でも個別に
+  組み込んだ。
+
+H-2-4で実施した変更(実機フィードバックによる複数回の調整):
+- スピンボックスの上下ボタンを、独立した角丸ボックス(参考イメージ提示を
+  受けて全4隅を丸め、margin付き)に変更し、さらに背景・枠線を常時透明にして
+  矢印だけが浮くミニマルな見た目にした。
+- 矢印マーク自体の三角形サイズを拡大(`_spinbox_arrow_icon_url()`のキャンバス
+  サイズごと見直し、キャッシュファイル名にサイズを含めて旧サイズの使い回しを
+  防止)。コンボボックス側の矢印だけ旧サイズ(10px)のまま揃っていなかった
+  不具合(実機フィードバックで発覚)も12pxに統一して解消。
+- テキスト選択・メニュー/メニューバーの`::item:selected`・コンボボックスの
+  ポップアップ・汎用リスト/テーブルの`::item:selected`を、いずれもティール系
+  `accent`/`accent_soft`からH-2-2の`selection_highlight`(青)に統一
+  (「選択時とかポップアップの色が緑っぽい」との指摘に対応)。ボタンの
+  hover/pressedやフォーカス枠は`accent`のまま変更していない。
+- `ui_main_window.py`(Designer生成物、手で編集しない方針)に焼き込まれた
+  フォームラベルの末尾全角コロン「：」を、`PlotterApp.__init__`最後で
+  `_strip_trailing_colon_from_labels()`により実行時に除去した。
+
+H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏まえること):
+- `gui/theme.py`が唯一のQt側QSS/パレット実装(別`.qss`ファイルは無い)。
+- **matplotlib側(`gui/canvas.py`)とミニマップ(`gui/minimap_widget.py`)は、
+  `gui/theme.py`のトークンとは完全に独立した、それぞれ個別にハードコードされた
+  ダーク/ライト配色定数を持つ(値も一致していない)。統合するかは未判断のまま
+  スコープ外としている**(docs/gui_style_audit.md 7節参照)。
+- 「カスタムカラーパレット」機能(QSettings永続化)はデータセットの線色サイクル
+  であり、UIテーマのアクセントカラーとは無関係。
 
 ## 次にやること
 
-トラック1が完了したため、次はユーザーから明示的な指示があるまで待機する。
-ユーザーが番号で指示してくる想定先(いずれもトラック1完了により着手可能になった):
-- トラック2(GUIモダン化、#38〜): 着手条件はフェーズA〜G完了(達成済み)。
-  ただしH-0(現状調査)以外は本来フェーズA〜G完了後という条件なので、全体が
-  着手可能になった。`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`のフェーズH節を
-  読んでから着手すること。
-- トラック4(プラグイン本体の開発、#163〜): トラック1完了時点で着手可能。
-  `docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」
-  (P-805, P-101, P-304を優先)を参照。
-- トラック3(残りの本体機能追加、#51〜)は本来トラック2完了後だが、ユーザーが
-  明示的に指定すれば着手して構わない(MASTER_SCHEDULE.mdの「新しい作業に着手する
-  前に必ずこのファイルで確認する」という原則通り、指示されたら都度確認する)。
+フルスイート(701件全件グリーン)・コミット・pushまで完了していれば、
+トラック2 フェーズH(GUIモダン化、H-0〜H-5)は全て完了している。
 
-指示が来たらまず`docs/roadmap.html`の該当行と、必要なら
-`docs/Graphica_MASTER_SCHEDULE.md`/`docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md`の
-該当セクションを読んでから着手する。
+ユーザーがテスト結果を見てから「パブリッシュ」の判断をするので、
+`docs/RELEASE_CHECKLIST.md`の手順を提示するに留め、実際のPR作成・
+バージョン更新・タグ付け・ビルド等は指示があるまで実行しない。
+
+トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
+(`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
 
 ## 開発の進め方(ユーザーとの合意事項・運用ルール)
 
@@ -57,11 +326,24 @@ push・`docs/roadmap.html`の#37チェック更新・Artifact再publishは未実
   運用(セッションの開始時に口頭で合意済み。新セッションでも踏襲してよい)。
 - 1項目〜1フェーズの作業がまとまるごとに、次の一連の流れを毎回徹底する:
   1. 実装 + そのテストを書く
-  2. pytest全体を実行して確認する(500件超、実行に約15〜25分かかるため
-     `Bash`の`run_in_background: true`で流し、完了通知を待つ。ポーリングしない)
+  2. **テストの実行範囲は影響範囲に応じて判断する**(2026-08-07にユーザーと
+     合意、CLAUDE.mdの「Regression bar」節にも反映済み)。
+     - 影響範囲が小さい変更(1コンポーネントのQSS調整、1関数に閉じた変更等):
+       変更したテストファイル + 関連する広めの`pytest -k <キーワード>`
+       サブセットで十分。
+     - 共有状態・グローバル状態・コア機構(`core/`配下、`gui/theme.py`、
+       プラグインレジストリのシングルトン、`models/project.py`のシリアライズ等)
+       に触れる変更: フルスイート必須(実際にフルスイートでしか再現しない
+       不具合が過去2回あった。下記「既知の注意点」参照)。
+     - 上記に関わらず、**pushする前には一定の頻度でフルスイートを挟む**
+       (毎回である必要はないが、数項目ごと・フェーズの区切りごとには必ず)。
+     - フルスイートを実行する場合は500件超・実行に約15〜25分かかるため
+       `Bash`の`run_in_background: true`で流し、完了通知を待つ(ポーリングしない)。
   3. 失敗があれば原因を調査して修正する(テスト自体の実行順序依存など、
      実装バグでない場合もあるので切り分ける)
-  4. `docs/PLUGIN_API_PROGRESS.md`に完了項目の詳細(ID・状態・完了日・実装メモ)を追記
+  4. 対象トラックの進捗ファイル(トラック1なら`docs/PLUGIN_API_PROGRESS.md`、
+     トラック2なら`docs/GUI_MODERNIZATION_PROGRESS.md`)に完了項目の詳細
+     (ID・状態・完了日・実装メモ)を追記
   5. 明確なコミットメッセージでコミット(関連ファイルのみ`git add`、
      autosaveファイルや無関係な変更は含めない)
   6. push
@@ -103,6 +385,16 @@ push・`docs/roadmap.html`の#37チェック更新・Artifact再publishは未実
   `tests/test_quick_access_mixin.py`の`lambda plugins_dir: plugin_api`が
   新しいキーワード引数を受け付けずに壊れた実例がある(`lambda plugins_dir,
   disabled_names=None: plugin_api`に修正して解消)。
+- **H-2の「ライト/ダーク両モードでのスクリーンショット記録」完了条件は、実際に
+  Qtウィジェットを`QWidget.grab() -> QPixmap.save()`することで満たせる**
+  (実機の画面表示やブラウザ系ツールは不要。デスクトップアプリなのでBrowser系
+  ツールは使えないことに注意)。`run_startup_checks=False`で`PlotterApp`を作り、
+  QSettingsを一時iniにリダイレクト(既存テストの`_make_isolated_plotter_app`と
+  同じ手法)した上で、`window.show()`+`processEvents()`を数回回してからgrabすれば、
+  実際のレンダリング結果を確認できる。ダークモードは`window.dark_mode_action.
+  setChecked(True)`で切り替えてから再度grabする。スクリーンショットは
+  `docs/screenshots/h2-N/`配下にPNGで保存し、`docs/gui_style_audit.md`から
+  相対パスで埋め込む(実例: H-2-1、`docs/screenshots/h2-1/`)。
 - **Agentツールの`isolation: "worktree"`は、このセッションで一度、割り当てられた
   worktreeが理由不明のまま消失する事象が起きた**(`git worktree list`に登録が
   無くなり、パスもENOENT。エージェント自身が削除した形跡は無い)。再現条件は
@@ -116,3 +408,51 @@ push・`docs/roadmap.html`の#37チェック更新・Artifact再publishは未実
   `git reset`/`git clean`等の破壊的操作は絶対に指示しないこと。フェーズF以降は
   そもそも`isolation: "worktree"`を使わず、共有ツリー+明示的なファイル境界
   指示のバックグラウンドAgentに統一しており、今のところこちらは安定している。
+- **QTreeView/QTreeWidgetのQSSだけでは「アイコン列+テキスト列にまたがる単一の
+  角丸選択ハイライト」を実現できない**(H-2-2で判明)。Qt(Fusionスタイル)は
+  `CE_ItemViewItem`描画時にデコレーション(アイコン)列とテキスト(display)列を
+  別々の矩形として扱い、`::item:selected`の`background`/`border-radius`も
+  それぞれ独立に適用するため、2つの矩形の角丸がわずかにズレて隙間ができる。
+  QSSの`show-decoration-selected`はPySide6のQTreeView/QTreeWidgetに対応する
+  公開APIが無く、指定しても効果が無い。**解決策は`QStyledItemDelegate`を
+  サブクラス化し、選択時の背景をQPainterPathで自前描画した上で、
+  `option.state`から`State_Selected`を外してから基底実装(`super().paint()`)に
+  委譲すること**(実装例: `gui/main_window.py`の`_DatasetTreeSelectionDelegate`)。
+- **分岐(展開矢印)用インデント列は`delegate.paint()`とは別経路
+  (`QTreeView::drawBranches()`)で描画される**ため、デリゲート側で
+  `State_Selected`を外しても、そのフラグ解除の影響を受けない。汎用の
+  `::item:selected`スタイルがモデル側の実際の選択状態を見てそのまま
+  インデント列に滲み出るため、対象リストに限って`background: transparent`で
+  打ち消す必要がある(単に`selection-background-color: transparent`を
+  ウィジェットレベルで指定するだけでは不十分だった)。
+- **QColor(rgba_css_string)はCSSのrgba()関数記法を解釈できず、不透明の黒に
+  無効フォールバックする**(H-2-2で発覚。`"rgba(37, 99, 235, 0.12)"`のような
+  QSS埋め込み用トークン文字列をPython側でQColorとして直接使いたい場合、
+  `QColor(rgba_css_string)`は`isValid() == False`になり、代わりに不透明な
+  黒(0,0,0,255)が返る)。正規表現でr,g,b,aを抽出し、`QColor(r,g,b)`+
+  `setAlphaF(a)`で組み立てること(実装例:
+  `gui/theme.py`の`current_selection_highlight_qcolor()`)。
+- **実機フィードバックでUIの「見た目の意図」を早めに言語化してもらうと手戻りが
+  減る**(H-2-2の実例): 「検索ボックスとリストの境界線を消して」という指示を
+  「1つの箱に統合する」意味だと誤解して実装し、後から「統合することじゃない、
+  それぞれ独立した箱のまま枠線だけ消して」と訂正された。見た目の変更指示が
+  複数の解釈を許す場合(特に「境界線を消す」「くっつける」等)は、実装前に
+  「独立した箱のまま枠線を消すのか、1つの箱に統合するのか」を確認するか、
+  最初の実装を小さく留めて早い段階でスクリーンショットを見せるとよい。
+- **`ui_main_window.py`(pyside6-uic生成物)のテキストは`\uXXXX`エスケープ
+  形式で埋め込まれている**ため、日本語の語句(例:「凡例名」)や記号
+  (例: 全角コロン「：」)をこのファイル内でリテラル文字列として検索しても
+  ヒットしない(H-2-4で発覚。`grep`はもちろん、Pythonの`"文字列" in content`
+  でも同様に失敗する)。存在確認は`\uXXXX`のコードポイント、またはPySide6を
+  実際にimportしてオブジェクトの`.text()`を読む方法で行うこと。
+- **QPixmap/QPainterの生成は、QApplicationインスタンスが存在しない状態だと
+  不安定(クラッシュしてPythonの例外機構すら通らず、exit code 127で
+  トレースバック無しに落ちることがある)**(H-2-4で発覚。同じ`python -c`の
+  ワンライナーが、セッション内の別の時点では成功していたにもかかわらず、
+  後になって突然この形で落ちるようになった。原因は特定できていないが、
+  再現条件は「QApplication未生成のままQPixmap/QPainterを触る」ことに
+  一貫して関連している)。`gui/theme.py`の`build_qss()`(内部で矢印アイコンの
+  QPixmap/QPainterを生成する)をスクリプトから単体で検証する際は、必ず先に
+  `QApplication.instance() or QApplication(sys.argv)`を作ってから呼ぶこと。
+  pytest経由(`conftest.py`の`qapp`フィクスチャ)では常にQApplicationが
+  用意されているため、この問題は発生しない。

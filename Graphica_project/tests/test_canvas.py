@@ -4,6 +4,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.dates as mdates
 from matplotlib.collections import LineCollection
 from matplotlib.image import AxesImage
 from matplotlib.lines import Line2D
@@ -650,3 +651,465 @@ def test_redraw_all_panel_labels_default_to_disabled(canvas):
     ds = _make_dataset(3, show_point_labels=False)
     canvas.redraw_all([ds], 1, 1, [{}])
     assert list(canvas.all_axes[0].texts) == []
+
+
+# --- 項目H-3: matplotlib(Figure)側の配色をgui/theme.pyのトークンと連動させる
+#     (以前はcanvas.py独自のハードコード値を持ち、theme.pyのトークンとは
+#     完全に無関係だった、H-0調査で判明した既知の不整合) ---
+
+def test_figure_and_axes_facecolor_constants_match_theme_surface_token():
+    from gui.canvas import (
+        LIGHT_FIGURE_FACECOLOR, LIGHT_AXES_FACECOLOR,
+        DARK_FIGURE_FACECOLOR, DARK_AXES_FACECOLOR,
+    )
+    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+
+    assert LIGHT_FIGURE_FACECOLOR == LIGHT_TOKENS['surface']
+    assert LIGHT_AXES_FACECOLOR == LIGHT_TOKENS['surface']
+    assert DARK_FIGURE_FACECOLOR == DARK_TOKENS['surface']
+    assert DARK_AXES_FACECOLOR == DARK_TOKENS['surface']
+
+
+def test_text_color_constants_match_theme_text_primary_token():
+    from gui.canvas import LIGHT_TEXT_COLOR, DARK_TEXT_COLOR
+    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+
+    assert LIGHT_TEXT_COLOR == LIGHT_TOKENS['text_primary']
+    assert DARK_TEXT_COLOR == DARK_TOKENS['text_primary']
+
+
+def test_legend_color_constants_match_theme_surface2_and_border_strong_tokens():
+    from gui.canvas import (
+        LIGHT_LEGEND_FACECOLOR, LIGHT_LEGEND_EDGECOLOR,
+        DARK_LEGEND_FACECOLOR, DARK_LEGEND_EDGECOLOR,
+    )
+    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+
+    assert LIGHT_LEGEND_FACECOLOR == LIGHT_TOKENS['surface_2']
+    assert LIGHT_LEGEND_EDGECOLOR == LIGHT_TOKENS['border_strong']
+    assert DARK_LEGEND_FACECOLOR == DARK_TOKENS['surface_2']
+    assert DARK_LEGEND_EDGECOLOR == DARK_TOKENS['border_strong']
+
+
+def test_axes_facecolor_follows_dark_mode_flag(canvas):
+    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    import matplotlib.colors as mcolors
+
+    ds = _make_dataset(3, show_point_labels=False)
+
+    canvas.dark_mode = False
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert canvas.all_axes[0].get_facecolor() == pytest.approx(
+        mcolors.to_rgba(LIGHT_TOKENS['surface'])
+    )
+
+    canvas.dark_mode = True
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert canvas.all_axes[0].get_facecolor() == pytest.approx(
+        mcolors.to_rgba(DARK_TOKENS['surface'])
+    )
+
+
+def test_grid_lines_use_theme_border_strong_color(canvas):
+    """
+    以前グリッド線の色はmatplotlibの既定値(rcParams、テーマと無関係な固定の
+    薄灰色)任せだった。border_strongトークンを明示的に使うことを確認する。
+    """
+    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    import matplotlib.colors as mcolors
+
+    ds = _make_dataset(3, show_point_labels=False)
+
+    canvas.dark_mode = False
+    canvas.redraw_all([ds], 1, 1, [{'grid_visible': True}])
+    gridline = canvas.all_axes[0].xaxis.get_gridlines()[0]
+    assert mcolors.to_rgba(gridline.get_color()) == pytest.approx(
+        mcolors.to_rgba(LIGHT_TOKENS['border_strong'])
+    )
+
+    canvas.dark_mode = True
+    canvas.redraw_all([ds], 1, 1, [{'grid_visible': True}])
+    gridline = canvas.all_axes[0].xaxis.get_gridlines()[0]
+    assert mcolors.to_rgba(gridline.get_color()) == pytest.approx(
+        mcolors.to_rgba(DARK_TOKENS['border_strong'])
+    )
+
+
+# ============================================================================
+# 以下、カバレッジギャップ埋め (missing lines) のための追加テスト。
+# ============================================================================
+
+def _make_secondary_dataset(name="sec", use_secondary_y=True):
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0], "y": [1.0, 2.0, 3.0]})
+    return Dataset(name=name, df=df, x_col_name="x", y_col_name="y",
+                    use_secondary_y=use_secondary_y, plot_type='Line')
+
+
+# --- redraw_all(): 早期returnとsettings不足時のスキップ ---
+
+def test_redraw_all_returns_false_and_does_nothing_when_subplot_count_zero(canvas):
+    result = canvas.redraw_all([], 0, 0, [])
+    assert result is False
+    assert canvas.all_axes == []
+
+
+def test_redraw_all_skips_axes_without_matching_settings(canvas):
+    """all_plot_settingsがサブプロット数より少ない場合、余った軸には
+    データ描画・外観適用のどちらも行われずスキップされる(continue分岐)。"""
+    import matplotlib.colors as mcolors
+    from gui.theme import DARK_TOKENS
+    canvas.dark_mode = True
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 2, [{}])
+    assert len(canvas.all_axes) == 2
+    assert canvas.all_axes[0].get_facecolor() == pytest.approx(mcolors.to_rgba(DARK_TOKENS['surface']))
+    # 2つ目の軸は_apply_appearanceが呼ばれないため、ダークトークンの背景色になっていない
+    assert canvas.all_axes[1].get_facecolor() != pytest.approx(mcolors.to_rgba(DARK_TOKENS['surface']))
+    assert len(canvas.all_axes[1].lines) == 0
+
+
+def test_redraw_all_returns_true_and_creates_secondary_axis_when_dataset_uses_secondary_y(canvas):
+    ds = _make_secondary_dataset()
+    result = canvas.redraw_all([ds], 1, 1, [{}])
+    assert result is True
+    assert canvas.all_secondary_axes[0] is not None
+
+
+def test_redraw_all_swallows_tight_layout_value_error(canvas, monkeypatch):
+    ds = _make_dataset(3, show_point_labels=False)
+    monkeypatch.setattr(
+        canvas.fig, "tight_layout",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("boom")),
+    )
+    # 例外が伝播せず正常に完了することを確認する
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+
+def test_update_appearance_only_swallows_tight_layout_value_error(canvas, monkeypatch):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    monkeypatch.setattr(
+        canvas.fig, "tight_layout",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("boom")),
+    )
+    # 例外が伝播せず正常に完了することを確認する
+    canvas.update_appearance_only([{}])
+
+
+# --- _draw_annotations(): 削除失敗/描画失敗が例外を伝播させない ---
+
+def test_draw_annotations_remove_failure_is_swallowed(canvas):
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [{'type': 'text', 'text': 'hello', 'xy': (0, 0), 'color': '#000000'}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    artist = canvas._annotation_artists[0][0]
+    artist.remove = lambda: (_ for _ in ()).throw(ValueError("cannot remove"))
+    # 前回分の削除に失敗しても、例外を伝播させず描き直しが続行される
+    canvas._draw_annotations(canvas.all_axes[0], 0, settings)
+
+
+def test_draw_annotations_exception_during_draw_is_logged_and_skipped(canvas, caplog):
+    ds = _make_dataset(2, show_point_labels=False)
+    # 'xy'キーの無いarrow注釈はann['xy']でKeyErrorになるが、except Exceptionで
+    # 捕捉されログに残るだけで、例外は伝播せず他の描画に影響しない。
+    settings = {'annotations': [{'type': 'arrow', 'text': 'bad'}]}
+    with caplog.at_level("ERROR"):
+        canvas.redraw_all([ds], 1, 1, [settings])
+    assert canvas._annotation_artists[0] == []
+
+
+# --- _enable_element_picking(): BarContainerのpatches個別ピッカー設定 ---
+
+def test_bar_plot_type_enables_picking_on_each_patch(canvas):
+    from matplotlib.container import BarContainer
+    df = pd.DataFrame({"x": ["a", "b", "c"], "y": [1, 2, 3]})
+    ds = Dataset(name="bar_ds", df=df, x_col_name="x", y_col_name="y", plot_type='Bar', color='#112233')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert isinstance(ds.artist, BarContainer)
+    for patch in ds.artist.patches:
+        assert patch.get_picker() == 5
+
+
+# --- _add_gradient_fill(): X/Y範囲が潰れるケースの補正 ---
+
+def test_add_gradient_fill_handles_all_x_equal(canvas):
+    ax = canvas.fig.add_subplot(1, 1, 1)
+    im = canvas._add_gradient_fill(ax, [2.0, 2.0, 2.0], [1.0, 2.0, 3.0], '#112233', '#ffffff', 0.5, baseline=0.0)
+    assert im is not None
+
+
+def test_add_gradient_fill_handles_all_y_equal_to_baseline(canvas):
+    ax = canvas.fig.add_subplot(1, 1, 1)
+    im = canvas._add_gradient_fill(ax, [0.0, 1.0, 2.0], [0.0, 0.0, 0.0], '#112233', '#ffffff', 0.5, baseline=0.0)
+    assert im is not None
+
+
+# --- ウォーターフォールのベースライン計算: 空データセットはスキップされる ---
+
+def test_waterfall_baseline_calculation_skips_dataset_with_empty_data(canvas):
+    df_empty = pd.DataFrame({"x": pd.Series([], dtype=float), "y": pd.Series([], dtype=float)})
+    ds_empty = Dataset(name="empty_wf", df=df_empty, x_col_name="x", y_col_name="y",
+                        plot_type='Line', waterfall_enabled=True, waterfall_offset_y=1.0)
+    df_data = pd.DataFrame({"x": [0.0, 1.0], "y": [1.0, 2.0]})
+    ds_data = Dataset(name="data_wf", df=df_data, x_col_name="x", y_col_name="y",
+                       plot_type='Line', waterfall_enabled=True, waterfall_offset_y=1.0)
+    # 空のデータセットが混ざっていてもベースライン計算がクラッシュしない
+    canvas.redraw_all([ds_empty, ds_data], 1, 1, [{}])
+    assert len(ds_data.artist.get_xdata()) == 2
+
+
+# --- 平滑化 (CubicSpline): 成功時/失敗時のフォールバック経路 ---
+
+def _make_smoothing_dataset(x, y, smoothing=True, gradient_enabled=False,
+                             gradient_target='line', plot_type='Line'):
+    df = pd.DataFrame({"x": x, "y": y})
+    return Dataset(name="smooth_ds", df=df, x_col_name="x", y_col_name="y", plot_type=plot_type,
+                    color='#112233', gradient_color2='#ffffff', smoothing=smoothing,
+                    gradient_enabled=gradient_enabled, gradient_target=gradient_target)
+
+
+def test_smoothing_success_draws_cubicspline_curve_without_gradient(canvas):
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0])
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert isinstance(ds.artist, Line2D)
+    # 平滑化された曲線は元の4点より多い点数(200点)で構成される
+    assert len(ds.artist.get_xdata()) == 200
+
+
+def test_smoothing_success_with_gradient_uses_linecollection(canvas):
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0],
+                                  gradient_enabled=True, gradient_target='line')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert isinstance(ds.artist, LineCollection)
+
+
+def test_smoothing_success_with_line_plus_scatter_overlays_markers(canvas):
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0], plot_type='Line+Scatter')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert isinstance(ds.artist, Line2D)  # 平滑化した線
+    assert len(ax.collections) >= 1  # 元データ点のscatterマーカーも重ねて描画される
+
+
+def test_smoothing_cubicspline_failure_falls_back_to_plain_line(canvas):
+    """xに重複値があるとCubicSplineがValueErrorを送出し、平滑化なしのプロットにフォールバックする"""
+    ds = _make_smoothing_dataset([0.0, 0.0, 1.0, 2.0], [0.0, 1.0, 2.0, 3.0])
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert isinstance(ds.artist, Line2D)
+    assert len(ds.artist.get_xdata()) == 4  # 元のデータ点数のまま(平滑化されていない)
+
+
+def test_smoothing_cubicspline_failure_with_gradient_falls_back_to_gradient_line(canvas):
+    ds = _make_smoothing_dataset([0.0, 0.0, 1.0, 2.0], [0.0, 1.0, 2.0, 3.0],
+                                  gradient_enabled=True, gradient_target='line')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert isinstance(ds.artist, LineCollection)
+    assert len(ds.artist.get_array()) == 3  # 元の4点、3セグメント分(平滑化前のまま)
+
+
+def test_line_plus_scatter_gradient_non_smoothed_overlays_scatter_on_gradient_line(canvas):
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0], [0.0, 1.0, 2.0], smoothing=False,
+                                  gradient_enabled=True, gradient_target='both', plot_type='Line+Scatter')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert isinstance(ds.artist, LineCollection)
+    assert len(ax.lines) == 0  # 通常のLine2Dは使わない
+    from matplotlib.collections import PathCollection
+    assert any(isinstance(c, PathCollection) for c in ax.collections)  # マーカーのscatter
+
+
+def test_area_gradient_target_line_only_uses_plain_fill_between_not_gradient_fill(canvas):
+    ds = _make_area_dataset(gradient_enabled=True, gradient_target='line')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.images) == 0  # 塗りはグラデーション化されない(通常のfill_between)
+    assert any(isinstance(c, LineCollection) for c in ax.collections)  # 輪郭線はグラデーション化される
+    from matplotlib.collections import PolyCollection
+    assert any(isinstance(c, PolyCollection) for c in ax.collections)  # fill_betweenの塗り
+
+
+# --- set_highlighted_points(): データ⇔グラフの双方向ハイライト ---
+
+def test_set_highlighted_points_removes_previous_artist_on_second_call(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.set_highlighted_points(ds, [0, 1])
+    first_artist = canvas._highlight_artists[ds.dataset_id]
+    canvas.set_highlighted_points(ds, [2, 3])
+    second_artist = canvas._highlight_artists[ds.dataset_id]
+    assert first_artist is not second_artist
+
+
+def test_set_highlighted_points_remove_failure_is_swallowed(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.set_highlighted_points(ds, [0, 1])
+    old_artist = canvas._highlight_artists[ds.dataset_id]
+    old_artist.remove = lambda: (_ for _ in ()).throw(ValueError("boom"))
+    # 削除に失敗しても例外を伝播させず、新しいハイライトに切り替えられる
+    canvas.set_highlighted_points(ds, [2])
+    assert ds.dataset_id in canvas._highlight_artists
+
+
+def test_set_highlighted_points_empty_indices_clears_highlight_without_error(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.set_highlighted_points(ds, [0, 1])
+    canvas.set_highlighted_points(ds, [])
+    assert ds.dataset_id not in canvas._highlight_artists
+
+
+def test_set_highlighted_points_axis_index_out_of_range_is_noop(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    ds.subplot_target = 5  # all_axesの範囲外
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.set_highlighted_points(ds, [0])
+    assert ds.dataset_id not in canvas._highlight_artists
+
+
+def test_set_highlighted_points_on_secondary_axis(canvas):
+    ds = _make_secondary_dataset(name="sec")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.set_highlighted_points(ds, [0])
+    assert ds.dataset_id in canvas._highlight_artists
+    secondary_ax = canvas.all_secondary_axes[0]
+    assert canvas._highlight_artists[ds.dataset_id] in secondary_ax.collections
+
+
+def test_set_highlighted_points_index_conversion_exception_is_swallowed(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    # ハッシュ不可な要素(リスト)を渡すと `idx in visible_index` でTypeErrorになるが、
+    # 例外を伝播させず単に何もハイライトしない扱いになる。
+    canvas.set_highlighted_points(ds, [[1, 2]])
+    assert ds.dataset_id not in canvas._highlight_artists
+
+
+def test_set_highlighted_points_draws_scatter_with_expected_positions(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.set_highlighted_points(ds, [1, 3])
+    artist = canvas._highlight_artists[ds.dataset_id]
+    offsets = artist.get_offsets()
+    assert list(offsets[:, 0]) == pytest.approx([1.0, 3.0])
+    assert list(offsets[:, 1]) == pytest.approx([1.0, 3.0])
+
+
+# --- _draw_point_labels(): 引数省略時のデフォルト、カスタム列、NaNスキップ ---
+
+def test_draw_point_labels_defaults_to_dataset_xy_when_args_omitted(canvas):
+    ds = _make_dataset(3, show_point_labels=True)
+    ax = canvas.fig.add_subplot(1, 1, 1)
+    canvas._draw_point_labels(ax, ds)  # x_data/y_dataを省略 → ds.x_data/ds.y_dataを使う
+    assert len(ax.texts) == 3
+
+
+def test_draw_point_labels_uses_custom_column_and_skips_empty_text(canvas):
+    df = pd.DataFrame({
+        "x": [0.0, 1.0, 2.0],
+        "y": [0.0, 1.0, 2.0],
+        "label": ["foo", None, "baz"],
+    })
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y",
+                 show_point_labels=True, point_label_col_name="label")
+    ax = canvas.fig.add_subplot(1, 1, 1)
+    canvas._draw_point_labels(ax, ds, x_data=ds.x_data, y_data=ds.y_data)
+    texts = [t.get_text() for t in ax.texts]
+    # NaN(None)のラベル値は空文字列になり描画がスキップされる(2番目の点)
+    assert texts == ["foo", "baz"]
+
+
+def test_draw_point_labels_skips_nan_coordinates(canvas):
+    df = pd.DataFrame({"x": [0.0, float('nan'), 2.0], "y": [0.0, 1.0, 2.0]})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y", show_point_labels=True)
+    ax = canvas.fig.add_subplot(1, 1, 1)
+    canvas._draw_point_labels(ax, ds, x_data=ds.x_data, y_data=ds.y_data)
+    assert len(ax.texts) == 2  # X座標がNaNの点はスキップされる
+
+
+# --- _apply_appearance(): 手動軸範囲・日付軸・カテゴリ軸・目盛り間隔 ---
+
+def test_apply_appearance_manual_xlim_when_x_autoscale_false(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'x_autoscale': False, 'x_min': -5, 'x_max': 15}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert ax.get_xlim() == pytest.approx((-5, 15))
+
+
+def test_apply_appearance_manual_ylim_when_y_autoscale_false(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'y_autoscale': False, 'y_min': -5, 'y_max': 15}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert ax.get_ylim() == pytest.approx((-5, 15))
+
+
+def test_apply_appearance_date_x_axis_uses_autodate_locator_and_concise_formatter(canvas):
+    dates = pd.date_range("2024-01-01", periods=5, freq="D")
+    df = pd.DataFrame({"x": dates, "y": [1, 2, 3, 4, 5]})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert isinstance(ax.xaxis.get_major_locator(), mdates.AutoDateLocator)
+    assert isinstance(ax.xaxis.get_major_formatter(), mdates.ConciseDateFormatter)
+    assert isinstance(ax.xaxis.get_minor_locator(), ticker.NullLocator)
+
+
+def test_apply_appearance_category_x_axis_preserves_matplotlib_auto_locator(canvas):
+    df = pd.DataFrame({"x": ["a", "b", "c"], "y": [1, 2, 3]})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y", plot_type='Bar')
+    canvas.redraw_all([ds], 1, 1, [{'x_major_tick_mode': 1, 'x_major_tick_interval': 2}])
+    ax = canvas.all_axes[0]
+    # 数値専用のx_major_tick_mode=1を指定していても、カテゴリ軸ではmatplotlibが
+    # 自動設定したLocator/Formatterがそのまま使われ、MultipleLocatorには上書きされない
+    assert not isinstance(ax.xaxis.get_major_locator(), ticker.MultipleLocator)
+    assert isinstance(ax.xaxis.get_minor_locator(), ticker.NullLocator)
+
+
+def test_apply_appearance_manual_major_tick_interval_for_x_and_y(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    settings = {
+        'x_major_tick_mode': 1, 'x_major_tick_interval': 2,
+        'y_major_tick_mode': 1, 'y_major_tick_interval': 3,
+    }
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    x_locator = ax.xaxis.get_major_locator()
+    y_locator = ax.yaxis.get_major_locator()
+    assert isinstance(x_locator, ticker.MultipleLocator)
+    assert x_locator._edge.step == pytest.approx(2)
+    assert isinstance(y_locator, ticker.MultipleLocator)
+    assert y_locator._edge.step == pytest.approx(3)
+
+
+# --- _apply_appearance(): 凡例(第2Y軸のみ/主+第2Y軸結合/非表示時の削除) ---
+
+def test_apply_appearance_legend_shows_secondary_only_when_no_primary_data(canvas):
+    ds = _make_secondary_dataset(name="sec")
+    canvas.redraw_all([ds], 1, 1, [{'legend_visible': True}])
+    secondary_ax = canvas.all_secondary_axes[0]
+    legend = secondary_ax.get_legend()
+    assert legend is not None
+    assert [t.get_text() for t in legend.get_texts()] == ['sec']
+
+
+def test_apply_appearance_legend_combines_primary_and_secondary_when_both_present(canvas):
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0], "y": [1.0, 2.0, 3.0]})
+    ds_primary = Dataset(name="prim", df=df, x_col_name="x", y_col_name="y", plot_type='Line')
+    ds_secondary = _make_secondary_dataset(name="sec")
+    canvas.redraw_all([ds_primary, ds_secondary], 1, 1, [{'legend_visible': True}])
+    ax = canvas.all_axes[0]
+    legend = ax.get_legend()
+    assert legend is not None
+    labels = {t.get_text() for t in legend.get_texts()}
+    assert labels == {"prim", "sec"}
+
+
+def test_apply_appearance_legend_removed_from_secondary_axis_when_visible_false(canvas):
+    ds = _make_secondary_dataset(name="sec")
+    canvas.redraw_all([ds], 1, 1, [{}])  # legend_visibleは既定でTrue
+    secondary_ax = canvas.all_secondary_axes[0]
+    assert secondary_ax.get_legend() is not None
+    canvas.update_appearance_only([{'legend_visible': False}])
+    assert secondary_ax.get_legend() is None

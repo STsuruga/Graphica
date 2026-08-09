@@ -11,6 +11,8 @@ from matplotlib.patches import Polygon
 import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
+from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+
 logger = logging.getLogger(__name__)
 
 # 目盛り間隔が細かすぎて描画が固まる/処理落ちするのを防ぐための上限。
@@ -95,20 +97,42 @@ def _apply_tick_format_mode(axis, mode):
         axis.set_major_formatter(formatter)
 
 
-# --- ダークモード用の配色 ---
-DARK_FIGURE_FACECOLOR = '#2b2b2b'
-DARK_AXES_FACECOLOR = '#1e1e1e'
-DARK_TEXT_COLOR = '#e0e0e0'
-LIGHT_FIGURE_FACECOLOR = '#ffffff'
-LIGHT_AXES_FACECOLOR = '#ffffff'
-LIGHT_TEXT_COLOR = '#000000'
+# --- ダーク/ライトモード用の配色(項目H-3) ---
+# ★ 以前はここに個別のハードコード値(例: '#2b2b2b')を持っており、
+#   gui/theme.py のデザイントークンとは完全に無関係だった(H-0調査で判明した
+#   既知の不整合、docs/gui_style_audit.md 3節参照)。値が近いだけで一致しては
+#   おらず、Qtの無彩色ではない寒色寄りのグレー(R<G<Bの傾向)とmatplotlib側の
+#   純粋な無彩色グレー(R=G=B)がわずかに食い違っていた。gui/theme.pyの
+#   トークンを直接参照するよう変更し、今後トークン側を変更すればグラフ側にも
+#   自動的に反映されるようにする。
+#
+# Figure(外側の余白部分)とAxes(実際にデータが描かれる領域)は、
+# plot_container(gui/main_window.py)がキャンバスの周囲に6pxのQtレベルの
+# 余白を持っており、その背景色は{surface}トークンそのものであるため、
+# FigureとAxesの両方を同じ{surface}に揃えることで、Qt側の余白とmatplotlib
+# 側の余白の間に色の継ぎ目ができないようにしている(ライトモードは元々
+# 両方#ffffffで一致していたため、この設計を踏襲した形)。
+DARK_FIGURE_FACECOLOR = DARK_TOKENS['surface']
+DARK_AXES_FACECOLOR = DARK_TOKENS['surface']
+DARK_TEXT_COLOR = DARK_TOKENS['text_primary']
+LIGHT_FIGURE_FACECOLOR = LIGHT_TOKENS['surface']
+LIGHT_AXES_FACECOLOR = LIGHT_TOKENS['surface']
+LIGHT_TEXT_COLOR = LIGHT_TOKENS['text_primary']
 
-# 凡例のスタイリング(項目71): 軸の背景と同化して縁が見えなくならないよう、
-# ダークモードでは軸背景よりわずかに明るい面色 + 中間グレーの枠線にする。
-DARK_LEGEND_FACECOLOR = '#2A2A2A'
-DARK_LEGEND_EDGECOLOR = '#4A4A4A'
-LIGHT_LEGEND_FACECOLOR = '#FFFFFF'
-LIGHT_LEGEND_EDGECOLOR = '#CCCCCC'
+# 凡例のスタイリング(項目71/H-3): 軸の背景(surfaceトークン)と同化して縁が
+# 見えなくならないよう、軸背景よりわずかに異なる面色(surface_2、他の
+# UI要素の「一段乗ったチップ」表現と同じ考え方)+ border_strongトークンの
+# 枠線にする。
+DARK_LEGEND_FACECOLOR = DARK_TOKENS['surface_2']
+DARK_LEGEND_EDGECOLOR = DARK_TOKENS['border_strong']
+LIGHT_LEGEND_FACECOLOR = LIGHT_TOKENS['surface_2']
+LIGHT_LEGEND_EDGECOLOR = LIGHT_TOKENS['border_strong']
+
+# グリッド線(項目82)の色は従来matplotlibの既定値(rcParams、テーマと無関係な
+# 固定の薄灰色)に任せきりだった。border_strongトークンを明示的に指定し、
+# 背景色との調和を取る。
+DARK_GRID_COLOR = DARK_TOKENS['border_strong']
+LIGHT_GRID_COLOR = LIGHT_TOKENS['border_strong']
 
 
 class MplCanvas(FigureCanvas):
@@ -883,12 +907,18 @@ class MplCanvas(FigureCanvas):
         # 1回の ax.grid() 呼び出しは指定した which/axis の組み合わせにしか効かないため、
         # X/Y × 主/補助 の4通りを個別に呼び分ける。
         if settings.get('grid_visible', False):
+            # ★ 項目H-3: グリッド線の色は以前matplotlibの既定値(rcParams、
+            #   テーマと無関係な固定の薄灰色)に任せきりだったため、
+            #   ダークモードでライトモードと同じ薄灰色が使われ、背景色との
+            #   調和が取れていなかった。border_strongトークンを明示的に指定する。
+            grid_color = DARK_GRID_COLOR if self.dark_mode else LIGHT_GRID_COLOR
             for grid_axis in ('x', 'y'):
                 ax.grid(
                     True, which='major', axis=grid_axis,
                     linestyle=settings.get(f'{grid_axis}_major_grid_linestyle', '-'),
                     linewidth=settings.get(f'{grid_axis}_major_grid_width', 0.8),
                     alpha=settings.get(f'{grid_axis}_major_grid_alpha', 1.0),
+                    color=grid_color,
                 )
                 if settings.get('minor_grid_visible', False):
                     ax.grid(
@@ -896,6 +926,7 @@ class MplCanvas(FigureCanvas):
                         linestyle=settings.get(f'{grid_axis}_minor_grid_linestyle', '--'),
                         linewidth=settings.get(f'{grid_axis}_minor_grid_width', 0.5),
                         alpha=settings.get(f'{grid_axis}_minor_grid_alpha', 1.0),
+                        color=grid_color,
                     )
                 else:
                     ax.grid(False, which='minor', axis=grid_axis)

@@ -1476,7 +1476,13 @@ class DatasetMixin:
         #    (これにより、常に選択中のデータセットに対応したエディタが表示される)
         if self.data_editor_dialog:
             self.data_editor_dialog.close() # ウィンドウを閉じる
-            # self.data_editor_dialog.deleteLater() # より安全な削除方法 (任意)
+            # ★ バグ修正: close()はQDialogを非表示にするだけでC++オブジェクトは
+            # 破棄しない。このダイアログはself(メインウィンドウ)を親に持つため、
+            # 別のデータセットに切り替えるたびに古いインスタンス(QTableWidgetや
+            # 自身のQUndoStackごと)が非表示のまま親にぶら下がり続け、プロセス
+            # 終了までメモリに残っていた(データエディタを開き直すたびに蓄積する
+            # リーク)。deleteLater()で実際の破棄をスケジュールする。
+            self.data_editor_dialog.deleteLater()
             del self.data_editor_dialog
             self.data_editor_dialog = None # 参照をクリア
 

@@ -77,8 +77,16 @@ class LayoutEditMixin:
         if len(self.project.all_plot_settings) <= 1:
             return
         self.project.all_plot_settings.pop()
-        if self.project.active_axis_index >= len(self.project.all_plot_settings):
-            self.project.active_axis_index = len(self.project.all_plot_settings) - 1
+        new_total = len(self.project.all_plot_settings)
+        if self.project.active_axis_index >= new_total:
+            self.project.active_axis_index = new_total - 1
+
+        # ★ バグ修正: gui/mixins/settings_mixin.py の _on_layout_changed と
+        # 同じ理由(削除された番号のサブプロットに割り当てられたままの
+        # データセットが、どの軸にも描画されなくなりサイレントに消える)。
+        for dataset in self.project.datasets:
+            if dataset.subplot_target >= new_total:
+                dataset.subplot_target = new_total - 1
 
         self._update_subplot_combos()
         self._apply_settings_to_ui_controls(self.project.all_plot_settings[self.project.active_axis_index])
@@ -108,11 +116,23 @@ class LayoutEditMixin:
             self._layout_edit_press_cid = self.canvas.mpl_connect('button_press_event', self._on_layout_press)
             self._layout_edit_motion_cid = self.canvas.mpl_connect('motion_notify_event', self._on_layout_motion)
             self._layout_edit_release_cid = self.canvas.mpl_connect('button_release_event', self._on_layout_release)
+            # ★ バグ修正: ドラッグ中にマウスカーソルがアプリウィンドウの外まで
+            # 出た状態でボタンを離すと、canvasには button_release_event が
+            # 届かず _layout_drag_state が残留したままになっていた(項目86の
+            # マルチモニター対応もあり、画面端を越えてドラッグするのは十分
+            # 起こりうる)。この状態だとボタンを押していなくてもマウスを
+            # 動かすだけで _on_layout_motion が最後に触っていたサブプロット
+            # を勝手に動かし続けてしまう(ツールバーへ移動するだけでも発生)、
+            # サイレントかつ厄介な「幽霊ドラッグ」バグだった。マウスが
+            # figure領域を離れた時点で _on_layout_release と同じ確定処理を
+            # 行い、後続のmotionに反応しないようにする。
+            self._layout_edit_leave_cid = self.canvas.mpl_connect('figure_leave_event', self._on_layout_release)
             self.statusBar().showMessage(
                 "レイアウト編集モード: プロット内部をドラッグで移動、右下端をドラッグでリサイズします", 5000
             )
         else:
-            for cid_attr in ('_layout_edit_press_cid', '_layout_edit_motion_cid', '_layout_edit_release_cid'):
+            for cid_attr in ('_layout_edit_press_cid', '_layout_edit_motion_cid', '_layout_edit_release_cid',
+                              '_layout_edit_leave_cid'):
                 cid = getattr(self, cid_attr, None)
                 if cid is not None:
                     self.canvas.mpl_disconnect(cid)
