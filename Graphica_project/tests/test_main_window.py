@@ -5,13 +5,16 @@ gui/main_window.py (PlotterApp) の統合的なGUI挙動に対する、最小限
 PlotterApp のインスタンス化にはQApplicationが必要(conftest.pyのqappフィクスチャで用意)。
 QSettingsは実際のレジストリ/iniファイルを汚染しないよう、一時ファイルにリダイレクトする。
 """
+import os
 import time
 
-from PySide6.QtCore import QSettings, Qt, QUrl, QPointF, QMimeData
-from PySide6.QtGui import QDropEvent
-from PySide6.QtWidgets import QApplication, QDialog, QToolButton
+import pandas as pd
+from PySide6.QtCore import QSettings, Qt, QUrl, QPoint, QPointF, QMimeData
+from PySide6.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
 
 import gui.main_window as main_window_module
+from core.dataset import Dataset
 from gui.main_window import PlotterApp
 
 
@@ -51,6 +54,77 @@ class _FakeAcceptedColumnPreviewDialog:
 
     def get_dataframe(self):
         return self._df
+
+
+class _FakeRejectedColumnPreviewDialog:
+    """ColumnPreviewDialog の代わりに使う、常にキャンセルされたものとして振る舞うダブル。"""
+
+    def __init__(self, df, file_name, parent=None, file_path=None):
+        self._df = df
+        self.sheet_combo = None
+
+    def exec(self):
+        return QDialog.DialogCode.Rejected
+
+    def get_selected_columns(self):
+        raise AssertionError("キャンセルされたダイアログのget_selected_columns()は呼ばれないはず")
+
+    def get_dataframe(self):
+        raise AssertionError("キャンセルされたダイアログのget_dataframe()は呼ばれないはず")
+
+
+def _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=None):
+    """ExcelMultiSheetDialog の代わりに使うダブルを返すファクトリ。"""
+
+    class _FakeMultiSheetDialog:
+        def __init__(self, sheet_names, parent=None):
+            self.sheet_names = list(sheet_names)
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
+
+        def get_selected_sheets(self):
+            return selected_sheets if selected_sheets is not None else list(self.sheet_names)
+
+    return _FakeMultiSheetDialog
+
+
+class _FakeSheetCombo:
+    """ColumnPreviewDialog.sheet_combo の代わりに使う最小限のダブル。"""
+
+    def __init__(self):
+        self.blocked_calls = []
+        self.current_text = None
+
+    def blockSignals(self, blocked):
+        self.blocked_calls.append(blocked)
+
+    def setCurrentText(self, text):
+        self.current_text = text
+
+
+class _FakeColumnPreviewDialogWithSheetCombo:
+    """sheet_comboを持つ点だけが_FakeAcceptedColumnPreviewDialogと異なるダブル。"""
+
+    def __init__(self, df, file_name, parent=None, file_path=None):
+        self._df = df
+        self.sheet_combo = _FakeSheetCombo()
+
+    def exec(self):
+        return QDialog.DialogCode.Accepted
+
+    def get_selected_columns(self):
+        return self._df.columns[0], self._df.columns[1]
+
+    def get_dataframe(self):
+        return self._df
+
+
+def _write_multi_sheet_excel(path, sheet_data):
+    """{シート名: DataFrame} から複数シートのExcelファイルを実際に書き出す。"""
+    with pd.ExcelWriter(str(path), engine='openpyxl') as writer:
+        for name, df in sheet_data.items():
+            df.to_excel(writer, sheet_name=name, index=False)
 
 
 def _make_drop_event(file_paths):
@@ -960,3 +1034,916 @@ class TestStripTrailingColonFromLabels:
         window = _make_isolated_plotter_app(tmp_path, monkeypatch)
         assert window.ui.legend_name_label.text() == "凡例名"
         assert window.ui.color_label.text() == "色"
+
+
+# ============================================================================
+# 以下、カバレッジギャップ埋め (missing lines) のための追加テスト。
+# ============================================================================
+
+# --- _scientific_validate(): 指数表記の入力途中状態の許容 ---
+
+def test_scientific_validate_empty_or_sign_only_is_intermediate():
+    state, _text, _pos = main_window_module._scientific_validate(None, "", 0)
+    assert state == main_window_module.QValidator.State.Intermediate
+    state, _text, _pos = main_window_module._scientific_validate(None, "-", 1)
+    assert state == main_window_module.QValidator.State.Intermediate
+    state, _text, _pos = main_window_module._scientific_validate(None, "+", 1)
+    assert state == main_window_module.QValidator.State.Intermediate
+
+
+def test_scientific_validate_partial_exponent_is_intermediate_not_invalid():
+    """正規表現にはマッチするがfloat()には変換できない入力途中の状態
+    (例: "1e", "1e-")は、Invalidではなく Intermediate として許容される。"""
+    state, _text, _pos = main_window_module._scientific_validate(None, "1e", 2)
+    assert state == main_window_module.QValidator.State.Intermediate
+    state, _text, _pos = main_window_module._scientific_validate(None, "1e-", 3)
+    assert state == main_window_module.QValidator.State.Intermediate
+
+
+# --- disabled_plugin_names(): QSettingsが単一文字列を返すケースの補正 ---
+
+def test_disabled_plugin_names_handles_qsettings_returning_bare_string():
+    class _FakeStringSettings:
+        def value(self, key, default=None):
+            return "solo_plugin"
+
+    assert main_window_module.disabled_plugin_names(_FakeStringSettings()) == {"solo_plugin"}
+
+
+# --- __init__: control_dock_widgetの中身が見つからない防御分岐 ---
+
+def test_missing_control_dock_contents_logs_warning_instead_of_crashing(tmp_path, monkeypatch, caplog):
+    from PySide6.QtWidgets import QDockWidget
+    monkeypatch.setattr(QDockWidget, "widget", lambda self: None)
+    with caplog.at_level("WARNING"):
+        _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert any("control_dock_widget の中身が見つかりません" in r.message for r in caplog.records)
+
+
+# --- _restore_dock_layout() ---
+
+def test_restore_dock_layout_restores_saved_state_when_version_matches(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    saved_state = window.saveState()
+    window._run_startup_checks = True
+    window.settings.setValue("dock_layout_version", main_window_module.DOCK_LAYOUT_VERSION)
+    window.settings.setValue("window_state", saved_state)
+
+    # 例外なく完了すること(restoreState()の成功パス)を確認する
+    window._restore_dock_layout()
+
+
+def test_restore_dock_layout_swallows_resizedocks_exception(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    def _raise(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(window, "resizeDocks", _raise)
+    # run_startup_checks=False (既定) のため常に「未復元」分岐に入る
+    window._restore_dock_layout()
+
+
+# --- closeEvent() ---
+
+def test_close_event_swallows_signal_disconnect_error(tmp_path, monkeypatch):
+    """
+    実際のQt Signalは「何も接続されていない状態でdisconnect()」してもRuntimeWarning
+    止まりで例外を送出しないPySide6バージョンがあるため、except節を確実に踏ませる
+    には disconnect() 自体が例外を送出するダブルに差し替える必要がある。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    class _FakeSignal:
+        def connect(self, *a, **k):
+            pass
+
+        def disconnect(self, *a, **k):
+            raise TypeError("nothing connected")
+
+    class _FakeWorker:
+        def __init__(self):
+            self.load_succeeded = _FakeSignal()
+            self.load_failed = _FakeSignal()
+            self.waited = False
+
+        def wait(self):
+            self.waited = True
+
+        def deleteLater(self):
+            pass
+
+    fake_worker = _FakeWorker()
+    window._data_load_worker = fake_worker
+    window.closeEvent(QCloseEvent())  # disconnect()の失敗が例外を伝播させないことを確認
+    assert window._data_load_worker is None
+    assert fake_worker.waited is True
+
+
+def test_close_event_saves_settings_when_run_startup_checks_true(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._run_startup_checks = True
+    window.closeEvent(QCloseEvent())
+    assert window.settings.value("clean_exit", False, type=bool) is True
+    assert window.settings.value("dock_layout_version", 0, type=int) == main_window_module.DOCK_LAYOUT_VERSION
+
+
+# --- _check_autosave_recovery() ---
+
+def test_check_autosave_recovery_no_file_returns_silently(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._had_clean_exit = False
+    window._autosave_filename = str(tmp_path / "no_such_autosave.graphica")
+
+    def _fail_if_called(*a, **k):
+        raise AssertionError("オートセーブファイルが無いのに確認ダイアログが出た")
+
+    monkeypatch.setattr(main_window_module.QMessageBox, "question", staticmethod(_fail_if_called))
+    window._check_autosave_recovery()  # 例外なく静かに戻ることを確認
+
+
+def test_check_autosave_recovery_falls_back_to_legacy_pkl_and_loads_on_yes(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._had_clean_exit = False
+    window._autosave_filename = str(tmp_path / "autosave.graphica")  # 新形式は存在しない
+    legacy_path = str(tmp_path / "autosave.pkl")
+    with open(legacy_path, "wb") as f:
+        f.write(b"dummy")
+
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "question",
+        staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.Yes),
+    )
+    calls = []
+    monkeypatch.setattr(
+        window, "_load_project_from_path",
+        lambda path, add_to_recent=True: calls.append((path, add_to_recent)),
+    )
+
+    window._check_autosave_recovery()
+
+    assert calls == [(legacy_path, False)]
+
+
+def test_check_autosave_recovery_reply_no_does_not_load(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._had_clean_exit = False
+    autosave_path = str(tmp_path / "autosave.graphica")
+    with open(autosave_path, "wb") as f:
+        f.write(b"{}")
+    window._autosave_filename = autosave_path
+
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "question",
+        staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.No),
+    )
+
+    def _fail_if_called(*a, **k):
+        raise AssertionError("Noと答えたのに読み込みが行われた")
+
+    monkeypatch.setattr(window, "_load_project_from_path", _fail_if_called)
+    window._check_autosave_recovery()
+
+
+# --- _check_first_launch() / _load_sample_data() ---
+
+def test_check_first_launch_skips_when_already_shown(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("has_shown_welcome", True)
+
+    def _fail(*a, **k):
+        raise AssertionError("既に表示済みなのにWelcomeDialogが出た")
+
+    monkeypatch.setattr(main_window_module, "WelcomeDialog", _fail)
+    window._check_first_launch()
+
+
+def test_check_first_launch_loads_sample_when_requested(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("has_shown_welcome", False)
+
+    class _FakeWelcomeDialog:
+        def __init__(self, parent=None):
+            self.load_sample_requested = True
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(main_window_module, "WelcomeDialog", _FakeWelcomeDialog)
+    calls = []
+    monkeypatch.setattr(window, "_load_sample_data", lambda: calls.append(True))
+
+    window._check_first_launch()
+
+    assert calls == [True]
+    assert window.settings.value("has_shown_welcome", False, type=bool) is True
+
+
+def test_load_sample_data_missing_file_shows_warning_and_does_not_load(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "resource_path", lambda *a, **k: str(tmp_path / "does_not_exist.csv"))
+    warn_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+    load_calls = []
+    monkeypatch.setattr(window, "load_data", lambda path: load_calls.append(path))
+
+    window._load_sample_data()
+
+    assert len(warn_calls) == 1
+    assert load_calls == []
+
+
+def test_load_sample_data_existing_file_calls_load_data(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    sample_path = tmp_path / "sample.csv"
+    sample_path.write_text("x,y\n1,2\n", encoding="utf-8")
+    monkeypatch.setattr(main_window_module, "resource_path", lambda *a, **k: str(sample_path))
+    load_calls = []
+    monkeypatch.setattr(window, "load_data", lambda path: load_calls.append(path))
+
+    window._load_sample_data()
+
+    assert load_calls == [str(sample_path)]
+
+
+# --- _update_autosave_path() ---
+
+def test_update_autosave_path_makedirs_failure_falls_back_to_base_filename(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    target_dir = str(tmp_path / "some_autosave_dir")
+    window.settings.setValue("autosave_dir", target_dir)
+
+    real_makedirs = os.makedirs
+
+    def _flaky_makedirs(path, exist_ok=False):
+        if os.path.normpath(path) == os.path.normpath(target_dir):
+            raise OSError("permission denied")
+        return real_makedirs(path, exist_ok=exist_ok)
+
+    monkeypatch.setattr(main_window_module.os, "makedirs", _flaky_makedirs)
+    window._update_autosave_path()
+
+    assert window._autosave_filename == window._autosave_base_filename
+
+
+# --- manual_save() / manual_load() ---
+
+def test_manual_save_cancelled_dialog_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: ("", "")))
+    calls = []
+    monkeypatch.setattr(window.project, "save_project", lambda path: calls.append(path))
+    window.manual_save()
+    assert calls == []
+
+
+def test_manual_save_success_infers_graphica_extension_and_adds_recent_file(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    target = str(tmp_path / "myproject")  # 拡張子なし
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (target, "Graphica Project (*.graphica)")),
+    )
+    saved_paths = []
+    monkeypatch.setattr(window.project, "save_project", lambda path: saved_paths.append(path))
+
+    window.manual_save()
+
+    assert saved_paths == [target + ".graphica"]
+    assert window._get_recent_files()[0] == os.path.abspath(target + ".graphica")
+
+
+def test_manual_save_exception_shows_critical_dialog(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    target = str(tmp_path / "myproject.graphica")
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (target, "Graphica Project (*.graphica)")),
+    )
+
+    def _raise(path):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(window.project, "save_project", _raise)
+    critical_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "critical", staticmethod(lambda *a, **k: critical_calls.append(a)))
+
+    window.manual_save()
+
+    assert len(critical_calls) == 1
+
+
+def test_manual_load_cancelled_dialog_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("", "")))
+    calls = []
+    monkeypatch.setattr(window, "_load_project_from_path", lambda *a, **k: calls.append(a))
+    window.manual_load()
+    assert calls == []
+
+
+def test_manual_load_selected_file_delegates_to_load_project_from_path(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    target = str(tmp_path / "myproject.graphica")
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (target, "")))
+    calls = []
+    monkeypatch.setattr(window, "_load_project_from_path", lambda path: calls.append(path))
+    window.manual_load()
+    assert calls == [target]
+
+
+# --- _load_project_from_path() ---
+
+def test_load_project_from_path_success_rebuilds_ui_and_updates_recent_files(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y")
+    window.project.datasets.append(ds)
+    window._add_dataset_list_item(ds)
+    window.project.dataset_group_tree = window._capture_dataset_group_tree()
+    save_path = str(tmp_path / "proj.graphica")
+    window.project.save_project(save_path)
+
+    window._load_project_from_path(save_path)
+
+    assert len(window.project.datasets) == 1
+    assert window.project.datasets[0].name == "d"
+    assert window._get_recent_files()[0] == os.path.abspath(save_path)
+
+
+def test_load_project_from_path_exception_shows_critical_dialog(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    def _raise(path):
+        raise RuntimeError("corrupt file")
+
+    monkeypatch.setattr(window.project, "load_project", _raise)
+    critical_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "critical", staticmethod(lambda *a, **k: critical_calls.append(a)))
+
+    window._load_project_from_path(str(tmp_path / "bad.graphica"))
+
+    assert len(critical_calls) == 1
+
+
+# --- _reset_zoom() / _update_plot()の早期return / _refresh_minimap() / _on_toggle_panel_labels() ---
+
+def test_reset_zoom_calls_update_plot(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window, "_update_plot", lambda: calls.append(True))
+    window._reset_zoom()
+    assert calls == [True]
+
+
+def test_update_plot_free_layout_with_no_settings_returns_early(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    called = []
+    monkeypatch.setattr(window.canvas, "redraw_all", lambda *a, **k: called.append(True))
+    window.project.layout_mode = 'free'
+    window.project.all_plot_settings = []
+    count_before = len(called)
+    window._update_plot()
+    assert len(called) == count_before
+
+
+def test_update_plot_grid_layout_with_zero_rows_or_cols_returns_early(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    called = []
+    monkeypatch.setattr(window.canvas, "redraw_all", lambda *a, **k: called.append(True))
+    window.subplot_cols_spinbox.setRange(0, 10)
+    window.subplot_cols_spinbox.setValue(0)
+    count_before = len(called)
+    window._update_plot()
+    assert len(called) == count_before
+
+
+def test_refresh_minimap_noop_when_minimap_widget_not_yet_created(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    delattr(window, "minimap")
+    window._refresh_minimap()  # 例外が出ないことを確認
+
+
+def test_on_toggle_panel_labels_updates_project_and_replots(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window, "_update_plot", lambda: calls.append(True))
+    window._on_toggle_panel_labels(True)
+    assert window.project.panel_labels_enabled is True
+    assert calls == [True]
+
+
+# --- キャンバス切り離し/再アタッチの早期return分岐 ---
+
+def test_sync_canvas_detach_action_noop_when_action_not_yet_created(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    delattr(window, "canvas_detach_action")
+    window._sync_canvas_detach_action()  # 例外なく戻ることを確認
+
+
+def test_detach_canvas_is_noop_when_already_detached(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._detach_canvas()
+    detach_window_first = window._canvas_detach_window
+    window._detach_canvas()  # 2回目は何もしない
+    assert window._canvas_detach_window is detach_window_first
+    window._reattach_canvas()  # 後片付け
+
+
+def test_reattach_canvas_is_noop_when_not_detached(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.canvas_detached is False
+    window._reattach_canvas()  # 何もしない(例外が出ないことを確認)
+    assert window.canvas_detached is False
+
+
+# --- データエディタ行ハイライトの反映 ---
+
+def test_on_editor_rows_highlighted_noop_when_no_dialog_open(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.data_editor_dialog is None
+    window._on_editor_rows_highlighted([0, 1])  # 例外なく戻ることを確認
+
+
+def test_reapply_editor_row_highlight_calls_set_highlighted_points_when_dialog_open(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y")
+    window.project.datasets.append(ds)
+    window._update_plot()
+
+    class _FakeEditorDialog:
+        dataset = ds
+
+        def get_selected_master_indices(self):
+            return [0]
+
+    window.data_editor_dialog = _FakeEditorDialog()
+    calls = []
+    monkeypatch.setattr(window.canvas, "set_highlighted_points", lambda ds_, idx: calls.append((ds_, idx)))
+
+    window._reapply_editor_row_highlight()
+
+    assert calls == [(ds, [0])]
+
+
+# --- データセットツリーのヘルパー群 ---
+
+def test_replace_dataset_list_with_tree_second_call_falls_back_to_plain_addwidget(tmp_path, monkeypatch):
+    """2回目の呼び出し時は親レイアウトがQGridLayoutではなくなっているため、
+    row指定なしのaddWidget()にフォールバックする(else分岐)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._replace_dataset_list_with_tree()
+    assert window.ui.dataset_list_widget is not None
+
+
+def test_add_dataset_list_item_under_folder_adds_as_child(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("フォルダ1")
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y")
+    item = window._add_dataset_list_item(ds, folder)
+    assert item.parent() is folder
+    assert folder.childCount() == 1
+
+
+def test_get_target_folder_for_new_dataset_returns_selected_folder(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("フォルダ1")
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+    assert window._get_target_folder_for_new_dataset() is folder
+
+
+def test_add_dataset_with_undo_removes_from_folder_on_undo(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("フォルダ1")
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y")
+
+    window._add_dataset_with_undo(ds, parent_folder=folder)
+    assert folder.childCount() == 1
+    assert ds in window.project.datasets
+
+    window.undo_stack.undo()
+    assert folder.childCount() == 0
+    assert ds not in window.project.datasets
+
+
+def test_add_dataset_folder_item_nested_under_parent_folder(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    parent_folder = window._add_dataset_folder_item("親")
+    child_folder = window._add_dataset_folder_item("子", parent_folder)
+    assert child_folder.parent() is parent_folder
+
+
+def test_flatten_dataset_tree_recurses_into_nested_folders(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y")
+    ds2 = Dataset(name="d2", df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y")
+    window._add_dataset_list_item(ds1)  # トップレベル(先頭)
+    folder = window._add_dataset_folder_item("フォルダ1")  # トップレベル(2番目)
+    window._add_dataset_list_item(ds2, folder)  # フォルダの中
+
+    items = window._flatten_dataset_tree()
+    datasets = [it.data(0, Qt.ItemDataRole.UserRole) for it in items]
+    assert datasets == [ds1, ds2]
+
+
+def test_get_dataset_tree_item_returns_none_when_dataset_not_in_tree(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="orphan", df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y")
+    assert window._get_dataset_tree_item(ds) is None
+
+
+def test_capture_dataset_group_tree_includes_folder_structure(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("フォルダ1")
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y")
+    window._add_dataset_list_item(ds, folder)
+
+    tree = window._capture_dataset_group_tree()
+
+    assert tree['children'][0]['name'] == "フォルダ1"
+    assert tree['children'][0]['children'][0]['dataset'] is ds
+
+
+def test_rebuild_dataset_tree_widget_restores_dataset_and_folder_nodes(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y")
+    window.project.dataset_group_tree = {
+        'name': '', 'children': [
+            {'dataset': ds},
+            {'name': 'フォルダ1', 'children': [{'dataset': ds}]},
+        ]
+    }
+
+    window._rebuild_dataset_tree_widget()
+
+    assert window.ui.dataset_list_widget.topLevelItemCount() == 2
+    folder_item = window.ui.dataset_list_widget.topLevelItem(1)
+    assert folder_item.text(0) == "フォルダ1"
+    assert folder_item.childCount() == 1
+
+
+def test_sync_dataset_list_widget_order_reorders_datasets_within_folders(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    def _ds(name):
+        return Dataset(name=name, df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y")
+
+    ds_a, ds_b, ds_c, ds_d = _ds("A"), _ds("B"), _ds("C"), _ds("D")
+    folder = window._add_dataset_folder_item("フォルダ1")  # トップレベル index 0
+    window._add_dataset_list_item(ds_a)  # トップレベル index 1
+    window._add_dataset_list_item(ds_b)  # トップレベル index 2
+    window._add_dataset_list_item(ds_c, folder)
+    window._add_dataset_list_item(ds_d, folder)
+    window.project.datasets.extend([ds_a, ds_b, ds_c, ds_d])
+
+    # project.datasets側の順序を変更してから、ウィジェット側をそれに同期させる
+    window.project.datasets = [ds_b, ds_a, ds_d, ds_c]
+    window._sync_dataset_list_widget_order()
+
+    tree = window.ui.dataset_list_widget
+    assert tree.topLevelItem(0).text(0) == "フォルダ1"
+    assert tree.topLevelItem(1).text(0) == "B"
+    assert tree.topLevelItem(2).text(0) == "A"
+    folder_item = tree.topLevelItem(0)
+    child_names = [folder_item.child(i).text(0) for i in range(folder_item.childCount())]
+    assert child_names == ["D", "C"]
+
+
+def test_drag_enter_event_accepts_when_mime_has_urls(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    mime_data = QMimeData()
+    mime_data.setUrls([QUrl.fromLocalFile(str(tmp_path / "x.csv"))])
+    event = QDragEnterEvent(
+        QPoint(0, 0), Qt.DropAction.CopyAction, mime_data,
+        Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+    )
+    event._mime_data_keepalive = mime_data
+    window.dragEnterEvent(event)
+    assert event.isAccepted()
+
+
+# --- ファイル読み込みキュー ---
+
+def test_queue_data_files_all_invalid_extensions_returns_without_queuing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    warn_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+    bad_file = tmp_path / "data.unsupported_ext"
+    bad_file.write_text("dummy", encoding="utf-8")
+
+    window._queue_data_files([str(bad_file)])
+
+    assert len(warn_calls) == 1
+    assert window._data_load_queue == []
+
+
+def test_load_data_while_already_loading_shows_information_and_returns(tmp_path, monkeypatch):
+    from gui.workers import DataLoadWorker
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    dummy_worker = DataLoadWorker("dummy.csv", window)
+    window._data_load_worker = dummy_worker
+    info_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "information", staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    window.load_data(str(tmp_path / "another.csv"))
+
+    assert len(info_calls) == 1
+    assert window._data_load_worker is dummy_worker  # 新しいworkerに置き換わっていない
+
+
+# --- _import_loaded_dataframe(): Excel複数シート・数式警告・列不足まわり ---
+
+def test_import_loaded_dataframe_excel_sheet_list_fetch_failure_falls_back_to_single_sheet(tmp_path, monkeypatch):
+    """pd.ExcelFile(...).sheet_names の取得に失敗しても(壊れたファイル等)、
+    ワーカーが既に読み込み済みのdfをそのまま単一データセットとして追加できる。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    bad_excel_path = str(tmp_path / "corrupt.xlsx")
+    with open(bad_excel_path, "wb") as f:
+        f.write(b"not a real xlsx file")
+
+    df = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
+    initial_count = len(window._flatten_dataset_tree())
+
+    window._import_loaded_dataframe(df, bad_excel_path)
+
+    assert len(window._flatten_dataset_tree()) == initial_count + 1
+
+
+def test_import_loaded_dataframe_multi_sheet_dialog_rejected_cancels_import(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    excel_path = tmp_path / "multi.xlsx"
+    _write_multi_sheet_excel(excel_path, {
+        "Sheet1": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+        "Sheet2": pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
+    })
+    monkeypatch.setattr(main_window_module, "ExcelMultiSheetDialog", _make_fake_multi_sheet_dialog(accepted=False))
+
+    initial_count = len(window._flatten_dataset_tree())
+    window._import_loaded_dataframe(pd.DataFrame(), str(excel_path))
+    assert len(window._flatten_dataset_tree()) == initial_count
+
+
+def test_import_loaded_dataframe_multi_sheet_dialog_no_sheets_selected_cancels_import(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    excel_path = tmp_path / "multi.xlsx"
+    _write_multi_sheet_excel(excel_path, {
+        "Sheet1": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+        "Sheet2": pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
+    })
+    monkeypatch.setattr(
+        main_window_module, "ExcelMultiSheetDialog",
+        _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=[]),
+    )
+
+    initial_count = len(window._flatten_dataset_tree())
+    window._import_loaded_dataframe(pd.DataFrame(), str(excel_path))
+    assert len(window._flatten_dataset_tree()) == initial_count
+
+
+def test_import_loaded_dataframe_multi_sheet_success_with_formula_warning_and_sheet_combo(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    excel_path = tmp_path / "multi.xlsx"
+    _write_multi_sheet_excel(excel_path, {
+        "Sheet1": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+        "Sheet2": pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
+    })
+    monkeypatch.setattr(
+        main_window_module, "ExcelMultiSheetDialog",
+        _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=["Sheet1", "Sheet2"]),
+    )
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeColumnPreviewDialogWithSheetCombo)
+
+    def _fake_find_unevaluated(file_path, checked_sheet):
+        # Sheet1では見つかる(Yesと答えて続行)、Sheet2では見つからない
+        if checked_sheet == "Sheet1":
+            return True, ["Sheet1!A1"], True
+        return False, [], True
+
+    monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", _fake_find_unevaluated)
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "warning",
+        staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.Yes),
+    )
+
+    initial_count = len(window._flatten_dataset_tree())
+    window._import_loaded_dataframe(pd.DataFrame(), str(excel_path))
+
+    assert len(window._flatten_dataset_tree()) == initial_count + 2
+
+
+def test_import_loaded_dataframe_formula_warning_reply_no_skips_sheet(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    excel_path = tmp_path / "single.xlsx"
+    _write_multi_sheet_excel(excel_path, {"Sheet1": pd.DataFrame({"x": [1, 2], "y": [3, 4]})})
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(
+        main_window_module, "find_unevaluated_formula_cells",
+        lambda file_path, checked_sheet: (True, ["Sheet1!A1"], True),
+    )
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "warning",
+        staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.No),
+    )
+
+    df = pd.DataFrame({"x": [1, 2], "y": [3, 4]})
+    initial_count = len(window._flatten_dataset_tree())
+    window._import_loaded_dataframe(df, str(excel_path))
+
+    assert len(window._flatten_dataset_tree()) == initial_count
+
+
+def test_import_loaded_dataframe_multi_sheet_skips_sheet_with_read_error_and_insufficient_columns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    excel_path = tmp_path / "multi.xlsx"
+    _write_multi_sheet_excel(excel_path, {
+        "Good": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+        "Bad": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),  # 読み込み時にエラーにする
+        "TooFewCols": pd.DataFrame({"only": [1, 2]}),
+    })
+    monkeypatch.setattr(
+        main_window_module, "ExcelMultiSheetDialog",
+        _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=["Good", "Bad", "TooFewCols"]),
+    )
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", lambda *a, **k: (False, [], True))
+
+    real_read_excel = pd.read_excel
+
+    def _flaky_read_excel(file_path, sheet_name=None, **kwargs):
+        if sheet_name == "Bad":
+            raise ValueError("corrupt sheet")
+        return real_read_excel(file_path, sheet_name=sheet_name, **kwargs)
+
+    monkeypatch.setattr(main_window_module.pd, "read_excel", _flaky_read_excel)
+    warn_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    initial_count = len(window._flatten_dataset_tree())
+    window._import_loaded_dataframe(pd.DataFrame(), str(excel_path))
+
+    # 3シート中「Good」だけが実際に追加される
+    assert len(window._flatten_dataset_tree()) == initial_count + 1
+    assert len(warn_calls) == 2  # Bad(読み込みエラー) + TooFewCols(列不足)
+
+
+def test_import_loaded_dataframe_column_preview_dialog_rejected_shows_cancelled_message(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeRejectedColumnPreviewDialog)
+    csv_path = tmp_path / "data.csv"
+    csv_path.write_text("x,y\n1,2\n", encoding="utf-8")
+    df = pd.DataFrame({"x": [1], "y": [2]})
+
+    initial_count = len(window._flatten_dataset_tree())
+    window._import_loaded_dataframe(df, str(csv_path))
+
+    assert len(window._flatten_dataset_tree()) == initial_count
+    assert window.statusBar().currentMessage() == "読み込みをキャンセルしました"
+
+
+# --- _on_paste_data_from_clipboard() ---
+
+def test_paste_from_clipboard_empty_shows_information(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "   ")
+    info_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "information", staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    window._on_paste_data_from_clipboard()
+
+    assert len(info_calls) == 1
+
+
+def test_paste_from_clipboard_invalid_data_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "x\ty\n1\t2\n")
+
+    def _raise(*a, **k):
+        raise ValueError("cannot parse")
+
+    monkeypatch.setattr(main_window_module.pd, "read_csv", _raise)
+    warn_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_paste_data_from_clipboard()
+
+    assert len(warn_calls) == 1
+
+
+def test_paste_from_clipboard_insufficient_columns_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "onlyonecolumn\n1\n2\n")
+    warn_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_paste_data_from_clipboard()
+
+    assert len(warn_calls) == 1
+
+
+def test_paste_from_clipboard_dialog_cancelled_shows_status_message(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "x\ty\n1\t2\n")
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeRejectedColumnPreviewDialog)
+
+    initial_count = len(window._flatten_dataset_tree())
+    window._on_paste_data_from_clipboard()
+
+    assert len(window._flatten_dataset_tree()) == initial_count
+    assert window.statusBar().currentMessage() == "貼り付けをキャンセルしました"
+
+
+def test_paste_from_clipboard_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "x\ty\n1\t2\n3\t4\n")
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+
+    initial_count = len(window._flatten_dataset_tree())
+    window._on_paste_data_from_clipboard()
+
+    assert len(window._flatten_dataset_tree()) == initial_count + 1
+
+
+# --- _on_data_load_failed() ---
+
+def test_on_data_load_failed_shows_critical_and_processes_next_queued_file(tmp_path, monkeypatch):
+    from gui.workers import DataLoadWorker
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    worker = DataLoadWorker("dummy.csv", window)
+    window._data_load_worker = worker
+    critical_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "critical", staticmethod(lambda *a, **k: critical_calls.append(a)))
+    next_calls = []
+    monkeypatch.setattr(window, "_process_next_queued_file", lambda: next_calls.append(True))
+
+    window._on_data_load_failed("読み込みエラー詳細", "dummy.csv")
+
+    assert len(critical_calls) == 1
+    assert next_calls == [True]
+    assert window._data_load_worker is None
+
+
+# --- 最近使ったファイル一覧 ---
+
+def test_get_recent_files_handles_qsettings_returning_bare_string(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("recent_files", "solo_file.csv")
+    assert window._get_recent_files() == ["solo_file.csv"]
+
+
+def test_add_recent_file_moves_existing_entry_to_front_without_duplicating(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    path_a = str(tmp_path / "a.csv")
+    path_b = str(tmp_path / "b.csv")
+    window._add_recent_file(path_a)
+    window._add_recent_file(path_b)
+    window._add_recent_file(path_a)  # 既存パスの再追加 -> 先頭に移動するだけ
+
+    files = window._get_recent_files()
+    assert files[0] == os.path.abspath(path_a)
+    assert files.count(os.path.abspath(path_a)) == 1
+
+
+def test_on_open_recent_file_missing_file_warns_and_removes_from_list(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    missing_path = str(tmp_path / "gone.csv")
+    window._add_recent_file(missing_path)
+    warn_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_open_recent_file(missing_path)
+
+    assert len(warn_calls) == 1
+    assert os.path.abspath(missing_path) not in window._get_recent_files()
+
+
+def test_on_open_recent_file_project_file_delegates_to_load_project_from_path(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    project_path = tmp_path / "proj.graphica"
+    project_path.write_text("{}", encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(window, "_load_project_from_path", lambda path: calls.append(path))
+
+    window._on_open_recent_file(str(project_path))
+
+    assert calls == [str(project_path)]
+
+
+def test_on_open_recent_file_data_file_delegates_to_load_data(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    data_path = tmp_path / "data.csv"
+    data_path.write_text("x,y\n1,2\n", encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(window, "load_data", lambda path: calls.append(path))
+
+    window._on_open_recent_file(str(data_path))
+
+    assert calls == [str(data_path)]
+
+
+def test_on_clear_recent_files_empties_settings_list(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._add_recent_file(str(tmp_path / "a.csv"))
+    window._on_clear_recent_files()
+    assert window._get_recent_files() == []
