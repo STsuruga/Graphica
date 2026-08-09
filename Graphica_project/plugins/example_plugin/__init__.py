@@ -6,19 +6,13 @@ Graphicaプラグインのサンプル実装。
 - カーブフィットの選択肢に「二重指数減衰」を追加する
 - 「プラグイン」メニューに、選択中データセットの点数を表示するアクションを追加する
 
-このファイル(と PLUGIN_INFO / register()）が、プラグインとして
-認識されるために必要な最小構成のすべて。他のプラグインを作る際は、
-plugins/ 配下に別のサブフォルダをコピーして書き換えればよい。
+このファイル(と隣の plugin.json / register()）が、プラグインとして
+認識されるために必要な最小構成のすべて(項目F-1: マニフェストは
+plugin.jsonに分離、__init__.pyにPLUGIN_INFO辞書は不要)。他のプラグインを
+作る際は、plugins/ 配下に別のサブフォルダをコピーして書き換えればよい。
 """
 import numpy as np
 from PySide6.QtWidgets import QMessageBox
-
-PLUGIN_INFO = {
-    "name": "Example Plugin",
-    "version": "1.0",
-    "author": "Graphica",
-    "description": "プラグイン機構のサンプル(二重指数減衰フィット + データセット点数表示)",
-}
 
 
 def _double_exp_func(x, a, b, c, d):

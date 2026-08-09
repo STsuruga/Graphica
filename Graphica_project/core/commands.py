@@ -235,6 +235,43 @@ class SetAnnotationsCommand(QUndoCommand):
         self.on_applied()
 
 
+class AddDatasetCommand(QUndoCommand):
+    """
+    新しく生成した1件のDatasetの追加をUndo/Redo可能にするコマンド(項目C-1、
+    プラグインのregister_processor/register_analyzer向け)。
+
+    データセットの追加はツリーウィジェットへのアイテム作成(フォルダ配置)を
+    伴うため、他のコマンドのように「モデルを直接触ってon_appliedで再描画」
+    という形にはできない。そのため、実際の追加/削除処理そのものを
+    add_callback/remove_callback としてGUI側(main_window._add_dataset_with_undo)
+    から受け取り、そのまま呼び出すだけの薄いラッパーにする
+    (コマンド自身はQt/project/Datasetの内部構造を一切知らない)。
+
+    ★ 既存の「データセット追加/削除/複製」操作(規格化・Savitzky-Golay等)は
+    現状Undo非対応のまま(dataset_mixin.pyの_on_dataset_rows_movedのdocstring
+    参照、意図的な既存の設計境界)。このコマンドはプラグイン処理結果についてのみ、
+    ロードマップの完了条件に従って新たにUndo対応させるためのものであり、
+    既存の他の追加経路をUndo対応させるものではない。
+    """
+    def __init__(self, add_callback, remove_callback, description="データセットの追加"):
+        """
+        Args:
+            add_callback (callable): 引数無しで呼ばれ、データセットを追加する。
+            remove_callback (callable): 引数無しで呼ばれ、直前にadd_callbackで
+                追加したデータセットを取り除く。
+            description (str): Undo/Redoメニューに表示されるテキスト。
+        """
+        super().__init__(description)
+        self.add_callback = add_callback
+        self.remove_callback = remove_callback
+
+    def redo(self):
+        self.add_callback()
+
+    def undo(self):
+        self.remove_callback()
+
+
 class ReorderDatasetsCommand(QUndoCommand):
     """
     project.datasets の並び順 (=プロットの描画順/重なり順) を変更する

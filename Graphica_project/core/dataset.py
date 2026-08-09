@@ -23,6 +23,26 @@ class Dataset:
     # () が不要で、変数（属性）のように振る舞います。
     # df と col_name が変更されると、ここから取得されるデータも自動的に更新されます。
     
+    def __setattr__(self, name, value):
+        """
+        df / masked_row_indices への再代入 (dataset.df = new_df,
+        dataset.masked_row_indices = [...]) を検知して、visible_df の
+        キャッシュ(項目C-002)を自動的に無効化する。dfをインプレースで
+        書き換える呼び出し (dataset.df[col] = ... 等) はこの経路を通らないため、
+        呼び出し側で invalidate_visible_df_cache() を明示的に呼ぶ必要がある。
+        """
+        object.__setattr__(self, name, value)
+        if name in ('df', 'masked_row_indices'):
+            self.invalidate_visible_df_cache()
+
+    def invalidate_visible_df_cache(self):
+        """
+        df を dataset.df[col] = ... のようにインプレースで書き換えた後に
+        明示的に呼び出す(df/masked_row_indices の再代入自体は __setattr__
+        経由で自動的に無効化されるため、この呼び出しは不要)。
+        """
+        self.__dict__['_version'] = self.__dict__.get('_version', 0) + 1
+
     @property
     def visible_df(self) -> pd.DataFrame:
         """
@@ -30,10 +50,21 @@ class Dataset:
         取り除いた DataFrame。行そのものは dataset.df から削除しない
         「非破壊的なマスク」機能(項目36)のため、x_data/y_data等はすべて
         こちらを経由してデータを取得する。
+
+        1回の描画で x_data/y_data/x_err_data/y_err_data が独立にこのプロパティを
+        呼ぶため、都度フィルタし直すと最大4回の無駄なDataFrameコピーが発生する
+        (項目C-002)。version番号(__setattr__/invalidate_visible_df_cache()で
+        更新)が前回と同じ間はキャッシュを再利用する。
         """
-        if not self.masked_row_indices:
-            return self.df
-        return self.df[~self.df.index.isin(self.masked_row_indices)]
+        version = self.__dict__.get('_version', 0)
+        if self.__dict__.get('_visible_df_cache_version') != version:
+            if not self.masked_row_indices:
+                cache = self.df
+            else:
+                cache = self.df[~self.df.index.isin(self.masked_row_indices)]
+            self.__dict__['_visible_df_cache'] = cache
+            self.__dict__['_visible_df_cache_version'] = version
+        return self.__dict__['_visible_df_cache']
 
     @property
     def x_data(self) -> np.ndarray:
@@ -112,6 +143,11 @@ class Dataset:
     x_err_col_name: str = field(default=None)
     y_err_col_name: str = field(default=None)
 
+    # 誤差の表示形式(項目C-502): 'bar'(エラーバー、既定) / 'band'(fill_betweenに
+    # よる誤差バンド) / 'both'(両方)。x_err_col_name/y_err_col_nameがどちらも
+    # Noneの場合はどの設定でも何も描画されない(gui/canvas.py参照)。
+    error_display: str = 'bar'
+
     # 外れ値のマスク機能(項目36): 行を削除せず「フィット/プロットから除外」する
     # ためのマーカー。df.index のラベルのリスト(位置ではなく)。
     # x_data/y_data/x_err_data/y_err_data はこのリストに含まれる行を自動的に除いて返す。
@@ -120,6 +156,11 @@ class Dataset:
     # field(...) は、@dataclass でデフォルト値を設定する際の高度な方法です
     # default=None とすることで、初期化時に指定されなければ None が入ります
     fit_info: str = field(default=None) # 曲線フィットの結果文字列 (例: "y = 1.2x + 0.5")
+
+    # プラグインのregister_processor/register_analyzer(項目C-1/C-2)が生成した
+    # Datasetについて、生成元プラグイン名を残す(項目C-3、provenanceの土台)。
+    # プラグイン以外の通常の操作で作られたDatasetはNoneのまま。
+    source_plugin: str = field(default=None)
 
     # default=False とすることで、初期値は False になります
     use_secondary_y: bool = field(default=False) # 第2Y軸（右側）を使うかどうか
@@ -141,6 +182,7 @@ class Dataset:
     def set_cell(self, row_idx, col_name, value):
         """指定したセル (行インデックス, 列名) の値を更新する"""
         self.df.loc[row_idx, col_name] = value
+        self.invalidate_visible_df_cache()
 
     def add_row(self):
         """
@@ -182,6 +224,7 @@ class Dataset:
         """NaN で埋めた列を追加する"""
         if col_name not in self.df.columns:
             self.df[col_name] = np.nan
+            self.invalidate_visible_df_cache()
 
     def remove_column(self, col_name):
         """列を削除する"""
@@ -211,6 +254,7 @@ class Dataset:
         """remove_column で削除した列を末尾に復元する"""
         if col_name not in self.df.columns:
             self.df[col_name] = column_data
+            self.invalidate_visible_df_cache()
 
     # --- JSON形式でのプロジェクト保存(.graphica)対応 (models/project.py から利用) ---
     # pickleの__getstate__/__setstate__と同様の役割を、JSONでも往復できる
@@ -354,6 +398,10 @@ class Dataset:
         """
         state = self.__dict__.copy()
         state['artist'] = None
+        # visible_dfキャッシュ(C-002)は内部実装の都合であり、シリアライズ対象外
+        # (再構築後は次回アクセス時に自動的に再計算される)。
+        for cache_key in ('_visible_df_cache', '_visible_df_cache_version', '_version'):
+            state.pop(cache_key, None)
         return state
 
     def __setstate__(self, state):

@@ -142,6 +142,74 @@ def test_drop_event_skips_unsupported_extension_but_loads_the_rest(tmp_path, mon
     assert "notes.txt" in warning_calls[0][2]
 
 
+# --- register_importer()由来の拡張子(項目B-1) ---
+
+# --- 個別のプラグイン無効化(項目F-2) ---
+
+def test_disabled_plugin_names_empty_by_default(tmp_path):
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    assert main_window_module.disabled_plugin_names(settings) == set()
+
+
+def test_disabled_plugin_names_reads_stored_list(tmp_path):
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    settings.setValue(main_window_module.DISABLED_PLUGINS_SETTINGS_KEY, ["plugin_a", "plugin_b"])
+    assert main_window_module.disabled_plugin_names(settings) == {"plugin_a", "plugin_b"}
+
+
+def test_disabled_plugin_names_handles_single_item_stored_as_string(tmp_path):
+    """QSettingsは要素数1のリストを単一の文字列として返すことがある(get_recent_filesと同じ罠)。"""
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    settings.setValue(main_window_module.DISABLED_PLUGINS_SETTINGS_KEY, ["plugin_a"])
+    assert main_window_module.disabled_plugin_names(settings) == {"plugin_a"}
+
+
+def test_all_supported_data_file_extensions_without_plugins():
+    """_all_supported_data_file_extensionsはself.*を参照しないため、
+    PlotterAppを組み立てずに直接呼び出せる。"""
+    from gui.main_window import PlotterApp, SUPPORTED_DATA_FILE_EXTENSIONS
+    assert PlotterApp._all_supported_data_file_extensions(None) == SUPPORTED_DATA_FILE_EXTENSIONS
+
+
+def test_all_supported_data_file_extensions_includes_plugin_extensions(monkeypatch):
+    import core.plugin_api as plugin_api_module
+    from core.plugin_api import GraphicaPluginAPI
+    from gui.main_window import PlotterApp, SUPPORTED_DATA_FILE_EXTENSIONS
+
+    api = GraphicaPluginAPI()
+    api.register_importer([".testfmt"], lambda fp: None, name="X")
+    monkeypatch.setattr(plugin_api_module, "_singleton_api", api)
+
+    extensions = PlotterApp._all_supported_data_file_extensions(None)
+    assert set(extensions) == set(SUPPORTED_DATA_FILE_EXTENSIONS) | {".testfmt"}
+
+
+def test_drop_event_loads_file_with_plugin_registered_extension(tmp_path, monkeypatch):
+    """D&D一括取込(項目77)の対応拡張子判定が、register_importer()で
+    登録した拡張子でも動くこと(項目B-1)。"""
+    import core.plugin_api as plugin_api_module
+    from core.plugin_api import GraphicaPluginAPI
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+
+    api = GraphicaPluginAPI()
+    api.register_importer(
+        [".testfmt"], lambda fp: pd.DataFrame({'a': [1.0, 2.0], 'b': [3.0, 4.0]}), name="X"
+    )
+    monkeypatch.setattr(plugin_api_module, "_singleton_api", api)
+
+    custom_file = tmp_path / "sample.testfmt"
+    custom_file.write_text("dummy", encoding="utf-8")
+
+    initial_count = len(window._flatten_dataset_tree())
+    window.dropEvent(_make_drop_event([custom_file]))
+    _pump_events_until_queue_drained(window)
+
+    assert len(window._flatten_dataset_tree()) == initial_count + 1
+
+
 def test_properties_dock_has_no_horizontal_scrollbar(tmp_path, monkeypatch):
     """
     バグ回帰テスト: 「データセットのプロパティ」「プロットのプロパティ」を

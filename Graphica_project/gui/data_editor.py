@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 from core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
                            AddColumnCommand, DeleteColumnCommand, SetMaskedRowsCommand,
                            RenameColumnCommand)
+from core.safe_eval import safe_eval_column_formula
 from gui.dialogs import ColumnCalculatorDialog, ReplicateErrorDialog
 from gui import icon_utils
 
@@ -529,33 +530,33 @@ class DataEditorDialog(QDialog):
     def _on_calculate_column(self):
         """
         列計算ボタンが押された -> ColumnCalculatorDialog を表示し、
-        pandas.eval() を実行する。
-        
+        safe_eval_column_formula() で計算式を実行する。
+
         【★ 指摘 ★】
         この操作は Undo/Redo スタックを経由しないため、「元に戻す」ことができません。
         対応するには CalculateColumnCommand(QUndoCommand) の実装が必要です。
         """
-        
+
         # 1. 現在の列名を計算ダイアログに渡す
         dialog = ColumnCalculatorDialog(self.dataset.df.columns.tolist(), self)
-        
+
         if dialog.exec() == QDialog.DialogCode.Accepted:
             output_col, formula = dialog.get_formula()
-            
+
             if not output_col or not formula:
                 QMessageBox.warning(self, "入力エラー", "出力列または計算式が空です。")
                 return
 
             try:
-                # 2. ★ pandas.eval を使って計算を実行 ★
-                # engine='python' を指定すると、log() や sin() などの
-                # Python/NumPy 関数が使えるようになります。
-                # (NumExpr (デフォルト) よりも遅くなるが、高機能)
+                # 2. ★ 列名を変数として計算式を評価 ★
+                # log() や sin() などの関数、mean()/rolling().mean() などの
+                # 許可されたSeriesメソッドが使える(詳細は core/safe_eval.py)。
                 #
                 # .dataset.df[output_col] = ... と代入することで、
                 # 既存列の上書き、または新規列の作成が自動的に行われます。
-                self.dataset.df[output_col] = self.dataset.df.eval(formula, engine='python')
-                
+                self.dataset.df[output_col] = safe_eval_column_formula(self.dataset.df, formula)
+                self.dataset.invalidate_visible_df_cache()
+
                 logger.info("計算完了: %s = %s", output_col, formula)
                 
                 # 3. テーブルUIを更新
@@ -565,7 +566,7 @@ class DataEditorDialog(QDialog):
                 self.dataChanged.emit() 
                 
             except Exception as e:
-                # eval() が失敗した場合 (例: "A +", "log(Z)")
+                # 計算式の評価に失敗した場合 (例: "A +", 未知の列/関数名)
                 logger.exception("計算エラー")
                 QMessageBox.critical(self, "計算エラー", 
                                      f"計算式の実行に失敗しました:\n\n{e}\n\n"
@@ -624,6 +625,7 @@ class DataEditorDialog(QDialog):
 
             self.dataset.df[mean_col_name] = mean
             self.dataset.df[error_col_name] = error
+            self.dataset.invalidate_visible_df_cache()
 
             logger.info(
                 "誤差自動計算完了: %s, %s (元列: %s, 統計量: %s)",

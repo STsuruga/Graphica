@@ -17,6 +17,7 @@ import traceback
 from PySide6.QtWidgets import QMessageBox
 
 from core.version import APP_NAME, LOG_FILE_NAME
+from core.app_paths import get_app_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
 
     logger.critical("未処理の例外が発生しました。", exc_info=(exc_type, exc_value, exc_traceback))
 
-    log_path = os.path.abspath(LOG_FILE_NAME)
+    log_path = os.path.join(get_app_data_dir(), LOG_FILE_NAME)
     detail = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
 
     try:
@@ -59,3 +60,61 @@ def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
     except Exception:
         # ダイアログの表示自体に失敗しても、最低限ログには残るようにする
         logger.exception("クラッシュ案内ダイアログの表示に失敗しました。")
+
+
+# --- セーフモード起動(項目F-4) ---
+#
+# gui/main_window.py の _check_autosave_recovery() が使う「clean_exit」
+# QSettings追跡(2.1節/2.7節)を、別の目的(プラグイン無効化の提案)で
+# 読み取り専用に流用する。書き込み(clean_exitキーのリセット/復元)は
+# 引き続き PlotterApp.__init__/closeEvent の既存ロジックだけが行い、
+# ここでは一切書き換えない。
+
+
+def should_prompt_safe_mode(settings):
+    """
+    前回セッションが正常終了しなかった(clean_exit=False)かどうかを返す。
+
+    settings は QSettings 互換オブジェクト(.value("clean_exit", True, type=bool)
+    を持つもの)。main.py の起動シーケンスから、PlotterApp.__init__ が
+    clean_exit キーを書き換える(Falseにリセットする)より前に呼ぶこと
+    (呼び出し順序を誤ると、既に起動中の自分自身の書き込みを異常終了と
+    誤検出してしまう)。
+    """
+    return not settings.value("clean_exit", True, type=bool)
+
+
+def prompt_safe_mode_and_apply(settings, parent=None):
+    """
+    前回異常終了を検出した場合、プラグインを無効化して起動するかを
+    QMessageBox.question で尋ね、Yesならcore.plugin_api.set_safe_mode(True)
+    を呼ぶ。
+
+    既定ボタンは No (=通常通りプラグインを読み込む) にしている。
+    _check_autosave_recovery() の復元確認ダイアログは既定Yes(データ消失を
+    避ける方向を既定にする)だが、こちらは逆に「普段使っているプラグインが
+    ユーザーの意図なく無効化される」方が驚きが大きいため、あえて安全側
+    (=何もしない)をNo側に置く。
+
+    Returns:
+        bool: セーフモードを有効化したかどうか。
+    """
+    if not should_prompt_safe_mode(settings):
+        return False
+
+    reply = QMessageBox.question(
+        parent, f"{APP_NAME} - セーフモード起動",
+        "前回異常終了を検出しました。プラグインを無効にして起動しますか?",
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    if reply != QMessageBox.StandardButton.Yes:
+        return False
+
+    # プラグインAPI側への依存はここでのみ発生させる(crash_handlerは本来
+    # 未処理例外まわりのモジュールだが、既存のclean_exit追跡を持つ
+    # main_window.py 側ではなく、main.pyの起動シーケンスから呼びやすい
+    # このモジュールに置くほうが自然なため、F-4の実装場所としてここを選んだ)。
+    from core.plugin_api import set_safe_mode
+    set_safe_mode(True)
+    return True

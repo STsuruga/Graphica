@@ -191,6 +191,9 @@ class UISetupMixin:
             self.point_labels_checkbox.toggled.connect(self._on_point_labels_toggled)
             self.point_label_col_combo.currentTextChanged.connect(self._on_property_changed)
 
+            # 誤差の表示形式(項目C-502)
+            self.error_display_combo.currentIndexChanged.connect(self._on_property_changed)
+
             self.fit_curve_button.clicked.connect(self._on_fit_curve)
             self.find_peaks_button.clicked.connect(self._on_find_peaks)
 
@@ -200,6 +203,7 @@ class UISetupMixin:
             self.duplicate_dataset_button.clicked.connect(self._on_duplicate_dataset)
             self.auto_color_button.clicked.connect(self._on_auto_assign_colors)
             self.manage_palette_action.triggered.connect(self._on_manage_color_palettes)
+            self.colormap_assign_action.triggered.connect(self._on_auto_assign_colors_from_colormap)
             self.view_edit_data_button.clicked.connect(self._on_show_data_editor)
 
             self.x_col_combo.currentTextChanged.connect(self._on_plot_column_changed)
@@ -357,6 +361,15 @@ class UISetupMixin:
             self.canvas_detach_action.setChecked(self.canvas_detached)
             self.canvas_detach_action.toggled.connect(self._on_toggle_canvas_detached)
 
+            # パネルラベルの自動採番(項目C-712): 複数サブプロットに(a)(b)(c)...を
+            # 自動表示する。プロジェクトごとの設定(self.project.panel_labels_enabled)
+            # なので、チェック状態はプロジェクト読み込み時にも同期される
+            # (_load_project_from_path参照)。
+            self.panel_labels_action = view_menu.addAction(tr("パネルラベルを自動表示 ((a)(b)(c)...)"))
+            self.panel_labels_action.setCheckable(True)
+            self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
+            self.panel_labels_action.toggled.connect(self._on_toggle_panel_labels)
+
             # 項目87: クイックアクセスのカスタムツールバー。ツールバー本体の作成と
             # 表示/非表示を切り替える表示メニュー項目の追加はここで行う。
             # ★ ピン留め済みアクションの実際の復元 (_restore_quick_access_actions) と
@@ -383,12 +396,17 @@ class UISetupMixin:
             apply_theme(QApplication.instance(), self.canvas.dark_mode)
 
 
-            # --- 4. 「プラグイン」メニュー (プラグインが1つも登録していない場合は作らない) ---
+            # --- 4. 「プラグイン」メニュー ---
             # ★ self.plugin_api は __init__ 側で _create_menu_bar() より前に
             #   load_plugins_once() 済み。フィット関数の登録はプロセス全体で
             #   1度だけだが、メニューアクションはタブごとの menuBar() に
             #   個別に追加する必要があるため、ここで毎回追加する。
-            if self.plugin_api.menu_actions:
+            # menu_actions・データ処理(register_processor、項目C-1)・
+            # 解析(register_analyzer、項目C-2)・パネル(register_panel、項目D-1)の
+            # いずれか1件でも登録されていなければメニュー自体を作らない(既存の挙動を踏襲)。
+            processors = self.plugin_api.get_processors()
+            analyzers = self.plugin_api.get_analyzers()
+            if self.plugin_api.menu_actions or processors or analyzers or self._plugin_panel_docks:
                 plugin_menu = menu_bar.addMenu(tr("プラグイン(&P)"))
                 self._plugin_menu = plugin_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
                 for text, callback, shortcut in self.plugin_api.menu_actions:
@@ -402,6 +420,42 @@ class UISetupMixin:
                         lambda checked=False, cb=callback: cb(self)
                     )
 
+                # データ処理(項目C-1): カテゴリごとにサブメニューへグルーピングする
+                if processors:
+                    if self.plugin_api.menu_actions:
+                        plugin_menu.addSeparator()
+                    processing_menu = plugin_menu.addMenu(tr("データ処理"))
+                    by_category = {}
+                    for proc in processors:
+                        by_category.setdefault(proc.category, []).append(proc)
+                    for category in sorted(by_category.keys()):
+                        category_menu = processing_menu.addMenu(category)
+                        for proc in sorted(by_category[category], key=lambda p: p.name):
+                            action = category_menu.addAction(proc.name)
+                            action.triggered.connect(
+                                lambda checked=False, p=proc: self._on_run_plugin_processor(p)
+                            )
+
+                # 解析(項目C-2)
+                if analyzers:
+                    if self.plugin_api.menu_actions or processors:
+                        plugin_menu.addSeparator()
+                    analysis_menu = plugin_menu.addMenu(tr("解析"))
+                    for analyzer in sorted(analyzers, key=lambda a: a.name):
+                        action = analysis_menu.addAction(analyzer.name)
+                        action.triggered.connect(
+                            lambda checked=False, a=analyzer: self._on_run_plugin_analyzer(a)
+                        )
+
+                # パネル(項目D-1): 各ドックの標準の表示/非表示トグルアクションを
+                # そのまま流用する(既存の「表示」メニューのドック項目と同じ方式)。
+                if self._plugin_panel_docks:
+                    if self.plugin_api.menu_actions or processors or analyzers:
+                        plugin_menu.addSeparator()
+                    panel_menu = plugin_menu.addMenu(tr("パネル"))
+                    for name in sorted(self._plugin_panel_docks.keys()):
+                        panel_menu.addAction(self._plugin_panel_docks[name].toggleViewAction())
+
             # --- 5. 「ヘルプ」メニュー ---
             help_menu = menu_bar.addMenu(tr("ヘルプ(&H)"))
             self._help_menu = help_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
@@ -414,6 +468,13 @@ class UISetupMixin:
 
             shortcuts_action = help_menu.addAction(tr("キーボードショートカット一覧..."))
             shortcuts_action.triggered.connect(self._on_show_shortcuts)
+
+            help_menu.addSeparator()
+
+            # 診断情報バンドル出力(項目C-1201): バグ報告時に添付できるよう、
+            # ログ・環境情報・設定値・プラグイン読み込み状況を1つのzipにまとめる。
+            diagnostic_bundle_action = help_menu.addAction(tr("診断情報をエクスポート..."))
+            diagnostic_bundle_action.triggered.connect(self._on_export_diagnostic_bundle)
 
             help_menu.addSeparator()
 

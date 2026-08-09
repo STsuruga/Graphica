@@ -9,9 +9,9 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser,
                                QApplication, QFileDialog, QMessageBox, QGroupBox,
                                QTableWidget, QTableWidgetItem, QListWidget,
                                QListWidgetItem, QColorDialog, QInputDialog,
-                               QCheckBox, QStackedWidget, QWidget)
-from PySide6.QtCore import Qt, QTimer, QEvent
-from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence
+                               QCheckBox, QStackedWidget, QWidget, QTabWidget)
+from PySide6.QtCore import Qt, QTimer, QEvent, QUrl
+from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices
 
 from gui import icon_utils
 from gui.theme import apply_form_spacing
@@ -364,7 +364,7 @@ class HelpDialog(QDialog):
 class CalcHelpDialog(QDialog):
     """
     データエディタの「列計算」機能のリファレンスを表示するヘルプダイアログクラスです。
-    pandas.eval() で使用できる構文について説明します。
+    core/safe_eval.py の safe_eval_column_formula() で使用できる構文について説明します。
     """
     
     def __init__(self, parent=None):
@@ -391,7 +391,7 @@ class CalcHelpDialog(QDialog):
         help_html = r"""
         <h1>列計算機能 リファレンス</h1>
         <p>
-            <b>pandas.eval()</b> 機能を利用して、列データを使った計算を行います。
+            計算式を使って、列データをまとめて計算します。
             「出力先の列」に指定した列に、計算式の結果が一度に適用されます（Excelのオートフィルのように、全行に適用されます）。
         </p>
         
@@ -413,8 +413,7 @@ class CalcHelpDialog(QDialog):
         
         <h2>2. 一般的な数学関数 📈</h2>
         <p>
-            pandas.eval() は内部で <a href="https://numexpr.readthedocs.io/en/latest/user_guide.html#supported-functions">NumExpr ライブラリ</a> 
-            がサポートする関数を利用可能です。
+            以下の関数が利用可能です。
         </p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
@@ -677,19 +676,22 @@ class FitDialog(QDialog):
     どの関数モデル（線形、多項式など）を使用するかをユーザーに選択させるダイアログクラスです。
     """
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, x_min=None, x_max=None):
         """
         ダイアログのUIコンポーネントを初期化します。
-        
+
         Args:
             parent (QWidget, optional): 親ウィジェット。
+            x_min (float, optional): フィット範囲指定欄の初期値(最小X)。
+                通常は対象データセットの実際のXの最小値を渡す。
+            x_max (float, optional): フィット範囲指定欄の初期値(最大X)。
         """
         super().__init__(parent)
         self.setWindowTitle("曲線フィット")
-        
+
         # メインレイアウト (垂直)
         layout = QVBoxLayout(self)
-        
+
         layout.addWidget(QLabel("フィットする関数の種類を選択してください:"))
         
         # --- 関数選択のコンボボックス ---
@@ -721,6 +723,39 @@ class FitDialog(QDialog):
         layout.addWidget(self.custom_formula_label)
         layout.addWidget(self.custom_formula_edit)
 
+        # --- 重み付きフィット(項目C-402) ---
+        self.weighted_checkbox = QCheckBox("Y誤差列を重みとして使用する(設定されている場合)")
+        self.weighted_checkbox.setToolTip(
+            "誤差が大きい点ほどフィットへの影響を小さくする(scipy.optimize.curve_fitのsigma)。\n"
+            "対象データセットにY誤差列が設定されていない場合はチェックしても効果がありません。"
+        )
+        layout.addWidget(self.weighted_checkbox)
+
+        # --- フィット範囲の指定(項目C-404) ---
+        self.range_checkbox = QCheckBox("フィット範囲を指定する")
+        layout.addWidget(self.range_checkbox)
+
+        range_form = QFormLayout()
+        self.range_min_spinbox = QDoubleSpinBox()
+        self.range_min_spinbox.setRange(-1e12, 1e12)
+        self.range_min_spinbox.setDecimals(6)
+        self.range_min_spinbox.setEnabled(False)
+        if x_min is not None:
+            self.range_min_spinbox.setValue(x_min)
+        range_form.addRow("最小X", self.range_min_spinbox)
+
+        self.range_max_spinbox = QDoubleSpinBox()
+        self.range_max_spinbox.setRange(-1e12, 1e12)
+        self.range_max_spinbox.setDecimals(6)
+        self.range_max_spinbox.setEnabled(False)
+        if x_max is not None:
+            self.range_max_spinbox.setValue(x_max)
+        range_form.addRow("最大X", self.range_max_spinbox)
+        layout.addLayout(range_form)
+
+        self.range_checkbox.toggled.connect(self.range_min_spinbox.setEnabled)
+        self.range_checkbox.toggled.connect(self.range_max_spinbox.setEnabled)
+
         # --- OK / Cancel ボタン ---
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
@@ -734,26 +769,44 @@ class FitDialog(QDialog):
         self.custom_formula_label.setVisible(is_custom)
         self.custom_formula_edit.setVisible(is_custom)
 
+    def get_weighted(self):
+        """Y誤差列を重みとして使うかどうか"""
+        return self.weighted_checkbox.isChecked()
+
+    def get_x_range(self):
+        """
+        Returns:
+            tuple(float, float) | None: フィット範囲指定が有効なら(最小X, 最大X)、
+            無効ならNone。
+        """
+        if not self.range_checkbox.isChecked():
+            return None
+        return (self.range_min_spinbox.value(), self.range_max_spinbox.value())
+
     @staticmethod
-    def get_fit_type(parent=None):
+    def get_fit_type(parent=None, x_min=None, x_max=None):
         """
         【スタティックメソッド】
         ダイアログをモーダルで表示し、OKが押された場合は
-        (選択されたフィットタイプ名, カスタム数式またはNone) のタプルを、
-        Cancelが押された場合は (None, None) を返します。
+        (フィットタイプ名, カスタム数式またはNone, 重み付けを使うか, フィット範囲
+        またはNone) のタプルを、Cancelが押された場合は (None, None, False, None) を
+        返します。
 
         Args:
             parent (QWidget, optional): 親ウィジェット。
+            x_min (float, optional): フィット範囲指定欄の初期値(最小X)。
+            x_max (float, optional): フィット範囲指定欄の初期値(最大X)。
 
         Returns:
-            tuple (str or None, str or None): (フィットタイプ名, カスタム数式)
+            tuple (str|None, str|None, bool, tuple(float,float)|None):
+            (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲)
         """
-        dialog = FitDialog(parent)
+        dialog = FitDialog(parent, x_min=x_min, x_max=x_max)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             fit_type = dialog.fit_type_combo.currentText()
             custom_formula = dialog.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
-            return fit_type, custom_formula
-        return None, None
+            return fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range()
+        return None, None, False, None
 
 
 #==============================================================================
@@ -762,8 +815,8 @@ class FitDialog(QDialog):
 class ColumnCalculatorDialog(QDialog):
     """
     データエディタの「列の計算」機能で使用するダイアログクラスです。
-    出力先（新規または既存）の列名と、pandas.eval() で実行する計算式を
-    ユーザーに入力させます。
+    出力先（新規または既存）の列名と、safe_eval_column_formula() で実行する
+    計算式をユーザーに入力させます。
     """
     
     def __init__(self, column_names, parent=None):
@@ -1724,6 +1777,163 @@ class NormalizeDatasetDialog(QDialog):
         return mode, reference_x, self.output_name_edit.text().strip()
 
 
+class SavGolDialog(QDialog):
+    """
+    Savitzky-Golayフィルタ(平滑化: 項目C-301、微分スペクトル: 項目C-302)の
+    設定を入力させるダイアログ。NormalizeDatasetDialogと同じ構成。
+    """
+
+    MODE_SMOOTH = "平滑化"
+    MODE_DERIV1 = "1次微分"
+    MODE_DERIV2 = "2次微分"
+    MODES = [MODE_SMOOTH, MODE_DERIV1, MODE_DERIV2]
+    _DERIV_BY_MODE = {MODE_SMOOTH: 0, MODE_DERIV1: 1, MODE_DERIV2: 2}
+    _SUFFIX_BY_MODE = {MODE_SMOOTH: "_smoothed", MODE_DERIV1: "_deriv1", MODE_DERIV2: "_deriv2"}
+
+    def __init__(self, name, max_window=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Savitzky-Golayフィルタ")
+        self.resize(380, 260)
+        self._name = name
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        form = QFormLayout()
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(self.MODES)
+        form.addRow("種類", self.mode_combo)
+
+        self.window_spinbox = QSpinBox()
+        self.window_spinbox.setRange(3, max_window if max_window else 999999)
+        self.window_spinbox.setSingleStep(2)
+        self.window_spinbox.setValue(min(5, max_window) if max_window else 5)
+        form.addRow("窓幅(奇数)", self.window_spinbox)
+
+        self.polyorder_spinbox = QSpinBox()
+        self.polyorder_spinbox.setRange(1, 10)
+        self.polyorder_spinbox.setValue(2)
+        form.addRow("多項式の次数", self.polyorder_spinbox)
+
+        self.output_name_edit = QLineEdit(f"{name}{self._SUFFIX_BY_MODE[self.MODE_SMOOTH]}")
+        form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(form)
+
+        self.mode_combo.currentTextChanged.connect(self._on_mode_changed)
+
+        info_label = QLabel(
+            "窓幅は奇数かつ多項式の次数より大きい値を指定してください。\n"
+            "微分はX軸の間隔が概ね等間隔であることを前提とします。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def _on_mode_changed(self, mode):
+        self.output_name_edit.setText(f"{self._name}{self._SUFFIX_BY_MODE[mode]}")
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (int, int, int, str): (窓幅, 多項式の次数, 微分階数(0/1/2), 出力データセット名)
+        """
+        mode = self.mode_combo.currentText()
+        return (
+            self.window_spinbox.value(),
+            self.polyorder_spinbox.value(),
+            self._DERIV_BY_MODE[mode],
+            self.output_name_edit.text().strip(),
+        )
+
+
+class PluginParamDialog(QDialog):
+    """
+    register_processor()/register_analyzer() の param_schema から、パラメータ
+    入力フォームを自動生成するダイアログ(項目C-1/C-2)。
+
+    param_schema は dict のリストで、各要素は少なくとも "name" と "type" を持つ:
+        {"name": str, "label": str(省略時はname), "type": "int"|"float"|"str"|"bool"|"choice",
+         "default": 任意, "min"/"max": int|float(int/floatのみ), "choices": list(choiceのみ),
+         "decimals": int(floatのみ、省略時4)}
+    """
+
+    _INT_RANGE = (-2_147_483_647, 2_147_483_647)  # Qt QSpinBoxのネイティブ範囲に合わせる
+
+    def __init__(self, title, param_schema, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self._widgets = {}  # name -> (type, widget)
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        for spec in param_schema:
+            name = spec["name"]
+            label = spec.get("label", name)
+            ptype = spec.get("type", "str")
+            default = spec.get("default")
+            widget = self._build_widget(ptype, spec, default)
+            self._widgets[name] = (ptype, widget)
+            form.addRow(label, widget)
+        layout.addLayout(form)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def _build_widget(self, ptype, spec, default):
+        if ptype == "int":
+            widget = QSpinBox()
+            widget.setRange(spec.get("min", self._INT_RANGE[0]), spec.get("max", self._INT_RANGE[1]))
+            widget.setValue(int(default) if default is not None else 0)
+            return widget
+        if ptype == "float":
+            widget = QDoubleSpinBox()
+            widget.setDecimals(spec.get("decimals", 4))
+            widget.setRange(spec.get("min", -1e12), spec.get("max", 1e12))
+            widget.setValue(float(default) if default is not None else 0.0)
+            return widget
+        if ptype == "bool":
+            widget = QCheckBox()
+            widget.setChecked(bool(default))
+            return widget
+        if ptype == "choice":
+            widget = QComboBox()
+            widget.addItems([str(c) for c in spec.get("choices", [])])
+            if default is not None:
+                widget.setCurrentText(str(default))
+            return widget
+        # "str" および未知のtypeはテキスト入力にフォールバックする
+        widget = QLineEdit()
+        if default is not None:
+            widget.setText(str(default))
+        return widget
+
+    def get_values(self):
+        """Returns: dict {パラメータ名: 入力値(型はparam_schemaのtypeに従う)}"""
+        values = {}
+        for name, (ptype, widget) in self._widgets.items():
+            if ptype in ("int", "float"):
+                values[name] = widget.value()
+            elif ptype == "bool":
+                values[name] = widget.isChecked()
+            elif ptype == "choice":
+                values[name] = widget.currentText()
+            else:
+                values[name] = widget.text()
+        return values
+
+
 #==============================================================================
 # カスタムダイアログクラス: 環境設定 (Preferences)
 #==============================================================================
@@ -1737,7 +1947,15 @@ class PreferencesDialog(QDialog):
 
     def __init__(self, dark_mode, autosave_minutes, autosave_bounds=(0, 180), parent=None,
                  current_language=None, autosave_dir="", point_label_max_points=1000,
-                 snap_to_grid_enabled=False, snap_grid_interval_px=10):
+                 snap_to_grid_enabled=False, snap_grid_interval_px=10,
+                 plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None):
+        """
+        plugin_records/plugin_registration_errors/disabled_plugin_names は
+        「プラグイン」タブ(項目F-2)用。呼び出し側(gui/mixins/project_io_mixin.py)
+        が core.plugin_api.get_loaded_plugin_records() 等をそのまま渡す想定。
+        plugin_records=None は「一度もロードされていない(セーフモード含む)」を表し、
+        空リストの「1つも無い」とは区別して表示する。
+        """
         super().__init__(parent)
         from core.i18n import tr, SUPPORTED_LANGUAGES, get_language
         self.setWindowTitle(tr("環境設定"))
@@ -1746,9 +1964,16 @@ class PreferencesDialog(QDialog):
         #   (margin-top/padding-top)が以前より広くなったため、旧来のサイズ
         #   (360x260)のままだと3つのグループボックスがすべて収まりきらず
         #   文字が見切れてしまっていた。縦方向に余裕を持たせる。
-        self.resize(420, 420)
+        # 項目F-2でプラグイン管理タブを追加したため、さらに縦横に余裕を持たせる。
+        self.resize(480, 520)
 
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        tabs = QTabWidget()
+        outer_layout.addWidget(tabs)
+
+        general_tab = QWidget()
+        layout = QVBoxLayout(general_tab)
+        tabs.addTab(general_tab, tr("一般"))
 
         appearance_group = QGroupBox(tr("外観"))
         appearance_layout = QVBoxLayout(appearance_group)
@@ -1839,13 +2064,127 @@ class PreferencesDialog(QDialog):
 
         layout.addStretch()
 
+        # --- 「プラグイン」タブ(項目F-2) ---
+        plugin_tab = QWidget()
+        plugin_tab_layout = QVBoxLayout(plugin_tab)
+        tabs.addTab(plugin_tab, tr("プラグイン"))
+
+        # インストール・プラグインフォルダを開く(いずれもOK/Cancelフローとは
+        # 独立した即時実行のボタン。オートセーブ保存先の参照ボタンと同じ位置づけ)
+        plugin_actions_row = QHBoxLayout()
+        self.install_plugin_button = QPushButton(tr("プラグインをインストール..."))
+        self.install_plugin_button.setIcon(icon_utils.icon("download"))
+        self.install_plugin_button.clicked.connect(self._on_install_plugin)
+        plugin_actions_row.addWidget(self.install_plugin_button)
+        self.open_plugins_folder_button = QPushButton(tr("プラグインフォルダを開く"))
+        self.open_plugins_folder_button.setIcon(icon_utils.icon("folder"))
+        self.open_plugins_folder_button.clicked.connect(self._on_open_plugins_folder)
+        plugin_actions_row.addWidget(self.open_plugins_folder_button)
+        plugin_actions_row.addStretch()
+        plugin_tab_layout.addLayout(plugin_actions_row)
+
+        # ロード済みプラグインの一覧(名前/バージョン/作者)+ 個別ON/OFF。
+        # チェック状態はダイアログを閉じる際にget_disabled_plugin_names()経由で
+        # 読み取られ、QSettingsへの反映(次回起動時に反映)は呼び出し側
+        # (gui/mixins/project_io_mixin.py の _on_show_preferences)が行う。
+        loaded_group = QGroupBox(tr("読み込み済みプラグイン"))
+        loaded_layout = QVBoxLayout(loaded_group)
+        self.plugin_list = QListWidget()
+        self._disabled_plugin_names = set(disabled_plugin_names or [])
+        self._populate_plugin_list(plugin_records, self._disabled_plugin_names)
+        loaded_layout.addWidget(self.plugin_list)
+        plugin_tab_layout.addWidget(loaded_group, 1)
+
+        # フック単位の登録失敗(項目A-2): プラグイン全体としてはロードに成功して
+        # いても、個々のregister_xxx呼び出しが(名前衝突等で)失敗している場合に
+        # ここに表示する(get_loaded_plugin_recordsのerrorには現れないため)。
+        hook_errors_group = QGroupBox(tr("フック単位の登録エラー"))
+        hook_errors_layout = QVBoxLayout(hook_errors_group)
+        self.plugin_hook_errors_list = QListWidget()
+        self._populate_hook_errors_list(plugin_registration_errors)
+        hook_errors_layout.addWidget(self.plugin_hook_errors_list)
+        plugin_tab_layout.addWidget(hook_errors_group)
+
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        outer_layout.addWidget(button_box)
 
         apply_form_spacing(self)
+
+    def _populate_plugin_list(self, plugin_records, disabled_names):
+        """
+        「読み込み済みプラグイン」リストを構築する。plugin_records=Noneは
+        「一度もロードされていない」(セーフモード中含む)ことを表す特別扱いの
+        1行を出す。各行のチェック状態は現在の無効化設定を反映する(表示専用の
+        行=状態未読込プラグイン向けエラー行にはチェックボックスを付けない)。
+        """
+        from core.i18n import tr
+        self.plugin_list.clear()
+        if plugin_records is None:
+            item = QListWidgetItem(tr("(プラグインは読み込まれていません)"))
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+            self.plugin_list.addItem(item)
+            return
+        if not plugin_records:
+            item = QListWidgetItem(tr("(プラグインはありません)"))
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+            self.plugin_list.addItem(item)
+            return
+
+        for record in plugin_records:
+            name = record["name"]
+            info = record.get("info")
+            error = record.get("error")
+            disabled = record.get("disabled", False)
+
+            if disabled:
+                label = tr("{name} (無効化中)").format(name=name)
+            elif error:
+                label = tr("{name} — エラー: {error}").format(name=name, error=error)
+            elif info:
+                label = f"{info.get('name', name)} v{info.get('version', '?')} — {info.get('author', '?')}"
+            else:
+                label = name
+
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                Qt.CheckState.Unchecked if name in disabled_names else Qt.CheckState.Checked
+            )
+            self.plugin_list.addItem(item)
+
+    def _populate_hook_errors_list(self, plugin_registration_errors):
+        from core.i18n import tr
+        self.plugin_hook_errors_list.clear()
+        if not plugin_registration_errors:
+            item = QListWidgetItem(tr("(フック単位の登録エラーはありません)"))
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+            self.plugin_hook_errors_list.addItem(item)
+            return
+        for error in plugin_registration_errors:
+            text = f"[{error.plugin_name}] {error.hook_kind.value}: {error.message}"
+            self.plugin_hook_errors_list.addItem(QListWidgetItem(text))
+
+    def get_disabled_plugin_names(self):
+        """
+        「読み込み済みプラグイン」リストの現在のチェック状態から、無効化された
+        (チェックが外された)プラグイン名の集合を返す。呼び出し側がこれを
+        QSettingsのDISABLED_PLUGINS_SETTINGS_KEYへ保存する(次回起動時に反映)。
+        """
+        disabled = set()
+        for i in range(self.plugin_list.count()):
+            item = self.plugin_list.item(i)
+            name = item.data(Qt.ItemDataRole.UserRole)
+            if name is not None and item.checkState() == Qt.CheckState.Unchecked:
+                disabled.add(name)
+        return disabled
+
+    def _on_open_plugins_folder(self):
+        from core.app_paths import get_user_plugins_dir
+        QDesktopServices.openUrl(QUrl.fromLocalFile(get_user_plugins_dir()))
 
     def _on_browse_autosave_dir(self):
         from core.i18n import tr
@@ -1859,6 +2198,28 @@ class PreferencesDialog(QDialog):
     def _on_clear_autosave_dir(self):
         self._autosave_dir = ""
         self.autosave_dir_edit.setText("")
+
+    def _on_install_plugin(self):
+        from core.i18n import tr
+        zip_path, _ = QFileDialog.getOpenFileName(
+            self, tr("プラグインをインストール"), "", tr("Zip files (*.zip)")
+        )
+        if not zip_path:
+            return
+
+        from core.plugin_install import install_plugin_zip, PluginInstallError
+        try:
+            installed_name = install_plugin_zip(zip_path)
+        except PluginInstallError as e:
+            QMessageBox.critical(self, tr("インストール失敗"), str(e))
+            return
+
+        QMessageBox.information(
+            self, tr("インストール完了"),
+            tr("プラグイン '{name}' をインストールしました。次回起動時に有効になります。").format(
+                name=installed_name
+            ),
+        )
 
     def get_settings(self):
         """
@@ -2179,7 +2540,12 @@ class BatchExportDialog(QDialog):
     get_*() で取得した設定を使って行う。
     """
 
-    def __init__(self, subplot_count, parent=None):
+    def __init__(self, subplot_count, parent=None, extra_formats=None):
+        """
+        Args:
+            extra_formats (list[str] | None): プラグインが register_exporter()
+                (項目B-2) で登録した形式名を、既存のPNG/PDF/SVGに追加する。
+        """
         super().__init__(parent)
         self.setWindowTitle("バッチエクスポート")
         self.resize(480, 480)
@@ -2246,6 +2612,8 @@ class BatchExportDialog(QDialog):
 
         self.format_combo = QComboBox()
         self.format_combo.addItems(["PNG", "PDF", "SVG"])
+        if extra_formats:
+            self.format_combo.addItems(extra_formats)
         form.addRow("形式", self.format_combo)
 
         self.dpi_spinbox = QSpinBox()

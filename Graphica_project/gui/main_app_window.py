@@ -18,10 +18,12 @@
 import logging
 
 from PySide6.QtCore import Qt, QSettings, QSize
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QMainWindow, QTabWidget, QToolButton, QMessageBox
+from PySide6.QtGui import QIcon, QUndoGroup
+from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QMessageBox, QDockWidget,
+                               QUndoView, QWidget, QHBoxLayout)
 
 from gui.main_window import PlotterApp, resource_path
+from gui.app_context import AppContext
 from gui.icon_utils import icon as svg_icon
 from core.version import APP_NAME, __version__
 
@@ -44,6 +46,20 @@ class MainAppWindow(QMainWindow):
         # このクラスが最上位ウィンドウの責務を持つようになったため、ここで管理する。
         self._settings = QSettings("Graphica", "Graphica")
 
+        # タブをまたいで共有されるグローバル状態(QSettings/最近使ったファイル/
+        # プラグインレジストリ)の集約点(項目C-006)。プロセスにつき1つ、
+        # ここで生成して以後使い回す。
+        self.app_context = AppContext(self)
+
+        # タブ横断のUndo一元化(項目C-007)。各タブ(PlotterApp)は従来通り
+        # 自分自身の QUndoStack を持ち続ける(PlotterApp側は無改修)が、
+        # ここでそれらをQUndoGroupに登録し、タブ切り替え時に
+        # setActiveStack()でアクティブなスタックを追従させる。
+        # Undo履歴パネル(項目C-901、下のQUndoView)はこのグループ経由で
+        # 常にアクティブなタブの履歴を表示する。
+        self.undo_group = QUndoGroup(self)
+        self._create_undo_history_dock()
+
         self._next_tab_id = 1
 
         self.tab_widget = QTabWidget()
@@ -64,7 +80,27 @@ class MainAppWindow(QMainWindow):
         add_tab_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_tab_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         add_tab_button.clicked.connect(lambda: self.add_new_project_tab())
-        self.tab_widget.setCornerWidget(add_tab_button, Qt.Corner.TopRightCorner)
+
+        # Undo履歴パネルの表示/非表示切り替えボタン(項目C-901)。専用アイコンの
+        # 手持ちが無いため(assets/icons/参照、外部から新規調達するほどでもない
+        # ため)、他の低頻度操作ボタン(dataset_overflow_button の "⋯")と同じ
+        # 方針でテキストボタンにする。
+        undo_history_button = QToolButton()
+        undo_history_button.setObjectName("undo_history_button")
+        undo_history_button.setText("履歴")
+        undo_history_button.setToolTip("Undo履歴パネルの表示/非表示")
+        undo_history_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        undo_history_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        undo_history_button.setCheckable(True)
+        undo_history_button.setDefaultAction(self.undo_history_dock.toggleViewAction())
+
+        corner_widget = QWidget()
+        corner_layout = QHBoxLayout(corner_widget)
+        corner_layout.setContentsMargins(0, 0, 0, 0)
+        corner_layout.setSpacing(2)
+        corner_layout.addWidget(undo_history_button)
+        corner_layout.addWidget(add_tab_button)
+        self.tab_widget.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
 
         saved_geometry = self._settings.value("window_geometry")
         if saved_geometry is not None:
@@ -87,6 +123,21 @@ class MainAppWindow(QMainWindow):
         # ウェルカム表示・ドック配置復元を行う「本体」)を開く。
         self.add_new_project_tab(run_startup_checks=True)
 
+    def _create_undo_history_dock(self):
+        """
+        Undo履歴パネル(項目C-901)。QUndoGroupに登録された、現在アクティブな
+        タブのUndoスタックの操作履歴をQUndoView(Qt標準ウィジェット)で
+        リスト表示する。タブが切り替わると _on_current_tab_changed が
+        undo_group.setActiveStack() を呼ぶため、表示内容も自動的に追従する。
+        既定では非表示(必要な人だけ「履歴」ボタンで開く低頻度機能のため)。
+        """
+        self.undo_history_dock = QDockWidget("Undo履歴", self)
+        self.undo_history_dock.setObjectName("undo_history_dock")
+        undo_view = QUndoView(self.undo_group, self.undo_history_dock)
+        self.undo_history_dock.setWidget(undo_view)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.undo_history_dock)
+        self.undo_history_dock.setVisible(False)
+
     def add_new_project_tab(self, run_startup_checks=False):
         """新しいプロジェクトタブ(独立した PlotterApp インスタンス)を開く。"""
         tab_id = self._next_tab_id
@@ -102,6 +153,10 @@ class MainAppWindow(QMainWindow):
         project_window.project_state_changed.connect(
             lambda pw=project_window: self._refresh_tab_title(pw)
         )
+
+        # タブ横断Undo一元化(項目C-007): このタブ自身のQUndoStack(既存の
+        # project_window.undo_stack、PlotterApp側は無改修)をグループに登録する。
+        self.undo_group.addStack(project_window.undo_stack)
 
         index = self.tab_widget.addTab(project_window, self._tab_title_for(project_window))
         self.tab_widget.setCurrentIndex(index)
@@ -127,6 +182,9 @@ class MainAppWindow(QMainWindow):
         project_window = self.tab_widget.widget(index)
         if project_window is not None:
             self.setWindowTitle(f"{APP_NAME} {__version__} - {self._tab_title_for(project_window)}")
+            # タブ横断Undo一元化(項目C-007): アクティブなタブのスタックに
+            # 追従させる。Undo履歴パネル(QUndoView)もこれを通じて連動する。
+            self.undo_group.setActiveStack(project_window.undo_stack)
 
     def _on_tab_close_requested(self, index):
         """タブの「×」ボタンが押されたときの処理。タブを1つも無くすことはできない。"""
@@ -139,6 +197,11 @@ class MainAppWindow(QMainWindow):
         project_window = self.tab_widget.widget(index)
         self.tab_widget.removeTab(index)
         if project_window is not None:
+            # タブ横断Undo一元化(項目C-007): 閉じるタブのスタックをグループから
+            # 明示的に外す(project_window.deleteLater()によるQt側の自動的な
+            # 後始末に頼らず、閉じた直後からQUndoView/undo_groupの対象に
+            # 残らないようにするため)。
+            self.undo_group.removeStack(project_window.undo_stack)
             project_window.close()
             project_window.deleteLater()
 

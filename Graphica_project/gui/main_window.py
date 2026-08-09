@@ -113,7 +113,8 @@ from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal
 from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
-from core.plugin_api import load_plugins_once
+from core.plugin_api import load_plugins_once, get_registered_importer_extensions
+from core.app_paths import get_user_plugins_dir
 
 # --- Matplotlib ---
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
@@ -124,6 +125,7 @@ from ui_main_window import Ui_MainWindow
 
 # --- 自分で分割したモジュール ---
 from core.dataset import Dataset
+from core.commands import AddDatasetCommand
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.minimap_widget import MinimapWidget
 from gui.detached_canvas_window import DetachedCanvasWindow
@@ -200,6 +202,50 @@ def resource_path(relative_path):
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     return os.path.join(base_path, relative_path)
+
+
+def is_frozen():
+    """PyInstallerでexe化されたビルドとして実行されているかどうか。"""
+    return hasattr(sys, '_MEIPASS')
+
+
+def plugin_search_paths():
+    """
+    プラグインの探索対象ディレクトリを優先順位つきで返す(項目E-1)。
+    - ソース実行時のみ: resource_path("plugins")(開発者向け、従来通り)
+    - 常に: get_user_plugins_dir()(%LOCALAPPDATA%\\Graphica\\plugins。
+      exe配布環境でもユーザーが書き込める場所)
+    """
+    paths = []
+    if not is_frozen():
+        paths.append(resource_path("plugins"))
+    paths.append(get_user_plugins_dir())
+    return paths
+
+
+DISABLED_PLUGINS_SETTINGS_KEY = "disabled_plugins"
+
+
+def disabled_plugin_names(settings):
+    """
+    QSettingsから、プラグイン管理UI(項目F-2)で個別に無効化されたプラグイン名の
+    集合を読み出す。get_recent_files()と同様、要素数1のリストがQSettings上では
+    単一の文字列として返ってくることがあるため補正する。
+    """
+    names = settings.value(DISABLED_PLUGINS_SETTINGS_KEY, [])
+    if isinstance(names, str):
+        names = [names]
+    return set(names) if names else set()
+
+
+# register_panel() (項目D-1) の area 文字列 -> Qt.DockWidgetArea のマッピング。
+# coreはPySide6に依存しないため、この変換はGUI側(ここ)で行う。
+_PLUGIN_PANEL_AREA_MAP = {
+    "right": Qt.DockWidgetArea.RightDockWidgetArea,
+    "left": Qt.DockWidgetArea.LeftDockWidgetArea,
+    "top": Qt.DockWidgetArea.TopDockWidgetArea,
+    "bottom": Qt.DockWidgetArea.BottomDockWidgetArea,
+}
 
 #==============================================================================
 # メインアプリケーションクラス
@@ -311,6 +357,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
         self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
         self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
+        self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_worker = None  # ファイル読み込み用バックグラウンドワーカーの保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
@@ -601,6 +648,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.manage_palette_action = overflow_menu.addAction(
             _svg_icon("palette", size=16), tr("パレット管理...")
         )
+        # カラーマップから自動配色(項目C-805): 離散パレットの自動配色ボタンとは別に、
+        # 連続カラーマップから選択数ぶんを均等サンプリングして割り当てる。
+        self.colormap_assign_action = overflow_menu.addAction(
+            _svg_icon("palette", size=16), tr("カラーマップから自動配色...")
+        )
         self.dataset_overflow_button.setMenu(overflow_menu)
         self.ui.horizontalLayout_3.addWidget(self.dataset_overflow_button)
 
@@ -682,6 +734,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.point_label_col_label = QLabel("ラベルの内容")
         self.point_label_col_combo = QComboBox()
         self.ui.formLayout_4.addRow(self.point_label_col_label, self.point_label_col_combo)
+
+        # 2e. 誤差の表示形式(項目C-502): エラーバー('bar')・誤差バンド('band',
+        # fill_between)・両方('both')から選択する。X/Y誤差列が未設定なら
+        # どの設定でも何も描画されない。
+        self.error_display_label = QLabel(tr("誤差の表示形式"))
+        self.error_display_combo = QComboBox()
+        self.error_display_combo.addItem(tr("エラーバー"), "bar")
+        self.error_display_combo.addItem(tr("誤差バンド"), "band")
+        self.error_display_combo.addItem(tr("両方"), "both")
+        self.ui.formLayout_4.addRow(self.error_display_label, self.error_display_combo)
 
         # 3. 凡例の位置を選択するUIをコードで作成
         self.legend_loc_label = QLabel("凡例の位置")
@@ -1213,7 +1275,40 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # プロセス全体で1度だけ行う(load_plugins_once がキャッシュする)。
         # メニューへのアクション追加自体は、タブごとに自分の menuBar() へ
         # 個別に行う必要があるため、_create_menu_bar() 側で行う。
-        self.plugin_api = load_plugins_once(resource_path("plugins"))
+        self.plugin_api = load_plugins_once(
+            plugin_search_paths(), disabled_names=disabled_plugin_names(self.settings)
+        )
+
+        # プラグイン製パネル (項目D-1、register_panel): タブ (このPlotterApp
+        # インスタンス) ごとに widget_factory を個別に呼び出し、専用の
+        # QDockWidget として追加する。表示メニューへのトグル項目の追加は
+        # _create_menu_bar() 側 (プラグインメニュー) で行うため、ドック自体は
+        # それより前のここで作る必要がある。1つのパネルの構築に失敗しても
+        # 他のパネル・タブ自体の起動は継続する(プラグイン機構全体の方針を踏襲)。
+        self._plugin_panel_docks = {}
+        for panel in self.plugin_api.get_panels():
+            try:
+                widget = panel.widget_factory(self.project, self.undo_stack)
+                if not isinstance(widget, QWidget):
+                    raise TypeError(f"QWidgetを返しませんでした(型: {type(widget).__name__})。")
+            except Exception as e:
+                logger.warning(
+                    "[plugin:%s] パネル '%s' の構築に失敗しました: %s",
+                    panel.plugin_name, panel.name, e,
+                )
+                continue
+            dock = QDockWidget(panel.name, self)
+            dock.setObjectName(f"PluginPanel_{panel.name}")
+            dock.setWidget(widget)
+            self.addDockWidget(_PLUGIN_PANEL_AREA_MAP.get(panel.area, Qt.DockWidgetArea.RightDockWidgetArea), dock)
+            dock.hide()  # 既定は非表示。表示状態はQSettingsのドックレイアウト復元に任せる
+            self._plugin_panel_docks[panel.name] = dock
+
+        # プラグイン製プロット種別 (項目D-2、register_plot_type) を、既存の
+        # 5種類 (Area/Barと同じく実行時追加) に続けてコンボボックスへ追加する。
+        # 実際の描画分岐は gui/canvas.py の _draw_data 側でフォールバックとして処理する。
+        for plot_type in self.plugin_api.get_plot_types():
+            self.ui.plot_type_combo.addItem(plot_type.type_name)
 
         # UIコントロールのシグナル接続を _connect_signals ヘルパーメソッドで実行
         self._connect_signals()
@@ -1559,6 +1654,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             if not is_free_layout and self.layout_edit_action.isChecked():
                 self.layout_edit_action.setChecked(False)
                 self._toggle_layout_edit_mode(False)
+            self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
             self._block_all_signals(False)
 
             # UIにアクティブな設定を反映
@@ -1595,7 +1691,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # ★ 描画処理をすべてCanvasに「丸投げ」する！
         is_secondary_visible_global = self.canvas.redraw_all(
-            self.project.datasets, rows, cols, self.project.all_plot_settings, layout_mode=layout_mode
+            self.project.datasets, rows, cols, self.project.all_plot_settings, layout_mode=layout_mode,
+            panel_labels_enabled=self.project.panel_labels_enabled,
         )
 
         # ★ Canvasから返ってきた結果をもとに、UI（チェックボックス等）を制御する
@@ -1652,6 +1749,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.minimap.setVisible(checked)
         self.minimap_separator.setVisible(checked)
         self.settings.setValue("minimap_visible", checked)
+
+    def _on_toggle_panel_labels(self, checked):
+        """
+        「表示」メニューの「パネルラベルを自動表示」チェック状態が変更されたときの処理
+        (項目C-712)。QSettingsではなくプロジェクトごとの状態として保存する
+        (.graphica/.pklに含まれ、プロジェクトファイルを開き直すたびに復元される)。
+        """
+        self.project.panel_labels_enabled = checked
+        self._update_plot()
 
     # --- ★ 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し) ---
     #
@@ -1944,6 +2050,35 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._update_plot()
         return new_item
 
+    def _add_dataset_with_undo(self, dataset, parent_folder=None, description="データセットの追加"):
+        """
+        _add_dataset() をUndo/Redo可能にしたバージョン(項目C-1、プラグインの
+        register_processor/register_analyzerが生成したDatasetの追加専用)。
+        AddDatasetCommand参照: 既存の他の追加経路(規格化・Savitzky-Golay等)は
+        意図的にUndo非対応のまま据え置いている。
+        """
+        def do_add():
+            self._add_dataset(dataset, parent_folder, select=True)
+
+        def do_remove():
+            row = self._find_dataset_row(dataset)
+            if row != -1:
+                del self.project.datasets[row]
+            item = self._get_dataset_tree_item(dataset)
+            if item is not None:
+                parent = item.parent()
+                if parent is not None:
+                    parent.removeChild(item)
+                else:
+                    idx = self.ui.dataset_list_widget.indexOfTopLevelItem(item)
+                    if idx != -1:
+                        self.ui.dataset_list_widget.takeTopLevelItem(idx)
+            self._update_ui_state()
+            self._update_plot()
+
+        command = AddDatasetCommand(do_add, do_remove, description=description)
+        self.undo_stack.push(command)
+
     def _add_dataset_folder_item(self, name, parent_item=None):
         """dataset_list_widget にフォルダ(内部ノード)を追加する共通ヘルパー"""
         item = QTreeWidgetItem([name])
@@ -2094,6 +2229,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         if file_paths:
             self._queue_data_files(file_paths)
 
+    def _all_supported_data_file_extensions(self):
+        """
+        ドラッグ&ドロップ一括取込・ファイルダイアログで受け付ける拡張子一覧。
+        ビルトイン対応分(SUPPORTED_DATA_FILE_EXTENSIONS)に、プラグインが
+        register_importer() (項目B-1) で登録した拡張子を加えたもの。
+        """
+        extensions = list(SUPPORTED_DATA_FILE_EXTENSIONS)
+        for ext in get_registered_importer_extensions():
+            if ext not in extensions:
+                extensions.append(ext)
+        return tuple(extensions)
+
     def _queue_data_files(self, file_paths):
         """
         ドロップ/一括指定された複数のファイルパスを、対応拡張子かどうかで
@@ -2103,8 +2250,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         valid_paths = []
         skipped_names = []
+        allowed_extensions = self._all_supported_data_file_extensions()
         for file_path in file_paths:
-            if file_path.lower().endswith(SUPPORTED_DATA_FILE_EXTENSIONS):
+            if file_path.lower().endswith(allowed_extensions):
                 valid_paths.append(file_path)
             else:
                 skipped_names.append(os.path.basename(file_path))

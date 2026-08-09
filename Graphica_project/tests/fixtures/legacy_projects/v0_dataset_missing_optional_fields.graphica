@@ -1,0 +1,60 @@
+{
+  "datasets": [
+    {
+      "name": "旧バージョンのデータセット",
+      "x_col_name": "x",
+      "y_col_name": "y",
+      "plot_type": "Line",
+      "color": "#1f77b4",
+      "linestyle": "-",
+      "linewidth": 1.5,
+      "marker": "o",
+      "markersize": 6.0,
+      "smoothing": false,
+      "x_err_col_name": null,
+      "y_err_col_name": null,
+      "subplot_target": 0,
+      "dataset_id": "06a271e18bd9448380cf6123726e5d31",
+      "df": {
+        "columns": [
+          "x",
+          "y"
+        ],
+        "index": [
+          0,
+          1
+        ],
+        "index_dtype": "int64",
+        "data": {
+          "x": [
+            1.0,
+            2.0
+          ],
+          "y": [
+            3.0,
+            4.0
+          ]
+        },
+        "dtypes": {
+          "x": "float64",
+          "y": "float64"
+        }
+      }
+    }
+  ],
+  "dataset_group_tree": {
+    "name": "",
+    "children": [
+      {
+        "dataset_id": "06a271e18bd9448380cf6123726e5d31"
+      }
+    ]
+  },
+  "all_plot_settings": [
+    {}
+  ],
+  "active_axis_index": 0,
+  "layout_rows": 1,
+  "layout_cols": 1,
+  "layout_mode": "grid"
+}

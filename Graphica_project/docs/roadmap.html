@@ -1,0 +1,769 @@
+<title>Graphica 開発ロードマップ</title>
+<style>
+  :root {
+    --bg: #f2f3f6;
+    --surface: #ffffff;
+    --surface-2: #e9ebf1;
+    --border: #d8dce4;
+    --text: #1a1d24;
+    --text-dim: #5c6474;
+    --text-faint: #8b93a3;
+    --accent: #3948b3;
+    --accent-soft: #e7e9fb;
+    --accent-ink: #ffffff;
+    --done: #1f8f5f;
+    --done-soft: #e0f4ea;
+    --todo-ring: #c7cdda;
+    --shadow: 0 1px 2px rgba(30, 35, 55, 0.06), 0 6px 20px -8px rgba(30, 35, 55, 0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161c;
+      --surface: #1b1e26;
+      --surface-2: #232733;
+      --border: #333947;
+      --text: #e8eaf0;
+      --text-dim: #a3abbc;
+      --text-faint: #6f7787;
+      --accent: #8891ea;
+      --accent-soft: #262b47;
+      --accent-ink: #10121a;
+      --done: #4fd39a;
+      --done-soft: #163629;
+      --todo-ring: #454c5e;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 24px -8px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161c;
+    --surface: #1b1e26;
+    --surface-2: #232733;
+    --border: #333947;
+    --text: #e8eaf0;
+    --text-dim: #a3abbc;
+    --text-faint: #6f7787;
+    --accent: #8891ea;
+    --accent-soft: #262b47;
+    --accent-ink: #10121a;
+    --done: #4fd39a;
+    --done-soft: #163629;
+    --todo-ring: #454c5e;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 24px -8px rgba(0, 0, 0, 0.5);
+  }
+  :root[data-theme="light"] {
+    --bg: #f2f3f6;
+    --surface: #ffffff;
+    --surface-2: #e9ebf1;
+    --border: #d8dce4;
+    --text: #1a1d24;
+    --text-dim: #5c6474;
+    --text-faint: #8b93a3;
+    --accent: #3948b3;
+    --accent-soft: #e7e9fb;
+    --accent-ink: #ffffff;
+    --done: #1f8f5f;
+    --done-soft: #e0f4ea;
+    --todo-ring: #c7cdda;
+    --shadow: 0 1px 2px rgba(30, 35, 55, 0.06), 0 6px 20px -8px rgba(30, 35, 55, 0.12);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Yu Gothic UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", -apple-system,
+      "Segoe UI", system-ui, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", "Consolas", "Roboto Mono", monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 0 20px 96px;
+  }
+
+  /* ---- header ---- */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    padding: 22px 0 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 22px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 4px;
+  }
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 2px;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .lede {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin: 0 0 16px;
+  }
+
+  .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .progress-count {
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .progress-count .num { color: var(--accent); }
+  .progress-track {
+    flex: 1;
+    height: 6px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+  }
+  .progress-pct {
+    font-size: 13px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .filter-wrap { position: relative; }
+  #filter {
+    width: 100%;
+    font: inherit;
+    font-size: 14px;
+    padding: 9px 14px 9px 34px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+  }
+  #filter:focus { border-color: var(--accent); }
+  .filter-wrap svg {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 15px;
+    height: 15px;
+    stroke: var(--text-faint);
+    pointer-events: none;
+  }
+  #filter-empty {
+    display: none;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 13px;
+    padding: 30px 0;
+  }
+
+  /* ---- legend / note ---- */
+  .note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 26px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .note svg { flex: none; width: 15px; height: 15px; margin-top: 2px; stroke: var(--accent); }
+  .note b { color: var(--text); font-weight: 600; }
+
+  /* ---- track sections ---- */
+  .track {
+    margin-bottom: 22px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .track > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    user-select: none;
+  }
+  .track > summary::-webkit-details-marker { display: none; }
+  .track > summary .chev {
+    width: 14px; height: 14px; flex: none;
+    stroke: var(--text-faint);
+    transition: transform 0.15s ease;
+  }
+  .track[open] > summary .chev { transform: rotate(90deg); }
+  .track-heading { flex: 1; min-width: 0; }
+  .track-name {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.005em;
+  }
+  .track-desc {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin: 1px 0 0;
+  }
+  .track-stat {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: var(--surface-2);
+    border-radius: 999px;
+    padding: 4px 10px;
+    white-space: nowrap;
+  }
+  .track-stat .n { color: var(--done); }
+
+  .track-body { border-top: 1px solid var(--border); }
+  .group-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    padding: 12px 18px 6px;
+    background: var(--surface-2);
+  }
+  .group-label:first-child { padding-top: 12px; }
+
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 18px;
+    border-top: 1px solid var(--border);
+  }
+  .row:first-of-type { border-top: none; }
+  .group-label + .row { border-top: none; }
+
+  .row .status {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    align-self: center;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .row.done .status {
+    background: var(--done);
+  }
+  .row.done .status svg { width: 10px; height: 10px; stroke: var(--accent-ink); }
+  .row.todo .status {
+    border: 1.5px solid var(--todo-ring);
+  }
+
+  .row .n {
+    flex: none;
+    width: 34px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-faint);
+    align-self: center;
+  }
+  .row.done .n { color: var(--done); }
+
+  .row .id {
+    flex: none;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    align-self: center;
+    white-space: nowrap;
+  }
+  .row.done .id { background: var(--done-soft); color: var(--done); }
+
+  .row .title {
+    flex: 1;
+    min-width: 0;
+    font-size: 13.5px;
+    align-self: center;
+    overflow-wrap: break-word;
+  }
+  .row.done .title { color: var(--text-dim); }
+
+  .row .tag {
+    flex: none;
+    font-size: 11px;
+    color: var(--text-faint);
+    align-self: center;
+    white-space: nowrap;
+  }
+
+  .row[hidden] { display: none; }
+  .track.filtered-hidden { display: none; }
+
+  footer {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 12px;
+    margin-top: 30px;
+  }
+
+  @media (max-width: 560px) {
+    .row .tag { display: none; }
+    .row .n { width: 26px; }
+  }
+</style>
+
+<div class="page">
+  <header>
+    <p class="eyebrow">Graphica &middot; Track 0&ndash;4</p>
+    <h1>開発ロードマップ 通しナンバリング表</h1>
+    <p class="lede">今後はこの番号で作業項目を指示できます。実施順に並んでいます。</p>
+
+    <div class="progress-row">
+      <span class="progress-count"><span class="num" id="done-count">1</span> / <span id="total-count">229</span></span>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <span class="progress-pct" id="progress-pct">0.4%</span>
+    </div>
+
+    <div class="filter-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="filter" type="text" placeholder="番号・ID(C-001等)・キーワードで絞り込み" autocomplete="off" />
+    </div>
+  </header>
+
+  <div class="note">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+    <div>
+      <b>#1〜#37(トラック0全6項目+トラック0'クイックウィン全9項目+トラック1フェーズA〜G全22項目)は全て完了済み。トラック1(プラグインAPI拡張)は完全に完了しました。</b>次はトラック2(#38〜、GUIモダン化。ただしH-0のみ先行着手可)、またはトラック4(#163〜、プラグイン本体の開発。トラック1完了により着手可能)です。
+      なお元資料の集計値(CORE_BACKLOG「135件」/ PLUGIN_BACKLOG「64件」)は本文中の実項目数(140件/67件)と一致しないため、本表は実際に列挙されている全項目を採用しています。
+    </div>
+  </div>
+
+  <div id="tracks"></div>
+
+  <div id="filter-empty">該当する項目がありません。</div>
+
+  <footer>Graphica_MASTER_SCHEDULE.md / ROADMAP_PLUGIN_AND_GUI.md / CORE_BACKLOG.md / PLUGIN_BACKLOG.md を基に作成</footer>
+</div>
+
+<script>
+// [n, id, title, done]
+const DATA = [
+  {
+    id: 'track0', name: 'トラック0', desc: '着手前提条件(必須・最優先)',
+    groups: [
+      { label: '必須(トラック1着手前に完了必須)', rows: [
+        [1, 'C-001', '.graphica に format_version + migrationチェーンの追加', true],
+        [2, 'C-008', '安全な数式評価器(eval/exec排除)', true],
+        [3, 'C-009', 'logging基盤 + 出力先統一(%LOCALAPPDATA%)', true],
+        [4, 'C-1205', '後方互換コーパス + ラウンドトリップ検証', true],
+      ]},
+      { label: '推奨(必須ではないが先にあると楽)', rows: [
+        [5, 'C-006', 'AppContext 導入', true],
+        [6, 'C-002', 'visible_df キャッシュ', true],
+      ]},
+    ],
+  },
+  {
+    id: 'track0q', name: "トラック0'", desc: 'クイックウィン(トラック0と並行可・順不同)',
+    groups: [
+      { label: '', rows: [
+        [7, 'C-801', 'PDF/EPSフォント埋め込み(pdf.fonttype=42)', true],
+        [8, 'C-301/302', 'Savitzky-Golay平滑化 + 微分スペクトル', true],
+        [9, 'C-402', '重み付きフィット', true],
+        [10, 'C-404', 'フィット範囲の指定', true],
+        [11, 'C-502', '誤差バンド(fill_between)', true],
+        [12, 'C-805', 'カラーマップ自動配色', true],
+        [13, 'C-901/007', 'Undo履歴パネル + QUndoGroup', true],
+        [14, 'C-1201', '診断情報バンドル出力', true],
+        [15, 'C-712', 'パネルラベル自動採番', true],
+      ]},
+    ],
+  },
+  {
+    id: 'track1', name: 'トラック1', desc: 'プラグインAPI拡張(フェーズA〜G)',
+    groups: [
+      { label: 'フェーズA — 土台', rows: [
+        [16, 'A-1', 'PluginContext / 登録結果の型定義(core/plugin_types.py)', true],
+        [17, 'A-2', 'フック登録失敗の隔離デコレータ/ラッパー共通化', true],
+        [18, 'A-3', 'FakeGraphicaPluginAPI テストダブル', true],
+        [19, 'A-4', 'シグネチャ契約テスト(test_plugin_api_contract.py)', true],
+      ]},
+      { label: 'フェーズB(並行) — importer/exporter', rows: [
+        [20, 'B-1', 'register_importer()', true],
+        [21, 'B-2', 'register_exporter()', true],
+        [22, 'B-3', 'インポート/エクスポート失敗時UXの統一', true],
+      ]},
+      { label: 'フェーズC(並行) — processor/analyzer', rows: [
+        [23, 'C-1', 'register_processor()', true],
+        [24, 'C-2', 'register_analyzer()', true],
+        [25, 'C-3', 'プラグイン処理結果のプロジェクト保存統合', true],
+      ]},
+      { label: 'フェーズD(並行) — UIフック', rows: [
+        [26, 'D-1', 'register_panel()(register_dock統合)', true],
+        [27, 'D-2', 'register_plot_type()', true],
+        [28, 'D-3', 'UIフックのi18n統合方針決定', true],
+      ]},
+      { label: 'フェーズE(並行) — exe配布環境', rows: [
+        [29, 'E-1', 'プラグイン探索パスを%LOCALAPPDATA%に追加', true],
+        [30, 'E-2', 'プラグインのインストール導線(GUI、zip展開)', true],
+        [31, 'E-3', 'プラグイン依存パッケージ方針決定(純標準+本体依存縛り)', true],
+        [32, 'E-4', '単一インスタンス化(zip展開の排他ロック)', true],
+      ]},
+      { label: 'フェーズF — マニフェスト・管理UI・安全性', rows: [
+        [33, 'F-1', 'プラグインマニフェスト plugin.json', true],
+        [34, 'F-2', 'プラグイン管理UI', true],
+        [35, 'F-3', 'プラグイン開発者向けドキュメント(plugin_development.md)', true],
+        [36, 'F-4', 'セーフモード起動 + --safe-mode オプション', true],
+      ]},
+      { label: 'フェーズG — 描画バックエンド差し替え(骨組みのみ)', rows: [
+        [37, 'G', 'register_render_backend() 型定義のみ', true],
+      ]},
+    ],
+  },
+  {
+    id: 'track2', name: 'トラック2', desc: 'GUIモダン化(フェーズH)',
+    groups: [
+      { label: '', rows: [
+        [38, 'H-0', '既存QSS実装の現状調査(gui_style_audit.md)・先行着手可', false],
+        [39, 'H-1', 'デザイントークン整理(gui/theme/tokens.py)', false],
+        [40, 'H-2-1', 'メインツールバー・メニューバー', false],
+        [41, 'H-2-2', 'データセットリスト・データテーブル', false],
+        [42, 'H-2-3', 'ドック全般', false],
+        [43, 'H-2-4', 'ボタン・入力フィールド・コンボボックス', false],
+        [44, 'H-2-5', 'クイックアクセスツールバー(#87)', false],
+        [45, 'H-2-6', 'ダイアログ群(環境設定/エクスポート設定/フィット等)', false],
+        [46, 'H-2-7', 'プラグイン管理UI(F-2)へのスタイル適用', false],
+        [47, 'H-2-8', 'ステータスバー・通知トースト類', false],
+        [48, 'H-3', 'matplotlib(Figure)側の配色連動', false],
+        [49, 'H-4', 'アイコンセットの見直し(任意・優先度低)', false],
+        [50, 'H-5', '画像回帰テストの追加', false],
+      ]},
+    ],
+  },
+  {
+    id: 'track3', name: 'トラック3', desc: '残りの本体機能追加',
+    groups: [
+      { label: '3-1. 解析基盤(優先度高、トラック2完了後すぐ着手)', rows: [
+        [51, 'C-401', 'フィット結果の構造化保持', false],
+        [52, 'C-403', 'パラメータの初期値・固定・範囲拘束UI', false],
+        [53, 'C-308', 'ベースライン補正(ALS/多項式/ラバーバンド/手動点)', false],
+        [54, 'C-305', '共通X格子へのリサンプリング/補間', false],
+        [55, 'C-311', '区間積分', false],
+        [56, 'C-411', 'ピーク定量表', false],
+        [57, 'C-408', 'モデルライブラリ拡充(Voigt等)', false],
+        [58, 'C-405', '信頼帯・予測帯の描画', false],
+        [59, 'C-406', '残差プロット', false],
+        [60, 'C-413', 'フィット結果の出力', false],
+      ]},
+      { label: '3-2. 性能・体験', rows: [
+        [61, 'C-003', '再描画スコープ分離', false],
+        [62, 'C-004', 'ワーカースレッド基盤', false],
+        [63, 'C-1001', '表示用ダウンサンプリング(LTTB)', false],
+        [64, 'C-902', '一括スタイル適用', false],
+        [65, 'C-908', 'マウス操作拡充', false],
+        [66, 'C-909', 'グラフ上での範囲選択', false],
+        [67, 'C-601', '軸共有(sharex/sharey)', false],
+        [68, 'C-602', '単位変換の第2X軸', false],
+      ]},
+      { label: '3-3. 差別化機能', rows: [
+        [69, 'C-409', '多峰分離', false],
+        [70, 'C-410', 'クリック初期値配置UI', false],
+        [71, 'C-1101', 'provenance記録 + ツリー表示', false],
+        [72, 'C-1102', '「方法」文の自動生成', false],
+        [73, 'C-1103', 'Pythonスクリプトエクスポート', false],
+        [74, 'C-806', 'フィギュアテンプレートの独立ファイル化', false],
+      ]},
+      { label: '3-4. 大型投資(トラック3の中でも最後に着手)', rows: [
+        [75, 'C-508', 'ヒートマップ/2Dマップ', false],
+        [76, 'C-509', '等高線図', false],
+        [77, 'C-510', '2D補間面の生成', false],
+        [78, 'C-511', '2Dマップからの1Dスライス抽出', false],
+        [79, 'C-605', '軸の中断(Axis Break)', false],
+      ]},
+      { label: '未分類の残り項目(3-1〜3-4消化後に適宜着手)', rows: [
+        [80, 'C-005', 'ProjectModel のシグナル化', false],
+        [81, 'C-010', '単一インスタンス化(autosave衝突回避)', false],
+        [82, 'C-101', 'インポートウィザード強化', false],
+        [83, 'C-102', 'クリップボードのスマート貼り付け', false],
+        [84, 'C-103', '元ファイルへのリンク保持と再読み込み', false],
+        [85, 'C-104', 'フォルダ一括インポート + 正規表現パラメータ抽出', false],
+        [86, 'C-105', '大容量データのチャンク/ストリーミング読込', false],
+        [87, 'C-106', 'ファイル監視・自動リロード', false],
+        [88, 'C-107', '自動バックアップ履歴の閲覧・タイムトラベル復元', false],
+        [89, 'C-108', 'プロジェクト差分比較', false],
+        [90, 'C-109', '設定・スタイルのエクスポート/インポート', false],
+        [91, 'C-201', '欠損値(NaN)の方針設定と可視化', false],
+        [92, 'C-202', '欠損値補間', false],
+        [93, 'C-203', '重複行・重複X値の検出と平均化/除去', false],
+        [94, 'C-204', '行フィルタ(条件式、非破壊)', false],
+        [95, 'C-205', '列の分割・結合・文字列操作', false],
+        [96, 'C-206', '列の算術変換', false],
+        [97, 'C-207', '列のドラッグ&ドロップ並べ替え・非表示', false],
+        [98, 'C-208', 'テーブルの検索・置換・行ジャンプ', false],
+        [99, 'C-209', '表示のみのソート/フィルタ', false],
+        [100, 'C-210', 'テーブルの条件付き書式', false],
+        [101, 'C-211', 'データ点のGUI直接ドラッグ補正・削除', false],
+        [102, 'C-303', '数値積分(累積積分)', false],
+        [103, 'C-304', '移動平均/中央値/ガウシアンフィルタ', false],
+        [104, 'C-306', 'Z-score/IQR自動外れ値検出', false],
+        [105, 'C-307', 'X軸アライメント', false],
+        [106, 'C-309', 'デジタルフィルタ(LP/HP/BP)', false],
+        [107, 'C-310', 'FFT/パワースペクトル/逆FFT', false],
+        [108, 'C-312', '複数データセットの平均±SD生成', false],
+        [109, 'C-313', '誤差伝播', false],
+        [110, 'C-407', 'ロバストフィット', false],
+        [111, 'C-412', 'グローバルフィット', false],
+        [112, 'C-501', 'カラーバー', false],
+        [113, 'C-503', '階段プロット', false],
+        [114, 'C-504', '棒グラフ拡張', false],
+        [115, 'C-505', 'ヒストグラム/KDE', false],
+        [116, 'C-506', '箱ひげ図/バイオリンプロット', false],
+        [117, 'C-507', '2D密度散布図', false],
+        [118, 'C-512', '極座標プロット', false],
+        [119, 'C-513', 'ハッチング/テクスチャ適用', false],
+        [120, 'C-514', 'ウォーターフォールの斜向/立体トグル', false],
+        [121, 'C-515', '3D散布/ワイヤーフレーム/サーフェス', false],
+        [122, 'C-516', '3Dプロットのマウス回転・ズーム', false],
+        [123, 'C-603', '軸スケールの自由な関数マッピング', false],
+        [124, 'C-604', '対数軸のマイナー目盛り高度制御', false],
+        [125, 'C-606', 'マルチY軸', false],
+        [126, 'C-607', 'カテゴリ軸のグループ化', false],
+        [127, 'C-608', '列の単位メタデータ→軸ラベル自動生成', false],
+        [128, 'C-701', '領域ハイライト', false],
+        [129, 'C-702', '図形要素の挿入', false],
+        [130, 'C-703', '矢印のバリエーション拡張', false],
+        [131, 'C-704', 'スケールバー', false],
+        [132, 'C-705', '画像・ロゴの重ね合わせ', false],
+        [133, 'C-706', '数式入力エディタ', false],
+        [134, 'C-707', 'ピーク位置へのスマート自動ラベル', false],
+        [135, 'C-708', '統計値アンカーラベル', false],
+        [136, 'C-709', '注釈のz-order制御ダイアログ', false],
+        [137, 'C-710', '注釈の自動整列・等間隔配置', false],
+        [138, 'C-711', 'インセット(拡大図)', false],
+        [139, 'C-802', '図面サイズmm/inch指定 + 学術誌別プリセット', false],
+        [140, 'C-803', '色覚多様性対応パレット + CUDシミュレータ', false],
+        [141, 'C-804', '論文向けカラーパレットマネージャー', false],
+        [142, 'C-807', 'LaTeX/Word用キャプション自動生成', false],
+        [143, 'C-808', 'GIFアニメーションエクスポート', false],
+        [144, 'C-809', '解析データのハッシュ・メタデータ埋め込み', false],
+        [145, 'C-810', 'ベクター出力時のラスタ要素警告', false],
+        [146, 'C-903', 'スタイルペインター', false],
+        [147, 'C-904', 'カラー・フォントの一括置換', false],
+        [148, 'C-905', 'タブ間のデータセットコピー/移動', false],
+        [149, 'C-906', 'データセットのグループ/フォルダ管理', false],
+        [150, 'C-907', 'データセットリストの検索・絞り込み', false],
+        [151, 'C-910', 'ショートカットのユーザーカスタマイズ', false],
+        [152, 'C-911', 'ドックの浮動・再配置強化', false],
+        [153, 'C-912', 'スタートアップ画面', false],
+        [154, 'C-1002', 'ブリッティングによるインタラクション高速化', false],
+        [155, 'C-1003', '非アクティブタブの遅延初期化・メモリ解放', false],
+        [156, 'C-1004', '大量データ時の自動保護の一般化', false],
+        [157, 'C-1104', 'PDF/HTML実験レポート自動ビルド', false],
+        [158, 'C-1105', 'コマンドライン/バッチモード', false],
+        [159, 'C-1106', 'マクロ記録・再生', false],
+        [160, 'C-1202', 'セーフモード起動(本体側)', false],
+        [161, 'C-1203', 'アップデート通知', false],
+        [162, 'C-1204', '画像回帰テスト基盤', false],
+      ]},
+    ],
+  },
+  {
+    id: 'track4', name: 'トラック4', desc: 'プラグイン本体の開発(トラック3と並行可、トラック1完了後に着手可能)',
+    groups: [
+      { label: '着手推奨 Top 8', rows: [
+        [163, 'P-805', '元素・同位体・物理定数テーブル', false],
+        [164, 'P-101', 'JCAMP-DXインポータ', false],
+        [165, 'P-304', 'UV-Visパック(Tauc plot等)', false],
+        [166, 'P-202', 'スパイク・宇宙線除去', false],
+        [167, 'P-306', '電気化学CVパック', false],
+        [168, 'P-201', 'Shirley/Tougaardベースライン', false],
+        [169, 'P-401', '主成分分析(PCA)', false],
+        [170, 'P-303', 'Raman/FT-IRパック', false],
+      ]},
+      { label: '残りのプラグイン', rows: [
+        [171, 'P-102', 'Thermo SPC', false],
+        [172, 'P-103', 'Bruker OPUS', false],
+        [173, 'P-104', 'Renishaw WDF', false],
+        [174, 'P-105', 'Princeton SPE/WinSpec', false],
+        [175, 'P-106', 'XRD各社形式(RAW/XRDML/UXD/BRML)', false],
+        [176, 'P-107', 'NMR(Bruker fid/1r、JCAMP-DX NMR)', false],
+        [177, 'P-108', 'クロマトグラフィー形式', false],
+        [178, 'P-109', 'HDF5/NeXus', false],
+        [179, 'P-110', 'SQLite/汎用DB接続', false],
+        [180, 'P-111', 'LabVIEW TDMS', false],
+        [181, 'P-112', '画像(TIFF/PNG)からの2Dマップ読込', false],
+        [182, 'P-113', 'Web API/RESTからのデータ取得', false],
+        [183, 'P-114', 'クラウドストレージ同期', false],
+        [184, 'P-203', 'デコンボリューション', false],
+        [185, 'P-204', '参照スペクトル照合エンジン', false],
+        [186, 'P-205', 'ピーク帰属ライブラリ', false],
+        [187, 'P-206', 'スペクトル類似度(SAM/コサイン/相関)', false],
+        [188, 'P-207', '2次元相関分光(2D-COS)', false],
+        [189, 'P-208', 'STFT/スペクトログラム', false],
+        [190, 'P-209', 'スペクトルの正規化モード集', false],
+        [191, 'P-301', 'XPS/UPSパック', false],
+        [192, 'P-302', 'XRDパック', false],
+        [193, 'P-305', '蛍光/EEMパック', false],
+        [194, 'P-307', 'EISパック', false],
+        [195, 'P-308', '熱分析DSC/DTA/TGAパック', false],
+        [196, 'P-309', 'クロマトグラフィーパック', false],
+        [197, 'P-310', 'NMRパック', false],
+        [198, 'P-311', '過渡吸収・時間分解パック', false],
+        [199, 'P-312', '反応速度論・吸着等温線パック', false],
+        [200, 'P-313', 'Arrheniusプロット解析', false],
+        [201, 'P-314', '検量線・LOD/LOQパック', false],
+        [202, 'P-315', '磁性・電気特性パック', false],
+        [203, 'P-402', '仮説検定パック + 有意差ブラケット', false],
+        [204, 'P-403', '相関行列ヒートマップ', false],
+        [205, 'P-404', 'クラスタリング(k-means/階層)', false],
+        [206, 'P-405', 't-SNE/UMAP次元削減', false],
+        [207, 'P-406', 'PLS回帰', false],
+        [208, 'P-407', 'MCR-ALS', false],
+        [209, 'P-408', 'ブートストラップ不確かさ推定', false],
+        [210, 'P-501', '三元系ダイアグラム', false],
+        [211, 'P-502', 'ベクターマップ(quiver/流線)', false],
+        [212, 'P-503', 'ボクセル・ボリューム描画', false],
+        [213, 'P-504', '3Dライティング・陰影調整', false],
+        [214, 'P-505', '3Dウォーターフォールプロット', false],
+        [215, 'P-506', 'スミスチャート/ボード線図', false],
+        [216, 'P-507', 'サンキーダイアグラム/パラレルコーディネート', false],
+        [217, 'P-601', 'LaTeXレンダリングエンジン', false],
+        [218, 'P-602', 'Plotly連携インタラクティブHTML出力', false],
+        [219, 'P-603', 'MP4動画エクスポート', false],
+        [220, 'P-604', '学会ポスター/スライド用レイアウト出力', false],
+        [221, 'P-605', '電子ラボノート(ELN)形式エクスポート', false],
+        [222, 'P-701', 'Jupyter/Pythonからのリモート操作API', false],
+        [223, 'P-702', 'Git連携', false],
+        [224, 'P-703', '測定装置とのリアルタイム連携', false],
+        [225, 'P-704', '研究室内テンプレート/設定の共有サーバ連携', false],
+        [226, 'P-801', 'XRD標準パターンDB', false],
+        [227, 'P-802', 'FT-IR/Raman官能基DB', false],
+        [228, 'P-803', 'XPS結合エネルギーDB', false],
+        [229, 'P-804', '公開スペクトルDBの取得・キャッシュ', false],
+      ]},
+    ],
+  },
+];
+
+const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+
+const tracksEl = document.getElementById('tracks');
+let totalCount = 0, doneCount = 0;
+const allRowEls = [];
+
+DATA.forEach((track, ti) => {
+  let trackDone = 0, trackTotal = 0;
+  track.groups.forEach(g => g.rows.forEach(r => { trackTotal++; if (r[3]) trackDone++; }));
+  totalCount += trackTotal;
+  doneCount += trackDone;
+
+  const details = document.createElement('details');
+  details.className = 'track';
+  details.open = ti < 2; // トラック0/0'はデフォルト展開、以降は折りたたみ
+
+  const summary = document.createElement('summary');
+  summary.innerHTML = `
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    <div class="track-heading">
+      <p class="track-name">${track.name} <span style="font-weight:400;color:var(--text-dim)">— ${track.desc}</span></p>
+    </div>
+    <span class="track-stat"><span class="n">${trackDone}</span> / ${trackTotal}</span>
+  `;
+  details.appendChild(summary);
+
+  const body = document.createElement('div');
+  body.className = 'track-body';
+
+  track.groups.forEach(group => {
+    if (group.label) {
+      const gl = document.createElement('div');
+      gl.className = 'group-label';
+      gl.textContent = group.label;
+      body.appendChild(gl);
+    }
+    group.rows.forEach(([n, id, title, done]) => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (done ? 'done' : 'todo');
+      row.dataset.search = (n + ' ' + id + ' ' + title).toLowerCase();
+
+      const status = document.createElement('span');
+      status.className = 'status';
+      if (done) status.innerHTML = CHECK_SVG;
+      row.appendChild(status);
+
+      const numEl = document.createElement('span');
+      numEl.className = 'n mono';
+      numEl.textContent = '#' + n;
+      row.appendChild(numEl);
+
+      const idEl = document.createElement('span');
+      idEl.className = 'id mono';
+      idEl.textContent = id;
+      row.appendChild(idEl);
+
+      const titleEl = document.createElement('span');
+      titleEl.className = 'title';
+      titleEl.textContent = title;
+      row.appendChild(titleEl);
+
+      body.appendChild(row);
+      allRowEls.push(row);
+    });
+  });
+
+  details.appendChild(body);
+  tracksEl.appendChild(details);
+});
+
+document.getElementById('total-count').textContent = totalCount;
+document.getElementById('done-count').textContent = doneCount;
+document.getElementById('progress-fill').style.width = (doneCount / totalCount * 100) + '%';
+document.getElementById('progress-pct').textContent = (doneCount / totalCount * 100).toFixed(1) + '%';
+
+const filterInput = document.getElementById('filter');
+const emptyMsg = document.getElementById('filter-empty');
+filterInput.addEventListener('input', () => {
+  const q = filterInput.value.trim().toLowerCase();
+  let anyVisible = false;
+  document.querySelectorAll('.track').forEach(trackEl => {
+    let trackHasMatch = false;
+    trackEl.querySelectorAll('.row').forEach(row => {
+      const match = !q || row.dataset.search.includes(q);
+      row.hidden = !match;
+      if (match) { trackHasMatch = true; anyVisible = true; }
+    });
+    trackEl.classList.toggle('filtered-hidden', !trackHasMatch);
+    if (q) trackEl.open = trackHasMatch;
+  });
+  emptyMsg.style.display = anyVisible ? 'none' : 'block';
+});
+</script>

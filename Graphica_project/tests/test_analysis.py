@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 import core.analysis as analysis_module
-from core.analysis import (calculate_curve_fit, calculate_peaks,
+from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgol,
                             get_plugin_fit_type_names, register_fit_function)
 
 
@@ -237,3 +237,111 @@ def test_find_peaks_respects_distance_x():
     peak_x_close, _ = calculate_peaks(x, y, "上に凸 (Peaks)", settings_close)
     peak_x_far, _ = calculate_peaks(x, y, "上に凸 (Peaks)", settings_far)
     assert len(peak_x_far) <= len(peak_x_close)
+
+
+# --- 重み付きフィット + フィット範囲指定(C-402/C-404) ---
+
+def test_weighted_fit_sigma_pulls_result_toward_low_error_points():
+    """端点(傾きへのレバレッジが大きい位置)を大きく外した1点について、
+    その誤差(sigma)を大きく(=信頼度を低く)指定すると、重み無しフィット
+    よりも真の傾きに近い結果になること。"""
+    x = np.linspace(0, 9, 10)
+    y_true = 2.0 * x + 1.0
+    y = y_true.copy()
+    y[-1] += 50.0  # 端点を大きく外す(OLSでは傾きへの影響が大きい)
+
+    popt_unweighted, _, _, _, _, _ = calculate_curve_fit(x, y, "線形 (y = ax + b)")
+
+    sigma = np.ones_like(x)
+    sigma[-1] = 100.0  # 外れ値の不確かさを大きく指定
+    popt_weighted, _, _, _, _, _ = calculate_curve_fit(x, y, "線形 (y = ax + b)", sigma=sigma)
+
+    # 重み付き結果の傾きの方が真の傾き(2.0)に大幅に近いはず
+    assert abs(popt_weighted[0] - 2.0) < abs(popt_unweighted[0] - 2.0)
+    assert abs(popt_weighted[0] - 2.0) < 0.1
+
+
+def test_fit_range_excludes_points_outside_range():
+    """x_rangeで指定した範囲外の点は、フィットにも残差にも一切使われないこと。"""
+    x = np.linspace(0, 20, 100)
+    y = np.where(x <= 10, 2.0 * x, -100.0)  # x>10は全く別の(直線から大きく外れた)値
+    popt, _, _, _, _, residuals = calculate_curve_fit(
+        x, y, "線形 (y = ax + b)", x_range=(0.0, 10.0)
+    )
+    assert abs(popt[0] - 2.0) < 0.05
+    # 残差は範囲内(x<=10)の点数だけになっているはず
+    assert len(residuals) == np.sum(x <= 10.0)
+
+
+def test_fit_range_combined_with_sigma_applies_same_mask():
+    """x_rangeとsigmaを同時に指定した場合、sigmaにも同じマスクが適用されること
+    (マスク前後で配列長が食い違ってcurve_fitがエラーにならないことの回帰確認)。"""
+    x = np.linspace(0, 10, 20)
+    y = 2.0 * x + 1.0
+    sigma = np.ones_like(x)
+    popt, _, _, _, _, _ = calculate_curve_fit(
+        x, y, "線形 (y = ax + b)", sigma=sigma, x_range=(2.0, 8.0)
+    )
+    assert abs(popt[0] - 2.0) < 1e-6
+
+
+def test_fit_range_too_few_points_raises():
+    x = np.linspace(0, 10, 50)
+    y = 2.0 * x + 1.0
+    with pytest.raises(ValueError, match="データ点数"):
+        calculate_curve_fit(x, y, "線形 (y = ax + b)", x_range=(0.0, 0.05))
+
+
+# --- Savitzky-Golayフィルタ(平滑化/微分、C-301/C-302) ---
+
+def test_savgol_smoothing_reduces_noise():
+    rng = np.random.default_rng(0)
+    x = np.linspace(0, 10, 200)
+    y_clean = np.sin(x)
+    y_noisy = y_clean + rng.normal(0, 0.1, size=x.shape)
+    _, y_smoothed = calculate_savgol(x, y_noisy, window_length=11, polyorder=3, deriv=0)
+    # 平滑化後の方がノイズ無し信号との誤差(標準偏差)が小さいこと
+    assert np.std(y_smoothed - y_clean) < np.std(y_noisy - y_clean)
+
+
+def test_savgol_smoothing_preserves_length_and_x_order():
+    x = np.array([3.0, 1.0, 2.0, 5.0, 4.0])
+    y = np.array([9.0, 1.0, 4.0, 25.0, 16.0])  # y = x^2 (乱れた順序で入力)
+    x_sorted, y_result = calculate_savgol(x, y, window_length=3, polyorder=2, deriv=0)
+    assert list(x_sorted) == [1.0, 2.0, 3.0, 4.0, 5.0]
+    assert len(y_result) == len(x)
+
+
+def test_savgol_first_derivative_of_linear_function_is_constant_slope():
+    x = np.linspace(0, 10, 50)
+    y = 3.0 * x + 2.0
+    _, dydx = calculate_savgol(x, y, window_length=5, polyorder=2, deriv=1)
+    np.testing.assert_allclose(dydx, 3.0, atol=1e-6)
+
+
+def test_savgol_second_derivative_of_quadratic_is_constant():
+    x = np.linspace(0, 10, 100)
+    y = 2.0 * x ** 2
+    _, d2ydx2 = calculate_savgol(x, y, window_length=7, polyorder=3, deriv=2)
+    np.testing.assert_allclose(d2ydx2, 4.0, atol=1e-3)
+
+
+def test_savgol_rejects_even_window_length():
+    x = np.linspace(0, 10, 20)
+    y = np.sin(x)
+    with pytest.raises(ValueError, match="奇数"):
+        calculate_savgol(x, y, window_length=4, polyorder=2)
+
+
+def test_savgol_rejects_polyorder_not_smaller_than_window():
+    x = np.linspace(0, 10, 20)
+    y = np.sin(x)
+    with pytest.raises(ValueError, match="次数"):
+        calculate_savgol(x, y, window_length=5, polyorder=5)
+
+
+def test_savgol_rejects_window_larger_than_data():
+    x = np.linspace(0, 10, 5)
+    y = np.sin(x)
+    with pytest.raises(ValueError, match="データ点数"):
+        calculate_savgol(x, y, window_length=7, polyorder=2)

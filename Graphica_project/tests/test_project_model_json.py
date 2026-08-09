@@ -12,7 +12,7 @@ import pandas as pd
 import pytest
 
 from core.dataset import Dataset
-from models.project import ProjectModel
+from models.project import CURRENT_FORMAT_VERSION, ProjectModel
 
 
 def make_dataset(**overrides):
@@ -229,6 +229,62 @@ def test_save_project_unsupported_extension_raises_value_error(tmp_path):
     project.dataset_group_tree = {'name': '', 'children': []}
     with pytest.raises(ValueError):
         project.save_project(str(tmp_path / "project.txt"))
+
+
+def test_graphica_save_writes_current_format_version(tmp_path):
+    project = make_dataset  # noqa: F841
+    project = ProjectModel()
+    project.datasets = [make_dataset()]
+    project.dataset_group_tree = {'name': '', 'children': [{'dataset': project.datasets[0]}]}
+    path = tmp_path / "project.graphica"
+    project.save_project(str(path))
+
+    with open(path, encoding='utf-8') as f:
+        raw = json.load(f)
+    assert raw['format_version'] == CURRENT_FORMAT_VERSION
+
+
+def test_graphica_load_accepts_legacy_file_with_no_format_version(tmp_path):
+    """format_version導入前(このキー自体が無い)の.graphicaファイルも
+    version 0として扱われ、クラッシュせず読み込めることを確認する。"""
+    project = ProjectModel()
+    ds = make_dataset()
+    project.datasets = [ds]
+    project.dataset_group_tree = {'name': '', 'children': [{'dataset': ds}]}
+    path = tmp_path / "legacy.graphica"
+    project.save_project(str(path))
+
+    # format_versionキーを取り除いて「導入前のファイル」を模倣する
+    with open(path, encoding='utf-8') as f:
+        raw = json.load(f)
+    del raw['format_version']
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(raw, f)
+
+    reloaded = ProjectModel()
+    reloaded.load_project(str(path))  # 例外を出さずに読み込めること
+    assert reloaded.datasets[0].name == "D1"
+
+
+def test_graphica_load_rejects_future_format_version(tmp_path):
+    """このアプリより新しいバージョンで保存されたファイルは、無言で壊れた状態に
+    ならず、明示的にエラーとして拒否されることを確認する。"""
+    project = ProjectModel()
+    ds = make_dataset()
+    project.datasets = [ds]
+    project.dataset_group_tree = {'name': '', 'children': [{'dataset': ds}]}
+    path = tmp_path / "future.graphica"
+    project.save_project(str(path))
+
+    with open(path, encoding='utf-8') as f:
+        raw = json.load(f)
+    raw['format_version'] = CURRENT_FORMAT_VERSION + 1
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(raw, f)
+
+    reloaded = ProjectModel()
+    with pytest.raises(ValueError):
+        reloaded.load_project(str(path))
 
 
 def test_graphica_load_skips_leaf_with_missing_dataset_id(tmp_path):
