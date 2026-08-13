@@ -756,7 +756,13 @@ class FitDialog(QDialog):
             "対数 (y = a * ln(x) + b)",
             "べき乗 (y = a * x^b)",
             "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
+            "ローレンツ関数 (y = a / (1 + ((x-b)/c)^2) + d)",
+            "擬似フォークト関数 (y = a*(η/(1+((x-b)/c)^2) + (1-η)*exp(-4ln2*((x-b)/c)^2)) + d)",
+            "フォークト関数 (y = a*Re[wofz((x-b+iγ)/(σ√2))] / (σ√(2π)) + d)",
+            "2成分指数関数 (y = a1*exp(b1*x) + a2*exp(b2*x) + c)",
+            "ボルツマンシグモイド (y = a2 + (a1-a2) / (1 + exp((x-x0)/dx)))",
             "シグモイド (y = a / (1 + exp(-b(x-c))))",
+            "ヒルの式 (y = vmax*x^n / (k^n + x^n))",
         ])
         # プラグインが追加したフィット関数を、組み込みの選択肢と
         # 「カスタム数式...」の間に挿入する
@@ -808,6 +814,38 @@ class FitDialog(QDialog):
         self.range_checkbox.toggled.connect(self.range_min_spinbox.setEnabled)
         self.range_checkbox.toggled.connect(self.range_max_spinbox.setEnabled)
 
+        # --- パラメータごとの初期値・固定・範囲拘束(項目C-403) ---
+        # 「収束しないフィットの大半はこれで解決」— ユーザーがパラメータの
+        # 自動推定初期値を上書きしたり、値を固定して自由パラメータから除外したり、
+        # [最小,最大]の範囲に拘束したりできるようにする。
+        layout.addWidget(QLabel("パラメータごとの初期値・固定・範囲拘束(収束しない場合に指定してください):"))
+        self.param_table = QTableWidget(0, 6)
+        self.param_table.setHorizontalHeaderLabels(
+            ["パラメータ", "初期値/固定値", "固定", "範囲拘束", "最小", "最大"]
+        )
+        self.param_table.verticalHeader().setVisible(False)
+        self.param_table.setMaximumHeight(180)
+        layout.addWidget(self.param_table)
+
+        self.fit_type_combo.currentTextChanged.connect(self._rebuild_param_table)
+        # カスタム数式は入力途中でもパラメータ数が変わりうるため、1文字入力される
+        # たびに再構築する(_rebuild_param_tableはパース失敗時に0行にするだけで
+        # 例外を外に投げないため、入力途中でクラッシュすることはない)。
+        self.custom_formula_edit.textChanged.connect(self._rebuild_param_table)
+
+        # --- 信頼帯・予測帯(項目C-405) ---
+        # 既定は「表示しない」(計算コストと帯の重ね描きが常に欲しいとは限らないため)。
+        band_form = QFormLayout()
+        self.band_combo = QComboBox()
+        self.band_combo.addItems(["表示しない", "信頼帯 (95%)", "予測帯 (95%)"])
+        self.band_combo.setToolTip(
+            "信頼帯: 真の回帰曲線が収まると考えられる範囲(パラメータの不確かさのみ)。\n"
+            "予測帯: 次に測定する新しい1点が収まると考えられる範囲\n"
+            "(パラメータの不確かさに加え、観測ノイズの分散も加味するため信頼帯より広くなる)。"
+        )
+        band_form.addRow("信頼帯/予測帯", self.band_combo)
+        layout.addLayout(band_form)
+
         # --- OK / Cancel ボタン ---
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
@@ -815,11 +853,149 @@ class FitDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
+        self._rebuild_param_table()
+
     def _on_fit_type_changed(self, text):
         """フィット関数の選択が変わったときに、カスタム数式入力欄の表示/非表示を切り替える"""
         is_custom = "カスタム数式" in text
         self.custom_formula_label.setVisible(is_custom)
         self.custom_formula_edit.setVisible(is_custom)
+
+    def _rebuild_param_table(self, *_args):
+        """
+        項目C-403: フィットタイプ(コンボボックス)またはカスタム数式の入力内容が
+        変わるたびに、パラメータテーブルの行を作り直す。get_fit_param_names()が
+        ValueErrorを送出するケース(フィットタイプ未確定、カスタム数式が空/
+        パース不能な入力途中の状態)は握りつぶして0行にする — ダイアログを
+        クラッシュさせず、単に「まだ何も出さない」だけにする。
+
+        各行の「初期値/固定値」欄はダブルユースで、「固定」チェックが外れている
+        間はp0の初期値(ユーザーが実際に触った場合のみp0_overridesに採用される。
+        触らなければフィットタイプごとの自動推定デフォルトのまま)、「固定」
+        チェックが入っている間はその値でパラメータを固定する(fixed_params)。
+        「範囲拘束」チェックは「固定」チェックと排他的に扱う(固定パラメータは
+        最適化されないため範囲の概念自体が無意味なので、固定時は無効化する)。
+        """
+        fit_type = self.fit_type_combo.currentText()
+        custom_formula = self.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
+        try:
+            from core.analysis import get_fit_param_names
+            param_names = get_fit_param_names(fit_type, custom_formula)
+        except ValueError:
+            param_names = []
+
+        self.param_table.setRowCount(0)
+        self.param_table.setRowCount(len(param_names))
+        for row, name in enumerate(param_names):
+            name_item = QTableWidgetItem(name)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.param_table.setItem(row, 0, name_item)
+
+            value_spin = QDoubleSpinBox()
+            value_spin.setRange(-1e12, 1e12)
+            value_spin.setDecimals(6)
+            value_spin.blockSignals(True)
+            value_spin.setValue(1.0)
+            value_spin.blockSignals(False)
+            # ★ ユーザーが実際に値を変更したかどうかを追跡する(初期化時の
+            # setValue(1.0)はblockSignals()でこのフラグを立てない)。
+            # get_param_settings()はこのフラグが立っている行だけをp0_overrides
+            # に含める。立っていない行は「フィットタイプごとの自動推定デフォルト
+            # のまま」を意味する(このダイアログはx_data/y_dataを持たないため、
+            # 自動推定値そのものはここでは計算・表示できない)。
+            value_spin.setProperty("_user_overridden", False)
+            value_spin.valueChanged.connect(
+                lambda _v, w=value_spin: w.setProperty("_user_overridden", True)
+            )
+            self.param_table.setCellWidget(row, 1, value_spin)
+
+            fixed_check = QCheckBox()
+            self.param_table.setCellWidget(row, 2, fixed_check)
+
+            range_check = QCheckBox()
+            self.param_table.setCellWidget(row, 3, range_check)
+
+            min_spin = QDoubleSpinBox()
+            min_spin.setRange(-1e12, 1e12)
+            min_spin.setDecimals(6)
+            min_spin.setValue(-1e12)
+            min_spin.setEnabled(False)
+            self.param_table.setCellWidget(row, 4, min_spin)
+
+            max_spin = QDoubleSpinBox()
+            max_spin.setRange(-1e12, 1e12)
+            max_spin.setDecimals(6)
+            max_spin.setValue(1e12)
+            max_spin.setEnabled(False)
+            self.param_table.setCellWidget(row, 5, max_spin)
+
+            fixed_check.toggled.connect(
+                lambda checked, rc=range_check, mn=min_spin, mx=max_spin:
+                    self._on_param_fixed_toggled(checked, rc, mn, mx)
+            )
+            range_check.toggled.connect(
+                lambda checked, mn=min_spin, mx=max_spin: (mn.setEnabled(checked), mx.setEnabled(checked))
+            )
+
+        self.param_table.resizeColumnsToContents()
+
+    @staticmethod
+    def _on_param_fixed_toggled(checked, range_check, min_spin, max_spin):
+        """「固定」チェックが入っている間は「範囲拘束」チェックと最小/最大欄を
+        無効化する(固定パラメータは最適化されないため範囲拘束は意味を持たない)。"""
+        range_check.setEnabled(not checked)
+        min_spin.setEnabled((not checked) and range_check.isChecked())
+        max_spin.setEnabled((not checked) and range_check.isChecked())
+
+    def get_param_settings(self):
+        """
+        項目C-403: パラメータテーブルの内容から、calculate_curve_fit()にそのまま
+        渡せる (p0_overrides, fixed_params, bounds) の3つのdictを組み立てる。
+        パラメータテーブルが0行(フィットタイプ未確定/カスタム数式が入力途中)
+        の場合は3つとも空dictを返す。
+
+        「固定」がチェックされている行は、値欄の値をfixed_paramsに入れ、
+        p0_overrides・boundsのどちらにも含めない(「範囲拘束」がチェックされて
+        いても無視する — 固定パラメータに範囲の概念はない)。
+
+        Returns:
+            tuple(dict[str, float], dict[str, float], dict[str, tuple[float, float]]):
+            (p0_overrides, fixed_params, bounds)。何もカスタマイズしなかった
+            場合はいずれも空dict(Noneではない)。
+        """
+        p0_overrides, fixed_params, bounds = {}, {}, {}
+        for row in range(self.param_table.rowCount()):
+            name = self.param_table.item(row, 0).text()
+            value_spin = self.param_table.cellWidget(row, 1)
+            fixed_check = self.param_table.cellWidget(row, 2)
+            range_check = self.param_table.cellWidget(row, 3)
+            min_spin = self.param_table.cellWidget(row, 4)
+            max_spin = self.param_table.cellWidget(row, 5)
+
+            if fixed_check.isChecked():
+                fixed_params[name] = value_spin.value()
+                continue
+
+            if value_spin.property("_user_overridden"):
+                p0_overrides[name] = value_spin.value()
+
+            if range_check.isChecked():
+                bounds[name] = (min_spin.value(), max_spin.value())
+
+        return p0_overrides, fixed_params, bounds
+
+    def get_band_type(self):
+        """
+        項目C-405。
+        Returns:
+            str | None: "confidence" / "prediction" / (「表示しない」選択時は)None。
+        """
+        text = self.band_combo.currentText()
+        if "信頼帯" in text:
+            return "confidence"
+        if "予測帯" in text:
+            return "prediction"
+        return None
 
     def get_weighted(self):
         """Y誤差列を重みとして使うかどうか"""
@@ -841,8 +1017,12 @@ class FitDialog(QDialog):
         【スタティックメソッド】
         ダイアログをモーダルで表示し、OKが押された場合は
         (フィットタイプ名, カスタム数式またはNone, 重み付けを使うか, フィット範囲
-        またはNone) のタプルを、Cancelが押された場合は (None, None, False, None) を
-        返します。
+        またはNone, p0_overrides, fixed_params, bounds, band_type) のタプルを、
+        Cancelが押された場合は (None, None, False, None, {}, {}, {}, None) を
+        返します。p0_overrides/fixed_params/boundsは、何もカスタマイズしなかった
+        場合も(Noneではなく)空dictになります — calculate_curve_fit()にそのまま
+        キーワード引数として渡せる形です。band_type(項目C-405)は
+        "confidence"/"prediction"/(表示しない場合)None。
 
         Args:
             parent (QWidget, optional): 親ウィジェット。
@@ -850,15 +1030,20 @@ class FitDialog(QDialog):
             x_max (float, optional): フィット範囲指定欄の初期値(最大X)。
 
         Returns:
-            tuple (str|None, str|None, bool, tuple(float,float)|None):
-            (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲)
+            tuple (str|None, str|None, bool, tuple(float,float)|None,
+                   dict[str,float], dict[str,float], dict[str,tuple[float,float]],
+                   str|None):
+            (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲,
+             p0_overrides, fixed_params, bounds, band_type)
         """
         dialog = FitDialog(parent, x_min=x_min, x_max=x_max)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             fit_type = dialog.fit_type_combo.currentText()
             custom_formula = dialog.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
-            return fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range()
-        return None, None, False, None
+            p0_overrides, fixed_params, bounds = dialog.get_param_settings()
+            return (fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range(),
+                    p0_overrides, fixed_params, bounds, dialog.get_band_type())
+        return None, None, False, None, {}, {}, {}, None
 
 
 #==============================================================================
@@ -1934,6 +2119,394 @@ class SavGolDialog(QDialog):
             self.window_spinbox.value(),
             self.polyorder_spinbox.value(),
             self._DERIV_BY_MODE[mode],
+            self.output_name_edit.text().strip(),
+        )
+
+
+class BaselineCorrectionDialog(QDialog):
+    """
+    ベースライン補正(項目C-308)の設定を入力させるダイアログ。
+    ALS/多項式/ラバーバンド/手動点の4手法をコンボボックスで切り替え、
+    QStackedWidgetで手法ごとのパラメータ欄を切り替える(BatchExportDialogの
+    モード切り替えと同じ構成)。ラバーバンドはパラメータを持たない。
+    """
+
+    METHOD_ALS = "ALS(Asymmetric Least Squares)"
+    METHOD_POLYNOMIAL = "多項式(反復フィット)"
+    METHOD_RUBBERBAND = "ラバーバンド(下側凸包)"
+    METHOD_MANUAL = "手動点"
+    METHODS = [METHOD_ALS, METHOD_POLYNOMIAL, METHOD_RUBBERBAND, METHOD_MANUAL]
+
+    _MANUAL_LINEAR = "直線"
+    _MANUAL_SPLINE = "3次スプライン"
+
+    def __init__(self, name, x_min=None, x_max=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("ベースライン補正")
+        self.resize(420, 440)
+        self._name = name
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        method_form = QFormLayout()
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(self.METHODS)
+        method_form.addRow("手法", self.method_combo)
+        layout.addLayout(method_form)
+
+        self.stack = QStackedWidget()
+        layout.addWidget(self.stack)
+
+        # --- ALS ---
+        als_page = QWidget()
+        als_form = QFormLayout(als_page)
+        self.als_lam_spinbox = QDoubleSpinBox()
+        self.als_lam_spinbox.setRange(1.0, 1e12)
+        self.als_lam_spinbox.setDecimals(0)
+        self.als_lam_spinbox.setValue(1e5)
+        als_form.addRow("lam(平滑さ)", self.als_lam_spinbox)
+        self.als_p_spinbox = QDoubleSpinBox()
+        self.als_p_spinbox.setRange(0.0001, 0.9999)
+        self.als_p_spinbox.setDecimals(4)
+        self.als_p_spinbox.setSingleStep(0.001)
+        self.als_p_spinbox.setValue(0.01)
+        als_form.addRow("p(非対称重み)", self.als_p_spinbox)
+        self.als_niter_spinbox = QSpinBox()
+        self.als_niter_spinbox.setRange(1, 1000)
+        self.als_niter_spinbox.setValue(10)
+        als_form.addRow("反復回数", self.als_niter_spinbox)
+        self.stack.addWidget(als_page)
+
+        # --- 多項式 ---
+        poly_page = QWidget()
+        poly_form = QFormLayout(poly_page)
+        self.poly_degree_spinbox = QSpinBox()
+        self.poly_degree_spinbox.setRange(0, 10)
+        self.poly_degree_spinbox.setValue(3)
+        poly_form.addRow("次数", self.poly_degree_spinbox)
+        self.poly_iterations_spinbox = QSpinBox()
+        self.poly_iterations_spinbox.setRange(1, 1000)
+        self.poly_iterations_spinbox.setValue(10)
+        poly_form.addRow("反復回数", self.poly_iterations_spinbox)
+        self.stack.addWidget(poly_page)
+
+        # --- ラバーバンド(パラメータなし) ---
+        rubberband_page = QWidget()
+        rubberband_layout = QVBoxLayout(rubberband_page)
+        rubberband_info = QLabel(
+            "データ点群の下側凸包(convex hull)を結んだ曲線をベースラインとします。"
+            "設定できるパラメータはありません。"
+        )
+        rubberband_info.setWordWrap(True)
+        rubberband_layout.addWidget(rubberband_info)
+        rubberband_layout.addStretch()
+        self.stack.addWidget(rubberband_page)
+
+        # --- 手動点 ---
+        manual_page = QWidget()
+        manual_layout = QVBoxLayout(manual_page)
+        manual_layout.addWidget(QLabel("アンカー点のX座標をカンマ区切りで入力してください(2点以上):"))
+        self.manual_anchor_edit = QPlainTextEdit()
+        self.manual_anchor_edit.setPlaceholderText("例: 0, 20, 50, 80, 100")
+        if x_min is not None and x_max is not None:
+            self.manual_anchor_edit.setPlainText(f"{x_min:g}, {x_max:g}")
+        self.manual_anchor_edit.setMaximumHeight(60)
+        manual_layout.addWidget(self.manual_anchor_edit)
+        manual_method_form = QFormLayout()
+        self.manual_method_combo = QComboBox()
+        self.manual_method_combo.addItems([self._MANUAL_LINEAR, self._MANUAL_SPLINE])
+        manual_method_form.addRow("補間方法", self.manual_method_combo)
+        manual_layout.addLayout(manual_method_form)
+        manual_info = QLabel(
+            "各アンカー点のYは、指定したX位置での実データを線形補間して自動的に求めます"
+            "(3次スプラインには3点以上必要です)。"
+        )
+        manual_info.setWordWrap(True)
+        manual_layout.addWidget(manual_info)
+        manual_layout.addStretch()
+        self.stack.addWidget(manual_page)
+
+        self.method_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+
+        form = QFormLayout()
+        self.output_name_edit = QLineEdit(f"{name}_baseline_corrected")
+        form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(form)
+
+        self.add_baseline_checkbox = QCheckBox("推定したベースライン曲線も別データセットとして追加する")
+        layout.addWidget(self.add_baseline_checkbox)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, dict, str, bool):
+                (手法("als"|"polynomial"|"rubberband"|"manual"),
+                 手法別パラメータのdict(calculate_baseline_xxxへそのままkwargsとして
+                 渡せる形。"manual"のみ anchor_x ではなく anchor_x_text(未パース
+                 の生テキスト)と method("linear"|"spline")を含む。数値パースは
+                 呼び出し側(_on_baseline_correction_dataset)が行い、書式エラー
+                 を利用者にわかりやすく伝える),
+                 出力データセット名,
+                 ベースライン曲線も別データセットとして追加するか)
+        """
+        method_text = self.method_combo.currentText()
+        if method_text == self.METHOD_ALS:
+            method = "als"
+            params = {
+                "lam": self.als_lam_spinbox.value(),
+                "p": self.als_p_spinbox.value(),
+                "niter": self.als_niter_spinbox.value(),
+            }
+        elif method_text == self.METHOD_POLYNOMIAL:
+            method = "polynomial"
+            params = {
+                "degree": self.poly_degree_spinbox.value(),
+                "iterations": self.poly_iterations_spinbox.value(),
+            }
+        elif method_text == self.METHOD_RUBBERBAND:
+            method = "rubberband"
+            params = {}
+        else:
+            method = "manual"
+            params = {
+                "anchor_x_text": self.manual_anchor_edit.toPlainText(),
+                "method": "spline" if self.manual_method_combo.currentText() == self._MANUAL_SPLINE else "linear",
+            }
+        return method, params, self.output_name_edit.text().strip(), self.add_baseline_checkbox.isChecked()
+
+
+# カスタムダイアログクラス: 区間積分(項目C-311)
+class IntervalIntegralDialog(QDialog):
+    """
+    区間積分(項目C-311)の設定を入力させるダイアログ。
+
+    真のグラフ上ドラッグ選択(項目C-909、未実装)ではなく、FitDialog(項目C-404、
+    フィット範囲の指定)と同じ「数値でXの範囲を指定する」UXを踏襲する。
+    最小/最大XはQDoubleSpinBoxで、ダイアログを開いた時点で対象データセットの
+    実際のX範囲を初期値として埋めておく(そのままOKすればデータセット全体を
+    積分できる)。
+    """
+
+    METHOD_TRAPEZOID = "台形則(Trapezoidal)"
+    METHOD_SIMPSON = "Simpson則"
+    METHODS = [METHOD_TRAPEZOID, METHOD_SIMPSON]
+    _METHOD_KEY_BY_LABEL = {METHOD_TRAPEZOID: "trapezoid", METHOD_SIMPSON: "simpson"}
+
+    def __init__(self, name, x_min=None, x_max=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("区間積分")
+        self.resize(380, 260)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        form = QFormLayout()
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(self.METHODS)
+        form.addRow("積分方法", self.method_combo)
+
+        self.range_min_spinbox = QDoubleSpinBox()
+        self.range_min_spinbox.setRange(-1e12, 1e12)
+        self.range_min_spinbox.setDecimals(6)
+        if x_min is not None:
+            self.range_min_spinbox.setValue(x_min)
+        form.addRow("最小X", self.range_min_spinbox)
+
+        self.range_max_spinbox = QDoubleSpinBox()
+        self.range_max_spinbox.setRange(-1e12, 1e12)
+        self.range_max_spinbox.setDecimals(6)
+        if x_max is not None:
+            self.range_max_spinbox.setValue(x_max)
+        form.addRow("最大X", self.range_max_spinbox)
+        layout.addLayout(form)
+
+        self.subtract_baseline_checkbox = QCheckBox(
+            "ベースラインを差し引く(範囲の両端を結ぶ直線を差し引いてから積分)"
+        )
+        self.subtract_baseline_checkbox.setToolTip(
+            "積分範囲の両端のY値(実データを線形補間して求めた値)を結ぶ直線を\n"
+            "ベースラインとしてYから差し引いてから積分します。\n"
+            "スペクトルのピーク面積など「傾いた背景の上のピーク」を求める用途向けの\n"
+            "簡易オプションです。ALS等の本格的なベースライン補正を使いたい場合は、\n"
+            "先に「ベースライン補正...」で補正したデータセットに対してこの機能を\n"
+            "使ってください。"
+        )
+        layout.addWidget(self.subtract_baseline_checkbox)
+
+        info_label = QLabel(
+            "台形則・Simpson則いずれもデータ点数の偶奇による制約はありません。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, tuple(float, float), bool):
+                (積分方法("trapezoid"|"simpson"), (最小X, 最大X), ベースラインを差し引くか)
+        """
+        method_text = self.method_combo.currentText()
+        method = self._METHOD_KEY_BY_LABEL[method_text]
+        x_range = (self.range_min_spinbox.value(), self.range_max_spinbox.value())
+        return method, x_range, self.subtract_baseline_checkbox.isChecked()
+
+
+class ResampleDatasetDialog(QDialog):
+    """
+    共通X格子へのリサンプリング/補間(項目C-305)の設定を入力させるダイアログ。
+
+    対象のグリッド(リサンプリング先のX格子)を「他のデータセットのX格子」または
+    「等間隔グリッド」のいずれかから選ばせる。BaselineCorrectionDialogと同じく
+    QStackedWidgetで選択肢ごとの入力欄を切り替える。
+    「他のデータセットのX格子」はDatasetArithmeticDialogのA/B選択と異なり、
+    ここでは対象データセット1件(カレント)に対して"もう1件"を後から選ぶ形に
+    なるため、コンボボックスで他データセット名を選ばせる(ロード中のデータセットが
+    対象1件のみの場合は選択肢がなく、その場合はこのソースを選べない)。
+    """
+
+    SOURCE_DATASET = "他のデータセットのX格子"
+    SOURCE_LINSPACE = "等間隔グリッド"
+    SOURCES = [SOURCE_DATASET, SOURCE_LINSPACE]
+
+    METHOD_LINEAR = "線形補間"
+    METHOD_CUBIC = "3次スプライン補間"
+    METHODS = [METHOD_LINEAR, METHOD_CUBIC]
+    _METHOD_KEY_BY_LABEL = {METHOD_LINEAR: "linear", METHOD_CUBIC: "cubic"}
+
+    def __init__(self, name, other_dataset_names, x_min=None, x_max=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("共通X格子へのリサンプリング/補間")
+        self.resize(420, 380)
+        self._name = name
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        source_form = QFormLayout()
+        self.source_combo = QComboBox()
+        self.source_combo.addItems(self.SOURCES)
+        source_form.addRow("リサンプリング先の格子", self.source_combo)
+        layout.addLayout(source_form)
+
+        self.stack = QStackedWidget()
+        layout.addWidget(self.stack)
+
+        # --- 他のデータセットのX格子 ---
+        dataset_page = QWidget()
+        dataset_form = QFormLayout(dataset_page)
+        self.other_dataset_combo = QComboBox()
+        self.other_dataset_combo.addItems(other_dataset_names)
+        dataset_form.addRow("データセット", self.other_dataset_combo)
+        if not other_dataset_names:
+            # 対象になり得る他のデータセットが存在しない(ロード中がこの1件のみ)。
+            # コンボが空のままOKされないよう選択肢自体を無効化しておく。
+            self.other_dataset_combo.setEnabled(False)
+            no_dataset_label = QLabel("(他に読み込まれているデータセットがありません)")
+            no_dataset_label.setWordWrap(True)
+            dataset_form.addRow(no_dataset_label)
+        self.stack.addWidget(dataset_page)
+
+        # --- 等間隔グリッド(numpy.linspace方式: 開始・終了・点数) ---
+        linspace_page = QWidget()
+        linspace_form = QFormLayout(linspace_page)
+        self.linspace_start_spinbox = QDoubleSpinBox()
+        self.linspace_start_spinbox.setRange(-1e12, 1e12)
+        self.linspace_start_spinbox.setDecimals(6)
+        if x_min is not None:
+            self.linspace_start_spinbox.setValue(x_min)
+        linspace_form.addRow("開始X", self.linspace_start_spinbox)
+
+        self.linspace_stop_spinbox = QDoubleSpinBox()
+        self.linspace_stop_spinbox.setRange(-1e12, 1e12)
+        self.linspace_stop_spinbox.setDecimals(6)
+        if x_max is not None:
+            self.linspace_stop_spinbox.setValue(x_max)
+        linspace_form.addRow("終了X", self.linspace_stop_spinbox)
+
+        self.linspace_num_points_spinbox = QSpinBox()
+        self.linspace_num_points_spinbox.setRange(2, 1_000_000)
+        self.linspace_num_points_spinbox.setValue(100)
+        linspace_form.addRow("点数", self.linspace_num_points_spinbox)
+        self.stack.addWidget(linspace_page)
+
+        self.source_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+        if not other_dataset_names:
+            # 選べる他データセットがない場合は最初から「等間隔グリッド」を既定にする。
+            self.source_combo.setCurrentText(self.SOURCE_LINSPACE)
+
+        method_form = QFormLayout()
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(self.METHODS)
+        method_form.addRow("補間方法", self.method_combo)
+        layout.addLayout(method_form)
+
+        self.extrapolate_checkbox = QCheckBox("範囲外を外挿する(既定はNaNにする)")
+        self.extrapolate_checkbox.setToolTip(
+            "元データのX範囲外にある格子点の扱いです。\n"
+            "オフ(既定): 範囲外はNaNになります(安全側)。\n"
+            "オン: 線形補間は両端の傾きで、3次スプラインはscipy標準の\n"
+            "区間多項式の延長で外挿します(いずれも範囲から離れるほど\n"
+            "不正確になりうる点に注意してください)。"
+        )
+        layout.addWidget(self.extrapolate_checkbox)
+
+        output_form = QFormLayout()
+        self.output_name_edit = QLineEdit(f"{name}_resampled")
+        output_form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(output_form)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, dict, str, bool, str):
+                (グリッドソース("dataset"|"linspace"),
+                 ソース別パラメータのdict。"dataset"なら{"dataset_name": str}、
+                 "linspace"なら{"start": float, "stop": float, "num_points": int}、
+                 補間方法("linear"|"cubic"),
+                 範囲外を外挿するか,
+                 出力データセット名)
+        """
+        source_text = self.source_combo.currentText()
+        if source_text == self.SOURCE_DATASET:
+            source = "dataset"
+            params = {"dataset_name": self.other_dataset_combo.currentText()}
+        else:
+            source = "linspace"
+            params = {
+                "start": self.linspace_start_spinbox.value(),
+                "stop": self.linspace_stop_spinbox.value(),
+                "num_points": self.linspace_num_points_spinbox.value(),
+            }
+        method_text = self.method_combo.currentText()
+        method = self._METHOD_KEY_BY_LABEL[method_text]
+        return (
+            source, params, method,
+            self.extrapolate_checkbox.isChecked(),
             self.output_name_edit.text().strip(),
         )
 

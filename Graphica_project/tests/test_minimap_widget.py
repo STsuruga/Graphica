@@ -66,6 +66,20 @@ def test_minimap_refresh_draws_one_line_per_dataset(minimap):
     assert len(minimap.ax.lines) - baseline == len(datasets)
 
 
+def test_minimap_refresh_excludes_hidden_datasets(minimap):
+    """データセットの表示/非表示トグル(項目C-907): visible=Falseのデータセットは
+    ミニマップの概観描画からも除外され、メインキャンバスと表示が食い違わないこと。"""
+    minimap.refresh([], dark_mode=False)
+    baseline = len(minimap.ax.lines)
+
+    ds_visible = _make_dataset("visible")
+    ds_hidden = _make_dataset("hidden")
+    ds_hidden.visible = False
+    minimap.refresh([ds_visible, ds_hidden], dark_mode=False)
+
+    assert len(minimap.ax.lines) - baseline == 1
+
+
 def test_minimap_refresh_applies_dark_theme_colors(minimap):
     minimap.refresh([_make_dataset("a")], dark_mode=True)
     assert minimap.ax.get_facecolor() == pytest.approx(

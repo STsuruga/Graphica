@@ -259,6 +259,163 @@ def test_fit_dialog_x_range_reflects_user_edited_spinbox_values():
     assert dlg.get_x_range() == (-3.0, 7.0)
 
 
+# --- FitDialog パラメータテーブル(項目C-403: 初期値・固定・範囲拘束UI) ---
+
+def test_fit_dialog_param_table_has_one_row_per_parameter_for_default_fit_type():
+    """既定選択(「線形」、a・bの2パラメータ)で、初期化時点でテーブルが2行になっていること。"""
+    dlg = FitDialog()
+    assert dlg.fit_type_combo.currentText() == "線形 (y = ax + b)"
+    assert dlg.param_table.rowCount() == 2
+    assert dlg.param_table.item(0, 0).text() == "a"
+    assert dlg.param_table.item(1, 0).text() == "b"
+
+
+def test_fit_dialog_param_table_rebuilds_when_fit_type_changes():
+    dlg = FitDialog()
+    dlg.fit_type_combo.setCurrentText("ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)")
+    assert dlg.param_table.rowCount() == 4
+    names = [dlg.param_table.item(row, 0).text() for row in range(4)]
+    assert names == ['a', 'b', 'c', 'd']
+
+
+@pytest.mark.parametrize("display_text, expected_names", [
+    ("ローレンツ関数 (y = a / (1 + ((x-b)/c)^2) + d)", ['a', 'b', 'c', 'd']),
+    ("擬似フォークト関数 (y = a*(η/(1+((x-b)/c)^2) + (1-η)*exp(-4ln2*((x-b)/c)^2)) + d)",
+     ['a', 'b', 'c', 'eta', 'd']),
+    ("フォークト関数 (y = a*Re[wofz((x-b+iγ)/(σ√2))] / (σ√(2π)) + d)",
+     ['a', 'b', 'sigma', 'gamma', 'd']),
+    ("2成分指数関数 (y = a1*exp(b1*x) + a2*exp(b2*x) + c)", ['a1', 'b1', 'a2', 'b2', 'c']),
+    ("ボルツマンシグモイド (y = a2 + (a1-a2) / (1 + exp((x-x0)/dx)))", ['a1', 'a2', 'x0', 'dx']),
+    ("ヒルの式 (y = vmax*x^n / (k^n + x^n))", ['vmax', 'k', 'n']),
+])
+def test_fit_dialog_combo_includes_new_builtin_models_and_rebuilds_param_table(display_text, expected_names):
+    """項目C-408: 新規追加した組み込みモデル(Voigt/pseudo-Voigt/Lorentzian/
+    2成分指数/Boltzmannシグモイド/Hill)がコンボボックスの選択肢に含まれており、
+    選択するとパラメータテーブルが対応する行数・パラメータ名で再構築されること。"""
+    dlg = FitDialog()
+    items = [dlg.fit_type_combo.itemText(i) for i in range(dlg.fit_type_combo.count())]
+    assert display_text in items
+    dlg.fit_type_combo.setCurrentText(display_text)
+    assert dlg.param_table.rowCount() == len(expected_names)
+    names = [dlg.param_table.item(row, 0).text() for row in range(len(expected_names))]
+    assert names == expected_names
+
+
+def test_fit_dialog_param_table_empty_for_untouched_custom_formula():
+    """「カスタム数式...」を選んだ直後(数式は未入力)は0行であること。"""
+    dlg = FitDialog()
+    dlg.fit_type_combo.setCurrentText("カスタム数式...")
+    assert dlg.param_table.rowCount() == 0
+
+
+def test_fit_dialog_param_table_rebuilds_as_custom_formula_is_typed():
+    dlg = FitDialog()
+    dlg.fit_type_combo.setCurrentText("カスタム数式...")
+    dlg.custom_formula_edit.setText("a*exp(-b*x)+c")
+    assert dlg.param_table.rowCount() == 3
+    names = [dlg.param_table.item(row, 0).text() for row in range(3)]
+    assert names == ['a', 'b', 'c']
+
+
+def test_fit_dialog_param_table_does_not_crash_on_invalid_formula_midway():
+    """数式がパラメータを含まない(パース不能)入力途中の状態でも例外を投げず、
+    単に0行になること。"""
+    dlg = FitDialog()
+    dlg.fit_type_combo.setCurrentText("カスタム数式...")
+    dlg.custom_formula_edit.setText("42")
+    assert dlg.param_table.rowCount() == 0
+    # その後、有効な数式に修正すれば正しく再構築される
+    dlg.custom_formula_edit.setText("42*x+a")
+    assert dlg.param_table.rowCount() == 1
+    assert dlg.param_table.item(0, 0).text() == "a"
+
+
+def test_fit_dialog_get_param_settings_defaults_to_empty_dicts():
+    """何もカスタマイズしなければ、p0_overrides/fixed_params/boundsはすべて空dict。"""
+    dlg = FitDialog()
+    p0_overrides, fixed_params, bounds = dlg.get_param_settings()
+    assert p0_overrides == {}
+    assert fixed_params == {}
+    assert bounds == {}
+
+
+def test_fit_dialog_get_param_settings_untouched_value_spinbox_not_in_p0_overrides():
+    """値欄をユーザーが一度も触らなければ(デフォルトの1.0のままでも)
+    p0_overridesには含めない(=フィットタイプごとの自動推定デフォルトを使う)。"""
+    dlg = FitDialog()
+    p0_overrides, _, _ = dlg.get_param_settings()
+    assert 'a' not in p0_overrides
+    assert 'b' not in p0_overrides
+
+
+def test_fit_dialog_get_param_settings_reflects_p0_override():
+    dlg = FitDialog()
+    value_spin_a = dlg.param_table.cellWidget(0, 1)
+    value_spin_a.setValue(3.5)
+    p0_overrides, fixed_params, bounds = dlg.get_param_settings()
+    assert p0_overrides == {'a': 3.5}
+    assert fixed_params == {}
+
+
+def test_fit_dialog_get_param_settings_reflects_fixed_param():
+    dlg = FitDialog()
+    value_spin_b = dlg.param_table.cellWidget(1, 1)
+    fixed_check_b = dlg.param_table.cellWidget(1, 2)
+    value_spin_b.setValue(2.0)
+    fixed_check_b.setChecked(True)
+    p0_overrides, fixed_params, bounds = dlg.get_param_settings()
+    assert fixed_params == {'b': 2.0}
+    # 固定された行は(値欄を触っていても)p0_overrides/boundsには入らない
+    assert 'b' not in p0_overrides
+    assert 'b' not in bounds
+
+
+def test_fit_dialog_get_param_settings_reflects_bounds():
+    dlg = FitDialog()
+    range_check_a = dlg.param_table.cellWidget(0, 3)
+    min_spin_a = dlg.param_table.cellWidget(0, 4)
+    max_spin_a = dlg.param_table.cellWidget(0, 5)
+    range_check_a.setChecked(True)
+    min_spin_a.setValue(-2.0)
+    max_spin_a.setValue(5.0)
+    p0_overrides, fixed_params, bounds = dlg.get_param_settings()
+    assert bounds == {'a': (-2.0, 5.0)}
+
+
+def test_fit_dialog_fixed_checkbox_disables_range_controls():
+    """「固定」チェックを入れると「範囲拘束」チェックと最小/最大欄が無効化されること
+    (固定パラメータには範囲拘束の概念が適用されないため)。"""
+    dlg = FitDialog()
+    fixed_check_a = dlg.param_table.cellWidget(0, 2)
+    range_check_a = dlg.param_table.cellWidget(0, 3)
+    min_spin_a = dlg.param_table.cellWidget(0, 4)
+    max_spin_a = dlg.param_table.cellWidget(0, 5)
+
+    range_check_a.setChecked(True)
+    assert min_spin_a.isEnabled() is True
+    assert max_spin_a.isEnabled() is True
+
+    fixed_check_a.setChecked(True)
+    assert range_check_a.isEnabled() is False
+    assert min_spin_a.isEnabled() is False
+    assert max_spin_a.isEnabled() is False
+
+    fixed_check_a.setChecked(False)
+    assert range_check_a.isEnabled() is True
+
+
+def test_fit_dialog_min_max_spinboxes_disabled_until_range_checked():
+    dlg = FitDialog()
+    min_spin_a = dlg.param_table.cellWidget(0, 4)
+    max_spin_a = dlg.param_table.cellWidget(0, 5)
+    range_check_a = dlg.param_table.cellWidget(0, 3)
+    assert min_spin_a.isEnabled() is False
+    assert max_spin_a.isEnabled() is False
+    range_check_a.setChecked(True)
+    assert min_spin_a.isEnabled() is True
+    assert max_spin_a.isEnabled() is True
+
+
 # --- SavGolDialog (項目C-301: 平滑化, C-302: 微分) ---
 
 def test_savgol_dialog_defaults_to_smoothing():
@@ -1034,11 +1191,18 @@ def test_fit_dialog_custom_formula_fields_shown_when_custom_selected(qapp):
 
 def test_fit_dialog_get_fit_type_accepted_builtin(monkeypatch):
     monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
-    fit_type, custom_formula, weighted, x_range = FitDialog.get_fit_type(parent=None)
+    (fit_type, custom_formula, weighted, x_range,
+     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
     assert fit_type == "線形 (y = ax + b)"
     assert custom_formula is None
     assert weighted is False
     assert x_range is None
+    # 項目C-403: 何もカスタマイズしなければ空dict(Noneではない)
+    assert p0_overrides == {}
+    assert fixed_params == {}
+    assert bounds == {}
+    # 項目C-405: 既定は「表示しない」= None
+    assert band_type is None
 
 
 def test_fit_dialog_get_fit_type_accepted_custom_formula(monkeypatch):
@@ -1048,15 +1212,53 @@ def test_fit_dialog_get_fit_type_accepted_custom_formula(monkeypatch):
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(FitDialog, "exec", fake_exec)
-    fit_type, custom_formula, weighted, x_range = FitDialog.get_fit_type(parent=None)
+    (fit_type, custom_formula, weighted, x_range,
+     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
     assert "カスタム数式" in fit_type
     assert custom_formula == "a*x+b"
+
+
+def test_fit_dialog_get_fit_type_accepted_with_param_customization(monkeypatch):
+    """項目C-403: OK時にパラメータテーブルの内容(初期値上書き/固定/範囲拘束)が
+    get_fit_type()の戻り値に反映されること。"""
+    def fake_exec(self):
+        # 線形(a, b)のうち、aを範囲拘束、bを固定する
+        range_check_a = self.param_table.cellWidget(0, 3)
+        min_spin_a = self.param_table.cellWidget(0, 4)
+        max_spin_a = self.param_table.cellWidget(0, 5)
+        range_check_a.setChecked(True)
+        min_spin_a.setValue(-1.0)
+        max_spin_a.setValue(9.0)
+
+        value_spin_b = self.param_table.cellWidget(1, 1)
+        fixed_check_b = self.param_table.cellWidget(1, 2)
+        value_spin_b.setValue(0.5)
+        fixed_check_b.setChecked(True)
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(FitDialog, "exec", fake_exec)
+    (fit_type, custom_formula, weighted, x_range,
+     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
+    assert fixed_params == {'b': 0.5}
+    assert bounds == {'a': (-1.0, 9.0)}
+    assert p0_overrides == {}
+
+
+def test_fit_dialog_get_fit_type_accepted_with_band_type(monkeypatch):
+    """項目C-405: 信頼帯/予測帯コンボの選択がget_fit_type()の戻り値に反映されること。"""
+    def fake_exec(self):
+        self.band_combo.setCurrentText("予測帯 (95%)")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(FitDialog, "exec", fake_exec)
+    result = FitDialog.get_fit_type(parent=None)
+    assert result[-1] == "prediction"
 
 
 def test_fit_dialog_get_fit_type_rejected_returns_none_tuple(monkeypatch):
     monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
     result = FitDialog.get_fit_type(parent=None)
-    assert result == (None, None, False, None)
+    assert result == (None, None, False, None, {}, {}, {}, None)
 
 
 # --- ColumnCalculatorDialog(列の計算プリセット) ---

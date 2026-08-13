@@ -11,6 +11,7 @@ _on_normalize_dataset はモーダルダイアログ (NormalizeDatasetDialog) �
 呼ばずに設定値を返すだけの軽量なフェイクに差し替える。
 """
 import os
+import re
 
 import numpy as np
 import pandas as pd
@@ -24,10 +25,11 @@ from gui.main_window import PlotterApp
 from gui.dialogs import (
     NormalizeDatasetDialog, PluginParamDialog, FitDialog, PeakSettingsDialog,
     DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
-    NewDatasetDialog,
+    NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, ResampleDatasetDialog,
 )
 from core.dataset import Dataset
 from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
+from gui.dataset_style_icon import DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -123,11 +125,21 @@ def _patch_new_dataset_dialog(monkeypatch, name, column_names, row_count, accept
     monkeypatch.setattr(dataset_mixin_module, "NewDatasetDialog", FakeNewDatasetDialog)
 
 
-def _patch_fit_dialog(monkeypatch, fit_type, custom_formula=None, use_weighted=False, x_range=None):
-    """FitDialog.get_fit_type (staticmethod) をモーダル表示なしのフェイクに差し替える"""
+def _patch_fit_dialog(monkeypatch, fit_type, custom_formula=None, use_weighted=False, x_range=None,
+                       p0_overrides=None, fixed_params=None, bounds=None, band_type=None):
+    """
+    FitDialog.get_fit_type (staticmethod) をモーダル表示なしのフェイクに差し替える。
+    p0_overrides/fixed_params/bounds(項目C-403)は省略時、実際のFitDialog.get_fit_type
+    のキャンセル/未カスタマイズ時と同じ「空dict」を返す(Noneではない)。
+    band_type(項目C-405)は省略時None("表示しない"相当)。
+    """
+    result = (
+        fit_type, custom_formula, use_weighted, x_range,
+        p0_overrides or {}, fixed_params or {}, bounds or {}, band_type,
+    )
     monkeypatch.setattr(
         dataset_mixin_module.FitDialog, "get_fit_type",
-        staticmethod(lambda *a, **k: (fit_type, custom_formula, use_weighted, x_range))
+        staticmethod(lambda *a, **k: result)
     )
 
 
@@ -1506,6 +1518,192 @@ def test_savgol_success_derivative_adds_dataset(tmp_path, monkeypatch):
 
 
 # =============================================================================
+# ベースライン補正 (_on_baseline_correction_dataset, 項目C-308)
+# =============================================================================
+
+def _make_baseline_dataset(n=50):
+    x = np.linspace(0, 10, n)
+    y = 0.5 * x + 3.0 + np.where(np.abs(x - 5) < 1, 2.0, 0.0)  # 傾いたベースライン+段差(ピーク代わり)
+    df = pd.DataFrame({'x': x, 'y': y})
+    return Dataset(name="spectrum", df=df, x_col_name='x', y_col_name='y')
+
+
+def test_baseline_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    before_count = len(window.project.datasets)
+    window._on_baseline_correction_dataset()
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_insufficient_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1], 'y': [0.0, 1.0]})
+    ds = Dataset(name="spectrum", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(warnings) == 1
+
+
+def test_baseline_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("als", {"lam": 1e5, "p": 0.01, "niter": 10}, "spectrum_corrected", False),
+        accepted=False,
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_empty_output_name_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("als", {"lam": 1e5, "p": 0.01, "niter": 10}, "", False)
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_calculation_error_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("als", {"lam": 1e5, "p": 0.01, "niter": 10}, "spectrum_corrected", False)
+    )
+
+    def raiser(*a, **k):
+        raise ValueError("lamは正の値である必要があります")
+
+    monkeypatch.setattr(dataset_mixin_module, "calculate_baseline_als", raiser)
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_als_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("als", {"lam": 1e5, "p": 0.01, "niter": 10}, "spectrum_corrected", False)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == "spectrum_corrected"
+    assert len(new_ds.y_data) == len(ds.y_data)
+
+
+def test_baseline_polynomial_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("polynomial", {"degree": 1, "iterations": 10}, "spectrum_poly", False)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    assert window.project.datasets[-1].name == "spectrum_poly"
+
+
+def test_baseline_rubberband_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("rubberband", {}, "spectrum_rubberband", False)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    assert window.project.datasets[-1].name == "spectrum_rubberband"
+
+
+def test_baseline_manual_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("manual", {"anchor_x_text": "0, 10", "method": "linear"}, "spectrum_manual", False)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    assert window.project.datasets[-1].name == "spectrum_manual"
+
+
+def test_baseline_manual_invalid_anchor_text_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("manual", {"anchor_x_text": "abc, def", "method": "linear"}, "spectrum_manual", False)
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_add_baseline_curve_checkbox_adds_two_datasets(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("rubberband", {}, "spectrum_rubberband", True)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 2
+    names = [d.name for d in window.project.datasets[-2:]]
+    assert "spectrum_rubberband" in names
+    assert "spectrum_rubberband_baseline" in names
+
+
+# =============================================================================
 # バッチ列計算 (_on_batch_column_calculate)
 # =============================================================================
 
@@ -1655,6 +1853,10 @@ def test_batch_curve_fit_success_adds_fit_dataset_per_selected(tmp_path, monkeyp
     new_names = {ds.name for ds in window.project.datasets[before_count:]}
     assert new_names == {"Fit (d0)", "Fit (d1)"}
     assert len(info_calls) == 1
+    # 項目C-401: バッチフィットでも各結果がfit_resultとして構造化保持されること
+    for ds in window.project.datasets[before_count:]:
+        assert ds.fit_result is not None
+        assert ds.fit_result['fit_type'] == "線形 (y = ax + b)"
 
 
 def test_batch_curve_fit_partial_failure_reports_both(tmp_path, monkeypatch):
@@ -2280,6 +2482,56 @@ def test_select_dataset_with_fit_info_shows_fit_panel(tmp_path, monkeypatch):
     assert window.fit_info_textedit.toPlainText() == ds.fit_info
 
 
+def test_select_fit_dataset_refreshes_residual_panel(tmp_path, monkeypatch):
+    """項目C-406: fit_resultを持つデータセットを選択すると、残差プロット
+    パネルにその残差が反映されること(_update_ui_state経由)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    ds.fit_result = {
+        'fit_type': '線形 (y = ax + b)',
+        'param_names': ['a', 'b'], 'params': [2.0, 1.0], 'param_errors': [0.1, 0.1],
+        'residual_x': [0.0, 1.0, 2.0], 'residuals': [0.1, -0.2, 0.05],
+    }
+    _add_and_select_dataset(window, ds)
+
+    # ★ residual_dock_widgetは既定で非表示のため、その祖先を含めた
+    # isVisible()ではなくisVisibleTo(親)でパネル内部の表示状態だけを見る
+    # (ドック自体を開くかどうかはユーザー操作であり、ここで検証したいのは
+    # 「開いた場合に中身が正しく切り替わるか」というロジックのみ)。
+    assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is True
+    assert window.residual_panel.placeholder_label.isVisibleTo(window.residual_panel) is False
+
+
+def test_select_dataset_without_fit_result_shows_residual_placeholder(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    assert window.residual_panel.placeholder_label.isVisibleTo(window.residual_panel) is True
+    assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is False
+
+
+def test_deselecting_dataset_resets_residual_panel_to_placeholder(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    ds.fit_result = {
+        'param_names': ['a'], 'params': [1.0], 'param_errors': [0.1],
+        'residual_x': [0.0, 1.0], 'residuals': [0.1, 0.2],
+    }
+    _add_and_select_dataset(window, ds)
+    assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is True
+
+    window.ui.dataset_list_widget.setCurrentItem(None)
+
+    assert window.residual_panel.placeholder_label.isVisibleTo(window.residual_panel) is True
+    assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is False
+
+
+def test_residual_dock_widget_exists_and_hidden_by_default(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.residual_dock_widget.isHidden() is True
+
+
 def test_stats_summary_all_nan_shows_placeholder(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     df = pd.DataFrame({'x': [0, 1, 2], 'y': [np.nan, np.nan, np.nan]})
@@ -2520,6 +2772,18 @@ def test_fit_curve_success_adds_fit_dataset_and_shows_result(tmp_path, monkeypat
     assert new_ds.fit_info is not None
     assert window.fit_result_dialog is not None
 
+    # 項目C-401: fit_infoの表示文字列だけでなく、後続機能が再利用できる
+    # 構造化フィット結果もあわせて保持されていること
+    assert new_ds.fit_result is not None
+    assert new_ds.fit_result['fit_type'] == "線形 (y = ax + b)"
+    assert new_ds.fit_result['param_names'] == ['a', 'b']
+    assert len(new_ds.fit_result['params']) == 2
+    assert len(new_ds.fit_result['param_errors']) == 2
+    assert new_ds.fit_result['weighted'] is False
+    assert new_ds.fit_result['x_range'] is None
+    assert new_ds.fit_result['source_dataset_id'] == ds.dataset_id
+    assert new_ds.fit_result['source_dataset_name'] == "d0"
+
     parent_item = window._get_dataset_tree_item(ds).parent()
     fit_item_parent = window._get_dataset_tree_item(new_ds).parent()
     assert fit_item_parent == parent_item
@@ -2556,6 +2820,8 @@ def test_fit_curve_with_weighted_and_x_range(tmp_path, monkeypatch):
     new_ds = window.project.datasets[-1]
     assert "重みとして使用" in new_ds.fit_info
     assert "フィット範囲" in new_ds.fit_info
+    assert new_ds.fit_result['weighted'] is True
+    assert new_ds.fit_result['x_range'] == [x_range[0], x_range[1]]
 
 
 def test_fit_curve_calculation_error_shows_warning(tmp_path, monkeypatch):
@@ -2575,6 +2841,302 @@ def test_fit_curve_calculation_error_shows_warning(tmp_path, monkeypatch):
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
+
+
+# --- パラメータの初期値・固定・範囲拘束UI(項目C-403) ---
+
+def test_fit_curve_with_fixed_param_holds_value_and_is_recorded(tmp_path, monkeypatch):
+    """FitDialogでbを真の値に固定した場合、aだけが自由パラメータとして
+    正しく収束し、fit_result['fixed_params']にprovenanceとして記録されること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", slope=2.5, intercept=1.3, n=20)
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", fixed_params={"b": 1.3})
+
+    window._on_fit_curve()
+
+    new_ds = window.project.datasets[-1]
+    a_index = new_ds.fit_result['param_names'].index('a')
+    b_index = new_ds.fit_result['param_names'].index('b')
+    assert new_ds.fit_result['params'][b_index] == pytest.approx(1.3)
+    assert new_ds.fit_result['params'][a_index] == pytest.approx(2.5, abs=1e-6)
+    assert new_ds.fit_result['param_errors'][b_index] == 0.0
+    assert new_ds.fit_result['fixed_params'] == {"b": 1.3}
+    assert "固定" in new_ds.fit_info
+
+
+def test_fit_curve_with_p0_overrides_and_bounds_recorded(tmp_path, monkeypatch):
+    """p0_overrides/boundsもfit_resultにprovenanceとして記録され、
+    フィット自体は正常に完了すること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", slope=2.5, intercept=1.3, n=20)
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(
+        monkeypatch, "線形 (y = ax + b)",
+        p0_overrides={"a": 1.0}, bounds={"a": (0.0, 10.0)},
+    )
+
+    window._on_fit_curve()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.fit_result['p0_overrides'] == {"a": 1.0}
+    assert new_ds.fit_result['bounds'] == {"a": [0.0, 10.0]}
+    a_index = new_ds.fit_result['param_names'].index('a')
+    assert new_ds.fit_result['params'][a_index] == pytest.approx(2.5, abs=1e-3)
+    assert "範囲拘束" in new_ds.fit_info
+
+
+def test_fit_curve_without_customization_records_empty_dicts(tmp_path, monkeypatch):
+    """C-403のオプションを何も使わなかった場合、fit_result内のp0_overrides/
+    fixed_params/boundsはNoneではなく空dictであること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+
+    window._on_fit_curve()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.fit_result['p0_overrides'] == {}
+    assert new_ds.fit_result['fixed_params'] == {}
+    assert new_ds.fit_result['bounds'] == {}
+
+
+def test_fit_curve_with_band_type_adds_band_columns_and_flag(tmp_path, monkeypatch):
+    """項目C-405: band_typeを指定すると、フィットデータセットのdfに
+    y_lower/y_upper列が追加され、fit_band_displayが設定されること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", n=20)
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", band_type="confidence")
+
+    window._on_fit_curve()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.fit_band_display == "confidence"
+    assert 'y_lower' in new_ds.df.columns
+    assert 'y_upper' in new_ds.df.columns
+    assert (new_ds.df['y_lower'] <= new_ds.df['y_upper']).all()
+
+
+def test_fit_curve_without_band_type_adds_no_band_columns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+
+    window._on_fit_curve()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.fit_band_display is None
+    assert 'y_lower' not in new_ds.df.columns
+    assert 'y_upper' not in new_ds.df.columns
+
+
+def test_batch_curve_fit_applies_fixed_params_to_all_datasets(tmp_path, monkeypatch):
+    """バッチカーブフィットでも、1回だけ選んだfixed_params設定が選択中の
+    全データセットに同じ条件で適用されること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [
+        _make_linear_dataset("d0", slope=2.0, intercept=1.3, n=20),
+        _make_linear_dataset("d1", slope=5.0, intercept=1.3, n=20),
+    ]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", fixed_params={"b": 1.3})
+    _patch_info_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_batch_curve_fit()
+
+    assert len(window.project.datasets) == before_count + 2
+    for new_ds in window.project.datasets[-2:]:
+        b_index = new_ds.fit_result['param_names'].index('b')
+        assert new_ds.fit_result['params'][b_index] == pytest.approx(1.3)
+        assert new_ds.fit_result['param_errors'][b_index] == 0.0
+        assert new_ds.fit_result['fixed_params'] == {"b": 1.3}
+
+
+def test_fit_curve_fixed_params_validation_error_shows_warning(tmp_path, monkeypatch):
+    """全パラメータを固定するなど、calculate_curve_fit側のバリデーションに
+    ひっかかるケースでも(素の例外ではなく)警告ダイアログで処理されること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(
+        monkeypatch, "線形 (y = ax + b)", fixed_params={"a": 2.0, "b": 1.0},
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_fit_curve()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+# =============================================================================
+# フィット結果のエクスポート (_on_export_fit_result / _burn_fit_result_annotation, 項目C-413)
+# =============================================================================
+
+def test_context_menu_export_fit_action_disabled_for_plain_dataset(tmp_path, monkeypatch):
+    """フィット結果を持たない通常のデータセットでは、メニュー項目はグレーアウトされる"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    action = _RecordingMenu.last_instance.actions_by_text["フィット結果のエクスポート..."]
+    assert action.isEnabled() is False
+
+
+def test_context_menu_export_fit_action_enabled_for_fit_dataset(tmp_path, monkeypatch):
+    """曲線フィットで生成したデータセット(fit_result保持)を選択中は有効になる"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    window._on_fit_curve()
+    fit_ds = window.project.datasets[-1]
+    _select_items(window, [fit_ds])  # 既存アイテムをカレントにする(再追加しない)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    action = _RecordingMenu.last_instance.actions_by_text["フィット結果のエクスポート..."]
+    assert action.isEnabled() is True
+
+
+def test_export_fit_result_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_export_fit_result()
+    assert window.fit_result_dialog is None
+
+
+def test_export_fit_result_without_fit_result_shows_info_and_no_crash(tmp_path, monkeypatch):
+    """fit_resultを持たないデータセットを選択した状態で呼んでも、
+    クラッシュせず親切な案内ダイアログが出るだけであること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    info_calls = _patch_info_capture(monkeypatch)
+
+    window._on_export_fit_result()
+
+    assert len(info_calls) == 1
+    assert window.fit_result_dialog is None
+
+
+def test_export_fit_result_reuses_stored_result_without_recompute(tmp_path, monkeypatch):
+    """dataset.fit_result (項目C-401で永続化済み) だけから結果を再構成し、
+    calculate_curve_fit() を一切呼び出さないこと(再フィットしないことの証明として、
+    再度呼ばれたら例外を送出するようにモンキーパッチする)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", slope=2.0, intercept=1.0, n=20)
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    window._on_fit_curve()
+    fit_ds = window.project.datasets[-1]
+    original_fit_result = fit_ds.fit_result
+    _select_items(window, [fit_ds])
+
+    def raiser(*a, **k):
+        raise AssertionError("calculate_curve_fit() が再フィットのため呼び出された(再計算してはいけない)")
+
+    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", raiser)
+    _patch_question_yes(monkeypatch, accept=False)  # 注釈焼き込みはこのテストでは対象外
+
+    window._on_export_fit_result()
+
+    assert window.fit_result_dialog is not None
+    dialog = window.fit_result_dialog
+    assert "線形 (y = ax + b)" in dialog.text_edit.toPlainText()
+    for param_name in original_fit_result['param_names']:
+        assert param_name in dialog.text_edit.toPlainText()
+    assert dialog.csv_data is not None
+    assert list(dialog.csv_data['パラメータ']) == original_fit_result['param_names'] + ['R^2']
+    np.testing.assert_allclose(
+        list(dialog.csv_data['値']), original_fit_result['params'] + [original_fit_result['r_squared']]
+    )
+    dialog.close()
+
+
+def test_export_fit_result_declining_annotation_adds_no_annotation(tmp_path, monkeypatch):
+    """確認ダイアログで「いいえ」を選んだ場合、注釈は追加されないこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    window._on_fit_curve()
+    fit_ds = window.project.datasets[-1]
+    _select_items(window, [fit_ds])
+    axis_index = fit_ds.subplot_target
+    before_annotations = list(window.project.all_plot_settings[axis_index].get('annotations', []))
+    _patch_question_yes(monkeypatch, accept=False)
+
+    window._on_export_fit_result()
+    window.fit_result_dialog.close()
+
+    assert window.project.all_plot_settings[axis_index]['annotations'] == before_annotations
+
+
+def test_export_fit_result_burns_annotation_undoable(tmp_path, monkeypatch):
+    """確認ダイアログで「はい」を選ぶと、既存の注釈システムと同じデータモデル
+    (project.all_plot_settings[axis_index]['annotations']) にフィット結果の
+    要約テキスト注釈が追加され、Undoで取り消せること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", slope=2.0, intercept=1.0, n=20)
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    window._on_fit_curve()
+    fit_ds = window.project.datasets[-1]
+    _select_items(window, [fit_ds])
+    axis_index = fit_ds.subplot_target
+    before_annotations = list(window.project.all_plot_settings[axis_index].get('annotations', []))
+    _patch_question_yes(monkeypatch, accept=True)
+
+    window._on_export_fit_result()
+    window.fit_result_dialog.close()
+
+    after_annotations = window.project.all_plot_settings[axis_index]['annotations']
+    assert len(after_annotations) == len(before_annotations) + 1
+    new_annotation = after_annotations[-1]
+    assert new_annotation['type'] == 'text'
+    assert "線形 (y = ax + b)" in new_annotation['text']
+    assert "R^2" in new_annotation['text']
+    for param_name in fit_ds.fit_result['param_names']:
+        assert param_name in new_annotation['text']
+    # アンカーはフィット曲線データセット自身のデータ点の中央付近であること
+    mid_index = len(fit_ds.x_data) // 2
+    assert new_annotation['xy'] == (float(fit_ds.x_data[mid_index]), float(fit_ds.y_data[mid_index]))
+
+    # Undo/Redo可能(手動注釈追加と同じSetAnnotationsCommand経由)であること
+    window.undo_stack.undo()
+    assert window.project.all_plot_settings[axis_index]['annotations'] == before_annotations
+    window.undo_stack.redo()
+    assert window.project.all_plot_settings[axis_index]['annotations'] == after_annotations
+
+
+def test_export_fit_result_annotation_anchored_to_correct_subplot(tmp_path, monkeypatch):
+    """フィット対象データセットの描画先サブプロット(subplot_target)に
+    正しく注釈が積まれること(他のサブプロットの注釈リストは変化しない)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    window._on_fit_curve()
+    fit_ds = window.project.datasets[-1]
+    assert fit_ds.subplot_target == 0
+    _select_items(window, [fit_ds])
+    _patch_question_yes(monkeypatch, accept=True)
+
+    window._on_export_fit_result()
+    window.fit_result_dialog.close()
+
+    assert len(window.project.all_plot_settings[0]['annotations']) == 1
 
 
 # =============================================================================
@@ -2613,6 +3175,123 @@ def test_secondary_y_changed_batch_macro(tmp_path, monkeypatch):
     assert all(ds.use_secondary_y for ds in datasets)
     window.undo_stack.undo()
     assert all(not ds.use_secondary_y for ds in datasets)
+
+
+# =============================================================================
+# データセットの表示/非表示トグル (_on_dataset_tree_item_clicked, 項目C-907)
+# =============================================================================
+
+def test_dataset_tree_item_clicked_ignores_non_visibility_column(tmp_path, monkeypatch):
+    """目アイコン専用列(DATASET_TREE_VISIBILITY_COLUMN)以外のクリックは無視する
+    (名前列のクリックは選択切り替えのためのものであり、表示/非表示とは無関係)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    item = window._get_dataset_tree_item(ds)
+    before_count = window.undo_stack.count()
+
+    window._on_dataset_tree_item_clicked(item, DATASET_TREE_NAME_COLUMN)
+
+    assert window.undo_stack.count() == before_count
+    assert ds.visible is True
+
+
+def test_dataset_tree_item_clicked_ignores_folder_items(tmp_path, monkeypatch):
+    """フォルダアイテム(UserRoleがNone)には表示/非表示の概念が無いため無視する"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder_item = window._add_dataset_folder_item("folder1")
+    before_count = window.undo_stack.count()
+
+    window._on_dataset_tree_item_clicked(folder_item, DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert window.undo_stack.count() == before_count
+
+
+def test_dataset_tree_item_clicked_toggles_visibility_and_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    item = window._get_dataset_tree_item(ds)
+    assert ds.visible is True
+
+    window._on_dataset_tree_item_clicked(item, DATASET_TREE_VISIBILITY_COLUMN)
+    assert ds.visible is False
+
+    window.undo_stack.undo()
+    assert ds.visible is True
+
+    window.undo_stack.redo()
+    assert ds.visible is False
+
+
+def test_dataset_tree_item_clicked_triggers_replot(tmp_path, monkeypatch):
+    """非表示にした瞬間にグラフから消えて見えるよう、クリック直後に再描画
+    (_update_plot、_refresh_after_dataset_property_change経由)が呼ばれること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    item = window._get_dataset_tree_item(ds)
+
+    calls = []
+    monkeypatch.setattr(window, "_update_plot", lambda: calls.append(True))
+
+    window._on_dataset_tree_item_clicked(item, DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert calls
+
+
+def test_dataset_tree_item_clicked_actually_hides_dataset_from_next_redraw(tmp_path, monkeypatch):
+    """トグル後、実際に_update_plot()を(モックせず)呼ぶと、キャンバス上の
+    データセットもcanvas.redraw_all側のvisibleフィルタにより描画から消えること
+    (gui/canvas.pyのredraw_all改修との結合を確認する)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    item = window._get_dataset_tree_item(ds)
+    assert len(window.canvas.all_axes[0].lines) == 1
+
+    window._on_dataset_tree_item_clicked(item, DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert ds.visible is False
+    assert len(window.canvas.all_axes[0].lines) == 0
+
+
+def test_dataset_tree_item_clicked_single_click_with_other_items_selected_affects_only_clicked(tmp_path, monkeypatch):
+    """複数選択中でも、選択に含まれないアイテムの目アイコンをクリックした場合は
+    そのデータセット1件だけが切り替わり、選択中の他のデータセットには影響しない。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_simple_dataset(f"d{i}") for i in range(3)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets[:2])  # 先頭2件だけ選択、3件目は非選択のまま
+    item2 = window._get_dataset_tree_item(datasets[2])
+
+    window._on_dataset_tree_item_clicked(item2, DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert datasets[2].visible is False
+    assert datasets[0].visible is True
+    assert datasets[1].visible is True
+
+
+def test_dataset_tree_item_clicked_multi_selection_toggles_all_selected_as_batch(tmp_path, monkeypatch):
+    """選択中のアイテムの目アイコンをクリックした場合は、選択中の全データセットへ
+    一括で適用され(第2Y軸使用の一括切替と同じbeginMacro/endMacroパターン)、
+    Undo1回で全部元に戻る。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_simple_dataset(f"d{i}") for i in range(2)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    items = _select_items(window, datasets)
+    undo_count_before = window.undo_stack.count()
+
+    window._on_dataset_tree_item_clicked(items[0], DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert all(ds.visible is False for ds in datasets)
+    # バッチはbeginMacro/endMacroで1件のUndo操作にまとまる
+    assert window.undo_stack.count() == undo_count_before + 1
+
+    window.undo_stack.undo()
+    assert all(ds.visible is True for ds in datasets)
 
 
 # =============================================================================
@@ -2669,7 +3348,7 @@ def test_find_peaks_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("bad settings")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_peaks", raiser)
+    monkeypatch.setattr(dataset_mixin_module, "calculate_peak_quantification", raiser)
     warnings = _patch_warning_capture(monkeypatch)
 
     window._on_find_peaks()
@@ -2714,6 +3393,25 @@ def test_find_peaks_success_upward_adds_dataset_with_expected_style(tmp_path, mo
     assert window.peak_result_dialog is not None
 
 
+def test_find_peaks_result_table_includes_quantification_columns(tmp_path, monkeypatch):
+    """項目C-411: 結果ダイアログのCSV用DataFrameにFWHM/面積/重心の列が追加されていること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_peaky_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_peak_dialog(
+        monkeypatch,
+        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
+    )
+
+    window._on_find_peaks()
+
+    csv_data = window.peak_result_dialog.csv_data
+    assert list(csv_data.columns) == ['X座標', 'Y座標', 'FWHM', '面積', '重心X']
+    assert len(csv_data) > 0
+    assert (csv_data['FWHM'] > 0).all()
+    assert (csv_data['面積'] > 0).all()
+
+
 def test_find_peaks_success_downward_uses_valley_style(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_peaky_dataset()
@@ -2746,3 +3444,364 @@ def test_find_peaks_replaces_previous_result_dialog(tmp_path, monkeypatch):
 
     assert second is not first
     second.close()
+
+
+# =============================================================================
+# 区間積分 (_on_interval_integral_dataset, 項目C-311)
+# =============================================================================
+
+def _make_integral_dataset(n=50):
+    x = np.linspace(0, 10, n)
+    y = x.copy()  # y = x なので 0〜10 の積分は解析的に50とわかる(検証しやすいデータ)
+    df = pd.DataFrame({'x': x, 'y': y})
+    return Dataset(name="line", df=df, x_col_name='x', y_col_name='y')
+
+
+def test_interval_integral_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_interval_integral_dataset()
+    assert window.integral_result_dialog is None
+
+
+def test_interval_integral_insufficient_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [1.0], 'y': [1.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_interval_integral_dataset()
+
+    assert len(warnings) == 1
+    assert window.integral_result_dialog is None
+
+
+def test_interval_integral_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "IntervalIntegralDialog", IntervalIntegralDialog, "get_settings",
+        ("trapezoid", (0.0, 10.0), False), accepted=False
+    )
+
+    window._on_interval_integral_dataset()
+
+    assert window.integral_result_dialog is None
+
+
+def test_interval_integral_calculation_error_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    # 範囲がデータのX範囲(0〜10)の外にあるため、calculate_interval_integralが
+    # ValueErrorを送出するはず
+    _patch_dialog_result(
+        monkeypatch, "IntervalIntegralDialog", IntervalIntegralDialog, "get_settings",
+        ("trapezoid", (-5.0, 20.0), False)
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_interval_integral_dataset()
+
+    assert len(warnings) == 1
+    assert window.integral_result_dialog is None
+
+
+def test_interval_integral_trapezoid_success_shows_result_dialog(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+    _patch_dialog_result(
+        monkeypatch, "IntervalIntegralDialog", IntervalIntegralDialog, "get_settings",
+        ("trapezoid", (0.0, 10.0), False)
+    )
+
+    window._on_interval_integral_dataset()
+
+    # スカラー結果のみを返す機能のため、_on_savgol_dataset等と異なり
+    # 新しいデータセットは追加されない
+    assert len(window.project.datasets) == before_count
+    assert window.integral_result_dialog is not None
+    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    assert "50" in result_text
+    assert "台形則" in result_text
+    window.integral_result_dialog.close()
+
+
+def test_interval_integral_simpson_success_shows_result_dialog(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "IntervalIntegralDialog", IntervalIntegralDialog, "get_settings",
+        ("simpson", (0.0, 10.0), False)
+    )
+
+    window._on_interval_integral_dataset()
+
+    assert window.integral_result_dialog is not None
+    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    assert "Simpson" in result_text
+    window.integral_result_dialog.close()
+
+
+def test_interval_integral_result_csv_data_has_expected_columns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "IntervalIntegralDialog", IntervalIntegralDialog, "get_settings",
+        ("trapezoid", (0.0, 10.0), False)
+    )
+
+    window._on_interval_integral_dataset()
+
+    csv_data = window.integral_result_dialog.csv_data
+    assert list(csv_data.columns) == ['X', 'Y(元データ)', 'Y(積分に使用)']
+    assert len(csv_data) > 0
+    window.integral_result_dialog.close()
+
+
+def test_interval_integral_subtract_baseline_option_reflected_in_result(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    x = np.linspace(0, 10, 200)
+    slope_bg = 2 * x + 1
+    peak = 5 * np.exp(-((x - 5) ** 2) / (2 * 0.5 ** 2))
+    df = pd.DataFrame({'x': x, 'y': slope_bg + peak})
+    ds = Dataset(name="peak_on_slope", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "IntervalIntegralDialog", IntervalIntegralDialog, "get_settings",
+        ("simpson", (0.0, 10.0), True)
+    )
+
+    window._on_interval_integral_dataset()
+
+    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    assert "ベースライン差し引き: あり" in result_text
+    expected_peak_area = 5 * 0.5 * np.sqrt(2 * np.pi)
+    match = re.search(r"積分値\s*=\s*([\-0-9.eE+]+)", result_text)
+    assert match is not None
+    assert float(match.group(1)) == pytest.approx(expected_peak_area, rel=1e-2)
+    window.integral_result_dialog.close()
+
+
+def test_interval_integral_no_baseline_option_reflected_in_result(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "IntervalIntegralDialog", IntervalIntegralDialog, "get_settings",
+        ("trapezoid", (0.0, 10.0), False)
+    )
+
+    window._on_interval_integral_dataset()
+
+    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    assert "ベースライン差し引き: なし" in result_text
+    window.integral_result_dialog.close()
+
+
+def test_interval_integral_replaces_previous_result_dialog(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "IntervalIntegralDialog", IntervalIntegralDialog, "get_settings",
+        ("trapezoid", (0.0, 10.0), False)
+    )
+
+    window._on_interval_integral_dataset()
+    first = window.integral_result_dialog
+    window._on_interval_integral_dataset()
+    second = window.integral_result_dialog
+
+    assert second is not first
+    second.close()
+
+
+# =============================================================================
+# 共通X格子へのリサンプリング/補間 (_on_resample_dataset, 項目C-305)
+# =============================================================================
+
+def _make_resample_dataset(name="source", n=30):
+    x = np.linspace(0, 10, n)
+    y = x ** 2
+    df = pd.DataFrame({'x': x, 'y': y})
+    return Dataset(name=name, df=df, x_col_name='x', y_col_name='y')
+
+
+def test_resample_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    before_count = len(window.project.datasets)
+    window._on_resample_dataset()
+    assert len(window.project.datasets) == before_count
+
+
+def test_resample_insufficient_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0], 'y': [0.0]})
+    ds = Dataset(name="curve", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_resample_dataset()
+
+    assert len(warnings) == 1
+
+
+def test_resample_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("linspace", {"start": 0.0, "stop": 10.0, "num_points": 20}, "linear", False, "source_resampled"),
+        accepted=False
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_resample_dataset()
+
+    assert len(window.project.datasets) == before_count
+
+
+def test_resample_empty_output_name_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("linspace", {"start": 0.0, "stop": 10.0, "num_points": 20}, "linear", False, "")
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_resample_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_resample_linspace_success_adds_dataset(tmp_path, monkeypatch):
+    """等間隔グリッド(linspace方式)への線形補間で新しいデータセットが追加される"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("linspace", {"start": 2.0, "stop": 8.0, "num_points": 7}, "linear", False, "source_resampled")
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_resample_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == "source_resampled"
+    assert len(new_ds.x_data) == 7
+    np.testing.assert_allclose(new_ds.x_data, np.linspace(2.0, 8.0, 7))
+    # 元のデータセットは変更されていない(非破壊)
+    np.testing.assert_allclose(ds.y_data, np.linspace(0, 10, 30) ** 2)
+
+
+def test_resample_linspace_same_start_stop_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("linspace", {"start": 5.0, "stop": 5.0, "num_points": 10}, "linear", False, "source_resampled")
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_resample_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_resample_onto_other_dataset_grid(tmp_path, monkeypatch):
+    """「他のデータセットのX格子」を選ぶと、そのデータセットのX値がそのまま
+    出力データセットのXとして使われる"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    source = _make_resample_dataset(name="source")
+    _add_and_select_dataset(window, source)
+    target_x = np.array([1.0, 3.0, 5.0, 7.0])
+    target_df = pd.DataFrame({'x': target_x, 'y': np.zeros(4)})
+    target = Dataset(name="target_grid", df=target_df, x_col_name='x', y_col_name='y')
+    window._add_dataset(target, None, select=False)
+    # カレントを再びsourceに戻す(target追加でカレントが移っていないことを確認しつつ明示的に選び直す)
+    _add_and_select_dataset(window, source)
+
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("dataset", {"dataset_name": "target_grid"}, "linear", False, "source_on_target_grid")
+    )
+
+    window._on_resample_dataset()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == "source_on_target_grid"
+    np.testing.assert_allclose(new_ds.x_data, target_x)
+    np.testing.assert_allclose(new_ds.y_data, target_x ** 2, atol=0.05)
+
+
+def test_resample_missing_target_dataset_warns(tmp_path, monkeypatch):
+    """コンボが無効化されている等でdataset_nameが選ばれていない(空/存在しない)場合は警告する"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("dataset", {"dataset_name": ""}, "linear", False, "source_resampled")
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_resample_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_resample_calculation_error_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("linspace", {"start": 0.0, "stop": 10.0, "num_points": 20}, "cubic", False, "source_resampled")
+    )
+
+    def raiser(*a, **k):
+        raise ValueError("3次スプライン補間には少なくとも4点のデータが必要です")
+
+    monkeypatch.setattr(dataset_mixin_module, "calculate_resample_to_grid", raiser)
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_resample_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_resample_cubic_extrapolate_success(tmp_path, monkeypatch):
+    """cubic + extrapolate=True の組み合わせも正常に動作する"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("linspace", {"start": -2.0, "stop": 12.0, "num_points": 10}, "cubic", True, "source_extrapolated")
+    )
+
+    window._on_resample_dataset()
+
+    new_ds = window.project.datasets[-1]
+    assert len(new_ds.y_data) == 10
+    assert not np.isnan(new_ds.y_data).any()

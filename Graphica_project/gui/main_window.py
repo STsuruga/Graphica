@@ -82,6 +82,12 @@ CONTROL_DOCK_WIDTH = 472  # 項目68/61: フィールドの見切れ解消のた
 EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT = 340  # エクスポートプレビューを下部ドックに分離した際の初期高さ
 SPIN_BOX_MAX_DECIMALS = 16
 
+# --- 項目C-907: データセットリストの表示/非表示トグル(目のアイコン)関連の定数 ---
+# 列インデックス自体(DATASET_TREE_NAME_COLUMN/DATASET_TREE_VISIBILITY_COLUMN)は
+# dataset_mixin.py からも参照するため gui/dataset_style_icon.py 側で定義している
+# (main_window <-> dataset_mixin の循環import回避、同モジュールの他ヘルパーと同じ理由)。
+DATASET_TREE_VISIBILITY_COLUMN_WIDTH = 26  # 目アイコン(16px)+クリック余白
+
 # --- 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し)に関する定数 ---
 CANVAS_DETACHED_GEOMETRY_KEY = "canvas_detached_geometry"  # 切り離しウィンドウのサイズ/位置
 CANVAS_WAS_DETACHED_KEY = "canvas_was_detached"  # 前回終了時に切り離されていたか
@@ -118,7 +124,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDial
                                QLineEdit, QHBoxLayout, QFormLayout, QAbstractItemView,
                                QDialog, QTreeWidget, QTreeWidgetItem, QGridLayout,
                                QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction,
-                               QStyledItemDelegate, QStyleOptionViewItem, QStyle)
+                               QStyledItemDelegate, QStyleOptionViewItem, QStyle, QHeaderView)
 from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack, QPainter, QPainterPath
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal, QRectF
 from models.project import ProjectModel
@@ -145,7 +151,7 @@ from gui.theme import apply_form_spacing
 from gui.workers import DataLoadWorker
 from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
 from gui.color_picker_widget import ColorPickerWidget
-from gui.icon_utils import load_svg_icon, ICONS_DIR
+from gui.icon_utils import load_svg_icon, ICONS_DIR, icon as icon_utils_icon
 
 # ツールバー/ボタンのアイコン(項目67・70)。
 # ★ 項目H-4(アイコンセットの見直し): 以前はここに固定のダークグレー
@@ -198,7 +204,11 @@ def _svg_icon(name, size=20):
                           color=color, size=size)
 from core.excel_utils import find_unevaluated_formula_cells
 from gui.export_preview_panel import ExportPreviewPanel
-from gui.dataset_style_icon import make_dataset_style_icon
+from gui.residual_panel import ResidualPanel
+from gui.dataset_style_icon import (
+    make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
+    DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN,
+)
 from gui.mathtext_preview import FitWidthPixmapLabel, JP_CAPABLE_FONT_FAMILIES
 from gui.color_history import load_recent_colors_into_picker
 
@@ -506,6 +516,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
         self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
         self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
+        self.integral_result_dialog = None  # 区間積分結果(項目C-311、非モーダル)のインスタンス保持用
         self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_worker = None  # ファイル読み込み用バックグラウンドワーカーの保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
@@ -1302,6 +1313,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     center.x() - preview_width // 2, center.y() - preview_height // 2
                 )
             self.export_preview_panel.refresh_preview()
+
+        # 2c. ★ 残差プロットの専用パネル(項目C-406)。選択中のデータセットが
+        #    曲線フィットの結果(fit_result、項目C-401)を持っていれば、その
+        #    残差(実測値-フィット値)を表示する。エクスポートプレビューと同じ
+        #    理由(常時描画の負荷回避、必要な時だけ開く「確認用」の性質)で
+        #    既定は非表示。プロット下部と関連が深いため、フローティングでは
+        #    なく下部ドックとして開く(ユーザーがドラッグして移動/フロート化は
+        #    引き続き可能)。
+        self.residual_panel = ResidualPanel(self)
+        self.residual_dock_widget = QDockWidget(tr("残差プロット"), self)
+        self.residual_dock_widget.setObjectName("ResidualDockWidget")
+        self.residual_dock_widget.setWidget(self.residual_panel)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.residual_dock_widget)
+        self.residual_dock_widget.hide()
 
         self.export_preview_dock_widget.visibilityChanged.connect(_on_export_preview_visibility_changed)
 
@@ -2173,7 +2198,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         tree = QTreeWidget(container)
         tree.setObjectName("dataset_list_widget")
         tree.setHeaderHidden(True)
-        tree.setColumnCount(1)
+        # ★ 項目C-907: 列0(スタイルアイコン+名前、既存)に加え、列1に
+        #   表示/非表示トグル用の目アイコン専用の列を追加する。ヘッダーは非表示
+        #   (setHeaderHidden)だが、列0を伸縮(Stretch)・列1を固定幅(Fixed)にする
+        #   ことで、ウィンドウ幅が変わっても目アイコンが常に同じ位置・幅を保つ。
+        #   デフォルトのstretchLastSectionがTrueのままだと最後の列(=目アイコン列)
+        #   が余白を吸収して不必要に広がってしまうため明示的に無効化する。
+        tree.setColumnCount(2)
+        header = tree.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(DATASET_TREE_NAME_COLUMN, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(DATASET_TREE_VISIBILITY_COLUMN, QHeaderView.ResizeMode.Fixed)
+        tree.setColumnWidth(DATASET_TREE_VISIBILITY_COLUMN, DATASET_TREE_VISIBILITY_COLUMN_WIDTH)
         tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         tree.setDefaultDropAction(Qt.DropAction.MoveAction)
@@ -2220,6 +2256,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         item = QTreeWidgetItem([dataset.name])
         item.setData(0, Qt.ItemDataRole.UserRole, dataset)
         item.setIcon(0, make_dataset_style_icon(dataset))
+        # ★ 項目C-907: 専用列(列1)に表示/非表示トグル用の目アイコンを表示する。
+        #   クリック検知は _on_dataset_tree_item_clicked (dataset_mixin.py) が
+        #   itemClicked シグナル経由で列インデックスを見て判定する。
+        item.setIcon(DATASET_TREE_VISIBILITY_COLUMN, make_dataset_visibility_icon(dataset))
+        apply_dataset_visibility_text_style(item, dataset)
         # データセット自身はフォルダではないので、ドロップ先にはしない
         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDropEnabled)
         if parent_item is not None:

@@ -609,6 +609,56 @@ def test_error_display_without_error_columns_draws_neither(canvas):
     assert len(ax.collections) == 0
 
 
+# --- 曲線フィットの信頼帯・予測帯(項目C-405) ---
+
+def _make_fit_dataset_with_band(fit_band_display="confidence"):
+    df = pd.DataFrame({
+        "x_fit": [0.0, 1.0, 2.0],
+        "y_fit": [1.0, 2.0, 3.0],
+        "y_lower": [0.5, 1.5, 2.5],
+        "y_upper": [1.5, 2.5, 3.5],
+    })
+    return Dataset(name="Fit (d)", df=df, x_col_name="x_fit", y_col_name="y_fit",
+                    fit_band_display=fit_band_display)
+
+
+def test_fit_band_display_confidence_draws_fill_between(canvas):
+    ds = _make_fit_dataset_with_band(fit_band_display="confidence")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(_poly_collections(ax)) == 1
+
+
+def test_fit_band_display_none_draws_no_band(canvas):
+    ds = _make_fit_dataset_with_band(fit_band_display=None)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert _poly_collections(ax) == []
+
+
+def test_fit_band_display_set_but_columns_missing_draws_no_band():
+    """fit_band_displayが設定されていても、実際にy_lower/y_upper列が無い
+    (古いプロジェクトファイル等)場合は描画をスキップし、KeyErrorで落ちない。"""
+    df = pd.DataFrame({"x_fit": [0.0, 1.0], "y_fit": [1.0, 2.0]})
+    ds = Dataset(name="Fit (d)", df=df, x_col_name="x_fit", y_col_name="y_fit",
+                 fit_band_display="confidence")
+    c = MplCanvas()
+    c.redraw_all([ds], 1, 1, [{}])
+    ax = c.all_axes[0]
+    assert _poly_collections(ax) == []
+    plt.close(c.fig)
+
+
+def test_fit_band_fill_between_covers_lower_to_upper(canvas):
+    ds = _make_fit_dataset_with_band(fit_band_display="prediction")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    band = _poly_collections(ax)[0]
+    ys = band.get_paths()[0].vertices[:, 1]
+    assert ys.min() == pytest.approx(0.5)
+    assert ys.max() == pytest.approx(3.5)
+
+
 def test_error_display_defaults_to_bar():
     ds = Dataset(name="d", df=pd.DataFrame({'x': [1], 'y': [1]}), x_col_name='x', y_col_name='y')
     assert ds.error_display == 'bar'
@@ -773,6 +823,51 @@ def test_redraw_all_returns_true_and_creates_secondary_axis_when_dataset_uses_se
     result = canvas.redraw_all([ds], 1, 1, [{}])
     assert result is True
     assert canvas.all_secondary_axes[0] is not None
+
+
+# --- redraw_all(): データセットの表示/非表示トグル (項目C-907) ---
+
+def test_redraw_all_excludes_hidden_dataset_from_axes(canvas):
+    """visible=Falseのデータセットは描画対象から除外され、Axesにも
+    line/artistが残らない(データそのものは削除されず保持されたまま)。"""
+    ds_visible = _make_dataset(3, show_point_labels=False)
+    ds_visible.name = "visible_ds"
+    ds_hidden = _make_dataset(3, show_point_labels=False)
+    ds_hidden.name = "hidden_ds"
+    ds_hidden.visible = False
+
+    canvas.redraw_all([ds_visible, ds_hidden], 1, 1, [{}])
+
+    assert ds_visible.artist is not None
+    # 非表示のデータセットは描画自体が行われないため、artistは更新されずNoneのまま
+    assert ds_hidden.artist is None
+    assert len(canvas.all_axes[0].lines) == 1
+
+
+def test_redraw_all_all_datasets_hidden_draws_nothing(canvas):
+    """全データセットが非表示の場合でも、subplot_count>0であればAxes自体は
+    作られる(空のグラフになるだけでクラッシュしない)。"""
+    ds = _make_dataset(3, show_point_labels=False)
+    ds.visible = False
+
+    result = canvas.redraw_all([ds], 1, 1, [{}])
+
+    assert len(canvas.all_axes) == 1
+    assert len(canvas.all_axes[0].lines) == 0
+    assert result is False
+
+
+def test_redraw_all_missing_visible_attr_defaults_to_shown(canvas):
+    """visible属性がインスタンスの__dict__に無い(この機能追加前のpickleを模倣)
+    Datasetでも、redraw_all側のgetattr(ds, 'visible', True)フォールバックにより
+    通常通り描画される(後方互換の保険。実際にはDataset.__setstate__/from_dict
+    側でも既に補われるが、canvas.py単体としての安全網も確認する)。"""
+    ds = _make_dataset(3, show_point_labels=False)
+    del ds.__dict__['visible']
+
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+    assert len(canvas.all_axes[0].lines) == 1
 
 
 def test_redraw_all_swallows_tight_layout_value_error(canvas, monkeypatch):

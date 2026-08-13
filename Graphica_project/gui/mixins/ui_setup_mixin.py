@@ -144,6 +144,8 @@ class UISetupMixin:
             self.dataset_search_edit.textChanged.connect(self._on_dataset_search_changed)
             self.ui.dataset_list_widget.currentItemChanged.connect(self._on_dataset_selected)
             self.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
+            # 項目C-907: 目アイコン列のクリックでデータセットの表示/非表示をトグルする
+            self.ui.dataset_list_widget.itemClicked.connect(self._on_dataset_tree_item_clicked)
             # ドラッグ&ドロップでの並べ替え/フォルダ移動(=描画の重なり順の変更)を project.datasets に反映する
             self.ui.dataset_list_widget.model().rowsMoved.connect(self._on_dataset_rows_moved)
 
@@ -332,6 +334,11 @@ class UISetupMixin:
             export_preview_dock_action = self.export_preview_dock_widget.toggleViewAction()
             export_preview_dock_action.setText(tr("エクスポートプレビュー"))
             view_menu.addAction(export_preview_dock_action)
+
+            # 残差プロットパネル(項目C-406、デフォルトは非表示)
+            residual_dock_action = self.residual_dock_widget.toggleViewAction()
+            residual_dock_action.setText(tr("残差プロット"))
+            view_menu.addAction(residual_dock_action)
 
             # ミニマップ(レンジスライダー、項目83)の表示/非表示切り替え。
             # チェック状態はQSettingsから復元済みの self.minimap_visible に合わせる。

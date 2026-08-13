@@ -182,6 +182,15 @@ class MplCanvas(FigureCanvas):
 
     def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False):
         """メインウィンドウから呼ばれる、全体の再描画メソッド"""
+        # データセットの表示/非表示トグル(項目C-907): visible=Falseのデータセットは
+        # 削除せず保持したまま、描画対象から除外する。redraw_all()はメイン画面の
+        # 再描画・エクスポート(gui/mixins/export_mixin.pyの単発/バッチ書き出しは
+        # いずれもこのメソッド、または本メソッドが最後に描いたself.figを経由する)の
+        # 唯一の入口であるため、ここ1箇所でのフィルタが両方に自動的に効く。
+        # getattr既定値Trueは、この機能追加前に保存された.pklファイル由来の
+        # Datasetオブジェクト(pickleの__setstate__で補われるはずだが、念のための保険)
+        # でも安全に動くようにするため。
+        datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
         self.fig.clf()
         self.all_axes.clear()
         self.all_secondary_axes.clear()
@@ -639,6 +648,17 @@ class MplCanvas(FigureCanvas):
                         plot_x_data, y_arr - y_err, y_arr + y_err,
                         color=ds.color, alpha=ds.alpha * 0.25, linewidth=0,
                     )
+
+            # ★ 曲線フィットの信頼帯・予測帯(項目C-405): gui/mixins/dataset_mixin.py
+            # の_on_fit_curve/_on_batch_curve_fitがband_typeを選ばれた場合にのみ
+            # dfへ'y_lower'/'y_upper'列を追加しているため、その存在で描画有無を判断する
+            # (fit_band_displayはUI上の意図/ラベル用、実際に描画できるかは列の有無で決まる)。
+            if ds.fit_band_display and 'y_lower' in ds.df.columns and 'y_upper' in ds.df.columns:
+                band_df = ds.visible_df
+                target_ax.fill_between(
+                    band_df[ds.x_col_name], band_df['y_lower'], band_df['y_upper'],
+                    color=ds.color, alpha=ds.alpha * 0.15, linewidth=0,
+                )
 
             # ★ データポイントラベル (各点の脇にY値、または指定列の値を表示)
             # 平滑化が有効な場合でも、ラベルは元のデータ点の位置に表示する
