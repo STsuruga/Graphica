@@ -278,6 +278,29 @@ def test_fit_dialog_param_table_rebuilds_when_fit_type_changes():
     assert names == ['a', 'b', 'c', 'd']
 
 
+@pytest.mark.parametrize("display_text, expected_names", [
+    ("ローレンツ関数 (y = a / (1 + ((x-b)/c)^2) + d)", ['a', 'b', 'c', 'd']),
+    ("擬似フォークト関数 (y = a*(η/(1+((x-b)/c)^2) + (1-η)*exp(-4ln2*((x-b)/c)^2)) + d)",
+     ['a', 'b', 'c', 'eta', 'd']),
+    ("フォークト関数 (y = a*Re[wofz((x-b+iγ)/(σ√2))] / (σ√(2π)) + d)",
+     ['a', 'b', 'sigma', 'gamma', 'd']),
+    ("2成分指数関数 (y = a1*exp(b1*x) + a2*exp(b2*x) + c)", ['a1', 'b1', 'a2', 'b2', 'c']),
+    ("ボルツマンシグモイド (y = a2 + (a1-a2) / (1 + exp((x-x0)/dx)))", ['a1', 'a2', 'x0', 'dx']),
+    ("ヒルの式 (y = vmax*x^n / (k^n + x^n))", ['vmax', 'k', 'n']),
+])
+def test_fit_dialog_combo_includes_new_builtin_models_and_rebuilds_param_table(display_text, expected_names):
+    """項目C-408: 新規追加した組み込みモデル(Voigt/pseudo-Voigt/Lorentzian/
+    2成分指数/Boltzmannシグモイド/Hill)がコンボボックスの選択肢に含まれており、
+    選択するとパラメータテーブルが対応する行数・パラメータ名で再構築されること。"""
+    dlg = FitDialog()
+    items = [dlg.fit_type_combo.itemText(i) for i in range(dlg.fit_type_combo.count())]
+    assert display_text in items
+    dlg.fit_type_combo.setCurrentText(display_text)
+    assert dlg.param_table.rowCount() == len(expected_names)
+    names = [dlg.param_table.item(row, 0).text() for row in range(len(expected_names))]
+    assert names == expected_names
+
+
 def test_fit_dialog_param_table_empty_for_untouched_custom_formula():
     """「カスタム数式...」を選んだ直後(数式は未入力)は0行であること。"""
     dlg = FitDialog()
@@ -1169,7 +1192,7 @@ def test_fit_dialog_custom_formula_fields_shown_when_custom_selected(qapp):
 def test_fit_dialog_get_fit_type_accepted_builtin(monkeypatch):
     monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
     (fit_type, custom_formula, weighted, x_range,
-     p0_overrides, fixed_params, bounds) = FitDialog.get_fit_type(parent=None)
+     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
     assert fit_type == "線形 (y = ax + b)"
     assert custom_formula is None
     assert weighted is False
@@ -1178,6 +1201,8 @@ def test_fit_dialog_get_fit_type_accepted_builtin(monkeypatch):
     assert p0_overrides == {}
     assert fixed_params == {}
     assert bounds == {}
+    # 項目C-405: 既定は「表示しない」= None
+    assert band_type is None
 
 
 def test_fit_dialog_get_fit_type_accepted_custom_formula(monkeypatch):
@@ -1188,7 +1213,7 @@ def test_fit_dialog_get_fit_type_accepted_custom_formula(monkeypatch):
 
     monkeypatch.setattr(FitDialog, "exec", fake_exec)
     (fit_type, custom_formula, weighted, x_range,
-     p0_overrides, fixed_params, bounds) = FitDialog.get_fit_type(parent=None)
+     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
     assert "カスタム数式" in fit_type
     assert custom_formula == "a*x+b"
 
@@ -1213,16 +1238,27 @@ def test_fit_dialog_get_fit_type_accepted_with_param_customization(monkeypatch):
 
     monkeypatch.setattr(FitDialog, "exec", fake_exec)
     (fit_type, custom_formula, weighted, x_range,
-     p0_overrides, fixed_params, bounds) = FitDialog.get_fit_type(parent=None)
+     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
     assert fixed_params == {'b': 0.5}
     assert bounds == {'a': (-1.0, 9.0)}
     assert p0_overrides == {}
 
 
+def test_fit_dialog_get_fit_type_accepted_with_band_type(monkeypatch):
+    """項目C-405: 信頼帯/予測帯コンボの選択がget_fit_type()の戻り値に反映されること。"""
+    def fake_exec(self):
+        self.band_combo.setCurrentText("予測帯 (95%)")
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(FitDialog, "exec", fake_exec)
+    result = FitDialog.get_fit_type(parent=None)
+    assert result[-1] == "prediction"
+
+
 def test_fit_dialog_get_fit_type_rejected_returns_none_tuple(monkeypatch):
     monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
     result = FitDialog.get_fit_type(parent=None)
-    assert result == (None, None, False, None, {}, {}, {})
+    assert result == (None, None, False, None, {}, {}, {}, None)
 
 
 # --- ColumnCalculatorDialog(列の計算プリセット) ---

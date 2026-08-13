@@ -149,12 +149,18 @@ class AnnotationMixin:
                 'color': '#000000',
             })
 
-    def _add_annotation(self, axis_index, annotation):
+    def _add_annotation(self, axis_index, annotation, description="注釈の追加"):
         """
         指定した軸の注釈リストに新しい注釈を追加する。
         既存のリストを直接書き換えず新しいリストに差し替えることで、
         _on_layout_changed 等での浅いコピーによる意図しない共有を避ける。
         Undo/Redo可能にするため、変更はSetAnnotationsCommand経由で行う。
+
+        description はUndo/Redoメニューに表示される説明文(既定は手動追加時の
+        「注釈の追加」)。項目C-413のフィット結果焼き込みのように、呼び出し元
+        (例: dataset_mixin.py)がより具体的な説明文を渡せるようにするための
+        任意引数で、既存の呼び出し(手動クリック/ドラッグでの注釈追加)は
+        引数を渡さないため挙動は変わらない。
         """
         annotation = dict(annotation)
         annotation['id'] = uuid.uuid4().hex
@@ -165,7 +171,7 @@ class AnnotationMixin:
 
         command = SetAnnotationsCommand(
             self.project, axis_index, old_annotations, new_annotations,
-            self._update_plot_appearance, description="注釈の追加"
+            self._update_plot_appearance, description=description
         )
         self.undo_stack.push(command)
 

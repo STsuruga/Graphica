@@ -27,7 +27,8 @@ from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, Q
 from core.analysis import (calculate_curve_fit, calculate_peak_quantification, calculate_savgol,
                            calculate_baseline_als, calculate_baseline_polynomial,
                            calculate_baseline_rubberband, calculate_baseline_manual,
-                           calculate_interval_integral)
+                           calculate_interval_integral, calculate_confidence_band,
+                           calculate_resample_to_grid)
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand
 from core.dataset import Dataset
 from core.plugin_api import get_registered_importer_extensions
@@ -37,7 +38,7 @@ from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
-                         BaselineCorrectionDialog, IntervalIntegralDialog)
+                         BaselineCorrectionDialog, IntervalIntegralDialog, ResampleDatasetDialog)
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -187,6 +188,22 @@ class DatasetMixin:
             # ベースライン補正と異なる(ピーク検出のResultDialog表示に近い)。
             integral_action = menu.addAction("区間積分(台形則/Simpson則)...")
             integral_action.triggered.connect(self._on_interval_integral_dataset)
+
+            # フィット結果のエクスポート(項目C-413): カレントデータセットが
+            # 曲線フィットの結果(dataset.fit_result、項目C-401で永続化)を
+            # 持っている場合のみ有効にする。「スタイルを貼り付け」
+            # (paste_style_action, 上記)と同じく、常時メニューには出すが
+            # 対象外の状態ではグレーアウトするパターンに合わせる。
+            # ハンドラ自身も fit_result が無い場合に備えて防御的にチェックする
+            # (万一 setEnabled が効かない呼び出し経路があっても親切な警告を出す)。
+            export_fit_action = menu.addAction("フィット結果のエクスポート...")
+            export_fit_action.setEnabled(self._get_current_dataset().fit_result is not None)
+            export_fit_action.triggered.connect(self._on_export_fit_result)
+
+            # 共通X格子へのリサンプリング/補間(項目C-305): 上記のSavitzky-Golay/
+            # ベースライン補正と同じく「カレント1件から新しいデータセットを1つ作る」操作。
+            resample_action = menu.addAction("共通X格子へのリサンプリング/補間...")
+            resample_action.triggered.connect(self._on_resample_dataset)
 
         selected_count = len(self._get_selected_datasets())
         if selected_count >= 2:
@@ -637,6 +654,97 @@ class DatasetMixin:
         )
         self.integral_result_dialog.show()
 
+    def _on_resample_dataset(self):
+        """
+        「共通X格子へのリサンプリング/補間...」メニューの処理(項目C-305)。
+
+        カレントの1つのデータセットのY値を、別のX格子(他のロード済み
+        データセットのX格子、または等間隔グリッド)へ線形/3次スプライン補間で
+        リサンプリングし、新しいデータセットとして追加する(非破壊)。
+        _on_savgol_dataset/_on_baseline_correction_datasetと同じ「カレント1件」
+        パターン。
+
+        _on_dataset_arithmetic (「データセット間演算...」) は2データセットの
+        重なる範囲のみを対象に線形補間だけを内部で行う限定版だが、これは
+        任意のtarget_x・線形/3次スプライン・外挿あり/なしを選べる一般版
+        (core.analysis.calculate_resample_to_grid)であり、_on_dataset_arithmetic
+        自体は変更しない(既存の動作・テストに触れないため)。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        x_data = np.asarray(original_dataset.x_data, dtype=float)
+        y_data = np.asarray(original_dataset.y_data, dtype=float)
+        valid = ~(np.isnan(x_data) | np.isnan(y_data))
+        x_data, y_data = x_data[valid], y_data[valid]
+
+        if len(x_data) < 2:
+            QMessageBox.warning(self, "共通X格子へのリサンプリング/補間", "有効なデータ点が不足しています(最低2点必要)。")
+            return
+
+        other_dataset_names = [
+            ds.name for ds in self.project.datasets if ds is not original_dataset
+        ]
+
+        x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
+        dialog = ResampleDatasetDialog(
+            original_dataset.name, other_dataset_names, x_min=x_min, x_max=x_max, parent=self
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        source, params, method, extrapolate, output_name = dialog.get_settings()
+        if not output_name:
+            QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+            return
+
+        if source == "dataset":
+            target_dataset_name = params["dataset_name"]
+            target_dataset = next(
+                (ds for ds in self.project.datasets
+                 if ds is not original_dataset and ds.name == target_dataset_name),
+                None
+            )
+            if target_dataset is None:
+                QMessageBox.warning(
+                    self, "共通X格子へのリサンプリング/補間",
+                    "リサンプリング先のデータセットを選択してください。"
+                )
+                return
+            target_x = np.asarray(target_dataset.x_data, dtype=float)
+            target_x = target_x[~np.isnan(target_x)]
+            if len(target_x) == 0:
+                QMessageBox.warning(
+                    self, "共通X格子へのリサンプリング/補間",
+                    f"「{target_dataset_name}」に有効なX値がありません。"
+                )
+                return
+        else:  # "linspace"
+            start, stop, num_points = params["start"], params["stop"], params["num_points"]
+            if start == stop:
+                QMessageBox.warning(
+                    self, "共通X格子へのリサンプリング/補間", "開始Xと終了Xが同じ値です。"
+                )
+                return
+            target_x = np.linspace(start, stop, num_points)
+
+        try:
+            result_y = calculate_resample_to_grid(
+                x_data, y_data, target_x, method=method, extrapolate=extrapolate
+            )
+        except ValueError as e:
+            QMessageBox.warning(self, "共通X格子へのリサンプリング/補間", str(e))
+            return
+
+        # target_xは(dataset経由の場合)ソート済み・重複除去済みとは限らないため、
+        # 出力データセットのXの並びとしてはtarget_xの並び順をそのまま使う
+        # (calculate_savgol等と異なり「Xの昇順に正規化する」責務はここにはない —
+        # ユーザーが選んだ格子の並び順をそのまま尊重する)。
+        result_df = pd.DataFrame({'x': target_x, 'y': result_y})
+        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
     def _on_run_plugin_processor(self, processor):
         """
         プラグインの「データ処理」メニュー項目が選択されたときの処理(項目C-1)。
@@ -791,10 +899,10 @@ class DatasetMixin:
             return
 
         # 項目C-402(重み付け)/C-404(フィット範囲)/C-403(初期値上書き・固定・
-        # 範囲拘束)は選択中の全データセットに共通の設定として1回だけ選ばせ、
-        # 各データセットに同じ条件で適用する。
+        # 範囲拘束)/C-405(信頼帯・予測帯)は選択中の全データセットに共通の設定
+        # として1回だけ選ばせ、各データセットに同じ条件で適用する。
         (fit_type, custom_formula, use_weighted, x_range,
-         p0_overrides, fixed_params, bounds) = FitDialog.get_fit_type(self)
+         p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(self)
         if fit_type is None:
             return
 
@@ -839,6 +947,7 @@ class DatasetMixin:
             )
 
             fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
+            applied_band_type = self._add_band_columns_to_fit_df(fit_df, fit, band_type)
             fit_dataset = Dataset(
                 name=f"Fit ({dataset.name})",
                 df=fit_df,
@@ -849,6 +958,7 @@ class DatasetMixin:
                 subplot_target=dataset.subplot_target,
                 fit_info=result_text,
                 fit_result=fit_result,
+                fit_band_display=applied_band_type,
             )
             self._add_dataset(fit_dataset, target_folder, select=False)
             succeeded.append(dataset.name)
@@ -1752,7 +1862,7 @@ class DatasetMixin:
         x_min = float(np.min(x_data)) if len(x_data) else None
         x_max = float(np.max(x_data)) if len(x_data) else None
         (fit_type, custom_formula, use_weighted, x_range,
-         p0_overrides, fixed_params, bounds) = FitDialog.get_fit_type(
+         p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(
             self, x_min=x_min, x_max=x_max
         )
         if fit_type is None:
@@ -1804,6 +1914,7 @@ class DatasetMixin:
 
         # UI/Modelへの反映 (Datasetの追加。元のデータセットと同じフォルダに追加する)
         fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
+        applied_band_type = self._add_band_columns_to_fit_df(fit_df, fit, band_type)
         fit_dataset = Dataset(
             name=f"Fit ({original_dataset.name})",
             df=fit_df,
@@ -1814,6 +1925,7 @@ class DatasetMixin:
             subplot_target=original_dataset.subplot_target,
             fit_info=result_text,
             fit_result=fit_result,
+            fit_band_display=applied_band_type,
         )
 
         self.project.datasets.append(fit_dataset)
@@ -1870,6 +1982,191 @@ class DatasetMixin:
             'fixed_params': dict(fixed_params) if fixed_params else {},
             'bounds': {k: [float(v[0]), float(v[1])] for k, v in bounds.items()} if bounds else {},
         }
+
+    @staticmethod
+    def _add_band_columns_to_fit_df(fit_df, fit, band_type):
+        """
+        項目C-405: band_type("confidence"/"prediction")が指定されていれば、
+        calculate_confidence_band()を呼んでfit_dfに'y_lower'/'y_upper'列を追加する
+        (gui/canvas.pyがDataset.fit_band_displayとあわせてfill_betweenで描画する)。
+        band_typeがNone、または自由度不足等でcalculate_confidence_band()が
+        ValueErrorを送出した場合は、列を追加せずNoneを返す(フィット自体は
+        成功しているため、信頼帯が計算できないという理由だけでフィット結果の
+        追加全体を失敗させない)。
+
+        Returns:
+            str | None: 実際に列を追加できた場合はband_typeそのまま、
+                できなかった場合はNone(呼び出し側はこれをDataset.fit_band_display
+                にそのまま渡せる)。
+        """
+        if band_type is None:
+            return None
+        try:
+            band = calculate_confidence_band(
+                fit['x_fit'], fit['fit_func'], fit['popt'], fit['pcov'], fit['residuals'],
+                band_type=band_type,
+            )
+        except ValueError:
+            return None
+        fit_df['y_lower'] = band['y_lower']
+        fit_df['y_upper'] = band['y_upper']
+        return band_type
+
+    @staticmethod
+    def _format_fit_result_text(fit_result):
+        """
+        Dataset.fit_result (項目C-401で永続化された構造化フィット結果) だけから、
+        _on_fit_curve() が表示している結果テキストと同じ体裁の文字列を組み立てる。
+
+        _on_fit_curve() 内のインライン文字列組み立てロジック(popt/params_infoなど
+        フィット直後のローカル変数を参照する)を直接extractしたものではなく、
+        fit_result辞書のキーだけを参照するよう書き直した別関数として用意した
+        (fit_resultはfit_type/params/param_names/r_squared/weighted/x_range/
+        fixed_params/boundsをすべて素のPython型で保持しているため、同じ体裁を
+        再現するのに再計算・再フィットは一切不要)。_on_fit_curve()側の
+        既存コード・既存テストには一切手を入れず、フィット直後の表示と
+        エクスポート時の再表示の両方が将来的にズレないよう、書式のロジックは
+        ここに一本化してある。
+        """
+        fit_type = fit_result.get('fit_type')
+        custom_formula = fit_result.get('custom_formula')
+        fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
+        result_text = f"[{fit_label}] のフィッティング結果:\n"
+        for param_name, param_value in zip(fit_result.get('param_names', []), fit_result.get('params', [])):
+            result_text += f"  {param_name} = {param_value: .4e}\n"
+        result_text += f"  R^2 = {fit_result.get('r_squared', float('nan')): .5f}\n"
+        if fit_result.get('weighted'):
+            result_text += "  (Y誤差列を重みとして使用)\n"
+        x_range = fit_result.get('x_range')
+        if x_range is not None:
+            result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
+        if fit_result.get('fixed_params'):
+            result_text += f"  (固定: {fit_result['fixed_params']})\n"
+        if fit_result.get('bounds'):
+            result_text += f"  (範囲拘束: {fit_result['bounds']})\n"
+        return result_text
+
+    def _on_export_fit_result(self):
+        """
+        「フィット結果のエクスポート...」メニューの処理(項目C-413)。
+
+        「曲線の新規データセット化」「表CSV」は項目C-401の時点で既に
+        _on_fit_curve() 実行直後に一度提供済みなので、このメニューが埋める
+        本当のギャップは (a) フィットをやり直さずに後から何度でも表/CSVを
+        再表示できること、(b) フィット結果の要約をグラフ上の注釈として
+        焼き込めること、の2点(項目C-413のdocstring/ロードマップ参照)。
+
+        カレントデータセットの dataset.fit_result (項目C-401で永続化済みの
+        構造化結果) だけから結果を再構成する。calculate_curve_fit() は
+        一切呼び出さない(再フィットしない)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            return
+
+        fit_result = dataset.fit_result
+        if fit_result is None:
+            # メニュー項目はsetEnabledでグレーアウトしているが、それでも
+            # 呼び出された場合(あるいは将来別経路から呼ばれた場合)に備えた
+            # 防御的なフォールバック。
+            QMessageBox.information(
+                self, "フィット結果のエクスポート",
+                "このデータセットは曲線フィットの結果を持っていません。\n"
+                "曲線フィットで生成されたデータセット(名前が「Fit (...)」の\n"
+                "もの、またはfit_resultを保持しているもの)を選択してください。"
+            )
+            return
+
+        result_text = self._format_fit_result_text(fit_result)
+        csv_data = pd.DataFrame({
+            'パラメータ': list(fit_result.get('param_names', [])) + ['R^2'],
+            '値': list(fit_result.get('params', [])) + [fit_result.get('r_squared')],
+        })
+
+        # ★ _on_fit_curve() と同じく、非モーダル・スクロール可能なダイアログで表示する
+        # (self.fit_result_dialog を使い回すのも_on_fit_curve()と同じ挙動)
+        if self.fit_result_dialog is not None:
+            self.fit_result_dialog.close()
+        self.fit_result_dialog = ResultDialog(
+            "フィット結果のエクスポート", result_text, self, csv_data=csv_data,
+            residual_x=fit_result.get('residual_x'), residual_y=fit_result.get('residuals'),
+        )
+        self.fit_result_dialog.show()
+
+        # 「注釈焼込」(項目C-413のもう一つの柱)は、CSV再エクスポートとは
+        # 独立した任意操作として、確認ダイアログ経由で提供する
+        # (ダイアログを重ねるのではなく、この1つのメニュー操作の流れの中で
+        # 完結させることで、新しい設定ダイアログを追加しないシンプルな設計にする)。
+        reply = QMessageBox.question(
+            self, "フィット結果のエクスポート",
+            "このフィット結果の要約(パラメータ値±誤差・R^2)を、\n"
+            "グラフ上のテキスト注釈として焼き込みますか?\n"
+            "(焼き込み後は注釈モードで通常の注釈と同様に移動・編集・削除できます)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._burn_fit_result_annotation(dataset, fit_result)
+
+    def _burn_fit_result_annotation(self, dataset, fit_result):
+        """
+        フィット結果の要約(フィット式・パラメータ値±誤差・R^2)を、既存の
+        注釈システム(gui/mixins/annotation_mixin.py)と全く同じデータモデル
+        (project.all_plot_settings[axis_index]['annotations'] に積む
+        {'type':'text', 'text', 'xy', 'xytext', 'color'} 辞書)へ追加する
+        (項目C-413「注釈焼込」)。手動でクリック配置する注釈と同じ
+        _add_annotation() 経由・同じ SetAnnotationsCommand 経由で追加するため、
+        Undo/Redoが効き、焼き込み後は注釈モードで通常どおり移動・編集・削除できる
+        (このハンドラ専用の特別な描画経路は一切持たない)。
+
+        アンカー位置: フィット対象データセット(dataset、フィット曲線
+        x_fit/y_fit を持つDatasetそのもの)のデータ点の中央インデックスを採用する。
+        ピーク位置(argmax)やカーブの端ではなく中央点を選んだのは、線形/指数/
+        対数など単調な形状のフィットではargmaxが曲線の端に寄ってしまい、
+        逆にグラフ全体のどのフィット形状でもそこそこ無難な位置になるのは
+        中央点だと判断したため(項目C-413の指示にある「固定オフセット」案より、
+        曲線の存在するx範囲の中で確実に曲線上に乗る点であることを優先した)。
+        """
+        axis_index = dataset.subplot_target
+        if axis_index is None or axis_index >= len(self.project.all_plot_settings):
+            QMessageBox.warning(
+                self, "フィット結果のエクスポート",
+                "注釈を追加する対象のプロットが見つかりませんでした。"
+            )
+            return
+
+        x_data, y_data = dataset.x_data, dataset.y_data
+        if len(x_data) == 0:
+            QMessageBox.warning(
+                self, "フィット結果のエクスポート",
+                "フィット曲線にデータ点が無いため、注釈を追加できませんでした。"
+            )
+            return
+        mid_index = len(x_data) // 2
+        anchor_x, anchor_y = float(x_data[mid_index]), float(y_data[mid_index])
+
+        fit_type = fit_result.get('fit_type', '')
+        summary_lines = [f"フィット: {fit_type}"]
+        param_names = fit_result.get('param_names', [])
+        params = fit_result.get('params', [])
+        param_errors = fit_result.get('param_errors', [None] * len(params))
+        for name, value, err in zip(param_names, params, param_errors):
+            if err is not None:
+                summary_lines.append(f"{name} = {value:.4g} ± {err:.4g}")
+            else:
+                summary_lines.append(f"{name} = {value:.4g}")
+        r_squared = fit_result.get('r_squared')
+        if r_squared is not None:
+            summary_lines.append(f"R^2 = {r_squared:.5f}")
+        summary_text = "\n".join(summary_lines)
+
+        annotation = {
+            'type': 'text', 'text': summary_text,
+            'xy': (anchor_x, anchor_y), 'xytext': (anchor_x, anchor_y),
+            'color': '#000000',
+        }
+        self._add_annotation(axis_index, annotation, description="フィット結果の注釈焼き込み")
+        self.statusBar().showMessage("フィット結果を注釈として焼き込みました", 3000)
 
     def _on_secondary_y_changed(self):
         """

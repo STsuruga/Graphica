@@ -30,6 +30,7 @@ def test_defaults():
     assert ds.subplot_target == 0
     assert isinstance(ds.dataset_id, str) and len(ds.dataset_id) > 0
     assert ds.fit_result is None
+    assert ds.fit_band_display is None
 
 
 def test_dataset_id_is_unique_per_instance():
@@ -415,6 +416,27 @@ def test_pickle_roundtrip_preserves_fit_result():
     restored = pickle.loads(pickle.dumps(ds))
 
     assert restored.fit_result == fit_result
+
+
+def test_to_dict_from_dict_roundtrip_preserves_fit_band_display():
+    """項目C-405: fit_band_displayがto_dict()/from_dict()の往復で保持されること。"""
+    ds = make_dataset(fit_band_display="prediction")
+
+    data = ds.to_dict()
+    assert data['fit_band_display'] == "prediction"
+
+    restored = Dataset.from_dict(data)
+    assert restored.fit_band_display == "prediction"
+
+
+def test_from_dict_missing_fit_band_display_key_falls_back_to_none():
+    ds = make_dataset(name="Legacy")
+    data = ds.to_dict()
+    data.pop('fit_band_display', None)
+
+    restored = Dataset.from_dict(data)
+
+    assert restored.fit_band_display is None
 
 
 def test_defaults_include_waterfall_fields():

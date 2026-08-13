@@ -7,6 +7,7 @@ from scipy.integrate import simpson
 from scipy.interpolate import CubicSpline
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, peak_widths, savgol_filter
+from scipy.special import wofz
 
 from core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
 
@@ -20,8 +21,9 @@ _PLUGIN_FIT_FUNCTIONS = {}
 # calculate_curve_fit() の組み込みフィットタイプ判定(部分一致)で使われる文字列。
 # register_fit_function() が組み込み名と衝突する名前を弾くためのチェックにも使う。
 _BUILTIN_FIT_TYPE_SUBSTRINGS = (
-    "カスタム数式", "線形", "2次多項式", "3次多項式", "指数関数",
-    "対数", "べき乗", "ガウシアン", "シグモイド",
+    "カスタム数式", "線形", "2次多項式", "3次多項式", "2成分指数", "指数関数",
+    "対数", "べき乗", "ガウシアン", "ローレンツ", "擬似フォークト", "フォークト",
+    "ボルツマン", "シグモイド", "ヒル",
 )
 
 
@@ -119,6 +121,10 @@ def get_fit_param_names(fit_type, custom_formula=None):
         return ['a', 'b', 'c']
     elif "3次多項式" in fit_type:
         return ['a', 'b', 'c', 'd']
+    elif "2成分指数" in fit_type:
+        # ★ "2成分指数関数"という表示名自体が"指数関数"を部分文字列として含むため、
+        # 下の"指数関数"判定より必ず先に判定する(calculate_curve_fit側も同順)。
+        return ['a1', 'b1', 'a2', 'b2', 'c']
     elif "指数関数" in fit_type:
         return ['a', 'b']
     elif "対数" in fit_type:
@@ -127,8 +133,22 @@ def get_fit_param_names(fit_type, custom_formula=None):
         return ['a', 'b']
     elif "ガウシアン" in fit_type:
         return ['a', 'b', 'c', 'd']
+    elif "ローレンツ" in fit_type:
+        return ['a', 'b', 'c', 'd']
+    elif "擬似フォークト" in fit_type:
+        # ★ "擬似フォークト関数"は"フォークト"も部分文字列として含むため、
+        # 下の(真の)"フォークト"判定より必ず先に判定する(calculate_curve_fit側も同順)。
+        return ['a', 'b', 'c', 'eta', 'd']
+    elif "フォークト" in fit_type:
+        return ['a', 'b', 'sigma', 'gamma', 'd']
+    elif "ボルツマン" in fit_type:
+        # ★ "ボルツマンシグモイド"は"シグモイド"も部分文字列として含むため、
+        # 下の(既存の)"シグモイド"判定より必ず先に判定する(calculate_curve_fit側も同順)。
+        return ['a1', 'a2', 'x0', 'dx']
     elif "シグモイド" in fit_type:
         return ['a', 'b', 'c']
+    elif "ヒル" in fit_type:
+        return ['vmax', 'k', 'n']
     elif fit_type in _PLUGIN_FIT_FUNCTIONS:
         return list(_PLUGIN_FIT_FUNCTIONS[fit_type]["params"])
     else:
@@ -229,6 +249,53 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
     def sigmoid_func(x, a, b, c):
         return a / (1 + np.exp(-b * (x - c)))
 
+    def multi_exp_func(x, a1, b1, a2, b2, c):
+        return a1 * np.exp(b1 * x) + a2 * np.exp(b2 * x) + c
+
+    def lorentzian_func(x, a, b, c, d):
+        return a / (1 + ((x - b) / c) ** 2) + d
+
+    def pseudo_voigt_func(x, a, b, c, eta, d):
+        # L(x)/G(x) はどちらも中心bと幅(FWHM)cを共有する「高さ1」の形状関数
+        # (ローレンツ型・ガウシアン型)。etaで両者を線形にブレンドする
+        # (XPS/ラマン分光のピークフィッティングで一般的な擬似フォークト関数の定義)。
+        lorentzian_shape = 1 / (1 + ((x - b) / c) ** 2)
+        gaussian_shape = np.exp(-4 * np.log(2) * ((x - b) / c) ** 2)
+        return a * (eta * lorentzian_shape + (1 - eta) * gaussian_shape) + d
+
+    def voigt_func(x, a, b, sigma, gamma, d):
+        # ガウシアン(sigma)とローレンツ型(gamma)の真の畳み込み。
+        # scipy.special.wofz(Faddeeva関数)によるVoigtプロファイルの標準的な実装で、
+        # 1/(sigma*sqrt(2*pi))の正規化により、wofz(0)=1のガウシアン極限
+        # (gamma→0)でamplitude(a)がピーク高さそのものになる
+        # (この正規化がないと"amplitude"パラメータがピーク高さとして振る舞わない)。
+        z = ((x - b) + 1j * gamma) / (sigma * np.sqrt(2))
+        return a * np.real(wofz(z)) / (sigma * np.sqrt(2 * np.pi)) + d
+
+    def boltzmann_sigmoid_func(x, a1, a2, x0, dx):
+        # 既存のsigmoid_func(下側漸近値が常に0)と異なり、上下両方の漸近値
+        # (a1, a2)を独立パラメータとして持つボルツマン型シグモイド。
+        return a2 + (a1 - a2) / (1 + np.exp((x - x0) / dx))
+
+    def hill_func(x, vmax, k, n):
+        return (vmax * np.power(x, n)) / (np.power(k, n) + np.power(x, n))
+
+    def estimate_fwhm(x_arr, y_arr, amplitude):
+        """
+        ピーク系モデル(ローレンツ/擬似フォークト/フォークト)のp0推定に共通の
+        処理。ピーク頂点からY方向に振幅の半分だけ下がった水準(半値)を横切る
+        Xの範囲を、半値全幅(FWHM)の粗い近似として使う。ガウシアンの既存p0
+        (データのX範囲の1/4を固定的に使う)よりも実際のピーク幅に近い値になり、
+        裾が広いローレンツ型/フォークト型でscipyが誤った局所解に収束するのを防ぐ。
+        半値を上回る点が無い(ノイズ等で検出できない)場合はガウシアンと同じ
+        フォールバックを使う。
+        """
+        half_level = np.nanmin(y_arr) + amplitude / 2
+        above_half = x_arr[y_arr >= half_level]
+        if len(above_half) == 0:
+            return (np.nanmax(x_arr) - np.nanmin(x_arr)) / 4 or 1.0
+        return (above_half.max() - above_half.min()) or 1.0
+
     # ★ 保守上の注意: 以下のフィットタイプ判定チェーンのパラメータ名は
     # get_fit_param_names()に意図的に重複させてある。組み込みフィットタイプを
     # 追加/変更する場合は、get_fit_param_names()側も必ず合わせて更新すること。
@@ -248,6 +315,19 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
     elif "3次多項式" in fit_type:
         fit_func, params_info = poly3_func, ['a', 'b', 'c', 'd']
         p0 = [1.0, 1.0, 1.0, 0.0]
+    elif "2成分指数" in fit_type:
+        # ★ "2成分指数関数"という表示名自体が"指数関数"を部分文字列として含むため、
+        # 下の(単成分の)"指数関数"判定より必ず先に判定する
+        # (get_fit_param_names()側も同順、詳細は同関数のコメント参照)。
+        fit_func, params_info = multi_exp_func, ['a1', 'b1', 'a2', 'b2', 'c']
+        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) / 2 or 1.0
+        x_span = (np.nanmax(x_data) - np.nanmin(x_data)) or 1.0
+        # 2成分を区別する勾配情報をscipyに与えるため、符号の異なる2つの減衰/
+        # 成長率で初期値をずらしておく(全く同じ初期値だと2成分が縮退し
+        # 収束しにくくなる)。率のスケールはXの範囲全体で緩やかに1回程度
+        # e-foldingする程度(2/x_span)を目安にする。
+        rate0 = 2.0 / x_span
+        p0 = [amplitude, rate0, amplitude, -rate0, np.nanmin(y_data)]
     elif "指数関数" in fit_type:
         fit_func, params_info = exp_func, ['a', 'b']
         # y の符号に合わせた初期振幅で収束しやすくする
@@ -269,10 +349,69 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
         center = x_data[np.nanargmax(y_data)] if len(x_data) else 0.0
         width = (np.nanmax(x_data) - np.nanmin(x_data)) / 4 or 1.0
         p0 = [amplitude, center, width, np.nanmin(y_data)]
+    elif "ローレンツ" in fit_type:
+        fit_func, params_info = lorentzian_func, ['a', 'b', 'c', 'd']
+        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) or 1.0
+        center = x_data[np.nanargmax(y_data)] if len(x_data) else 0.0
+        # cはHWHM(半値半幅)なので、半値全幅(FWHM)推定の半分を初期値にする
+        fwhm0 = estimate_fwhm(x_data, y_data, amplitude)
+        p0 = [amplitude, center, fwhm0 / 2, np.nanmin(y_data)]
+    elif "擬似フォークト" in fit_type:
+        # ★ "擬似フォークト関数"は"フォークト"も部分文字列として含むため、
+        # 下の(真の)"フォークト"判定より必ず先に判定する
+        # (get_fit_param_names()側も同順、詳細は同関数のコメント参照)。
+        fit_func, params_info = pseudo_voigt_func, ['a', 'b', 'c', 'eta', 'd']
+        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) or 1.0
+        center = x_data[np.nanargmax(y_data)] if len(x_data) else 0.0
+        # pseudo_voigt_funcの定義上、cはガウシアン項/ローレンツ項共通のFWHM
+        # そのものとして使われている(そう定義したのが擬似フォークト関数の
+        # 意義そのもの)ため、HWHMには変換せずFWHM推定をそのまま初期値にする。
+        fwhm0 = estimate_fwhm(x_data, y_data, amplitude)
+        p0 = [amplitude, center, fwhm0, 0.5, np.nanmin(y_data)]
+    elif "フォークト" in fit_type:
+        fit_func, params_info = voigt_func, ['a', 'b', 'sigma', 'gamma', 'd']
+        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) or 1.0
+        center = x_data[np.nanargmax(y_data)] if len(x_data) else 0.0
+        fwhm0 = estimate_fwhm(x_data, y_data, amplitude)
+        # 推定した見かけのFWHMを、ガウシアン成分(sigma)とローレンツ成分(gamma)
+        # に大まかに配分する初期値(2.355*sigma≈ガウシアンFWHM、4*gamma≈
+        # ローレンツ寄与分、という経験的な目安)。
+        sigma0 = (fwhm0 / 2.355) or 1.0
+        gamma0 = (fwhm0 / 4) or 1.0
+        # wofz(0)=1のガウシアン極限でのピーク高さ a/(sigma*sqrt(2*pi))がデータの
+        # 振幅に近づくよう、aの初期値をsigma0でスケールしておく(voigt_funcの
+        # 正規化を参照)。
+        p0 = [amplitude * sigma0 * np.sqrt(2 * np.pi), center, sigma0, gamma0, np.nanmin(y_data)]
+    elif "ボルツマン" in fit_type:
+        # ★ "ボルツマンシグモイド"は"シグモイド"も部分文字列として含むため、
+        # 下の(既存の)"シグモイド"判定より必ず先に判定する
+        # (get_fit_param_names()側も同順、詳細は同関数のコメント参照)。
+        fit_func, params_info = boltzmann_sigmoid_func, ['a1', 'a2', 'x0', 'dx']
+        order = np.argsort(x_data)
+        x_sorted, y_sorted = x_data[order], y_data[order]
+        y_start = y_sorted[0]
+        y_end = y_sorted[-1]
+        mid_level = (y_start + y_end) / 2
+        # 遷移の中心x0を、Xの単純平均ではなく「Y中点を最初に横切るX」から
+        # 推定する(遷移がデータ範囲の中心からずれている場合、単純平均だと
+        # scipyが誤った局所解に収束しやすいため)。
+        crossing_mask = y_sorted < mid_level if y_start >= y_end else y_sorted > mid_level
+        crossing_indices = np.flatnonzero(crossing_mask)
+        x0 = x_sorted[crossing_indices[0]] if len(crossing_indices) else np.nanmean(x_data)
+        dx0 = (np.nanmax(x_data) - np.nanmin(x_data)) / 10 or 1.0
+        p0 = [y_start, y_end, x0, dx0]
     elif "シグモイド" in fit_type:
         fit_func, params_info = sigmoid_func, ['a', 'b', 'c']
         amplitude = np.nanmax(y_data) or 1.0
         p0 = [amplitude, 1.0, np.nanmean(x_data)]
+    elif "ヒル" in fit_type:
+        if np.any(x_data < 0):
+            raise ValueError("ヒル式は X >= 0 のデータにのみ使用できます。")
+        fit_func, params_info = hill_func, ['vmax', 'k', 'n']
+        vmax0 = np.nanmax(y_data) or 1.0
+        positive_x = x_data[x_data > 0]
+        k0 = np.nanmedian(positive_x) if len(positive_x) else 1.0
+        p0 = [vmax0, k0, 1.0]
     elif fit_type in _PLUGIN_FIT_FUNCTIONS:
         # プラグインが register_fit_function() で追加したフィット関数
         plugin_entry = _PLUGIN_FIT_FUNCTIONS[fit_type]
@@ -422,6 +561,12 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
         'pcov': pcov,
         'perr': perr,
         'param_names': params_info,
+        # 項目C-405: 信頼帯・予測帯の計算(calculate_confidence_band)に必要な
+        # f(x, *params)形式の関数そのもの(fixed_paramsによるラップ前の元の関数。
+        # popt自体は既にfixed_paramsの値を含むフルサイズなので、元の関数と
+        # 組み合わせて問題なく使える)。pickle/JSON化はしない(Dataset.fit_result
+        # には含めない、呼び出し直後にのみ使う一時的な値)。
+        'fit_func': fit_func,
         'x_fit': x_fit,
         'y_fit': y_fit,
         'r_squared': r_squared,
@@ -944,3 +1089,202 @@ def calculate_baseline_manual(x_data, y_data, anchor_x, method="linear"):
         baseline = CubicSpline(anchor_x, anchor_y)(x_sorted)
 
     return x_sorted, baseline, y_sorted - baseline
+
+
+def calculate_confidence_band(x_eval, fit_func, popt, pcov, residuals, confidence=0.95, band_type="confidence"):
+    """
+    非線形回帰の信頼帯・予測帯(項目C-405)を、線形化(デルタ法)で近似計算する。
+
+    厳密な信頼区間は非線形モデルでは閉形式に求まらないため、標準的な近似として
+    「各評価点でfit_funcをパラメータについて数値微分してヤコビアンJ(x)を求め、
+    その点でのY推定値の分散を J(x) @ pcov @ J(x).T として伝播させる」線形化法
+    (delta method)を用いる。scipy.optimize.curve_fitのpcov自体もこの線形化を
+    前提にした共分散行列であり、同じ近似の範囲で一貫している。
+
+    - 信頼帯(band_type="confidence"): 「真の回帰曲線」がどの範囲に収まるかを
+      表す(パラメータの不確かさのみに由来する)。
+    - 予測帯(band_type="prediction"): 「次に測定する新しい1点」がどの範囲に
+      収まるかを表す(パラメータの不確かさに加え、既存データの残差から推定した
+      観測ノイズの分散も加算するため、信頼帯より必ず広くなる)。
+
+    Args:
+        x_eval (array-like): 帯を評価するX座標(通常はcalculate_curve_fitが
+            返すx_fit、200点の滑らかな曲線用データ)。
+        fit_func (callable): f(x, *params)形式の関数。calculate_curve_fit()の
+            戻り値dictの'fit_func'キー(fixed_paramsによるラップ前の元の関数。
+            poptは既にfixed_paramsの値を含むフルサイズなので組み合わせて問題ない)。
+        popt (array-like): 最適化されたパラメータ配列。
+        pcov (array-like): パラメータの共分散行列(calculate_curve_fit()の
+            戻り値の'pcov')。fixed_paramsで固定されたパラメータの行/列は0
+            (=そのパラメータ由来の不確かさは伝播しない、意図通りの挙動)。
+        residuals (array-like): フィットの残差(calculate_curve_fit()の
+            戻り値の'residuals')。予測帯の観測ノイズ分散(平均二乗誤差)の
+            推定に使う。信頼帯では使わない。
+        confidence (float): 信頼水準(0 < confidence < 1、既定0.95)。
+        band_type (str): "confidence" または "prediction"。
+
+    Returns:
+        dict: y_center(x_eval上でのフィット曲線の値、fit_func(x_eval, *popt)) /
+            y_lower / y_upper(帯の下限/上限) / confidence / band_type。
+
+    Raises:
+        ValueError: band_typeが不明、confidenceが(0,1)の範囲外、
+            自由度(データ点数 - 自由パラメータ数)が1未満の場合。
+    """
+    if band_type not in ("confidence", "prediction"):
+        raise ValueError(f"未知のband_typeです: {band_type}")
+    if not (0.0 < confidence < 1.0):
+        raise ValueError("confidence(信頼水準)は0より大きく1より小さい値である必要があります。")
+
+    x_eval = np.asarray(x_eval, dtype=float)
+    popt = np.asarray(popt, dtype=float)
+    pcov = np.asarray(pcov, dtype=float)
+    residuals = np.asarray(residuals, dtype=float)
+
+    n_params = len(popt)
+    n_data = len(residuals)
+    dof = n_data - n_params
+    if dof < 1:
+        raise ValueError(
+            f"自由度(データ点数{n_data} - パラメータ数{n_params})が1未満のため、"
+            "信頼帯・予測帯を計算できません。"
+        )
+
+    from scipy.stats import t as _t_dist
+    t_value = _t_dist.ppf(1.0 - (1.0 - confidence) / 2.0, dof)
+
+    # ヤコビアン(中心差分による数値微分): J[:, i] = ∂f/∂popt_i を各x_evalで評価。
+    y_center = fit_func(x_eval, *popt)
+    jacobian = np.empty((len(x_eval), n_params))
+    for i in range(n_params):
+        # ステップ幅はパラメータの大きさに応じて相対的に決める(絶対値が
+        # 極端に小さい/大きいパラメータでも数値誤差が出にくいようにするため)。
+        step = max(abs(popt[i]), 1.0) * 1e-6
+        popt_plus, popt_minus = popt.copy(), popt.copy()
+        popt_plus[i] += step
+        popt_minus[i] -= step
+        jacobian[:, i] = (fit_func(x_eval, *popt_plus) - fit_func(x_eval, *popt_minus)) / (2 * step)
+
+    # 各評価点でのY推定値の分散 = diag(J @ pcov @ J.T)。
+    # np.einsumで対角成分だけを効率よく求める(フルの行列積J@pcov@J.Tは不要)。
+    var_yhat = np.einsum('ij,jk,ik->i', jacobian, pcov, jacobian)
+    # 数値誤差でごく僅かに負になることがあるため0でクリップする。
+    var_yhat = np.clip(var_yhat, 0.0, None)
+
+    if band_type == "prediction":
+        # 予測帯は「パラメータの不確かさ」に「観測ノイズの分散(残差の平均二乗誤差)」
+        # を加算する(信頼帯よりも必ず広くなる)。
+        mse = np.sum(residuals ** 2) / dof
+        variance = var_yhat + mse
+    else:
+        variance = var_yhat
+
+    margin = t_value * np.sqrt(variance)
+
+    return {
+        'y_center': y_center,
+        'y_lower': y_center - margin,
+        'y_upper': y_center + margin,
+        'confidence': confidence,
+        'band_type': band_type,
+    }
+
+
+# ==============================================================================
+# 共通X格子へのリサンプリング/補間(項目C-305)
+# ==============================================================================
+# gui/mixins/dataset_mixin.py の _on_dataset_arithmetic (項目「データセット間演算」)
+# は、B側のY値をA側のX値へ線形補間(np.interp)してから演算する処理を内部に
+# 持っているが、これは「2データセットの重なる範囲のみ・線形補間のみ」に限定された
+# インライン実装であり、他機能から再利用できない。本関数はそれを一般化し、
+# 任意のtarget_x配列(他データセットのX格子でも、等間隔グリッドでも)への
+# リサンプリングを、線形/3次スプラインの両方式・外挿あり/なしを選べる形で提供する。
+
+def calculate_resample_to_grid(x_data, y_data, target_x, method="linear", extrapolate=False):
+    """
+    (x_data, y_data) を target_x のX格子上にリサンプリング/補間する。
+
+    calculate_curve_fit と同様に、x_data/y_data のNaN行(欠損値、マスク済み行など)は
+    計算前に除外する。target_x 側はそのまま(NaNが含まれていればその点の出力もNaNになる、
+    np.interp/CubicSplineの通常の挙動に委ねる)。
+
+    Args:
+        x_data, y_data (array-like): リサンプリング元のデータ(順不同で可、内部で
+            Xの昇順にソートする)。
+        target_x (array-like): 出力先のX格子。
+        method (str): "linear"(np.interp、_on_dataset_arithmeticの既存挙動と同じ)
+            または "cubic"(scipy.interpolate.CubicSpline)。
+        extrapolate (bool): Falseの場合(既定)、target_xのうち元データのX範囲外に
+            ある点はNaNにする(範囲外の外挿は物理的に無意味な値になりうるための
+            安全側デフォルト)。Trueの場合:
+            - "linear": 両端の2点から真に線形外挿する(np.interpは既定では範囲外を
+              端の値でクランプするだけで「外挿」にならないため、そのままでは
+              extrapolate=Trueの意図を満たさない。ここでは端の傾きを使って
+              明示的に外挿する)。
+            - "cubic": CubicSpline自体のextrapolate=Trueをそのまま使う(端の
+              区間の3次多項式をそのまま延長する、scipy標準の外挿)。
+
+    Returns:
+        np.ndarray: target_xと同じ長さのY値配列(extrapolate=Falseなら範囲外はNaN)。
+    """
+    if method not in ("linear", "cubic"):
+        raise ValueError(f"未知の補間方法です: {method}")
+
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+    target_x = np.asarray(target_x, dtype=float)
+
+    nan_mask = np.isnan(x_data) | np.isnan(y_data)
+    if nan_mask.any():
+        x_data, y_data = x_data[~nan_mask], y_data[~nan_mask]
+
+    if len(x_data) == 0:
+        raise ValueError("有効なデータ点がありません(すべて欠損値です)。リサンプリングできません。")
+
+    order = np.argsort(x_data)
+    x_sorted, y_sorted = x_data[order], y_data[order]
+    # 重複するX値があると補間関数(特にCubicSpline)が厳密な単調増加を要求して
+    # 失敗するため、同一X値は最後の値を採用してまとめる(calculate_savgol等と違い
+    # ここでは重複除去が必要 — 他の補間系関数は入力が単一系列のみで重複を想定していない)。
+    # np.unique(..., return_index=True)は各値の"最初"の出現位置を返すため、
+    # そのまま使うと重複X値のうち最初の値が残ってしまう。「最後の値を採用する」
+    # 仕様にするため、配列を反転させてから重複除去し、結果を元の昇順に戻す。
+    x_rev, y_rev = x_sorted[::-1], y_sorted[::-1]
+    x_sorted, rev_unique_indices = np.unique(x_rev, return_index=True)
+    y_sorted = y_rev[rev_unique_indices]
+
+    n_points = len(x_sorted)
+    if method == "linear" and n_points < 2:
+        raise ValueError(f"線形補間には少なくとも2点のデータが必要です(現在{n_points}点)。")
+    if method == "cubic" and n_points < 4:
+        raise ValueError(f"3次スプライン補間には少なくとも4点のデータが必要です(現在{n_points}点)。")
+
+    x_min, x_max = x_sorted[0], x_sorted[-1]
+
+    if method == "linear":
+        if extrapolate:
+            # np.interpは範囲外を既定で端の値にクランプするだけなので、
+            # 両端の2点の傾きを使って真の線形外挿を明示的に行う。
+            result = np.interp(target_x, x_sorted, y_sorted)
+            below = target_x < x_min
+            if below.any():
+                slope = (y_sorted[1] - y_sorted[0]) / (x_sorted[1] - x_sorted[0])
+                result[below] = y_sorted[0] + slope * (target_x[below] - x_min)
+            above = target_x > x_max
+            if above.any():
+                slope = (y_sorted[-1] - y_sorted[-2]) / (x_sorted[-1] - x_sorted[-2])
+                result[above] = y_sorted[-1] + slope * (target_x[above] - x_max)
+        else:
+            result = np.interp(target_x, x_sorted, y_sorted)
+            out_of_range = (target_x < x_min) | (target_x > x_max)
+            result = result.astype(float)
+            result[out_of_range] = np.nan
+    else:  # "cubic"
+        spline = CubicSpline(x_sorted, y_sorted, extrapolate=extrapolate)
+        result = spline(target_x)
+        if not extrapolate:
+            out_of_range = (target_x < x_min) | (target_x > x_max)
+            result = np.asarray(result, dtype=float)
+            result[out_of_range] = np.nan
+
+    return result

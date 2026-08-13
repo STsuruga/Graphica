@@ -167,6 +167,13 @@ class Dataset:
     # (.graphica)のどちらの保存経路でもそのまま往復できるようにする。
     fit_result: dict = field(default=None)
 
+    # フィット結果の信頼帯・予測帯を表示するか(項目C-405)。"confidence"/
+    # "prediction"/None(表示しない、既定)。有効な場合、dfに'y_lower'/'y_upper'
+    # 列(gui/mixins/dataset_mixin.pyの_on_fit_curve/_on_batch_curve_fitが
+    # calculate_confidence_band()の結果から追加)が存在することを前提に、
+    # gui/canvas.pyがfill_betweenで帯を描画する。
+    fit_band_display: str = field(default=None)
+
     # プラグインのregister_processor/register_analyzer(項目C-1/C-2)が生成した
     # Datasetについて、生成元プラグイン名を残す(項目C-3、provenanceの土台)。
     # プラグイン以外の通常の操作で作られたDatasetはNoneのまま。

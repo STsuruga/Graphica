@@ -756,7 +756,13 @@ class FitDialog(QDialog):
             "対数 (y = a * ln(x) + b)",
             "べき乗 (y = a * x^b)",
             "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
+            "ローレンツ関数 (y = a / (1 + ((x-b)/c)^2) + d)",
+            "擬似フォークト関数 (y = a*(η/(1+((x-b)/c)^2) + (1-η)*exp(-4ln2*((x-b)/c)^2)) + d)",
+            "フォークト関数 (y = a*Re[wofz((x-b+iγ)/(σ√2))] / (σ√(2π)) + d)",
+            "2成分指数関数 (y = a1*exp(b1*x) + a2*exp(b2*x) + c)",
+            "ボルツマンシグモイド (y = a2 + (a1-a2) / (1 + exp((x-x0)/dx)))",
             "シグモイド (y = a / (1 + exp(-b(x-c))))",
+            "ヒルの式 (y = vmax*x^n / (k^n + x^n))",
         ])
         # プラグインが追加したフィット関数を、組み込みの選択肢と
         # 「カスタム数式...」の間に挿入する
@@ -826,6 +832,19 @@ class FitDialog(QDialog):
         # たびに再構築する(_rebuild_param_tableはパース失敗時に0行にするだけで
         # 例外を外に投げないため、入力途中でクラッシュすることはない)。
         self.custom_formula_edit.textChanged.connect(self._rebuild_param_table)
+
+        # --- 信頼帯・予測帯(項目C-405) ---
+        # 既定は「表示しない」(計算コストと帯の重ね描きが常に欲しいとは限らないため)。
+        band_form = QFormLayout()
+        self.band_combo = QComboBox()
+        self.band_combo.addItems(["表示しない", "信頼帯 (95%)", "予測帯 (95%)"])
+        self.band_combo.setToolTip(
+            "信頼帯: 真の回帰曲線が収まると考えられる範囲(パラメータの不確かさのみ)。\n"
+            "予測帯: 次に測定する新しい1点が収まると考えられる範囲\n"
+            "(パラメータの不確かさに加え、観測ノイズの分散も加味するため信頼帯より広くなる)。"
+        )
+        band_form.addRow("信頼帯/予測帯", self.band_combo)
+        layout.addLayout(band_form)
 
         # --- OK / Cancel ボタン ---
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -965,6 +984,19 @@ class FitDialog(QDialog):
 
         return p0_overrides, fixed_params, bounds
 
+    def get_band_type(self):
+        """
+        項目C-405。
+        Returns:
+            str | None: "confidence" / "prediction" / (「表示しない」選択時は)None。
+        """
+        text = self.band_combo.currentText()
+        if "信頼帯" in text:
+            return "confidence"
+        if "予測帯" in text:
+            return "prediction"
+        return None
+
     def get_weighted(self):
         """Y誤差列を重みとして使うかどうか"""
         return self.weighted_checkbox.isChecked()
@@ -985,11 +1017,12 @@ class FitDialog(QDialog):
         【スタティックメソッド】
         ダイアログをモーダルで表示し、OKが押された場合は
         (フィットタイプ名, カスタム数式またはNone, 重み付けを使うか, フィット範囲
-        またはNone, p0_overrides, fixed_params, bounds) のタプルを、Cancelが
-        押された場合は (None, None, False, None, {}, {}, {}) を返します。
-        p0_overrides/fixed_params/boundsは、何もカスタマイズしなかった場合も
-        (Noneではなく)空dictになります — calculate_curve_fit()にそのまま
-        キーワード引数として渡せる形です。
+        またはNone, p0_overrides, fixed_params, bounds, band_type) のタプルを、
+        Cancelが押された場合は (None, None, False, None, {}, {}, {}, None) を
+        返します。p0_overrides/fixed_params/boundsは、何もカスタマイズしなかった
+        場合も(Noneではなく)空dictになります — calculate_curve_fit()にそのまま
+        キーワード引数として渡せる形です。band_type(項目C-405)は
+        "confidence"/"prediction"/(表示しない場合)None。
 
         Args:
             parent (QWidget, optional): 親ウィジェット。
@@ -998,9 +1031,10 @@ class FitDialog(QDialog):
 
         Returns:
             tuple (str|None, str|None, bool, tuple(float,float)|None,
-                   dict[str,float], dict[str,float], dict[str,tuple[float,float]]):
+                   dict[str,float], dict[str,float], dict[str,tuple[float,float]],
+                   str|None):
             (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲,
-             p0_overrides, fixed_params, bounds)
+             p0_overrides, fixed_params, bounds, band_type)
         """
         dialog = FitDialog(parent, x_min=x_min, x_max=x_max)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -1008,8 +1042,8 @@ class FitDialog(QDialog):
             custom_formula = dialog.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
             p0_overrides, fixed_params, bounds = dialog.get_param_settings()
             return (fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range(),
-                    p0_overrides, fixed_params, bounds)
-        return None, None, False, None, {}, {}, {}
+                    p0_overrides, fixed_params, bounds, dialog.get_band_type())
+        return None, None, False, None, {}, {}, {}, None
 
 
 #==============================================================================
@@ -2332,6 +2366,149 @@ class IntervalIntegralDialog(QDialog):
         method = self._METHOD_KEY_BY_LABEL[method_text]
         x_range = (self.range_min_spinbox.value(), self.range_max_spinbox.value())
         return method, x_range, self.subtract_baseline_checkbox.isChecked()
+
+
+class ResampleDatasetDialog(QDialog):
+    """
+    共通X格子へのリサンプリング/補間(項目C-305)の設定を入力させるダイアログ。
+
+    対象のグリッド(リサンプリング先のX格子)を「他のデータセットのX格子」または
+    「等間隔グリッド」のいずれかから選ばせる。BaselineCorrectionDialogと同じく
+    QStackedWidgetで選択肢ごとの入力欄を切り替える。
+    「他のデータセットのX格子」はDatasetArithmeticDialogのA/B選択と異なり、
+    ここでは対象データセット1件(カレント)に対して"もう1件"を後から選ぶ形に
+    なるため、コンボボックスで他データセット名を選ばせる(ロード中のデータセットが
+    対象1件のみの場合は選択肢がなく、その場合はこのソースを選べない)。
+    """
+
+    SOURCE_DATASET = "他のデータセットのX格子"
+    SOURCE_LINSPACE = "等間隔グリッド"
+    SOURCES = [SOURCE_DATASET, SOURCE_LINSPACE]
+
+    METHOD_LINEAR = "線形補間"
+    METHOD_CUBIC = "3次スプライン補間"
+    METHODS = [METHOD_LINEAR, METHOD_CUBIC]
+    _METHOD_KEY_BY_LABEL = {METHOD_LINEAR: "linear", METHOD_CUBIC: "cubic"}
+
+    def __init__(self, name, other_dataset_names, x_min=None, x_max=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("共通X格子へのリサンプリング/補間")
+        self.resize(420, 380)
+        self._name = name
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        source_form = QFormLayout()
+        self.source_combo = QComboBox()
+        self.source_combo.addItems(self.SOURCES)
+        source_form.addRow("リサンプリング先の格子", self.source_combo)
+        layout.addLayout(source_form)
+
+        self.stack = QStackedWidget()
+        layout.addWidget(self.stack)
+
+        # --- 他のデータセットのX格子 ---
+        dataset_page = QWidget()
+        dataset_form = QFormLayout(dataset_page)
+        self.other_dataset_combo = QComboBox()
+        self.other_dataset_combo.addItems(other_dataset_names)
+        dataset_form.addRow("データセット", self.other_dataset_combo)
+        if not other_dataset_names:
+            # 対象になり得る他のデータセットが存在しない(ロード中がこの1件のみ)。
+            # コンボが空のままOKされないよう選択肢自体を無効化しておく。
+            self.other_dataset_combo.setEnabled(False)
+            no_dataset_label = QLabel("(他に読み込まれているデータセットがありません)")
+            no_dataset_label.setWordWrap(True)
+            dataset_form.addRow(no_dataset_label)
+        self.stack.addWidget(dataset_page)
+
+        # --- 等間隔グリッド(numpy.linspace方式: 開始・終了・点数) ---
+        linspace_page = QWidget()
+        linspace_form = QFormLayout(linspace_page)
+        self.linspace_start_spinbox = QDoubleSpinBox()
+        self.linspace_start_spinbox.setRange(-1e12, 1e12)
+        self.linspace_start_spinbox.setDecimals(6)
+        if x_min is not None:
+            self.linspace_start_spinbox.setValue(x_min)
+        linspace_form.addRow("開始X", self.linspace_start_spinbox)
+
+        self.linspace_stop_spinbox = QDoubleSpinBox()
+        self.linspace_stop_spinbox.setRange(-1e12, 1e12)
+        self.linspace_stop_spinbox.setDecimals(6)
+        if x_max is not None:
+            self.linspace_stop_spinbox.setValue(x_max)
+        linspace_form.addRow("終了X", self.linspace_stop_spinbox)
+
+        self.linspace_num_points_spinbox = QSpinBox()
+        self.linspace_num_points_spinbox.setRange(2, 1_000_000)
+        self.linspace_num_points_spinbox.setValue(100)
+        linspace_form.addRow("点数", self.linspace_num_points_spinbox)
+        self.stack.addWidget(linspace_page)
+
+        self.source_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+        if not other_dataset_names:
+            # 選べる他データセットがない場合は最初から「等間隔グリッド」を既定にする。
+            self.source_combo.setCurrentText(self.SOURCE_LINSPACE)
+
+        method_form = QFormLayout()
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(self.METHODS)
+        method_form.addRow("補間方法", self.method_combo)
+        layout.addLayout(method_form)
+
+        self.extrapolate_checkbox = QCheckBox("範囲外を外挿する(既定はNaNにする)")
+        self.extrapolate_checkbox.setToolTip(
+            "元データのX範囲外にある格子点の扱いです。\n"
+            "オフ(既定): 範囲外はNaNになります(安全側)。\n"
+            "オン: 線形補間は両端の傾きで、3次スプラインはscipy標準の\n"
+            "区間多項式の延長で外挿します(いずれも範囲から離れるほど\n"
+            "不正確になりうる点に注意してください)。"
+        )
+        layout.addWidget(self.extrapolate_checkbox)
+
+        output_form = QFormLayout()
+        self.output_name_edit = QLineEdit(f"{name}_resampled")
+        output_form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(output_form)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, dict, str, bool, str):
+                (グリッドソース("dataset"|"linspace"),
+                 ソース別パラメータのdict。"dataset"なら{"dataset_name": str}、
+                 "linspace"なら{"start": float, "stop": float, "num_points": int}、
+                 補間方法("linear"|"cubic"),
+                 範囲外を外挿するか,
+                 出力データセット名)
+        """
+        source_text = self.source_combo.currentText()
+        if source_text == self.SOURCE_DATASET:
+            source = "dataset"
+            params = {"dataset_name": self.other_dataset_combo.currentText()}
+        else:
+            source = "linspace"
+            params = {
+                "start": self.linspace_start_spinbox.value(),
+                "stop": self.linspace_stop_spinbox.value(),
+                "num_points": self.linspace_num_points_spinbox.value(),
+            }
+        method_text = self.method_combo.currentText()
+        method = self._METHOD_KEY_BY_LABEL[method_text]
+        return (
+            source, params, method,
+            self.extrapolate_checkbox.isChecked(),
+            self.output_name_edit.text().strip(),
+        )
 
 
 class PluginParamDialog(QDialog):
