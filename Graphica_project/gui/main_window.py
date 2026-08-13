@@ -95,13 +95,6 @@ DEFAULT_DETACHED_CANVAS_HEIGHT = 700
 # デフォルトのドック配置を変えても既存ユーザーには反映されない)。
 DOCK_LAYOUT_VERSION = 4  # v4: 「プロットのプロパティ」「データセットのプロパティ」を1つのドックに統合
 
-# グラフ内テキスト(目盛り・軸ラベル・凡例)の既定フォント。
-# アプリのUIフォント(main.py の APP_FONT_FAMILIES)とは意図的に別系統にしている:
-# matplotlibは独自のフォント探索(freetypeベースのキャッシュ)を使うため、
-# Qt/Windowsの「UI専用」フォントバリアント("Yu Gothic UI"等)を渡すと解決できず
-# 文字化けする。"Yu Gothic"は実ファイルとして存在しmatplotlibからも解決できる。
-PLOT_DEFAULT_FONT_FAMILY = "Yu Gothic"
-
 # --- オートセーブに関する定数 ---
 DEFAULT_AUTOSAVE_INTERVAL_MIN = 5  # 分単位 (0 = 無効化)
 MIN_AUTOSAVE_INTERVAL_MIN = 0
@@ -206,8 +199,33 @@ def _svg_icon(name, size=20):
 from core.excel_utils import find_unevaluated_formula_cells
 from gui.export_preview_panel import ExportPreviewPanel
 from gui.dataset_style_icon import make_dataset_style_icon
-from gui.mathtext_preview import FitWidthPixmapLabel
+from gui.mathtext_preview import FitWidthPixmapLabel, JP_CAPABLE_FONT_FAMILIES
 from gui.color_history import load_recent_colors_into_picker
+
+# グラフ内テキスト(目盛り・軸ラベル・凡例)の既定フォント。
+# アプリのUIフォント(main.py の APP_FONT_FAMILIES)とは意図的に別系統にしている:
+# matplotlibは独自のフォント探索(freetypeベースのキャッシュ)を使うため、
+# Qt/Windowsの「UI専用」フォントバリアント("Yu Gothic UI"等)を渡すと解決できず
+# 文字化けする。"Yu Gothic"は実ファイルとして存在しmatplotlibからも解決できる。
+# ★ 単一フォント名ではなくフォールバックリスト(gui/mathtext_preview.py の
+#   JP_CAPABLE_FONT_FAMILIESを再利用)にしているのは、"Yu Gothic"がWindows
+#   専用フォントでmacOSには存在しないため。QFont.setFamilies()でこのリストを
+#   丸ごとQFontに設定し、matplotlib側にもリストのまま(familyキーワードに
+#   list)渡すことで、matplotlib 3.6+のフォントフォールバック機構により先頭
+#   から順にグリフを持つフォントが選ばれる(実在しないフォント名は黙って
+#   スキップされるだけなので、複数OS分の候補を並べておいて害はない)。
+PLOT_DEFAULT_FONT_FAMILIES = JP_CAPABLE_FONT_FAMILIES
+
+
+def _make_default_plot_font():
+    """PLOT_DEFAULT_FONT_FAMILIES(フォールバックリスト)を設定したQFontを作る。
+
+    QFont(str)コンストラクタは単一のフォント名しか受け付けないため、
+    setFamilies()で複数候補を丸ごと設定する。
+    """
+    font = QFont()
+    font.setFamilies(PLOT_DEFAULT_FONT_FAMILIES)
+    return font
 
 # --- 責務ごとに分割した Mixin (God Object 化を避けるための構成) ---
 from gui.mixins.ui_setup_mixin import UISetupMixin
@@ -546,19 +564,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
         # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
-        #   PLOT_DEFAULT_FONT_FAMILY を指定する。グラフのテキストは
-        #   matplotlib自身のフォント解決系(独自のフォントキャッシュ)を通るため、
-        #   Qt側のUIフォント("Yu Gothic UI"等のUI専用バリアント)をそのまま
-        #   渡すとmatplotlibがフォントを解決できず文字化けする(findfont警告)。
-        #   UIのフォントとプロット内テキストのフォントは別系統として扱う。
-        self._tick_font = QFont(PLOT_DEFAULT_FONT_FAMILY)
+        #   _make_default_plot_font() (PLOT_DEFAULT_FONT_FAMILIES) を指定する。
+        #   グラフのテキストはmatplotlib自身のフォント解決系(独自のフォント
+        #   キャッシュ)を通るため、Qt側のUIフォント("Yu Gothic UI"等のUI専用
+        #   バリアント)をそのまま渡すとmatplotlibがフォントを解決できず
+        #   文字化けする(findfont警告)。UIのフォントとプロット内テキストの
+        #   フォントは別系統として扱う。
+        self._tick_font = _make_default_plot_font()
         self._tick_color = '#000000' # 黒
         self._tick_width = 0.8
-        self._axis_label_font = QFont(PLOT_DEFAULT_FONT_FAMILY)
+        self._axis_label_font = _make_default_plot_font()
         self._axis_label_color = '#000000'
         self._spine_width = 1.0
         self._spine_color = '#000000'
-        self._legend_font = QFont(PLOT_DEFAULT_FONT_FAMILY)
+        self._legend_font = _make_default_plot_font()
         self._legend_color = '#000000'
 
         # --- 3. ウィンドウサイズとレイアウトの基本設定 ---
