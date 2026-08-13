@@ -31,6 +31,14 @@ on:
       - "v*"
   workflow_dispatch: {}
 
+# 同じref(masterブランチ、または個々のタグ)への新しいpushが来たら、その
+# refに対する古い実行中ランを自動キャンセルする。ref単位でグループ化して
+# いるため、masterへの連続pushは互いにキャンセルし合うが、リリースタグの
+# push(v1.2.0等)はmasterの状況に関わらず独立して最後まで走る。
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
