@@ -31,7 +31,17 @@ _CROP_PADDING_PX = 3
 # 名前("Yu Gothic"/"Meiryo"、"UI"サフィックス無し)を別途指定する。matplotlib
 # 3.6+のフォントフォールバック機構により、リストの先頭から順にグリフを持つ
 # フォントが使われる(英数字はDejaVu Sansのまま、日本語だけYu Gothicに自動で
-# フォールバックする)。
+# フォールバックする)。存在しないフォント名はfindfontが黙ってスキップするだけ
+# なので、複数OS分の候補を1つのリストに並べておいて害はない
+# ("Yu Gothic"はWindows専用、"Hiragino Sans"/"Hiragino Kaku Gothic ProN"は
+# macOS専用、"Noto Sans CJK JP"はLinuxでの補完用)。
+#
+# gui/main_window.py の PLOT_DEFAULT_FONT_FAMILIES(グラフ本体のタイトル/軸
+# ラベル/目盛/凡例の既定フォント)もこのリストをそのまま再利用している。
+# 元々は本プレビュー機能専用のリストとしてWindows向けフォントのみだったが、
+# macOS CIビルド対応の過程で「グラフ本体側にも同じ日本語文字化けの制約が
+# ある」既知の限界(下記コメント参照)を解消するために、本プレビューと
+# プロット本体の双方でこのリストを共有し、macOS向けフォントを追加した。
 #
 # 既知の制限: このfamilyフォールバックは「$...$」を含まないプレーンテキストの
 # 経路にのみ効く。"$\alpha$ vs 時間" のようにmathtext記法と日本語が同一文字列に
@@ -39,12 +49,14 @@ _CROP_PADDING_PX = 3
 # (mathtext.fontset rcParam)で描画するため、日本語部分がtofuボックスになる
 # (matplotlibのmathtextエンジンがWindowsの.ttc書体からグリフを正しく解決できない
 # ことに起因すると考えられる、freetype/mathtext側の既知の制約)。これは本プレビュー
-# 機能固有の問題ではなく、実際のプロット本体(gui/canvas.py の ax.set_title 等、
-# axis_label_fontが未設定の場合)も同じ制約を抱えている、アプリ全体の既存の制限。
-# mathtext.fontsetはmatplotlibのrcParams(プロセス全体のグローバル状態)であり、
-# ここを変更すると本プレビューだけでなく全ての実プロット描画に影響してしまうため、
-# スコープ外として対応を見送る。
-_JP_CAPABLE_FONT_FAMILIES = ["DejaVu Sans", "Yu Gothic", "Meiryo", "MS Gothic"]
+# 機能固有の問題ではなく、mathtext記法を含むタイトル/軸ラベルも同じ制約を
+# 抱えている、アプリ全体の既存の制限。mathtext.fontsetはmatplotlibのrcParams
+# (プロセス全体のグローバル状態)であり、ここを変更すると本プレビューだけでなく
+# 全ての実プロット描画に影響してしまうため、スコープ外として対応を見送る。
+JP_CAPABLE_FONT_FAMILIES = [
+    "DejaVu Sans", "Yu Gothic", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "Meiryo", "MS Gothic", "Noto Sans CJK JP",
+]
 
 # max_width_px指定時、フォントサイズを段階的に縮小して収めようとする下限
 # (これ以上小さくすると判読できなくなるため、下限に達したらpixmap自体を
@@ -91,14 +103,14 @@ def _render_once(text, color, fontsize, dpi):
     display_text = text if text else " "
     try:
         fig.text(0.01, 0.5, display_text, fontsize=fontsize, color=color,
-                  family=_JP_CAPABLE_FONT_FAMILIES, va='center', ha='left')
+                  family=JP_CAPABLE_FONT_FAMILIES, va='center', ha='left')
         canvas.draw()
     except Exception:
         fig = Figure(figsize=_CANVAS_SIZE_INCHES, dpi=dpi)
         canvas = FigureCanvasAgg(fig)
         fig.patch.set_alpha(0.0)
         fig.text(0.01, 0.5, display_text.replace("$", "\\$"), fontsize=fontsize,
-                  color=color, family=_JP_CAPABLE_FONT_FAMILIES, va='center', ha='left')
+                  color=color, family=JP_CAPABLE_FONT_FAMILIES, va='center', ha='left')
         canvas.draw()
 
     buf = np.asarray(canvas.buffer_rgba())

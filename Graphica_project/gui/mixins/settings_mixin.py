@@ -18,6 +18,24 @@ from gui.dialogs import LegendOrderDialog, LabelEditDialog
 logger = logging.getLogger(__name__)
 
 
+def _qfont_from_family_props(font_props: dict) -> QFont:
+    """
+    保存済みフォント辞書の'family'からQFontを復元する。
+
+    'family'は新形式ではフォールバック候補のリスト(_font_props_to_dict参照)、
+    旧形式(このリスト化より前に保存されたプロジェクトファイル)では単一の
+    フォント名(str)。QFont(list)は使えないため、リストならsetFamilies()、
+    strならQFont(str)相当のコンストラクタで復元する。
+    """
+    family = font_props.get('family', 'Sans Serif')
+    if isinstance(family, (list, tuple)):
+        font = QFont()
+        if family:
+            font.setFamilies(list(family))
+        return font
+    return QFont(family)
+
+
 def _order_labels(labels, order):
     """凡例ラベルのリストを、保存済みの並び順(order)に従って並べ替える。
     order に無いラベルは元の相対順を保ったまま末尾に追加する。"""
@@ -472,9 +490,19 @@ class SettingsMixin:
         """
         PySide6のQFontオブジェクトをMatplotlib用の（JSON保存可能な）辞書に変換する。
         (★ __init__ でインポートした FontProperties ではないことに注意)
+
+        ★ 'family'は単一の名前(str)ではなく、qfont.families()が返す
+        フォールバック候補リストをそのまま保存する。既定フォント
+        (gui/main_window.py の _make_default_plot_font())はWindows/macOS
+        双方の日本語フォント名を含むフォールバックリストで構築されているため、
+        ここを.family()(先頭の1件しか返さない)にすると、matplotlib側に
+        渡すリストが1件に潰れてしまい、macOSでは存在しない"Yu Gothic"だけが
+        残って日本語が文字化けする。matplotlibのfamilyキーワードはstr/list
+        どちらも受け付けるため、ユーザーがQFontDialogで単一フォントを選んだ
+        場合(families()が1件のリストを返す)も含めて、常にリストとして保存する。
         """
         return {
-            'family': qfont.family(),
+            'family': list(qfont.families()),
             'size': qfont.pointSize(),
             'weight': 'bold' if qfont.bold() else 'normal',
             'style': 'italic' if qfont.italic() else 'normal'
@@ -653,19 +681,19 @@ class SettingsMixin:
 
             # (フォントの復元)
             tick_font_props = settings.get('tick_font', {})
-            self._tick_font = QFont(tick_font_props.get('family', 'Sans Serif'))
+            self._tick_font = _qfont_from_family_props(tick_font_props)
             self._tick_font.setPointSize(tick_font_props.get('size', 10))
             self._tick_font.setBold(tick_font_props.get('weight') == 'bold')
             self._tick_font.setItalic(tick_font_props.get('style') == 'italic')
 
             label_font_props = settings.get('axis_label_font', {})
-            self._axis_label_font = QFont(label_font_props.get('family', 'Sans Serif'))
+            self._axis_label_font = _qfont_from_family_props(label_font_props)
             self._axis_label_font.setPointSize(label_font_props.get('size', 10))
             self._axis_label_font.setBold(label_font_props.get('weight') == 'bold')
             self._axis_label_font.setItalic(label_font_props.get('style') == 'italic')
 
             legend_font_props = settings.get('legend_font', {})
-            self._legend_font = QFont(legend_font_props.get('family', 'Sans Serif'))
+            self._legend_font = _qfont_from_family_props(legend_font_props)
             if 'size' in legend_font_props:
                 self._legend_font.setPointSize(legend_font_props.get('size', 10))
             self._legend_font.setBold(legend_font_props.get('weight') == 'bold')

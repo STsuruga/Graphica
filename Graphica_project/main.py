@@ -45,6 +45,16 @@ def _setup_logging():
             logging.StreamHandler(sys.stdout),
         ],
     )
+    # グラフの既定フォント(gui/main_window.py の PLOT_DEFAULT_FONT_FAMILIES)は
+    # Windows/macOS/Linux向けの日本語フォント名を1つのフォールバックリストに
+    # まとめて matplotlib に渡す(gui/mathtext_preview.py の
+    # JP_CAPABLE_FONT_FAMILIES参照)。実行中のOSにはそのうち1〜2件しか実在
+    # しないのが前提の設計であり、残りは matplotlib が"findfont: Font family
+    # ... not found."という警告をログに出しながら黙ってスキップする
+    # (グリフ解決自体は自動フォールバックで正しく行われ、実害は無い)。
+    # このリストとの併用は再描画のたびに発生するため、抑制しないと通常利用
+    # だけでgraphica.logが急速に肥大化する。
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 
 def _safe_mode_flag_requested(argv):
     """
