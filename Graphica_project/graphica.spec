@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
-# Graphica の Windows exe を作成するための PyInstaller spec ファイル。
+# Graphica の Windows exe / macOS .app を作成するための PyInstaller spec
+# ファイル。sys.platform で分岐し、Windows/macOS 共用で使う。
 #
 # リポジトリルートに残っている Graphica_ver1.spec / main_ver6.spec は、
 # 現行の Graphica_project/ レイアウトより前のもの(参照しているエントリ
@@ -11,14 +12,31 @@
 # 実行方法 (cwd = Graphica_project/):
 #   pyinstaller graphica.spec
 #
-# 生成物: dist/Graphica/Graphica.exe (onedir 形式)
+# 生成物:
+#   Windows: dist/Graphica/Graphica.exe (onedir 形式)
+#   macOS:   dist/Graphica.app (BUNDLE) ※事前に Graphica.icns の生成が必要
+#            (CIでは .github/workflows/build.yml の macOS ジョブが
+#            Graphica.ico から都度生成している。ローカルでmacビルドする
+#            場合は同じ変換を手動で行うか、Graphica.icns を用意すること)
 
+import importlib.util
 import os
+import sys
 
 # このファイル自身の場所を基準にする (cwd に依存しない: CLAUDE.md の
 # resource_path() と同じ理由 — pyinstaller はこの spec ファイルを
 # 別の cwd から実行されても壊れないようにする)
 PROJECT_ROOT = os.path.dirname(os.path.abspath(SPEC))
+IS_MACOS = sys.platform == "darwin"
+
+# core/version.py の __version__ をmacOSの Info.plist に転記する
+# (バージョン文字列をこのファイルに二重管理しないため)
+_version_spec = importlib.util.spec_from_file_location(
+    "graphica_version", os.path.join(PROJECT_ROOT, "core", "version.py")
+)
+_version_module = importlib.util.module_from_spec(_version_spec)
+_version_spec.loader.exec_module(_version_module)
+APP_VERSION = _version_module.__version__
 
 block_cipher = None
 
@@ -71,6 +89,10 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+icon_path = os.path.join(
+    PROJECT_ROOT, "Graphica.icns" if IS_MACOS else "Graphica.ico"
+)
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -87,7 +109,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=os.path.join(PROJECT_ROOT, "Graphica.ico"),
+    icon=icon_path,
 )
 
 coll = COLLECT(
@@ -100,3 +122,19 @@ coll = COLLECT(
     upx_exclude=[],
     name="Graphica",
 )
+
+if IS_MACOS:
+    # 署名なし(未署名)配布のため、初回起動時にGatekeeperの警告が出る点は
+    # README側で案内する。BUNDLE()がないとダブルクリックで起動できる
+    # 通常の.appにならず、Windows同様のonedirフォルダのままになる。
+    app = BUNDLE(
+        coll,
+        name="Graphica.app",
+        icon=icon_path,
+        bundle_identifier="com.graphica.app",
+        info_plist={
+            "CFBundleShortVersionString": APP_VERSION,
+            "CFBundleVersion": APP_VERSION,
+            "NSHighResolutionCapable": True,
+        },
+    )
