@@ -13,9 +13,66 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在の状況(2026-08-09時点、最優先で読むこと)
+## 現在の状況(2026-08-13時点、最優先で読むこと)
 
-**トラック2 フェーズH(GUIモダン化、H-0〜H-5)は全項目完了した。** 続けて
+**v1.2.0リリース後、Windows exeビルドに続いてmacOS版(.app、未署名、
+Apple Silicon/arm64のみ)のビルド対応をmasterへ直接コミットする形で完了した
+(専用ブランチは切っていない)。CI(`.github/workflows/build.yml`)の
+`build-macos`ジョブがWindows版と並んで正式にgreenで通ることを確認済み。**
+
+**この過程で見つけて修正した問題(すべてmasterにpush済み)**:
+1. `gui/theme.py`の`apply_theme()`が呼ばれるたびに`QApplication.setStyle()`で
+   新しいスタイルオブジェクトに丸ごと差し替えていたバグ。`setStyle()`は
+   差し替え前のスタイルオブジェクトを削除する仕様のため、複数タブ(=複数の
+   独立したPlotterAppが同一QApplicationを共有)が生きた状態でダークモードを
+   切り替えると、削除済みオブジェクトへのアクセスでネイティブクラッシュ
+   ("Windows fatal exception: access violation")していた。CIログから発見。
+   スタイルオブジェクトを使い回し、色情報だけ`update_tokens()`で更新する
+   方式に修正(`gui/theme.py`のコミット参照)。
+2. **CIの`pytest`単発実行が長時間ハングする問題**(下記「既知の注意点」に
+   詳細追記)。`Graphica_project/scripts/run_tests_chunked.sh`を新設し、
+   Windows/macOS両ジョブとも`pytest`直接呼び出しからこのスクリプト経由に
+   変更した。
+3. `tests/test_export_preview_panel.py`が、pytest自体は全テスト成功の
+   サマリーを出した**後**にQt/matplotlibのインタプリタ終了処理でsegfault
+   する(Windows/macOS両方で再現)。`run_tests_chunked.sh`側で「'N passed'の
+   サマリー行が出ていれば、その後のrc非0は本物の失敗として扱わない」判定を
+   追加して対応(テスト自体を直す問題ではないため)。
+4. `tests/test_gui_style_regression.py`(H-5画像回帰テスト)のベースライン
+   PNGがWindows専用で、macOSではフォントレンダリングの違いにより必ず
+   誤検出する。`pytestmark = pytest.mark.skipif(sys.platform != "win32", ...)`
+   でWindows限定化(Windows側は従来通り実行・検証される)。
+5. **日本語フォントがWindows専用フォント名("Yu Gothic"/"Meiryo"/
+   "MS Gothic")にしか対応しておらず、macOSでは日本語タイトル/軸ラベル/
+   凡例が豆腐ボックス化していた**(タイトル/軸ラベルのmathtextプレビュー
+   ウィジェットと、実際のグラフ描画のデフォルトフォントの両方)。
+   `gui/mathtext_preview.py`の`JP_CAPABLE_FONT_FAMILIES`(旧
+   `_JP_CAPABLE_FONT_FAMILIES`、プレビュー専用だったものを公開名に変更し
+   `gui/main_window.py`と共有)に"Hiragino Sans"/"Hiragino Kaku Gothic
+   ProN"(macOS)・"Noto Sans CJK JP"(Linux想定)を追加し、
+   `QFont.setFamilies()`でフォールバックリストごとmatplotlibへ渡すように
+   変更。プロジェクトファイルのフォント設定(`gui/mixins/settings_mixin.py`)
+   も文字列ではなくリストとして保存するよう変更(旧形式の文字列も
+   後方互換で読み込み可能)。
+   - この修正は、ユーザーが起動したバックグラウンドタスク(別worktree
+     `.claude/worktrees/dazzling-lichterman-b7b28b`、ブランチ
+     `claude/dazzling-lichterman-b7b28b`)が実装し、オーケストレーター側で
+     レビューして`mathtext_preview.py`側の1件のマージコンフリクト
+     (フォント一覧の命名変更が競合)を解決した上でmasterへマージ・push
+     した(コミット`2556479`)。**このマージについてはユーザーの指示により
+     フルスイート実行を省略している**(通常は`gui/main_window.py`の共有
+     初期化コードに触れる変更はフルスイート必須、CLAUDE.mdの
+     Regression bar節参照)ため、次回このファイルを読むセッションは、
+     機会を見てこの変更に対するフルスイート実行を検討すること。
+
+**macOS版CIの成果物確認**: `Graphica-macos.zip`をダウンロードし、
+`Graphica.app/Contents/{MacOS,Resources,Frameworks}`の構造・
+`Info.plist`の`CFBundleShortVersionString`が`core/version.py`の
+`__version__`(1.2.0)と一致することを確認済み。**未署名のため実機での
+Gatekeeper警告(「壊れているため開けません」、右クリック→開くで回避)は
+未検証**(実機Macでの動作確認はまだ行っていない)。
+
+**旧知見(2026-08-09時点のもの、以下は既に完了したフェーズHの内容)**:
 「50を実施、フルテストも。バグが無いか徹底的に検証して」という指示を受け、
 H-5(画像回帰テスト)実装 + 背景Agent4体によるコードベース全体のバグ監査
 (core/プラグイン層・main_window/canvas/theme・ダイアログ群・mixin群の
@@ -161,11 +218,14 @@ H-5(画像回帰テスト)実装 + 背景Agent4体によるコードベース全
 
 ## 現在のブランチ
 
-`feature/gui-modernization`(originにpush済み、upstream追跡設定済み。分岐元は
-`feature/format-version-and-foundations`で、そちらも既にoriginにpush済み・
-トラック1の全成果を含む)。ロードマップのフェーズH節が「このフェーズ単独で
-新しいブランチを切ることを推奨する」と明記していたため、ユーザーに確認の上で
-このブランチを新設した(トラック1とトラック2の変更を別PRに分離する狙い)。
+`master`。トラック1(PR #1)・トラック2(PR #2)はどちらも既にmasterへ
+マージ・push済み(`feature/format-version-and-foundations`・
+`feature/gui-modernization`ブランチはマージ後に削除済み)。v1.2.0の
+GitHub Releaseも公開済み(Windows exeは同梱せず)。以降のtheme.py
+クラッシュ修正・macOS版CI対応・フォント修正は、いずれもブランチを切らず
+masterへ直接コミット・pushしている(exeビルドを含まない軽微〜中程度の
+修正が連続したための判断。次に大きめの機能追加をする際はブランチを
+切るかどうか改めて判断すること)。
 
 ## 直近の完了
 
@@ -303,12 +363,19 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
 
 ## 次にやること
 
-フルスイート(701件全件グリーン)・コミット・pushまで完了していれば、
-トラック2 フェーズH(GUIモダン化、H-0〜H-5)は全て完了している。
-
-ユーザーがテスト結果を見てから「パブリッシュ」の判断をするので、
-`docs/RELEASE_CHECKLIST.md`の手順を提示するに留め、実際のPR作成・
-バージョン更新・タグ付け・ビルド等は指示があるまで実行しない。
+1. **直近のmasterへのpush(コミット`2556479`、フォント修正マージ)に対する
+   CI(`.github/workflows/build.yml`)結果を確認する**。Windows/macOS両方
+   green になるまでは、次のリリース判断に進まないこと。
+2. CI green確認後、正式リリースするかどうかユーザーに確認する
+   (タグ付け・GitHub Release公開・macOS版`.app`の同梱)。前回のv1.2.0
+   リリースはWindows exeを同梱しない形で先行公開しているため、今回は
+   Windows exe + macOS `.app`の両方を同梱する形になる見込み。
+3. 実機Macでの動作確認(Gatekeeper警告の実際の見え方・日本語表示の確認)は
+   まだ行っていない。ユーザーが実機を用意できるかどうかで対応を判断する。
+4. `gui/main_window.py`の共有初期化コードに触れたフォント修正
+   (コミット`2556479`)は、ユーザーの指示によりフルスイート未実施のまま
+   マージ済み。手が空いたタイミングでフルスイート(チャンク方式、
+   `bash scripts/run_tests_chunked.sh`)を一度回して確認しておくと安全。
 
 トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
 (`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
@@ -366,6 +433,25 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
 
 ## 既知の注意点
 
+- **ローカルだけでなくCI(GitHub Actions、Windows/macOS両ランナー)でも、
+  `pytest`をチャンク分割せず単発実行すると同じ理由(Qt/matplotlibリソースの
+  蓄積)でハングする**(2026-08-13に実際に確認: あるコミットのCIランが
+  6時間でタイムアウト・強制キャンセルされた)。`.github/workflows/build.yml`
+  の両ジョブは、直接`pytest`を呼ぶのをやめて
+  `Graphica_project/scripts/run_tests_chunked.sh`(このファイル単位/
+  30テストごとの新規プロセス方式をCI向けに切り出したもの)経由に変更済み。
+  ローカルで同種の検証をする場合もこのスクリプトを使うこと
+  (`bash scripts/run_tests_chunked.sh`、cwdは`Graphica_project/`)。
+- **`tests/test_export_preview_panel.py`はpytest自体が全テスト成功を報告した
+  後にQt/matplotlibのインタプリタ終了処理でsegfaultすることがある**
+  (Windows/macOS両方で再現、テスト内容自体は正しい)。
+  `scripts/run_tests_chunked.sh`はpytestの'N passed'サマリー行の有無で
+  この既知のクラッシュと本物の失敗を区別しているため、素の`pytest`で
+  このファイル単体を回すとrc非0で終わることがあっても慌てないこと。
+- `tests/test_gui_style_regression.py`(H-5画像回帰テスト)のベースライン
+  PNGはWindows専用。他OSではフォントレンダリングの違いで必ず誤検出するため
+  `pytestmark`でWindows限定にしてある。macOS/Linux固有のベースラインを
+  別途用意する場合はこの`skipif`を外して対応すること。
 - `docs/roadmap.html`は`<title>`+`<style>`+本体HTML+`<script>`のみを持つ
   (`<!DOCTYPE>`/`<html>`/`<head>`/`<body>`タグは書かない)。Artifactツールが
   自動でラップする前提の構造なので、編集時もこの形式を崩さないこと。
