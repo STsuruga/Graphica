@@ -204,6 +204,7 @@ def _svg_icon(name, size=20):
                           color=color, size=size)
 from core.excel_utils import find_unevaluated_formula_cells
 from gui.export_preview_panel import ExportPreviewPanel
+from gui.residual_panel import ResidualPanel
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN,
@@ -1312,6 +1313,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     center.x() - preview_width // 2, center.y() - preview_height // 2
                 )
             self.export_preview_panel.refresh_preview()
+
+        # 2c. ★ 残差プロットの専用パネル(項目C-406)。選択中のデータセットが
+        #    曲線フィットの結果(fit_result、項目C-401)を持っていれば、その
+        #    残差(実測値-フィット値)を表示する。エクスポートプレビューと同じ
+        #    理由(常時描画の負荷回避、必要な時だけ開く「確認用」の性質)で
+        #    既定は非表示。プロット下部と関連が深いため、フローティングでは
+        #    なく下部ドックとして開く(ユーザーがドラッグして移動/フロート化は
+        #    引き続き可能)。
+        self.residual_panel = ResidualPanel(self)
+        self.residual_dock_widget = QDockWidget(tr("残差プロット"), self)
+        self.residual_dock_widget.setObjectName("ResidualDockWidget")
+        self.residual_dock_widget.setWidget(self.residual_panel)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.residual_dock_widget)
+        self.residual_dock_widget.hide()
 
         self.export_preview_dock_widget.visibilityChanged.connect(_on_export_preview_visibility_changed)
 

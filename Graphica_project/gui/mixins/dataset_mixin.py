@@ -1656,6 +1656,10 @@ class DatasetMixin:
             # 4g. 統計サマリー (Y列の件数・平均・標準偏差・最小/最大) の更新
             self._update_stats_summary_label(dataset)
 
+            # 4h. 残差プロットパネルの更新(項目C-406)。dataset.fit_resultが
+            # 無ければパネル側がプレースホルダ表示に戻す(再計算はしない)。
+            self.residual_panel.refresh(dataset)
+
         # 5. 【非選択中 (またはフォルダ選択中)】の場合: UIをクリア
         else:
             self.x_col_combo.clear()
@@ -1667,6 +1671,7 @@ class DatasetMixin:
             self.fit_info_label.setVisible(False)
             self.fit_info_textedit.setVisible(False)
             self.fit_info_textedit.clear()
+            self.residual_panel.refresh(None)
 
             self.gradient_checkbox.setVisible(False)
             self.gradient_color2_label.setVisible(False)

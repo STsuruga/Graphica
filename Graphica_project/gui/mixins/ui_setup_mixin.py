@@ -335,6 +335,11 @@ class UISetupMixin:
             export_preview_dock_action.setText(tr("エクスポートプレビュー"))
             view_menu.addAction(export_preview_dock_action)
 
+            # 残差プロットパネル(項目C-406、デフォルトは非表示)
+            residual_dock_action = self.residual_dock_widget.toggleViewAction()
+            residual_dock_action.setText(tr("残差プロット"))
+            view_menu.addAction(residual_dock_action)
+
             # ミニマップ(レンジスライダー、項目83)の表示/非表示切り替え。
             # チェック状態はQSettingsから復元済みの self.minimap_visible に合わせる。
             # setChecked() は toggled.connect() より前に行うことで、復元時に

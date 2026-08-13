@@ -2482,6 +2482,56 @@ def test_select_dataset_with_fit_info_shows_fit_panel(tmp_path, monkeypatch):
     assert window.fit_info_textedit.toPlainText() == ds.fit_info
 
 
+def test_select_fit_dataset_refreshes_residual_panel(tmp_path, monkeypatch):
+    """項目C-406: fit_resultを持つデータセットを選択すると、残差プロット
+    パネルにその残差が反映されること(_update_ui_state経由)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    ds.fit_result = {
+        'fit_type': '線形 (y = ax + b)',
+        'param_names': ['a', 'b'], 'params': [2.0, 1.0], 'param_errors': [0.1, 0.1],
+        'residual_x': [0.0, 1.0, 2.0], 'residuals': [0.1, -0.2, 0.05],
+    }
+    _add_and_select_dataset(window, ds)
+
+    # ★ residual_dock_widgetは既定で非表示のため、その祖先を含めた
+    # isVisible()ではなくisVisibleTo(親)でパネル内部の表示状態だけを見る
+    # (ドック自体を開くかどうかはユーザー操作であり、ここで検証したいのは
+    # 「開いた場合に中身が正しく切り替わるか」というロジックのみ)。
+    assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is True
+    assert window.residual_panel.placeholder_label.isVisibleTo(window.residual_panel) is False
+
+
+def test_select_dataset_without_fit_result_shows_residual_placeholder(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    assert window.residual_panel.placeholder_label.isVisibleTo(window.residual_panel) is True
+    assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is False
+
+
+def test_deselecting_dataset_resets_residual_panel_to_placeholder(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    ds.fit_result = {
+        'param_names': ['a'], 'params': [1.0], 'param_errors': [0.1],
+        'residual_x': [0.0, 1.0], 'residuals': [0.1, 0.2],
+    }
+    _add_and_select_dataset(window, ds)
+    assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is True
+
+    window.ui.dataset_list_widget.setCurrentItem(None)
+
+    assert window.residual_panel.placeholder_label.isVisibleTo(window.residual_panel) is True
+    assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is False
+
+
+def test_residual_dock_widget_exists_and_hidden_by_default(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.residual_dock_widget.isHidden() is True
+
+
 def test_stats_summary_all_nan_shows_placeholder(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     df = pd.DataFrame({'x': [0, 1, 2], 'y': [np.nan, np.nan, np.nan]})
