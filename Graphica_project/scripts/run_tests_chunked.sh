@@ -45,13 +45,23 @@ for f in tests/test_*.py; do
   fi
 
   for c in "${chunks[@]}"; do
-    if [ "$c" == "$f" ]; then
-      target="$f"
-    else
-      target=$(cat "$c")
-    fi
     echo "=== $name :: $c ==="
-    output=$(python -m pytest $target -q 2>&1)
+    if [ "$c" == "$f" ]; then
+      output=$(python -m pytest "$f" -q 2>&1)
+    else
+      # ★ バグ修正: 以前は target=$(cat "$c") で複数行のテストID一覧を1つの
+      # シェル変数に読み込み、pytest呼び出し時にクォートせず渡していた
+      # (python -m pytest $target -q)。これはテストIDが空白を含まない前提で
+      # しか動かず、パラメータ化テストのID(例: "ローレンツ関数 (y = a / (1 +
+      # ((x-b)/c)^2) + d)-expected_names0" のように空白・括弧を含むもの)が
+      # シェルの単語分割(IFS)でバラバラの引数に分解されてしまい、
+      # 「file or directory not found: (y」のような分かりにくいエラーで
+      # チャンク全体が失敗扱いになっていた(実際にこのセッションで発生した)。
+      # mapfileで1行=配列の1要素として読み込み、"${array[@]}"で渡すことで、
+      # 各テストID内の空白を保ったまま個別の引数として扱う。
+      mapfile -t target_ids < "$c"
+      output=$(python -m pytest "${target_ids[@]}" -q 2>&1)
+    fi
     rc=$?
     echo "$output"
     if [ "$rc" -ne 0 ]; then
