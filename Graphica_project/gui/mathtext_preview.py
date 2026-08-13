@@ -33,6 +33,18 @@ _CROP_PADDING_PX = 3
 # フォントが使われる(英数字はDejaVu Sansのまま、日本語だけYu Gothicに自動で
 # フォールバックする)。
 #
+# "Yu Gothic"/"Meiryo"/"MS Gothic" はWindows専用フォントで、macOSには存在
+# しない。macOS版CI追加で実際に確認された不具合: これらがどれも見つからない
+# 環境では日本語タイトルがtofuボックスのまま描画され、しかもその「グリフ無し」
+# ボックスは文字ごとに同じ幅で描かれるため、文字数が同じ2つの文字列(例:
+# プレースホルダ「タイトルを入力」とテスト用文字列「新しいタイトル」、共に
+# 7文字)の描画結果が偶然同じピクセルサイズになってしまう(実際にmacOS CI上の
+# tests/test_main_window.py::test_label_preview_pixmap_updates_when_backing_text_changes
+# が (70, 18) != (70, 18) で失敗した)。そのためmacOS標準の日本語フォントも
+# 追加する("Hiragino Sans" はmacOS 10.11+の標準名、"Hiragino Kaku Gothic
+# ProN" はそれ以前の名前で、環境によってどちらか一方がmatplotlibのfont_manager
+# に見つかる)。
+#
 # 既知の制限: このfamilyフォールバックは「$...$」を含まないプレーンテキストの
 # 経路にのみ効く。"$\alpha$ vs 時間" のようにmathtext記法と日本語が同一文字列に
 # 混在する場合、mathtextパーサはfamily指定を経由せず独自のフォントセット
@@ -44,7 +56,11 @@ _CROP_PADDING_PX = 3
 # mathtext.fontsetはmatplotlibのrcParams(プロセス全体のグローバル状態)であり、
 # ここを変更すると本プレビューだけでなく全ての実プロット描画に影響してしまうため、
 # スコープ外として対応を見送る。
-_JP_CAPABLE_FONT_FAMILIES = ["DejaVu Sans", "Yu Gothic", "Meiryo", "MS Gothic"]
+_JP_CAPABLE_FONT_FAMILIES = [
+    "DejaVu Sans",
+    "Yu Gothic", "Meiryo", "MS Gothic",  # Windows
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN",  # macOS
+]
 
 # max_width_px指定時、フォントサイズを段階的に縮小して収めようとする下限
 # (これ以上小さくすると判読できなくなるため、下限に達したらpixmap自体を
