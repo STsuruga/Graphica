@@ -26,6 +26,8 @@ PNGを新しい見た目で差し替えること。
 行われる)。意図的にベースラインを更新したい場合は、対象のPNGを削除してから
 再実行すればよい。
 """
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -41,6 +43,16 @@ from gui.dialogs import PreferencesDialog
 from core.dataset import Dataset
 
 BASELINE_DIR = Path(__file__).parent / "baseline_images"
+
+# tests/baseline_images/ 配下のPNGはWindows上で生成したもので、フォント
+# ヒンティング/サブピクセルレンダリングがOSごとに異なるため、他OSではピクセル
+# 差分が MAX_DIFF_RATIO を超えて誤検出する(macOS版CI追加時に実際に6件とも
+# 失敗することを確認済み)。プラットフォームごとに別ベースラインを持つ運用は
+# まだ導入していないため、当面はWindows以外をスキップする。
+pytestmark = pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="baseline_images/のPNGはWindows専用のため、他OSでは比較しない",
+)
 
 # 全体に対する差分ピクセル比率の許容上限(この比率を超えたら回帰とみなす)
 MAX_DIFF_RATIO = 0.02
