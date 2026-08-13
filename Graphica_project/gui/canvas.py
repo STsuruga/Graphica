@@ -182,6 +182,15 @@ class MplCanvas(FigureCanvas):
 
     def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False):
         """メインウィンドウから呼ばれる、全体の再描画メソッド"""
+        # データセットの表示/非表示トグル(項目C-907): visible=Falseのデータセットは
+        # 削除せず保持したまま、描画対象から除外する。redraw_all()はメイン画面の
+        # 再描画・エクスポート(gui/mixins/export_mixin.pyの単発/バッチ書き出しは
+        # いずれもこのメソッド、または本メソッドが最後に描いたself.figを経由する)の
+        # 唯一の入口であるため、ここ1箇所でのフィルタが両方に自動的に効く。
+        # getattr既定値Trueは、この機能追加前に保存された.pklファイル由来の
+        # Datasetオブジェクト(pickleの__setstate__で補われるはずだが、念のための保険)
+        # でも安全に動くようにするため。
+        datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
         self.fig.clf()
         self.all_axes.clear()
         self.all_secondary_axes.clear()

@@ -8,8 +8,19 @@ main_window.py (アイテム新規作成時) と dataset_mixin.py (プロパテ�
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPainter, QPen, QColor, QBrush, QIcon
 
+from gui.icon_utils import icon as _icon_from_svg
+
 # アイコンのサイズ (幅, 高さ)
 _STYLE_ICON_SIZE = (28, 14)
+
+# --- 項目C-907: データセットリスト(QTreeWidget)の列インデックス ---
+# main_window.py (ツリーの構築・アイテム生成) と dataset_mixin.py (クリック検知・
+# プロパティ変更後の再同期) の両方から参照するため、両モジュールが依存できる
+# この独立モジュールに置く(main_window <-> dataset_mixin循環importを避ける理由は
+# 上のモジュールdocstring参照)。列0=スタイルアイコン+名前(既存)、
+# 列1=表示/非表示トグル用の目アイコン(今回追加)。
+DATASET_TREE_NAME_COLUMN = 0
+DATASET_TREE_VISIBILITY_COLUMN = 1
 
 # matplotlibの線種文字列 -> Qtのペンスタイルの対応表
 _LINESTYLE_TO_QT_PEN = {
@@ -68,3 +79,38 @@ def make_dataset_style_icon(dataset):
     icon.addPixmap(pixmap, QIcon.Mode.Normal)
     icon.addPixmap(pixmap, QIcon.Mode.Selected)
     return icon
+
+
+# データセットの表示/非表示アイコンサイズ(項目C-907)。列0のスタイルアイコン
+# (28x14、上のmake_dataset_style_icon)より小さい正方形にして、専用列の
+# 固定幅(main_window.py DATASET_TREE_VISIBILITY_COLUMN_WIDTH)に収める。
+_VISIBILITY_ICON_SIZE = 16
+
+
+def make_dataset_visibility_icon(dataset):
+    """
+    dataset.visible の状態に応じた「目」アイコンを返す(項目C-907、データセット
+    リストの表示/非表示トグル)。実体はTabler Icons由来のSVG
+    (assets/icons/eye.svg / eye-off.svg、MITライセンス)を gui/icon_utils.icon()
+    経由で読み込んだもので、手描きのアイコンパスは使わない。
+    """
+    name = "eye" if getattr(dataset, "visible", True) else "eye-off"
+    return _icon_from_svg(name, size=_VISIBILITY_ICON_SIZE)
+
+
+def apply_dataset_visibility_text_style(item, dataset, column=0):
+    """
+    非表示中(dataset.visible=False)のデータセットは、ツリーの名前列を
+    テーマのtext_mutedトークン色にグレーアウトして、目アイコンに加えて
+    一覧上でもひと目で「非表示中」と分かるようにする(項目C-907の補助的な
+    視覚表現、必須ではないナイス・トゥ・ハブ)。
+    表示中に戻す際は、明示的な色を指定せず ForegroundRole のデータそのものを
+    クリアする(Noneを設定)ことで、QSS/パレットが決める通常の文字色に
+    フォールバックさせる(固定色をここで決め打ちすると、テーマ切替時に
+    追従できなくなるため)。
+    """
+    if getattr(dataset, "visible", True):
+        item.setData(column, Qt.ItemDataRole.ForegroundRole, None)
+    else:
+        from gui import theme
+        item.setForeground(column, QBrush(QColor(theme.current_tokens()["text_muted"])))

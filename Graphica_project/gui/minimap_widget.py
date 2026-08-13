@@ -139,6 +139,11 @@ class MinimapWidget(FigureCanvas):
         line_color = DARK_LINE_COLOR if dark_mode else LIGHT_LINE_COLOR
         has_data = False
         for ds in datasets:
+            # データセットの表示/非表示トグル(項目C-907): メインキャンバスの
+            # redraw_all()と同様、非表示のデータセットはミニマップの概観からも除外する
+            # (概観に非表示分の線が残ると、メイン表示と食い違って見えるため)。
+            if not getattr(ds, 'visible', True):
+                continue
             try:
                 x = ds.x_data
                 y = ds.y_data

@@ -29,6 +29,7 @@ def test_defaults():
     assert ds.use_secondary_y is False
     assert ds.subplot_target == 0
     assert isinstance(ds.dataset_id, str) and len(ds.dataset_id) > 0
+    assert ds.fit_result is None
 
 
 def test_dataset_id_is_unique_per_instance():
@@ -268,6 +269,57 @@ def test_pickle_roundtrip_preserves_data_and_style():
     pd.testing.assert_frame_equal(restored.df, ds.df)
 
 
+def test_defaults_include_visible_field():
+    """データセットリストの表示/非表示トグル(項目C-907)の新フィールドのデフォルト値。
+    既定はTrue(=表示)であること。"""
+    ds = make_dataset()
+    assert ds.visible is True
+
+
+def test_to_dict_from_dict_roundtrip_preserves_visible_field():
+    """Dataset.to_dict()/from_dict() の往復で、visible フィールドが
+    そのまま保持されることを確認する(項目C-907)。"""
+    ds = make_dataset(visible=False)
+
+    data = ds.to_dict()
+    assert data['visible'] is False
+
+    restored = Dataset.from_dict(data)
+    assert restored.visible is False
+
+
+def test_from_dict_missing_visible_key_falls_back_to_true():
+    """visible キーが無い(この機能追加前に保存された)dict を読み込んでも、
+    クラッシュせずデフォルト値 True (表示) で補われること(後方互換)。"""
+    ds = make_dataset(name="Legacy")
+    data = ds.to_dict()
+    data.pop('visible', None)
+
+    restored = Dataset.from_dict(data)
+
+    assert restored.name == "Legacy"
+    assert restored.visible is True
+
+
+def test_pickle_roundtrip_preserves_visible_field():
+    ds = make_dataset(visible=False)
+    restored = pickle.loads(pickle.dumps(ds))
+    assert restored.visible is False
+
+
+def test_setstate_backfills_missing_visible_field_for_old_pickles():
+    """visible フィールドが追加される前に保存された古い形式のpickleを模倣し、
+    __setstate__ がデフォルト値True(表示)で補うことを確認する(項目C-907)。"""
+    ds = make_dataset()
+    state = ds.__getstate__()
+    state.pop('visible', None)
+
+    restored = Dataset.__new__(Dataset)
+    restored.__setstate__(state)
+
+    assert restored.visible is True
+
+
 def test_defaults_include_gradient_fields():
     """プロットへのグラデーション適用(項目79)の新フィールドのデフォルト値"""
     ds = make_dataset()
@@ -314,6 +366,55 @@ def test_from_dict_missing_gradient_keys_falls_back_to_defaults():
     assert restored.gradient_enabled is False
     assert restored.gradient_color2 == '#ffffff'
     assert restored.gradient_target == 'line'
+
+
+def test_to_dict_from_dict_roundtrip_preserves_fit_result():
+    """Dataset.to_dict()/from_dict() の往復で、構造化フィット結果
+    (項目C-401、fit_result)がそのまま保持されることを確認する。"""
+    fit_result = {
+        'fit_type': '線形 (y = ax + b)',
+        'custom_formula': None,
+        'param_names': ['a', 'b'],
+        'params': [2.5, 1.3],
+        'param_errors': [0.01, 0.02],
+        'covariance': [[0.0001, 0.0], [0.0, 0.0004]],
+        'r_squared': 0.999,
+        'residuals': [0.1, -0.1],
+        'residual_x': [1.0, 2.0],
+        'weighted': False,
+        'x_range': None,
+        'source_dataset_id': 'abc123',
+        'source_dataset_name': 'D1',
+    }
+    ds = make_dataset(name="Fit (D1)", fit_result=fit_result)
+
+    data = ds.to_dict()
+    assert data['fit_result'] == fit_result
+
+    restored = Dataset.from_dict(data)
+    assert restored.fit_result == fit_result
+
+
+def test_from_dict_missing_fit_result_key_falls_back_to_none():
+    """fit_result キーが無い(項目C-401追加前に保存された)dict を読み込んでも
+    クラッシュせず、デフォルトのNoneで補われること。"""
+    ds = make_dataset(name="Legacy")
+    data = ds.to_dict()
+    data.pop('fit_result', None)
+
+    restored = Dataset.from_dict(data)
+
+    assert restored.name == "Legacy"
+    assert restored.fit_result is None
+
+
+def test_pickle_roundtrip_preserves_fit_result():
+    fit_result = {'fit_type': 'ガウシアン', 'params': [1.0, 2.0], 'r_squared': 0.98}
+    ds = make_dataset(fit_result=fit_result)
+
+    restored = pickle.loads(pickle.dumps(ds))
+
+    assert restored.fit_result == fit_result
 
 
 def test_defaults_include_waterfall_fields():

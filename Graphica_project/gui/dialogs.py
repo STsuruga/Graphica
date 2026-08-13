@@ -1938,6 +1938,167 @@ class SavGolDialog(QDialog):
         )
 
 
+class BaselineCorrectionDialog(QDialog):
+    """
+    ベースライン補正(項目C-308)の設定を入力させるダイアログ。
+    ALS/多項式/ラバーバンド/手動点の4手法をコンボボックスで切り替え、
+    QStackedWidgetで手法ごとのパラメータ欄を切り替える(BatchExportDialogの
+    モード切り替えと同じ構成)。ラバーバンドはパラメータを持たない。
+    """
+
+    METHOD_ALS = "ALS(Asymmetric Least Squares)"
+    METHOD_POLYNOMIAL = "多項式(反復フィット)"
+    METHOD_RUBBERBAND = "ラバーバンド(下側凸包)"
+    METHOD_MANUAL = "手動点"
+    METHODS = [METHOD_ALS, METHOD_POLYNOMIAL, METHOD_RUBBERBAND, METHOD_MANUAL]
+
+    _MANUAL_LINEAR = "直線"
+    _MANUAL_SPLINE = "3次スプライン"
+
+    def __init__(self, name, x_min=None, x_max=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("ベースライン補正")
+        self.resize(420, 440)
+        self._name = name
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        method_form = QFormLayout()
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(self.METHODS)
+        method_form.addRow("手法", self.method_combo)
+        layout.addLayout(method_form)
+
+        self.stack = QStackedWidget()
+        layout.addWidget(self.stack)
+
+        # --- ALS ---
+        als_page = QWidget()
+        als_form = QFormLayout(als_page)
+        self.als_lam_spinbox = QDoubleSpinBox()
+        self.als_lam_spinbox.setRange(1.0, 1e12)
+        self.als_lam_spinbox.setDecimals(0)
+        self.als_lam_spinbox.setValue(1e5)
+        als_form.addRow("lam(平滑さ)", self.als_lam_spinbox)
+        self.als_p_spinbox = QDoubleSpinBox()
+        self.als_p_spinbox.setRange(0.0001, 0.9999)
+        self.als_p_spinbox.setDecimals(4)
+        self.als_p_spinbox.setSingleStep(0.001)
+        self.als_p_spinbox.setValue(0.01)
+        als_form.addRow("p(非対称重み)", self.als_p_spinbox)
+        self.als_niter_spinbox = QSpinBox()
+        self.als_niter_spinbox.setRange(1, 1000)
+        self.als_niter_spinbox.setValue(10)
+        als_form.addRow("反復回数", self.als_niter_spinbox)
+        self.stack.addWidget(als_page)
+
+        # --- 多項式 ---
+        poly_page = QWidget()
+        poly_form = QFormLayout(poly_page)
+        self.poly_degree_spinbox = QSpinBox()
+        self.poly_degree_spinbox.setRange(0, 10)
+        self.poly_degree_spinbox.setValue(3)
+        poly_form.addRow("次数", self.poly_degree_spinbox)
+        self.poly_iterations_spinbox = QSpinBox()
+        self.poly_iterations_spinbox.setRange(1, 1000)
+        self.poly_iterations_spinbox.setValue(10)
+        poly_form.addRow("反復回数", self.poly_iterations_spinbox)
+        self.stack.addWidget(poly_page)
+
+        # --- ラバーバンド(パラメータなし) ---
+        rubberband_page = QWidget()
+        rubberband_layout = QVBoxLayout(rubberband_page)
+        rubberband_info = QLabel(
+            "データ点群の下側凸包(convex hull)を結んだ曲線をベースラインとします。"
+            "設定できるパラメータはありません。"
+        )
+        rubberband_info.setWordWrap(True)
+        rubberband_layout.addWidget(rubberband_info)
+        rubberband_layout.addStretch()
+        self.stack.addWidget(rubberband_page)
+
+        # --- 手動点 ---
+        manual_page = QWidget()
+        manual_layout = QVBoxLayout(manual_page)
+        manual_layout.addWidget(QLabel("アンカー点のX座標をカンマ区切りで入力してください(2点以上):"))
+        self.manual_anchor_edit = QPlainTextEdit()
+        self.manual_anchor_edit.setPlaceholderText("例: 0, 20, 50, 80, 100")
+        if x_min is not None and x_max is not None:
+            self.manual_anchor_edit.setPlainText(f"{x_min:g}, {x_max:g}")
+        self.manual_anchor_edit.setMaximumHeight(60)
+        manual_layout.addWidget(self.manual_anchor_edit)
+        manual_method_form = QFormLayout()
+        self.manual_method_combo = QComboBox()
+        self.manual_method_combo.addItems([self._MANUAL_LINEAR, self._MANUAL_SPLINE])
+        manual_method_form.addRow("補間方法", self.manual_method_combo)
+        manual_layout.addLayout(manual_method_form)
+        manual_info = QLabel(
+            "各アンカー点のYは、指定したX位置での実データを線形補間して自動的に求めます"
+            "(3次スプラインには3点以上必要です)。"
+        )
+        manual_info.setWordWrap(True)
+        manual_layout.addWidget(manual_info)
+        manual_layout.addStretch()
+        self.stack.addWidget(manual_page)
+
+        self.method_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+
+        form = QFormLayout()
+        self.output_name_edit = QLineEdit(f"{name}_baseline_corrected")
+        form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(form)
+
+        self.add_baseline_checkbox = QCheckBox("推定したベースライン曲線も別データセットとして追加する")
+        layout.addWidget(self.add_baseline_checkbox)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, dict, str, bool):
+                (手法("als"|"polynomial"|"rubberband"|"manual"),
+                 手法別パラメータのdict(calculate_baseline_xxxへそのままkwargsとして
+                 渡せる形。"manual"のみ anchor_x ではなく anchor_x_text(未パース
+                 の生テキスト)と method("linear"|"spline")を含む。数値パースは
+                 呼び出し側(_on_baseline_correction_dataset)が行い、書式エラー
+                 を利用者にわかりやすく伝える),
+                 出力データセット名,
+                 ベースライン曲線も別データセットとして追加するか)
+        """
+        method_text = self.method_combo.currentText()
+        if method_text == self.METHOD_ALS:
+            method = "als"
+            params = {
+                "lam": self.als_lam_spinbox.value(),
+                "p": self.als_p_spinbox.value(),
+                "niter": self.als_niter_spinbox.value(),
+            }
+        elif method_text == self.METHOD_POLYNOMIAL:
+            method = "polynomial"
+            params = {
+                "degree": self.poly_degree_spinbox.value(),
+                "iterations": self.poly_iterations_spinbox.value(),
+            }
+        elif method_text == self.METHOD_RUBBERBAND:
+            method = "rubberband"
+            params = {}
+        else:
+            method = "manual"
+            params = {
+                "anchor_x_text": self.manual_anchor_edit.toPlainText(),
+                "method": "spline" if self.manual_method_combo.currentText() == self._MANUAL_SPLINE else "linear",
+            }
+        return method, params, self.output_name_edit.text().strip(), self.add_baseline_checkbox.isChecked()
+
+
 class PluginParamDialog(QDialog):
     """
     register_processor()/register_analyzer() の param_schema から、パラメータ

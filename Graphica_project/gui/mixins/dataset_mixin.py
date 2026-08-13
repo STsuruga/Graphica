@@ -24,7 +24,9 @@ import pandas as pd
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu
 
-from core.analysis import calculate_curve_fit, calculate_peaks, calculate_savgol
+from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgol,
+                           calculate_baseline_als, calculate_baseline_polynomial,
+                           calculate_baseline_rubberband, calculate_baseline_manual)
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand
 from core.dataset import Dataset
 from core.plugin_api import get_registered_importer_extensions
@@ -33,8 +35,12 @@ from core.safe_eval import safe_eval_column_formula
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
-                         NormalizeDatasetDialog, SavGolDialog, PluginParamDialog)
-from gui.dataset_style_icon import make_dataset_style_icon
+                         NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
+                         BaselineCorrectionDialog)
+from gui.dataset_style_icon import (
+    make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
+    DATASET_TREE_VISIBILITY_COLUMN,
+)
 from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 
 logger = logging.getLogger(__name__)
@@ -168,6 +174,11 @@ class DatasetMixin:
             # カレント1件のデータセットから新しいデータセットを1つ作る操作。
             savgol_action = menu.addAction("Savitzky-Golayフィルタ(平滑化/微分)...")
             savgol_action.triggered.connect(self._on_savgol_dataset)
+
+            # ベースライン補正(ALS/多項式/ラバーバンド/手動点、項目C-308):
+            # 上記と同じく「カレント1件から新しいデータセットを1つ作る」操作。
+            baseline_action = menu.addAction("ベースライン補正...")
+            baseline_action.triggered.connect(self._on_baseline_correction_dataset)
 
         selected_count = len(self._get_selected_datasets())
         if selected_count >= 2:
@@ -488,6 +499,78 @@ class DatasetMixin:
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
 
+    def _on_baseline_correction_dataset(self):
+        """
+        「ベースライン補正...」メニューの処理(項目C-308)。
+        カレントの1つのデータセットに対してALS/多項式/ラバーバンド/手動点の
+        いずれかの手法でベースラインを推定し、ベースライン差し引き後のデータを
+        新しいデータセットとして追加する(非破壊)。_on_savgol_dataset/
+        _on_normalize_datasetと同じ「カレント1件」パターン。
+        ダイアログで「ベースライン曲線も追加する」が有効な場合は、推定した
+        ベースライン自体も別データセットとして追加する(任意、既定は追加しない)。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        x_data = np.asarray(original_dataset.x_data, dtype=float)
+        y_data = np.asarray(original_dataset.y_data, dtype=float)
+        valid = ~(np.isnan(x_data) | np.isnan(y_data))
+        x_data, y_data = x_data[valid], y_data[valid]
+
+        if len(x_data) < 3:
+            QMessageBox.warning(self, "ベースライン補正", "有効なデータ点が不足しています。")
+            return
+
+        x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
+        dialog = BaselineCorrectionDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        method, params, output_name, add_baseline_dataset = dialog.get_settings()
+        if not output_name:
+            QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+            return
+
+        try:
+            if method == "als":
+                x_sorted, baseline, corrected = calculate_baseline_als(x_data, y_data, **params)
+            elif method == "polynomial":
+                x_sorted, baseline, corrected = calculate_baseline_polynomial(x_data, y_data, **params)
+            elif method == "rubberband":
+                x_sorted, baseline, corrected = calculate_baseline_rubberband(x_data, y_data)
+            else:  # "manual"
+                # アンカー点のX座標はダイアログでは自由記入のテキストのまま
+                # 受け取っており(BaselineCorrectionDialog.get_settings参照)、
+                # ここで数値パースする。書式エラーもcalculate_baseline_manualの
+                # 入力エラーと同じ警告ダイアログにまとめて表示する。
+                anchor_text = params["anchor_x_text"]
+                try:
+                    anchor_x = [
+                        float(token) for token in anchor_text.replace("\n", ",").split(",")
+                        if token.strip()
+                    ]
+                except ValueError:
+                    raise ValueError("アンカー点のX座標は数値をカンマ区切りで入力してください。")
+                x_sorted, baseline, corrected = calculate_baseline_manual(
+                    x_data, y_data, anchor_x=anchor_x, method=params["method"]
+                )
+        except ValueError as e:
+            QMessageBox.warning(self, "ベースライン補正", str(e))
+            return
+
+        result_df = pd.DataFrame({'x': x_sorted, 'y': corrected})
+        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+
+        if add_baseline_dataset:
+            baseline_df = pd.DataFrame({'x': x_sorted, 'y': baseline})
+            baseline_dataset = Dataset(
+                name=f"{output_name}_baseline", df=baseline_df, x_col_name='x', y_col_name='y'
+            )
+            self._add_dataset(baseline_dataset, self._get_target_folder_for_new_dataset())
+
+        self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
     def _on_run_plugin_processor(self, processor):
         """
         プラグインの「データ処理」メニュー項目が選択されたときの処理(項目C-1)。
@@ -653,13 +736,17 @@ class DatasetMixin:
             x_data, y_data = dataset.x_data, dataset.y_data
             sigma = dataset.y_err_data if use_weighted else None
             try:
-                popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
+                fit = calculate_curve_fit(
                     x_data, y_data, fit_type, custom_formula=custom_formula,
                     sigma=sigma, x_range=x_range,
                 )
             except Exception as e:
                 failed.append(f"{dataset.name}: {e}")
                 continue
+
+            popt, params_info = fit['popt'], fit['param_names']
+            x_fit, y_fit = fit['x_fit'], fit['y_fit']
+            r_squared = fit['r_squared']
 
             fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
             result_text = f"[{fit_label}] のフィッティング結果:\n"
@@ -671,6 +758,12 @@ class DatasetMixin:
             if x_range is not None:
                 result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
 
+            fit_result = self._build_fit_result_dict(
+                fit_type=fit_type, custom_formula=custom_formula, fit=fit,
+                weighted=sigma is not None, x_range=x_range,
+                source_dataset=dataset,
+            )
+
             fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
             fit_dataset = Dataset(
                 name=f"Fit ({dataset.name})",
@@ -680,7 +773,8 @@ class DatasetMixin:
                 linewidth=dataset.linewidth,
                 use_secondary_y=dataset.use_secondary_y,
                 subplot_target=dataset.subplot_target,
-                fit_info=result_text
+                fit_info=result_text,
+                fit_result=fit_result,
             )
             self._add_dataset(fit_dataset, target_folder, select=False)
             succeeded.append(dataset.name)
@@ -847,6 +941,11 @@ class DatasetMixin:
             if item.text(0) != dataset.name:
                 item.setText(0, dataset.name)
             item.setIcon(0, make_dataset_style_icon(dataset))
+            # ★ 項目C-907: visible属性は変わっていなくても、目アイコン/文字色の
+            #   再同期はコストが小さいためプロパティ変更のたびに毎回行う
+            #   (visibleだけ選んで特別扱いする分岐を増やさないほうがシンプル)。
+            item.setIcon(DATASET_TREE_VISIBILITY_COLUMN, make_dataset_visibility_icon(dataset))
+            apply_dataset_visibility_text_style(item, dataset)
             if item is self.ui.dataset_list_widget.currentItem():
                 self._update_ui_state()
         self._update_plot()
@@ -1587,7 +1686,7 @@ class DatasetMixin:
 
         try:
             # ★ 計算はすべて分離したモジュールに丸投げ
-            popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
+            fit = calculate_curve_fit(
                 x_data, y_data, fit_type, custom_formula=custom_formula,
                 sigma=sigma, x_range=x_range,
             )
@@ -1595,13 +1694,12 @@ class DatasetMixin:
             QMessageBox.warning(self, "フィットエラー", f"フィッティングに失敗しました:\n{e}")
             return
 
-        # フィット範囲を指定した場合、残差(residuals)は範囲内の点数だけになるため、
+        popt, params_info = fit['popt'], fit['param_names']
+        x_fit, y_fit = fit['x_fit'], fit['y_fit']
+        r_squared, residuals = fit['r_squared'], fit['residuals']
+        # 残差(residuals)はNaN除外・x_range適用後の点数になるため、
         # 残差プロット用のxもそれに揃える(ResultDialogは長さが一致している前提)。
-        if x_range is not None:
-            range_mask = (x_data >= x_range[0]) & (x_data <= x_range[1])
-            residual_x = x_data[range_mask]
-        else:
-            residual_x = x_data
+        residual_x = fit['x_data_used']
 
         # 結果文字列の作成 (カスタム数式の場合は入力された数式も表示する)
         fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
@@ -1614,6 +1712,14 @@ class DatasetMixin:
         if x_range is not None:
             result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
 
+        # 項目C-401: 後続の機能(信頼帯・残差プロット・結果出力・provenance記録)が
+        # 再計算なしで再利用できるよう、構造化した形でも結果を保持する。
+        fit_result = self._build_fit_result_dict(
+            fit_type=fit_type, custom_formula=custom_formula, fit=fit,
+            weighted=sigma is not None, x_range=x_range,
+            source_dataset=original_dataset,
+        )
+
         # UI/Modelへの反映 (Datasetの追加。元のデータセットと同じフォルダに追加する)
         fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
         fit_dataset = Dataset(
@@ -1624,7 +1730,8 @@ class DatasetMixin:
             linewidth=original_dataset.linewidth,
             use_secondary_y=original_dataset.use_secondary_y,
             subplot_target=original_dataset.subplot_target,
-            fit_info=result_text
+            fit_info=result_text,
+            fit_result=fit_result,
         )
 
         self.project.datasets.append(fit_dataset)
@@ -1644,6 +1751,31 @@ class DatasetMixin:
             residual_x=residual_x, residual_y=residuals
         )
         self.fit_result_dialog.show()
+
+    @staticmethod
+    def _build_fit_result_dict(fit_type, custom_formula, fit, weighted, x_range, source_dataset):
+        """
+        calculate_curve_fit() の戻り値(numpy配列を含む)から、Dataset.fit_result
+        (項目C-401)に保持する、pickle/JSON双方でそのまま往復できるプレーンな
+        dictを組み立てる(numpy.float64等はJSON非対応のため、ここで素のPython
+        型に変換しておく)。
+        """
+        popt, pcov, perr = fit['popt'], fit['pcov'], fit['perr']
+        return {
+            'fit_type': fit_type,
+            'custom_formula': custom_formula,
+            'param_names': list(fit['param_names']),
+            'params': [float(v) for v in popt],
+            'param_errors': [float(v) for v in perr],
+            'covariance': [[float(v) for v in row] for row in pcov],
+            'r_squared': float(fit['r_squared']),
+            'residuals': [float(v) for v in fit['residuals']],
+            'residual_x': [float(v) for v in fit['x_data_used']],
+            'weighted': bool(weighted),
+            'x_range': [float(x_range[0]), float(x_range[1])] if x_range is not None else None,
+            'source_dataset_id': source_dataset.dataset_id,
+            'source_dataset_name': source_dataset.name,
+        }
 
     def _on_secondary_y_changed(self):
         """
@@ -1668,6 +1800,50 @@ class DatasetMixin:
                 {'use_secondary_y': dataset.use_secondary_y},
                 {'use_secondary_y': new_value},
                 description="第2Y軸使用の変更"
+            )
+        if is_batch:
+            self.undo_stack.endMacro()
+
+    def _on_dataset_tree_item_clicked(self, item, column):
+        """
+        データセットリスト(ツリー)のアイテムがクリックされたときの処理(項目C-907)。
+        目アイコン専用列(DATASET_TREE_VISIBILITY_COLUMN)のクリックだけを拾い、
+        対応するデータセットの表示/非表示 (visible) を Undo/Redo 可能にトグルする。
+        削除ではなく非表示化なので、データやスタイル設定はそのまま保持される。
+
+        複数選択中に、その選択に含まれるアイテムの目アイコンをクリックした場合は
+        (_on_secondary_y_changed 等、既存の一括変更と同じ方針で) 選択中の全データセットへ
+        まとめて適用する。選択に含まれないアイテムを単独クリックした場合は
+        そのデータセット1件だけを切り替える。
+        """
+        if column != DATASET_TREE_VISIBILITY_COLUMN:
+            return
+        dataset = item.data(0, Qt.ItemDataRole.UserRole)
+        if dataset is None:
+            # フォルダアイテムには目アイコン列は無い(表示/非表示の対象外)
+            return
+
+        new_value = not dataset.visible
+
+        # ★ Dataset は値ベースの __eq__ を持つ dataclass (df列を含むため
+        #   `in` 演算子で == 比較されると DataFrame の真偽値判定エラーになる、
+        #   _find_dataset_row のコメント参照)。選択中に含まれるかどうかは
+        #   オブジェクト同一性(is)で判定する。
+        selected_datasets = self._get_selected_datasets()
+        is_part_of_multi_selection = len(selected_datasets) > 1 and any(
+            ds is dataset for ds in selected_datasets
+        )
+        targets = selected_datasets if is_part_of_multi_selection else [dataset]
+
+        is_batch = len(targets) > 1
+        if is_batch:
+            self.undo_stack.beginMacro(f"表示/非表示の一括切替 ({len(targets)}件)")
+        for ds in targets:
+            self._push_dataset_property_command(
+                ds,
+                {'visible': ds.visible},
+                {'visible': new_value},
+                description="データセットの表示/非表示切替"
             )
         if is_batch:
             self.undo_stack.endMacro()

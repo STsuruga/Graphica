@@ -5,49 +5,55 @@ import pytest
 
 import core.analysis as analysis_module
 from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgol,
-                            get_plugin_fit_type_names, register_fit_function)
+                            get_plugin_fit_type_names, register_fit_function,
+                            calculate_baseline_als, calculate_baseline_polynomial,
+                            calculate_baseline_rubberband, calculate_baseline_manual)
 
 
 def test_linear_fit_recovers_known_parameters():
     x = np.linspace(0, 10, 50)
     y = 2.5 * x + 1.3
-    popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(x, y, "線形 (y = ax + b)")
-    assert params_info == ['a', 'b']
-    np.testing.assert_allclose(popt, [2.5, 1.3], atol=1e-6)
-    assert len(x_fit) == 200
-    assert x_fit.min() == pytest.approx(x.min())
-    assert x_fit.max() == pytest.approx(x.max())
-    assert r_squared == pytest.approx(1.0, abs=1e-6)
-    assert len(residuals) == len(x)
+    result = calculate_curve_fit(x, y, "線形 (y = ax + b)")
+    assert result['param_names'] == ['a', 'b']
+    np.testing.assert_allclose(result['popt'], [2.5, 1.3], atol=1e-6)
+    assert len(result['x_fit']) == 200
+    assert result['x_fit'].min() == pytest.approx(x.min())
+    assert result['x_fit'].max() == pytest.approx(x.max())
+    assert result['r_squared'] == pytest.approx(1.0, abs=1e-6)
+    assert len(result['residuals']) == len(x)
+    # 項目C-401: 共分散行列・パラメータ標準誤差も構造化して返される
+    assert result['pcov'].shape == (2, 2)
+    assert len(result['perr']) == 2
+    assert len(result['x_data_used']) == len(x)
 
 
 def test_poly2_fit_recovers_known_parameters():
     x = np.linspace(-5, 5, 60)
     y = 1.0 * x**2 - 2.0 * x + 3.0
-    popt, params_info, _, _, r_squared, _ = calculate_curve_fit(x, y, "2次多項式 (y = ax^2 + bx + c)")
-    np.testing.assert_allclose(popt, [1.0, -2.0, 3.0], atol=1e-6)
-    assert r_squared == pytest.approx(1.0, abs=1e-6)
+    result = calculate_curve_fit(x, y, "2次多項式 (y = ax^2 + bx + c)")
+    np.testing.assert_allclose(result['popt'], [1.0, -2.0, 3.0], atol=1e-6)
+    assert result['r_squared'] == pytest.approx(1.0, abs=1e-6)
 
 
 def test_poly3_fit_recovers_known_parameters():
     x = np.linspace(-3, 3, 60)
     y = 0.5 * x**3 + x**2 - x + 2.0
-    popt, params_info, _, _, _, _ = calculate_curve_fit(x, y, "3次多項式 (y = ax^3 + bx^2 + cx + d)")
-    np.testing.assert_allclose(popt, [0.5, 1.0, -1.0, 2.0], atol=1e-5)
+    result = calculate_curve_fit(x, y, "3次多項式 (y = ax^3 + bx^2 + cx + d)")
+    np.testing.assert_allclose(result['popt'], [0.5, 1.0, -1.0, 2.0], atol=1e-5)
 
 
 def test_exponential_fit_recovers_known_parameters():
     x = np.linspace(0, 5, 50)
     y = 3.0 * np.exp(0.7 * x)
-    popt, params_info, _, _, _, _ = calculate_curve_fit(x, y, "指数関数 (y = a * exp(bx))")
-    np.testing.assert_allclose(popt, [3.0, 0.7], atol=1e-3)
+    result = calculate_curve_fit(x, y, "指数関数 (y = a * exp(bx))")
+    np.testing.assert_allclose(result['popt'], [3.0, 0.7], atol=1e-3)
 
 
 def test_log_fit_recovers_known_parameters():
     x = np.linspace(0.1, 10, 50)
     y = 2.0 * np.log(x) + 1.0
-    popt, params_info, _, _, _, _ = calculate_curve_fit(x, y, "対数 (y = a * ln(x) + b)")
-    np.testing.assert_allclose(popt, [2.0, 1.0], atol=1e-6)
+    result = calculate_curve_fit(x, y, "対数 (y = a * ln(x) + b)")
+    np.testing.assert_allclose(result['popt'], [2.0, 1.0], atol=1e-6)
 
 
 def test_log_fit_rejects_non_positive_x():
@@ -60,8 +66,8 @@ def test_log_fit_rejects_non_positive_x():
 def test_power_fit_recovers_known_parameters():
     x = np.linspace(1, 10, 50)
     y = 2.0 * np.power(x, 1.5)
-    popt, params_info, _, _, _, _ = calculate_curve_fit(x, y, "べき乗 (y = a * x^b)")
-    np.testing.assert_allclose(popt, [2.0, 1.5], atol=1e-3)
+    result = calculate_curve_fit(x, y, "べき乗 (y = a * x^b)")
+    np.testing.assert_allclose(result['popt'], [2.0, 1.5], atol=1e-3)
 
 
 def test_power_fit_rejects_non_positive_x():
@@ -74,8 +80,8 @@ def test_power_fit_rejects_non_positive_x():
 def test_gaussian_fit_recovers_known_parameters():
     x = np.linspace(-10, 10, 200)
     y = 5.0 * np.exp(-((x - 2.0) ** 2) / (2 * 1.5 ** 2)) + 0.5
-    popt, params_info, _, _, _, _ = calculate_curve_fit(x, y, "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)")
-    np.testing.assert_allclose(popt, [5.0, 2.0, 1.5, 0.5], atol=1e-2)
+    result = calculate_curve_fit(x, y, "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)")
+    np.testing.assert_allclose(result['popt'], [5.0, 2.0, 1.5, 0.5], atol=1e-2)
 
 
 def test_sigmoid_fit_recovers_known_parameters():
@@ -84,20 +90,20 @@ def test_sigmoid_fit_recovers_known_parameters():
     # 十分な情報を持たせるため、範囲を遷移幅(1/b)の数倍程度に絞る。
     x = np.linspace(-2, 4, 200)
     y = 4.0 / (1 + np.exp(-1.2 * (x - 1.0)))
-    popt, params_info, _, _, _, _ = calculate_curve_fit(x, y, "シグモイド (y = a / (1 + exp(-b(x-c))))")
-    np.testing.assert_allclose(popt, [4.0, 1.2, 1.0], atol=1e-2)
+    result = calculate_curve_fit(x, y, "シグモイド (y = a / (1 + exp(-b(x-c))))")
+    np.testing.assert_allclose(result['popt'], [4.0, 1.2, 1.0], atol=1e-2)
 
 
 def test_custom_formula_fit_recovers_known_parameters():
     x = np.linspace(0, 5, 50)
     y = 2.0 * np.exp(-0.5 * x) + 1.0
-    popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
+    result = calculate_curve_fit(
         x, y, "カスタム数式...", custom_formula="a*exp(-b*x)+c"
     )
-    assert params_info == ['a', 'b', 'c']
-    np.testing.assert_allclose(popt, [2.0, 0.5, 1.0], atol=1e-3)
-    assert r_squared == pytest.approx(1.0, abs=1e-3)
-    assert len(residuals) == len(x)
+    assert result['param_names'] == ['a', 'b', 'c']
+    np.testing.assert_allclose(result['popt'], [2.0, 0.5, 1.0], atol=1e-3)
+    assert result['r_squared'] == pytest.approx(1.0, abs=1e-3)
+    assert len(result['residuals']) == len(x)
 
 
 def test_custom_formula_without_params_raises():
@@ -161,11 +167,9 @@ def test_register_fit_function_and_use_it(clear_plugin_fit_registry):
 
     x = np.linspace(0, 10, 30)
     y = 2.0 * x + 5.0
-    popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
-        x, y, "プラグインテスト用線形"
-    )
-    assert params_info == ["a", "b"]
-    np.testing.assert_allclose(popt, [2.0, 5.0], atol=1e-6)
+    result = calculate_curve_fit(x, y, "プラグインテスト用線形")
+    assert result['param_names'] == ["a", "b"]
+    np.testing.assert_allclose(result['popt'], [2.0, 5.0], atol=1e-6)
 
 
 def test_register_fit_function_with_callable_p0(clear_plugin_fit_registry):
@@ -214,10 +218,8 @@ def test_curve_fit_ignores_nan_rows_instead_of_raising_raw_scipy_error():
     y_with_nan = y.copy()
     y_with_nan[[3, 7, 15]] = np.nan
 
-    popt, params_info, x_fit, y_fit, r_squared, residuals = calculate_curve_fit(
-        x, y_with_nan, "線形 (y = ax + b)"
-    )
-    np.testing.assert_allclose(popt, [2.0, 1.0], atol=1e-6)
+    result = calculate_curve_fit(x, y_with_nan, "線形 (y = ax + b)")
+    np.testing.assert_allclose(result['popt'], [2.0, 1.0], atol=1e-6)
 
 
 def test_curve_fit_all_nan_y_raises_friendly_value_error_instead_of_crashing():
@@ -306,11 +308,11 @@ def test_weighted_fit_sigma_pulls_result_toward_low_error_points():
     y = y_true.copy()
     y[-1] += 50.0  # 端点を大きく外す(OLSでは傾きへの影響が大きい)
 
-    popt_unweighted, _, _, _, _, _ = calculate_curve_fit(x, y, "線形 (y = ax + b)")
+    popt_unweighted = calculate_curve_fit(x, y, "線形 (y = ax + b)")['popt']
 
     sigma = np.ones_like(x)
     sigma[-1] = 100.0  # 外れ値の不確かさを大きく指定
-    popt_weighted, _, _, _, _, _ = calculate_curve_fit(x, y, "線形 (y = ax + b)", sigma=sigma)
+    popt_weighted = calculate_curve_fit(x, y, "線形 (y = ax + b)", sigma=sigma)['popt']
 
     # 重み付き結果の傾きの方が真の傾き(2.0)に大幅に近いはず
     assert abs(popt_weighted[0] - 2.0) < abs(popt_unweighted[0] - 2.0)
@@ -321,12 +323,12 @@ def test_fit_range_excludes_points_outside_range():
     """x_rangeで指定した範囲外の点は、フィットにも残差にも一切使われないこと。"""
     x = np.linspace(0, 20, 100)
     y = np.where(x <= 10, 2.0 * x, -100.0)  # x>10は全く別の(直線から大きく外れた)値
-    popt, _, _, _, _, residuals = calculate_curve_fit(
+    result = calculate_curve_fit(
         x, y, "線形 (y = ax + b)", x_range=(0.0, 10.0)
     )
-    assert abs(popt[0] - 2.0) < 0.05
+    assert abs(result['popt'][0] - 2.0) < 0.05
     # 残差は範囲内(x<=10)の点数だけになっているはず
-    assert len(residuals) == np.sum(x <= 10.0)
+    assert len(result['residuals']) == np.sum(x <= 10.0)
 
 
 def test_fit_range_combined_with_sigma_applies_same_mask():
@@ -335,10 +337,10 @@ def test_fit_range_combined_with_sigma_applies_same_mask():
     x = np.linspace(0, 10, 20)
     y = 2.0 * x + 1.0
     sigma = np.ones_like(x)
-    popt, _, _, _, _, _ = calculate_curve_fit(
+    result = calculate_curve_fit(
         x, y, "線形 (y = ax + b)", sigma=sigma, x_range=(2.0, 8.0)
     )
-    assert abs(popt[0] - 2.0) < 1e-6
+    assert abs(result['popt'][0] - 2.0) < 1e-6
 
 
 def test_fit_range_too_few_points_raises():
@@ -401,3 +403,185 @@ def test_savgol_rejects_window_larger_than_data():
     y = np.sin(x)
     with pytest.raises(ValueError, match="データ点数"):
         calculate_savgol(x, y, window_length=7, polyorder=2)
+
+
+# =============================================================================
+# ベースライン補正(項目C-308): ALS / 多項式 / ラバーバンド / 手動点
+# =============================================================================
+
+def _make_baseline_test_signal():
+    """
+    緩やかに湾曲したベースライン + 複数のガウシアンピーク + 小さなノイズ、
+    という典型的なスペクトルを模した合成データを作る。
+    """
+    rng = np.random.default_rng(0)
+    x = np.linspace(0, 100, 300)
+    true_baseline = 0.001 * (x - 50) ** 2 + 5.0
+    signal = np.zeros_like(x)
+    for center, amp, width in [(30, 20, 3), (60, 15, 2), (80, 10, 1.5)]:
+        signal += amp * np.exp(-(x - center) ** 2 / (2 * width ** 2))
+    noise = rng.normal(0, 0.05, size=x.shape)
+    y = true_baseline + signal + noise
+    return x, y, true_baseline
+
+
+# --- ALS ---
+
+def test_baseline_als_recovers_smooth_baseline_under_peaks():
+    x, y, true_baseline = _make_baseline_test_signal()
+    x_sorted, baseline, corrected = calculate_baseline_als(x, y, lam=1e5, p=0.01, niter=10)
+    assert len(baseline) == len(x)
+    assert len(corrected) == len(x)
+    np.testing.assert_allclose(corrected, y - baseline, atol=1e-9)
+    # 真のベースラインに近い滑らかな曲線が推定できていること(ピーク付近を除く
+    # 全体としての平均絶対誤差で判定する。ピーク直下は多少押し上げられるため
+    # 緩めの許容誤差にする)。
+    assert np.mean(np.abs(baseline - true_baseline)) < 1.0
+
+
+def test_baseline_als_rejects_non_positive_lam():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="lam"):
+        calculate_baseline_als(x, y, lam=0, p=0.01)
+
+
+def test_baseline_als_rejects_p_out_of_range():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="p"):
+        calculate_baseline_als(x, y, lam=1e5, p=1.5)
+    with pytest.raises(ValueError, match="p"):
+        calculate_baseline_als(x, y, lam=1e5, p=0)
+
+
+def test_baseline_als_rejects_niter_less_than_one():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="niter|反復"):
+        calculate_baseline_als(x, y, lam=1e5, p=0.01, niter=0)
+
+
+def test_baseline_als_rejects_too_few_points():
+    x = np.array([0.0, 1.0])
+    y = np.array([1.0, 2.0])
+    with pytest.raises(ValueError, match="3点"):
+        calculate_baseline_als(x, y, lam=1e5, p=0.01)
+
+
+# --- 多項式(ModPoly) ---
+
+def test_baseline_polynomial_recovers_linear_baseline_exactly():
+    x = np.linspace(0, 100, 200)
+    true_baseline = 0.02 * x + 3.0
+    signal = 10 * np.exp(-(x - 50) ** 2 / (2 * 4 ** 2))
+    y = true_baseline + signal
+
+    x_sorted, baseline, corrected = calculate_baseline_polynomial(x, y, degree=1, iterations=15)
+    np.testing.assert_allclose(baseline, true_baseline, atol=1e-3)
+    np.testing.assert_allclose(corrected, y - baseline, atol=1e-9)
+
+
+def test_baseline_polynomial_rejects_negative_degree():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="次数"):
+        calculate_baseline_polynomial(x, y, degree=-1)
+
+
+def test_baseline_polynomial_rejects_iterations_less_than_one():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="反復"):
+        calculate_baseline_polynomial(x, y, degree=2, iterations=0)
+
+
+def test_baseline_polynomial_rejects_degree_at_or_above_point_count():
+    x = np.linspace(0, 10, 5)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="データ点数"):
+        calculate_baseline_polynomial(x, y, degree=5)
+
+
+# --- ラバーバンド(下側凸包) ---
+
+def test_baseline_rubberband_recovers_linear_baseline_exactly():
+    x = np.linspace(0, 100, 200)
+    true_baseline = 0.02 * x + 3.0
+    signal = 10 * np.exp(-(x - 50) ** 2 / (2 * 4 ** 2))
+    y = true_baseline + signal
+
+    x_sorted, baseline, corrected = calculate_baseline_rubberband(x, y)
+    np.testing.assert_allclose(baseline, true_baseline, atol=1e-6)
+    np.testing.assert_allclose(corrected, y - baseline, atol=1e-9)
+
+
+def test_baseline_rubberband_stays_at_or_below_data():
+    x, y, _ = _make_baseline_test_signal()
+    _, baseline, _ = calculate_baseline_rubberband(x, y)
+    # ラバーバンド(下側凸包)は定義上、常にデータ以下(=引き算後は非負)になる。
+    assert np.all(baseline <= y + 1e-9)
+
+
+def test_baseline_rubberband_rejects_too_few_points():
+    x = np.array([0.0, 1.0])
+    y = np.array([1.0, 2.0])
+    with pytest.raises(ValueError, match="3点"):
+        calculate_baseline_rubberband(x, y)
+
+
+# --- 手動点 ---
+
+def test_baseline_manual_linear_recovers_baseline_from_endpoint_anchors():
+    x = np.linspace(0, 100, 200)
+    true_baseline = 0.02 * x + 3.0
+    signal = 10 * np.exp(-(x - 50) ** 2 / (2 * 4 ** 2))
+    y = true_baseline + signal
+
+    x_sorted, baseline, corrected = calculate_baseline_manual(
+        x, y, anchor_x=[0.0, 100.0], method="linear"
+    )
+    np.testing.assert_allclose(baseline, true_baseline, atol=1e-6)
+    np.testing.assert_allclose(corrected, y - baseline, atol=1e-9)
+
+
+def test_baseline_manual_spline_recovers_curved_baseline():
+    x = np.linspace(0, 100, 200)
+    true_baseline = 0.001 * (x - 50) ** 2 + 5.0
+    signal = 10 * np.exp(-(x - 50) ** 2 / (2 * 4 ** 2))
+    y = true_baseline + signal
+
+    # アンカー点はピーク(中心50、幅4)から離れた位置に置く。ピークに
+    # かぶる位置にアンカーを置くと、そこでの実データYがピークの寄与を
+    # 含んでしまい、アンカー自体がベースラインからずれてしまうため。
+    anchors = [0.0, 20.0, 35.0, 65.0, 80.0, 100.0]
+    _, baseline, _ = calculate_baseline_manual(x, y, anchor_x=anchors, method="spline")
+    assert np.mean(np.abs(baseline - true_baseline)) < 0.5
+
+
+def test_baseline_manual_rejects_fewer_than_two_anchors():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="2点"):
+        calculate_baseline_manual(x, y, anchor_x=[5.0], method="linear")
+
+
+def test_baseline_manual_spline_rejects_fewer_than_three_anchors():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="スプライン"):
+        calculate_baseline_manual(x, y, anchor_x=[0.0, 10.0], method="spline")
+
+
+def test_baseline_manual_rejects_anchor_outside_data_range():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="X範囲"):
+        calculate_baseline_manual(x, y, anchor_x=[-5.0, 5.0], method="linear")
+
+
+def test_baseline_manual_rejects_unknown_method():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x) + 5
+    with pytest.raises(ValueError, match="補間方法"):
+        calculate_baseline_manual(x, y, anchor_x=[0.0, 10.0], method="bogus")

@@ -24,10 +24,11 @@ from gui.main_window import PlotterApp
 from gui.dialogs import (
     NormalizeDatasetDialog, PluginParamDialog, FitDialog, PeakSettingsDialog,
     DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
-    NewDatasetDialog,
+    NewDatasetDialog, BaselineCorrectionDialog,
 )
 from core.dataset import Dataset
 from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
+from gui.dataset_style_icon import DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -1506,6 +1507,192 @@ def test_savgol_success_derivative_adds_dataset(tmp_path, monkeypatch):
 
 
 # =============================================================================
+# ベースライン補正 (_on_baseline_correction_dataset, 項目C-308)
+# =============================================================================
+
+def _make_baseline_dataset(n=50):
+    x = np.linspace(0, 10, n)
+    y = 0.5 * x + 3.0 + np.where(np.abs(x - 5) < 1, 2.0, 0.0)  # 傾いたベースライン+段差(ピーク代わり)
+    df = pd.DataFrame({'x': x, 'y': y})
+    return Dataset(name="spectrum", df=df, x_col_name='x', y_col_name='y')
+
+
+def test_baseline_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    before_count = len(window.project.datasets)
+    window._on_baseline_correction_dataset()
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_insufficient_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1], 'y': [0.0, 1.0]})
+    ds = Dataset(name="spectrum", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(warnings) == 1
+
+
+def test_baseline_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("als", {"lam": 1e5, "p": 0.01, "niter": 10}, "spectrum_corrected", False),
+        accepted=False,
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_empty_output_name_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("als", {"lam": 1e5, "p": 0.01, "niter": 10}, "", False)
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_calculation_error_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("als", {"lam": 1e5, "p": 0.01, "niter": 10}, "spectrum_corrected", False)
+    )
+
+    def raiser(*a, **k):
+        raise ValueError("lamは正の値である必要があります")
+
+    monkeypatch.setattr(dataset_mixin_module, "calculate_baseline_als", raiser)
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_als_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("als", {"lam": 1e5, "p": 0.01, "niter": 10}, "spectrum_corrected", False)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == "spectrum_corrected"
+    assert len(new_ds.y_data) == len(ds.y_data)
+
+
+def test_baseline_polynomial_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("polynomial", {"degree": 1, "iterations": 10}, "spectrum_poly", False)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    assert window.project.datasets[-1].name == "spectrum_poly"
+
+
+def test_baseline_rubberband_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("rubberband", {}, "spectrum_rubberband", False)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    assert window.project.datasets[-1].name == "spectrum_rubberband"
+
+
+def test_baseline_manual_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("manual", {"anchor_x_text": "0, 10", "method": "linear"}, "spectrum_manual", False)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    assert window.project.datasets[-1].name == "spectrum_manual"
+
+
+def test_baseline_manual_invalid_anchor_text_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("manual", {"anchor_x_text": "abc, def", "method": "linear"}, "spectrum_manual", False)
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_baseline_add_baseline_curve_checkbox_adds_two_datasets(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("rubberband", {}, "spectrum_rubberband", True)
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_baseline_correction_dataset()
+
+    assert len(window.project.datasets) == before_count + 2
+    names = [d.name for d in window.project.datasets[-2:]]
+    assert "spectrum_rubberband" in names
+    assert "spectrum_rubberband_baseline" in names
+
+
+# =============================================================================
 # バッチ列計算 (_on_batch_column_calculate)
 # =============================================================================
 
@@ -1655,6 +1842,10 @@ def test_batch_curve_fit_success_adds_fit_dataset_per_selected(tmp_path, monkeyp
     new_names = {ds.name for ds in window.project.datasets[before_count:]}
     assert new_names == {"Fit (d0)", "Fit (d1)"}
     assert len(info_calls) == 1
+    # 項目C-401: バッチフィットでも各結果がfit_resultとして構造化保持されること
+    for ds in window.project.datasets[before_count:]:
+        assert ds.fit_result is not None
+        assert ds.fit_result['fit_type'] == "線形 (y = ax + b)"
 
 
 def test_batch_curve_fit_partial_failure_reports_both(tmp_path, monkeypatch):
@@ -2520,6 +2711,18 @@ def test_fit_curve_success_adds_fit_dataset_and_shows_result(tmp_path, monkeypat
     assert new_ds.fit_info is not None
     assert window.fit_result_dialog is not None
 
+    # 項目C-401: fit_infoの表示文字列だけでなく、後続機能が再利用できる
+    # 構造化フィット結果もあわせて保持されていること
+    assert new_ds.fit_result is not None
+    assert new_ds.fit_result['fit_type'] == "線形 (y = ax + b)"
+    assert new_ds.fit_result['param_names'] == ['a', 'b']
+    assert len(new_ds.fit_result['params']) == 2
+    assert len(new_ds.fit_result['param_errors']) == 2
+    assert new_ds.fit_result['weighted'] is False
+    assert new_ds.fit_result['x_range'] is None
+    assert new_ds.fit_result['source_dataset_id'] == ds.dataset_id
+    assert new_ds.fit_result['source_dataset_name'] == "d0"
+
     parent_item = window._get_dataset_tree_item(ds).parent()
     fit_item_parent = window._get_dataset_tree_item(new_ds).parent()
     assert fit_item_parent == parent_item
@@ -2556,6 +2759,8 @@ def test_fit_curve_with_weighted_and_x_range(tmp_path, monkeypatch):
     new_ds = window.project.datasets[-1]
     assert "重みとして使用" in new_ds.fit_info
     assert "フィット範囲" in new_ds.fit_info
+    assert new_ds.fit_result['weighted'] is True
+    assert new_ds.fit_result['x_range'] == [x_range[0], x_range[1]]
 
 
 def test_fit_curve_calculation_error_shows_warning(tmp_path, monkeypatch):
@@ -2613,6 +2818,123 @@ def test_secondary_y_changed_batch_macro(tmp_path, monkeypatch):
     assert all(ds.use_secondary_y for ds in datasets)
     window.undo_stack.undo()
     assert all(not ds.use_secondary_y for ds in datasets)
+
+
+# =============================================================================
+# データセットの表示/非表示トグル (_on_dataset_tree_item_clicked, 項目C-907)
+# =============================================================================
+
+def test_dataset_tree_item_clicked_ignores_non_visibility_column(tmp_path, monkeypatch):
+    """目アイコン専用列(DATASET_TREE_VISIBILITY_COLUMN)以外のクリックは無視する
+    (名前列のクリックは選択切り替えのためのものであり、表示/非表示とは無関係)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    item = window._get_dataset_tree_item(ds)
+    before_count = window.undo_stack.count()
+
+    window._on_dataset_tree_item_clicked(item, DATASET_TREE_NAME_COLUMN)
+
+    assert window.undo_stack.count() == before_count
+    assert ds.visible is True
+
+
+def test_dataset_tree_item_clicked_ignores_folder_items(tmp_path, monkeypatch):
+    """フォルダアイテム(UserRoleがNone)には表示/非表示の概念が無いため無視する"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder_item = window._add_dataset_folder_item("folder1")
+    before_count = window.undo_stack.count()
+
+    window._on_dataset_tree_item_clicked(folder_item, DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert window.undo_stack.count() == before_count
+
+
+def test_dataset_tree_item_clicked_toggles_visibility_and_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    item = window._get_dataset_tree_item(ds)
+    assert ds.visible is True
+
+    window._on_dataset_tree_item_clicked(item, DATASET_TREE_VISIBILITY_COLUMN)
+    assert ds.visible is False
+
+    window.undo_stack.undo()
+    assert ds.visible is True
+
+    window.undo_stack.redo()
+    assert ds.visible is False
+
+
+def test_dataset_tree_item_clicked_triggers_replot(tmp_path, monkeypatch):
+    """非表示にした瞬間にグラフから消えて見えるよう、クリック直後に再描画
+    (_update_plot、_refresh_after_dataset_property_change経由)が呼ばれること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    item = window._get_dataset_tree_item(ds)
+
+    calls = []
+    monkeypatch.setattr(window, "_update_plot", lambda: calls.append(True))
+
+    window._on_dataset_tree_item_clicked(item, DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert calls
+
+
+def test_dataset_tree_item_clicked_actually_hides_dataset_from_next_redraw(tmp_path, monkeypatch):
+    """トグル後、実際に_update_plot()を(モックせず)呼ぶと、キャンバス上の
+    データセットもcanvas.redraw_all側のvisibleフィルタにより描画から消えること
+    (gui/canvas.pyのredraw_all改修との結合を確認する)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    item = window._get_dataset_tree_item(ds)
+    assert len(window.canvas.all_axes[0].lines) == 1
+
+    window._on_dataset_tree_item_clicked(item, DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert ds.visible is False
+    assert len(window.canvas.all_axes[0].lines) == 0
+
+
+def test_dataset_tree_item_clicked_single_click_with_other_items_selected_affects_only_clicked(tmp_path, monkeypatch):
+    """複数選択中でも、選択に含まれないアイテムの目アイコンをクリックした場合は
+    そのデータセット1件だけが切り替わり、選択中の他のデータセットには影響しない。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_simple_dataset(f"d{i}") for i in range(3)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets[:2])  # 先頭2件だけ選択、3件目は非選択のまま
+    item2 = window._get_dataset_tree_item(datasets[2])
+
+    window._on_dataset_tree_item_clicked(item2, DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert datasets[2].visible is False
+    assert datasets[0].visible is True
+    assert datasets[1].visible is True
+
+
+def test_dataset_tree_item_clicked_multi_selection_toggles_all_selected_as_batch(tmp_path, monkeypatch):
+    """選択中のアイテムの目アイコンをクリックした場合は、選択中の全データセットへ
+    一括で適用され(第2Y軸使用の一括切替と同じbeginMacro/endMacroパターン)、
+    Undo1回で全部元に戻る。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_simple_dataset(f"d{i}") for i in range(2)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    items = _select_items(window, datasets)
+    undo_count_before = window.undo_stack.count()
+
+    window._on_dataset_tree_item_clicked(items[0], DATASET_TREE_VISIBILITY_COLUMN)
+
+    assert all(ds.visible is False for ds in datasets)
+    # バッチはbeginMacro/endMacroで1件のUndo操作にまとまる
+    assert window.undo_stack.count() == undo_count_before + 1
+
+    window.undo_stack.undo()
+    assert all(ds.visible is True for ds in datasets)
 
 
 # =============================================================================

@@ -157,6 +157,16 @@ class Dataset:
     # default=None とすることで、初期化時に指定されなければ None が入ります
     fit_info: str = field(default=None) # 曲線フィットの結果文字列 (例: "y = 1.2x + 0.5")
 
+    # 曲線フィットの結果を構造化して保持する(項目C-401)。fit_infoが表示用の
+    # 整形済み文字列であるのに対し、こちらはC-402以降(信頼帯・残差プロット・
+    # 結果出力・provenance記録)が再計算なしで再利用できる、プログラムから
+    # 扱いやすい形。キー: fit_type, custom_formula, param_names, params,
+    # param_errors, covariance, r_squared, residuals, residual_x, weighted,
+    # x_range, source_dataset_id, source_dataset_name。
+    # 全て素のPython型(float/str/list/bool/None)のみで構成し、pickle/JSON
+    # (.graphica)のどちらの保存経路でもそのまま往復できるようにする。
+    fit_result: dict = field(default=None)
+
     # プラグインのregister_processor/register_analyzer(項目C-1/C-2)が生成した
     # Datasetについて、生成元プラグイン名を残す(項目C-3、provenanceの土台)。
     # プラグイン以外の通常の操作で作られたDatasetはNoneのまま。
@@ -165,6 +175,15 @@ class Dataset:
     # default=False とすることで、初期値は False になります
     use_secondary_y: bool = field(default=False) # 第2Y軸（右側）を使うかどうか
     subplot_target: int = field(default=0)     # 描画先のサブプロット番号 (0始まり)
+
+    # データセットリストの表示/非表示トグル(項目C-907)。Falseにすると、
+    # データセット自体は削除せず保持したまま、プロット描画(gui/canvas.pyの
+    # redraw_all)とエクスポート(gui/mixins/export_mixin.pyは常にredraw_all経由で
+    # 描画するため、単発画像・バッチエクスポートいずれもここで自動的に除外される)の
+    # 両方から除外する。既定はTrue(この機能追加前に保存されたプロジェクトファイルは
+    # このキーを持たないが、__setstate__/from_dictのフォールバックにより
+    # 常にTrue=表示扱いで読み込まれ、後方互換が保たれる)。
+    visible: bool = field(default=True)
     
     # repr=False は、print(dataset) した時に、このフィールドを表示しない設定
     # (Matplotlib の <Figure ...> のような巨大なオブジェクトは表示しないのが一般的)

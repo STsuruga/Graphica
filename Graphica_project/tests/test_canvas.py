@@ -775,6 +775,51 @@ def test_redraw_all_returns_true_and_creates_secondary_axis_when_dataset_uses_se
     assert canvas.all_secondary_axes[0] is not None
 
 
+# --- redraw_all(): データセットの表示/非表示トグル (項目C-907) ---
+
+def test_redraw_all_excludes_hidden_dataset_from_axes(canvas):
+    """visible=Falseのデータセットは描画対象から除外され、Axesにも
+    line/artistが残らない(データそのものは削除されず保持されたまま)。"""
+    ds_visible = _make_dataset(3, show_point_labels=False)
+    ds_visible.name = "visible_ds"
+    ds_hidden = _make_dataset(3, show_point_labels=False)
+    ds_hidden.name = "hidden_ds"
+    ds_hidden.visible = False
+
+    canvas.redraw_all([ds_visible, ds_hidden], 1, 1, [{}])
+
+    assert ds_visible.artist is not None
+    # 非表示のデータセットは描画自体が行われないため、artistは更新されずNoneのまま
+    assert ds_hidden.artist is None
+    assert len(canvas.all_axes[0].lines) == 1
+
+
+def test_redraw_all_all_datasets_hidden_draws_nothing(canvas):
+    """全データセットが非表示の場合でも、subplot_count>0であればAxes自体は
+    作られる(空のグラフになるだけでクラッシュしない)。"""
+    ds = _make_dataset(3, show_point_labels=False)
+    ds.visible = False
+
+    result = canvas.redraw_all([ds], 1, 1, [{}])
+
+    assert len(canvas.all_axes) == 1
+    assert len(canvas.all_axes[0].lines) == 0
+    assert result is False
+
+
+def test_redraw_all_missing_visible_attr_defaults_to_shown(canvas):
+    """visible属性がインスタンスの__dict__に無い(この機能追加前のpickleを模倣)
+    Datasetでも、redraw_all側のgetattr(ds, 'visible', True)フォールバックにより
+    通常通り描画される(後方互換の保険。実際にはDataset.__setstate__/from_dict
+    側でも既に補われるが、canvas.py単体としての安全網も確認する)。"""
+    ds = _make_dataset(3, show_point_labels=False)
+    del ds.__dict__['visible']
+
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+    assert len(canvas.all_axes[0].lines) == 1
+
+
 def test_redraw_all_swallows_tight_layout_value_error(canvas, monkeypatch):
     ds = _make_dataset(3, show_point_labels=False)
     monkeypatch.setattr(

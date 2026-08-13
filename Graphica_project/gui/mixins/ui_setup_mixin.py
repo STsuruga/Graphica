@@ -144,6 +144,8 @@ class UISetupMixin:
             self.dataset_search_edit.textChanged.connect(self._on_dataset_search_changed)
             self.ui.dataset_list_widget.currentItemChanged.connect(self._on_dataset_selected)
             self.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
+            # 項目C-907: 目アイコン列のクリックでデータセットの表示/非表示をトグルする
+            self.ui.dataset_list_widget.itemClicked.connect(self._on_dataset_tree_item_clicked)
             # ドラッグ&ドロップでの並べ替え/フォルダ移動(=描画の重なり順の変更)を project.datasets に反映する
             self.ui.dataset_list_widget.model().rowsMoved.connect(self._on_dataset_rows_moved)
 

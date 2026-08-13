@@ -1,6 +1,9 @@
 # core/analysis.py
 import re
 import numpy as np
+from scipy import sparse
+from scipy.sparse.linalg import spsolve
+from scipy.interpolate import CubicSpline
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, savgol_filter
 
@@ -93,6 +96,14 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
         x_range (tuple(float, float) | None): フィットに使うXの範囲(項目C-404、
             両端を含む)。指定した場合、範囲外の点はp0の初期値推定も含めて
             一切使わない(フィット後の曲線・残差もこの範囲の点のみに基づく)。
+
+    Returns:
+        dict: popt(最適化されたパラメータ配列)/pcov(共分散行列)/
+            perr(パラメータ標準誤差、sqrt(diag(pcov)))/param_names/
+            x_fit・y_fit(200点の滑らかな曲線)/r_squared/residuals/
+            x_data_used・y_data_used(NaN除外・x_range適用後の実際の入力、
+            residualsと同じ長さ)を持つ(項目C-401、呼び出し側が
+            Dataset.fit_resultとして構造化保持するための土台)。
     """
     x_data = np.asarray(x_data)
     y_data = np.asarray(y_data)
@@ -211,7 +222,7 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
 
     # 最適化の実行 (収束しないケースに備え、初期値と最大反復回数を指定)
     try:
-        popt, _ = curve_fit(
+        popt, pcov = curve_fit(
             fit_func, x_data, y_data, p0=p0, maxfev=CURVE_FIT_MAX_ITERATIONS,
             sigma=sigma, absolute_sigma=sigma is not None,
         )
@@ -220,6 +231,12 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
             f"フィッティングが収束しませんでした（{fit_type}）。データの分布が"
             f"このモデルに適していない可能性があります。詳細: {e}"
         ) from e
+
+    # パラメータの標準誤差(項目C-401、後続のC-403初期値表示・C-405信頼帯の土台)。
+    # pcovの対角成分が負/infになる退化したフィット(パラメータ数=データ点数等)でも
+    # 例外にはせず、そのままnp.sqrtに通す(infはinfのまま、負値はnanになる。
+    # どちらも「不確かさ不明」として呼び出し側が表示で弾ける値)。
+    perr = np.sqrt(np.diag(pcov))
 
     # 滑らかなフィット曲線用データ (200点) を生成
     x_fit = np.linspace(x_data.min(), x_data.max(), 200)
@@ -231,7 +248,21 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
     ss_tot = np.sum((y_data - np.mean(y_data)) ** 2)
     r_squared = 1.0 if ss_tot == 0 else 1.0 - (ss_res / ss_tot)
 
-    return popt, params_info, x_fit, y_fit, r_squared, residuals
+    return {
+        'popt': popt,
+        'pcov': pcov,
+        'perr': perr,
+        'param_names': params_info,
+        'x_fit': x_fit,
+        'y_fit': y_fit,
+        'r_squared': r_squared,
+        'residuals': residuals,
+        # 呼び出し側(gui/mixins/dataset_mixin.py)がresidualsと同じ長さの
+        # xを組み立てられるよう、範囲/NaN除外後の実際のx_dataも返す
+        # (項目C-401: フィット結果を後から再利用するための構造化保持)。
+        'x_data_used': x_data,
+        'y_data_used': y_data,
+    }
 
 
 def calculate_peaks(x_data, y_data, peak_type, settings):
@@ -300,3 +331,192 @@ def calculate_savgol(x_data, y_data, window_length, polyorder, deriv=0):
 
     y_result = savgol_filter(y_sorted, window_length, polyorder, deriv=deriv, delta=dx)
     return x_sorted, y_result
+
+
+# ==============================================================================
+# ベースライン補正(項目C-308): ALS / 多項式 / ラバーバンド / 手動点
+# ==============================================================================
+# 4手法とも同じ戻り値の形((ソート済みx, 推定ベースライン, 差し引き後のy)の3つ組)
+# にそろえてあり、呼び出し側(gui/mixins/dataset_mixin.py)はどの手法でも同じ
+# 後処理(DataFrame化してDatasetとして追加)で済む。
+
+def _sort_xy_for_baseline(x_data, y_data):
+    """
+    ベースライン補正の4手法に共通する前処理。ALS/多項式/ラバーバンドは
+    いずれも「Xに沿って並んだ系列」であることを前提にするアルゴリズムなので、
+    calculate_savgolと同様にXの昇順に先にソートしておく。
+    """
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+    order = np.argsort(x_data)
+    return x_data[order], y_data[order]
+
+
+def calculate_baseline_als(x_data, y_data, lam=1e5, p=0.01, niter=10):
+    """
+    Asymmetric Least Squares (ALS, Eilers & Boelens 2005) によるベースライン推定。
+
+    2階差分による滑らかさの正則化(lam)を効かせたリッジ回帰的な当てはめと、
+    「現在のベースラインより上側の点(=ピーク)の重みをpに、下側または
+    同じ点の重みを(1-p)にする」非対称な重み更新をniter回繰り返すことで、
+    信号のピーク部分には引っ張られず、ピークの下側だけをなぞる滑らかな
+    ベースラインへ収束させる。
+
+    Args:
+        lam (float): 滑らかさの正則化パラメータ(>0)。大きいほどベースラインが
+            滑らか(硬く曲がりにくく)なる。
+        p (float): 非対称重み(0<p<1)。小さいほどベースラインがピークを
+            避けて下側を通りやすくなる(一般的な目安は0.001〜0.1程度)。
+        niter (int): 重み更新の反復回数(1以上)。
+
+    Returns:
+        tuple (np.ndarray, np.ndarray, np.ndarray):
+            (Xの昇順にソートしたx, 推定ベースライン, ベースライン差し引き後のy)
+    """
+    if lam <= 0:
+        raise ValueError("lam(平滑化パラメータ)は正の値である必要があります。")
+    if not (0 < p < 1):
+        raise ValueError("p(非対称重み)は0より大きく1より小さい値である必要があります。")
+    if niter < 1:
+        raise ValueError("反復回数(niter)は1以上である必要があります。")
+
+    x_sorted, y_sorted = _sort_xy_for_baseline(x_data, y_data)
+    n_points = len(y_sorted)
+    if n_points < 3:
+        raise ValueError(f"ALSベースライン補正には少なくとも3点のデータが必要です(現在{n_points}点)。")
+
+    # 2階差分行列D(n_points x n_points-2)によるTikhonov正則化項。
+    # lam * D @ D.T が「隣接する2階差分の二乗和」に対するペナルティになる。
+    diff_matrix = sparse.diags([1, -2, 1], [0, -1, -2], shape=(n_points, n_points - 2))
+    penalty = lam * (diff_matrix @ diff_matrix.transpose())
+
+    weights = np.ones(n_points)
+    baseline = y_sorted.copy()
+    for _ in range(niter):
+        weight_matrix = sparse.diags(weights, 0, shape=(n_points, n_points))
+        baseline = spsolve((weight_matrix + penalty).tocsc(), weights * y_sorted)
+        weights = p * (y_sorted > baseline) + (1 - p) * (y_sorted <= baseline)
+
+    return x_sorted, baseline, y_sorted - baseline
+
+
+def calculate_baseline_polynomial(x_data, y_data, degree=3, iterations=10):
+    """
+    反復多項式フィットによるベースライン推定
+    (Lieber & Mahadevan-Jansen, 2003 の "ModPoly" 法)。
+
+    degree次の多項式をyにフィットし、フィット曲線を上回る点(ピーク由来と
+    みなす)をフィット曲線の値で置き換えてから再フィットする、という手順を
+    iterations回繰り返す。反復のたびにピーク領域が徐々に切り下げられ、
+    多項式がピークの下を通るベースラインへ収束していく。
+
+    Args:
+        degree (int): 多項式の次数(0以上、データ点数未満)。
+        iterations (int): 反復回数(1以上)。
+
+    Returns:
+        tuple (np.ndarray, np.ndarray, np.ndarray):
+            (Xの昇順にソートしたx, 推定ベースライン, ベースライン差し引き後のy)
+    """
+    if degree < 0:
+        raise ValueError("多項式の次数は0以上である必要があります。")
+    if iterations < 1:
+        raise ValueError("反復回数(iterations)は1以上である必要があります。")
+
+    x_sorted, y_sorted = _sort_xy_for_baseline(x_data, y_data)
+    if degree >= len(y_sorted):
+        raise ValueError(f"多項式の次数({degree})がデータ点数({len(y_sorted)})以上です。")
+
+    work_y = y_sorted.copy()
+    baseline = work_y
+    for _ in range(iterations):
+        coeffs = np.polyfit(x_sorted, work_y, degree)
+        baseline = np.polyval(coeffs, x_sorted)
+        work_y = np.minimum(work_y, baseline)
+
+    return x_sorted, baseline, y_sorted - baseline
+
+
+def calculate_baseline_rubberband(x_data, y_data):
+    """
+    ラバーバンド法(下側凸包)によるベースライン推定。
+
+    データ点群の下側凸包(lower convex hull)の頂点をAndrewのmonotone chain
+    アルゴリズムで求め、その頂点間を区分線形補間したものをベースラインとする。
+    ちょうどグラフの下からゴムひも(rubber band)を張って持ち上げたときに
+    データの下側に張り付く曲線に相当する。
+
+    Returns:
+        tuple (np.ndarray, np.ndarray, np.ndarray):
+            (Xの昇順にソートしたx, 推定ベースライン, ベースライン差し引き後のy)
+    """
+    x_sorted, y_sorted = _sort_xy_for_baseline(x_data, y_data)
+    n_points = len(x_sorted)
+    if n_points < 3:
+        raise ValueError(f"ラバーバンド法には少なくとも3点のデータが必要です(現在{n_points}点)。")
+
+    # 下側凸包のみを構築する(Andrewのmonotone chainのlower部分)。
+    # cross <= 0(左折でない)の間は直前の頂点が凸包の内側にあるので取り除く。
+    hull_indices = []
+    for i in range(n_points):
+        while len(hull_indices) >= 2:
+            o, a = hull_indices[-2], hull_indices[-1]
+            cross = ((x_sorted[a] - x_sorted[o]) * (y_sorted[i] - y_sorted[o])
+                     - (y_sorted[a] - y_sorted[o]) * (x_sorted[i] - x_sorted[o]))
+            if cross <= 0:
+                hull_indices.pop()
+            else:
+                break
+        hull_indices.append(i)
+
+    x_hull = x_sorted[hull_indices]
+    y_hull = y_sorted[hull_indices]
+    baseline = np.interp(x_sorted, x_hull, y_hull)
+
+    return x_sorted, baseline, y_sorted - baseline
+
+
+def calculate_baseline_manual(x_data, y_data, anchor_x, method="linear"):
+    """
+    手動点によるベースライン推定。
+
+    ユーザーが指定したX座標群(anchor_x)それぞれについて、実データを線形
+    補間してYを求め(=「その付近のデータ曲線上」にアンカー点を置く)、
+    アンカー点どうしを線形補間(method="linear")または3次スプライン補間
+    (method="spline", scipy.interpolate.CubicSpline。gui/canvas.pyの
+    ds.smoothingが使っているのと同じクラス)で結んでベースライン曲線とする。
+
+    Args:
+        anchor_x (array-like): ベースラインのアンカー点のX座標。重複しない値を
+            2点以上、データのX範囲内で指定する。
+        method (str): "linear" または "spline"。"spline"は3点以上必要。
+
+    Returns:
+        tuple (np.ndarray, np.ndarray, np.ndarray):
+            (Xの昇順にソートしたx, 推定ベースライン, ベースライン差し引き後のy)
+    """
+    if method not in ("linear", "spline"):
+        raise ValueError(f"未知の補間方法です: {method}")
+
+    x_sorted, y_sorted = _sort_xy_for_baseline(x_data, y_data)
+
+    anchor_x = np.unique(np.asarray(anchor_x, dtype=float))  # 重複除去+昇順ソート
+    if len(anchor_x) < 2:
+        raise ValueError("アンカー点は重複しない値で2点以上指定してください。")
+    if method == "spline" and len(anchor_x) < 3:
+        raise ValueError("スプライン補間には3点以上のアンカー点が必要です。")
+
+    x_min, x_max = x_sorted[0], x_sorted[-1]
+    if anchor_x[0] < x_min or anchor_x[-1] > x_max:
+        raise ValueError(
+            f"アンカー点はデータのX範囲({x_min:.6g} 〜 {x_max:.6g})内で指定してください。"
+        )
+
+    anchor_y = np.interp(anchor_x, x_sorted, y_sorted)
+
+    if method == "linear":
+        baseline = np.interp(x_sorted, anchor_x, anchor_y)
+    else:
+        baseline = CubicSpline(anchor_x, anchor_y)(x_sorted)
+
+    return x_sorted, baseline, y_sorted - baseline
