@@ -17,6 +17,11 @@ name: Build
 #   arm64) 上で行うため、生成される .app は Apple Silicon Mac 向け。
 #   Intel Mac向けが必要になった場合は macos-13 等のIntelランナーを使う
 #   ジョブを別途追加する。
+# - テストは `pytest` 一括実行ではなく scripts/run_tests_chunked.sh 経由で
+#   ファイル単位に分けたプロセスで実行する。フルスイートを1プロセスで
+#   通しで実行すると、テスト間でQt/matplotlibのリソースが解放されず
+#   蓄積し、進行するほど遅くなって最終的に事実上ハングする既知の問題が
+#   あるため (scripts/run_tests_chunked.sh のコメント参照)。
 
 on:
   push:
@@ -53,7 +58,8 @@ jobs:
           pip install pyinstaller
 
       - name: Run tests
-        run: pytest
+        shell: bash
+        run: bash scripts/run_tests_chunked.sh
 
       - name: Build exe with PyInstaller
         run: pyinstaller graphica.spec --noconfirm
@@ -88,7 +94,8 @@ jobs:
           pip install pyinstaller pillow
 
       - name: Run tests
-        run: pytest
+        shell: bash
+        run: bash scripts/run_tests_chunked.sh
 
       - name: Generate macOS icon (.icns) from Graphica.ico
         # Graphica.icns 自体はリポジトリに含めず、Windows用の Graphica.ico
