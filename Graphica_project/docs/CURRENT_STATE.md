@@ -15,80 +15,44 @@
 
 ## 現在の状況(2026-08-13時点、最優先で読むこと)
 
-**v1.2.0リリース後、Windows exeビルドに続いてmacOS版(.app、未署名、
-Apple Silicon/arm64のみ)のビルド対応をmasterへ直接コミットする形で完了した
-(専用ブランチは切っていない)。CI(`.github/workflows/build.yml`)の
-`build-macos`ジョブがWindows版と並んで正式にgreenで通ることを確認済み。**
+**v1.2.1をリリース済み。現在ユーザーは新しい機能追加の作業に移る予定。**
+直近のリリース作業(バグ修正中心)は完全に完了しており、これから始まる
+セッションは基本的に「まっさらな状態から次の指示を待つ」でよい。
 
-**この過程で見つけて修正した問題(すべてmasterにpush済み)**:
-1. `gui/theme.py`の`apply_theme()`が呼ばれるたびに`QApplication.setStyle()`で
-   新しいスタイルオブジェクトに丸ごと差し替えていたバグ。`setStyle()`は
-   差し替え前のスタイルオブジェクトを削除する仕様のため、複数タブ(=複数の
-   独立したPlotterAppが同一QApplicationを共有)が生きた状態でダークモードを
-   切り替えると、削除済みオブジェクトへのアクセスでネイティブクラッシュ
-   ("Windows fatal exception: access violation")していた。CIログから発見。
-   スタイルオブジェクトを使い回し、色情報だけ`update_tokens()`で更新する
-   方式に修正(`gui/theme.py`のコミット参照)。
-2. **CIの`pytest`単発実行が長時間ハングする問題**(下記「既知の注意点」に
-   詳細追記)。`Graphica_project/scripts/run_tests_chunked.sh`を新設し、
-   Windows/macOS両ジョブとも`pytest`直接呼び出しからこのスクリプト経由に
-   変更した。
-3. `tests/test_export_preview_panel.py`が、pytest自体は全テスト成功の
-   サマリーを出した**後**にQt/matplotlibのインタプリタ終了処理でsegfault
-   する(Windows/macOS両方で再現)。`run_tests_chunked.sh`側で「'N passed'の
-   サマリー行が出ていれば、その後のrc非0は本物の失敗として扱わない」判定を
-   追加して対応(テスト自体を直す問題ではないため)。
-4. `tests/test_gui_style_regression.py`(H-5画像回帰テスト)のベースライン
-   PNGがWindows専用で、macOSではフォントレンダリングの違いにより必ず
-   誤検出する。`pytestmark = pytest.mark.skipif(sys.platform != "win32", ...)`
-   でWindows限定化(Windows側は従来通り実行・検証される)。
-5. **日本語フォントがWindows専用フォント名("Yu Gothic"/"Meiryo"/
-   "MS Gothic")にしか対応しておらず、macOSでは日本語タイトル/軸ラベル/
-   凡例が豆腐ボックス化していた**(タイトル/軸ラベルのmathtextプレビュー
-   ウィジェットと、実際のグラフ描画のデフォルトフォントの両方)。
-   `gui/mathtext_preview.py`の`JP_CAPABLE_FONT_FAMILIES`(旧
-   `_JP_CAPABLE_FONT_FAMILIES`、プレビュー専用だったものを公開名に変更し
-   `gui/main_window.py`と共有)に"Hiragino Sans"/"Hiragino Kaku Gothic
-   ProN"(macOS)・"Noto Sans CJK JP"(Linux想定)を追加し、
-   `QFont.setFamilies()`でフォールバックリストごとmatplotlibへ渡すように
-   変更。プロジェクトファイルのフォント設定(`gui/mixins/settings_mixin.py`)
-   も文字列ではなくリストとして保存するよう変更(旧形式の文字列も
-   後方互換で読み込み可能)。
-   - この修正は、ユーザーが起動したバックグラウンドタスク(別worktree
-     `.claude/worktrees/dazzling-lichterman-b7b28b`、ブランチ
-     `claude/dazzling-lichterman-b7b28b`)が実装し、オーケストレーター側で
-     レビューして`mathtext_preview.py`側の1件のマージコンフリクト
-     (フォント一覧の命名変更が競合)を解決した上でmasterへマージ・push
-     した(コミット`2556479`)。**このマージについてはユーザーの指示により
-     フルスイート実行を省略している**(通常は`gui/main_window.py`の共有
-     初期化コードに触れる変更はフルスイート必須、CLAUDE.mdの
-     Regression bar節参照)ため、次回このファイルを読むセッションは、
-     機会を見てこの変更に対するフルスイート実行を検討すること。
+- **リリース**: https://github.com/STsuruga/Graphica/releases/tag/v1.2.1
+  (`core/version.py`は`1.2.1`)。Windows exe・macOS `.app`(未署名、
+  Apple Silicon/arm64のみ)の両方をビルド・添付済み。CI
+  (`.github/workflows/build.yml`)の`build-windows`/`build-macos`
+  両ジョブがこのタグに対してgreenであることを確認済み。
+- **v1.2.1の主な内容**(詳細は`CHANGELOG.md`のv1.2.1節):
+  macOS版の新規追加、複数タブでのダークモード切替クラッシュ修正
+  (`gui/theme.py`の`apply_theme()`が`QApplication.setStyle()`で
+  スタイルオブジェクトを毎回差し替えていた問題)、macOSでの日本語
+  タイトル/軸ラベル文字化け修正(`gui/mathtext_preview.py`の
+  `JP_CAPABLE_FONT_FAMILIES`をmacOS/Linux向けフォントも含む形に拡張し
+  `gui/main_window.py`のグラフ本体フォントとも共有)、CI側の`pytest`
+  単発実行が長時間ハングする問題の修正(`scripts/run_tests_chunked.sh`
+  新設、詳細は下記「既知の注意点」)。
+- **未検証・未対応のまま残っているもの**(致命的ではないが、次に触る
+  機会があれば):
+  - 実機Macでの動作確認(Gatekeeper警告の実際の見え方・日本語表示)は
+    未実施。
+  - Intel Mac向けビルドは未対応(`macos-latest`ランナーがApple Silicon
+    のためarm64版のみ)。
+  - フォント修正コミット(`2556479`、`gui/main_window.py`の共有初期化
+    コードに触れる)はユーザーの指示によりフルスイート未実施のまま
+    マージ済み。ただし`grep -rln "family" tests/`が0件ヒット(=この
+    変更で壊れうるテストがそもそも存在しない)を確認済みのため、優先度は
+    低い。
 
-**macOS版CIの成果物確認**: `Graphica-macos.zip`をダウンロードし、
-`Graphica.app/Contents/{MacOS,Resources,Frameworks}`の構造・
-`Info.plist`の`CFBundleShortVersionString`が`core/version.py`の
-`__version__`(1.2.0)と一致することを確認済み。**未署名のため実機での
-Gatekeeper警告(「壊れているため開けません」、右クリック→開くで回避)は
-未検証**(実機Macでの動作確認はまだ行っていない)。
-
-**旧知見(2026-08-09時点のもの、以下は既に完了したフェーズHの内容)**:
-「50を実施、フルテストも。バグが無いか徹底的に検証して」という指示を受け、
-H-5(画像回帰テスト)実装 + 背景Agent4体によるコードベース全体のバグ監査
-(core/プラグイン層・main_window/canvas/theme・ダイアログ群・mixin群の
-4分割) + 確定した19件のバグ修正(それぞれに回帰テスト追加)を行い、
-フルスイート701件全件グリーン・カバレッジ70%を確認してコミット・push済み。
-
-続けて「カバレッジの内訳は?」「上げるには?」「全部やって、agentは適宜
-展開」という指示を受け、テストカバレッジを大幅に引き上げる作業を実施した。
-低カバレッジだった`gui/mixins/project_io_mixin.py`・`export_mixin.py`・
-`help_mixin.py`・`color_history.py`・`cursor_mixin.py`・
-`annotation_mixin.py`・`quick_access_mixin.py`・`dataset_mixin.py`(最大、
-955行)・`gui/dialogs.py`(最大、1560行)・`data_editor.py`・
-`export_preview_panel.py`・`canvas.py`・`main_window.py`・
-`crash_handler.py`・`workers.py`・`core/json_utils.py`・`core/i18n.py`に
-テストを大量追加した。**結果: 1256件全件グリーン(失敗0件)、カバレッジ
-70%→97%(8450 stmts中272 miss)。**
+**過去の完了作業の詳細**(H-5画像回帰テスト実装・背景Agentによるバグ監査
+19件・テストカバレッジ70%→97%への引き上げ・H-0〜H-4のGUIモダン化の
+詳細など)は、このファイルの後半に引き続き記録が残っている(このファイルは
+本来「現在地のみ」を保つ運用だが、`docs/GUI_MODERNIZATION_PROGRESS.md`側に
+まだ転記できていない詳細があるため、当面はここに残す)。**機能追加が目的の
+新しいセッションでは、この「現在の状況」節・「開発の進め方」節・
+「既知の注意点」節を読めば十分で、後半の詳細な完了履歴(H-0以降)を
+読む必要は基本的に無い。**
 
 **作業中に判明した重要な環境上の注意点(今後も踏まえること)**:
 - **`_make_isolated_plotter_app`で毎回フルの`PlotterApp`(matplotlib
@@ -363,29 +327,19 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
 
 ## 次にやること
 
-**v1.2.1をリリース済み**(2026-08-13、
-https://github.com/STsuruga/Graphica/releases/tag/v1.2.1)。
-`core/version.py`を1.2.0→1.2.1に更新、`CHANGELOG.md`にv1.2.1節を追加、
-タグ`v1.2.1`をpush(このタグ専用のCIランでWindows/macOS両方green確認済み)、
-そのCIアーティファクト(`Graphica-windows-v1.2.1.zip`・
-`Graphica-macos-v1.2.1.zip`)をダウンロードしてReleaseに添付済み。
+**v1.2.1リリースまでの作業は完了している(詳細は上の「現在の状況」節・
+残課題3点を参照)。次はユーザー指示による機能追加フェーズに入る。**
 
-1. 実機Macでの動作確認(Gatekeeper警告の実際の見え方・日本語表示の確認)は
-   まだ行っていない。ユーザーが実機を用意できるかどうかで対応を判断する。
-2. Intel Mac向けビルドは未対応(`macos-latest`ランナーがApple Siliconの
-   ためarm64版のみ)。必要になれば`macos-13`等のIntelランナーを使う
-   ジョブを`.github/workflows/build.yml`に追加する。
-3. `gui/main_window.py`の共有初期化コードに触れたフォント修正
-   (コミット`2556479`)は、ユーザーの指示によりフルスイート未実施のまま
-   マージ済み。**ただし`grep -rln "family" tests/`が0件ヒットであることを
-   確認済み(=変更後の'family'型変化(str→list)で壊れうるテストがそもそも
-   存在しない)、かつアプリ構築確認・元々の2件の失敗テスト修正も済んでいる
-   ため、後追いでフルスイートを回す優先度は低い。次回何かのついでに
-   フルスイートを回す機会があれば含めれば十分で、これ単独のために
-   わざわざ確保する必要はない。**
-
-トラック4(プラグイン本体の開発、#163〜)もトラック1完了により並行して着手可能
-(`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
+- ユーザーが`docs/roadmap.html`の番号(例:「N-M実施」)で作業範囲を指示して
+  くるので、その番号**のみ**着手する(スコープ外への自主拡張はしない)。
+  着手前に必ず`docs/roadmap.html`の`DATA`配列で該当番号の状態を確認し、
+  どのトラック/フェーズかを`docs/Graphica_MASTER_SCHEDULE.md`で確認すること
+  (CLAUDE.mdの指示通り)。
+- トラック4(プラグイン本体の開発、#163〜)はトラック1完了により着手可能
+  (`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」参照)。
+- 現在ブランチは`master`。新しい機能追加を始める際、ブランチを切るかどうかは
+  作業規模に応じてユーザーと相談すること(直近のバグ修正連続はmaster直コミット
+  で済ませたが、機能追加は規模次第でブランチを切る従来方針に戻してよい)。
 
 ## 開発の進め方(ユーザーとの合意事項・運用ルール)
 
