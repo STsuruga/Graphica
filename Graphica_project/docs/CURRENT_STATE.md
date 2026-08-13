@@ -363,16 +363,19 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
 
 ## 次にやること
 
-1. **直近のmasterへのpush(コミット`2556479`、フォント修正マージ)に対する
-   CI(`.github/workflows/build.yml`)結果を確認する**。Windows/macOS両方
-   green になるまでは、次のリリース判断に進まないこと。
-2. CI green確認後、正式リリースするかどうかユーザーに確認する
-   (タグ付け・GitHub Release公開・macOS版`.app`の同梱)。前回のv1.2.0
-   リリースはWindows exeを同梱しない形で先行公開しているため、今回は
-   Windows exe + macOS `.app`の両方を同梱する形になる見込み。
-3. 実機Macでの動作確認(Gatekeeper警告の実際の見え方・日本語表示の確認)は
+**v1.2.1をリリース済み**(2026-08-13、
+https://github.com/STsuruga/Graphica/releases/tag/v1.2.1)。
+`core/version.py`を1.2.0→1.2.1に更新、`CHANGELOG.md`にv1.2.1節を追加、
+タグ`v1.2.1`をpush(このタグ専用のCIランでWindows/macOS両方green確認済み)、
+そのCIアーティファクト(`Graphica-windows-v1.2.1.zip`・
+`Graphica-macos-v1.2.1.zip`)をダウンロードしてReleaseに添付済み。
+
+1. 実機Macでの動作確認(Gatekeeper警告の実際の見え方・日本語表示の確認)は
    まだ行っていない。ユーザーが実機を用意できるかどうかで対応を判断する。
-4. `gui/main_window.py`の共有初期化コードに触れたフォント修正
+2. Intel Mac向けビルドは未対応(`macos-latest`ランナーがApple Siliconの
+   ためarm64版のみ)。必要になれば`macos-13`等のIntelランナーを使う
+   ジョブを`.github/workflows/build.yml`に追加する。
+3. `gui/main_window.py`の共有初期化コードに触れたフォント修正
    (コミット`2556479`)は、ユーザーの指示によりフルスイート未実施のまま
    マージ済み。**ただし`grep -rln "family" tests/`が0件ヒットであることを
    確認済み(=変更後の'family'型変化(str→list)で壊れうるテストがそもそも
