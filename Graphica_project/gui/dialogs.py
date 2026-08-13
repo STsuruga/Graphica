@@ -808,6 +808,25 @@ class FitDialog(QDialog):
         self.range_checkbox.toggled.connect(self.range_min_spinbox.setEnabled)
         self.range_checkbox.toggled.connect(self.range_max_spinbox.setEnabled)
 
+        # --- パラメータごとの初期値・固定・範囲拘束(項目C-403) ---
+        # 「収束しないフィットの大半はこれで解決」— ユーザーがパラメータの
+        # 自動推定初期値を上書きしたり、値を固定して自由パラメータから除外したり、
+        # [最小,最大]の範囲に拘束したりできるようにする。
+        layout.addWidget(QLabel("パラメータごとの初期値・固定・範囲拘束(収束しない場合に指定してください):"))
+        self.param_table = QTableWidget(0, 6)
+        self.param_table.setHorizontalHeaderLabels(
+            ["パラメータ", "初期値/固定値", "固定", "範囲拘束", "最小", "最大"]
+        )
+        self.param_table.verticalHeader().setVisible(False)
+        self.param_table.setMaximumHeight(180)
+        layout.addWidget(self.param_table)
+
+        self.fit_type_combo.currentTextChanged.connect(self._rebuild_param_table)
+        # カスタム数式は入力途中でもパラメータ数が変わりうるため、1文字入力される
+        # たびに再構築する(_rebuild_param_tableはパース失敗時に0行にするだけで
+        # 例外を外に投げないため、入力途中でクラッシュすることはない)。
+        self.custom_formula_edit.textChanged.connect(self._rebuild_param_table)
+
         # --- OK / Cancel ボタン ---
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
@@ -815,11 +834,136 @@ class FitDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
+        self._rebuild_param_table()
+
     def _on_fit_type_changed(self, text):
         """フィット関数の選択が変わったときに、カスタム数式入力欄の表示/非表示を切り替える"""
         is_custom = "カスタム数式" in text
         self.custom_formula_label.setVisible(is_custom)
         self.custom_formula_edit.setVisible(is_custom)
+
+    def _rebuild_param_table(self, *_args):
+        """
+        項目C-403: フィットタイプ(コンボボックス)またはカスタム数式の入力内容が
+        変わるたびに、パラメータテーブルの行を作り直す。get_fit_param_names()が
+        ValueErrorを送出するケース(フィットタイプ未確定、カスタム数式が空/
+        パース不能な入力途中の状態)は握りつぶして0行にする — ダイアログを
+        クラッシュさせず、単に「まだ何も出さない」だけにする。
+
+        各行の「初期値/固定値」欄はダブルユースで、「固定」チェックが外れている
+        間はp0の初期値(ユーザーが実際に触った場合のみp0_overridesに採用される。
+        触らなければフィットタイプごとの自動推定デフォルトのまま)、「固定」
+        チェックが入っている間はその値でパラメータを固定する(fixed_params)。
+        「範囲拘束」チェックは「固定」チェックと排他的に扱う(固定パラメータは
+        最適化されないため範囲の概念自体が無意味なので、固定時は無効化する)。
+        """
+        fit_type = self.fit_type_combo.currentText()
+        custom_formula = self.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
+        try:
+            from core.analysis import get_fit_param_names
+            param_names = get_fit_param_names(fit_type, custom_formula)
+        except ValueError:
+            param_names = []
+
+        self.param_table.setRowCount(0)
+        self.param_table.setRowCount(len(param_names))
+        for row, name in enumerate(param_names):
+            name_item = QTableWidgetItem(name)
+            name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.param_table.setItem(row, 0, name_item)
+
+            value_spin = QDoubleSpinBox()
+            value_spin.setRange(-1e12, 1e12)
+            value_spin.setDecimals(6)
+            value_spin.blockSignals(True)
+            value_spin.setValue(1.0)
+            value_spin.blockSignals(False)
+            # ★ ユーザーが実際に値を変更したかどうかを追跡する(初期化時の
+            # setValue(1.0)はblockSignals()でこのフラグを立てない)。
+            # get_param_settings()はこのフラグが立っている行だけをp0_overrides
+            # に含める。立っていない行は「フィットタイプごとの自動推定デフォルト
+            # のまま」を意味する(このダイアログはx_data/y_dataを持たないため、
+            # 自動推定値そのものはここでは計算・表示できない)。
+            value_spin.setProperty("_user_overridden", False)
+            value_spin.valueChanged.connect(
+                lambda _v, w=value_spin: w.setProperty("_user_overridden", True)
+            )
+            self.param_table.setCellWidget(row, 1, value_spin)
+
+            fixed_check = QCheckBox()
+            self.param_table.setCellWidget(row, 2, fixed_check)
+
+            range_check = QCheckBox()
+            self.param_table.setCellWidget(row, 3, range_check)
+
+            min_spin = QDoubleSpinBox()
+            min_spin.setRange(-1e12, 1e12)
+            min_spin.setDecimals(6)
+            min_spin.setValue(-1e12)
+            min_spin.setEnabled(False)
+            self.param_table.setCellWidget(row, 4, min_spin)
+
+            max_spin = QDoubleSpinBox()
+            max_spin.setRange(-1e12, 1e12)
+            max_spin.setDecimals(6)
+            max_spin.setValue(1e12)
+            max_spin.setEnabled(False)
+            self.param_table.setCellWidget(row, 5, max_spin)
+
+            fixed_check.toggled.connect(
+                lambda checked, rc=range_check, mn=min_spin, mx=max_spin:
+                    self._on_param_fixed_toggled(checked, rc, mn, mx)
+            )
+            range_check.toggled.connect(
+                lambda checked, mn=min_spin, mx=max_spin: (mn.setEnabled(checked), mx.setEnabled(checked))
+            )
+
+        self.param_table.resizeColumnsToContents()
+
+    @staticmethod
+    def _on_param_fixed_toggled(checked, range_check, min_spin, max_spin):
+        """「固定」チェックが入っている間は「範囲拘束」チェックと最小/最大欄を
+        無効化する(固定パラメータは最適化されないため範囲拘束は意味を持たない)。"""
+        range_check.setEnabled(not checked)
+        min_spin.setEnabled((not checked) and range_check.isChecked())
+        max_spin.setEnabled((not checked) and range_check.isChecked())
+
+    def get_param_settings(self):
+        """
+        項目C-403: パラメータテーブルの内容から、calculate_curve_fit()にそのまま
+        渡せる (p0_overrides, fixed_params, bounds) の3つのdictを組み立てる。
+        パラメータテーブルが0行(フィットタイプ未確定/カスタム数式が入力途中)
+        の場合は3つとも空dictを返す。
+
+        「固定」がチェックされている行は、値欄の値をfixed_paramsに入れ、
+        p0_overrides・boundsのどちらにも含めない(「範囲拘束」がチェックされて
+        いても無視する — 固定パラメータに範囲の概念はない)。
+
+        Returns:
+            tuple(dict[str, float], dict[str, float], dict[str, tuple[float, float]]):
+            (p0_overrides, fixed_params, bounds)。何もカスタマイズしなかった
+            場合はいずれも空dict(Noneではない)。
+        """
+        p0_overrides, fixed_params, bounds = {}, {}, {}
+        for row in range(self.param_table.rowCount()):
+            name = self.param_table.item(row, 0).text()
+            value_spin = self.param_table.cellWidget(row, 1)
+            fixed_check = self.param_table.cellWidget(row, 2)
+            range_check = self.param_table.cellWidget(row, 3)
+            min_spin = self.param_table.cellWidget(row, 4)
+            max_spin = self.param_table.cellWidget(row, 5)
+
+            if fixed_check.isChecked():
+                fixed_params[name] = value_spin.value()
+                continue
+
+            if value_spin.property("_user_overridden"):
+                p0_overrides[name] = value_spin.value()
+
+            if range_check.isChecked():
+                bounds[name] = (min_spin.value(), max_spin.value())
+
+        return p0_overrides, fixed_params, bounds
 
     def get_weighted(self):
         """Y誤差列を重みとして使うかどうか"""
@@ -841,8 +985,11 @@ class FitDialog(QDialog):
         【スタティックメソッド】
         ダイアログをモーダルで表示し、OKが押された場合は
         (フィットタイプ名, カスタム数式またはNone, 重み付けを使うか, フィット範囲
-        またはNone) のタプルを、Cancelが押された場合は (None, None, False, None) を
-        返します。
+        またはNone, p0_overrides, fixed_params, bounds) のタプルを、Cancelが
+        押された場合は (None, None, False, None, {}, {}, {}) を返します。
+        p0_overrides/fixed_params/boundsは、何もカスタマイズしなかった場合も
+        (Noneではなく)空dictになります — calculate_curve_fit()にそのまま
+        キーワード引数として渡せる形です。
 
         Args:
             parent (QWidget, optional): 親ウィジェット。
@@ -850,15 +997,19 @@ class FitDialog(QDialog):
             x_max (float, optional): フィット範囲指定欄の初期値(最大X)。
 
         Returns:
-            tuple (str|None, str|None, bool, tuple(float,float)|None):
-            (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲)
+            tuple (str|None, str|None, bool, tuple(float,float)|None,
+                   dict[str,float], dict[str,float], dict[str,tuple[float,float]]):
+            (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲,
+             p0_overrides, fixed_params, bounds)
         """
         dialog = FitDialog(parent, x_min=x_min, x_max=x_max)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             fit_type = dialog.fit_type_combo.currentText()
             custom_formula = dialog.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
-            return fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range()
-        return None, None, False, None
+            p0_overrides, fixed_params, bounds = dialog.get_param_settings()
+            return (fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range(),
+                    p0_overrides, fixed_params, bounds)
+        return None, None, False, None, {}, {}, {}
 
 
 #==============================================================================
@@ -2097,6 +2248,90 @@ class BaselineCorrectionDialog(QDialog):
                 "method": "spline" if self.manual_method_combo.currentText() == self._MANUAL_SPLINE else "linear",
             }
         return method, params, self.output_name_edit.text().strip(), self.add_baseline_checkbox.isChecked()
+
+
+# カスタムダイアログクラス: 区間積分(項目C-311)
+class IntervalIntegralDialog(QDialog):
+    """
+    区間積分(項目C-311)の設定を入力させるダイアログ。
+
+    真のグラフ上ドラッグ選択(項目C-909、未実装)ではなく、FitDialog(項目C-404、
+    フィット範囲の指定)と同じ「数値でXの範囲を指定する」UXを踏襲する。
+    最小/最大XはQDoubleSpinBoxで、ダイアログを開いた時点で対象データセットの
+    実際のX範囲を初期値として埋めておく(そのままOKすればデータセット全体を
+    積分できる)。
+    """
+
+    METHOD_TRAPEZOID = "台形則(Trapezoidal)"
+    METHOD_SIMPSON = "Simpson則"
+    METHODS = [METHOD_TRAPEZOID, METHOD_SIMPSON]
+    _METHOD_KEY_BY_LABEL = {METHOD_TRAPEZOID: "trapezoid", METHOD_SIMPSON: "simpson"}
+
+    def __init__(self, name, x_min=None, x_max=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("区間積分")
+        self.resize(380, 260)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        form = QFormLayout()
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(self.METHODS)
+        form.addRow("積分方法", self.method_combo)
+
+        self.range_min_spinbox = QDoubleSpinBox()
+        self.range_min_spinbox.setRange(-1e12, 1e12)
+        self.range_min_spinbox.setDecimals(6)
+        if x_min is not None:
+            self.range_min_spinbox.setValue(x_min)
+        form.addRow("最小X", self.range_min_spinbox)
+
+        self.range_max_spinbox = QDoubleSpinBox()
+        self.range_max_spinbox.setRange(-1e12, 1e12)
+        self.range_max_spinbox.setDecimals(6)
+        if x_max is not None:
+            self.range_max_spinbox.setValue(x_max)
+        form.addRow("最大X", self.range_max_spinbox)
+        layout.addLayout(form)
+
+        self.subtract_baseline_checkbox = QCheckBox(
+            "ベースラインを差し引く(範囲の両端を結ぶ直線を差し引いてから積分)"
+        )
+        self.subtract_baseline_checkbox.setToolTip(
+            "積分範囲の両端のY値(実データを線形補間して求めた値)を結ぶ直線を\n"
+            "ベースラインとしてYから差し引いてから積分します。\n"
+            "スペクトルのピーク面積など「傾いた背景の上のピーク」を求める用途向けの\n"
+            "簡易オプションです。ALS等の本格的なベースライン補正を使いたい場合は、\n"
+            "先に「ベースライン補正...」で補正したデータセットに対してこの機能を\n"
+            "使ってください。"
+        )
+        layout.addWidget(self.subtract_baseline_checkbox)
+
+        info_label = QLabel(
+            "台形則・Simpson則いずれもデータ点数の偶奇による制約はありません。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, tuple(float, float), bool):
+                (積分方法("trapezoid"|"simpson"), (最小X, 最大X), ベースラインを差し引くか)
+        """
+        method_text = self.method_combo.currentText()
+        method = self._METHOD_KEY_BY_LABEL[method_text]
+        x_range = (self.range_min_spinbox.value(), self.range_max_spinbox.value())
+        return method, x_range, self.subtract_baseline_checkbox.isChecked()
 
 
 class PluginParamDialog(QDialog):

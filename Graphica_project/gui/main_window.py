@@ -515,6 +515,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
         self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
         self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
+        self.integral_result_dialog = None  # 区間積分結果(項目C-311、非モーダル)のインスタンス保持用
         self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_worker = None  # ファイル読み込み用バックグラウンドワーカーの保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー

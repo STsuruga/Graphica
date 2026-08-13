@@ -24,9 +24,10 @@ import pandas as pd
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu
 
-from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgol,
+from core.analysis import (calculate_curve_fit, calculate_peak_quantification, calculate_savgol,
                            calculate_baseline_als, calculate_baseline_polynomial,
-                           calculate_baseline_rubberband, calculate_baseline_manual)
+                           calculate_baseline_rubberband, calculate_baseline_manual,
+                           calculate_interval_integral)
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand
 from core.dataset import Dataset
 from core.plugin_api import get_registered_importer_extensions
@@ -36,7 +37,7 @@ from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
-                         BaselineCorrectionDialog)
+                         BaselineCorrectionDialog, IntervalIntegralDialog)
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -179,6 +180,13 @@ class DatasetMixin:
             # 上記と同じく「カレント1件から新しいデータセットを1つ作る」操作。
             baseline_action = menu.addAction("ベースライン補正...")
             baseline_action.triggered.connect(self._on_baseline_correction_dataset)
+
+            # 区間積分(台形則/Simpson則、任意でベースライン差し引き、項目C-311):
+            # 上記と同じく「カレント1件」を対象にするが、新しいデータセットではなく
+            # 積分値(スカラー)をResultDialogで表示する点がSavitzky-Golay/
+            # ベースライン補正と異なる(ピーク検出のResultDialog表示に近い)。
+            integral_action = menu.addAction("区間積分(台形則/Simpson則)...")
+            integral_action.triggered.connect(self._on_interval_integral_dataset)
 
         selected_count = len(self._get_selected_datasets())
         if selected_count >= 2:
@@ -571,6 +579,64 @@ class DatasetMixin:
 
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
 
+    def _on_interval_integral_dataset(self):
+        """
+        「区間積分(台形則/Simpson則)...」メニューの処理(項目C-311)。
+        カレントの1つのデータセットについて、指定したXの範囲でYを台形則または
+        Simpson則で定積分する。_on_savgol_dataset/_on_baseline_correction_dataset
+        と同じ「カレント1件」パターンだが、結果は新しいデータセットではなく
+        スカラー1個(積分値)のため、ピーク検出(_on_find_peaks)と同じく
+        非モーダル・スクロール可能なResultDialogで結果を表示する。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        x_data = np.asarray(original_dataset.x_data, dtype=float)
+        y_data = np.asarray(original_dataset.y_data, dtype=float)
+        valid = ~(np.isnan(x_data) | np.isnan(y_data))
+        x_data, y_data = x_data[valid], y_data[valid]
+
+        if len(x_data) < 2:
+            QMessageBox.warning(self, "区間積分", "有効なデータ点が不足しています(最低2点必要)。")
+            return
+
+        x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
+        dialog = IntervalIntegralDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        method, x_range, subtract_baseline = dialog.get_settings()
+
+        try:
+            result = calculate_interval_integral(
+                x_data, y_data, x_range, method=method, subtract_baseline=subtract_baseline
+            )
+        except ValueError as e:
+            QMessageBox.warning(self, "区間積分", str(e))
+            return
+
+        method_label = "台形則(Trapezoidal)" if method == "trapezoid" else "Simpson則"
+        result_text = f"[{original_dataset.name}] の区間積分結果:\n"
+        result_text += f"  積分方法: {method_label}\n"
+        result_text += f"  積分範囲: {x_range[0]: .6g} 〜 {x_range[1]: .6g}\n"
+        result_text += f"  ベースライン差し引き: {'あり(範囲両端を結ぶ直線)' if subtract_baseline else 'なし'}\n"
+        result_text += f"  使用データ点数: {result['n_points']}\n"
+        result_text += f"  積分値 = {result['integral']: .6e}\n"
+
+        # ★ グラフを見ながら結果を確認できるよう、非モーダル・スクロール可能なダイアログで表示する
+        # (_on_find_peaks/_on_fit_curveと同じ方針)
+        if self.integral_result_dialog is not None:
+            self.integral_result_dialog.close()
+        integral_csv_data = pd.DataFrame({
+            'X': result['x_used'],
+            'Y(元データ)': result['y_raw_used'],
+            'Y(積分に使用)': result['y_used'],
+        })
+        self.integral_result_dialog = ResultDialog(
+            "区間積分完了", result_text, self, csv_data=integral_csv_data
+        )
+        self.integral_result_dialog.show()
+
     def _on_run_plugin_processor(self, processor):
         """
         プラグインの「データ処理」メニュー項目が選択されたときの処理(項目C-1)。
@@ -724,9 +790,11 @@ class DatasetMixin:
             QMessageBox.information(self, "バッチカーブフィット", "2つ以上のデータセットを選択してください。")
             return
 
-        # 項目C-402(重み付け)/C-404(フィット範囲)は選択中の全データセットに
-        # 共通の設定として1回だけ選ばせ、各データセットに同じ条件で適用する。
-        fit_type, custom_formula, use_weighted, x_range = FitDialog.get_fit_type(self)
+        # 項目C-402(重み付け)/C-404(フィット範囲)/C-403(初期値上書き・固定・
+        # 範囲拘束)は選択中の全データセットに共通の設定として1回だけ選ばせ、
+        # 各データセットに同じ条件で適用する。
+        (fit_type, custom_formula, use_weighted, x_range,
+         p0_overrides, fixed_params, bounds) = FitDialog.get_fit_type(self)
         if fit_type is None:
             return
 
@@ -739,6 +807,7 @@ class DatasetMixin:
                 fit = calculate_curve_fit(
                     x_data, y_data, fit_type, custom_formula=custom_formula,
                     sigma=sigma, x_range=x_range,
+                    p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
                 )
             except Exception as e:
                 failed.append(f"{dataset.name}: {e}")
@@ -757,11 +826,16 @@ class DatasetMixin:
                 result_text += "  (Y誤差列を重みとして使用)\n"
             if x_range is not None:
                 result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
+            if fixed_params:
+                result_text += f"  (固定: {fixed_params})\n"
+            if bounds:
+                result_text += f"  (範囲拘束: {bounds})\n"
 
             fit_result = self._build_fit_result_dict(
                 fit_type=fit_type, custom_formula=custom_formula, fit=fit,
                 weighted=sigma is not None, x_range=x_range,
                 source_dataset=dataset,
+                p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
             )
 
             fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
@@ -1673,10 +1747,12 @@ class DatasetMixin:
         x_data, y_data = original_dataset.x_data, original_dataset.y_data
 
         # ダイアログからフィットの種類を取得(カスタム数式選択時は数式文字列も一緒に返る、
-        # 項目C-402: 重み付けを使うか、項目C-404: フィット範囲 も併せて返る)
+        # 項目C-402: 重み付けを使うか、項目C-404: フィット範囲、項目C-403: 初期値
+        # 上書き・パラメータ固定・範囲拘束 も併せて返る)
         x_min = float(np.min(x_data)) if len(x_data) else None
         x_max = float(np.max(x_data)) if len(x_data) else None
-        fit_type, custom_formula, use_weighted, x_range = FitDialog.get_fit_type(
+        (fit_type, custom_formula, use_weighted, x_range,
+         p0_overrides, fixed_params, bounds) = FitDialog.get_fit_type(
             self, x_min=x_min, x_max=x_max
         )
         if fit_type is None:
@@ -1689,6 +1765,7 @@ class DatasetMixin:
             fit = calculate_curve_fit(
                 x_data, y_data, fit_type, custom_formula=custom_formula,
                 sigma=sigma, x_range=x_range,
+                p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
             )
         except Exception as e:
             QMessageBox.warning(self, "フィットエラー", f"フィッティングに失敗しました:\n{e}")
@@ -1711,6 +1788,10 @@ class DatasetMixin:
             result_text += "  (Y誤差列を重みとして使用)\n"
         if x_range is not None:
             result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
+        if fixed_params:
+            result_text += f"  (固定: {fixed_params})\n"
+        if bounds:
+            result_text += f"  (範囲拘束: {bounds})\n"
 
         # 項目C-401: 後続の機能(信頼帯・残差プロット・結果出力・provenance記録)が
         # 再計算なしで再利用できるよう、構造化した形でも結果を保持する。
@@ -1718,6 +1799,7 @@ class DatasetMixin:
             fit_type=fit_type, custom_formula=custom_formula, fit=fit,
             weighted=sigma is not None, x_range=x_range,
             source_dataset=original_dataset,
+            p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
         )
 
         # UI/Modelへの反映 (Datasetの追加。元のデータセットと同じフォルダに追加する)
@@ -1753,12 +1835,19 @@ class DatasetMixin:
         self.fit_result_dialog.show()
 
     @staticmethod
-    def _build_fit_result_dict(fit_type, custom_formula, fit, weighted, x_range, source_dataset):
+    def _build_fit_result_dict(fit_type, custom_formula, fit, weighted, x_range, source_dataset,
+                                p0_overrides=None, fixed_params=None, bounds=None):
         """
         calculate_curve_fit() の戻り値(numpy配列を含む)から、Dataset.fit_result
         (項目C-401)に保持する、pickle/JSON双方でそのまま往復できるプレーンな
         dictを組み立てる(numpy.float64等はJSON非対応のため、ここで素のPython
         型に変換しておく)。
+
+        p0_overrides/fixed_params/boundsは項目C-403(パラメータの初期値・固定・
+        範囲拘束UI)。何もカスタマイズしなかった場合は空dict/Noneのどちらでも
+        呼び出せるが、provenance(このフィットがどう設定されたか)としては
+        空dictのまま保持する(Noneに正規化しない — 「未指定」と「空dict」を
+        区別する必要はないため、単純にdict(...)へ通すだけで良い)。
         """
         popt, pcov, perr = fit['popt'], fit['pcov'], fit['perr']
         return {
@@ -1775,6 +1864,11 @@ class DatasetMixin:
             'x_range': [float(x_range[0]), float(x_range[1])] if x_range is not None else None,
             'source_dataset_id': source_dataset.dataset_id,
             'source_dataset_name': source_dataset.name,
+            # 項目C-403: どのパラメータをどう上書き/固定/拘束してこの結果が
+            # 得られたかのprovenance(すべて素のPython型なので変換不要)。
+            'p0_overrides': dict(p0_overrides) if p0_overrides else {},
+            'fixed_params': dict(fixed_params) if fixed_params else {},
+            'bounds': {k: [float(v[0]), float(v[1])] for k, v in bounds.items()} if bounds else {},
         }
 
     def _on_secondary_y_changed(self):
@@ -1867,11 +1961,18 @@ class DatasetMixin:
         peak_type = settings.get("peak_type", "上に凸 (Peaks)")
 
         try:
-            # ★ 計算はモジュールに丸投げ
-            peak_x, peak_y = calculate_peaks(x_data, y_data, peak_type, settings)
+            # ★ 計算はモジュールに丸投げ。項目C-411: 位置(X,Y)だけでなく
+            # FWHM/面積/重心も一括で定量化する(calculate_peaksの単純な
+            # (x, y)版はcalculate_peak_quantificationが内部で共有ロジック
+            # (_peak_detection_signal_and_kwargs)を使って計算するため、
+            # 検出結果自体は従来と完全に同じ)。
+            quant = calculate_peak_quantification(x_data, y_data, peak_type, settings)
         except Exception as e:
             QMessageBox.warning(self, "ピーク検出エラー", f"エラーが発生しました:\n{e}")
             return
+
+        peak_x, peak_y = quant['peak_x'], quant['peak_y']
+        fwhm, area, centroid = quant['fwhm'], quant['area'], quant['centroid']
 
         if len(peak_x) == 0:
             QMessageBox.information(self, "ピーク検出", f"指定された条件で {peak_type} は見つかりませんでした。")
@@ -1879,9 +1980,15 @@ class DatasetMixin:
 
         # 結果文字列の作成 (X座標順にソート)
         sort_order = np.argsort(peak_x)
-        result_text = f"検出された {peak_type} ({len(peak_x)}個):\n  X座標\t\tY座標\n" + "-"*30 + "\n"
+        result_text = (
+            f"検出された {peak_type} ({len(peak_x)}個):\n"
+            "  X座標\t\tY座標\t\tFWHM\t\t面積\t\t重心X\n" + "-" * 70 + "\n"
+        )
         for i in sort_order:
-            result_text += f"  {peak_x[i]:.4g}\t\t{peak_y[i]:.4g}\n"
+            result_text += (
+                f"  {peak_x[i]:.4g}\t\t{peak_y[i]:.4g}\t\t{fwhm[i]:.4g}"
+                f"\t\t{area[i]:.4g}\t\t{centroid[i]:.4g}\n"
+            )
 
         # UI/Modelへの反映 (元のデータセットと同じフォルダに追加する)
         peak_marker = 'v' if "下に凸" not in peak_type else '^'
@@ -1907,6 +2014,12 @@ class DatasetMixin:
         # (検出数が多いと行数が非常に多くなりうるため、スクロールできることが重要)
         if self.peak_result_dialog is not None:
             self.peak_result_dialog.close()
-        peak_csv_data = pd.DataFrame({'X座標': peak_x[sort_order], 'Y座標': peak_y[sort_order]})
+        peak_csv_data = pd.DataFrame({
+            'X座標': peak_x[sort_order],
+            'Y座標': peak_y[sort_order],
+            'FWHM': fwhm[sort_order],
+            '面積': area[sort_order],
+            '重心X': centroid[sort_order],
+        })
         self.peak_result_dialog = ResultDialog("ピーク検出完了", result_text, self, csv_data=peak_csv_data)
         self.peak_result_dialog.show()

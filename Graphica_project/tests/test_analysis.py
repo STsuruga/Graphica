@@ -5,9 +5,11 @@ import pytest
 
 import core.analysis as analysis_module
 from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgol,
+                            calculate_peak_quantification,
                             get_plugin_fit_type_names, register_fit_function,
                             calculate_baseline_als, calculate_baseline_polynomial,
-                            calculate_baseline_rubberband, calculate_baseline_manual)
+                            calculate_baseline_rubberband, calculate_baseline_manual,
+                            get_fit_param_names, calculate_interval_integral)
 
 
 def test_linear_fit_recovers_known_parameters():
@@ -297,6 +299,96 @@ def test_find_peaks_respects_distance_x():
     assert len(peak_x_far) <= len(peak_x_close)
 
 
+# --- ピーク定量(FWHM/面積/重心、項目C-411) ---
+
+def _make_isolated_gaussian(amplitude=5.0, center=3.0, sigma=0.8, n=4001):
+    """
+    孤立した単一ガウシアン(裾がデータ端でほぼ0まで減衰する)。
+    domain幅を中心から±10σ確保しているため、rel_height=1.0で求まる
+    「裾野」はほぼデータ端(高さ≒0)に一致し、そこを基線とした
+    area/centroidが解析的な値と比較しやすくなる。
+    """
+    x = np.linspace(center - 10 * sigma, center + 10 * sigma, n)
+    y = amplitude * np.exp(-((x - center) ** 2) / (2 * sigma ** 2))
+    return x, y
+
+
+def test_peak_quantification_gaussian_fwhm_matches_analytic_formula():
+    sigma = 0.8
+    x, y = _make_isolated_gaussian(sigma=sigma)
+    settings = {"height": 0.1, "prominence": None, "distance_x": 0}
+    result = calculate_peak_quantification(x, y, "上に凸 (Peaks)", settings)
+
+    assert len(result['peak_x']) == 1
+    analytic_fwhm = 2 * np.sqrt(2 * np.log(2)) * sigma
+    assert result['fwhm'][0] == pytest.approx(analytic_fwhm, rel=0.02)
+
+
+def test_peak_quantification_gaussian_centroid_matches_center():
+    center = 3.0
+    x, y = _make_isolated_gaussian(center=center)
+    settings = {"height": 0.1, "prominence": None, "distance_x": 0}
+    result = calculate_peak_quantification(x, y, "上に凸 (Peaks)", settings)
+
+    assert result['centroid'][0] == pytest.approx(center, abs=0.05)
+
+
+def test_peak_quantification_gaussian_area_matches_scipy_cross_check():
+    """
+    解析的な閉形式(裾を切り捨てた/基線補正後ガウシアンの厳密面積)は複雑なので、
+    「データ全域(裾がほぼ0)をそのままscipy.integrateで積分した値」との
+    突き合わせでオーダー感が合っていることだけを確認する。
+    """
+    from scipy import integrate
+
+    amplitude, sigma = 5.0, 0.8
+    x, y = _make_isolated_gaussian(amplitude=amplitude, sigma=sigma)
+    settings = {"height": 0.1, "prominence": None, "distance_x": 0}
+    result = calculate_peak_quantification(x, y, "上に凸 (Peaks)", settings)
+
+    reference_area = integrate.trapezoid(y, x)  # 裾がほぼ0なので基線=0相当
+    assert result['area'][0] == pytest.approx(reference_area, rel=0.05)
+    # 参考: 解析的なガウス全体の面積ともオーダーが合っていること
+    analytic_full_area = amplitude * sigma * np.sqrt(2 * np.pi)
+    assert result['area'][0] == pytest.approx(analytic_full_area, rel=0.05)
+
+
+def test_peak_quantification_valley_area_and_centroid_use_correct_sign():
+    """
+    回帰テスト: 「下に凸(谷)」の定量化はfind_peaks(-y_data)と同じ反転
+    ドメイン上でFWHM/area/centroidを計算するが、area/centroidの符号を
+    元のY軸の向きに合わせて反転し忘れる/し過ぎるバグを防ぐ。
+    このテストの谷はarea>0(常に正の「突出量」として定義)であること、
+    centroidが谷の中心Xに一致すること、peak_yが実際の(負の)谷底の値に
+    なっていることを確認する
+    (test_downward_peak_height_threshold_uses_correct_sign_for_valleysと
+    同じ設計思想のテスト)。
+    """
+    center, sigma, depth = 5.0, 0.3, 2.0
+    x = np.linspace(0, 20, 800)
+    y = -depth * np.exp(-((x - center) ** 2) / (2 * sigma ** 2))
+    settings = {"height": -0.5, "prominence": None, "distance_x": 0}
+    result = calculate_peak_quantification(x, y, "下に凸 (Valleys)", settings)
+
+    assert len(result['peak_x']) == 1
+    assert result['peak_y'][0] == pytest.approx(-depth, abs=0.05)
+    assert result['peak_x'][0] == pytest.approx(center, abs=0.1)
+    assert result['centroid'][0] == pytest.approx(center, abs=0.1)
+    assert result['area'][0] > 0  # 符号反転バグがあれば負になる/faultyな値になる
+    analytic_fwhm = 2 * np.sqrt(2 * np.log(2)) * sigma
+    assert result['fwhm'][0] == pytest.approx(analytic_fwhm, rel=0.05)
+
+
+def test_peak_quantification_returns_empty_arrays_when_no_peaks_found():
+    x = np.linspace(0, 10, 50)
+    y = np.zeros_like(x)
+    settings = {"height": 10.0, "prominence": None, "distance_x": 0}
+    result = calculate_peak_quantification(x, y, "上に凸 (Peaks)", settings)
+
+    for key in ('peak_x', 'peak_y', 'fwhm', 'area', 'centroid'):
+        assert len(result[key]) == 0
+
+
 # --- 重み付きフィット + フィット範囲指定(C-402/C-404) ---
 
 def test_weighted_fit_sigma_pulls_result_toward_low_error_points():
@@ -348,6 +440,173 @@ def test_fit_range_too_few_points_raises():
     y = 2.0 * x + 1.0
     with pytest.raises(ValueError, match="データ点数"):
         calculate_curve_fit(x, y, "線形 (y = ax + b)", x_range=(0.0, 0.05))
+
+
+# --- get_fit_param_names (C-403: フィット計算なしでパラメータ名を取得) ---
+
+def test_get_fit_param_names_builtin_types():
+    assert get_fit_param_names("線形 (y = ax + b)") == ['a', 'b']
+    assert get_fit_param_names("2次多項式 (y = ax^2 + bx + c)") == ['a', 'b', 'c']
+    assert get_fit_param_names("3次多項式 (y = ax^3 + bx^2 + cx + d)") == ['a', 'b', 'c', 'd']
+    assert get_fit_param_names("指数関数 (y = a * exp(bx))") == ['a', 'b']
+    assert get_fit_param_names("対数 (y = a * ln(x) + b)") == ['a', 'b']
+    assert get_fit_param_names("べき乗 (y = a * x^b)") == ['a', 'b']
+    assert get_fit_param_names("ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)") == ['a', 'b', 'c', 'd']
+    assert get_fit_param_names("シグモイド (y = a / (1 + exp(-b(x-c))))") == ['a', 'b', 'c']
+
+
+def test_get_fit_param_names_custom_formula():
+    assert get_fit_param_names("カスタム数式...", "a*exp(-b*x)+c") == ['a', 'b', 'c']
+
+
+def test_get_fit_param_names_custom_formula_empty_raises():
+    with pytest.raises(ValueError, match="カスタム数式が入力されていません"):
+        get_fit_param_names("カスタム数式...", "")
+    with pytest.raises(ValueError, match="カスタム数式が入力されていません"):
+        get_fit_param_names("カスタム数式...", None)
+
+
+def test_get_fit_param_names_custom_formula_no_params_raises():
+    with pytest.raises(ValueError, match="フィットパラメータ"):
+        get_fit_param_names("カスタム数式...", "42")
+
+
+def test_get_fit_param_names_unknown_type_raises():
+    with pytest.raises(ValueError, match="不明なフィットタイプ"):
+        get_fit_param_names("存在しないフィット")
+
+
+def test_get_fit_param_names_plugin_type(clear_plugin_fit_registry):
+    register_fit_function("プラグインテスト用パラメータ名", lambda x, a, b: a * x + b, ["a", "b"])
+    assert get_fit_param_names("プラグインテスト用パラメータ名") == ["a", "b"]
+
+
+def test_get_fit_param_names_matches_calculate_curve_fit_param_names():
+    """get_fit_param_names()の返り値が、実際にフィットしたときのparam_namesと一致すること
+    (両者の重複した判定チェーンが食い違っていないことの回帰確認)。"""
+    x = np.linspace(0, 10, 50)
+    y = 2.5 * x + 1.3
+    fit_type = "線形 (y = ax + b)"
+    assert get_fit_param_names(fit_type) == calculate_curve_fit(x, y, fit_type)['param_names']
+
+
+# --- 初期値上書き/パラメータ固定/範囲拘束(C-403) ---
+
+def test_p0_overrides_partial_override_helps_convergence():
+    """わざと収束しにくい初期値をp0_overridesで上書きすると正しく収束すること。
+    ガウシアンの中心(b)を大きく外した初期値をp0_overridesで正しい値付近に
+    上書きする。"""
+    x = np.linspace(-10, 10, 200)
+    true_params = [5.0, 3.0, 1.5, 0.2]  # a, b(center), c(width), d
+    y = true_params[0] * np.exp(-((x - true_params[1]) ** 2) / (2 * true_params[2] ** 2)) + true_params[3]
+
+    result = calculate_curve_fit(
+        x, y, "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
+        p0_overrides={"b": 3.0},
+    )
+    np.testing.assert_allclose(result['popt'], true_params, atol=1e-3)
+
+
+def test_fixed_params_holds_value_constant_with_zero_variance():
+    """線形フィットの2パラメータのうち1つ(b)を真の値に固定すると、
+    もう1つ(a)だけが自由パラメータとして正しく収束し、固定した方は
+    指定値のまま・分散0で返ること。"""
+    x = np.linspace(0, 10, 50)
+    y = 2.5 * x + 1.3
+    result = calculate_curve_fit(
+        x, y, "線形 (y = ax + b)", fixed_params={"b": 1.3},
+    )
+    assert result['popt'][1] == pytest.approx(1.3)
+    assert result['popt'][0] == pytest.approx(2.5, abs=1e-6)
+    assert result['pcov'][1, 1] == 0.0
+    assert result['pcov'][0, 1] == 0.0
+    assert result['pcov'][1, 0] == 0.0
+    assert result['perr'][1] == 0.0
+    assert result['perr'][0] < 1e-3
+
+
+def test_fixed_params_with_noisy_data_still_fixes_exactly():
+    """ノイズ入りデータでも、固定したパラメータは(自由パラメータ側の
+    収束結果に関わらず)指定値ちょうどのまま返ること。"""
+    rng = np.random.default_rng(0)
+    x = np.linspace(0, 10, 100)
+    y = 2.5 * x + 1.3 + rng.normal(scale=0.05, size=x.shape)
+    result = calculate_curve_fit(
+        x, y, "線形 (y = ax + b)", fixed_params={"b": 0.0},
+    )
+    assert result['popt'][1] == 0.0
+    assert result['pcov'][1, 1] == 0.0
+
+
+def test_fixed_params_all_params_raises():
+    x = np.linspace(0, 10, 50)
+    y = 2.5 * x + 1.3
+    with pytest.raises(ValueError, match="自由パラメータ"):
+        calculate_curve_fit(
+            x, y, "線形 (y = ax + b)", fixed_params={"a": 2.5, "b": 1.3},
+        )
+
+
+def test_bounds_clamps_result_near_boundary():
+    """真値が境界の外にある場合、フィット結果が境界近辺にクランプされること。"""
+    x = np.linspace(0, 10, 50)
+    y = 5.0 * x + 1.3  # 真の傾きは5.0
+    result = calculate_curve_fit(
+        x, y, "線形 (y = ax + b)", bounds={"a": (0.0, 3.0)},
+    )
+    assert result['popt'][0] == pytest.approx(3.0, abs=1e-3)
+
+
+def test_bounds_with_p0_on_boundary_does_not_raise():
+    """初期値がちょうど境界と一致していても、scipyの
+    '`x0` is infeasible'のような分かりにくいエラーにならないこと。"""
+    x = np.linspace(0, 10, 50)
+    y = 2.5 * x + 1.3
+    result = calculate_curve_fit(
+        x, y, "線形 (y = ax + b)",
+        p0_overrides={"a": 1.0}, bounds={"a": (1.0, 10.0)},
+    )
+    assert result['popt'][0] == pytest.approx(2.5, abs=1e-3)
+
+
+def test_p0_overrides_and_fixed_params_and_bounds_combined():
+    """3つのオプションを同時に指定しても矛盾なく動作すること
+    (ガウシアンで中心を固定し、振幅の初期値を上書きし、幅に境界を付ける)。"""
+    x = np.linspace(-10, 10, 200)
+    true_params = [5.0, 3.0, 1.5, 0.2]
+    y = true_params[0] * np.exp(-((x - true_params[1]) ** 2) / (2 * true_params[2] ** 2)) + true_params[3]
+
+    result = calculate_curve_fit(
+        x, y, "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
+        p0_overrides={"a": 4.0},
+        fixed_params={"b": 3.0},
+        bounds={"c": (0.1, 5.0)},
+    )
+    assert result['popt'][1] == 3.0
+    assert result['pcov'][1, 1] == 0.0
+    np.testing.assert_allclose([result['popt'][0], result['popt'][2], result['popt'][3]],
+                                [true_params[0], true_params[2], true_params[3]], atol=1e-2)
+
+
+def test_p0_overrides_unknown_param_name_raises():
+    x = np.linspace(0, 10, 50)
+    y = 2.5 * x + 1.3
+    with pytest.raises(ValueError, match="未知のパラメータ名"):
+        calculate_curve_fit(x, y, "線形 (y = ax + b)", p0_overrides={"z": 1.0})
+
+
+def test_fixed_params_unknown_param_name_raises():
+    x = np.linspace(0, 10, 50)
+    y = 2.5 * x + 1.3
+    with pytest.raises(ValueError, match="未知のパラメータ名"):
+        calculate_curve_fit(x, y, "線形 (y = ax + b)", fixed_params={"z": 1.0})
+
+
+def test_bounds_unknown_param_name_raises():
+    x = np.linspace(0, 10, 50)
+    y = 2.5 * x + 1.3
+    with pytest.raises(ValueError, match="未知のパラメータ名"):
+        calculate_curve_fit(x, y, "線形 (y = ax + b)", bounds={"z": (0.0, 1.0)})
 
 
 # --- Savitzky-Golayフィルタ(平滑化/微分、C-301/C-302) ---
@@ -585,3 +844,161 @@ def test_baseline_manual_rejects_unknown_method():
     y = np.sin(x) + 5
     with pytest.raises(ValueError, match="補間方法"):
         calculate_baseline_manual(x, y, anchor_x=[0.0, 10.0], method="bogus")
+
+
+# =============================================================================
+# 区間積分(項目C-311): 台形則 / Simpson則、ベースライン差し引き
+# =============================================================================
+
+def test_interval_integral_trapezoid_linear_function_is_exact():
+    # y = x の 0〜10 の定積分は解析的に 50。台形則は区分的に線形な関数に
+    # 対しては誤差なく厳密に一致するはず。
+    x = np.linspace(0, 10, 50)
+    y = x.copy()
+    result = calculate_interval_integral(x, y, (0, 10), method="trapezoid")
+    assert result['integral'] == pytest.approx(50.0, abs=1e-9)
+    assert result['method'] == "trapezoid"
+    assert result['x_range'] == (0.0, 10.0)
+    assert result['subtract_baseline'] is False
+    assert result['baseline_used'] is None
+    assert result['n_points'] == len(x)
+
+
+def test_interval_integral_simpson_linear_function_is_exact():
+    x = np.linspace(0, 10, 51)
+    y = x.copy()
+    result = calculate_interval_integral(x, y, (0, 10), method="simpson")
+    assert result['integral'] == pytest.approx(50.0, abs=1e-9)
+
+
+def test_interval_integral_quadratic_simpson_much_more_accurate_than_trapezoid():
+    # y = x^2 の 0〜10 の定積分は解析的に 1000/3 ≈ 333.333...。
+    # Simpson則は2次多項式を厳密に積分できるためほぼ誤差ゼロになるが、
+    # 台形則は曲線を弦で近似するため有限個の点数では必ず(区間ごとに)
+    # わずかに過大評価する。粗いグリッド(21点)で両者の精度差を確認する。
+    x = np.linspace(0, 10, 21)
+    y = x ** 2
+    exact = 1000.0 / 3.0
+
+    trap_result = calculate_interval_integral(x, y, (0, 10), method="trapezoid")
+    simpson_result = calculate_interval_integral(x, y, (0, 10), method="simpson")
+
+    # Simpson則はほぼ厳密(2次関数を正確に積分できる公式のため)
+    assert simpson_result['integral'] == pytest.approx(exact, abs=1e-9)
+    # 台形則は真値よりわずかに大きい値になる(上に凸な関数を弦で近似するため)
+    # が、大きくは外れない、という現実的な許容誤差で確認する
+    assert trap_result['integral'] > exact
+    assert trap_result['integral'] == pytest.approx(exact, abs=1.0)
+    # Simpson則の方が台形則よりも真値に近いことを直接比較でも確認する
+    assert abs(simpson_result['integral'] - exact) < abs(trap_result['integral'] - exact)
+
+
+def test_interval_integral_simpson_handles_even_number_of_points_without_error():
+    # scipy.integrate.simpsonは区間数が奇数(データ点数が偶数)でも内部で
+    # 最後の区間を補正して計算するため、Savitzky-Golayの窓幅のような
+    # 「偶数/奇数」バリデーションは不要であることを確認する(要件どおり、
+    # 単にエラーにしない実装になっていることの回帰テスト)。
+    x = np.linspace(0, 10, 20)  # 偶数個の点 = 奇数個の区間
+    y = x ** 2
+    result = calculate_interval_integral(x, y, (0, 10), method="simpson")
+    assert result['integral'] == pytest.approx(1000.0 / 3.0, rel=1e-2)
+
+
+def test_interval_integral_restricts_to_given_x_range():
+    # y = 1(定数)の積分は「範囲の幅」に等しくなるはずなので、
+    # 範囲を絞り込むと積分値もそれに応じて小さくなることを確認する。
+    # x_rangeはcalculate_curve_fitと同じ「実データの点をマスクするだけで、
+    # 境界そのものを補間して差し込むわけではない」規約のため、2/5が実際の
+    # グリッド点と一致するX(0.1刻み)を選んでいる。
+    x = np.linspace(0, 10, 101)
+    y = np.ones_like(x)
+    full_result = calculate_interval_integral(x, y, (0, 10), method="trapezoid")
+    partial_result = calculate_interval_integral(x, y, (2, 5), method="trapezoid")
+    assert full_result['integral'] == pytest.approx(10.0, abs=1e-6)
+    assert partial_result['integral'] == pytest.approx(3.0, abs=1e-6)
+    assert partial_result['n_points'] < full_result['n_points']
+
+
+def test_interval_integral_subtract_baseline_recovers_known_peak_area():
+    # 傾いた直線ベースライン + ガウシアンピーク、という合成データで、
+    # ベースライン差し引き後の積分値がガウシアンの解析的な面積
+    # (amplitude * sigma * sqrt(2*pi))に近いことを確認する。
+    x = np.linspace(0, 10, 1000)
+    slope, intercept = 2.0, 1.0
+    baseline = slope * x + intercept
+    amplitude, center, sigma = 5.0, 5.0, 0.5
+    peak = amplitude * np.exp(-((x - center) ** 2) / (2 * sigma ** 2))
+    y = baseline + peak
+
+    result = calculate_interval_integral(x, y, (0, 10), method="simpson", subtract_baseline=True)
+
+    expected_peak_area = amplitude * sigma * np.sqrt(2 * np.pi)
+    assert result['integral'] == pytest.approx(expected_peak_area, rel=1e-3)
+    assert result['subtract_baseline'] is True
+    assert result['baseline_used'] is not None
+    np.testing.assert_allclose(result['baseline_used'], baseline, atol=1e-9)
+    # ベースライン差し引き前(y_raw_used)の値は元のyのまま保持されている
+    np.testing.assert_allclose(result['y_raw_used'], y, atol=1e-9)
+
+
+def test_interval_integral_subtract_baseline_uses_interpolated_endpoints_not_raw_rows():
+    # x_min/x_maxがデータ点そのものと一致しない場合でも、範囲両端のYは
+    # 「その付近の生データの最初/最後の行」ではなく、指定したX位置での
+    # 実データの線形補間値になっていることを確認する(仕様どおり)。
+    x = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    y = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])  # y = x なので直線ベースラインを引くと0になる
+    result = calculate_interval_integral(x, y, (0.5, 4.5), method="trapezoid", subtract_baseline=True)
+    # y=xそのものが直線なので、両端を結ぶ直線を引くとベースライン差し引き後は
+    # すべて0になり、積分値も0に近くなるはず
+    assert result['integral'] == pytest.approx(0.0, abs=1e-9)
+    np.testing.assert_allclose(result['y_used'], np.zeros_like(result['y_used']), atol=1e-9)
+
+
+def test_interval_integral_ignores_nan_rows():
+    x = np.linspace(0, 10, 20)
+    y = x.copy()
+    y[5] = np.nan
+    x[10] = np.nan
+    result = calculate_interval_integral(x, y, (0, 10), method="trapezoid")
+    assert result['integral'] == pytest.approx(50.0, abs=0.5)
+    assert result['n_points'] == 18
+
+
+def test_interval_integral_rejects_unknown_method():
+    x = np.linspace(0, 10, 20)
+    y = x.copy()
+    with pytest.raises(ValueError, match="積分方法"):
+        calculate_interval_integral(x, y, (0, 10), method="bogus")
+
+
+def test_interval_integral_rejects_min_greater_than_or_equal_to_max():
+    x = np.linspace(0, 10, 20)
+    y = x.copy()
+    with pytest.raises(ValueError, match="最小値"):
+        calculate_interval_integral(x, y, (5, 5))
+    with pytest.raises(ValueError, match="最小値"):
+        calculate_interval_integral(x, y, (5, 2))
+
+
+def test_interval_integral_rejects_range_outside_data_span():
+    x = np.linspace(0, 10, 20)
+    y = x.copy()
+    with pytest.raises(ValueError, match="X範囲"):
+        calculate_interval_integral(x, y, (-1, 5))
+    with pytest.raises(ValueError, match="X範囲"):
+        calculate_interval_integral(x, y, (5, 11))
+
+
+def test_interval_integral_rejects_too_few_points_in_range():
+    # 範囲内に1点しか入らない(=積分できない)場合はエラーにする
+    x = np.array([0.0, 1.0, 10.0])
+    y = np.array([0.0, 1.0, 10.0])
+    with pytest.raises(ValueError, match="最低2点"):
+        calculate_interval_integral(x, y, (0.0, 0.5))
+
+
+def test_interval_integral_rejects_all_nan_data():
+    x = np.array([np.nan, np.nan, np.nan])
+    y = np.array([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError, match="欠損値"):
+        calculate_interval_integral(x, y, (0, 1))
