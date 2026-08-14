@@ -10,7 +10,7 @@ import logging
 import matplotlib as mpl
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPainter
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox, QProgressDialog
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 
@@ -107,6 +107,16 @@ class ExportMixin:
         「バッチエクスポート...」メニューの処理。
         現在のプロジェクトの各サブプロットを個別画像として、または複数の
         プロジェクトファイル(.graphica/.pkl)をそれぞれの完成図として、まとめて書き出す。
+
+        ★ 項目C-004フェーズ3: ここは実スレッド化しない。理由は、書き出し1件ごとに
+        新規MplCanvas(QWidgetのサブクラス)を生成しており、QWidgetをGUIスレッド
+        以外で構築するのはQt的に安全でないため(docs/CURRENT_STATE.mdに記載の
+        「QPixmap/QPainterの生成はQApplication不在時に不安定」という既知の教訓と
+        同根のクラス)。TaskRunner(別スレッド)には乗せず、GUIスレッド上で
+        QProgressDialog + 項目間のprocessEvents()によるキャンセル可能な進捗表示
+        のみを実装する(体感の痛みの大部分はこれで解消できる)。真のバックグラウンド
+        スレッド化は、Figureの構築をQtから切り離す本格リファクタが必要になるため
+        将来の検討事項とし、今回のスコープには含めない。
         """
         extra_formats = [exp.format_name for exp in get_registered_exporters()]
         dialog = BatchExportDialog(len(self.project.all_plot_settings), self, extra_formats=extra_formats)
@@ -124,16 +134,31 @@ class ExportMixin:
             if not indices:
                 QMessageBox.warning(self, "バッチエクスポート", "書き出すサブプロットを選択してください。")
                 return
-            results = self._batch_export_subplots(indices, options)
+            items = indices
         else:
             paths = dialog.get_project_file_paths()
             if not paths:
                 QMessageBox.warning(self, "バッチエクスポート", "プロジェクトファイルを追加してください。")
                 return
-            results = self._batch_export_project_files(paths, options)
+            items = paths
+
+        progress_dialog = QProgressDialog("バッチエクスポートを実行中...", "キャンセル", 0, len(items), self)
+        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        progress_dialog.setMinimumDuration(0)
+        progress_dialog.setValue(0)
+        try:
+            if mode == "subplots":
+                results = self._batch_export_subplots(items, options, progress_dialog=progress_dialog)
+            else:
+                results = self._batch_export_project_files(items, options, progress_dialog=progress_dialog)
+        finally:
+            progress_dialog.close()
 
         succeeded = [name for name, error in results if error is None]
         failed = [(name, error) for name, error in results if error is not None]
+
+        if not succeeded and not failed:
+            return  # 1件も処理されないうちにキャンセルされた場合、通知不要
 
         message = f"{len(succeeded)}件を書き出しました。"
         if failed:
@@ -174,14 +199,23 @@ class ExportMixin:
         else:
             fig.savefig(out_path, **save_kwargs)
 
-    def _batch_export_subplots(self, indices, options):
+    def _batch_export_subplots(self, indices, options, progress_dialog=None):
         """
         現在のプロジェクトの、指定されたサブプロットそれぞれを個別の画像として書き出す。
         一時的な MplCanvas を新しい1x1レイアウトとして使うため、対象データセットの
         subplot_target を一時的に0に付け替えたコピー(dataclasses.replace、dfは参照共有)を渡す。
+
+        progress_dialog (項目C-004フェーズ3): 指定時、1件処理するごとに値を進め、
+        「キャンセル」が押されていれば以降の項目をスキップして即座に戻る
+        (GUIスレッド上でのみ動作、実スレッド化はしていない)。
         """
         results = []
-        for idx in indices:
+        for i, idx in enumerate(indices):
+            if progress_dialog is not None:
+                if progress_dialog.wasCanceled():
+                    break
+                progress_dialog.setValue(i)
+                QApplication.instance().processEvents()
             out_name = f"{options['prefix']}_P{idx + 1}.{options['format']}"
             out_path = os.path.join(options['output_dir'], out_name)
             try:
@@ -203,15 +237,22 @@ class ExportMixin:
                 results.append((out_name, str(e)))
         return results
 
-    def _batch_export_project_files(self, paths, options):
+    def _batch_export_project_files(self, paths, options, progress_dialog=None):
         """
         複数のプロジェクトファイル(.graphica/.pkl)それぞれを読み込み、その完成図を書き出す。
         現在開いているプロジェクト/GUIの状態には一切触れない(使い捨てのProjectModelと
         MplCanvasだけを使う)。load_project側が拡張子で保存形式を自動判別するため、
         ここでは形式を意識せずパスをそのまま渡すだけでよい。
+
+        progress_dialog (項目C-004フェーズ3): _batch_export_subplots()と同じ役割。
         """
         results = []
-        for path in paths:
+        for i, path in enumerate(paths):
+            if progress_dialog is not None:
+                if progress_dialog.wasCanceled():
+                    break
+                progress_dialog.setValue(i)
+                QApplication.instance().processEvents()
             base_name = os.path.splitext(os.path.basename(path))[0]
             out_name = f"{options['prefix']}_{base_name}.{options['format']}"
             out_path = os.path.join(options['output_dir'], out_name)

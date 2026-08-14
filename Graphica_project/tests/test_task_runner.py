@@ -1,13 +1,18 @@
 # tests/test_task_runner.py
-"""gui/task_runner.py の TaskRunner に対するテスト(項目C-004フェーズ1)。
+"""gui/task_runner.py の TaskRunner に対するテスト(項目C-004フェーズ1/2)。
 
 gui/workers.py の DataLoadWorker と同じ方針: 大半は run() をスレッドを
 介さず直接メソッドとして呼ぶ形で検証し(tests/test_workers.py参照)、
-closeEvent連携の1本だけ実スレッド(.start())を使う。
+実スレッド(.start())が必要なテスト(closeEvent連携、キャンセル関連)だけ
+個別に使う。実スレッド経由のsucceededシグナルはキュー接続で main スレッドの
+イベントループ処理を待つため、wait()の後に必ずapp.processEvents()を挟むこと
+(挟まないとシグナルが配送されず、コールバックが呼ばれないまま静かに
+テストが失敗する)。
 """
 import time
 
 import pytest
+from PySide6.QtWidgets import QApplication
 
 from gui.task_runner import TaskRunner
 
@@ -56,27 +61,62 @@ def test_run_emits_failed_with_str_of_exception(qapp):
     assert "boom" in failed_calls[0]
 
 
-def test_run_does_not_emit_succeeded_when_cancelled_before_finishing(qapp):
+def test_cancellation_handling_is_entirely_up_to_the_work_function(qapp):
     """
-    requestInterruption()がrun()完了前に呼ばれた場合、succeededは出さない
-    (呼び出し側がキャンセル後の結果を誤って適用しないようにするため)。
-    ★ QThread.isInterruptionRequested()はPySide6/Qt内部でrunning状態を
-    見ているため、start()を経由しない(run()を素のメソッドとして直接呼ぶ)
-    テストでは常にFalseを返してしまい、この挙動を検証できない。このテストだけ
-    実スレッド(.start())を使う。"""
-    def _slow_task(report_progress=None, is_cancelled=None):
+    TaskRunner自身はisInterruptionRequested()を見てsucceeded/failedの発火可否を
+    判定しない(fnがキャンセル済みでも正常な値を返せば、その値でsucceededが
+    そのまま発火する)。★ この仕様は意図的: 当初はTaskRunner側で
+    「isInterruptionRequested()中はsucceededを抑制する」ポリシーを持たせて
+    いたが、一括カーブフィット(項目C-004フェーズ2)のように「キャンセル時は
+    計算済み分の部分結果をそのまま使いたい」ケースで、正常に返ってきた部分
+    結果ごと握りつぶされ、succeeded/failedのどちらも発火せず呼び出し元が
+    永遠に完了を待ち続ける実バグを起こしたため、判定をfn側の責任に一本化した。
+    ★ QThread.isInterruptionRequested()はPySide6/Qt内部でrunning状態を見ているため、
+    start()を経由しない(run()を素のメソッドとして直接呼ぶ)テストでは常にFalseを
+    返してしまい、この挙動を検証できない。このテストだけ実スレッド(.start())を使う。
+    """
+    def _slow_task_that_ignores_cancellation(report_progress=None, is_cancelled=None):
         time.sleep(0.2)
-        return 99
+        return 99  # is_cancelled()の状態を見ずに常に正常値を返す
 
-    runner = TaskRunner(_slow_task)
+    runner = TaskRunner(_slow_task_that_ignores_cancellation)
     succeeded_calls = []
     runner.succeeded.connect(lambda result: succeeded_calls.append(result))
 
     runner.start()
     runner.requestInterruption()
     runner.wait()
+    QApplication.instance().processEvents()  # キュー配信されたsucceededシグナルを配送する
 
-    assert succeeded_calls == []
+    assert succeeded_calls == [99]
+
+
+def test_work_function_can_return_partial_result_when_cancelled(qapp):
+    """
+    fn自身がis_cancelled()を見て早期に部分結果を返すパターン(一括カーブ
+    フィットが実際に使う形)が、正しくsucceededとして呼び出し元に届くこと。
+    """
+    def _task_checking_cancellation(report_progress=None, is_cancelled=None):
+        completed = []
+        for i in range(5):
+            if is_cancelled():
+                break
+            time.sleep(0.05)
+            completed.append(i)
+        return completed
+
+    runner = TaskRunner(_task_checking_cancellation)
+    succeeded_calls = []
+    runner.succeeded.connect(lambda result: succeeded_calls.append(result))
+
+    runner.start()
+    time.sleep(0.12)  # 2〜3件が終わるくらいで割り込む
+    runner.requestInterruption()
+    runner.wait()
+    QApplication.instance().processEvents()  # キュー配信されたsucceededシグナルを配送する
+
+    assert succeeded_calls
+    assert 0 < len(succeeded_calls[0]) < 5
 
 
 def test_fn_receives_report_progress_and_is_cancelled_kwargs(qapp):

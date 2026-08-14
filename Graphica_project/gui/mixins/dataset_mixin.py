@@ -22,7 +22,8 @@ import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu
+from PySide6.QtWidgets import (QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu,
+                               QProgressDialog)
 
 from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_quantification,
                            calculate_savgol,
@@ -889,15 +890,25 @@ class DatasetMixin:
 
     def _on_batch_curve_fit(self):
         """
-        「バッチカーブフィット...」メニューの処理。
-        選択中の複数データセットそれぞれに、同じフィット関数(FitDialogで1回だけ選択)を
-        適用し、成功したものごとに "Fit (元の名前)" というデータセットを追加する。
-        単一データセット向けの _on_fit_curve と基本ロジックは同じで、
-        フィット種類の選択を1回にまとめ、複数データセットへループ適用する点が異なる。
+        「バッチカーブフィット...」メニューの処理(項目C-004フェーズ2で
+        バックグラウンドスレッド化)。選択中の複数データセットそれぞれに、
+        同じフィット関数(FitDialogで1回だけ選択)を適用し、成功したものごとに
+        "Fit (元の名前)" というデータセットを追加する。
+
+        ★ 以前はループ内で1件ずつ_add_dataset()(内部で毎回_update_plot()を
+        呼ぶ)を呼んでおり、N件のフィットでN回のフル再描画が起きていた。
+        フェーズ2では全件の計算をバックグラウンドスレッド(_batch_fit_worker)
+        で行い、成功結果をメインスレッド側でまとめて追加してから
+        _update_plot()を1回だけ呼ぶことでこの問題を解消する
+        (この修正自体はC-003の有無に関係なく単独で価値がある)。
+        QProgressDialogでキャンセル可能にする(初のUI進捗表示)。
         """
         selected = self._get_selected_datasets()
         if len(selected) < 2:
             QMessageBox.information(self, "バッチカーブフィット", "2つ以上のデータセットを選択してください。")
+            return
+        if self._batch_fit_task_runner is not None:
+            QMessageBox.information(self, "実行中", "別のバッチフィット処理が実行中です。完了までお待ちください。")
             return
 
         # 項目C-402(重み付け)/C-404(フィット範囲)/C-403(初期値上書き・固定・
@@ -909,8 +920,83 @@ class DatasetMixin:
             return
 
         target_folder = self._get_target_folder_for_new_dataset()
+
+        progress_dialog = QProgressDialog("バッチカーブフィットを実行中...", "キャンセル", 0, len(selected), self)
+        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        progress_dialog.setMinimumDuration(0)
+        progress_dialog.setValue(0)
+
+        runner = TaskRunner(
+            self._batch_fit_worker, selected, fit_type, custom_formula, use_weighted, x_range,
+            p0_overrides, fixed_params, bounds, band_type,
+        )
+        runner.progress.connect(lambda done, total, message: progress_dialog.setValue(done))
+        progress_dialog.canceled.connect(runner.requestInterruption)
+        runner.succeeded.connect(
+            lambda results: self._on_batch_curve_fit_succeeded(results, target_folder, progress_dialog)
+        )
+        runner.failed.connect(lambda msg: self._on_batch_curve_fit_failed(msg, progress_dialog))
+        self._batch_fit_task_runner = runner
+        runner.start()
+
+    def _cleanup_batch_fit_task_runner(self):
+        if self._batch_fit_task_runner is not None:
+            self._batch_fit_task_runner.wait()
+            self._batch_fit_task_runner.deleteLater()
+            self._batch_fit_task_runner = None
+
+    def _on_batch_curve_fit_failed(self, error_message, progress_dialog):
+        self._cleanup_batch_fit_task_runner()
+        progress_dialog.close()
+        QMessageBox.warning(self, "バッチカーブフィット", f"バッチフィット処理に失敗しました:\n{error_message}")
+
+    def _on_batch_curve_fit_succeeded(self, results, target_folder, progress_dialog):
+        """
+        _batch_fit_worker() の結果(dataset_name/fit_dataset/errorのdictのリスト、
+        キャンセル時は完了済み分のみ)をメインスレッド側で適用する。
+        """
+        self._cleanup_batch_fit_task_runner()
+        progress_dialog.close()
+
         succeeded, failed = [], []
-        for dataset in selected:
+        for result in results:
+            if result['fit_dataset'] is not None:
+                self.project.datasets.append(result['fit_dataset'])
+                self._add_dataset_list_item(result['fit_dataset'], target_folder)
+                succeeded.append(result['source_name'])
+            elif result['error'] is not None:
+                failed.append(f"{result['source_name']}: {result['error']}")
+
+        if succeeded:
+            self._update_plot()  # ★ ループの外で1回だけ(フェーズ2の主眼)
+
+        if not succeeded and not failed:
+            return  # 1件も処理されないうちにキャンセルされた場合、通知不要
+
+        message = f"{len(succeeded)}件のフィットに成功しました。"
+        if failed:
+            message += "\n\n失敗:\n" + "\n".join(failed)
+        QMessageBox.information(self, "バッチカーブフィット", message)
+
+    def _batch_fit_worker(self, datasets, fit_type, custom_formula, use_weighted, x_range,
+                           p0_overrides, fixed_params, bounds, band_type,
+                           report_progress=None, is_cancelled=None):
+        """
+        TaskRunnerからバックグラウンドスレッドで呼ばれる、バッチフィットの実計算部分。
+        Qt/GUIオブジェクトには一切触れない(Datasetはプレーンなdataclassのため
+        ここで安全に構築できる。_build_fit_result_dict/_add_band_columns_to_fit_df
+        もstaticmethodで同様にQt非依存)。is_cancelled()はアイテム間でのみ
+        チェックする(1件のcalculate_curve_fit自体は中断できないため、
+        キャンセルの粒度は「バッチの残り未処理分をスキップする」まで)。
+        """
+        results = []
+        total = len(datasets)
+        for i, dataset in enumerate(datasets):
+            if is_cancelled is not None and is_cancelled():
+                break
+            if report_progress is not None:
+                report_progress(i, total, dataset.name)
+
             x_data, y_data = dataset.x_data, dataset.y_data
             sigma = dataset.y_err_data if use_weighted else None
             try:
@@ -920,7 +1006,7 @@ class DatasetMixin:
                     p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
                 )
             except Exception as e:
-                failed.append(f"{dataset.name}: {e}")
+                results.append({'source_name': dataset.name, 'fit_dataset': None, 'error': str(e)})
                 continue
 
             popt, params_info = fit['popt'], fit['param_names']
@@ -962,13 +1048,9 @@ class DatasetMixin:
                 fit_result=fit_result,
                 fit_band_display=applied_band_type,
             )
-            self._add_dataset(fit_dataset, target_folder, select=False)
-            succeeded.append(dataset.name)
+            results.append({'source_name': dataset.name, 'fit_dataset': fit_dataset, 'error': None})
 
-        message = f"{len(succeeded)}件のフィットに成功しました。"
-        if failed:
-            message += "\n\n失敗:\n" + "\n".join(failed)
-        QMessageBox.information(self, "バッチカーブフィット", message)
+        return results
 
     def _top_level_selected_items(self, items):
         """

@@ -72,6 +72,17 @@ def _pump_events_until_fit_task_done(window, max_iterations=300):
     raise AssertionError("フィット処理が時間内に完了しませんでした")
 
 
+def _pump_events_until_batch_fit_task_done(window, max_iterations=300):
+    """項目C-004フェーズ2: _on_batch_curve_fit()版の_pump_events_until_fit_task_done。"""
+    app = QApplication.instance()
+    for _ in range(max_iterations):
+        app.processEvents()
+        if window._batch_fit_task_runner is None:
+            return
+        time.sleep(0.01)
+    raise AssertionError("バッチフィット処理が時間内に完了しませんでした")
+
+
 def _patch_normalize_dialog(monkeypatch, mode, reference_x, output_name, accepted=True):
     """
     NormalizeDatasetDialog を、実際にウィジェットを構築したり exec() で
@@ -1866,6 +1877,7 @@ def test_batch_curve_fit_success_adds_fit_dataset_per_selected(tmp_path, monkeyp
     before_count = len(window.project.datasets)
 
     window._on_batch_curve_fit()
+    _pump_events_until_batch_fit_task_done(window)
 
     assert len(window.project.datasets) == before_count + 2
     new_names = {ds.name for ds in window.project.datasets[before_count:]}
@@ -1898,11 +1910,82 @@ def test_batch_curve_fit_partial_failure_reports_both(tmp_path, monkeypatch):
     info_calls = _patch_info_capture(monkeypatch)
 
     window._on_batch_curve_fit()
+    _pump_events_until_batch_fit_task_done(window)
 
     names = {ds.name for ds in window.project.datasets if ds.name.startswith("Fit (")}
     assert names == {"Fit (ok)"}
     message = info_calls[0][2]
     assert "失敗" in message
+
+
+def test_batch_curve_fit_calls_update_plot_exactly_once_for_n_dataset_batch(tmp_path, monkeypatch):
+    """
+    項目C-004フェーズ2の主眼: 以前はループ内で_add_dataset()を都度呼んでおり
+    N件のフィットでN回のフル再描画が起きていた。バックグラウンドでの一括計算後、
+    _update_plot()が(N回ではなく)1回だけ呼ばれることを確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_linear_dataset(f"d{i}") for i in range(3)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    _patch_info_capture(monkeypatch)
+
+    update_plot_calls = []
+    monkeypatch.setattr(window, "_update_plot", lambda: update_plot_calls.append(1))
+
+    window._on_batch_curve_fit()
+    _pump_events_until_batch_fit_task_done(window)
+
+    assert update_plot_calls == [1]
+
+
+def test_batch_curve_fit_cancellation_keeps_only_completed_items(tmp_path, monkeypatch):
+    """
+    キャンセル要求後、完了済みの分だけがデータセットとして追加され、
+    未処理分は追加されないこと(バッチの残りをスキップする粒度のキャンセル)。
+
+    タイミング設計: 4件 x 0.2秒/件(計0.8秒)のうち、t=0.35秒でキャンセル要求を
+    出す。is_cancelled()チェックは各アイテムのループ先頭(sleep前)にあるため、
+    1件目(t=0〜0.2s)は確実に完了・追加され、2件目(t=0.2〜0.4s、要求時点で
+    既にsleep中)もそのsleep自体は中断されないため最後まで完了・追加される。
+    3件目のチェック(t=0.4s時点)でようやくキャンセルが検知されスキップされる
+    ため、「1件目・2件目は追加/3件目・4件目は未追加」という結果が
+    (十分なタイミングの余裕を持って)安定的に得られる。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_linear_dataset(f"d{i}") for i in range(4)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    _patch_info_capture(monkeypatch)
+
+    original = dataset_mixin_module.calculate_curve_fit
+
+    def slow(x_data, y_data, fit_type, **kwargs):
+        time.sleep(0.2)
+        return original(x_data, y_data, fit_type, **kwargs)
+
+    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", slow)
+    before_count = len(window.project.datasets)
+
+    window._on_batch_curve_fit()
+    runner = window._batch_fit_task_runner
+    assert runner is not None
+
+    app = QApplication.instance()
+    deadline = time.time() + 0.35
+    while time.time() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    runner.requestInterruption()
+
+    _pump_events_until_batch_fit_task_done(window)
+
+    added_count = len(window.project.datasets) - before_count
+    assert 0 < added_count < 4
 
 
 # =============================================================================
@@ -3064,6 +3147,7 @@ def test_batch_curve_fit_applies_fixed_params_to_all_datasets(tmp_path, monkeypa
     before_count = len(window.project.datasets)
 
     window._on_batch_curve_fit()
+    _pump_events_until_batch_fit_task_done(window)
 
     assert len(window.project.datasets) == before_count + 2
     for new_ds in window.project.datasets[-2:]:
