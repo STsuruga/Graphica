@@ -393,6 +393,45 @@ def test_batch_export_subplots_reports_failure_without_crashing(tmp_path, monkey
     assert "disk full" in info_calls[0][2]
 
 
+class _FakeCancelAfterFirstItem:
+    """項目C-004フェーズ3のテスト用ダブル: 1件目の処理は許可し、2件目以降は
+    キャンセル済みとして扱う(QProgressDialogの必要最小限のインターフェースのみ実装)。"""
+    def __init__(self):
+        self.checks = 0
+        self.values = []
+
+    def wasCanceled(self):
+        self.checks += 1
+        return self.checks > 1
+
+    def setValue(self, value):
+        self.values.append(value)
+
+
+def test_batch_export_subplots_stops_after_cancel_mid_batch(tmp_path, monkeypatch):
+    """
+    項目C-004フェーズ3: progress_dialog.wasCanceled()がTrueを返した時点で、
+    以降の項目は書き出さずスキップすること(実スレッド化はしていないため、
+    GUIスレッド上でのキャンセルチェックのみを検証する)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.subplot_cols_spinbox.setValue(2)
+    _add_dataset(window)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    options = {
+        'output_dir': str(out_dir), 'prefix': 'export', 'format': 'png',
+        'dpi': 72, 'transparent': True, 'svg_text_as_path': False,
+    }
+
+    fake_dialog = _FakeCancelAfterFirstItem()
+    results = window._batch_export_subplots([0, 1], options, progress_dialog=fake_dialog)
+
+    assert len(results) == 1
+    out_files = list(out_dir.iterdir())
+    assert len(out_files) == 1
+
+
 def test_batch_export_project_files_writes_image_from_saved_project(tmp_path, monkeypatch):
     """複数プロジェクトファイルモードで、保存済み.graphicaファイルを読み込んで完成図を書き出すこと"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -418,6 +457,34 @@ def test_batch_export_project_files_writes_image_from_saved_project(tmp_path, mo
     assert out_files[0].name == "proj_saved.png"
     assert len(info_calls) == 1
     assert "1件を書き出しました" in info_calls[0][2]
+
+
+def test_batch_export_project_files_stops_after_cancel_mid_batch(tmp_path, monkeypatch):
+    """_batch_export_subplotsと同じキャンセル挙動を、プロジェクトファイルモード側でも確認する。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    project_path_1 = tmp_path / "saved1.graphica"
+    project_path_2 = tmp_path / "saved2.graphica"
+    window.project.layout_rows = window.subplot_rows_spinbox.value()
+    window.project.layout_cols = window.subplot_cols_spinbox.value()
+    window.project.save_project(str(project_path_1))
+    window.project.save_project(str(project_path_2))
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    options = {
+        'output_dir': str(out_dir), 'prefix': 'proj', 'format': 'png',
+        'dpi': 72, 'transparent': True, 'svg_text_as_path': False,
+    }
+
+    fake_dialog = _FakeCancelAfterFirstItem()
+    results = window._batch_export_project_files(
+        [str(project_path_1), str(project_path_2)], options, progress_dialog=fake_dialog
+    )
+
+    assert len(results) == 1
+    out_files = list(out_dir.iterdir())
+    assert len(out_files) == 1
 
 
 def test_batch_export_project_files_reports_failure_for_missing_file(tmp_path, monkeypatch):

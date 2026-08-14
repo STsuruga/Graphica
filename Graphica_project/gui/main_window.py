@@ -521,6 +521,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.integral_result_dialog = None  # 区間積分結果(項目C-311、非モーダル)のインスタンス保持用
         self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_worker = None  # ファイル読み込み用バックグラウンドワーカーの保持用
+        self._fit_task_runner = None   # 曲線フィット用バックグラウンドタスク(項目C-004)の保持用
+        self._batch_fit_task_runner = None  # バッチカーブフィット用バックグラウンドタスク(項目C-004フェーズ2)の保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
         self._data_load_queue_done = 0   # 現在処理中のバッチで読み込みを開始した件数 (進捗表示用)
@@ -1703,6 +1705,35 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._data_load_worker.wait()
             self._data_load_worker.deleteLater()
             self._data_load_worker = None
+
+        # ★ 項目C-004: 曲線フィット用のTaskRunnerも同じ理由(実行中のQThreadを
+        # 破棄するとQtがプロセスをfail-fast abortさせる)でシグナル切断→
+        # wait()→deleteLater()の順に後始末する。scipy.optimize.curve_fit自体は
+        # 中断不能なため、requestInterruption()を呼んでもここでのwait()は
+        # 計算完了まで実際にブロックしうる(v1では許容、フィットは通常短時間)。
+        if self._fit_task_runner is not None:
+            try:
+                self._fit_task_runner.succeeded.disconnect()
+                self._fit_task_runner.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._fit_task_runner.requestInterruption()
+            self._fit_task_runner.wait()
+            self._fit_task_runner.deleteLater()
+            self._fit_task_runner = None
+
+        # ★ 項目C-004フェーズ2: バッチカーブフィット用のTaskRunnerも同じ理由で
+        # 同型のクリーンアップを行う。
+        if self._batch_fit_task_runner is not None:
+            try:
+                self._batch_fit_task_runner.succeeded.disconnect()
+                self._batch_fit_task_runner.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._batch_fit_task_runner.requestInterruption()
+            self._batch_fit_task_runner.wait()
+            self._batch_fit_task_runner.deleteLater()
+            self._batch_fit_task_runner = None
 
         if self._run_startup_checks:
             self.settings.setValue("clean_exit", True)
