@@ -79,6 +79,8 @@ class UISetupMixin:
             self.ui.x_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.x_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
             self.y_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
+            self.x_secondary_axis_source_unit_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
+            self.x_secondary_axis_target_unit_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
             # ★ タイトル/軸ラベルの「Aa」ボタンは、ポップアップウィンドウ化
             #   (項目H-2-4)によりLabelEditDialogを開くだけの単純なclicked接続に
             #   なったため(gui/main_window.py側でline_editごとに直接connect

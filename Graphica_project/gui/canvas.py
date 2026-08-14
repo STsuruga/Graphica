@@ -13,6 +13,7 @@ import matplotlib.dates as mdates
 
 from gui.theme import LIGHT_TOKENS, DARK_TOKENS
 from core.analysis import calculate_lttb_downsample
+from core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
 
 logger = logging.getLogger(__name__)
 
@@ -1045,3 +1046,36 @@ class MplCanvas(FigureCanvas):
             ax.spines['right'].set_visible(True)
             ax.spines['right'].set_linewidth(spine_width)
             ax.spines['right'].set_color(spine_color)
+
+        # 単位変換の第2X軸(項目C-602): X軸データの単位と第2X軸に表示したい単位が
+        # 共に「なし」以外かつ異なる場合のみ、matplotlibのsecondary_xaxis
+        # (functions=(forward, inverse))で上部に変換後の第2X軸を追加する。
+        # 日付軸/カテゴリ軸は数値変換の対象外(nm/eV/cm^-1/Hzという物理量の
+        # 変換とは無関係)なので何もしない。
+        source_unit = settings.get('x_secondary_axis_source_unit', X_AXIS_UNIT_NONE)
+        target_unit = settings.get('x_secondary_axis_target_unit', X_AXIS_UNIT_NONE)
+        if (not is_date_x and not is_category_x
+                and source_unit != X_AXIS_UNIT_NONE and target_unit != X_AXIS_UNIT_NONE
+                and source_unit != target_unit
+                and np.all(np.isfinite(convert_x_axis_unit(np.array(ax.get_xlim()), source_unit, target_unit)))):
+            # ★ X軸範囲の端(0を含む等)がnm<->eV/cm^-1/Hz変換で inf/nan になる
+            #   (波長0nmは物理的に無意味)場合、ax.secondary_xaxis()が
+            #   「Axis limits cannot be NaN or Inf」で例外を投げグラフ全体の
+            #   再描画が失敗する。上のisfinite判定でその組み合わせの時だけ
+            #   第2X軸自体を追加しないことで、メインの描画には影響させない。
+            def _forward(x, _from=source_unit, _to=target_unit):
+                return convert_x_axis_unit(x, _from, _to)
+
+            def _inverse(x, _from=source_unit, _to=target_unit):
+                return convert_x_axis_unit(x, _to, _from)
+
+            secondary_x_ax = ax.secondary_xaxis('top', functions=(_forward, _inverse))
+            secondary_x_ax.set_xlabel(X_AXIS_UNIT_LABELS.get(target_unit, target_unit),
+                                       **label_font_dict, color=label_color)
+            for label in secondary_x_ax.get_xticklabels():
+                label.set(**tick_font_dict)
+                label.set_color(tick_color)
+            secondary_x_ax.tick_params(axis='x', which='major', width=tick_width,
+                                        color=spine_color, labelcolor=tick_color, direction=major_dir)
+            secondary_x_ax.spines['top'].set_linewidth(spine_width)
+            secondary_x_ax.spines['top'].set_color(spine_color)

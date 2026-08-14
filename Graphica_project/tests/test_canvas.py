@@ -745,6 +745,68 @@ def test_redraw_all_share_axis_default_disabled_no_linking(canvas):
     assert ax1.yaxis.get_tick_params()['labelleft'] is True
 
 
+# --- 項目C-602: 単位変換の第2X軸 ---
+
+def test_redraw_all_adds_secondary_x_axis_when_source_and_target_units_set(canvas):
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [400.0, 500.0, 600.0], "y": [1.0, 2.0, 3.0]}),
+                 x_col_name="x", y_col_name="y")
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'eV'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    secondary_axes = [child for child in ax.child_axes if child.get_xlabel() == 'eV(エネルギー)']
+    assert len(secondary_axes) == 1
+
+
+def test_redraw_all_omits_secondary_x_axis_when_units_not_set(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert ax.child_axes == []
+
+
+def test_redraw_all_omits_secondary_x_axis_when_source_and_target_equal(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'nm'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert ax.child_axes == []
+
+
+def test_redraw_all_omits_secondary_x_axis_when_only_one_unit_set(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'none'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert ax.child_axes == []
+
+
+def test_redraw_all_skips_secondary_x_axis_when_range_includes_zero(canvas):
+    """波長0nm相当はnm<->eV等の変換でinf/nanになりmatplotlibが例外を投げるため、
+    そのケースでは第2X軸自体を追加せず、メインの描画は正常に完了すること
+    (X軸範囲が0を含む場合のクラッシュ回避、実データでautoscaleが0始まりに
+    なるのは珍しくない)。"""
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [0.0, 100.0, 200.0], "y": [1.0, 2.0, 3.0]}),
+                 x_col_name="x", y_col_name="y")
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'eV'}
+    result = canvas.redraw_all([ds], 1, 1, [settings])  # 例外が出なければOK
+    assert result is not None
+    ax = canvas.all_axes[0]
+    assert ax.child_axes == []
+
+
+def test_secondary_x_axis_ticks_reflect_converted_values(canvas):
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [400.0, 500.0, 600.0], "y": [1.0, 2.0, 3.0]}),
+                 x_col_name="x", y_col_name="y")
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'eV'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    secondary_ax = [child for child in ax.child_axes if child.get_xlabel() == 'eV(エネルギー)'][0]
+    from core.unit_conversion import convert_x_axis_unit
+    primary_xlim = ax.get_xlim()
+    expected = convert_x_axis_unit(np.array(primary_xlim), 'nm', 'eV')
+    np.testing.assert_allclose(sorted(secondary_ax.get_xlim()), sorted(expected), rtol=1e-6)
+
+
 # --- 項目H-3: matplotlib(Figure)側の配色をgui/theme.pyのトークンと連動させる
 #     (以前はcanvas.py独自のハードコード値を持ち、theme.pyのトークンとは
 #     完全に無関係だった、H-0調査で判明した既知の不整合) ---

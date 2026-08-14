@@ -142,6 +142,7 @@ from ui_main_window import Ui_MainWindow
 
 # --- 自分で分割したモジュール ---
 from core.dataset import Dataset
+from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from core.commands import AddDatasetCommand
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.minimap_widget import MinimapWidget
@@ -1168,6 +1169,30 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.x_tick_format_combo = QComboBox()
         self.x_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout.addRow(self.x_tick_format_label, self.x_tick_format_combo)
+
+        # 単位変換の第2X軸(項目C-602): X軸データの単位(source)と第2X軸に
+        # 表示したい単位(target)を選び、双方が「なし」以外かつ異なる場合のみ
+        # 上部にnm<->eV<->cm^-1<->Hz変換済みの第2X軸を表示する
+        # (gui/canvas.pyの_apply_appearance参照)。既定は両方「なし」で、
+        # この機能を使わない既存プロジェクトの見た目は変わらない。
+        # ★ ラベルは短く保つこと: formLayoutは全行でラベル列幅を共有するため、
+        #   長いラベル1つでもCONTROL_DOCK_WIDTH(main_window.py先頭)の横スクロール
+        #   バー回避マージンを圧迫し、test_properties_dock_has_no_horizontal_scrollbar
+        #   を壊しうる(詳細な説明はラベルではなくツールチップに置く)。
+        unit_combo_choices = [X_AXIS_UNIT_LABELS[u] for u in X_AXIS_UNIT_CHOICES]
+        self.x_secondary_axis_source_unit_label = QLabel(tr("X軸単位"))
+        self.x_secondary_axis_source_unit_combo = QComboBox()
+        self.x_secondary_axis_source_unit_combo.addItems(unit_combo_choices)
+        self.x_secondary_axis_source_unit_combo.setToolTip(tr("X軸データが表している物理量の単位"))
+        self.ui.formLayout.addRow(
+            self.x_secondary_axis_source_unit_label, self.x_secondary_axis_source_unit_combo)
+
+        self.x_secondary_axis_target_unit_label = QLabel(tr("第2X軸単位"))
+        self.x_secondary_axis_target_unit_combo = QComboBox()
+        self.x_secondary_axis_target_unit_combo.addItems(unit_combo_choices)
+        self.x_secondary_axis_target_unit_combo.setToolTip(tr("上部に追加する第2X軸に変換して表示する単位"))
+        self.ui.formLayout.addRow(
+            self.x_secondary_axis_target_unit_label, self.x_secondary_axis_target_unit_combo)
 
         self.y_tick_format_label = QLabel(tr("目盛り表記"))
         self.y_tick_format_combo = QComboBox()
