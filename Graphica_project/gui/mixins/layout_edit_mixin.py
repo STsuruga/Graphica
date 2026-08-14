@@ -38,6 +38,11 @@ class LayoutEditMixin:
         self.add_free_subplot_button.setEnabled(checked)
         self.remove_free_subplot_button.setEnabled(checked)
         self.layout_edit_action.setEnabled(checked)
+        # 軸共有(項目C-601): 自由配置レイアウトには「同じ行/列」の概念が無く
+        # 意味を持たないため、自由配置レイアウト中は操作できないようにする
+        # (設定値自体は保持し、グリッドに戻せば元の状態のまま再度使える)。
+        self.share_x_checkbox.setEnabled(not checked)
+        self.share_y_checkbox.setEnabled(not checked)
 
         if not checked and self.layout_edit_action.isChecked():
             self.layout_edit_action.setChecked(False)
@@ -112,6 +117,9 @@ class LayoutEditMixin:
             if getattr(self, 'annotation_mode_enabled', False):
                 self.annotation_action.setChecked(False)
                 self._toggle_annotation_mode(False)
+            if getattr(self, 'range_select_mode_enabled', False):
+                self.range_select_action.setChecked(False)
+                self._toggle_range_select_mode(False)
 
             self._layout_edit_press_cid = self.canvas.mpl_connect('button_press_event', self._on_layout_press)
             self._layout_edit_motion_cid = self.canvas.mpl_connect('motion_notify_event', self._on_layout_motion)

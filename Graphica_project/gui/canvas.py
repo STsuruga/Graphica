@@ -12,6 +12,8 @@ import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
 from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+from core.analysis import calculate_lttb_downsample
+from core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,12 @@ MAX_TICKS_PER_AXIS = 500
 # 環境設定ダイアログで変更可能 (main_window.py が起動時/変更時に
 # self.point_label_max_points へ反映する)。
 DEFAULT_POINT_LABEL_MAX_POINTS = 1000
+
+# 表示用ダウンサンプリング(LTTB、項目C-1001)。1データセットあたりの点数が
+# これを超える場合のみ、calculate_lttb_downsample()でLTTB_DOWNSAMPLE_TARGET_POINTS
+# 点程度まで間引いて描画する(小〜中規模データセットは今まで通り無加工で描画)。
+LTTB_DOWNSAMPLE_THRESHOLD = 20000
+LTTB_DOWNSAMPLE_TARGET_POINTS = 3000
 
 
 def _apply_legend_order(lines, labels, order):
@@ -158,6 +166,15 @@ class MplCanvas(FigureCanvas):
         # データエディタと連動する「行ハイライト」の描画済みArtistを
         # dataset.dataset_id ごとに保持する (データ⇔グラフの双方向ハイライト機能)
         self._highlight_artists = {}
+        # 表示用ダウンサンプリング(項目C-1001)を適用したデータセットについて、
+        # 「描画された(間引き後の)配列上のインデックス」→「元のvisible_df上の
+        # 位置インデックス」の対応を dataset.dataset_id ごとに保持する。
+        # データカーソル(gui/mixins/cursor_mixin.pyの_on_pick)が、クリックされた
+        # 点をartist.get_xdata()上のインデックスで特定した後、このマップで
+        # 元のvisible_df.indexへ正しく変換するために使う(間引き後は両者が
+        # 一致しなくなるため、マップを経由しないと誤った行がハイライトされる)。
+        # 間引きが適用されていないデータセットはこの辞書に一切現れない。
+        self.downsample_index_map = {}
 
     def _effective_text_color(self, configured_color):
         """
@@ -180,7 +197,8 @@ class MplCanvas(FigureCanvas):
         bottom = min(0.55 - offset, 0.55) if index % 2 == 0 else min(0.1 + offset, 0.5)
         return (left, max(bottom, 0.08), 0.45, 0.38)
 
-    def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False):
+    def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False,
+                    share_x_axis=False, share_y_axis=False):
         """メインウィンドウから呼ばれる、全体の再描画メソッド"""
         # データセットの表示/非表示トグル(項目C-907): visible=Falseのデータセットは
         # 削除せず保持したまま、描画対象から除外する。redraw_all()はメイン画面の
@@ -200,6 +218,7 @@ class MplCanvas(FigureCanvas):
         # 個別にremove()するまでもなく古い注釈Artist/ハイライトArtistの参照も無効になる
         self._annotation_artists.clear()
         self._highlight_artists.clear()
+        self.downsample_index_map.clear()
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
 
         is_free_layout = layout_mode == 'free'
@@ -218,10 +237,24 @@ class MplCanvas(FigureCanvas):
                 self.all_axes.append(ax)
                 self.all_secondary_axes.append(None)
         else:
+            # 軸共有(項目C-601): 有効な場合、全サブプロットを最初のサブプロット
+            # (self.all_axes[0])とsharex/shareyで束ねる(matplotlibのplt.subplots
+            # (sharex=True, sharey=True)と同じ「グリッド全体で共通」の挙動。
+            # 「同じ行/列のみ共有」ではなく、よりシンプルな全体共有とした)。
+            # 内側の目盛りラベル(最下行以外のX軸ラベル・最左列以外のY軸ラベル)は
+            # 共有時は冗長なので隠す(目盛り自体は残し、ラベル文字だけ消す)。
             for i in range(subplot_count):
-                ax = self.fig.add_subplot(rows, cols, i + 1)
+                row_idx, col_idx = divmod(i, cols)
+                share_x_target = self.all_axes[0] if (share_x_axis and self.all_axes) else None
+                share_y_target = self.all_axes[0] if (share_y_axis and self.all_axes) else None
+                ax = self.fig.add_subplot(rows, cols, i + 1, sharex=share_x_target, sharey=share_y_target)
                 self.all_axes.append(ax)
                 self.all_secondary_axes.append(None)
+
+                if share_x_axis and row_idx != rows - 1:
+                    ax.tick_params(labelbottom=False)
+                if share_y_axis and col_idx != 0:
+                    ax.tick_params(labelleft=False)
 
         for index, ax in enumerate(self.all_axes):
             if index < len(all_plot_settings):
@@ -500,6 +533,31 @@ class MplCanvas(FigureCanvas):
                 plot_x_data = ds.x_data
                 plot_y_data = ds.y_data
 
+            # 表示用ダウンサンプリング(LTTB、項目C-1001): Line/Scatter/Line+Scatter
+            # かつ点数が閾値を超える場合のみ、LTTBで代表点を間引いて描画負荷を
+            # 下げる(Bar/Areaは1本ごと/塗り形状の意味が変わるため対象外)。
+            # LTTBはXが昇順であることを前提とするアルゴリズムのため、既に昇順の
+            # データにのみ適用する(降順/非単調なXはまれなケースとして対象外にし、
+            # 従来通り全点描画する — 誤って形状を変えてしまうより安全側に倒す)。
+            downsample_indices = None
+            if (
+                ds.plot_type in ('Line', 'Scatter', 'Line+Scatter')
+                and not is_category_x
+                and len(plot_x_data) > LTTB_DOWNSAMPLE_THRESHOLD
+                and np.all(np.diff(plot_x_data) >= 0)
+            ):
+                downsample_indices = calculate_lttb_downsample(
+                    plot_x_data, plot_y_data, LTTB_DOWNSAMPLE_TARGET_POINTS
+                )
+                if len(downsample_indices) < len(plot_x_data):
+                    # データカーソル(cursor_mixin.py)が、クリック点のインデックス
+                    # (間引き後の配列上)を元のvisible_df上の位置へ変換するために使う。
+                    self.downsample_index_map[ds.dataset_id] = downsample_indices
+                    plot_x_data = plot_x_data[downsample_indices]
+                    plot_y_data = plot_y_data[downsample_indices]
+                else:
+                    downsample_indices = None
+
             # ★ 平滑化(CubicSpline)は数値のX軸でのみ意味を持つ/計算可能なため、
             # 文字列カテゴリ軸の場合はスキップして通常のプロット経路に進む。
             if ds.smoothing and len(plot_x_data) > 1 and not is_category_x:
@@ -633,17 +691,31 @@ class MplCanvas(FigureCanvas):
             # 誤差の縦横棒のみを元データ点(平滑化前、ウォーターフォール有効時は
             # ずらした後)の位置に重ねて描画する。
             if ds.x_err_col_name or ds.y_err_col_name:
+                # 項目C-1001: plot_x_data/plot_y_dataがダウンサンプリング済みの
+                # 場合、誤差列(ds.x_err_data/ds.y_err_data、常に元データと同じ
+                # フルサイズ)もplot_x_data/plot_y_dataと同じ点数に揃える必要がある
+                # (揃えないとmatplotlib.errorbar/fill_betweenが長さ不一致で例外になる)。
+                # downsample_indicesはplot_x_data/plot_y_dataを間引いたのと同じ
+                # インデックス列なので、そのまま使い回せる。
+                x_err = ds.x_err_data
+                y_err_full = ds.y_err_data
+                if downsample_indices is not None:
+                    if x_err is not None:
+                        x_err = x_err[downsample_indices]
+                    if y_err_full is not None:
+                        y_err_full = y_err_full[downsample_indices]
+
                 if ds.error_display in ('bar', 'both'):
                     target_ax.errorbar(
                         plot_x_data, plot_y_data,
-                        xerr=ds.x_err_data, yerr=ds.y_err_data,
+                        xerr=x_err, yerr=y_err_full,
                         fmt='none', ecolor=ds.color, elinewidth=ds.linewidth, alpha=ds.alpha, capsize=3
                     )
                 # 誤差バンド(fill_between): X誤差には対応せず、Y誤差の帯のみ描画する
                 # (2軸方向の帯は一般的でないため)。
-                if ds.error_display in ('band', 'both') and ds.y_err_data is not None:
+                if ds.error_display in ('band', 'both') and y_err_full is not None:
                     y_arr = np.asarray(plot_y_data)
-                    y_err = np.asarray(ds.y_err_data)
+                    y_err = np.asarray(y_err_full)
                     target_ax.fill_between(
                         plot_x_data, y_arr - y_err, y_arr + y_err,
                         color=ds.color, alpha=ds.alpha * 0.25, linewidth=0,
@@ -974,3 +1046,36 @@ class MplCanvas(FigureCanvas):
             ax.spines['right'].set_visible(True)
             ax.spines['right'].set_linewidth(spine_width)
             ax.spines['right'].set_color(spine_color)
+
+        # 単位変換の第2X軸(項目C-602): X軸データの単位と第2X軸に表示したい単位が
+        # 共に「なし」以外かつ異なる場合のみ、matplotlibのsecondary_xaxis
+        # (functions=(forward, inverse))で上部に変換後の第2X軸を追加する。
+        # 日付軸/カテゴリ軸は数値変換の対象外(nm/eV/cm^-1/Hzという物理量の
+        # 変換とは無関係)なので何もしない。
+        source_unit = settings.get('x_secondary_axis_source_unit', X_AXIS_UNIT_NONE)
+        target_unit = settings.get('x_secondary_axis_target_unit', X_AXIS_UNIT_NONE)
+        if (not is_date_x and not is_category_x
+                and source_unit != X_AXIS_UNIT_NONE and target_unit != X_AXIS_UNIT_NONE
+                and source_unit != target_unit
+                and np.all(np.isfinite(convert_x_axis_unit(np.array(ax.get_xlim()), source_unit, target_unit)))):
+            # ★ X軸範囲の端(0を含む等)がnm<->eV/cm^-1/Hz変換で inf/nan になる
+            #   (波長0nmは物理的に無意味)場合、ax.secondary_xaxis()が
+            #   「Axis limits cannot be NaN or Inf」で例外を投げグラフ全体の
+            #   再描画が失敗する。上のisfinite判定でその組み合わせの時だけ
+            #   第2X軸自体を追加しないことで、メインの描画には影響させない。
+            def _forward(x, _from=source_unit, _to=target_unit):
+                return convert_x_axis_unit(x, _from, _to)
+
+            def _inverse(x, _from=source_unit, _to=target_unit):
+                return convert_x_axis_unit(x, _to, _from)
+
+            secondary_x_ax = ax.secondary_xaxis('top', functions=(_forward, _inverse))
+            secondary_x_ax.set_xlabel(X_AXIS_UNIT_LABELS.get(target_unit, target_unit),
+                                       **label_font_dict, color=label_color)
+            for label in secondary_x_ax.get_xticklabels():
+                label.set(**tick_font_dict)
+                label.set_color(tick_color)
+            secondary_x_ax.tick_params(axis='x', which='major', width=tick_width,
+                                        color=spine_color, labelcolor=tick_color, direction=major_dir)
+            secondary_x_ax.spines['top'].set_linewidth(spine_width)
+            secondary_x_ax.spines['top'].set_color(spine_color)

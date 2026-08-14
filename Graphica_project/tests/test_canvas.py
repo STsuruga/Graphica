@@ -8,6 +8,7 @@ import matplotlib.dates as mdates
 from matplotlib.collections import LineCollection
 from matplotlib.image import AxesImage
 from matplotlib.lines import Line2D
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -15,6 +16,7 @@ from gui.canvas import (
     _apply_legend_order, _safe_multiple_locator,
     _sci_each_formatter, _apply_tick_format_mode,
     MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
+    LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
 )
 from core.dataset import Dataset
 
@@ -703,6 +705,108 @@ def test_redraw_all_panel_labels_default_to_disabled(canvas):
     assert list(canvas.all_axes[0].texts) == []
 
 
+# --- 項目C-601: 軸共有(sharex/sharey) ---
+
+def test_redraw_all_share_x_axis_links_axes_and_hides_inner_labels(canvas):
+    ds0 = _make_dataset(3, show_point_labels=False)
+    ds1 = Dataset(name="d2", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 2, 1, [{}, {}], share_x_axis=True)
+    ax0, ax1 = canvas.all_axes
+    assert ax0.get_shared_x_axes().joined(ax0, ax1)
+    # 上段(row 0, 最下行ではない)はX軸目盛りラベルが隠れる
+    assert ax0.xaxis.get_tick_params()['labelbottom'] is False
+    # 最下行(row 1)はラベルを維持する
+    assert ax1.xaxis.get_tick_params()['labelbottom'] is True
+
+
+def test_redraw_all_share_y_axis_links_axes_and_hides_inner_labels(canvas):
+    ds0 = _make_dataset(3, show_point_labels=False)
+    ds1 = Dataset(name="d2", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}], share_y_axis=True)
+    ax0, ax1 = canvas.all_axes
+    assert ax0.get_shared_y_axes().joined(ax0, ax1)
+    # 左列(col 0)はラベルを維持する
+    assert ax0.yaxis.get_tick_params()['labelleft'] is True
+    # 右列(col 1, 最左列ではない)はY軸目盛りラベルが隠れる
+    assert ax1.yaxis.get_tick_params()['labelleft'] is False
+
+
+def test_redraw_all_share_axis_default_disabled_no_linking(canvas):
+    ds0 = _make_dataset(3, show_point_labels=False)
+    ds1 = Dataset(name="d2", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}])
+    ax0, ax1 = canvas.all_axes
+    assert not ax0.get_shared_x_axes().joined(ax0, ax1)
+    assert not ax0.get_shared_y_axes().joined(ax0, ax1)
+    assert ax0.xaxis.get_tick_params()['labelbottom'] is True
+    assert ax1.yaxis.get_tick_params()['labelleft'] is True
+
+
+# --- 項目C-602: 単位変換の第2X軸 ---
+
+def test_redraw_all_adds_secondary_x_axis_when_source_and_target_units_set(canvas):
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [400.0, 500.0, 600.0], "y": [1.0, 2.0, 3.0]}),
+                 x_col_name="x", y_col_name="y")
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'eV'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    secondary_axes = [child for child in ax.child_axes if child.get_xlabel() == 'eV(エネルギー)']
+    assert len(secondary_axes) == 1
+
+
+def test_redraw_all_omits_secondary_x_axis_when_units_not_set(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert ax.child_axes == []
+
+
+def test_redraw_all_omits_secondary_x_axis_when_source_and_target_equal(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'nm'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert ax.child_axes == []
+
+
+def test_redraw_all_omits_secondary_x_axis_when_only_one_unit_set(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'none'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert ax.child_axes == []
+
+
+def test_redraw_all_skips_secondary_x_axis_when_range_includes_zero(canvas):
+    """波長0nm相当はnm<->eV等の変換でinf/nanになりmatplotlibが例外を投げるため、
+    そのケースでは第2X軸自体を追加せず、メインの描画は正常に完了すること
+    (X軸範囲が0を含む場合のクラッシュ回避、実データでautoscaleが0始まりに
+    なるのは珍しくない)。"""
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [0.0, 100.0, 200.0], "y": [1.0, 2.0, 3.0]}),
+                 x_col_name="x", y_col_name="y")
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'eV'}
+    result = canvas.redraw_all([ds], 1, 1, [settings])  # 例外が出なければOK
+    assert result is not None
+    ax = canvas.all_axes[0]
+    assert ax.child_axes == []
+
+
+def test_secondary_x_axis_ticks_reflect_converted_values(canvas):
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [400.0, 500.0, 600.0], "y": [1.0, 2.0, 3.0]}),
+                 x_col_name="x", y_col_name="y")
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'eV'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    secondary_ax = [child for child in ax.child_axes if child.get_xlabel() == 'eV(エネルギー)'][0]
+    from core.unit_conversion import convert_x_axis_unit
+    primary_xlim = ax.get_xlim()
+    expected = convert_x_axis_unit(np.array(primary_xlim), 'nm', 'eV')
+    np.testing.assert_allclose(sorted(secondary_ax.get_xlim()), sorted(expected), rtol=1e-6)
+
+
 # --- 項目H-3: matplotlib(Figure)側の配色をgui/theme.pyのトークンと連動させる
 #     (以前はcanvas.py独自のハードコード値を持ち、theme.pyのトークンとは
 #     完全に無関係だった、H-0調査で判明した既知の不整合) ---
@@ -1208,3 +1312,90 @@ def test_apply_appearance_legend_removed_from_secondary_axis_when_visible_false(
     assert secondary_ax.get_legend() is not None
     canvas.update_appearance_only([{'legend_visible': False}])
     assert secondary_ax.get_legend() is None
+
+
+# --- 表示用ダウンサンプリング(LTTB、項目C-1001) ---
+
+def _make_large_dataset(n, plot_type="Line", **kwargs):
+    x = np.arange(n, dtype=float)
+    y = np.sin(x / 100.0)
+    return Dataset(name="big", df=pd.DataFrame({"x": x, "y": y}),
+                    x_col_name="x", y_col_name="y", plot_type=plot_type, **kwargs)
+
+
+def test_downsampling_applied_above_threshold_for_line(canvas):
+    ds = _make_large_dataset(LTTB_DOWNSAMPLE_THRESHOLD + 1)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id in canvas.downsample_index_map
+    assert len(ds.artist.get_xdata()) == LTTB_DOWNSAMPLE_TARGET_POINTS
+
+
+def test_downsampling_not_applied_below_threshold(canvas):
+    ds = _make_large_dataset(LTTB_DOWNSAMPLE_THRESHOLD - 1)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id not in canvas.downsample_index_map
+    assert len(ds.artist.get_xdata()) == LTTB_DOWNSAMPLE_THRESHOLD - 1
+
+
+def test_downsampling_applied_for_scatter(canvas):
+    ds = _make_large_dataset(LTTB_DOWNSAMPLE_THRESHOLD + 1, plot_type="Scatter")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id in canvas.downsample_index_map
+    assert len(ds.artist.get_offsets()) == LTTB_DOWNSAMPLE_TARGET_POINTS
+
+
+def test_downsampling_not_applied_to_bar_plot_type(canvas):
+    """Bar/Areaは1本1本・塗り形状の意味が変わるため、点数が多くても間引かない。"""
+    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    x = np.arange(n, dtype=float)
+    y = np.abs(np.sin(x / 100.0))
+    ds = Dataset(name="bars", df=pd.DataFrame({"x": x, "y": y}),
+                 x_col_name="x", y_col_name="y", plot_type="Bar")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id not in canvas.downsample_index_map
+
+
+def test_downsampling_skipped_for_non_monotonic_x(canvas):
+    """Xが昇順でない(LTTBの前提を満たさない)場合は、形状を誤って変えないよう
+    安全側に倒して間引かない。"""
+    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    rng = np.random.default_rng(0)
+    x = rng.uniform(0, 100, size=n)  # 昇順ではないランダムなX
+    y = np.sin(x)
+    ds = Dataset(name="scrambled", df=pd.DataFrame({"x": x, "y": y}),
+                 x_col_name="x", y_col_name="y", plot_type="Line")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id not in canvas.downsample_index_map
+    assert len(ds.artist.get_xdata()) == n
+
+
+def test_downsampling_index_map_cleared_between_redraws(canvas):
+    """前回の描画でダウンサンプリングされていたデータセットが削除された後、
+    downsample_index_mapに古いエントリが残り続けない(fig.clf()と同様に
+    redraw_all冒頭でクリアされる)ことを確認する。"""
+    ds = _make_large_dataset(LTTB_DOWNSAMPLE_THRESHOLD + 1)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id in canvas.downsample_index_map
+
+    small_ds = _make_dataset(10)
+    canvas.redraw_all([small_ds], 1, 1, [{}])
+    assert ds.dataset_id not in canvas.downsample_index_map
+    assert small_ds.dataset_id not in canvas.downsample_index_map
+
+
+def test_downsampled_dataset_with_error_bars_does_not_crash_on_length_mismatch(canvas):
+    """項目C-1001のerrorbar描画箇所の回帰テスト: plot_x_data/plot_y_dataが
+    間引かれる一方でds.y_err_data(常にフルサイズ)をそのまま渡すと、
+    matplotlib.errorbarが長さ不一致で例外を投げる。同じインデックスで
+    誤差列も間引かれ、クラッシュせず描画できることを確認する。"""
+    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    x = np.arange(n, dtype=float)
+    y = np.sin(x / 100.0)
+    yerr = np.full(n, 0.1)
+    ds = Dataset(
+        name="big_with_err", df=pd.DataFrame({"x": x, "y": y, "yerr": yerr}),
+        x_col_name="x", y_col_name="y", y_err_col_name="yerr",
+        plot_type="Line", error_display="both",
+    )
+    canvas.redraw_all([ds], 1, 1, [{}])  # 例外が出なければOK
+    assert ds.dataset_id in canvas.downsample_index_map

@@ -142,6 +142,7 @@ from ui_main_window import Ui_MainWindow
 
 # --- 自分で分割したモジュール ---
 from core.dataset import Dataset
+from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from core.commands import AddDatasetCommand
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.minimap_widget import MinimapWidget
@@ -246,6 +247,7 @@ from gui.mixins.annotation_mixin import (
     AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
 )
 from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
+from gui.mixins.range_select_mixin import RangeSelectMixin
 from gui.mixins.export_mixin import ExportMixin
 from gui.mixins.project_io_mixin import ProjectIOMixin
 from gui.mixins.help_mixin import HelpMixin
@@ -421,8 +423,8 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
 # PlotterApp 本体には、初期化・ファイルI/Oの中核・プロット更新など、
 # 上記どれにも属さない「アプリのエントリーポイント」的な処理のみを残す。
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
-                  CursorMixin, AnnotationMixin, LayoutEditMixin, ExportMixin,
-                  ProjectIOMixin, HelpMixin, QuickAccessMixin):
+                  CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
+                  ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
     """
     メインアプリケーションウィンドウクラス。
     QMainWindow を継承し、ui_main_window.py からロードしたUI骨格に、
@@ -550,6 +552,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.cursor_connection_id = None # Matplotlib イベント接続ID (切断時に使用)
         self.cursor_annotation = None    # 表示中の注釈 (Annotation) オブジェクト
 
+        # --- マウス操作拡充(項目C-908)の中ボタンドラッグパン用の状態 ---
+        # ドラッグ中かどうかは self._middle_pan_axes が None かどうかで判定する。
+        self._middle_pan_axes = None
+        self._middle_pan_start_data = None
+        self._middle_pan_start_xlim = None
+        self._middle_pan_start_ylim = None
+
         # --- 自由なテキスト注釈・矢印機能用の変数 ---
         self.annotation_mode_enabled = False   # 注釈モードがONかOFFか
         self._annotation_press_cid = None      # button_press_event の接続ID
@@ -572,6 +581,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 軸インデックス (ドラッグ中かどうかとは独立して保持する)。数値入力欄
         # (X/Y/幅/高さ)の表示対象・書き込み先を決めるために使う。未選択ならNone。
         self._layout_selected_axis_index = None
+
+        # --- グラフ上での範囲選択(項目C-909)用の変数 ---
+        self.range_select_mode_enabled = False  # 範囲選択モードがONかOFFか
+        self._range_select_press_cid = None
+        self._range_select_motion_cid = None
+        self._range_select_release_cid = None
+        self._range_select_axes = None          # ドラッグ中のAxes、またはNone
+        self._range_select_start_x = None       # ドラッグ開始点のXデータ座標
+        self._range_select_preview_artist = None  # ドラッグ中のプレビュー矩形
 
         # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
         # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
@@ -693,6 +711,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.layout_edit_action.setEnabled(False)
         self.layout_edit_action.triggered.connect(self._toggle_layout_edit_mode)
         toolbar.addAction(self.layout_edit_action)
+
+        # --- ★ ツールバーにカスタムボタン (グラフ上での範囲選択) を追加 ★ ---
+        # 項目C-909: カレントデータセット上でXの範囲をドラッグ選択すると、
+        # その範囲のデータ点をマスク(除外、項目36)する。
+        self.range_select_action = QAction(
+            _svg_icon("select-all"),  # Tabler Icons "select-all"(項目67)
+            tr("範囲選択 (ドラッグした範囲のカレントデータセットをマスク)"),
+            self
+        )
+        self.range_select_action.setCheckable(True)
+        self.range_select_action.triggered.connect(self._toggle_range_select_mode)
+        toolbar.addAction(self.range_select_action)
 
         # --- ★ ツールバーにカスタムボタン (ズームリセット) を追加 ★ ---
         # マウスドラッグ/矩形選択等で拡大した表示を、設定通りの既定表示に戻す。
@@ -1140,6 +1170,30 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.x_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout.addRow(self.x_tick_format_label, self.x_tick_format_combo)
 
+        # 単位変換の第2X軸(項目C-602): X軸データの単位(source)と第2X軸に
+        # 表示したい単位(target)を選び、双方が「なし」以外かつ異なる場合のみ
+        # 上部にnm<->eV<->cm^-1<->Hz変換済みの第2X軸を表示する
+        # (gui/canvas.pyの_apply_appearance参照)。既定は両方「なし」で、
+        # この機能を使わない既存プロジェクトの見た目は変わらない。
+        # ★ ラベルは短く保つこと: formLayoutは全行でラベル列幅を共有するため、
+        #   長いラベル1つでもCONTROL_DOCK_WIDTH(main_window.py先頭)の横スクロール
+        #   バー回避マージンを圧迫し、test_properties_dock_has_no_horizontal_scrollbar
+        #   を壊しうる(詳細な説明はラベルではなくツールチップに置く)。
+        unit_combo_choices = [X_AXIS_UNIT_LABELS[u] for u in X_AXIS_UNIT_CHOICES]
+        self.x_secondary_axis_source_unit_label = QLabel(tr("X軸単位"))
+        self.x_secondary_axis_source_unit_combo = QComboBox()
+        self.x_secondary_axis_source_unit_combo.addItems(unit_combo_choices)
+        self.x_secondary_axis_source_unit_combo.setToolTip(tr("X軸データが表している物理量の単位"))
+        self.ui.formLayout.addRow(
+            self.x_secondary_axis_source_unit_label, self.x_secondary_axis_source_unit_combo)
+
+        self.x_secondary_axis_target_unit_label = QLabel(tr("第2X軸単位"))
+        self.x_secondary_axis_target_unit_combo = QComboBox()
+        self.x_secondary_axis_target_unit_combo.addItems(unit_combo_choices)
+        self.x_secondary_axis_target_unit_combo.setToolTip(tr("上部に追加する第2X軸に変換して表示する単位"))
+        self.ui.formLayout.addRow(
+            self.x_secondary_axis_target_unit_label, self.x_secondary_axis_target_unit_combo)
+
         self.y_tick_format_label = QLabel(tr("目盛り表記"))
         self.y_tick_format_combo = QComboBox()
         self.y_tick_format_combo.addItems(tick_format_choices)
@@ -1347,6 +1401,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         layout_form.addRow(tr("行数"), self.subplot_rows_spinbox)
         layout_form.addRow(tr("列数"), self.subplot_cols_spinbox)
 
+        # 軸共有(項目C-601): グリッドレイアウトの全サブプロットでX/Y軸範囲を
+        # 揃える(matplotlibのsharex/shareyそのもの)。自由配置レイアウトには
+        # 意味を持たないため、_on_toggle_free_layoutで有効/無効を連動させる。
+        self.share_x_checkbox = QCheckBox(tr("X軸を共有(グリッドレイアウト時)"))
+        self.share_y_checkbox = QCheckBox(tr("Y軸を共有(グリッドレイアウト時)"))
+        layout_form.addRow(self.share_x_checkbox)
+        layout_form.addRow(self.share_y_checkbox)
+
         # (自由配置レイアウト: 均等グリッドでなく、サブプロットをドラッグで
         #  自由な位置・サイズに配置できるモード。既定はOFF(従来のグリッド))
         self.free_layout_checkbox = QCheckBox(tr("自由配置レイアウト(ドラッグで配置)"))
@@ -1425,6 +1487,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # グラフ要素の直接クリック選択(項目35): データカーソル/注釈モードのON/OFFに
         # 関わらず常時有効な、独立したpick_event接続 (詳細は _on_element_pick を参照)
         self.canvas.mpl_connect('pick_event', self._on_element_pick)
+
+        # マウス操作拡充(項目C-908): ホイールズーム + 中ボタンドラッグパン。
+        # 他のモード(データカーソル/注釈/自由配置編集)と同じ左クリックを
+        # 使わないため、専用のON/OFF切り替えなしに常時有効にする
+        # (motion_notify_eventは_on_mouse_moveと同じイベント種別に対する
+        # 2つ目の独立した接続で、mpl_connectは複数ハンドラの登録に対応している)。
+        self.canvas.mpl_connect('scroll_event', self._on_scroll_zoom)
+        self.canvas.mpl_connect('button_press_event', self._on_middle_button_press_pan)
+        self.canvas.mpl_connect('motion_notify_event', self._on_middle_button_motion_pan)
+        self.canvas.mpl_connect('button_release_event', self._on_middle_button_release_pan)
 
         # プラグインの読み込み (メニューバー作成より前に行う必要がある:
         # プラグインが register_menu_action() で追加したメニュー項目を
@@ -1851,6 +1923,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 self.layout_edit_action.setChecked(False)
                 self._toggle_layout_edit_mode(False)
             self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
+            self.share_x_checkbox.setChecked(getattr(self.project, 'share_x_axis', False))
+            self.share_y_checkbox.setChecked(getattr(self.project, 'share_y_axis', False))
+            self.share_x_checkbox.setEnabled(not is_free_layout)
+            self.share_y_checkbox.setEnabled(not is_free_layout)
             self._block_all_signals(False)
 
             # UIにアクティブな設定を反映
@@ -1903,6 +1979,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         is_secondary_visible_global = self.canvas.redraw_all(
             self.project.datasets, rows, cols, self.project.all_plot_settings, layout_mode=layout_mode,
             panel_labels_enabled=self.project.panel_labels_enabled,
+            share_x_axis=getattr(self.project, 'share_x_axis', False),
+            share_y_axis=getattr(self.project, 'share_y_axis', False),
         )
 
         # ★ Canvasから返ってきた結果をもとに、UI（チェックボックス等）を制御する

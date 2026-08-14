@@ -11,6 +11,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFontDialog, QColorDialog, QMessageBox
 
 from core.i18n import tr
+from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_NONE
 from gui import theme
 from gui.color_history import get_color_with_history
 from gui.dialogs import LegendOrderDialog, LabelEditDialog
@@ -123,6 +124,15 @@ class SettingsMixin:
 
             # 6. グラフ全体を再描画
             self._update_plot()
+
+    def _on_share_axis_changed(self):
+        """
+        「X軸を共有」「Y軸を共有」チェックボックスが変更されたときに呼び出されます。
+        グリッドレイアウト時のみ意味を持つ設定のため、ProjectModel にそのまま保存し再描画します。
+        """
+        self.project.share_x_axis = self.share_x_checkbox.isChecked()
+        self.project.share_y_axis = self.share_y_checkbox.isChecked()
+        self._update_plot()
 
     def _on_active_axis_changed(self, index):
             """
@@ -534,6 +544,10 @@ class SettingsMixin:
             'x_minor_ticks_visible': self.ui.x_minor_ticks_visible_checkbox.isChecked(),
             'x_minor_tick_interval': self.ui.x_minor_tick_interval_spinbox.value(),
             'x_tick_format_mode': self.x_tick_format_combo.currentIndex(),
+            'x_secondary_axis_source_unit':
+                X_AXIS_UNIT_CHOICES[self.x_secondary_axis_source_unit_combo.currentIndex()],
+            'x_secondary_axis_target_unit':
+                X_AXIS_UNIT_CHOICES[self.x_secondary_axis_target_unit_combo.currentIndex()],
 
             # Y軸タブ
             'y_autoscale': self.ui.y_autoscale_checkbox.isChecked(),
@@ -634,6 +648,12 @@ class SettingsMixin:
             self.ui.x_minor_ticks_visible_checkbox.setChecked(settings.get('x_minor_ticks_visible', False))
             self.ui.x_minor_tick_interval_spinbox.setValue(settings.get('x_minor_tick_interval', 0.5))
             self.x_tick_format_combo.setCurrentIndex(settings.get('x_tick_format_mode', 0))
+            _source_unit = settings.get('x_secondary_axis_source_unit', X_AXIS_UNIT_NONE)
+            self.x_secondary_axis_source_unit_combo.setCurrentIndex(
+                X_AXIS_UNIT_CHOICES.index(_source_unit) if _source_unit in X_AXIS_UNIT_CHOICES else 0)
+            _target_unit = settings.get('x_secondary_axis_target_unit', X_AXIS_UNIT_NONE)
+            self.x_secondary_axis_target_unit_combo.setCurrentIndex(
+                X_AXIS_UNIT_CHOICES.index(_target_unit) if _target_unit in X_AXIS_UNIT_CHOICES else 0)
 
             # Y軸
             self.ui.y_autoscale_checkbox.setChecked(settings.get('y_autoscale', True))
@@ -746,6 +766,8 @@ class SettingsMixin:
         self.ui.x_minor_ticks_visible_checkbox.blockSignals(block)
         self.ui.x_minor_tick_interval_spinbox.blockSignals(block)
         self.x_tick_format_combo.blockSignals(block)
+        self.x_secondary_axis_source_unit_combo.blockSignals(block)
+        self.x_secondary_axis_target_unit_combo.blockSignals(block)
 
         # Y軸タブ
         self.ui.y_autoscale_checkbox.blockSignals(block)
