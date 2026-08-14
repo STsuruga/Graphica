@@ -10,7 +10,8 @@ from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgo
                             calculate_baseline_als, calculate_baseline_polynomial,
                             calculate_baseline_rubberband, calculate_baseline_manual,
                             get_fit_param_names, calculate_interval_integral,
-                            calculate_confidence_band, calculate_resample_to_grid)
+                            calculate_confidence_band, calculate_resample_to_grid,
+                            calculate_lttb_downsample)
 
 
 def test_linear_fit_recovers_known_parameters():
@@ -1442,3 +1443,77 @@ def test_resample_deduplicates_repeated_x_values():
     y = np.array([0.0, 1.0, 999.0, 4.0, 9.0, 16.0])  # x=1で2つ目(999)が採用されるべき
     result = calculate_resample_to_grid(x, y, np.array([1.0]), method="linear")
     np.testing.assert_allclose(result, [999.0])
+
+
+# --- 表示用ダウンサンプリング(LTTB、C-1001) ---
+
+def test_lttb_returns_all_indices_when_below_threshold():
+    x = np.linspace(0, 10, 50)
+    y = np.sin(x)
+    idx = calculate_lttb_downsample(x, y, 100)
+    np.testing.assert_array_equal(idx, np.arange(50))
+
+
+def test_lttb_output_length_matches_n_out():
+    x = np.linspace(0, 100, 10000)
+    y = np.sin(x)
+    idx = calculate_lttb_downsample(x, y, 500)
+    assert len(idx) == 500
+
+
+def test_lttb_always_keeps_first_and_last_point():
+    x = np.linspace(0, 100, 10000)
+    y = np.cos(x)
+    idx = calculate_lttb_downsample(x, y, 500)
+    assert idx[0] == 0
+    assert idx[-1] == len(x) - 1
+
+
+def test_lttb_indices_are_strictly_increasing_with_no_duplicates():
+    x = np.linspace(0, 100, 10000)
+    y = np.sin(x) + 0.1 * np.cos(x * 5)
+    idx = calculate_lttb_downsample(x, y, 500)
+    assert np.all(np.diff(idx) > 0)
+
+
+def test_lttb_selected_points_are_real_original_points_not_interpolated():
+    """LTTBは新しい点を合成しない(常に元データの実点のどれかを選ぶ)ことの確認。"""
+    x = np.linspace(0, 100, 10000)
+    y = np.sin(x)
+    idx = calculate_lttb_downsample(x, y, 500)
+    # 選ばれたインデックスでの値は、元のx/y配列の値とビット単位で完全一致するはず
+    np.testing.assert_array_equal(x[idx], x[idx])
+    assert idx.dtype.kind in ('i', 'u')  # 整数インデックス(浮動小数点の合成値ではない)
+
+
+def test_lttb_preserves_a_sharp_isolated_spike():
+    """ほぼ平坦な信号の中にある鋭いスパイクは、ダウンサンプリング後も
+    (面積最大化の性質上)選ばれた点に残るはず。ナイーブな等間隔間引きでは
+    このようなスパイクが運悪く間引かれて消えることがある。"""
+    n = 5000
+    x = np.arange(n, dtype=float)
+    y = np.zeros(n)
+    spike_pos = 2500
+    y[spike_pos] = 100.0  # 周囲に対して極端に飛び出た1点
+
+    idx = calculate_lttb_downsample(x, y, 200)
+    assert spike_pos in idx
+
+
+def test_lttb_downsampled_curve_approximates_linear_function_well():
+    x = np.linspace(0, 100, 20000)
+    y = 3.0 * x + 2.0
+    idx = calculate_lttb_downsample(x, y, 200)
+    x_ds, y_ds = x[idx], y[idx]
+    # 線形関数を線形補間で復元すれば誤差はごく小さいはず
+    y_interp = np.interp(x, x_ds, y_ds)
+    np.testing.assert_allclose(y_interp, y, atol=1e-6)
+
+
+def test_lttb_rejects_absurdly_small_n_out_by_returning_all_points():
+    """n_outが3未満(先頭・末尾+中間1点の最低構成すら組めない)の場合は、
+    間引かずに全点を返す(呼び出し側が誤って0/1/2を渡してもクラッシュしない)。"""
+    x = np.linspace(0, 10, 100)
+    y = np.sin(x)
+    idx = calculate_lttb_downsample(x, y, 2)
+    np.testing.assert_array_equal(idx, np.arange(100))

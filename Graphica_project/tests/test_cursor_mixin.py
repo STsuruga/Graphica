@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pytest
 from PySide6.QtCore import QSettings
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import QApplication
 
 import gui.main_window as main_window_module
 from gui.main_window import PlotterApp
+from gui.canvas import LTTB_DOWNSAMPLE_THRESHOLD
 from gui.data_editor import DataEditorDialog
 from core.dataset import Dataset
 
@@ -398,3 +400,69 @@ def test_on_pick_does_not_touch_dialog_showing_a_different_dataset(tmp_path, mon
 # pass") は、pick_eventで返るindが常にvisible_df基準で描画された同じArtistの
 # 範囲内に収まる(コード内コメントの通り)ため、実際のユーザー操作では到達しない
 # 防御的分岐であり、意図的にテストを省略する。
+
+
+def test_on_pick_maps_downsampled_index_back_to_correct_row(tmp_path, monkeypatch):
+    """
+    項目C-1001(表示用ダウンサンプリング)の回帰テスト: LTTBで間引かれた
+    データセットをクリックした場合、pick_eventのindは「間引き後の配列上の
+    位置」であって「元のvisible_df上の位置」ではない。
+    gui.canvas.MplCanvas.downsample_index_map を経由して正しい元の行に
+    変換されないと、間引かれた点をクリックするたびに無関係な行が
+    データエディタでハイライトされてしまう(このテストが検出したい不具合)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    n = LTTB_DOWNSAMPLE_THRESHOLD + 5000
+    x = np.arange(n, dtype=float)
+    y = np.sin(x / 100.0)
+    ds = Dataset(
+        name="big", df=pd.DataFrame({"x": x, "y": y}),
+        x_col_name="x", y_col_name="y", plot_type="Line",
+    )
+    window.project.datasets.append(ds)
+    window._update_plot()
+
+    # ダウンサンプリングが実際に適用されたことの前提確認
+    assert ds.dataset_id in window.canvas.downsample_index_map
+    index_map = window.canvas.downsample_index_map[ds.dataset_id]
+    assert len(index_map) < n
+
+    window.cursor_mode_enabled = True
+    dialog = DataEditorDialog(ds, parent=window)
+    window.data_editor_dialog = dialog
+    try:
+        # 間引き後の配列上で3番目の点(ind=3)をクリックしたことにする。
+        # artistには間引き後のx/yしか無いため、その値をそのままクリック座標にする。
+        rendered_x = ds.artist.get_xdata()
+        rendered_y = ds.artist.get_ydata()
+        click_ind = 3
+        window._on_pick(SimpleNamespace(
+            artist=ds.artist,
+            mouseevent=SimpleNamespace(xdata=rendered_x[click_ind], ydata=rendered_y[click_ind]),
+        ))
+
+        expected_original_row = int(index_map[click_ind])
+        assert dialog.get_selected_master_indices() == [expected_original_row]
+    finally:
+        window.data_editor_dialog = None
+        dialog.close()
+
+
+def test_on_pick_without_downsampling_uses_index_directly(tmp_path, monkeypatch):
+    """間引きが適用されていない(閾値以下の)データセットでは、従来通り
+    indをそのままvisible_df.indexに使う(downsample_index_mapに現れないため)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _add_dataset(window, plot_type="Line")
+    assert ds.dataset_id not in window.canvas.downsample_index_map
+
+    window.cursor_mode_enabled = True
+    dialog = DataEditorDialog(ds, parent=window)
+    window.data_editor_dialog = dialog
+    try:
+        window._on_pick(SimpleNamespace(
+            artist=ds.artist, mouseevent=SimpleNamespace(xdata=2.0, ydata=4.0),
+        ))
+        assert dialog.get_selected_master_indices() == [1]
+    finally:
+        window.data_editor_dialog = None
+        dialog.close()

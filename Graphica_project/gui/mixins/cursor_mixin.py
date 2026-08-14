@@ -228,6 +228,17 @@ class CursorMixin:
                     try:
                         # ★ artistはvisible_df(マスクされた行を除いたもの)基準で描画されて
                         # いるため、indの位置からラベルへの変換もvisible_df.indexで行う。
+                        # ただし項目C-1001(表示用ダウンサンプリング)が適用されている
+                        # データセットでは、artistに実際に描かれているのはLTTBで間引いた
+                        # 後の点であり、indはその間引き後の配列上の位置になる。そのため
+                        # 先にdownsample_index_mapで「間引き後の位置→元のvisible_df上の
+                        # 位置」へ変換してから、visible_df.indexを引く必要がある
+                        # (このマップを経由しないと、間引き適用時に誤った行がハイライト
+                        # される)。間引きが適用されていないデータセットはマップに
+                        # 現れないため、indをそのまま使う。
+                        index_map = self.canvas.downsample_index_map.get(owning_dataset.dataset_id)
+                        if index_map is not None:
+                            ind = index_map[ind]
                         master_index = owning_dataset.visible_df.index[ind]
                         # 選択変更のシグナルはブロックされているため(無限ループ防止)、
                         # グラフ側のハイライトはここで明示的に更新する

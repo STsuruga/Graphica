@@ -1288,3 +1288,72 @@ def calculate_resample_to_grid(x_data, y_data, target_x, method="linear", extrap
             result[out_of_range] = np.nan
 
     return result
+
+
+def calculate_lttb_downsample(x_data, y_data, n_out):
+    """
+    Largest-Triangle-Three-Buckets (LTTB, Sveinn Steinarsson 2013) による
+    表示用ダウンサンプリング(項目C-1001)。
+
+    ナイーブな間引き(等間隔にN個おきに残す)と違い、各バケット内で
+    「直前に選んだ点」「次のバケットの重心」との三角形の面積が最大になる点を
+    選ぶことで、視覚的に重要な特徴(ピーク・急峻な変化)を潰さずに点数を
+    削減できる。合成した新しい点は作らない(常に元データの実点のうちの
+    どれかを選ぶ)ため、選ばれた点の元のインデックス列をそのまま返せる。
+
+    Args:
+        x_data, y_data (array-like): 間引き対象のデータ(Xの昇順ソート済みで
+            あることを前提とする。呼び出し側でソート済みのplot_x_data/
+            plot_y_dataを渡す想定のため、ここでは改めてソートしない)。
+        n_out (int): 出力点数の目安。先頭・末尾は必ず残るため、実際の出力は
+            ちょうどn_out個(n_out >= 3かつ元データ点数 > n_outの場合)。
+
+    Returns:
+        np.ndarray: 選ばれた点の元データ配列内でのインデックス(0始まり、
+            昇順、先頭と末尾を必ず含む)。呼び出し側はx_data[idx]/y_data[idx]
+            で間引き後の点を得られ、同じidxを誤差列等の他の配列にも使い回せる。
+            元データ点数がn_out以下の場合は間引かず、range(len(x_data))相当の
+            全インデックスをそのまま返す。
+    """
+    n = len(x_data)
+    if n_out < 3 or n <= n_out:
+        return np.arange(n)
+
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+
+    # 先頭・末尾は常に残す。残りの (n_out - 2) 個を、先頭・末尾を除いた区間に
+    # ほぼ均等なバケットへ分けて、各バケットから代表点を1つずつ選ぶ。
+    selected = np.empty(n_out, dtype=np.int64)
+    selected[0] = 0
+    selected[-1] = n - 1
+
+    bucket_edges = np.linspace(1, n - 1, n_out - 1).astype(np.int64)
+    a = 0  # 直前に選んだ点(最初はバケット分割対象外の先頭点)
+    for i in range(n_out - 2):
+        bucket_start, bucket_end = bucket_edges[i], bucket_edges[i + 1]
+        if bucket_end <= bucket_start:
+            bucket_end = bucket_start + 1
+        next_start = bucket_end
+        next_end = bucket_edges[i + 2] if i + 2 < len(bucket_edges) else n
+        if next_end <= next_start:
+            next_end = min(next_start + 1, n)
+        # 次バケットの重心(平均点)。これと直前点a・現バケット内の各候補点で
+        # 作る三角形の面積が最大になる候補を選ぶ。
+        avg_x = np.mean(x_data[next_start:next_end])
+        avg_y = np.mean(y_data[next_start:next_end])
+
+        cand_x = x_data[bucket_start:bucket_end]
+        cand_y = y_data[bucket_start:bucket_end]
+        # 三角形の面積(の2倍、比較にのみ使うので定数倍は無視できる):
+        # |(‌ax*(by-cy) + bx*(cy-ay) + cx*(ay-by))|
+        ax_, ay_ = x_data[a], y_data[a]
+        areas = np.abs(
+            (ax_ - avg_x) * (cand_y - ay_) - (ax_ - cand_x) * (avg_y - ay_)
+        )
+        best_local = np.argmax(areas)
+        chosen = bucket_start + best_local
+        selected[i + 1] = chosen
+        a = chosen
+
+    return selected
