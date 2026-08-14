@@ -24,7 +24,8 @@ import pandas as pd
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu
 
-from core.analysis import (calculate_curve_fit, calculate_peak_quantification, calculate_savgol,
+from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_quantification,
+                           calculate_savgol,
                            calculate_baseline_als, calculate_baseline_polynomial,
                            calculate_baseline_rubberband, calculate_baseline_manual,
                            calculate_interval_integral, calculate_confidence_band,
@@ -34,6 +35,7 @@ from core.dataset import Dataset
 from core.plugin_api import get_registered_importer_extensions
 from core.plugin_types import AnalysisResult, PluginExecutionError
 from core.safe_eval import safe_eval_column_formula
+from gui.task_runner import TaskRunner
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
@@ -1113,12 +1115,17 @@ class DatasetMixin:
         self._sync_dataset_list_widget_order()
         self._update_plot()
 
-    def _refresh_after_dataset_property_change(self, dataset):
+    # 項目C-003フェーズ1: これらのプロパティは軸の所属自体を変えるため、
+    # フルの _update_plot() (redraw_all、全Axes再構築) が必要。それ以外の
+    # プロパティ変更は canvas.update_single_axis() による軽量な単一Axes更新で足りる。
+    _STRUCTURAL_DATASET_PROPERTIES = {'subplot_target', 'use_secondary_y'}
+
+    def _refresh_after_dataset_property_change(self, dataset, changed_keys=()):
         """
         Undo/Redo でデータセットのプロパティが変更された後の共通後処理。
         - 変更されたデータセットがリストに表示されている名前と食い違っていれば同期
         - 変更されたデータセットが現在選択中なら、プロパティパネルにも反映
-        - グラフを再描画
+        - グラフを再描画(軸の所属が変わらない変更は該当Axesのみの軽量更新)
         """
         item = self._get_dataset_tree_item(dataset)
         if item is not None:
@@ -1132,7 +1139,39 @@ class DatasetMixin:
             apply_dataset_visibility_text_style(item, dataset)
             if item is self.ui.dataset_list_widget.currentItem():
                 self._update_ui_state()
-        self._update_plot()
+
+        axis_index = dataset.subplot_target
+        if (set(changed_keys) & self._STRUCTURAL_DATASET_PROPERTIES
+                or axis_index >= len(self.canvas.all_axes)
+                or axis_index >= len(self.project.all_plot_settings)):
+            self._update_plot()
+            return
+
+        layout_mode = getattr(self.project, 'layout_mode', 'grid')
+        if layout_mode == 'free':
+            rows, cols = 0, 0
+        else:
+            rows = self.subplot_rows_spinbox.value()
+            cols = self.subplot_cols_spinbox.value()
+
+        self.canvas.update_single_axis(
+            axis_index, self.project.datasets, self.project.all_plot_settings[axis_index],
+            rows=rows, cols=cols,
+            share_x_axis=getattr(self.project, 'share_x_axis', False),
+            share_y_axis=getattr(self.project, 'share_y_axis', False),
+            panel_labels_enabled=self.project.panel_labels_enabled,
+        )
+        is_secondary_visible = any(sa is not None for sa in self.canvas.all_secondary_axes)
+        self.tick_direction_y2_label.setVisible(is_secondary_visible)
+        self.major_tick_direction_y2_combo.setVisible(is_secondary_visible)
+        self.minor_tick_direction_y2_combo.setVisible(is_secondary_visible)
+        self.y2_label_text_label.setVisible(is_secondary_visible)
+        self.y2_label_text_edit.setVisible(is_secondary_visible)
+
+        self._reapply_editor_row_highlight()
+        self._refresh_minimap()
+        if hasattr(self, 'export_preview_panel'):
+            self.export_preview_panel.refresh_preview()
 
     def _push_dataset_property_command(self, dataset, old_values: dict, new_values: dict, description: str):
         """
@@ -1143,7 +1182,7 @@ class DatasetMixin:
             return
         command = SetDatasetPropertiesCommand(
             dataset, old_values, new_values,
-            on_applied=lambda: self._refresh_after_dataset_property_change(dataset),
+            on_applied=lambda: self._refresh_after_dataset_property_change(dataset, changed_keys=new_values.keys()),
             description=description
         )
         self.undo_stack.push(command)
@@ -1855,9 +1894,21 @@ class DatasetMixin:
         self._update_plot()
 
     def _on_fit_curve(self):
-        """「曲線フィット」ボタンが押されたときの処理"""
+        """
+        「曲線フィット」ボタンが押されたときの処理(項目C-004フェーズ1で
+        バックグラウンドスレッド化)。ダイアログでの入力収集まではメイン
+        スレッド上で同期的に行い、実際の計算(calculate_curve_fit)だけを
+        TaskRunner(gui/task_runner.py)経由でバックグラウンドスレッドに委ねる。
+        scipy.optimize.curve_fit自体は中断不能なため、このフェーズの主目的は
+        キャンセル機能ではなく「スレッド起動→シグナル配送→GUIスレッドでの
+        適用→closeEventでの中断待機」という配線を最もリスクの低い対象
+        (単発フィット)で検証すること。
+        """
         original_dataset = self._get_current_dataset()
         if original_dataset is None:
+            return
+        if self._fit_task_runner is not None:
+            QMessageBox.information(self, "実行中", "別のフィット処理が実行中です。完了までお待ちください。")
             return
         x_data, y_data = original_dataset.x_data, original_dataset.y_data
 
@@ -1875,16 +1926,46 @@ class DatasetMixin:
 
         sigma = original_dataset.y_err_data if use_weighted else None
 
-        try:
-            # ★ 計算はすべて分離したモジュールに丸投げ
-            fit = calculate_curve_fit(
-                x_data, y_data, fit_type, custom_formula=custom_formula,
-                sigma=sigma, x_range=x_range,
-                p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+        runner = TaskRunner(
+            fit_curve_task, x_data, y_data, fit_type, custom_formula=custom_formula,
+            sigma=sigma, x_range=x_range,
+            p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+        )
+        runner.succeeded.connect(
+            lambda fit: self._on_fit_curve_succeeded(
+                original_dataset, fit_type, custom_formula, sigma, x_range,
+                p0_overrides, fixed_params, bounds, band_type, fit,
             )
-        except Exception as e:
-            QMessageBox.warning(self, "フィットエラー", f"フィッティングに失敗しました:\n{e}")
-            return
+        )
+        runner.failed.connect(self._on_fit_curve_failed)
+        self._fit_task_runner = runner
+        self.fit_curve_button.setEnabled(False)
+        runner.start()
+
+    def _cleanup_fit_task_runner(self):
+        """
+        _fit_task_runner の後始末。gui/main_window.py の _data_load_worker と
+        同じ「wait()でブロッキング待機→deleteLater()→参照をNoneに戻す」手順
+        (closeEventからの再利用も想定、詳細はclose_event側のコメント参照)。
+        """
+        if self._fit_task_runner is not None:
+            self._fit_task_runner.wait()
+            self._fit_task_runner.deleteLater()
+            self._fit_task_runner = None
+        self.fit_curve_button.setEnabled(True)
+
+    def _on_fit_curve_failed(self, error_message):
+        self._cleanup_fit_task_runner()
+        QMessageBox.warning(self, "フィットエラー", f"フィッティングに失敗しました:\n{error_message}")
+
+    def _on_fit_curve_succeeded(self, original_dataset, fit_type, custom_formula, sigma, x_range,
+                                 p0_overrides, fixed_params, bounds, band_type, fit):
+        """
+        バックグラウンドで完了したフィット計算(fit dict、calculate_curve_fitの
+        戻り値と同じ形)をメインスレッド側で適用する。以前は_on_fit_curve()の
+        続きとして同期的に実行していたロジックそのもの(振る舞いは無改修)。
+        """
+        self._cleanup_fit_task_runner()
 
         popt, params_info = fit['popt'], fit['param_names']
         x_fit, y_fit = fit['x_fit'], fit['y_fit']

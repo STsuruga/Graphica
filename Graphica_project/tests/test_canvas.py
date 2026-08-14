@@ -807,6 +807,92 @@ def test_secondary_x_axis_ticks_reflect_converted_values(canvas):
     np.testing.assert_allclose(sorted(secondary_ax.get_xlim()), sorted(expected), rtol=1e-6)
 
 
+# --- 項目C-003フェーズ1: update_single_axis (1つのAxesだけの軽量再描画) ---
+
+def test_update_single_axis_does_not_touch_other_axes_identity(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1, 2], "y": [5, 6]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}])
+    ax1_before = canvas.all_axes[1]
+
+    canvas.update_single_axis(0, [ds0, ds1], {}, rows=1, cols=2)
+
+    assert canvas.all_axes[1] is ax1_before
+    assert len(canvas.all_axes[1].lines) == 1  # 他のAxesの中身も無傷
+
+
+def test_update_single_axis_redraws_the_target_axis_data(canvas):
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]}), x_col_name="x", y_col_name="y")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert len(canvas.all_axes[0].lines) == 1
+
+    ds.df = pd.DataFrame({"x": [1, 2, 3, 4], "y": [4, 5, 6, 7]})
+    canvas.update_single_axis(0, [ds], {}, rows=1, cols=1)
+
+    line = canvas.all_axes[0].lines[0]
+    assert len(line.get_xdata()) == 4
+
+
+def test_update_single_axis_no_op_for_out_of_range_index(canvas):
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    canvas.update_single_axis(5, [ds], {}, rows=1, cols=1)  # 例外が出なければOK
+
+
+def test_update_single_axis_rebuilds_twinx_without_duplicating_it(canvas):
+    ds_primary = Dataset(name="p", df=pd.DataFrame({"x": [1, 2], "y": [1, 2]}), x_col_name="x", y_col_name="y")
+    ds_secondary = Dataset(name="s", df=pd.DataFrame({"x": [1, 2], "y": [10, 20]}), x_col_name="x", y_col_name="y",
+                           use_secondary_y=True)
+    canvas.redraw_all([ds_primary, ds_secondary], 1, 1, [{}])
+    assert canvas.all_secondary_axes[0] is not None
+    secondary_before = canvas.all_secondary_axes[0]
+
+    canvas.update_single_axis(0, [ds_primary, ds_secondary], {}, rows=1, cols=1)
+
+    assert canvas.all_secondary_axes[0] is not None
+    assert canvas.all_secondary_axes[0] is not secondary_before  # 作り直された
+    assert len(canvas.fig.axes) == 2  # 副軸が積み重なっていない
+
+
+def test_update_single_axis_removes_secondary_axis_when_no_longer_needed(canvas):
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [1, 2]}), x_col_name="x", y_col_name="y",
+                 use_secondary_y=True)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert canvas.all_secondary_axes[0] is not None
+
+    ds.use_secondary_y = False
+    canvas.update_single_axis(0, [ds], {}, rows=1, cols=1)
+
+    assert canvas.all_secondary_axes[0] is None
+    assert len(canvas.fig.axes) == 1
+
+
+def test_update_single_axis_preserves_shared_axis_inner_label_hiding(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1, 2], "y": [5, 6]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 2, 1, [{}, {}], share_x_axis=True)
+    assert canvas.all_axes[0].xaxis.get_tick_params()['labelbottom'] is False
+
+    # ax.cla()がtick_paramsをリセットするため、update_single_axis側で
+    # 再適用されないとラベルが復活してしまう(share_x_axis=Trueを渡し忘れた
+    # 場合の回帰を検知する)。
+    canvas.update_single_axis(0, [ds0, ds1], {}, rows=2, cols=1, share_x_axis=True)
+    assert canvas.all_axes[0].xaxis.get_tick_params()['labelbottom'] is False
+
+
+def test_update_single_axis_free_layout_cols_zero_does_not_crash(canvas):
+    """自由配置レイアウトではcols=0が渡されうる(行/列の概念が無いため)。
+    _apply_shared_axis_tick_visibility内のdivmod(axis_index, cols)が
+    ZeroDivisionErrorを起こさないことを確認する。"""
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y")
+    canvas.redraw_all([ds], 0, 0, [{'free_rect': (0.1, 0.1, 0.8, 0.8)}], layout_mode='free')
+    canvas.update_single_axis(0, [ds], {}, rows=0, cols=0)  # 例外が出なければOK
+
+
 # --- 項目H-3: matplotlib(Figure)側の配色をgui/theme.pyのトークンと連動させる
 #     (以前はcanvas.py独自のハードコード値を持ち、theme.pyのトークンとは
 #     完全に無関係だった、H-0調査で判明した既知の不整合) ---

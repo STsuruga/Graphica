@@ -12,6 +12,7 @@ _on_normalize_dataset はモーダルダイアログ (NormalizeDatasetDialog) �
 """
 import os
 import re
+import time
 
 import numpy as np
 import pandas as pd
@@ -52,6 +53,23 @@ def _add_and_select_dataset(window, dataset):
     """データセットを追加し、そのままカレントアイテムとして選択された状態にする"""
     window._add_dataset(dataset, None, select=True)
     return dataset
+
+
+def _pump_events_until_fit_task_done(window, max_iterations=300):
+    """
+    項目C-004フェーズ1: _on_fit_curve()はTaskRunner(実際の別スレッド)で
+    フィット計算を行うようになったため、呼び出し直後は完了していない。
+    tests/test_main_window.pyの_pump_events_until_queue_drained()と同じ理由
+    (processEvents()だけでなくOS側にスレッドの実行機会を与える短いsleepが必要)
+    で、_fit_task_runnerがNoneに戻るまでイベントループを回す。
+    """
+    app = QApplication.instance()
+    for _ in range(max_iterations):
+        app.processEvents()
+        if window._fit_task_runner is None:
+            return
+        time.sleep(0.01)
+    raise AssertionError("フィット処理が時間内に完了しませんでした")
 
 
 def _patch_normalize_dialog(monkeypatch, mode, reference_x, output_name, accepted=True):
@@ -2060,6 +2078,83 @@ def test_push_dataset_property_command_noop_when_values_equal(tmp_path, monkeypa
 
 
 # =============================================================================
+# 項目C-003フェーズ1: 非構造的プロパティ変更は update_single_axis のみを呼ぶこと
+# =============================================================================
+
+def test_non_structural_property_change_uses_update_single_axis_not_full_replot(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    full_replot_calls = []
+    single_axis_calls = []
+    monkeypatch.setattr(window, '_update_plot', lambda: full_replot_calls.append(1))
+    original_update_single_axis = window.canvas.update_single_axis
+    monkeypatch.setattr(
+        window.canvas, 'update_single_axis',
+        lambda *a, **kw: (single_axis_calls.append((a, kw)), original_update_single_axis(*a, **kw))[1]
+    )
+
+    window._push_dataset_property_command(ds, {'color': ds.color}, {'color': '#ff0000'}, description="色の変更")
+
+    assert full_replot_calls == []
+    assert len(single_axis_calls) == 1
+    assert single_axis_calls[0][0][0] == ds.subplot_target
+
+
+def test_subplot_target_property_change_uses_full_replot(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.subplot_cols_spinbox.setValue(2)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    full_replot_calls = []
+    single_axis_calls = []
+    monkeypatch.setattr(window, '_update_plot', lambda: full_replot_calls.append(1))
+    monkeypatch.setattr(window.canvas, 'update_single_axis', lambda *a, **kw: single_axis_calls.append(1))
+
+    window._push_dataset_property_command(
+        ds, {'subplot_target': 0}, {'subplot_target': 1}, description="描画先プロットの変更")
+
+    assert full_replot_calls == [1]
+    assert single_axis_calls == []
+
+
+def test_use_secondary_y_property_change_uses_full_replot(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    full_replot_calls = []
+    single_axis_calls = []
+    monkeypatch.setattr(window, '_update_plot', lambda: full_replot_calls.append(1))
+    monkeypatch.setattr(window.canvas, 'update_single_axis', lambda *a, **kw: single_axis_calls.append(1))
+
+    window._push_dataset_property_command(
+        ds, {'use_secondary_y': False}, {'use_secondary_y': True}, description="第2Y軸の変更")
+
+    assert full_replot_calls == [1]
+    assert single_axis_calls == []
+
+
+def test_non_structural_property_change_still_updates_tree_item_and_plot_visually(tmp_path, monkeypatch):
+    """スパイを挟まない実経路でも、色変更が実際にグラフへ反映されること
+    (update_single_axis経由でも見た目の変更自体は従来通り効くことの確認)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    window._push_dataset_property_command(ds, {'color': ds.color}, {'color': '#00ff00'}, description="色の変更")
+
+    assert ds.color == '#00ff00'
+    line = window.canvas.all_axes[0].lines[0]
+    assert line.get_color() == '#00ff00'
+
+    window.undo_stack.undo()
+    assert ds.color != '#00ff00'
+
+
+# =============================================================================
 # 描画先プロット変更 (_on_subplot_target_changed)
 # =============================================================================
 
@@ -2753,6 +2848,9 @@ def test_fit_curve_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
 
     window._on_fit_curve()
 
+    # ダイアログでキャンセルした場合はTaskRunnerが起動する前にreturnするため、
+    # ポンピング不要(_fit_task_runnerはNoneのまま)。
+    assert window._fit_task_runner is None
     assert len(window.project.datasets) == before_count
 
 
@@ -2765,6 +2863,10 @@ def test_fit_curve_success_adds_fit_dataset_and_shows_result(tmp_path, monkeypat
     assert window.fit_result_dialog is None
 
     window._on_fit_curve()
+    assert window._fit_task_runner is not None
+    assert not window.fit_curve_button.isEnabled()
+    _pump_events_until_fit_task_done(window)
+    assert window.fit_curve_button.isEnabled()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -2796,8 +2898,10 @@ def test_fit_curve_replaces_previous_result_dialog(tmp_path, monkeypatch):
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
     first = window.fit_result_dialog
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
     second = window.fit_result_dialog
 
     assert second is not first
@@ -2816,6 +2920,7 @@ def test_fit_curve_with_weighted_and_x_range(tmp_path, monkeypatch):
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", use_weighted=True, x_range=x_range)
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
     assert "重みとして使用" in new_ds.fit_info
@@ -2833,11 +2938,16 @@ def test_fit_curve_calculation_error_shows_warning(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise RuntimeError("fit failed")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", raiser)
+    # ★ 項目C-004フェーズ1: _on_fit_curve()は計算をTaskRunner経由で
+    # fit_curve_task(dataset_mixin_module内にimport済み)に委ねるようになった
+    # ため、以前のように直接呼んでいたcalculate_curve_fitではなく、実際の
+    # 呼び出し対象であるfit_curve_taskをモックする。
+    monkeypatch.setattr(dataset_mixin_module, "fit_curve_task", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2854,6 +2964,7 @@ def test_fit_curve_with_fixed_param_holds_value_and_is_recorded(tmp_path, monkey
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", fixed_params={"b": 1.3})
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
     a_index = new_ds.fit_result['param_names'].index('a')
@@ -2877,6 +2988,7 @@ def test_fit_curve_with_p0_overrides_and_bounds_recorded(tmp_path, monkeypatch):
     )
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
     assert new_ds.fit_result['p0_overrides'] == {"a": 1.0}
@@ -2895,6 +3007,7 @@ def test_fit_curve_without_customization_records_empty_dicts(tmp_path, monkeypat
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
     assert new_ds.fit_result['p0_overrides'] == {}
@@ -2911,6 +3024,7 @@ def test_fit_curve_with_band_type_adds_band_columns_and_flag(tmp_path, monkeypat
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", band_type="confidence")
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
     assert new_ds.fit_band_display == "confidence"
@@ -2926,6 +3040,7 @@ def test_fit_curve_without_band_type_adds_no_band_columns(tmp_path, monkeypatch)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
     assert new_ds.fit_band_display is None
@@ -2971,6 +3086,7 @@ def test_fit_curve_fixed_params_validation_error_shows_warning(tmp_path, monkeyp
     before_count = len(window.project.datasets)
 
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -3000,6 +3116,7 @@ def test_context_menu_export_fit_action_enabled_for_fit_dataset(tmp_path, monkey
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])  # 既存アイテムをカレントにする(再追加しない)
     _patch_recording_menu(monkeypatch)
@@ -3039,6 +3156,7 @@ def test_export_fit_result_reuses_stored_result_without_recompute(tmp_path, monk
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     original_fit_result = fit_ds.fit_result
     _select_items(window, [fit_ds])
@@ -3071,6 +3189,7 @@ def test_export_fit_result_declining_annotation_adds_no_annotation(tmp_path, mon
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])
     axis_index = fit_ds.subplot_target
@@ -3092,6 +3211,7 @@ def test_export_fit_result_burns_annotation_undoable(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])
     axis_index = fit_ds.subplot_target
@@ -3128,6 +3248,7 @@ def test_export_fit_result_annotation_anchored_to_correct_subplot(tmp_path, monk
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     assert fit_ds.subplot_target == 0
     _select_items(window, [fit_ds])
@@ -3225,15 +3346,22 @@ def test_dataset_tree_item_clicked_toggles_visibility_and_is_undoable(tmp_path, 
 
 
 def test_dataset_tree_item_clicked_triggers_replot(tmp_path, monkeypatch):
-    """非表示にした瞬間にグラフから消えて見えるよう、クリック直後に再描画
-    (_update_plot、_refresh_after_dataset_property_change経由)が呼ばれること。"""
+    """
+    非表示にした瞬間にグラフから消えて見えるよう、クリック直後に再描画
+    (_refresh_after_dataset_property_change経由)が呼ばれること。
+    ★ 項目C-003フェーズ1: visibleプロパティの変更は軸の所属を変えない
+    (_STRUCTURAL_DATASET_PROPERTIESに含まれない)ため、以前のような完全な
+    _update_plot()ではなく、より軽量なcanvas.update_single_axis()が
+    呼ばれるようになった(意図した最適化そのもの)。そのためモック対象を
+    _update_plotからcanvas.update_single_axisに変更する。
+    """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
     item = window._get_dataset_tree_item(ds)
 
     calls = []
-    monkeypatch.setattr(window, "_update_plot", lambda: calls.append(True))
+    monkeypatch.setattr(window.canvas, "update_single_axis", lambda *a, **kw: calls.append(True))
 
     window._on_dataset_tree_item_clicked(item, DATASET_TREE_VISIBILITY_COLUMN)
 

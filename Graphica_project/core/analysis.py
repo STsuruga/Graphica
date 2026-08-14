@@ -579,6 +579,23 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
     }
 
 
+def fit_curve_task(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_range=None,
+                    p0_overrides=None, fixed_params=None, bounds=None,
+                    report_progress=None, is_cancelled=None):
+    """
+    calculate_curve_fit() を gui/task_runner.py の TaskRunner から呼び出すための
+    薄いラッパー(項目C-004 フェーズ1)。TaskRunner はどの作業関数にも
+    report_progress/is_cancelled キーワード引数を渡すが、scipy.optimize.curve_fit
+    自体は計算途中の進捗通知にも中断にも対応していないため、この関数では
+    どちらも単純に無視する(呼び出し可能であることだけ保証すればよい)。
+    戻り値は calculate_curve_fit() と完全に同じ dict。
+    """
+    return calculate_curve_fit(
+        x_data, y_data, fit_type, custom_formula=custom_formula, sigma=sigma, x_range=x_range,
+        p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+    )
+
+
 # --- 積分方法名(calculate_interval_integralのmethod引数、GUI側の選択肢と対応) ---
 _INTEGRAL_METHODS = ("trapezoid", "simpson")
 

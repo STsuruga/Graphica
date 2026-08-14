@@ -244,17 +244,12 @@ class MplCanvas(FigureCanvas):
             # 内側の目盛りラベル(最下行以外のX軸ラベル・最左列以外のY軸ラベル)は
             # 共有時は冗長なので隠す(目盛り自体は残し、ラベル文字だけ消す)。
             for i in range(subplot_count):
-                row_idx, col_idx = divmod(i, cols)
                 share_x_target = self.all_axes[0] if (share_x_axis and self.all_axes) else None
                 share_y_target = self.all_axes[0] if (share_y_axis and self.all_axes) else None
                 ax = self.fig.add_subplot(rows, cols, i + 1, sharex=share_x_target, sharey=share_y_target)
                 self.all_axes.append(ax)
                 self.all_secondary_axes.append(None)
-
-                if share_x_axis and row_idx != rows - 1:
-                    ax.tick_params(labelbottom=False)
-                if share_y_axis and col_idx != 0:
-                    ax.tick_params(labelleft=False)
+                self._apply_shared_axis_tick_visibility(i, rows, cols, share_x_axis, share_y_axis)
 
         for index, ax in enumerate(self.all_axes):
             if index < len(all_plot_settings):
@@ -301,6 +296,66 @@ class MplCanvas(FigureCanvas):
         except ValueError:
             pass
         self.draw()
+
+    def _apply_shared_axis_tick_visibility(self, axis_index, rows, cols, share_x_axis, share_y_axis):
+        """
+        軸共有(項目C-601)有効時、内側の目盛りラベル(最下行以外のX軸ラベル・
+        最左列以外のY軸ラベル)を隠す。redraw_all()のAxes構築時、および
+        update_single_axis()(ax.cla()がtick_paramsをリセットするため)の
+        両方から呼ばれる共通ヘルパー。自由配置レイアウト(cols=0)では
+        行/列の概念自体が無いため何もしない。
+        """
+        if cols <= 0:
+            return
+        row_idx, col_idx = divmod(axis_index, cols)
+        ax = self.all_axes[axis_index]
+        if share_x_axis and row_idx != rows - 1:
+            ax.tick_params(labelbottom=False)
+        if share_y_axis and col_idx != 0:
+            ax.tick_params(labelleft=False)
+
+    def update_single_axis(self, axis_index, datasets, settings, rows=1, cols=1,
+                            share_x_axis=False, share_y_axis=False, panel_labels_enabled=False):
+        """
+        指定した1つのAxesだけを描き直す(項目C-003 フェーズ1)。他のAxes・
+        Figure自体は一切触らない(fig.clf()を経由しないため、他のAxesを
+        参照しているコード―NavigationToolbarのHomeキャッシュ、他インデックスの
+        _annotation_artists/_highlight_artists/downsample_index_map等―への
+        影響がない)。1データセットのスタイル変更のような「軸の所属を変えない」
+        プロパティ変更専用(subplot_target/use_secondary_yの変更のような、
+        軸の所属自体を変える構造的な変更は呼び出し側でredraw_all()相当の
+        フル再描画に振り分けること)。
+        """
+        if axis_index >= len(self.all_axes):
+            return
+
+        # twinx()で作られた副軸はax.cla()では消えない別のAxesオブジェクトのため、
+        # 明示的にFigureから取り除いてから作り直す(取り除かないと呼ぶたびに
+        # 副軸が積み重なる)。
+        old_secondary = self.all_secondary_axes[axis_index]
+        if old_secondary is not None:
+            old_secondary.remove()
+            self.all_secondary_axes[axis_index] = None
+
+        ax = self.all_axes[axis_index]
+        ax.cla()  # このAxesのartist/凡例だけをクリア。他のAxesは無傷。
+
+        # cla()で古いArtistへの参照はすでに無効なので、remove()を試みず単に破棄する。
+        self._annotation_artists.pop(axis_index, None)
+        for dataset_id in [ds.dataset_id for ds in datasets if ds.subplot_target == axis_index]:
+            self._highlight_artists.pop(dataset_id, None)
+            self.downsample_index_map.pop(dataset_id, None)
+
+        visible_datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
+        self._draw_data(ax, axis_index, visible_datasets)
+        self._apply_appearance(ax, axis_index, settings)
+        self._draw_annotations(ax, axis_index, settings)
+        if panel_labels_enabled:
+            self._draw_panel_label(ax, axis_index)
+
+        self._apply_shared_axis_tick_visibility(axis_index, rows, cols, share_x_axis, share_y_axis)
+
+        self.draw_idle()
 
     def _draw_panel_label(self, ax, index):
         """
