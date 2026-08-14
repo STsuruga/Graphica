@@ -705,6 +705,46 @@ def test_redraw_all_panel_labels_default_to_disabled(canvas):
     assert list(canvas.all_axes[0].texts) == []
 
 
+# --- 項目C-601: 軸共有(sharex/sharey) ---
+
+def test_redraw_all_share_x_axis_links_axes_and_hides_inner_labels(canvas):
+    ds0 = _make_dataset(3, show_point_labels=False)
+    ds1 = Dataset(name="d2", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 2, 1, [{}, {}], share_x_axis=True)
+    ax0, ax1 = canvas.all_axes
+    assert ax0.get_shared_x_axes().joined(ax0, ax1)
+    # 上段(row 0, 最下行ではない)はX軸目盛りラベルが隠れる
+    assert ax0.xaxis.get_tick_params()['labelbottom'] is False
+    # 最下行(row 1)はラベルを維持する
+    assert ax1.xaxis.get_tick_params()['labelbottom'] is True
+
+
+def test_redraw_all_share_y_axis_links_axes_and_hides_inner_labels(canvas):
+    ds0 = _make_dataset(3, show_point_labels=False)
+    ds1 = Dataset(name="d2", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}], share_y_axis=True)
+    ax0, ax1 = canvas.all_axes
+    assert ax0.get_shared_y_axes().joined(ax0, ax1)
+    # 左列(col 0)はラベルを維持する
+    assert ax0.yaxis.get_tick_params()['labelleft'] is True
+    # 右列(col 1, 最左列ではない)はY軸目盛りラベルが隠れる
+    assert ax1.yaxis.get_tick_params()['labelleft'] is False
+
+
+def test_redraw_all_share_axis_default_disabled_no_linking(canvas):
+    ds0 = _make_dataset(3, show_point_labels=False)
+    ds1 = Dataset(name="d2", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}])
+    ax0, ax1 = canvas.all_axes
+    assert not ax0.get_shared_x_axes().joined(ax0, ax1)
+    assert not ax0.get_shared_y_axes().joined(ax0, ax1)
+    assert ax0.xaxis.get_tick_params()['labelbottom'] is True
+    assert ax1.yaxis.get_tick_params()['labelleft'] is True
+
+
 # --- 項目H-3: matplotlib(Figure)側の配色をgui/theme.pyのトークンと連動させる
 #     (以前はcanvas.py独自のハードコード値を持ち、theme.pyのトークンとは
 #     完全に無関係だった、H-0調査で判明した既知の不整合) ---

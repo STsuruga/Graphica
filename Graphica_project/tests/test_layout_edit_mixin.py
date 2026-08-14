@@ -239,3 +239,38 @@ def test_numeric_controls_hidden_when_not_in_free_layout_mode(tmp_path, monkeypa
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     assert window.free_layout_position_group.isHidden()
+
+
+# --- 項目C-601: 軸共有(sharex/sharey)チェックボックス ---
+
+def test_share_axis_checkboxes_update_project_and_replot(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.project.share_x_axis is False
+    assert window.project.share_y_axis is False
+
+    window.share_x_checkbox.setChecked(True)
+    assert window.project.share_x_axis is True
+
+    window.share_y_checkbox.setChecked(True)
+    assert window.project.share_y_axis is True
+
+    window.share_x_checkbox.setChecked(False)
+    assert window.project.share_x_axis is False
+
+
+def test_share_axis_checkboxes_disabled_in_free_layout_mode(tmp_path, monkeypatch):
+    """
+    軸共有はグリッドレイアウト時のみ意味を持つため、自由配置レイアウトが
+    ONの間はrows/colsスピンボックスと同様にチェックボックス自体を無効化する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.share_x_checkbox.isEnabled()
+    assert window.share_y_checkbox.isEnabled()
+
+    window.free_layout_checkbox.setChecked(True)
+    assert not window.share_x_checkbox.isEnabled()
+    assert not window.share_y_checkbox.isEnabled()
+
+    window.free_layout_checkbox.setChecked(False)
+    assert window.share_x_checkbox.isEnabled()
+    assert window.share_y_checkbox.isEnabled()

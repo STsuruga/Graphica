@@ -118,6 +118,15 @@ class ProjectModel:
         # gui/canvas.py が描画時に自動計算するため、文字自体は保存しない。
         self.panel_labels_enabled = False
 
+        # サブプロットの軸共有(項目C-601)。グリッドレイアウト時のみ意味を持つ
+        # (自由配置レイアウトには「同じ行/列」という概念が無いため対象外、
+        # gui/canvas.pyのredraw_all()がlayout_mode=='free'の間はこの設定を無視する)。
+        # 有効にすると、gui/canvas.pyが各サブプロットをグリッド上の同じ行(sharex)/
+        # 同じ列(sharey)の他のサブプロットとmatplotlibのsharex/shareyで束ね、
+        # 内側の目盛りラベル(同じ行のX軸ラベル、同じ列のY軸ラベル)を隠す。
+        self.share_x_axis = False
+        self.share_y_axis = False
+
     def save_project(self, filepath):
         """
         現在のアプリケーション状態を保存する。
@@ -165,6 +174,8 @@ class ProjectModel:
             'layout_cols': self.layout_cols,
             'layout_mode': self.layout_mode,
             'panel_labels_enabled': self.panel_labels_enabled,
+            'share_x_axis': self.share_x_axis,
+            'share_y_axis': self.share_y_axis,
         }
         with open(filepath, 'wb') as f:
             pickle.dump(data, f)
@@ -191,6 +202,8 @@ class ProjectModel:
         self.layout_cols = data.get('layout_cols', 1)
         self.layout_mode = data.get('layout_mode', 'grid')
         self.panel_labels_enabled = data.get('panel_labels_enabled', False)
+        self.share_x_axis = data.get('share_x_axis', False)
+        self.share_y_axis = data.get('share_y_axis', False)
 
     # --- .graphica (JSON) 形式 ---
 
@@ -240,6 +253,8 @@ class ProjectModel:
             'layout_cols': self.layout_cols,
             'layout_mode': self.layout_mode,
             'panel_labels_enabled': self.panel_labels_enabled,
+            'share_x_axis': self.share_x_axis,
+            'share_y_axis': self.share_y_axis,
         }
         # ensure_ascii=False: データセット名/フォルダ名に日本語が使われることが
         # 多いため、\uXXXXエスケープではなく読める形でファイルに残す。
@@ -272,3 +287,5 @@ class ProjectModel:
         self.layout_cols = data.get('layout_cols', 1)
         self.layout_mode = data.get('layout_mode', 'grid')
         self.panel_labels_enabled = data.get('panel_labels_enabled', False)
+        self.share_x_axis = data.get('share_x_axis', False)
+        self.share_y_axis = data.get('share_y_axis', False)

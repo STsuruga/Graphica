@@ -38,6 +38,11 @@ class LayoutEditMixin:
         self.add_free_subplot_button.setEnabled(checked)
         self.remove_free_subplot_button.setEnabled(checked)
         self.layout_edit_action.setEnabled(checked)
+        # 軸共有(項目C-601): 自由配置レイアウトには「同じ行/列」の概念が無く
+        # 意味を持たないため、自由配置レイアウト中は操作できないようにする
+        # (設定値自体は保持し、グリッドに戻せば元の状態のまま再度使える)。
+        self.share_x_checkbox.setEnabled(not checked)
+        self.share_y_checkbox.setEnabled(not checked)
 
         if not checked and self.layout_edit_action.isChecked():
             self.layout_edit_action.setChecked(False)

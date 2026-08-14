@@ -1376,6 +1376,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         layout_form.addRow(tr("行数"), self.subplot_rows_spinbox)
         layout_form.addRow(tr("列数"), self.subplot_cols_spinbox)
 
+        # 軸共有(項目C-601): グリッドレイアウトの全サブプロットでX/Y軸範囲を
+        # 揃える(matplotlibのsharex/shareyそのもの)。自由配置レイアウトには
+        # 意味を持たないため、_on_toggle_free_layoutで有効/無効を連動させる。
+        self.share_x_checkbox = QCheckBox(tr("X軸を共有(グリッドレイアウト時)"))
+        self.share_y_checkbox = QCheckBox(tr("Y軸を共有(グリッドレイアウト時)"))
+        layout_form.addRow(self.share_x_checkbox)
+        layout_form.addRow(self.share_y_checkbox)
+
         # (自由配置レイアウト: 均等グリッドでなく、サブプロットをドラッグで
         #  自由な位置・サイズに配置できるモード。既定はOFF(従来のグリッド))
         self.free_layout_checkbox = QCheckBox(tr("自由配置レイアウト(ドラッグで配置)"))
@@ -1890,6 +1898,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 self.layout_edit_action.setChecked(False)
                 self._toggle_layout_edit_mode(False)
             self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
+            self.share_x_checkbox.setChecked(getattr(self.project, 'share_x_axis', False))
+            self.share_y_checkbox.setChecked(getattr(self.project, 'share_y_axis', False))
+            self.share_x_checkbox.setEnabled(not is_free_layout)
+            self.share_y_checkbox.setEnabled(not is_free_layout)
             self._block_all_signals(False)
 
             # UIにアクティブな設定を反映
@@ -1942,6 +1954,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         is_secondary_visible_global = self.canvas.redraw_all(
             self.project.datasets, rows, cols, self.project.all_plot_settings, layout_mode=layout_mode,
             panel_labels_enabled=self.project.panel_labels_enabled,
+            share_x_axis=getattr(self.project, 'share_x_axis', False),
+            share_y_axis=getattr(self.project, 'share_y_axis', False),
         )
 
         # ★ Canvasから返ってきた結果をもとに、UI（チェックボックス等）を制御する

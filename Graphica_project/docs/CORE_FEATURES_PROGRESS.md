@@ -30,4 +30,20 @@
 
 ## トラック3-1 進捗まとめ
 
-**10項目全て完了(2026-08-14)。トラック3-1(解析基盤)完了。**
+**10項目全て完了(2026-08-14)。トラック3-1(解析基盤)完了。PR経由でmasterへマージ・push済み(マージコミット`ce4a13a`)。**
+
+## トラック3-2: 性能・体験(`feature/performance-ux`ブランチ、git worktree `PlotterApp-performance-ux`で並行開発)
+
+ユーザー指示により、大型2項目(C-003 再描画スコープ分離、C-004 ワーカースレッド基盤)は
+既存アーキテクチャへの影響が大きいため別途相談してから着手することとし、まず残り6項目
+(C-1001, C-902, C-908, C-909, C-601, C-602)を先に完了させる方針。
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| C-1001 | 表示用ダウンサンプリング(LTTB) | ✅ 完了 | 2026-08-14 | `core/analysis.py`に`calculate_lttb_downsample(x_data, y_data, n_out)`を新設(Largest-Triangle-Three-Buckets法、先頭・末尾は常に残す)。既存点群を間引いた**新しい点を合成するのではなく、元の配列に対するインデックスを返す**設計とし(表示用の別データを持たせるとカーソル/範囲選択等の既存機能全てが二重管理になるため)、`gui/canvas.py`の`MplCanvas`に`downsample_index_map`(dataset_id→インデックス配列)を追加してこれを保持。`_draw_data()`内、waterfallオフセット適用後・平滑化/plot_type分岐前に注入し、`plot_type`がLine/Scatter/Line+Scatterかつ非カテゴリ軸かつ点数が閾値(`LTTB_DOWNSAMPLE_THRESHOLD=20000`)超かつX昇順(`np.all(np.diff(x)>=0)`)の場合のみ適用(降順/非単調データ・カテゴリ軸ではLTTBのバケット分割ロジックが前提とする単調性が崩れるため意図的にスキップ)。誤差棒(`x_err_data`/`y_err_data`)も同じインデックスでサブセットしないと元データとの長さ不一致でクラッシュする実バグを発見・修正。カーソルツール(`gui/mixins/cursor_mixin.py`の`_on_pick`)がクリックしたのは間引き後の点のインデックスのため、`downsample_index_map`経由で元の`visible_df`のインデックスへ変換してから使う処理を追加(変換を忘れると間引き時にクリック→誤ったデータ点を指す静かなバグになるため重要) |
+| C-902 | 一括スタイル適用(複数データセットへのスタイルコピペ) | ✅ 完了(既存実装確認) | 2026-08-14 | 実装前に既存コードを調査した結果、データセットツリーの複数選択+右クリック「スタイルを貼り付け」が既に単一Undoマクロで複数データセットへ一括適用できる状態であることが判明。ロードマップ記載の要件を重複実装せず、ユーザーに確認の上で完了扱いとした(新規コード変更なし) |
+| C-908 | マウス操作拡充(スクロールズーム/中ボタンパン) | ✅ 完了 | 2026-08-14 | `gui/mixins/cursor_mixin.py`に`_on_scroll_zoom(event)`(`event.inaxes`のデータ座標系でのカーソル位置を軸範囲に対する比率(`relx`/`rely`)として保持し、ズーム後も同じ比率になるよう新しい`xlim`/`ylim`を計算する「カーソル位置を中心にズーム」方式)と`_on_middle_button_press_pan`/`_on_middle_button_motion_pan`/`_on_middle_button_release_pan`(移動量はプレス時点を基準に都度計算し、モーション毎の差分累積にしない方式でドリフトを回避)を追加。`gui/main_window.py`の`__init__`で`canvas.mpl_connect('scroll_event', ...)`等を1回だけ接続(常時有効、カーソル/注釈/レイアウト編集/範囲選択モードのような排他トグルではない)。カーソルモード切替(`_toggle_cursor_mode`)は範囲選択モードとの排他制御も同時に追加(後述C-909参照) |
+| C-909 | グラフ上での範囲選択(ドラッグでマスク) | ✅ 完了 | 2026-08-14 | 新設`gui/mixins/range_select_mixin.py`の`RangeSelectMixin`。実装当初、既存のミニマップ(`gui/minimap_widget.py`)で使われている`matplotlib.widgets.SpanSelector`の流用を検討したが、SpanSelectorは特定のAxesインスタンスに紐付く一方、メインキャンバスは`redraw_all()`のたびに`fig.clf()`で全Axesを作り直す設計(既知の制約、`gui/canvas.py`のdocstring参照)のため毎回作り直しが必要になり不適合と判断。代わりにカーソル/注釈/レイアウト編集モードと同じ「キャンバスレベルのイベント接続を常設し、ハンドラ内で`event.inaxes`を毎回読む」パターンを踏襲(`_on_range_select_press/motion/release`)。ドラッグ確定時、`_apply_range_mask`がドラッグ先の軸に実際に描画されているデータセットのみを対象に判定(`dataset.subplot_target`/`use_secondary_y`と`self.all_axes`/`self.all_secondary_axes`の対応を照合)し、範囲内の行を`SetMaskedRowsCommand`でUndo対応のマスク(非破壊)にする。カーソル/注釈/レイアウト編集の既存3モードとも双方向排他化(いずれかON時に範囲選択モードをONにしようとすると自動的に元のモードをOFFにし、逆も同様) |
+| C-601 | 軸共有(sharex/sharey) | ✅ 完了 | 2026-08-14 | `models/project.py`の`ProjectModel`に`share_x_axis`/`share_y_axis`(既定False)を追加し、pickle/JSON双方の保存・読込4メソッドで永続化(旧形式ファイルにキーが無い場合はFalseにフォールバック)。`gui/canvas.py`の`redraw_all()`にグリッドレイアウト時のみ意味を持つ`share_x_axis`/`share_y_axis`引数を追加し、サブプロット生成ループで全サブプロットを`self.all_axes[0]`と`sharex`/`sharey`で束ねる(matplotlibの`plt.subplots(sharex=True)`と同じ「グリッド全体で共通」方式。「同じ行/列のみ共有」ではなく、よりシンプルな全体共有を採用)。内側の目盛りラベル(最下行以外のX軸ラベル・最左列以外のY軸ラベル)は共有時は冗長なため、目盛り自体は残したまま`ax.tick_params(labelbottom=False)`/`labelleft=False`でラベル文字のみ非表示にする。UIはレイアウト設定フォームに`share_x_checkbox`/`share_y_checkbox`(`QCheckBox`)を追加し、`gui/mixins/settings_mixin.py`の新設`_on_share_axis_changed()`(チェック状態→`self.project.share_x_axis`/`share_y_axis`→`_update_plot()`)で反映。自由配置レイアウト時はrows/colsスピンボックスと同様に意味を持たないため、`_on_toggle_free_layout`(`gui/mixins/layout_edit_mixin.py`)で自由配置ON中はチェックボックス自体を無効化。プロジェクト読込(`_load_project_from_path`)でも保存済みの値をチェックボックスへ復元し、自由配置状態に応じた有効/無効も同時に適用 |
+
+**レビュー中に発見・修正したバグ(C-909テストのハング)**: 新設テストの`_add_dataset`ヘルパーが`window.project.datasets.append(ds); window._update_plot()`のように内部状態へ直接データセットを追加していたため、`_add_dataset_list_item()`を経由せず`QTreeWidgetItem`が作られない状態になっていた。その結果`_get_current_dataset()`が常に`None`を返し、`_apply_range_mask`の`if dataset is None:`分岐が未モック`QMessageBox.information`を呼び出してヘッドレス環境でハング(C-403レビュー時に発見した同種のバグパターンと同じ、`docs/CURRENT_STATE.md`参照)。単発の`python -c "..."`スクリプトで`current dataset: None`と出力させて原因特定し、テストヘルパーを実際の`window._add_dataset(ds, select=select)`経由に修正して解消。

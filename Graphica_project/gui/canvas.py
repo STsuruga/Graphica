@@ -196,7 +196,8 @@ class MplCanvas(FigureCanvas):
         bottom = min(0.55 - offset, 0.55) if index % 2 == 0 else min(0.1 + offset, 0.5)
         return (left, max(bottom, 0.08), 0.45, 0.38)
 
-    def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False):
+    def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False,
+                    share_x_axis=False, share_y_axis=False):
         """メインウィンドウから呼ばれる、全体の再描画メソッド"""
         # データセットの表示/非表示トグル(項目C-907): visible=Falseのデータセットは
         # 削除せず保持したまま、描画対象から除外する。redraw_all()はメイン画面の
@@ -235,10 +236,24 @@ class MplCanvas(FigureCanvas):
                 self.all_axes.append(ax)
                 self.all_secondary_axes.append(None)
         else:
+            # 軸共有(項目C-601): 有効な場合、全サブプロットを最初のサブプロット
+            # (self.all_axes[0])とsharex/shareyで束ねる(matplotlibのplt.subplots
+            # (sharex=True, sharey=True)と同じ「グリッド全体で共通」の挙動。
+            # 「同じ行/列のみ共有」ではなく、よりシンプルな全体共有とした)。
+            # 内側の目盛りラベル(最下行以外のX軸ラベル・最左列以外のY軸ラベル)は
+            # 共有時は冗長なので隠す(目盛り自体は残し、ラベル文字だけ消す)。
             for i in range(subplot_count):
-                ax = self.fig.add_subplot(rows, cols, i + 1)
+                row_idx, col_idx = divmod(i, cols)
+                share_x_target = self.all_axes[0] if (share_x_axis and self.all_axes) else None
+                share_y_target = self.all_axes[0] if (share_y_axis and self.all_axes) else None
+                ax = self.fig.add_subplot(rows, cols, i + 1, sharex=share_x_target, sharey=share_y_target)
                 self.all_axes.append(ax)
                 self.all_secondary_axes.append(None)
+
+                if share_x_axis and row_idx != rows - 1:
+                    ax.tick_params(labelbottom=False)
+                if share_y_axis and col_idx != 0:
+                    ax.tick_params(labelleft=False)
 
         for index, ax in enumerate(self.all_axes):
             if index < len(all_plot_settings):

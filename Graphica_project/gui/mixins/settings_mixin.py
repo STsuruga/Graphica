@@ -124,6 +124,15 @@ class SettingsMixin:
             # 6. グラフ全体を再描画
             self._update_plot()
 
+    def _on_share_axis_changed(self):
+        """
+        「X軸を共有」「Y軸を共有」チェックボックスが変更されたときに呼び出されます。
+        グリッドレイアウト時のみ意味を持つ設定のため、ProjectModel にそのまま保存し再描画します。
+        """
+        self.project.share_x_axis = self.share_x_checkbox.isChecked()
+        self.project.share_y_axis = self.share_y_checkbox.isChecked()
+        self._update_plot()
+
     def _on_active_axis_changed(self, index):
             """
             「編集対象のプロット」コンボボックスが変更されたときに呼び出されます。

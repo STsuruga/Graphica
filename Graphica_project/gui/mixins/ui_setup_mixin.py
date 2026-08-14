@@ -25,6 +25,10 @@ class UISetupMixin:
             self.subplot_rows_spinbox.valueChanged.connect(self._on_layout_changed)
             self.subplot_cols_spinbox.valueChanged.connect(self._on_layout_changed)
 
+            # 軸共有(sharex/sharey)チェックボックスが変更されたら _on_share_axis_changed を呼ぶ
+            self.share_x_checkbox.toggled.connect(self._on_share_axis_changed)
+            self.share_y_checkbox.toggled.connect(self._on_share_axis_changed)
+
             # 「編集対象のプロット」コンボボックスが変更されたら _on_active_axis_changed を呼ぶ
             self.active_axis_combo.currentIndexChanged.connect(self._on_active_axis_changed)
 
