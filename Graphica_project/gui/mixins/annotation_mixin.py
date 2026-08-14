@@ -44,6 +44,9 @@ class AnnotationMixin:
             if getattr(self, 'cursor_mode_enabled', False):
                 self.cursor_action.setChecked(False)
                 self._toggle_cursor_mode(False)
+            if getattr(self, 'range_select_mode_enabled', False):
+                self.range_select_action.setChecked(False)
+                self._toggle_range_select_mode(False)
 
             self._annotation_press_cid = self.canvas.mpl_connect(
                 'button_press_event', self._on_annotation_press

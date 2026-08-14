@@ -108,10 +108,13 @@ class CursorMixin:
         self.cursor_mode_enabled = checked
 
         if checked:
-            # 注釈モードと同時に有効だと同じクリックが両方に反応してしまうため排他にする
+            # 注釈モード/範囲選択モードと同時に有効だと同じクリックが競合するため排他にする
             if getattr(self, 'annotation_mode_enabled', False):
                 self.annotation_action.setChecked(False)
                 self._toggle_annotation_mode(False)
+            if getattr(self, 'range_select_mode_enabled', False):
+                self.range_select_action.setChecked(False)
+                self._toggle_range_select_mode(False)
 
             # --- モード ON ---
             logger.debug("データカーソルモード ON")

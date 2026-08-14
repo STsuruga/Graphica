@@ -246,6 +246,7 @@ from gui.mixins.annotation_mixin import (
     AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
 )
 from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
+from gui.mixins.range_select_mixin import RangeSelectMixin
 from gui.mixins.export_mixin import ExportMixin
 from gui.mixins.project_io_mixin import ProjectIOMixin
 from gui.mixins.help_mixin import HelpMixin
@@ -421,8 +422,8 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
 # PlotterApp 本体には、初期化・ファイルI/Oの中核・プロット更新など、
 # 上記どれにも属さない「アプリのエントリーポイント」的な処理のみを残す。
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
-                  CursorMixin, AnnotationMixin, LayoutEditMixin, ExportMixin,
-                  ProjectIOMixin, HelpMixin, QuickAccessMixin):
+                  CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
+                  ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
     """
     メインアプリケーションウィンドウクラス。
     QMainWindow を継承し、ui_main_window.py からロードしたUI骨格に、
@@ -580,6 +581,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # (X/Y/幅/高さ)の表示対象・書き込み先を決めるために使う。未選択ならNone。
         self._layout_selected_axis_index = None
 
+        # --- グラフ上での範囲選択(項目C-909)用の変数 ---
+        self.range_select_mode_enabled = False  # 範囲選択モードがONかOFFか
+        self._range_select_press_cid = None
+        self._range_select_motion_cid = None
+        self._range_select_release_cid = None
+        self._range_select_axes = None          # ドラッグ中のAxes、またはNone
+        self._range_select_start_x = None       # ドラッグ開始点のXデータ座標
+        self._range_select_preview_artist = None  # ドラッグ中のプレビュー矩形
+
         # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
         # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
         #   _make_default_plot_font() (PLOT_DEFAULT_FONT_FAMILIES) を指定する。
@@ -700,6 +710,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.layout_edit_action.setEnabled(False)
         self.layout_edit_action.triggered.connect(self._toggle_layout_edit_mode)
         toolbar.addAction(self.layout_edit_action)
+
+        # --- ★ ツールバーにカスタムボタン (グラフ上での範囲選択) を追加 ★ ---
+        # 項目C-909: カレントデータセット上でXの範囲をドラッグ選択すると、
+        # その範囲のデータ点をマスク(除外、項目36)する。
+        self.range_select_action = QAction(
+            _svg_icon("select-all"),  # Tabler Icons "select-all"(項目67)
+            tr("範囲選択 (ドラッグした範囲のカレントデータセットをマスク)"),
+            self
+        )
+        self.range_select_action.setCheckable(True)
+        self.range_select_action.triggered.connect(self._toggle_range_select_mode)
+        toolbar.addAction(self.range_select_action)
 
         # --- ★ ツールバーにカスタムボタン (ズームリセット) を追加 ★ ---
         # マウスドラッグ/矩形選択等で拡大した表示を、設定通りの既定表示に戻す。
