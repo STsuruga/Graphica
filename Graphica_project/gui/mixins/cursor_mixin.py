@@ -9,6 +9,94 @@ logger = logging.getLogger(__name__)
 
 
 class CursorMixin:
+    # --- マウス操作拡充(項目C-908): ホイールズーム + 中ボタンドラッグパン ---
+    # matplotlib標準のNavigationToolbar2QTには、ドラッグ矩形選択によるZoom
+    # ツール・クリック&ドラッグのPanツール・Home/Back/Forwardのズーム履歴は
+    # 既にあるが、ホイールでのズームと、Panツールを明示的に選ばなくても常時
+    # 使える中ボタンドラッグパンは無い。この2つは他の操作モード(データ
+    # カーソル/注釈/自由配置編集、いずれも左クリックを使う)と衝突しない
+    # 入力(スクロールホイール/中ボタン)のみを使うため、専用のON/OFF切り替え
+    # なしに常時有効にする(項目35のクリック選択と同じ「常時有効」方針)。
+    # ズーム/パンの対象は、matplotlib標準のPan/Zoomツールと同じくカーソルが
+    # 乗っている軸(event.inaxes)のみ(ミニマップの「全サブプロット一括
+    # ズーム」とは意図的に異なるスコープ)。
+
+    def _on_scroll_zoom(self, event):
+        """
+        マウスホイールでのズーム(項目C-908)。カーソル位置を中心に、
+        上スクロールで拡大・下スクロールで縮小する。
+        """
+        ax = event.inaxes
+        if ax is None or event.xdata is None or event.ydata is None:
+            return
+
+        base_scale = 1.2
+        scale_factor = (1 / base_scale) if event.button == 'up' else base_scale
+
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        xdata, ydata = event.xdata, event.ydata
+
+        new_width = (xlim[1] - xlim[0]) * scale_factor
+        new_height = (ylim[1] - ylim[0]) * scale_factor
+
+        # カーソル位置が新しい範囲内でも同じ相対位置(relx/rely)に来るように、
+        # 左右/上下で縮尺後の余白を配分する(カーソル位置を中心に拡大縮小
+        # しているように見せるための計算)。
+        old_width = xlim[1] - xlim[0]
+        old_height = ylim[1] - ylim[0]
+        relx = (xlim[1] - xdata) / old_width if old_width else 0.5
+        rely = (ylim[1] - ydata) / old_height if old_height else 0.5
+
+        ax.set_xlim([xdata - new_width * (1 - relx), xdata + new_width * relx])
+        ax.set_ylim([ydata - new_height * (1 - rely), ydata + new_height * rely])
+        self.canvas.draw_idle()
+
+    def _on_middle_button_press_pan(self, event):
+        """中ボタンドラッグパンの開始(項目C-908)。押下時点の軸範囲とカーソルの
+        データ座標を記憶しておき、以降のドラッグ量をそこからの差分で計算する。"""
+        if event.button != 2 or event.inaxes is None:
+            return
+        if event.xdata is None or event.ydata is None:
+            return
+        self._middle_pan_axes = event.inaxes
+        self._middle_pan_start_data = (event.xdata, event.ydata)
+        self._middle_pan_start_xlim = event.inaxes.get_xlim()
+        self._middle_pan_start_ylim = event.inaxes.get_ylim()
+
+    def _on_middle_button_motion_pan(self, event):
+        """
+        中ボタンドラッグ中の軸範囲更新。押下時に記憶した軸範囲(固定)から、
+        「押下位置のデータ座標」と「現在のカーソル位置のデータ座標(現在の
+        軸範囲基準)」の差分だけずらした範囲を毎回計算して設定する
+        (差分を毎回積み上げるのではなく、常に押下時の範囲を基準に計算し
+        直すことで、誤差が蓄積しないようにしている)。
+        """
+        axes = getattr(self, '_middle_pan_axes', None)
+        if axes is None or event.inaxes is not axes:
+            return
+        if event.xdata is None or event.ydata is None:
+            return
+
+        start_x, start_y = self._middle_pan_start_data
+        dx = start_x - event.xdata
+        dy = start_y - event.ydata
+
+        xlim = self._middle_pan_start_xlim
+        ylim = self._middle_pan_start_ylim
+        axes.set_xlim(xlim[0] + dx, xlim[1] + dx)
+        axes.set_ylim(ylim[0] + dy, ylim[1] + dy)
+        self.canvas.draw_idle()
+
+    def _on_middle_button_release_pan(self, event):
+        """中ボタンを離したらパン状態を解除する。"""
+        if event.button != 2:
+            return
+        self._middle_pan_axes = None
+        self._middle_pan_start_data = None
+        self._middle_pan_start_xlim = None
+        self._middle_pan_start_ylim = None
+
     def _toggle_cursor_mode(self, checked: bool):
         """
         データカーソルモードのツールバーボタンが押されたときに呼び出されるスロット。

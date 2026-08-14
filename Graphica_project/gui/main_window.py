@@ -550,6 +550,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.cursor_connection_id = None # Matplotlib イベント接続ID (切断時に使用)
         self.cursor_annotation = None    # 表示中の注釈 (Annotation) オブジェクト
 
+        # --- マウス操作拡充(項目C-908)の中ボタンドラッグパン用の状態 ---
+        # ドラッグ中かどうかは self._middle_pan_axes が None かどうかで判定する。
+        self._middle_pan_axes = None
+        self._middle_pan_start_data = None
+        self._middle_pan_start_xlim = None
+        self._middle_pan_start_ylim = None
+
         # --- 自由なテキスト注釈・矢印機能用の変数 ---
         self.annotation_mode_enabled = False   # 注釈モードがONかOFFか
         self._annotation_press_cid = None      # button_press_event の接続ID
@@ -1425,6 +1432,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # グラフ要素の直接クリック選択(項目35): データカーソル/注釈モードのON/OFFに
         # 関わらず常時有効な、独立したpick_event接続 (詳細は _on_element_pick を参照)
         self.canvas.mpl_connect('pick_event', self._on_element_pick)
+
+        # マウス操作拡充(項目C-908): ホイールズーム + 中ボタンドラッグパン。
+        # 他のモード(データカーソル/注釈/自由配置編集)と同じ左クリックを
+        # 使わないため、専用のON/OFF切り替えなしに常時有効にする
+        # (motion_notify_eventは_on_mouse_moveと同じイベント種別に対する
+        # 2つ目の独立した接続で、mpl_connectは複数ハンドラの登録に対応している)。
+        self.canvas.mpl_connect('scroll_event', self._on_scroll_zoom)
+        self.canvas.mpl_connect('button_press_event', self._on_middle_button_press_pan)
+        self.canvas.mpl_connect('motion_notify_event', self._on_middle_button_motion_pan)
+        self.canvas.mpl_connect('button_release_event', self._on_middle_button_release_pan)
 
         # プラグインの読み込み (メニューバー作成より前に行う必要がある:
         # プラグインが register_menu_action() で追加したメニュー項目を

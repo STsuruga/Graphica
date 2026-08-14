@@ -466,3 +466,170 @@ def test_on_pick_without_downsampling_uses_index_directly(tmp_path, monkeypatch)
     finally:
         window.data_editor_dialog = None
         dialog.close()
+
+
+# --------------------------------------------------------------------
+# マウス操作拡充(項目C-908): ホイールズーム + 中ボタンドラッグパン
+# --------------------------------------------------------------------
+
+def test_scroll_zoom_ignored_when_not_over_an_axes(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    xlim_before = ax.get_xlim()
+
+    window._on_scroll_zoom(SimpleNamespace(inaxes=None, xdata=None, ydata=None, button='up'))
+
+    assert ax.get_xlim() == xlim_before
+
+
+def test_scroll_up_zooms_in_narrowing_the_range(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+
+    window._on_scroll_zoom(SimpleNamespace(inaxes=ax, xdata=5.0, ydata=5.0, button='up'))
+
+    new_xlim = ax.get_xlim()
+    assert (new_xlim[1] - new_xlim[0]) < 10  # 範囲が狭まった(ズームイン)
+
+
+def test_scroll_down_zooms_out_widening_the_range(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+
+    window._on_scroll_zoom(SimpleNamespace(inaxes=ax, xdata=5.0, ydata=5.0, button='down'))
+
+    new_xlim = ax.get_xlim()
+    assert (new_xlim[1] - new_xlim[0]) > 10  # 範囲が広がった(ズームアウト)
+
+
+def test_scroll_zoom_centers_on_cursor_not_axes_midpoint(tmp_path, monkeypatch):
+    """カーソル位置がAxesの中心からずれている場合、ズーム後もカーソル位置が
+    (中心固定ズームと違い)同じ相対位置に留まることを確認する。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+
+    # カーソル位置 x=8(範囲の右寄り)でズームイン
+    window._on_scroll_zoom(SimpleNamespace(inaxes=ax, xdata=8.0, ydata=5.0, button='up'))
+
+    new_xlim = ax.get_xlim()
+    # 8はズーム前は範囲の右へ寄っていた(relx = (10-8)/10 = 0.2、
+    # つまり右端からの距離が20%)。ズーム後も同じ比率で右端に近いはず。
+    new_width = new_xlim[1] - new_xlim[0]
+    relx_after = (new_xlim[1] - 8.0) / new_width
+    assert relx_after == pytest.approx(0.2, abs=1e-6)
+
+
+def test_middle_button_press_ignored_for_left_button(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+
+    window._on_middle_button_press_pan(SimpleNamespace(button=1, inaxes=ax, xdata=5.0, ydata=5.0))
+
+    assert window._middle_pan_axes is None
+
+
+def test_middle_button_press_ignored_when_not_over_axes(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+
+    window._on_middle_button_press_pan(SimpleNamespace(button=2, inaxes=None, xdata=None, ydata=None))
+
+    assert window._middle_pan_axes is None
+
+
+def test_middle_button_press_stores_pan_state(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+
+    window._on_middle_button_press_pan(SimpleNamespace(button=2, inaxes=ax, xdata=3.0, ydata=4.0))
+
+    assert window._middle_pan_axes is ax
+    assert window._middle_pan_start_data == (3.0, 4.0)
+    assert window._middle_pan_start_xlim == (0, 10)
+    assert window._middle_pan_start_ylim == (0, 10)
+
+
+def test_middle_button_motion_shifts_axes_by_drag_delta(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+
+    window._on_middle_button_press_pan(SimpleNamespace(button=2, inaxes=ax, xdata=5.0, ydata=5.0))
+    # カーソルが左に2、下に1動いた(=データがまだそのxlim/ylimのままなら
+    # event.xdata/ydataはそれぞれ3.0/4.0になる)と仮定してモーションイベントを発火
+    window._on_middle_button_motion_pan(SimpleNamespace(inaxes=ax, xdata=3.0, ydata=4.0))
+
+    # dx = start(5) - current(3) = 2 だけ右に(=カーソルに追従して左に)ずれるはず
+    new_xlim = ax.get_xlim()
+    new_ylim = ax.get_ylim()
+    assert new_xlim == pytest.approx((2.0, 12.0))
+    assert new_ylim == pytest.approx((1.0, 11.0))
+
+
+def test_middle_button_motion_ignored_when_not_dragging(tmp_path, monkeypatch):
+    """press無しでmotionだけ来ても(_middle_pan_axesがNoneのまま)何もしない。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 10)
+    xlim_before = ax.get_xlim()
+
+    window._on_middle_button_motion_pan(SimpleNamespace(inaxes=ax, xdata=3.0, ydata=4.0))
+
+    assert ax.get_xlim() == xlim_before
+
+
+def test_middle_button_motion_ignored_for_different_axes(tmp_path, monkeypatch):
+    """ドラッグ開始時と別のAxes上でのモーションは無視する(サブプロット間の
+    誤爆を防ぐ)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 10)
+    window._on_middle_button_press_pan(SimpleNamespace(button=2, inaxes=ax, xdata=5.0, ydata=5.0))
+
+    other_ax = ax.figure.add_subplot(111)  # ダミーの別Axes
+    xlim_before = ax.get_xlim()
+    window._on_middle_button_motion_pan(SimpleNamespace(inaxes=other_ax, xdata=1.0, ydata=1.0))
+
+    assert ax.get_xlim() == xlim_before
+
+
+def test_middle_button_release_clears_pan_state(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    window._on_middle_button_press_pan(SimpleNamespace(button=2, inaxes=ax, xdata=5.0, ydata=5.0))
+    assert window._middle_pan_axes is not None
+
+    window._on_middle_button_release_pan(SimpleNamespace(button=2))
+
+    assert window._middle_pan_axes is None
+    assert window._middle_pan_start_data is None
+
+
+def test_middle_button_release_ignored_for_other_buttons(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    window._on_middle_button_press_pan(SimpleNamespace(button=2, inaxes=ax, xdata=5.0, ydata=5.0))
+
+    window._on_middle_button_release_pan(SimpleNamespace(button=1))
+
+    assert window._middle_pan_axes is ax  # 左ボタンのreleaseでは解除されない
