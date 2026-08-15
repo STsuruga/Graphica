@@ -16,6 +16,7 @@ from matplotlib.figure import Figure
 
 from gui.dialogs import ExportDialog, BatchExportDialog
 from gui.canvas import _HeadlessRenderCanvas
+from gui.task_runner import TaskRunner
 from models.project import ProjectModel
 from core.plugin_api import get_plugin_api, get_registered_exporters
 from core.plugin_types import PluginExecutionError
@@ -108,17 +109,20 @@ class ExportMixin:
         現在のプロジェクトの各サブプロットを個別画像として、または複数の
         プロジェクトファイル(.graphica/.pkl)をそれぞれの完成図として、まとめて書き出す。
 
-        ★ 項目C-004フェーズ5a: 書き出し1件ごとに使う一時キャンバスは、QWidgetの
-        サブクラスであるMplCanvasではなく、Qt非依存の_HeadlessRenderCanvas
-        (gui/canvas.py、FigureCanvasAgg)を使う。これによりGUIスレッド外での
-        構築・描画自体は安全になったが、ここ(_on_batch_export)自体はまだ
-        実スレッド化していない(GUIスレッド上でQProgressDialog +
-        項目間のprocessEvents()によるキャンセル可能な進捗表示のみ)。
-        実際にTaskRunnerへ乗せてバックグラウンドスレッドで実行するのは
-        フェーズ5bで行う(_save_figure_with_optionsが使うmpl.rc_context()は
-        プロセスグローバルなrcParamsを書き換えるため、複数スレッドを
-        同時に走らせる設計にはしない)。
+        ★ 項目C-004フェーズ5b: フェーズ5aで書き出し1件ごとの一時キャンバスを
+        Qt非依存の_HeadlessRenderCanvas(gui/canvas.py、FigureCanvasAgg)に
+        切り替えたことで、GUIスレッド外での構築・描画が安全になったため、
+        ここから実際に_batch_fit_worker(_on_batch_curve_fit)と同じ
+        TaskRunner配線パターンでバックグラウンドスレッド化する。
+        ★ 並行性の制約: _save_figure_with_optionsが使うmpl.rc_context()は
+        プロセスグローバルなrcParamsを書き換えるため、複数TaskRunnerを
+        同時に走らせたり、ループ自体を並列化したりはしない(既存の逐次forループの
+        ままバックグラウンドスレッドを1つだけ使う)。
         """
+        if self._batch_export_task_runner is not None:
+            QMessageBox.information(self, "実行中", "別のバッチエクスポート処理が実行中です。完了までお待ちください。")
+            return
+
         extra_formats = [exp.format_name for exp in get_registered_exporters()]
         dialog = BatchExportDialog(len(self.project.all_plot_settings), self, extra_formats=extra_formats)
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -136,24 +140,47 @@ class ExportMixin:
                 QMessageBox.warning(self, "バッチエクスポート", "書き出すサブプロットを選択してください。")
                 return
             items = indices
+            worker_fn = self._batch_export_subplots
         else:
             paths = dialog.get_project_file_paths()
             if not paths:
                 QMessageBox.warning(self, "バッチエクスポート", "プロジェクトファイルを追加してください。")
                 return
             items = paths
+            worker_fn = self._batch_export_project_files
 
         progress_dialog = QProgressDialog("バッチエクスポートを実行中...", "キャンセル", 0, len(items), self)
         progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         progress_dialog.setMinimumDuration(0)
         progress_dialog.setValue(0)
-        try:
-            if mode == "subplots":
-                results = self._batch_export_subplots(items, options, progress_dialog=progress_dialog)
-            else:
-                results = self._batch_export_project_files(items, options, progress_dialog=progress_dialog)
-        finally:
-            progress_dialog.close()
+
+        runner = TaskRunner(worker_fn, items, options)
+        runner.progress.connect(lambda done, total, message: progress_dialog.setValue(done))
+        progress_dialog.canceled.connect(runner.requestInterruption)
+        runner.succeeded.connect(lambda results: self._on_batch_export_succeeded(results, progress_dialog))
+        runner.failed.connect(lambda msg: self._on_batch_export_failed(msg, progress_dialog))
+        self._batch_export_task_runner = runner
+        runner.start()
+
+    def _cleanup_batch_export_task_runner(self):
+        if self._batch_export_task_runner is not None:
+            self._batch_export_task_runner.wait()
+            self._batch_export_task_runner.deleteLater()
+            self._batch_export_task_runner = None
+
+    def _on_batch_export_failed(self, error_message, progress_dialog):
+        self._cleanup_batch_export_task_runner()
+        progress_dialog.close()
+        QMessageBox.warning(self, "バッチエクスポート", f"バッチエクスポート処理に失敗しました:\n{error_message}")
+
+    def _on_batch_export_succeeded(self, results, progress_dialog):
+        """
+        _batch_export_subplots()/_batch_export_project_files()の結果
+        ((出力ファイル名, エラー文字列またはNone)のタプルのリスト、
+        キャンセル時は完了済み分のみ)をメインスレッド側で処理する。
+        """
+        self._cleanup_batch_export_task_runner()
+        progress_dialog.close()
 
         succeeded = [name for name, error in results if error is None]
         failed = [(name, error) for name, error in results if error is not None]
@@ -200,24 +227,27 @@ class ExportMixin:
         else:
             fig.savefig(out_path, **save_kwargs)
 
-    def _batch_export_subplots(self, indices, options, progress_dialog=None):
+    def _batch_export_subplots(self, indices, options, report_progress=None, is_cancelled=None):
         """
         現在のプロジェクトの、指定されたサブプロットそれぞれを個別の画像として書き出す。
         一時的な _HeadlessRenderCanvas を新しい1x1レイアウトとして使うため、対象
         データセットの subplot_target を一時的に0に付け替えたコピー
         (dataclasses.replace、dfは参照共有)を渡す。
 
-        progress_dialog (項目C-004フェーズ3): 指定時、1件処理するごとに値を進め、
-        「キャンセル」が押されていれば以降の項目をスキップして即座に戻る
-        (GUIスレッド上でのみ動作、実スレッド化はしていない)。
+        ★ 項目C-004フェーズ5b: TaskRunnerからバックグラウンドスレッドで呼ばれる
+        (_on_batch_curve_fitの_batch_fit_workerと同じ配線)。Qt/GUIオブジェクトには
+        一切触れない(_HeadlessRenderCanvasはQWidgetのサブクラスではないため
+        安全に構築できる)。is_cancelled()は項目間でのみチェックする(1件の
+        redraw_all()+savefig()自体は中断できないため、キャンセルの粒度は
+        「バッチの残り未処理分をスキップする」まで、_batch_fit_workerと同じ方針)。
         """
         results = []
+        total = len(indices)
         for i, idx in enumerate(indices):
-            if progress_dialog is not None:
-                if progress_dialog.wasCanceled():
-                    break
-                progress_dialog.setValue(i)
-                QApplication.instance().processEvents()
+            if is_cancelled is not None and is_cancelled():
+                break
+            if report_progress is not None:
+                report_progress(i, total, f"P{idx + 1}")
             out_name = f"{options['prefix']}_P{idx + 1}.{options['format']}"
             out_path = os.path.join(options['output_dir'], out_name)
             try:
@@ -236,22 +266,23 @@ class ExportMixin:
                 results.append((out_name, str(e)))
         return results
 
-    def _batch_export_project_files(self, paths, options, progress_dialog=None):
+    def _batch_export_project_files(self, paths, options, report_progress=None, is_cancelled=None):
         """
         複数のプロジェクトファイル(.graphica/.pkl)それぞれを読み込み、その完成図を書き出す。
         現在開いているプロジェクト/GUIの状態には一切触れない(使い捨てのProjectModelと
         _HeadlessRenderCanvasだけを使う)。load_project側が拡張子で保存形式を自動判別するため、
         ここでは形式を意識せずパスをそのまま渡すだけでよい。
 
-        progress_dialog (項目C-004フェーズ3): _batch_export_subplots()と同じ役割。
+        report_progress/is_cancelled(項目C-004フェーズ5b): _batch_export_subplots()と
+        同じ役割・同じ配線(TaskRunnerからバックグラウンドスレッドで呼ばれる)。
         """
         results = []
+        total = len(paths)
         for i, path in enumerate(paths):
-            if progress_dialog is not None:
-                if progress_dialog.wasCanceled():
-                    break
-                progress_dialog.setValue(i)
-                QApplication.instance().processEvents()
+            if is_cancelled is not None and is_cancelled():
+                break
+            if report_progress is not None:
+                report_progress(i, total, os.path.basename(path))
             base_name = os.path.splitext(os.path.basename(path))[0]
             out_name = f"{options['prefix']}_{base_name}.{options['format']}"
             out_path = os.path.join(options['output_dir'], out_name)

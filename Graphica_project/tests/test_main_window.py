@@ -1144,6 +1144,41 @@ def test_close_event_swallows_signal_disconnect_error(tmp_path, monkeypatch):
     assert fake_runner.waited is True
 
 
+def test_close_event_waits_for_in_flight_batch_export_task_runner_instead_of_crashing(tmp_path, monkeypatch):
+    """項目C-004フェーズ5b: _batch_export_task_runner用のcloseEventブロックも、
+    他の3つ(_data_load_task_runner/_fit_task_runner/_batch_fit_task_runner)と
+    同型のクリーンアップが安全に行われること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    class _FakeSignal:
+        def connect(self, *a, **k):
+            pass
+
+        def disconnect(self, *a, **k):
+            pass
+
+    class _FakeTaskRunner:
+        def __init__(self):
+            self.succeeded = _FakeSignal()
+            self.failed = _FakeSignal()
+            self.waited = False
+
+        def requestInterruption(self):
+            pass
+
+        def wait(self):
+            self.waited = True
+
+        def deleteLater(self):
+            pass
+
+    fake_runner = _FakeTaskRunner()
+    window._batch_export_task_runner = fake_runner
+    window.closeEvent(QCloseEvent())
+    assert window._batch_export_task_runner is None
+    assert fake_runner.waited is True
+
+
 def test_close_event_saves_settings_when_run_startup_checks_true(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window._run_startup_checks = True

@@ -524,6 +524,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
         self._fit_task_runner = None   # 曲線フィット用バックグラウンドタスク(項目C-004)の保持用
         self._batch_fit_task_runner = None  # バッチカーブフィット用バックグラウンドタスク(項目C-004フェーズ2)の保持用
+        self._batch_export_task_runner = None  # バッチエクスポート用バックグラウンドタスク(項目C-004フェーズ5b)の保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
         self._data_load_queue_done = 0   # 現在処理中のバッチで読み込みを開始した件数 (進捗表示用)
@@ -1738,6 +1739,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._batch_fit_task_runner.wait()
             self._batch_fit_task_runner.deleteLater()
             self._batch_fit_task_runner = None
+
+        # ★ 項目C-004フェーズ5b: バッチエクスポート用のTaskRunnerも同じ理由で
+        # 同型のクリーンアップを行う。
+        if self._batch_export_task_runner is not None:
+            try:
+                self._batch_export_task_runner.succeeded.disconnect()
+                self._batch_export_task_runner.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._batch_export_task_runner.requestInterruption()
+            self._batch_export_task_runner.wait()
+            self._batch_export_task_runner.deleteLater()
+            self._batch_export_task_runner = None
 
         if self._run_startup_checks:
             self.settings.setValue("clean_exit", True)

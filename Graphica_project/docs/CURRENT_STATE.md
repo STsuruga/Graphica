@@ -13,46 +13,54 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在の状況(2026-08-15時点、最優先で読むこと)
+## 現在の状況(2026-08-16時点、最優先で読むこと)
 
-**トラック3-1(解析基盤、全10項目)・トラック3-2(性能・体験、8項目全て、
-うちC-003/C-004はスコープを絞ったフェーズのみ)は共に完了・master統合済み**
-(PR #3→マージコミット`ce4a13a`、PR #4→マージコミット`e47d2b1`、
-PR #5→マージコミット`add9919`)。現在のブランチは`master`。
-`feature/performance-ux`・`feature/redraw-and-worker-foundation`用に切っていた
-`git worktree`はいずれもマージ後に`git worktree remove`+`git branch -d`で削除済み
-(リモートブランチも削除済み。`gh pr merge --delete-branch`がworktreeロック中の
+**トラック3-1(解析基盤、全10項目)・トラック3-2(性能・体験、8項目全て)は
+共に完了・master統合済み**(PR #3→マージコミット`ce4a13a`、
+PR #4→マージコミット`e47d2b1`、PR #5→マージコミット`add9919`、
+PR #6→マージコミット`5f0188f`、PR #7(canvas-light-redraw)→後述)。
+現在のブランチは`master`。`feature/performance-ux`・
+`feature/redraw-and-worker-foundation`・`feature/worker-migration`・
+`feature/canvas-light-redraw`用に切っていた`git worktree`はいずれも
+マージ後に`git worktree remove`+`git branch -d`で削除済み(リモート
+ブランチも削除済み。`gh pr merge --delete-branch`がworktreeロック中の
 ローカルブランチ削除に失敗することがあるため、その場合は`gh api -X DELETE
 repos/.../git/refs/heads/<branch>`で個別に削除する運用で対応している)。
 
-**トラック3-2で完了した8項目**: C-1001(表示用ダウンサンプリング/LTTB)・
-C-902(一括スタイル適用、既存実装で充足済みと確認)・
-C-908(マウス操作拡充: スクロールズーム/中ボタンパン)・
-C-909(グラフ上での範囲選択)・C-601(軸共有sharex/sharey)・
-C-602(単位変換の第2X軸nm/eV/cm⁻¹/Hz)・
-**C-003(再描画スコープ分離、フェーズ1のみ: 1データセットのプロパティ変更の
-軽量再描画`update_single_axis()`)**・
-**C-004(ワーカースレッド基盤、フェーズ1-3のみ: 単発/一括カーブフィットの
-バックグラウンド化+バッチエクスポートの進捗/キャンセルUI)**。
-C-003/C-004は計画モード(3体のExploreエージェント+1体のPlanエージェントに
-よる事前調査)を経て、ユーザー承認済みの縮小スコープで実装した。実装の詳細
-ログは`docs/CORE_FEATURES_PROGRESS.md`の「トラック3-2」節参照。
-`docs/roadmap.html`の#63〜68は`true`、#61(C-003)・#62(C-004)は
-説明文の全範囲を実装したわけではないため`false`のままタイトル注記で
-範囲を明示している。
+**トラック3-2、C-003/C-004は当初スコープを絞ったフェーズで完了させた後、
+2026-08-16にユーザー指示で据え置いていた残りスコープに着手・完了した**:
+- **C-003(再描画スコープ分離)、フェーズ1-2完了**: フェーズ1(1データセットの
+  プロパティ変更の軽量再描画`update_single_axis()`)に続き、フェーズ2で
+  パネルラベル/ダークモード切替を対象にした`update_all_axes_appearance_and_data()`
+  を新設。レイアウト行数/列数変更・自由配置のサブプロット追加削除・
+  `subplot_target`/`use_secondary_y`変更のようなAxesの枚数/所属自体が
+  変わる構造的トリガーは引き続き対象外(`fig.clf()`によるフル再描画のまま)。
+- **C-004(ワーカースレッド基盤)、フェーズ1-5完了**: フェーズ1-3(単発/一括
+  カーブフィット・バッチエクスポート進捗UI)に続き、フェーズ4で`DataLoadWorker`
+  を`TaskRunner`へ統合(`feature/worker-migration`ブランチ、PR #6)、
+  フェーズ5でバッチエクスポートを実スレッド化(`feature/canvas-light-redraw`
+  ブランチ、5a: `gui/canvas.py`の描画ロジックを`_CanvasDrawingMixin`へ分離し
+  Qt非依存の`_HeadlessRenderCanvas`を新設 → 5b: `TaskRunner`配線で実際に
+  バックグラウンドスレッド化)。
+実装の詳細ログは`docs/CORE_FEATURES_PROGRESS.md`の「トラック3-2」節参照。
+`docs/roadmap.html`の#61(C-003)・#62(C-004)は、依然として一部
+構造的トリガーが対象外のままのため`false`を維持し、タイトル注記の
+範囲を最新の状態(フェーズ1-2/フェーズ1-5)に更新済み。
 
-C-601・C-602完了後、C-003フェーズ1完了後、C-004フェーズ2/3完了後の
-それぞれでフルスイートを実行し、いずれも実際のテスト失敗ゼロを確認済み
-(2026-08-14〜15)。レビュー中に発見・修正した実バグの詳細は
-`docs/CORE_FEATURES_PROGRESS.md`参照(C-602のinf/nanクラッシュ、C-003の
-既存テストのモック対象ズレ、**C-004でTaskRunnerが部分結果を握りつぶし
-呼び出し元が完了を待ち続けるハングを起こしていた設計バグ**、など)。
+C-601・C-602完了後、C-003フェーズ1完了後、C-004フェーズ2/3完了後、
+worker-migration(C-004フェーズ4)完了後、canvas-light-redraw
+(C-003フェーズ2+C-004フェーズ5a/5b)完了後のそれぞれでフルスイートを
+実行し、いずれも実際のテスト失敗ゼロを確認済み(2026-08-14〜16、
+最後のcanvas-light-redraw実行で発生した1件のプロセスクラッシュは
+下記「既知の注意点」に記録済みの既知の環境起因クラッシュと確認済み)。
+レビュー中に発見・修正した実バグの詳細は`docs/CORE_FEATURES_PROGRESS.md`
+参照(C-602のinf/nanクラッシュ、C-003の既存テストのモック対象ズレ、
+**C-004でTaskRunnerが部分結果を握りつぶし呼び出し元が完了を待ち続ける
+ハングを起こしていた設計バグ**、など)。
 
-**次にやること**: 大型2項目(C-003/C-004)は上記の通りスコープを絞った形で
-完了済み。残りの検討事項:
-- C-003/C-004の残りスコープ(構造的トリガーの軽量化、`DataLoadWorker`の
-  `TaskRunner`統合、バッチエクスポートの真の実スレッド化)に着手するかは
-  改めてユーザーと相談してから判断する。
+**次にやること**: C-003/C-004は上記の通り、意図的に残していた構造的
+トリガーのスコープを除いて完了。次に何を進めるかはユーザーに確認する
+方針(このセッションの区切りとして報告済み)。
 - トラック4(プラグイン本体の開発、#163〜)は`feature/plugin-track4`
   ブランチ(`git worktree`で`D:\ユーザー\shuta\ドキュメント\PlotterApp-plugins`
   に作業中)で着手していたが、**ユーザーからの指示で現在一時停止中**。
@@ -267,8 +275,10 @@ C-601・C-602完了後、C-003フェーズ1完了後、C-004フェーズ2/3完�
 ## 現在のブランチ
 
 `master`。トラック1(PR #1)・トラック2(PR #2)・トラック3-1(PR #3)・
-トラック3-2(PR #4、PR #5)はいずれも既にmasterへマージ・push済み。
-`feature/performance-ux`・`feature/redraw-and-worker-foundation`用の
+トラック3-2(PR #4、PR #5、PR #6=C-004フェーズ4、PR #7=C-003フェーズ2+
+C-004フェーズ5a/5b)はいずれも既にmasterへマージ・push済み。
+`feature/performance-ux`・`feature/redraw-and-worker-foundation`・
+`feature/worker-migration`・`feature/canvas-light-redraw`用の
 `git worktree`(・ローカル/リモート両ブランチ)はマージ後に削除済み。
 
 `feature/plugin-track4`用の`git worktree`
