@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.font_manager import FontProperties
 from matplotlib.collections import LineCollection
@@ -143,11 +144,17 @@ DARK_GRID_COLOR = DARK_TOKENS['border_strong']
 LIGHT_GRID_COLOR = LIGHT_TOKENS['border_strong']
 
 
-class MplCanvas(FigureCanvas):
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
+class _CanvasDrawingMixin:
+    """
+    MplCanvasの描画ロジック全体(Figure/Axes操作、プレーンなPython状態の初期化)を
+    持つmixin。Qt(QWidget)に一切依存しないため、GUIスレッド用のMplCanvas
+    (FigureCanvasQTAgg)と、バッチエクスポート用のヘッドレスキャンバス
+    (_HeadlessRenderCanvas、FigureCanvasAgg)の両方から共有できる
+    (項目C-004フェーズ5a)。
+    """
+
+    def _init_drawing_state(self, width, height, dpi):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
-        super().__init__(self.fig)
-        self.setParent(parent)
 
         # グラフの軸(Axes)の管理も、ウィンドウではなくCanvas側で行う
         self.all_axes = []
@@ -314,17 +321,13 @@ class MplCanvas(FigureCanvas):
         if share_y_axis and col_idx != 0:
             ax.tick_params(labelleft=False)
 
-    def update_single_axis(self, axis_index, datasets, settings, rows=1, cols=1,
-                            share_x_axis=False, share_y_axis=False, panel_labels_enabled=False):
+    def _redraw_single_axis_no_draw(self, axis_index, datasets, settings, rows=1, cols=1,
+                                     share_x_axis=False, share_y_axis=False, panel_labels_enabled=False):
         """
-        指定した1つのAxesだけを描き直す(項目C-003 フェーズ1)。他のAxes・
-        Figure自体は一切触らない(fig.clf()を経由しないため、他のAxesを
-        参照しているコード―NavigationToolbarのHomeキャッシュ、他インデックスの
-        _annotation_artists/_highlight_artists/downsample_index_map等―への
-        影響がない)。1データセットのスタイル変更のような「軸の所属を変えない」
-        プロパティ変更専用(subplot_target/use_secondary_yの変更のような、
-        軸の所属自体を変える構造的な変更は呼び出し側でredraw_all()相当の
-        フル再描画に振り分けること)。
+        update_single_axis()の実体(self.draw_idle()を呼ぶ直前まで)。項目C-003
+        フェーズ2のupdate_all_axes_appearance_and_data()が全Axes分ループする際、
+        Axesごとにdraw_idle()を呼ぶ無駄を避け、Figureレベルのdraw()をループの
+        外側で1回だけで済ませられるよう、draw呼び出しを含まない部分を切り出した。
         """
         if axis_index >= len(self.all_axes):
             return
@@ -355,7 +358,68 @@ class MplCanvas(FigureCanvas):
 
         self._apply_shared_axis_tick_visibility(axis_index, rows, cols, share_x_axis, share_y_axis)
 
+    def update_single_axis(self, axis_index, datasets, settings, rows=1, cols=1,
+                            share_x_axis=False, share_y_axis=False, panel_labels_enabled=False):
+        """
+        指定した1つのAxesだけを描き直す(項目C-003 フェーズ1)。他のAxes・
+        Figure自体は一切触らない(fig.clf()を経由しないため、他のAxesを
+        参照しているコード―NavigationToolbarのHomeキャッシュ、他インデックスの
+        _annotation_artists/_highlight_artists/downsample_index_map等―への
+        影響がない)。1データセットのスタイル変更のような「軸の所属を変えない」
+        プロパティ変更専用(subplot_target/use_secondary_yの変更のような、
+        軸の所属自体を変える構造的な変更は呼び出し側でredraw_all()相当の
+        フル再描画に振り分けること)。
+        """
+        self._redraw_single_axis_no_draw(
+            axis_index, datasets, settings, rows=rows, cols=cols,
+            share_x_axis=share_x_axis, share_y_axis=share_y_axis,
+            panel_labels_enabled=panel_labels_enabled,
+        )
         self.draw_idle()
+
+    def update_all_axes_appearance_and_data(self, datasets, rows, cols, all_plot_settings, layout_mode='grid',
+                                             panel_labels_enabled=False, share_x_axis=False, share_y_axis=False):
+        """
+        既存のAxes枚数・GridSpec配置(all_axes/all_secondary_axesの所属)を
+        一切変えず、全Axesのデータ・外観だけを軽量に描き直す(項目C-003
+        フェーズ2)。パネルラベル表示切替・ダークモード切替のような「全Axesを
+        均一に触るが軸の所属自体は変えない」トリガー専用。redraw_all()と異なり
+        fig.clf()を経由しないため、Axes数・GridSpec配置が変わるケース
+        (レイアウト行数/列数変更、自由配置のサブプロット追加/削除、
+        subplot_target/use_secondary_yの変更のような構造的なデータセット
+        プロパティ変更)には使えない――呼び出し側でこの前提が崩れないことを
+        保証すること。update_single_axis()を既存Axes数ぶんループしたのち、
+        redraw_all()が1回だけ行っていたFigureレベルの処理(facecolor設定・
+        tight_layout・実際のdraw()・is_secondary_visible_globalの再計算)を
+        ループの外側でまとめて1回だけ行う。
+        """
+        is_free_layout = layout_mode == 'free'
+        is_secondary_visible_global = False
+
+        for index, ax in enumerate(self.all_axes):
+            if index >= len(all_plot_settings):
+                continue
+            settings = all_plot_settings[index]
+            self._redraw_single_axis_no_draw(
+                index, datasets, settings, rows=rows, cols=cols,
+                share_x_axis=share_x_axis, share_y_axis=share_y_axis,
+                panel_labels_enabled=panel_labels_enabled,
+            )
+            if self.all_secondary_axes[index] is not None:
+                is_secondary_visible_global = True
+
+        self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
+        if not is_free_layout:
+            # ★ 自由配置レイアウトでは各サブプロットの位置・サイズをユーザーが
+            # 明示的に指定しているため、redraw_all()と同様tight_layout()は
+            # グリッドレイアウトのみ適用する。
+            try:
+                self.fig.tight_layout()
+            except ValueError:
+                pass
+
+        self.draw()
+        return is_secondary_visible_global
 
     def _draw_panel_label(self, ax, index):
         """
@@ -1134,3 +1198,23 @@ class MplCanvas(FigureCanvas):
                                         color=spine_color, labelcolor=tick_color, direction=major_dir)
             secondary_x_ax.spines['top'].set_linewidth(spine_width)
             secondary_x_ax.spines['top'].set_color(spine_color)
+
+
+class MplCanvas(FigureCanvas, _CanvasDrawingMixin):
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        self._init_drawing_state(width, height, dpi)
+        super().__init__(self.fig)
+        self.setParent(parent)
+
+
+class _HeadlessRenderCanvas(FigureCanvasAgg, _CanvasDrawingMixin):
+    """
+    バッチエクスポート専用のQt非依存キャンバス(項目C-004フェーズ5a)。
+    QWidgetのサブクラスではないため、GUIスレッド外(実スレッド)で構築・
+    描画しても安全。mpl_connect等のインタラクティブなイベント配線は
+    行わない(MplCanvas自体にも存在せず、全てmain_window.py/mixins側で
+    外付けされているため対象外)。
+    """
+    def __init__(self, width=5, height=4, dpi=100):
+        self._init_drawing_state(width, height, dpi)
+        super().__init__(self.fig)

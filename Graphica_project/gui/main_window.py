@@ -524,6 +524,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
         self._fit_task_runner = None   # 曲線フィット用バックグラウンドタスク(項目C-004)の保持用
         self._batch_fit_task_runner = None  # バッチカーブフィット用バックグラウンドタスク(項目C-004フェーズ2)の保持用
+        self._batch_export_task_runner = None  # バッチエクスポート用バックグラウンドタスク(項目C-004フェーズ5b)の保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
         self._data_load_queue_done = 0   # 現在処理中のバッチで読み込みを開始した件数 (進捗表示用)
@@ -1739,6 +1740,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._batch_fit_task_runner.deleteLater()
             self._batch_fit_task_runner = None
 
+        # ★ 項目C-004フェーズ5b: バッチエクスポート用のTaskRunnerも同じ理由で
+        # 同型のクリーンアップを行う。
+        if self._batch_export_task_runner is not None:
+            try:
+                self._batch_export_task_runner.succeeded.disconnect()
+                self._batch_export_task_runner.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._batch_export_task_runner.requestInterruption()
+            self._batch_export_task_runner.wait()
+            self._batch_export_task_runner.deleteLater()
+            self._batch_export_task_runner = None
+
         if self._run_startup_checks:
             self.settings.setValue("clean_exit", True)
             # ドックの配置/表示状態を保存し、次回起動時に復元する
@@ -1995,8 +2009,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         self._update_plot()
 
-    def _update_plot(self):
-        """グラフ全体を再描画する（MVC対応版）"""
+    def _update_plot(self, light=False):
+        """
+        グラフ全体を再描画する（MVC対応版）。
+
+        light=True(項目C-003フェーズ2): Axesの枚数・GridSpec配置・所属
+        (subplot_target/use_secondary_y)は一切変わらない、パネルラベル表示
+        切替・ダークモード切替のようなトリガー専用の軽量パス。
+        canvas.redraw_all()(fig.clf()で全Axesを作り直す)の代わりに
+        canvas.update_all_axes_appearance_and_data()(既存Axesのデータ・外観
+        だけを描き直す)を使う。呼び出し側は上記の前提が崩れないことを保証する
+        こと(レイアウト行数/列数変更やデータセット追加削除では使わない)。
+        """
         layout_mode = getattr(self.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
             # 自由配置レイアウトでは行数×列数ではなく、all_plot_settingsの
@@ -2011,7 +2035,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 return
 
         # ★ 描画処理をすべてCanvasに「丸投げ」する！
-        is_secondary_visible_global = self.canvas.redraw_all(
+        canvas_update_method = (
+            self.canvas.update_all_axes_appearance_and_data if light else self.canvas.redraw_all
+        )
+        is_secondary_visible_global = canvas_update_method(
             self.project.datasets, rows, cols, self.project.all_plot_settings, layout_mode=layout_mode,
             panel_labels_enabled=self.project.panel_labels_enabled,
             share_x_axis=getattr(self.project, 'share_x_axis', False),
@@ -2080,7 +2107,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         (.graphica/.pklに含まれ、プロジェクトファイルを開き直すたびに復元される)。
         """
         self.project.panel_labels_enabled = checked
-        self._update_plot()
+        self._update_plot(light=True)
 
     # --- ★ 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し) ---
     #

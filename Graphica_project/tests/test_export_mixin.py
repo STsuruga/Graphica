@@ -6,6 +6,7 @@ ExportMixin._save_figure_with_options は self.* を一切参照しないため�
 PlotterApp全体を組み立てずに直接呼び出せる。
 """
 import os
+import time
 
 import matplotlib as mpl
 import pandas as pd
@@ -263,6 +264,23 @@ def test_print_plot_shows_warning_on_savefig_failure(tmp_path, monkeypatch):
     assert len(warn_calls) == 1
 
 
+def _pump_events_until_batch_export_task_done(window, max_iterations=300):
+    """
+    項目C-004フェーズ5b: _on_batch_export()はTaskRunner(実際の別スレッド)で
+    バッチエクスポートを行うようになったため、呼び出し直後は完了していない。
+    tests/test_dataset_mixin.pyの_pump_events_until_batch_fit_task_doneと同じ
+    理由(processEvents()だけでなくOS側にスレッドの実行機会を与える短いsleepが
+    必要)で、_batch_export_task_runnerがNoneに戻るまでイベントループを回す。
+    """
+    app = QApplication.instance()
+    for _ in range(max_iterations):
+        app.processEvents()
+        if window._batch_export_task_runner is None:
+            return
+        time.sleep(0.01)
+    raise AssertionError("バッチエクスポート処理が時間内に完了しませんでした")
+
+
 # --- _on_batch_export / _batch_export_subplots / _batch_export_project_files ---
 
 def _patch_batch_export_dialog(monkeypatch, *, accepted=True, mode_index=0, output_dir="",
@@ -287,6 +305,27 @@ def _patch_batch_export_dialog(monkeypatch, *, accepted=True, mode_index=0, outp
             return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
 
     monkeypatch.setattr(export_mixin_module, "BatchExportDialog", FakeBatchExportDialog)
+
+
+def test_batch_export_shows_info_and_returns_when_already_running(tmp_path, monkeypatch):
+    """項目C-004フェーズ5b: 実行中に再度メニューを選ぶと、ダイアログを開かず
+    案内メッセージだけを出して即座に戻ること(_on_batch_curve_fitの二重起動
+    ガードと同じ方針)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    window._batch_export_task_runner = object()  # 実行中を模す(Noneでなければよい)
+
+    def _fail_if_called(*a, **k):
+        raise AssertionError("ダイアログを開くべきではない")
+
+    monkeypatch.setattr(export_mixin_module, "BatchExportDialog", _fail_if_called)
+    info_calls = []
+    monkeypatch.setattr(export_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    window._on_batch_export()
+
+    assert len(info_calls) == 1
 
 
 def test_batch_export_cancelled_does_nothing(tmp_path, monkeypatch):
@@ -360,6 +399,7 @@ def test_batch_export_subplots_writes_image_and_reports_completion(tmp_path, mon
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
+    _pump_events_until_batch_export_task_done(window)
 
     out_files = list(out_dir.iterdir())
     assert len(out_files) == 1
@@ -387,6 +427,7 @@ def test_batch_export_subplots_reports_failure_without_crashing(tmp_path, monkey
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
+    _pump_events_until_batch_export_task_done(window)
 
     assert len(info_calls) == 1
     assert "失敗" in info_calls[0][2]
@@ -394,25 +435,22 @@ def test_batch_export_subplots_reports_failure_without_crashing(tmp_path, monkey
 
 
 class _FakeCancelAfterFirstItem:
-    """項目C-004フェーズ3のテスト用ダブル: 1件目の処理は許可し、2件目以降は
-    キャンセル済みとして扱う(QProgressDialogの必要最小限のインターフェースのみ実装)。"""
+    """項目C-004フェーズ3/5bのテスト用ダブル: 1件目の処理は許可し、2件目以降は
+    キャンセル済みとして扱う(is_cancelled()の必要最小限の呼び出し可能オブジェクト)。"""
     def __init__(self):
         self.checks = 0
-        self.values = []
 
-    def wasCanceled(self):
+    def __call__(self):
         self.checks += 1
         return self.checks > 1
-
-    def setValue(self, value):
-        self.values.append(value)
 
 
 def test_batch_export_subplots_stops_after_cancel_mid_batch(tmp_path, monkeypatch):
     """
-    項目C-004フェーズ3: progress_dialog.wasCanceled()がTrueを返した時点で、
-    以降の項目は書き出さずスキップすること(実スレッド化はしていないため、
-    GUIスレッド上でのキャンセルチェックのみを検証する)。
+    項目C-004フェーズ5b: is_cancelled()がTrueを返した時点で、以降の項目は
+    書き出さずスキップすること(_batch_export_subplots自体をTaskRunner経由の
+    バックグラウンドスレッドから呼ばれる想定で直接呼ぶ、_batch_fit_workerの
+    テストと同じ方針)。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.subplot_cols_spinbox.setValue(2)
@@ -424,8 +462,8 @@ def test_batch_export_subplots_stops_after_cancel_mid_batch(tmp_path, monkeypatc
         'dpi': 72, 'transparent': True, 'svg_text_as_path': False,
     }
 
-    fake_dialog = _FakeCancelAfterFirstItem()
-    results = window._batch_export_subplots([0, 1], options, progress_dialog=fake_dialog)
+    is_cancelled = _FakeCancelAfterFirstItem()
+    results = window._batch_export_subplots([0, 1], options, is_cancelled=is_cancelled)
 
     assert len(results) == 1
     out_files = list(out_dir.iterdir())
@@ -451,6 +489,7 @@ def test_batch_export_project_files_writes_image_from_saved_project(tmp_path, mo
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
+    _pump_events_until_batch_export_task_done(window)
 
     out_files = list(out_dir.iterdir())
     assert len(out_files) == 1
@@ -477,9 +516,9 @@ def test_batch_export_project_files_stops_after_cancel_mid_batch(tmp_path, monke
         'dpi': 72, 'transparent': True, 'svg_text_as_path': False,
     }
 
-    fake_dialog = _FakeCancelAfterFirstItem()
+    is_cancelled = _FakeCancelAfterFirstItem()
     results = window._batch_export_project_files(
-        [str(project_path_1), str(project_path_2)], options, progress_dialog=fake_dialog
+        [str(project_path_1), str(project_path_2)], options, is_cancelled=is_cancelled
     )
 
     assert len(results) == 1
@@ -501,6 +540,7 @@ def test_batch_export_project_files_reports_failure_for_missing_file(tmp_path, m
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
+    _pump_events_until_batch_export_task_done(window)
 
     assert len(info_calls) == 1
     assert "失敗" in info_calls[0][2]

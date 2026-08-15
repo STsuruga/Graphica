@@ -148,9 +148,9 @@ def test_close_event_waits_for_in_flight_fit_task_runner_instead_of_crashing(qap
     deleteLater)にかけても、プロセスがクラッシュせず、待機後に
     ワーカーが片付いていること。gui/main_window.pyの各TaskRunner用
     closeEventブロック(_fit_task_runner/_batch_fit_task_runner/
-    _data_load_task_runner、いずれも同型)と同じ手順をTaskRunner単体で
-    直接検証する(フルのPlotterAppを介さないため、Qt/matplotlibリソース
-    蓄積を避けられる)。
+    _data_load_task_runner/_batch_export_task_runner、いずれも同型)と
+    同じ手順をTaskRunner単体で直接検証する(フルのPlotterAppを介さないため、
+    Qt/matplotlibリソース蓄積を避けられる)。
     """
     def _slow_task(report_progress=None, is_cancelled=None):
         time.sleep(0.3)
