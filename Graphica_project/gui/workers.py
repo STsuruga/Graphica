@@ -1,13 +1,13 @@
 # gui/workers.py
 """
 ファイル読み込みなど、時間のかかる処理をメインスレッド (UI) をブロックせずに
-実行するためのバックグラウンドワーカー。
+実行するための処理をまとめたモジュール。実行自体は gui/task_runner.py の
+TaskRunner(汎用バックグラウンドワーカー)に委ねる(項目C-004フェーズ4)。
+以前はここに専用の DataLoadWorker(QThread)クラスがあったが、TaskRunner導入後
+不要になったため削除し、TaskRunnerへ注入する薄い関数(load_data_file_task)に
+置き換えた。
 """
-import logging
 import pandas as pd
-from PySide6.QtCore import QThread, Signal
-
-logger = logging.getLogger(__name__)
 
 # CSV読み込み時に順番に試す文字コード。
 # 'utf-8-sig' は BOM 付き/なし どちらの UTF-8 も正しく読めるため、
@@ -90,26 +90,17 @@ def read_data_file(file_path):
         raise ValueError(f"未対応のファイル形式です: {ext}")
 
 
-class DataLoadWorker(QThread):
+def load_data_file_task(file_path, report_progress=None, is_cancelled=None):
     """
-    CSV/Excelファイルの読み込みをバックグラウンドスレッドで行うワーカー。
-    大きなファイルを開いてもメインスレッド (UI) がフリーズしないようにする。
+    read_data_file() + 列数バリデーションをまとめた、TaskRunner
+    (gui/task_runner.py)に注入するための薄いラッパー(項目C-004フェーズ4)。
+    read_data_file()自体はループを持たない単一のブロッキング呼び出しで
+    自然な中断チェックポイントが存在しないため、report_progress/is_cancelled
+    は(TaskRunner.run()が必ず渡してくるため)受け取るだけで使わない
+    (gui/mixins/dataset_mixin.pyのfit_curve_task/_batch_fit_workerのうち
+    単発フィット相当の「中断不能タスク」と同じ扱い)。
     """
-    load_succeeded = Signal(object, str)  # (DataFrame, file_path)
-    load_failed = Signal(str, str)        # (エラーメッセージ, file_path)
-
-    def __init__(self, file_path, parent=None):
-        super().__init__(parent)
-        self.file_path = file_path
-
-    def run(self):
-        try:
-            df = read_data_file(self.file_path)
-
-            if len(df.columns) < 2:
-                raise ValueError("データには少なくとも2列必要です。")
-
-            self.load_succeeded.emit(df, self.file_path)
-        except Exception as e:
-            logger.exception("ファイル読み込みに失敗しました: %s", self.file_path)
-            self.load_failed.emit(str(e), self.file_path)
+    df = read_data_file(file_path)
+    if len(df.columns) < 2:
+        raise ValueError("データには少なくとも2列必要です。")
+    return df

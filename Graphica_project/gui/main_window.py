@@ -149,7 +149,8 @@ from gui.minimap_widget import MinimapWidget
 from gui.detached_canvas_window import DetachedCanvasWindow
 from gui import theme
 from gui.theme import apply_form_spacing
-from gui.workers import DataLoadWorker
+from gui.workers import load_data_file_task
+from gui.task_runner import TaskRunner
 from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
 from gui.color_picker_widget import ColorPickerWidget
 from gui.icon_utils import load_svg_icon, ICONS_DIR, icon as icon_utils_icon
@@ -520,7 +521,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
         self.integral_result_dialog = None  # 区間積分結果(項目C-311、非モーダル)のインスタンス保持用
         self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
-        self._data_load_worker = None  # ファイル読み込み用バックグラウンドワーカーの保持用
+        self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
         self._fit_task_runner = None   # 曲線フィット用バックグラウンドタスク(項目C-004)の保持用
         self._batch_fit_task_runner = None  # バッチカーブフィット用バックグラウンドタスク(項目C-004フェーズ2)の保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
@@ -1686,25 +1687,28 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def closeEvent(self, event):
         """ウィンドウが閉じられる(正常終了する)ときに呼ばれる。"""
-        # ★ バグ修正: バックグラウンドでファイル読み込み中(DataLoadWorker、
-        # gui/workers.py)にタブ/アプリを閉じると、実行中のQThreadが破棄され
-        # Qtが即座にプロセスをfail-fast abortさせる(実機で再現確認済み、
-        # 例外機構を経由しないハードクラッシュのため他の全タブの未保存データも
-        # 道連れになる)。読み込みは通常CSV/Excelの読み取りのみで長時間には
-        # ならないため、閉じる前にここでブロッキング待機して完了させる。
-        # 待機後に signal をつなぎ直さず先に切断しておくことで、待機中に
-        # emit された load_succeeded/load_failed が、閉じている最中の
-        # ウィンドウに対して(キュー処理や再描画を伴う)通常のスロットを
-        # 実行してしまうのも防ぐ。
-        if self._data_load_worker is not None:
+        # ★ バグ修正: バックグラウンドでファイル読み込み中(項目C-004フェーズ4で
+        # TaskRunner化する前は専用のDataLoadWorker、gui/workers.py)にタブ/アプリを
+        # 閉じると、実行中のQThreadが破棄されQtが即座にプロセスをfail-fast
+        # abortさせる(実機で再現確認済み、例外機構を経由しないハードクラッシュの
+        # ため他の全タブの未保存データも道連れになる)。読み込みは通常CSV/Excelの
+        # 読み取りのみで長時間にはならないため、閉じる前にここでブロッキング待機
+        # して完了させる。待機後にsignalをつなぎ直さず先に切断しておくことで、
+        # 待機中にemitされたsucceeded/failedが、閉じている最中のウィンドウに対して
+        # (キュー処理や再描画を伴う)通常のスロットを実行してしまうのも防ぐ。
+        # read_data_file()自体は中断不能なため、requestInterruption()を呼んでも
+        # ここでのwait()は読み込み完了まで実際にブロックしうる(_fit_task_runner
+        # と同じ扱い、v1では許容)。
+        if self._data_load_task_runner is not None:
             try:
-                self._data_load_worker.load_succeeded.disconnect()
-                self._data_load_worker.load_failed.disconnect()
+                self._data_load_task_runner.succeeded.disconnect()
+                self._data_load_task_runner.failed.disconnect()
             except (RuntimeError, TypeError):
                 pass
-            self._data_load_worker.wait()
-            self._data_load_worker.deleteLater()
-            self._data_load_worker = None
+            self._data_load_task_runner.requestInterruption()
+            self._data_load_task_runner.wait()
+            self._data_load_task_runner.deleteLater()
+            self._data_load_task_runner = None
 
         # ★ 項目C-004: 曲線フィット用のTaskRunnerも同じ理由(実行中のQThreadを
         # 破棄するとQtがプロセスをfail-fast abortさせる)でシグナル切断→
@@ -2622,7 +2626,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._data_load_queue.extend(valid_paths)
         self._data_load_queue_total += len(valid_paths)
 
-        if self._data_load_worker is None:
+        if self._data_load_task_runner is None:
             self._process_next_queued_file()
         # 既に読み込み中の場合は、その完了後に _process_next_queued_file が
         # 自動的にキューの続きを処理する
@@ -2647,14 +2651,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         ファイルをバックグラウンドスレッドで読み込み、既存のDataset(Model)とUIに反映させる。
         大きなCSV/Excelファイルでも、読み込み中にUIがフリーズしないようにするため、
-        実際のファイルI/O (gui/workers.py の DataLoadWorker) は別スレッドで実行する。
+        実際のファイルI/O (gui/workers.py の load_data_file_task) は
+        TaskRunner(項目C-004フェーズ4)経由で別スレッドで実行する。
 
         queue_progress: ドラッグ&ドロップの複数ファイル一括読み込み(項目77)で、
             キュー内の進捗を (現在の件数, 総件数) のタプルで渡すと、
             ステータスバーに "読み込み中 (2/5): ..." のように表示する。
             単体読み込み(メニューからの「データセット追加」等)では None のまま。
         """
-        if self._data_load_worker is not None:
+        if self._data_load_task_runner is not None:
             QMessageBox.information(self, "読み込み中", "他のファイルを読み込み中です。完了までお待ちください。")
             return
 
@@ -2665,21 +2670,21 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         else:
             self.statusBar().showMessage(f"読み込み中: {file_path} ...")
 
-        worker = DataLoadWorker(file_path, self)
-        worker.load_succeeded.connect(self._on_data_load_succeeded)
-        worker.load_failed.connect(self._on_data_load_failed)
-        self._data_load_worker = worker
-        worker.start()
+        runner = TaskRunner(load_data_file_task, file_path, parent=self)
+        runner.succeeded.connect(lambda df: self._on_data_load_succeeded(df, file_path))
+        runner.failed.connect(lambda msg: self._on_data_load_failed(msg, file_path))
+        self._data_load_task_runner = runner
+        runner.start()
 
     def _on_data_load_succeeded(self, df, file_path):
         """
-        DataLoadWorker がファイル読み込みに成功したときに呼ばれるスロット。
+        ファイル読み込みに成功したときに呼ばれるスロット。
         実際のデータセット追加処理は _import_loaded_dataframe に委譲し、
         その途中でユーザーがダイアログをキャンセルした場合も含め、
         必ず finally でキューの次のファイル読み込みに進む
         (複数ファイル一括ドラッグ&ドロップ、項目77)。
         """
-        self._cleanup_data_load_worker()
+        self._cleanup_data_load_task_runner()
         try:
             self._import_loaded_dataframe(df, file_path)
         finally:
@@ -2822,22 +2827,22 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _on_data_load_failed(self, error_message, file_path):
         """
-        DataLoadWorker がファイル読み込みに失敗したときに呼ばれるスロット。
+        ファイル読み込みに失敗したときに呼ばれるスロット。
         失敗時も、複数ファイル一括ドラッグ&ドロップ(項目77)のキューが
         残っていれば次のファイルの読み込みに進む。
         """
-        self._cleanup_data_load_worker()
+        self._cleanup_data_load_task_runner()
         self.statusBar().clearMessage()
         QMessageBox.critical(self, "エラー", f"読み込みエラー: {error_message}")
         self._process_next_queued_file()
 
-    def _cleanup_data_load_worker(self):
-        """読み込み完了/失敗後の後片付け(UIの再有効化とワーカーの破棄)"""
+    def _cleanup_data_load_task_runner(self):
+        """読み込み完了/失敗後の後片付け(UIの再有効化とTaskRunnerの破棄)"""
         self.ui.add_dataset_button.setEnabled(True)
-        if self._data_load_worker is not None:
-            self._data_load_worker.wait()
-            self._data_load_worker.deleteLater()
-            self._data_load_worker = None
+        if self._data_load_task_runner is not None:
+            self._data_load_task_runner.wait()
+            self._data_load_task_runner.deleteLater()
+            self._data_load_task_runner = None
 
     #==========================================================================
     # 最近使ったファイル一覧

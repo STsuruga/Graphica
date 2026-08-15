@@ -148,7 +148,7 @@ def _make_drop_event(file_paths):
 def _pump_events_until_queue_drained(window, max_iterations=300):
     """
     バックグラウンドの読み込みキューが完全に消化されるまでイベントループを回す。
-    DataLoadWorker は実際の別スレッド(QThread)でファイルI/Oを行うため、
+    ファイル読み込みは実際の別スレッド(TaskRunner、項目C-004フェーズ4)で行うため、
     processEvents() を呼ぶだけでなく、OS側にスレッドの実行機会を与えるための
     短いsleepを挟む(でないとメインスレッドがビジーループしてワーカースレッドの
     完了シグナルがなかなか配送されない)。
@@ -156,19 +156,20 @@ def _pump_events_until_queue_drained(window, max_iterations=300):
     app = QApplication.instance()
     for _ in range(max_iterations):
         app.processEvents()
-        if window._data_load_worker is None and not window._data_load_queue:
+        if window._data_load_task_runner is None and not window._data_load_queue:
             return
         time.sleep(0.01)
     raise AssertionError("読み込みキューが時間内に消化されませんでした")
 
 
-def test_close_event_waits_for_in_flight_data_load_worker_instead_of_crashing(tmp_path, monkeypatch):
+def test_close_event_waits_for_in_flight_data_load_task_runner_instead_of_crashing(tmp_path, monkeypatch):
     """
-    回帰テスト: バックグラウンドでファイル読み込み中(DataLoadWorkerがまだ
+    回帰テスト: バックグラウンドでファイル読み込み中(TaskRunnerがまだ
     isRunning())にウィンドウを閉じると、実行中のQThreadがそのまま破棄され、
     Qtが例外機構を経由しないfail-fastアボートでプロセスごとクラッシュさせて
-    いた(closeEventが_data_load_workerを一切見ていなかったため)。
-    closeEventが読み込み完了までブロッキング待機し、ワーカーを片付けてから
+    いた(元はDataLoadWorker専用の問題だったが、closeEventが
+    _data_load_task_runnerを一切見ていなければ同じ問題が再発しうる)。
+    closeEventが読み込み完了までブロッキング待機し、TaskRunnerを片付けてから
     閉じることを確認する。
     """
     import pandas as pd
@@ -188,14 +189,14 @@ def test_close_event_waits_for_in_flight_data_load_worker_instead_of_crashing(tm
 
     app = QApplication.instance()
     app.processEvents()
-    assert window._data_load_worker is not None
-    assert window._data_load_worker.isRunning()
+    assert window._data_load_task_runner is not None
+    assert window._data_load_task_runner.isRunning()
 
     # 読み込み中にウィンドウを閉じてもクラッシュしない(このassert群まで
     # 到達すること自体がプロセスが生き残っている証拠)。
     window.close()
 
-    assert window._data_load_worker is None
+    assert window._data_load_task_runner is None
 
 
 def test_drop_event_queues_and_loads_all_supported_files(tmp_path, monkeypatch):
@@ -1121,11 +1122,14 @@ def test_close_event_swallows_signal_disconnect_error(tmp_path, monkeypatch):
         def disconnect(self, *a, **k):
             raise TypeError("nothing connected")
 
-    class _FakeWorker:
+    class _FakeTaskRunner:
         def __init__(self):
-            self.load_succeeded = _FakeSignal()
-            self.load_failed = _FakeSignal()
+            self.succeeded = _FakeSignal()
+            self.failed = _FakeSignal()
             self.waited = False
+
+        def requestInterruption(self):
+            pass
 
         def wait(self):
             self.waited = True
@@ -1133,11 +1137,11 @@ def test_close_event_swallows_signal_disconnect_error(tmp_path, monkeypatch):
         def deleteLater(self):
             pass
 
-    fake_worker = _FakeWorker()
-    window._data_load_worker = fake_worker
+    fake_runner = _FakeTaskRunner()
+    window._data_load_task_runner = fake_runner
     window.closeEvent(QCloseEvent())  # disconnect()の失敗が例外を伝播させないことを確認
-    assert window._data_load_worker is None
-    assert fake_worker.waited is True
+    assert window._data_load_task_runner is None
+    assert fake_runner.waited is True
 
 
 def test_close_event_saves_settings_when_run_startup_checks_true(tmp_path, monkeypatch):
@@ -1637,18 +1641,19 @@ def test_queue_data_files_all_invalid_extensions_returns_without_queuing(tmp_pat
 
 
 def test_load_data_while_already_loading_shows_information_and_returns(tmp_path, monkeypatch):
-    from gui.workers import DataLoadWorker
+    from gui.task_runner import TaskRunner
+    from gui.workers import load_data_file_task
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    dummy_worker = DataLoadWorker("dummy.csv", window)
-    window._data_load_worker = dummy_worker
+    dummy_runner = TaskRunner(load_data_file_task, "dummy.csv", parent=window)
+    window._data_load_task_runner = dummy_runner
     info_calls = []
     monkeypatch.setattr(main_window_module.QMessageBox, "information", staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window.load_data(str(tmp_path / "another.csv"))
 
     assert len(info_calls) == 1
-    assert window._data_load_worker is dummy_worker  # 新しいworkerに置き換わっていない
+    assert window._data_load_task_runner is dummy_runner  # 新しいTaskRunnerに置き換わっていない
 
 
 # --- _import_loaded_dataframe(): Excel複数シート・数式警告・列不足まわり ---
@@ -1867,11 +1872,12 @@ def test_paste_from_clipboard_success_adds_dataset(tmp_path, monkeypatch):
 # --- _on_data_load_failed() ---
 
 def test_on_data_load_failed_shows_critical_and_processes_next_queued_file(tmp_path, monkeypatch):
-    from gui.workers import DataLoadWorker
+    from gui.task_runner import TaskRunner
+    from gui.workers import load_data_file_task
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    worker = DataLoadWorker("dummy.csv", window)
-    window._data_load_worker = worker
+    runner = TaskRunner(load_data_file_task, "dummy.csv", parent=window)
+    window._data_load_task_runner = runner
     critical_calls = []
     monkeypatch.setattr(main_window_module.QMessageBox, "critical", staticmethod(lambda *a, **k: critical_calls.append(a)))
     next_calls = []
@@ -1881,7 +1887,7 @@ def test_on_data_load_failed_shows_critical_and_processes_next_queued_file(tmp_p
 
     assert len(critical_calls) == 1
     assert next_calls == [True]
-    assert window._data_load_worker is None
+    assert window._data_load_task_runner is None
 
 
 # --- 最近使ったファイル一覧 ---
