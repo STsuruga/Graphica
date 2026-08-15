@@ -1991,8 +1991,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         self._update_plot()
 
-    def _update_plot(self):
-        """グラフ全体を再描画する（MVC対応版）"""
+    def _update_plot(self, light=False):
+        """
+        グラフ全体を再描画する（MVC対応版）。
+
+        light=True(項目C-003フェーズ2): Axesの枚数・GridSpec配置・所属
+        (subplot_target/use_secondary_y)は一切変わらない、パネルラベル表示
+        切替・ダークモード切替のようなトリガー専用の軽量パス。
+        canvas.redraw_all()(fig.clf()で全Axesを作り直す)の代わりに
+        canvas.update_all_axes_appearance_and_data()(既存Axesのデータ・外観
+        だけを描き直す)を使う。呼び出し側は上記の前提が崩れないことを保証する
+        こと(レイアウト行数/列数変更やデータセット追加削除では使わない)。
+        """
         layout_mode = getattr(self.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
             # 自由配置レイアウトでは行数×列数ではなく、all_plot_settingsの
@@ -2007,7 +2017,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 return
 
         # ★ 描画処理をすべてCanvasに「丸投げ」する！
-        is_secondary_visible_global = self.canvas.redraw_all(
+        canvas_update_method = (
+            self.canvas.update_all_axes_appearance_and_data if light else self.canvas.redraw_all
+        )
+        is_secondary_visible_global = canvas_update_method(
             self.project.datasets, rows, cols, self.project.all_plot_settings, layout_mode=layout_mode,
             panel_labels_enabled=self.project.panel_labels_enabled,
             share_x_axis=getattr(self.project, 'share_x_axis', False),
@@ -2076,7 +2089,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         (.graphica/.pklに含まれ、プロジェクトファイルを開き直すたびに復元される)。
         """
         self.project.panel_labels_enabled = checked
-        self._update_plot()
+        self._update_plot(light=True)
 
     # --- ★ 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し) ---
     #

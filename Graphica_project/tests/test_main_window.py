@@ -1424,12 +1424,53 @@ def test_refresh_minimap_noop_when_minimap_widget_not_yet_created(tmp_path, monk
 
 
 def test_on_toggle_panel_labels_updates_project_and_replots(tmp_path, monkeypatch):
+    """項目C-003フェーズ2: パネルラベル切替は軽量パス(light=True)を使う。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []
-    monkeypatch.setattr(window, "_update_plot", lambda: calls.append(True))
+    monkeypatch.setattr(window, "_update_plot", lambda light=False: calls.append(light))
     window._on_toggle_panel_labels(True)
     assert window.project.panel_labels_enabled is True
     assert calls == [True]
+
+
+def test_update_plot_light_true_uses_lightweight_canvas_method_and_preserves_axes_identity(tmp_path, monkeypatch):
+    """
+    項目C-003フェーズ2の配線確認: _update_plot(light=True)は
+    canvas.redraw_all()(fig.clf()でAxesを作り直す)ではなく
+    canvas.update_all_axes_appearance_and_data()(既存Axesのまま)を呼ぶこと。
+    Axesオブジェクトのアイデンティティが保たれることで間接的に確認する。
+    """
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2, 3], "y": [1, 4, 9]}),
+                 x_col_name="x", y_col_name="y")
+    window.project.datasets.append(ds)
+    window._update_plot()
+    axis_before = window.canvas.all_axes[0]
+
+    window._update_plot(light=True)
+
+    assert window.canvas.all_axes[0] is axis_before
+
+
+def test_update_plot_default_is_full_redraw_and_recreates_axes(tmp_path, monkeypatch):
+    """light引数を省略した従来通りの呼び出しは、フルの再描画(canvas.redraw_all())
+    のままであること(Axesオブジェクトが作り直される)を確認する回帰テスト。"""
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2, 3], "y": [1, 4, 9]}),
+                 x_col_name="x", y_col_name="y")
+    window.project.datasets.append(ds)
+    window._update_plot()
+    axis_before = window.canvas.all_axes[0]
+
+    window._update_plot()
+
+    assert window.canvas.all_axes[0] is not axis_before
 
 
 # --- キャンバス切り離し/再アタッチの早期return分岐 ---

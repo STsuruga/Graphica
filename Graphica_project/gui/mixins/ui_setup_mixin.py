@@ -537,7 +537,7 @@ class UISetupMixin:
         apply_theme(QApplication.instance(), checked)
         self.canvas.dark_mode = checked
         self.settings.setValue("dark_mode", checked)
-        self._update_plot() # 既存のグラフにも新しい配色を反映するため再描画
+        self._update_plot(light=True) # 既存のグラフにも新しい配色を反映するため再描画(項目C-003フェーズ2)
         # ★ 項目H-2-4追加分: タイトル/軸ラベルのmathtextプレビュー
         #   (gui/mathtext_preview.py)は文字色をtext_primary/text_mutedトークン
         #   から都度レンダリングしているため、テーマが変わったら再描画しないと
@@ -611,7 +611,7 @@ class UISetupMixin:
             tab.dark_mode_action.blockSignals(True)
             tab.dark_mode_action.setChecked(checked)
             tab.dark_mode_action.blockSignals(False)
-            tab._update_plot()
+            tab._update_plot(light=True)
             tab._refresh_all_label_previews()
             tab.color_picker_widget.refresh_theme()
             tab.gradient_color2_picker.refresh_theme()

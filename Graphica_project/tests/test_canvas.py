@@ -893,6 +893,112 @@ def test_update_single_axis_free_layout_cols_zero_does_not_crash(canvas):
     canvas.update_single_axis(0, [ds], {}, rows=0, cols=0)  # 例外が出なければOK
 
 
+# --- 項目C-003フェーズ2: update_all_axes_appearance_and_data
+#     (パネルラベル/ダークモード切替のような、全Axesを均一に触るが軸の
+#     所属自体は変えないトリガー専用の軽量な全体更新) ---
+
+def test_update_all_axes_appearance_and_data_does_not_recreate_axes(canvas):
+    """redraw_all()と異なりfig.clf()を経由しないため、Axesオブジェクト自体の
+    アイデンティティは呼び出し前後で変わらない。"""
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1, 2], "y": [5, 6]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}])
+    axes_before = list(canvas.all_axes)
+
+    canvas.update_all_axes_appearance_and_data([ds0, ds1], 1, 2, [{}, {}])
+
+    assert canvas.all_axes[0] is axes_before[0]
+    assert canvas.all_axes[1] is axes_before[1]
+
+
+def test_update_all_axes_appearance_and_data_redraws_every_axis(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1, 2], "y": [5, 6]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}])
+
+    ds0.df = pd.DataFrame({"x": [1, 2, 3], "y": [3, 4, 5]})
+    ds1.df = pd.DataFrame({"x": [1, 2, 3], "y": [5, 6, 7]})
+    canvas.update_all_axes_appearance_and_data([ds0, ds1], 1, 2, [{}, {}])
+
+    assert len(canvas.all_axes[0].lines[0].get_xdata()) == 3
+    assert len(canvas.all_axes[1].lines[0].get_xdata()) == 3
+
+
+def test_update_all_axes_appearance_and_data_returns_secondary_visible_global(canvas):
+    ds_primary = Dataset(name="p", df=pd.DataFrame({"x": [1, 2], "y": [1, 2]}), x_col_name="x", y_col_name="y")
+    ds_secondary = Dataset(name="s", df=pd.DataFrame({"x": [1, 2], "y": [10, 20]}), x_col_name="x", y_col_name="y",
+                           use_secondary_y=True)
+    canvas.redraw_all([ds_primary, ds_secondary], 1, 1, [{}])
+
+    result = canvas.update_all_axes_appearance_and_data([ds_primary, ds_secondary], 1, 1, [{}])
+
+    assert result is True
+    assert canvas.all_secondary_axes[0] is not None
+
+
+def test_update_all_axes_appearance_and_data_draws_panel_labels_when_enabled(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1, 2], "y": [5, 6]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0, ds1], 1, 2, [{}, {}])
+
+    canvas.update_all_axes_appearance_and_data([ds0, ds1], 1, 2, [{}, {}], panel_labels_enabled=True)
+
+    texts0 = [t.get_text() for t in canvas.all_axes[0].texts]
+    texts1 = [t.get_text() for t in canvas.all_axes[1].texts]
+    assert "(a)" in texts0
+    assert "(b)" in texts1
+
+
+def test_update_all_axes_appearance_and_data_sets_facecolor_from_dark_mode(canvas):
+    import matplotlib.colors as mcolors
+    from gui.canvas import DARK_FIGURE_FACECOLOR
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y")
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+    canvas.dark_mode = True
+    canvas.update_all_axes_appearance_and_data([ds], 1, 1, [{}])
+
+    assert canvas.fig.get_facecolor() == pytest.approx(mcolors.to_rgba(DARK_FIGURE_FACECOLOR))
+
+
+def test_update_all_axes_appearance_and_data_skips_tight_layout_for_free_layout(canvas, monkeypatch):
+    """自由配置レイアウトではredraw_all()同様tight_layout()を呼ばない
+    (呼ばれたら例外を投げるモックで検知する)。"""
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y")
+    canvas.redraw_all([ds], 0, 0, [{'free_rect': (0.1, 0.1, 0.8, 0.8)}], layout_mode='free')
+    monkeypatch.setattr(
+        canvas.fig, "tight_layout",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("tight_layout should not be called for free layout")),
+    )
+    canvas.update_all_axes_appearance_and_data([ds], 0, 0, [{'free_rect': (0.1, 0.1, 0.8, 0.8)}], layout_mode='free')
+
+
+def test_update_all_axes_appearance_and_data_swallows_tight_layout_value_error(canvas, monkeypatch):
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    monkeypatch.setattr(
+        canvas.fig, "tight_layout",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("boom")),
+    )
+    canvas.update_all_axes_appearance_and_data([ds], 1, 1, [{}])  # 例外が伝播しなければOK
+
+
+def test_update_all_axes_appearance_and_data_skips_axes_without_matching_settings(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 2, [{}])
+    assert len(canvas.all_axes) == 2
+
+    canvas.update_all_axes_appearance_and_data([ds], 1, 2, [{}])
+
+    assert len(canvas.all_axes) == 2  # 引き続き2枚のまま(作り直されていない)
+
+
 # --- 項目H-3: matplotlib(Figure)側の配色をgui/theme.pyのトークンと連動させる
 #     (以前はcanvas.py独自のハードコード値を持ち、theme.pyのトークンとは
 #     完全に無関係だった、H-0調査で判明した既知の不整合) ---
