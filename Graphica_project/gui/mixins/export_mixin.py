@@ -15,7 +15,7 @@ from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 
 from gui.dialogs import ExportDialog, BatchExportDialog
-from gui.canvas import MplCanvas
+from gui.canvas import _HeadlessRenderCanvas
 from models.project import ProjectModel
 from core.plugin_api import get_plugin_api, get_registered_exporters
 from core.plugin_types import PluginExecutionError
@@ -108,15 +108,16 @@ class ExportMixin:
         現在のプロジェクトの各サブプロットを個別画像として、または複数の
         プロジェクトファイル(.graphica/.pkl)をそれぞれの完成図として、まとめて書き出す。
 
-        ★ 項目C-004フェーズ3: ここは実スレッド化しない。理由は、書き出し1件ごとに
-        新規MplCanvas(QWidgetのサブクラス)を生成しており、QWidgetをGUIスレッド
-        以外で構築するのはQt的に安全でないため(docs/CURRENT_STATE.mdに記載の
-        「QPixmap/QPainterの生成はQApplication不在時に不安定」という既知の教訓と
-        同根のクラス)。TaskRunner(別スレッド)には乗せず、GUIスレッド上で
-        QProgressDialog + 項目間のprocessEvents()によるキャンセル可能な進捗表示
-        のみを実装する(体感の痛みの大部分はこれで解消できる)。真のバックグラウンド
-        スレッド化は、Figureの構築をQtから切り離す本格リファクタが必要になるため
-        将来の検討事項とし、今回のスコープには含めない。
+        ★ 項目C-004フェーズ5a: 書き出し1件ごとに使う一時キャンバスは、QWidgetの
+        サブクラスであるMplCanvasではなく、Qt非依存の_HeadlessRenderCanvas
+        (gui/canvas.py、FigureCanvasAgg)を使う。これによりGUIスレッド外での
+        構築・描画自体は安全になったが、ここ(_on_batch_export)自体はまだ
+        実スレッド化していない(GUIスレッド上でQProgressDialog +
+        項目間のprocessEvents()によるキャンセル可能な進捗表示のみ)。
+        実際にTaskRunnerへ乗せてバックグラウンドスレッドで実行するのは
+        フェーズ5bで行う(_save_figure_with_optionsが使うmpl.rc_context()は
+        プロセスグローバルなrcParamsを書き換えるため、複数スレッドを
+        同時に走らせる設計にはしない)。
         """
         extra_formats = [exp.format_name for exp in get_registered_exporters()]
         dialog = BatchExportDialog(len(self.project.all_plot_settings), self, extra_formats=extra_formats)
@@ -202,8 +203,9 @@ class ExportMixin:
     def _batch_export_subplots(self, indices, options, progress_dialog=None):
         """
         現在のプロジェクトの、指定されたサブプロットそれぞれを個別の画像として書き出す。
-        一時的な MplCanvas を新しい1x1レイアウトとして使うため、対象データセットの
-        subplot_target を一時的に0に付け替えたコピー(dataclasses.replace、dfは参照共有)を渡す。
+        一時的な _HeadlessRenderCanvas を新しい1x1レイアウトとして使うため、対象
+        データセットの subplot_target を一時的に0に付け替えたコピー
+        (dataclasses.replace、dfは参照共有)を渡す。
 
         progress_dialog (項目C-004フェーズ3): 指定時、1件処理するごとに値を進め、
         「キャンセル」が押されていれば以降の項目をスキップして即座に戻る
@@ -224,13 +226,10 @@ class ExportMixin:
                     dataclasses.replace(ds, subplot_target=0)
                     for ds in self.project.datasets if ds.subplot_target == idx
                 ]
-                temp_canvas = MplCanvas(width=BATCH_EXPORT_FIGSIZE[0], height=BATCH_EXPORT_FIGSIZE[1], dpi=options['dpi'])
+                temp_canvas = _HeadlessRenderCanvas(width=BATCH_EXPORT_FIGSIZE[0], height=BATCH_EXPORT_FIGSIZE[1], dpi=options['dpi'])
                 temp_canvas.dark_mode = self.canvas.dark_mode
-                try:
-                    temp_canvas.redraw_all(datasets_for_axis, 1, 1, [settings])
-                    self._save_figure_with_options(temp_canvas.fig, out_path, options)
-                finally:
-                    temp_canvas.deleteLater()
+                temp_canvas.redraw_all(datasets_for_axis, 1, 1, [settings])
+                self._save_figure_with_options(temp_canvas.fig, out_path, options)
                 results.append((out_name, None))
             except Exception as e:
                 logger.exception("バッチエクスポート(サブプロット)に失敗しました: %s", out_name)
@@ -241,7 +240,7 @@ class ExportMixin:
         """
         複数のプロジェクトファイル(.graphica/.pkl)それぞれを読み込み、その完成図を書き出す。
         現在開いているプロジェクト/GUIの状態には一切触れない(使い捨てのProjectModelと
-        MplCanvasだけを使う)。load_project側が拡張子で保存形式を自動判別するため、
+        _HeadlessRenderCanvasだけを使う)。load_project側が拡張子で保存形式を自動判別するため、
         ここでは形式を意識せずパスをそのまま渡すだけでよい。
 
         progress_dialog (項目C-004フェーズ3): _batch_export_subplots()と同じ役割。
@@ -273,16 +272,13 @@ class ExportMixin:
                         raise ValueError("有効なプロット設定が見つかりません")
                     fig_width, fig_height = BATCH_EXPORT_FIGSIZE[0] * cols, BATCH_EXPORT_FIGSIZE[1] * rows
 
-                temp_canvas = MplCanvas(width=fig_width, height=fig_height, dpi=options['dpi'])
+                temp_canvas = _HeadlessRenderCanvas(width=fig_width, height=fig_height, dpi=options['dpi'])
                 temp_canvas.dark_mode = self.canvas.dark_mode
-                try:
-                    temp_canvas.redraw_all(
-                        temp_project.datasets, rows, cols, temp_project.all_plot_settings, layout_mode=layout_mode,
-                        panel_labels_enabled=temp_project.panel_labels_enabled,
-                    )
-                    self._save_figure_with_options(temp_canvas.fig, out_path, options)
-                finally:
-                    temp_canvas.deleteLater()
+                temp_canvas.redraw_all(
+                    temp_project.datasets, rows, cols, temp_project.all_plot_settings, layout_mode=layout_mode,
+                    panel_labels_enabled=temp_project.panel_labels_enabled,
+                )
+                self._save_figure_with_options(temp_canvas.fig, out_path, options)
                 results.append((out_name, None))
             except Exception as e:
                 logger.exception("バッチエクスポート(プロジェクトファイル)に失敗しました: %s", path)

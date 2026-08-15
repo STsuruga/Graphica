@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.font_manager import FontProperties
 from matplotlib.collections import LineCollection
@@ -143,11 +144,17 @@ DARK_GRID_COLOR = DARK_TOKENS['border_strong']
 LIGHT_GRID_COLOR = LIGHT_TOKENS['border_strong']
 
 
-class MplCanvas(FigureCanvas):
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
+class _CanvasDrawingMixin:
+    """
+    MplCanvasの描画ロジック全体(Figure/Axes操作、プレーンなPython状態の初期化)を
+    持つmixin。Qt(QWidget)に一切依存しないため、GUIスレッド用のMplCanvas
+    (FigureCanvasQTAgg)と、バッチエクスポート用のヘッドレスキャンバス
+    (_HeadlessRenderCanvas、FigureCanvasAgg)の両方から共有できる
+    (項目C-004フェーズ5a)。
+    """
+
+    def _init_drawing_state(self, width, height, dpi):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
-        super().__init__(self.fig)
-        self.setParent(parent)
 
         # グラフの軸(Axes)の管理も、ウィンドウではなくCanvas側で行う
         self.all_axes = []
@@ -1134,3 +1141,23 @@ class MplCanvas(FigureCanvas):
                                         color=spine_color, labelcolor=tick_color, direction=major_dir)
             secondary_x_ax.spines['top'].set_linewidth(spine_width)
             secondary_x_ax.spines['top'].set_color(spine_color)
+
+
+class MplCanvas(FigureCanvas, _CanvasDrawingMixin):
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        self._init_drawing_state(width, height, dpi)
+        super().__init__(self.fig)
+        self.setParent(parent)
+
+
+class _HeadlessRenderCanvas(FigureCanvasAgg, _CanvasDrawingMixin):
+    """
+    バッチエクスポート専用のQt非依存キャンバス(項目C-004フェーズ5a)。
+    QWidgetのサブクラスではないため、GUIスレッド外(実スレッド)で構築・
+    描画しても安全。mpl_connect等のインタラクティブなイベント配線は
+    行わない(MplCanvas自体にも存在せず、全てmain_window.py/mixins側で
+    外付けされているため対象外)。
+    """
+    def __init__(self, width=5, height=4, dpi=100):
+        self._init_drawing_state(width, height, dpi)
+        super().__init__(self.fig)

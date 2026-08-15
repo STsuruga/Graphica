@@ -15,7 +15,7 @@ import pytest
 from gui.canvas import (
     _apply_legend_order, _safe_multiple_locator,
     _sci_each_formatter, _apply_tick_format_mode,
-    MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
+    MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
     LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
 )
 from core.dataset import Dataset
@@ -1485,3 +1485,50 @@ def test_downsampled_dataset_with_error_bars_does_not_crash_on_length_mismatch(c
     )
     canvas.redraw_all([ds], 1, 1, [{}])  # 例外が出なければOK
     assert ds.dataset_id in canvas.downsample_index_map
+
+
+# --- _HeadlessRenderCanvas (項目C-004フェーズ5a: Qt非依存のバッチエクスポート用キャンバス) ---
+
+def test_headless_render_canvas_redraw_and_savefig_on_gui_thread(tmp_path):
+    """GUIスレッド上でも、MplCanvasと同じdescribe/appearanceロジック
+    (_CanvasDrawingMixin経由)がQtに依存せず動作すること。"""
+    ds = _make_dataset(5, show_point_labels=False)
+    c = _HeadlessRenderCanvas()
+    is_secondary_visible = c.redraw_all([ds], 1, 1, [{}])
+    assert is_secondary_visible is False
+    assert len(c.all_axes) == 1
+
+    out_path = tmp_path / "headless.png"
+    c.fig.savefig(str(out_path))
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0
+    plt.close(c.fig)
+
+
+def test_headless_render_canvas_works_off_gui_thread(tmp_path):
+    """バッチエクスポートの実スレッド化(項目C-004フェーズ5b)の前提条件:
+    _HeadlessRenderCanvasはQWidgetのサブクラスではないため、GUIスレッド外の
+    素のthreading.Thread上で構築・redraw_all・savefig()しても安全であること。"""
+    import threading
+
+    ds = _make_dataset(5, show_point_labels=False)
+    out_path = tmp_path / "headless_thread.png"
+    errors = []
+
+    def _worker():
+        try:
+            c = _HeadlessRenderCanvas()
+            c.redraw_all([ds], 1, 1, [{}])
+            c.fig.savefig(str(out_path))
+            plt.close(c.fig)
+        except Exception as e:
+            errors.append(e)
+
+    thread = threading.Thread(target=_worker)
+    thread.start()
+    thread.join(timeout=30)
+
+    assert not thread.is_alive()
+    assert errors == []
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0
