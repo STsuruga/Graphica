@@ -3,12 +3,14 @@
 時間のかかる処理を任意の関数として渡し、バックグラウンドスレッドで実行するための
 汎用ワーカー(項目C-004: ワーカースレッド基盤)。
 
-gui/workers.py の DataLoadWorker と同じ QThread ベースの設計・エラー規約
-(str(例外)のみをシグナルで運ぶ)を踏襲しつつ、特定の処理(ファイル読み込み)
-専用ではなく任意の関数を注入できるようにしたもの。DataLoadWorker 自体は
-このクラスへ移行しない(既に固まっている closeEvent 連携のリスクを避けるため。
-gui/main_window.py の closeEvent には TaskRunner 用のクリーンアップブロックを
-別途追加する形にし、重複は許容する)。
+当初は gui/workers.py のファイル読み込み専用ワーカー(DataLoadWorker、QThread
+サブクラス)と同じ設計・エラー規約(str(例外)のみをシグナルで運ぶ)を踏襲しつつ、
+特定の処理専用ではなく任意の関数を注入できるよう一般化したクラスとして導入した。
+既に固まっている closeEvent 連携のリスクを避けるため当初は DataLoadWorker 自体を
+このクラスへ移行しない方針だったが、項目C-004フェーズ4でこの移行を実施済み
+(gui/workers.py の load_data_file_task が実際の注入対象、gui/main_window.py の
+closeEvent には他のTaskRunnerと同型のクリーンアップブロックが並ぶ)。
+DataLoadWorkerクラス自体は削除済み。
 """
 import logging
 from PySide6.QtCore import QThread, Signal

@@ -146,9 +146,11 @@ def test_close_event_waits_for_in_flight_fit_task_runner_instead_of_crashing(qap
     C-003/C-004どちらの回帰でもない基礎的な確認: 実行中のTaskRunnerを
     closeEvent相当の後始末(シグナル切断→requestInterruption→wait→
     deleteLater)にかけても、プロセスがクラッシュせず、待機後に
-    ワーカーが片付いていること。gui/main_window.pyのDataLoadWorker用
-    closeEventブロックと同型の手順をTaskRunner単体で直接検証する
-    (フルのPlotterAppを介さないため、Qt/matplotlibリソース蓄積を避けられる)。
+    ワーカーが片付いていること。gui/main_window.pyの各TaskRunner用
+    closeEventブロック(_fit_task_runner/_batch_fit_task_runner/
+    _data_load_task_runner、いずれも同型)と同じ手順をTaskRunner単体で
+    直接検証する(フルのPlotterAppを介さないため、Qt/matplotlibリソース
+    蓄積を避けられる)。
     """
     def _slow_task(report_progress=None, is_cancelled=None):
         time.sleep(0.3)
@@ -172,4 +174,44 @@ def test_close_event_waits_for_in_flight_fit_task_runner_instead_of_crashing(qap
 
     assert not runner.isRunning()
     # disconnect済みのため、バックグラウンドで完了していてもスロットは呼ばれない
+    assert succeeded_calls == []
+
+
+def test_close_event_waits_for_in_flight_data_load_task_runner_instead_of_crashing(qapp, tmp_path, monkeypatch):
+    """
+    項目C-004フェーズ4: load_data_file_task()を実際に注入したTaskRunnerでも、
+    上のテストと同じclose_event相当の後始末が安全に完了すること
+    (gui/main_window.pyのPlotterAppを介さない、load_data_file_task単体の
+    スレッド安全性の確認)。
+    """
+    import gui.workers as workers_module
+    from gui.workers import load_data_file_task
+
+    csv_path = tmp_path / "slow.csv"
+    csv_path.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
+
+    original_read_data_file = workers_module.read_data_file
+
+    def _slow_read_data_file(file_path):
+        time.sleep(0.3)
+        return original_read_data_file(file_path)
+
+    monkeypatch.setattr(workers_module, "read_data_file", _slow_read_data_file)
+
+    runner = TaskRunner(load_data_file_task, str(csv_path))
+    succeeded_calls = []
+    runner.succeeded.connect(lambda df: succeeded_calls.append(df))
+
+    runner.start()
+    assert runner.isRunning()
+
+    try:
+        runner.succeeded.disconnect()
+    except (RuntimeError, TypeError):
+        pass
+    runner.requestInterruption()
+    runner.wait()
+    runner.deleteLater()
+
+    assert not runner.isRunning()
     assert succeeded_calls == []

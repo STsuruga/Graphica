@@ -2026,7 +2026,7 @@ class DatasetMixin:
 
     def _cleanup_fit_task_runner(self):
         """
-        _fit_task_runner の後始末。gui/main_window.py の _data_load_worker と
+        _fit_task_runner の後始末。gui/main_window.py の _data_load_task_runner と
         同じ「wait()でブロッキング待機→deleteLater()→参照をNoneに戻す」手順
         (closeEventからの再利用も想定、詳細はclose_event側のコメント参照)。
         """

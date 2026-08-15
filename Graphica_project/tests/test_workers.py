@@ -10,7 +10,7 @@ import pytest
 import core.plugin_api as plugin_api_module
 from core.plugin_api import GraphicaPluginAPI
 from core.plugin_types import PluginExecutionError
-from gui.workers import DataLoadWorker, read_data_file
+from gui.workers import load_data_file_task, read_data_file
 
 
 @pytest.fixture(autouse=True)
@@ -163,60 +163,43 @@ def test_read_csv_with_utf8_sig_bom_that_fails_falls_back_and_raises(tmp_path):
         read_data_file(str(path))
 
 
-# --- DataLoadWorker.run() ---
+# --- load_data_file_task() (項目C-004フェーズ4、TaskRunnerへ注入する関数) ---
 
-def test_data_load_worker_run_emits_load_succeeded(qapp, tmp_path):
+def test_load_data_file_task_returns_dataframe_on_success(tmp_path):
     path = tmp_path / "data.csv"
     path.write_text("x,y\n1,2\n3,4\n", encoding='utf-8')
 
-    worker = DataLoadWorker(str(path))
-    succeeded_calls = []
-    failed_calls = []
-    worker.load_succeeded.connect(lambda df, fp: succeeded_calls.append((df, fp)))
-    worker.load_failed.connect(lambda msg, fp: failed_calls.append((msg, fp)))
+    df = load_data_file_task(str(path))
 
-    worker.run()
-
-    assert failed_calls == []
-    assert len(succeeded_calls) == 1
-    df, fp = succeeded_calls[0]
     assert list(df.columns) == ['x', 'y']
-    assert fp == str(path)
+    assert len(df) == 2
 
 
-def test_data_load_worker_run_emits_load_failed_when_fewer_than_two_columns(qapp, tmp_path):
-    """1列しかないデータは読み込み自体は成功するが、run()内のバリデーションで
-    ValueErrorを送出しload_failedになる。"""
+def test_load_data_file_task_raises_when_fewer_than_two_columns(tmp_path):
+    """1列しかないデータは読み込み自体は成功するが、列数バリデーションで
+    ValueErrorを送出する(TaskRunner.run()がこれを捕捉しfailedシグナルに変換する)。"""
     path = tmp_path / "single_col.csv"
     path.write_text("x\n1\n2\n", encoding='utf-8')
 
-    worker = DataLoadWorker(str(path))
-    succeeded_calls = []
-    failed_calls = []
-    worker.load_succeeded.connect(lambda df, fp: succeeded_calls.append((df, fp)))
-    worker.load_failed.connect(lambda msg, fp: failed_calls.append((msg, fp)))
-
-    worker.run()
-
-    assert succeeded_calls == []
-    assert len(failed_calls) == 1
-    msg, fp = failed_calls[0]
-    assert "2列" in msg
-    assert fp == str(path)
+    with pytest.raises(ValueError, match="2列"):
+        load_data_file_task(str(path))
 
 
-def test_data_load_worker_run_emits_load_failed_on_read_error(qapp, tmp_path):
-    """未対応拡張子など、read_data_file() が例外を投げるケースもload_failedになる。"""
+def test_load_data_file_task_propagates_read_data_file_errors(tmp_path):
+    """未対応拡張子など、read_data_file() が例外を投げるケースはそのまま伝播する。"""
     path = tmp_path / "data.foo"
     path.write_text("dummy", encoding='utf-8')
 
-    worker = DataLoadWorker(str(path))
-    failed_calls = []
-    worker.load_failed.connect(lambda msg, fp: failed_calls.append((msg, fp)))
+    with pytest.raises(ValueError, match="未対応"):
+        load_data_file_task(str(path))
 
-    worker.run()
 
-    assert len(failed_calls) == 1
-    msg, fp = failed_calls[0]
-    assert "未対応" in msg
-    assert fp == str(path)
+def test_load_data_file_task_accepts_but_ignores_report_progress_and_is_cancelled(tmp_path):
+    """TaskRunner.run()は常にreport_progress/is_cancelledをキーワード引数で渡すため、
+    受け取っても使わないことを確認する(呼び出し時にTypeErrorにならないこと)。"""
+    path = tmp_path / "data.csv"
+    path.write_text("x,y\n1,2\n", encoding='utf-8')
+
+    df = load_data_file_task(str(path), report_progress=lambda *a: None, is_cancelled=lambda: False)
+
+    assert list(df.columns) == ['x', 'y']
