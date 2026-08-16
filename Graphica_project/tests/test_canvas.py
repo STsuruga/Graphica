@@ -1910,6 +1910,103 @@ def test_update_single_axis_also_draws_heatmap():
     plt.close(c.fig)
 
 
+def _colorbar_axes(fig):
+    return [a for a in fig.axes if a.get_label() == '<colorbar>']
+
+
+# --- カラーバー(項目C-501) ---
+
+def test_colorbar_shown_by_default_when_heatmap_present():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert len(_colorbar_axes(c.fig)) == 1
+    plt.close(c.fig)
+
+
+def test_colorbar_absent_when_no_heatmap():
+    ds = Dataset(name="line", df=pd.DataFrame({'x': [0.0, 1.0], 'y': [1.0, 2.0]}),
+                 x_col_name='x', y_col_name='y')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert len(_colorbar_axes(c.fig)) == 0
+    plt.close(c.fig)
+
+
+def test_colorbar_can_be_disabled_via_settings():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{'colorbar_enabled': False}])
+
+    assert len(_colorbar_axes(c.fig)) == 0
+    plt.close(c.fig)
+
+
+def test_colorbar_label_applied():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{'colorbar_label': '強度 (a.u.)'}])
+
+    cbar_axes = _colorbar_axes(c.fig)
+    assert len(cbar_axes) == 1
+    assert cbar_axes[0].get_ylabel() == '強度 (a.u.)' or cbar_axes[0].get_xlabel() == '強度 (a.u.)'
+    plt.close(c.fig)
+
+
+def test_colorbar_position_bottom_uses_horizontal_orientation():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{'colorbar_position': 'bottom'}])
+
+    cbar_axes = _colorbar_axes(c.fig)
+    assert len(cbar_axes) == 1
+    # 水平配置のカラーバーは横に長い(幅>高さ)
+    bbox = cbar_axes[0].get_position()
+    assert bbox.width > bbox.height
+    plt.close(c.fig)
+
+
+def test_colorbar_invalid_position_falls_back_to_right():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{'colorbar_position': 'not_a_real_position'}])
+
+    assert len(_colorbar_axes(c.fig)) == 1  # 例外を投げず、既定(right)にフォールバック
+    plt.close(c.fig)
+
+
+def test_colorbar_invalid_width_fraction_falls_back_to_default():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{'colorbar_width_fraction': 'not_a_number'}])
+
+    assert len(_colorbar_axes(c.fig)) == 1
+    plt.close(c.fig)
+
+
+def test_colorbar_removed_when_heatmap_dataset_removed():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+    assert len(_colorbar_axes(c.fig)) == 1
+
+    c.redraw_all([], 1, 1, [{}])
+    assert len(_colorbar_axes(c.fig)) == 0
+    plt.close(c.fig)
+
+
+def test_colorbar_one_per_subplot_with_multiple_heatmaps():
+    ds0 = _make_2d_dataset(name="a", subplot_target=0)
+    ds1 = _make_2d_dataset(name="b", subplot_target=1)
+    c = MplCanvas(width=6, height=3, dpi=80)
+    c.redraw_all([ds0, ds1], 1, 2, [{}, {}])
+
+    assert len(_colorbar_axes(c.fig)) == 2
+    plt.close(c.fig)
+
+
 def test_heatmap_scattered_data_falls_back_to_interpolated_grid():
     rng = np.random.default_rng(0)
     x = rng.uniform(0, 10, size=50)

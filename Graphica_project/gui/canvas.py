@@ -1351,6 +1351,32 @@ class _CanvasDrawingMixin:
             secondary_x_ax.spines['top'].set_linewidth(spine_width)
             secondary_x_ax.spines['top'].set_color(spine_color)
 
+        # カラーバー(項目C-501): このAxesに2Dマップ(項目C-508)が描画されていた
+        # 場合のみ意味を持つ。_draw_data()が_axis_2d_mappablesへ登録した
+        # QuadMeshを対象に、fig.colorbar()で付ける。位置(location)を指定すると
+        # matplotlibが向き(vertical/horizontal)を自動的に決めるため、orientationは
+        # 明示的に渡さない(両方渡すと衝突しうる)。
+        mappable = self._axis_2d_mappables.get(axis_index)
+        if mappable is not None and settings.get('colorbar_enabled', True):
+            position = settings.get('colorbar_position', 'right')
+            if position not in ('right', 'left', 'top', 'bottom'):
+                position = 'right'
+            try:
+                fraction = float(settings.get('colorbar_width_fraction', 0.05))
+            except (TypeError, ValueError):
+                fraction = 0.05
+            if fraction <= 0:
+                fraction = 0.05
+            cbar = self.fig.colorbar(mappable, ax=ax, location=position, fraction=fraction, pad=0.04)
+            colorbar_label = settings.get('colorbar_label', '')
+            if colorbar_label:
+                cbar.set_label(colorbar_label, **label_font_dict, color=label_color)
+            for tick_label in cbar.ax.get_yticklabels() + cbar.ax.get_xticklabels():
+                tick_label.set(**tick_font_dict)
+                tick_label.set_color(tick_color)
+            cbar.outline.set_edgecolor(spine_color)
+            cbar.outline.set_linewidth(spine_width)
+
 
 class MplCanvas(FigureCanvas, _CanvasDrawingMixin):
     def __init__(self, parent=None, width=5, height=4, dpi=100):
