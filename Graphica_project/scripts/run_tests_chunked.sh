@@ -57,9 +57,15 @@ for f in tests/test_*.py; do
       # シェルの単語分割(IFS)でバラバラの引数に分解されてしまい、
       # 「file or directory not found: (y」のような分かりにくいエラーで
       # チャンク全体が失敗扱いになっていた(実際にこのセッションで発生した)。
-      # mapfileで1行=配列の1要素として読み込み、"${array[@]}"で渡すことで、
+      # 1行=配列の1要素として読み込み、"${array[@]}"で渡すことで、
       # 各テストID内の空白を保ったまま個別の引数として扱う。
-      mapfile -t target_ids < "$c"
+      # ★ bash 3.2(macOSがGPLv3回避のため標準搭載しているバージョン)には
+      # mapfile/readarrayが無い(bash 4.0以降の機能)ため、代わりにこの
+      # while readループを使う(bash 3.2/4+のどちらでも動く)。
+      target_ids=()
+      while IFS= read -r line; do
+        target_ids+=("$line")
+      done < "$c"
       output=$(python -m pytest "${target_ids[@]}" -q 2>&1)
     fi
     rc=$?
