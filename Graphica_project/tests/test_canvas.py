@@ -17,6 +17,7 @@ from gui.canvas import (
     _sci_each_formatter, _apply_tick_format_mode,
     MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
     LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
+    GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS,
 )
 from core.dataset import Dataset
 
@@ -1738,3 +1739,189 @@ def test_headless_render_canvas_works_off_gui_thread(tmp_path):
     assert errors == []
     assert out_path.exists()
     assert out_path.stat().st_size > 0
+
+
+# =============================================================================
+# 2Dマップ(ヒートマップ、項目C-508)
+# =============================================================================
+
+def _make_2d_dataset(name="heatmap", nx=4, ny=3, **overrides):
+    xs = np.linspace(0.0, 3.0, nx)
+    ys = np.linspace(0.0, 2.0, ny)
+    x, y, z = [], [], []
+    for yi in ys:
+        for xi in xs:
+            x.append(xi)
+            y.append(yi)
+            z.append(xi + yi)
+    df = pd.DataFrame({'x': x, 'y': y, 'z': z})
+    kwargs = dict(name=name, df=df, x_col_name='x', y_col_name='y',
+                  data_kind='2d_grid', z_col_name='z')
+    kwargs.update(overrides)
+    return Dataset(**kwargs)
+
+
+def test_redraw_all_draws_heatmap_as_quadmesh():
+    from matplotlib.collections import QuadMesh
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+    ax = c.all_axes[0]
+
+    meshes = [coll for coll in ax.collections if isinstance(coll, QuadMesh)]
+    assert len(meshes) == 1
+    assert ds.artist is meshes[0]
+    plt.close(c.fig)
+
+
+def test_heatmap_mesh_uses_dataset_colormap_and_alpha():
+    ds = _make_2d_dataset(colormap='plasma', alpha=0.6)
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert ds.artist.get_cmap().name == 'plasma'
+    assert ds.artist.get_alpha() == pytest.approx(0.6)
+    plt.close(c.fig)
+
+
+def test_heatmap_respects_explicit_vmin_vmax():
+    ds = _make_2d_dataset(vmin=-10.0, vmax=10.0)
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert ds.artist.norm.vmin == pytest.approx(-10.0)
+    assert ds.artist.norm.vmax == pytest.approx(10.0)
+    plt.close(c.fig)
+
+
+def test_heatmap_auto_vmin_vmax_from_data_when_unset():
+    ds = _make_2d_dataset()  # z = x + y, x in [0,3], y in [0,2] -> z in [0,5]
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert ds.artist.norm.vmin == pytest.approx(0.0)
+    assert ds.artist.norm.vmax == pytest.approx(5.0)
+    plt.close(c.fig)
+
+
+def test_heatmap_registers_mappable_for_colorbar():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert 0 in c._axis_2d_mappables
+    assert c._axis_2d_mappables[0] is ds.artist
+    plt.close(c.fig)
+
+
+def test_heatmap_mappable_cleared_when_dataset_removed():
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+    assert 0 in c._axis_2d_mappables
+
+    c.redraw_all([], 1, 1, [{}])
+    assert 0 not in c._axis_2d_mappables
+    plt.close(c.fig)
+
+
+def test_heatmap_coexists_with_1d_line_dataset_on_same_axis():
+    """将来のC-511(1Dスライス抽出)がヒートマップに重ねて線を描く想定の土台確認:
+    2Dデータセットと1Dデータセットを同じサブプロットに置いても両方描画される。"""
+    ds_2d = _make_2d_dataset(subplot_target=0)
+    ds_1d = Dataset(
+        name="slice", df=pd.DataFrame({'x': [0.0, 1.0, 2.0], 'y': [1.0, 2.0, 3.0]}),
+        x_col_name='x', y_col_name='y', subplot_target=0,
+    )
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds_2d, ds_1d], 1, 1, [{}])
+    ax = c.all_axes[0]
+
+    from matplotlib.collections import QuadMesh
+    assert any(isinstance(coll, QuadMesh) for coll in ax.collections)
+    assert len(ax.get_lines()) == 1
+    plt.close(c.fig)
+
+
+def test_2d_dataset_does_not_go_through_1d_downsampling_or_smoothing():
+    """2DデータセットのZ列は長形式のためx_data/y_dataをそのまま1D描画すると
+    無意味になる。_draw_dataが2Dデータセットを1D経路(Line描画)から
+    確実に除外していることを、通常のLineとして描かれていないことで確認する。"""
+    ds = _make_2d_dataset(nx=5, ny=5)
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+    ax = c.all_axes[0]
+
+    assert len(ax.get_lines()) == 0
+    plt.close(c.fig)
+
+
+def test_heatmap_large_grid_is_decimated_for_display():
+    n = GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS + 200
+    xs = np.linspace(0.0, 1.0, n)
+    ys = np.linspace(0.0, 1.0, 5)
+    x, y, z = [], [], []
+    for yi in ys:
+        for xi in xs:
+            x.append(xi)
+            y.append(yi)
+            z.append(xi + yi)
+    df = pd.DataFrame({'x': x, 'y': y, 'z': z})
+    ds = Dataset(name="big", df=df, x_col_name='x', y_col_name='y',
+                 data_kind='2d_grid', z_col_name='z')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert ds.artist.get_array().shape[1] <= GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS
+    plt.close(c.fig)
+
+
+def test_heatmap_with_no_valid_z_grid_draws_nothing_and_does_not_crash():
+    df = pd.DataFrame({'x': [np.nan, np.nan], 'y': [1.0, 2.0], 'z': [1.0, 2.0]})
+    ds = Dataset(name="bad", df=df, x_col_name='x', y_col_name='y',
+                 data_kind='2d_grid', z_col_name='z')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])  # 例外を投げないこと
+
+    assert 0 not in c._axis_2d_mappables
+    plt.close(c.fig)
+
+
+def test_heatmap_invalid_colormap_skips_dataset_without_crashing():
+    ds = _make_2d_dataset(colormap='not_a_real_colormap')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])  # 例外を投げないこと
+
+    assert ds.artist is None
+    assert 0 not in c._axis_2d_mappables
+    plt.close(c.fig)
+
+
+def test_update_single_axis_also_draws_heatmap():
+    """項目C-003(軽量再描画)経由でも2Dマップが描画されること。"""
+    ds = _make_2d_dataset()
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+    c.update_single_axis(0, [ds], {}, rows=1, cols=1)
+
+    from matplotlib.collections import QuadMesh
+    ax = c.all_axes[0]
+    assert any(isinstance(coll, QuadMesh) for coll in ax.collections)
+    plt.close(c.fig)
+
+
+def test_heatmap_scattered_data_falls_back_to_interpolated_grid():
+    rng = np.random.default_rng(0)
+    x = rng.uniform(0, 10, size=50)
+    y = rng.uniform(0, 10, size=50)
+    z = x + y
+    df = pd.DataFrame({'x': x, 'y': y, 'z': z})
+    ds = Dataset(name="scattered", df=df, x_col_name='x', y_col_name='y',
+                 data_kind='2d_grid', z_col_name='z', grid_resolution=[20, 20])
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    from matplotlib.collections import QuadMesh
+    ax = c.all_axes[0]
+    assert any(isinstance(coll, QuadMesh) for coll in ax.collections)
+    plt.close(c.fig)
