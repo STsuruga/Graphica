@@ -144,6 +144,12 @@ class MinimapWidget(FigureCanvas):
             # (概観に非表示分の線が残ると、メイン表示と食い違って見えるため)。
             if not getattr(ds, 'visible', True):
                 continue
+            # 2Dグリッドデータ(ヒートマップ、項目C-508)はx_data/y_dataが長形式の
+            # 生の列(1行=1測定点)であり、そのままplot()すると測定順に線を引く
+            # 意味のない折れ線になる。ミニマップは概観表示に留める設計のため、
+            # 対応(縮小ヒートマップ等)は行わず単純にスキップする。
+            if getattr(ds, 'data_kind', '1d') == '2d_grid':
+                continue
             try:
                 x = ds.x_data
                 y = ds.y_data
