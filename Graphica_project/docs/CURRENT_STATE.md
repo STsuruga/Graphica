@@ -18,49 +18,60 @@
 **トラック3-1(解析基盤、全10項目)・トラック3-2(性能・体験、8項目全て)は
 共に完了・master統合済み**(PR #3→マージコミット`ce4a13a`、
 PR #4→マージコミット`e47d2b1`、PR #5→マージコミット`add9919`、
-PR #6→マージコミット`5f0188f`、PR #7(canvas-light-redraw)→後述)。
-現在のブランチは`master`。`feature/performance-ux`・
-`feature/redraw-and-worker-foundation`・`feature/worker-migration`・
-`feature/canvas-light-redraw`用に切っていた`git worktree`はいずれも
+PR #6→マージコミット`5f0188f`、PR #7→C-003フェーズ2+C-004フェーズ5a/5b、
+PR #8(feature/canvas-scope-phase3)→後述)。現在のブランチは`master`。
+`feature/performance-ux`・`feature/redraw-and-worker-foundation`・
+`feature/worker-migration`・`feature/canvas-light-redraw`・
+`feature/canvas-scope-phase3`用に切っていた`git worktree`はいずれも
 マージ後に`git worktree remove`+`git branch -d`で削除済み(リモート
 ブランチも削除済み。`gh pr merge --delete-branch`がworktreeロック中の
 ローカルブランチ削除に失敗することがあるため、その場合は`gh api -X DELETE
 repos/.../git/refs/heads/<branch>`で個別に削除する運用で対応している)。
 
 **トラック3-2、C-003/C-004は当初スコープを絞ったフェーズで完了させた後、
-2026-08-16にユーザー指示で据え置いていた残りスコープに着手・完了した**:
-- **C-003(再描画スコープ分離)、フェーズ1-2完了**: フェーズ1(1データセットの
-  プロパティ変更の軽量再描画`update_single_axis()`)に続き、フェーズ2で
-  パネルラベル/ダークモード切替を対象にした`update_all_axes_appearance_and_data()`
-  を新設。レイアウト行数/列数変更・自由配置のサブプロット追加削除・
-  `subplot_target`/`use_secondary_y`変更のようなAxesの枚数/所属自体が
-  変わる構造的トリガーは引き続き対象外(`fig.clf()`によるフル再描画のまま)。
+2026-08-16にユーザー指示で据え置いていた残りスコープにも着手し、
+両方とも完全に完了した**:
+- **C-003(再描画スコープ分離)、フェーズ1-3完了**: フェーズ1(1データセットの
+  プロパティ変更の軽量再描画`update_single_axis()`)・フェーズ2(パネル
+  ラベル/ダークモード切替を対象にした`update_all_axes_appearance_and_data()`)
+  に続き、フェーズ3で残りの構造的トリガーのうち2つ(`subplot_target`/
+  `use_secondary_y`変更=`update_single_axis()`を対象Axes数ぶん呼ぶだけで
+  完結すると判明、自由配置のサブプロット追加/削除=常に末尾のみを操作する
+  仕様のため新設`canvas.add_free_axis()`/`remove_last_free_axis()`で
+  他のAxesに触れず対応可能と判明)も軽量化した(`feature/canvas-scope-phase3`
+  ブランチ、PR #8)。グリッドレイアウトの行数/列数変更のみ、`sharex`/
+  `sharey`の再結線が絡み頻度も低い操作のため、意図的にフルの
+  `_update_plot()`のまま残している(唯一の対象外)。
 - **C-004(ワーカースレッド基盤)、フェーズ1-5完了**: フェーズ1-3(単発/一括
   カーブフィット・バッチエクスポート進捗UI)に続き、フェーズ4で`DataLoadWorker`
   を`TaskRunner`へ統合(`feature/worker-migration`ブランチ、PR #6)、
   フェーズ5でバッチエクスポートを実スレッド化(`feature/canvas-light-redraw`
-  ブランチ、5a: `gui/canvas.py`の描画ロジックを`_CanvasDrawingMixin`へ分離し
-  Qt非依存の`_HeadlessRenderCanvas`を新設 → 5b: `TaskRunner`配線で実際に
-  バックグラウンドスレッド化)。
+  ブランチ、PR #7、5a: `gui/canvas.py`の描画ロジックを`_CanvasDrawingMixin`へ
+  分離しQt非依存の`_HeadlessRenderCanvas`を新設 → 5b: `TaskRunner`配線で
+  実際にバックグラウンドスレッド化)。バックログの元の目標
+  (`docs/Graphica_CORE_BACKLOG.md`記載の「インポート/バッチ/フィットの
+  UIブロック解消」)を全てカバーしたため追加実装なしでtrue化。
 実装の詳細ログは`docs/CORE_FEATURES_PROGRESS.md`の「トラック3-2」節参照。
-`docs/roadmap.html`の#61(C-003)・#62(C-004)は、依然として一部
-構造的トリガーが対象外のままのため`false`を維持し、タイトル注記の
-範囲を最新の状態(フェーズ1-2/フェーズ1-5)に更新済み。
+`docs/roadmap.html`の#61(C-003)・#62(C-004)はどちらも`true`に更新・
+再publish済み(#61はグリッド行数/列数変更のみ意図的に対象外というタイトル
+注記付き)。
 
 C-601・C-602完了後、C-003フェーズ1完了後、C-004フェーズ2/3完了後、
 worker-migration(C-004フェーズ4)完了後、canvas-light-redraw
-(C-003フェーズ2+C-004フェーズ5a/5b)完了後のそれぞれでフルスイートを
-実行し、いずれも実際のテスト失敗ゼロを確認済み(2026-08-14〜16、
-最後のcanvas-light-redraw実行で発生した1件のプロセスクラッシュは
-下記「既知の注意点」に記録済みの既知の環境起因クラッシュと確認済み)。
-レビュー中に発見・修正した実バグの詳細は`docs/CORE_FEATURES_PROGRESS.md`
-参照(C-602のinf/nanクラッシュ、C-003の既存テストのモック対象ズレ、
-**C-004でTaskRunnerが部分結果を握りつぶし呼び出し元が完了を待ち続ける
-ハングを起こしていた設計バグ**、など)。
+(C-003フェーズ2+C-004フェーズ5a/5b)完了後、canvas-scope-phase3
+(C-003フェーズ3a/3b)完了後のそれぞれでテストを実行し(最後のcanvas-scope
+-phase3は影響範囲の広い`test_dataset_mixin.py`をチャンク分割実行)、
+いずれも実際のテスト失敗ゼロを確認済み(2026-08-14〜16、canvas-light-redraw
+実行で発生した1件のプロセスクラッシュは下記「既知の注意点」に記録済みの
+既知の環境起因クラッシュと確認済み)。レビュー中に発見・修正した実バグの
+詳細は`docs/CORE_FEATURES_PROGRESS.md`参照(C-602のinf/nanクラッシュ、
+C-003の既存テストのモック対象ズレ、**C-004でTaskRunnerが部分結果を
+握りつぶし呼び出し元が完了を待ち続けるハングを起こしていた設計バグ**、
+など)。
 
-**次にやること**: C-003/C-004は上記の通り、意図的に残していた構造的
-トリガーのスコープを除いて完了。次に何を進めるかはユーザーに確認する
-方針(このセッションの区切りとして報告済み)。
+**次にやること**: C-003/C-004は上記の通り完全に完了(#61/#62とも`true`)。
+次に何を進めるかはユーザーに確認する方針(このセッションの区切りとして
+報告済み)。
 - トラック4(プラグイン本体の開発、#163〜)は`feature/plugin-track4`
   ブランチ(`git worktree`で`D:\ユーザー\shuta\ドキュメント\PlotterApp-plugins`
   に作業中)で着手していたが、**ユーザーからの指示で現在一時停止中**。
@@ -276,9 +287,10 @@ worker-migration(C-004フェーズ4)完了後、canvas-light-redraw
 
 `master`。トラック1(PR #1)・トラック2(PR #2)・トラック3-1(PR #3)・
 トラック3-2(PR #4、PR #5、PR #6=C-004フェーズ4、PR #7=C-003フェーズ2+
-C-004フェーズ5a/5b)はいずれも既にmasterへマージ・push済み。
-`feature/performance-ux`・`feature/redraw-and-worker-foundation`・
-`feature/worker-migration`・`feature/canvas-light-redraw`用の
+C-004フェーズ5a/5b、PR #8=C-003フェーズ3a/3b)はいずれも既にmasterへ
+マージ・push済み。`feature/performance-ux`・
+`feature/redraw-and-worker-foundation`・`feature/worker-migration`・
+`feature/canvas-light-redraw`・`feature/canvas-scope-phase3`用の
 `git worktree`(・ローカル/リモート両ブランチ)はマージ後に削除済み。
 
 `feature/plugin-track4`用の`git worktree`

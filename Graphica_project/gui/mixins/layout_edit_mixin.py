@@ -63,7 +63,14 @@ class LayoutEditMixin:
         self._update_plot()
 
     def _on_add_free_subplot(self):
-        """「+ プロット追加」ボタンの処理。自由配置レイアウトに新しいサブプロットを追加する。"""
+        """
+        「+ プロット追加」ボタンの処理。自由配置レイアウトに新しいサブプロットを追加する。
+
+        ★ 項目C-003フェーズ3b: 新規追加は既存のどのAxesにも影響しない
+        (常に空の新規Axesを1つ増やすだけ)ため、フルの_update_plot()
+        (fig.clf()による全Axes再構築)ではなくcanvas.add_free_axis()
+        による軽量な追加で足りる。
+        """
         default_settings = self._gather_settings_from_ui()
         new_settings = default_settings.copy()
         # ★ 新しいサブプロットは注釈・凡例順・配置矩形を空/デフォルトから始める
@@ -75,10 +82,22 @@ class LayoutEditMixin:
         self.project.all_plot_settings.append(new_settings)
 
         self._update_subplot_combos()
-        self._update_plot()
+        self.canvas.add_free_axis(
+            self.project.datasets, new_settings, panel_labels_enabled=self.project.panel_labels_enabled,
+        )
+        self._sync_canvas_axes_state_and_side_panels()
 
     def _on_remove_free_subplot(self):
-        """「- プロット削除」ボタンの処理。末尾のサブプロットを削除する(最低1つは残す)。"""
+        """
+        「- プロット削除」ボタンの処理。末尾のサブプロットを削除する(最低1つは残す)。
+
+        ★ 項目C-003フェーズ3b: 削除対象は常に末尾のAxesのみ(他のAxesの
+        インデックスは変わらない)。削除された番号に割り当てられていた
+        データセットは新しい末尾のサブプロットへ付け替えるため、
+        フルの_update_plot()ではなくcanvas.remove_last_free_axis()
+        (削除Axesの後片付け)+canvas.update_single_axis()(付け替え先の
+        新しい末尾Axesへのデータ反映)の2手順の軽量パスで足りる。
+        """
         if len(self.project.all_plot_settings) <= 1:
             return
         self.project.all_plot_settings.pop()
@@ -95,13 +114,44 @@ class LayoutEditMixin:
 
         self._update_subplot_combos()
         self._apply_settings_to_ui_controls(self.project.all_plot_settings[self.project.active_axis_index])
-        self._update_plot()
+
+        self.canvas.remove_last_free_axis(self.project.datasets)
+        # 付け替え先(新しい末尾)のAxesに、移動してきたデータセットを反映する
+        new_last_index = new_total - 1
+        self.canvas.update_single_axis(
+            new_last_index, self.project.datasets, self.project.all_plot_settings[new_last_index],
+            rows=0, cols=0, panel_labels_enabled=self.project.panel_labels_enabled,
+        )
+        self._sync_canvas_axes_state_and_side_panels()
 
         # 選択中だったサブプロットが削除された場合は選択を解除する
         if (self._layout_selected_axis_index is not None and
                 self._layout_selected_axis_index >= len(self.project.all_plot_settings)):
             self._layout_selected_axis_index = None
         self._sync_free_layout_position_controls()
+
+    def _sync_canvas_axes_state_and_side_panels(self):
+        """
+        canvas.add_free_axis()/remove_last_free_axis()呼び出し後の共通後処理。
+        _update_plot()が行っている、Axes構造変更後の付随的なUI同期
+        (Y2軸コントロール表示・データカーソル用Axes参照・エクスポート
+        プレビュー追従・エディタ行ハイライト再適用・ミニマップ更新)を
+        フル再描画を経由せずに揃える。
+        """
+        is_secondary_visible = any(sa is not None for sa in self.canvas.all_secondary_axes)
+        self.tick_direction_y2_label.setVisible(is_secondary_visible)
+        self.major_tick_direction_y2_combo.setVisible(is_secondary_visible)
+        self.minor_tick_direction_y2_combo.setVisible(is_secondary_visible)
+        self.y2_label_text_label.setVisible(is_secondary_visible)
+        self.y2_label_text_edit.setVisible(is_secondary_visible)
+
+        self.all_axes = self.canvas.all_axes
+        self.all_secondary_axes = self.canvas.all_secondary_axes
+
+        if hasattr(self, 'export_preview_panel'):
+            self.export_preview_panel.refresh_preview()
+        self._reapply_editor_row_highlight()
+        self._refresh_minimap()
 
     def _toggle_layout_edit_mode(self, checked):
         """
