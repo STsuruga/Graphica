@@ -80,17 +80,26 @@ def _emit_dataset_plot_call(lines, ax_var, ds):
         lines.append(f"{ax_var}.bar(x, y, {kwargs})")
 
 
+_VALID_MAP_DISPLAY_MODES = ('heatmap', 'contour', 'contour_filled', 'heatmap_contour')
+
+
 def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
     """
-    2Dグリッドデータセット(項目C-508、data_kind='2d_grid')をpcolormeshとして
-    出力する。_emit_dataset_plot_call()(plot_type分岐)とは独立した経路
-    (gui/canvas.pyの_draw_data()がdata_kindで2D/1Dを振り分けるのと同じ設計)。
-    Dataset.z_grid(core/dataset.py、規則格子/散在データの補間どちらも同じ形の
-    辞書を返す)が既に計算済みのグリッドをそのまま埋め込む。
+    2Dグリッドデータセット(項目C-508、data_kind='2d_grid')をpcolormesh/contour/
+    contourfとして出力する。_emit_dataset_plot_call()(plot_type分岐)とは
+    独立した経路(gui/canvas.pyの_draw_data()がdata_kindで2D/1Dを振り分ける
+    のと同じ設計)。Dataset.z_grid(core/dataset.py、規則格子/散在データの補間
+    どちらも同じ形の辞書を返す)が既に計算済みのグリッドをそのまま埋め込む。
+
+    ds.map_display_mode(項目C-509)で描画方式を切り替える。gui/canvas.pyの
+    _draw_2d_data()と同じく、塗りを伴うモード(heatmap/contour_filled/
+    heatmap_contour)の場合のみカラーバー用のmesh_var(呼び出し側が
+    fig.colorbar()の対象として使う)を組み立てる。
 
     Returns:
-        bool: 実際にpcolormesh呼び出しを出力できたか(有効なグリッドが
-        構築できなかった場合はFalseを返し、呼び出し側はカラーバー出力を
+        bool: カラーバーの対象になるmappable(pcolormesh/contourfの戻り値)を
+        出力できたか。線のみのcontourモード、または有効なグリッドが
+        構築できなかった場合はFalseを返す(呼び出し側はカラーバー出力を
         スキップする)。
     """
     grid = ds.z_grid
@@ -104,13 +113,30 @@ def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
     lines.append(f"y = np.array({_format_array_literal(list(y_grid))})")
     z_rows = ", ".join(_format_array_literal(list(row)) for row in z_grid)
     lines.append(f"z = np.array([{z_rows}])")
-    kwargs = f"cmap={ds.colormap!r}, alpha={ds.alpha!r}, shading='auto'"
-    if ds.vmin is not None:
-        kwargs += f", vmin={_to_native(ds.vmin)!r}"
-    if ds.vmax is not None:
-        kwargs += f", vmax={_to_native(ds.vmax)!r}"
-    lines.append(f"{mesh_var} = {ax_var}.pcolormesh(x, y, z, {kwargs})")
-    return True
+
+    mode = ds.map_display_mode if ds.map_display_mode in _VALID_MAP_DISPLAY_MODES else 'heatmap'
+    vmin_kw = f", vmin={_to_native(ds.vmin)!r}" if ds.vmin is not None else ""
+    vmax_kw = f", vmax={_to_native(ds.vmax)!r}" if ds.vmax is not None else ""
+    has_mappable = False
+
+    if mode in ('heatmap', 'heatmap_contour'):
+        lines.append(
+            f"{mesh_var} = {ax_var}.pcolormesh(x, y, z, cmap={ds.colormap!r}, "
+            f"alpha={ds.alpha!r}, shading='auto'{vmin_kw}{vmax_kw})"
+        )
+        has_mappable = True
+    elif mode == 'contour_filled':
+        lines.append(
+            f"{mesh_var} = {ax_var}.contourf(x, y, z, levels={ds.contour_levels!r}, "
+            f"cmap={ds.colormap!r}, alpha={ds.alpha!r}{vmin_kw}{vmax_kw})"
+        )
+        has_mappable = True
+    if mode in ('contour', 'heatmap_contour'):
+        lines.append(
+            f"{ax_var}.contour(x, y, z, levels={ds.contour_levels!r}, colors={ds.color!r}, "
+            f"alpha={ds.alpha!r}, linewidths={ds.linewidth!r})"
+        )
+    return has_mappable
 
 
 def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):

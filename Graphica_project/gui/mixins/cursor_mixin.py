@@ -118,6 +118,9 @@ class CursorMixin:
             if getattr(self, 'peak_placement_mode_enabled', False):
                 self.peak_placement_action.setChecked(False)
                 self._toggle_peak_placement_mode(False)
+            if getattr(self, 'slice_extraction_mode_enabled', False):
+                self.slice_extraction_action.setChecked(False)
+                self._toggle_slice_extraction_mode(False)
 
             # --- モード ON ---
             logger.debug("データカーソルモード ON")

@@ -2022,3 +2022,82 @@ def test_heatmap_scattered_data_falls_back_to_interpolated_grid():
     ax = c.all_axes[0]
     assert any(isinstance(coll, QuadMesh) for coll in ax.collections)
     plt.close(c.fig)
+
+
+# --- 等高線図(項目C-509) ---
+
+def test_contour_mode_draws_lines_not_quadmesh():
+    from matplotlib.collections import QuadMesh
+    from matplotlib.contour import QuadContourSet
+    ds = _make_2d_dataset(map_display_mode='contour', color='#ff0000')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+    ax = c.all_axes[0]
+
+    assert not any(isinstance(coll, QuadMesh) for coll in ax.collections)
+    assert isinstance(ds.artist, QuadContourSet)
+    plt.close(c.fig)
+
+
+def test_contour_mode_does_not_register_colorbar_mappable():
+    ds = _make_2d_dataset(map_display_mode='contour')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert 0 not in c._axis_2d_mappables
+    assert len(_colorbar_axes(c.fig)) == 0
+    plt.close(c.fig)
+
+
+def test_contour_filled_mode_uses_colormap_and_registers_colorbar():
+    ds = _make_2d_dataset(map_display_mode='contour_filled', colormap='plasma')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+
+    assert 0 in c._axis_2d_mappables
+    assert len(_colorbar_axes(c.fig)) == 1
+    assert ds.artist.get_cmap().name == 'plasma'
+    plt.close(c.fig)
+
+
+def test_heatmap_contour_mode_draws_both_mesh_and_lines():
+    from matplotlib.collections import QuadMesh
+    ds = _make_2d_dataset(map_display_mode='heatmap_contour')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+    ax = c.all_axes[0]
+
+    assert any(isinstance(coll, QuadMesh) for coll in ax.collections)
+    assert 0 in c._axis_2d_mappables  # カラーバー用のmappableはpcolormesh側
+    plt.close(c.fig)
+
+
+def test_contour_levels_setting_is_respected():
+    """例外を投げずにcontour_levelsの値を使って描画できること
+    (具体的な等高線本数の厳密検証はmatplotlib内部実装に依存するため行わない)。"""
+    ds = _make_2d_dataset(map_display_mode='contour', contour_levels=3)
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])  # 例外を投げないこと
+    plt.close(c.fig)
+
+
+def test_invalid_map_display_mode_falls_back_to_heatmap():
+    from matplotlib.collections import QuadMesh
+    ds = _make_2d_dataset(map_display_mode='not_a_real_mode')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])
+    ax = c.all_axes[0]
+
+    assert any(isinstance(coll, QuadMesh) for coll in ax.collections)
+    plt.close(c.fig)
+
+
+def test_contour_mode_with_invalid_grid_does_not_crash():
+    df = pd.DataFrame({'x': [np.nan, np.nan], 'y': [1.0, 2.0], 'z': [1.0, 2.0]})
+    ds = Dataset(name="bad", df=df, x_col_name='x', y_col_name='y',
+                 data_kind='2d_grid', z_col_name='z', map_display_mode='contour')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}])  # 例外を投げないこと
+
+    assert ds.artist is None
+    plt.close(c.fig)

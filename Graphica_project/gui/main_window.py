@@ -262,6 +262,7 @@ from gui.mixins.annotation_mixin import (
 from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
 from gui.mixins.range_select_mixin import RangeSelectMixin
 from gui.mixins.peak_placement_mixin import PeakPlacementMixin
+from gui.mixins.slice_extraction_mixin import SliceExtractionMixin
 from gui.mixins.export_mixin import ExportMixin
 from gui.mixins.project_io_mixin import ProjectIOMixin
 from gui.mixins.help_mixin import HelpMixin
@@ -435,11 +436,12 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
 #   HelpMixin       : ヘルプダイアログ
 #   QuickAccessMixin: クイックアクセスのカスタムツールバー(項目87)
 #   PeakPlacementMixin: グラフクリックによる多峰分離フィットの初期値配置(項目C-410)
+#   SliceExtractionMixin: 2Dマップからのドラッグによる1Dスライス抽出(項目C-511)
 # PlotterApp 本体には、初期化・ファイルI/Oの中核・プロット更新など、
 # 上記どれにも属さない「アプリのエントリーポイント」的な処理のみを残す。
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                   CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
-                  PeakPlacementMixin,
+                  PeakPlacementMixin, SliceExtractionMixin,
                   ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
     """
     メインアプリケーションウィンドウクラス。
@@ -617,6 +619,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._pending_peak_guesses = []   # [{'center':, 'height':, 'width':}, ...]
         self._pending_peak_markers = []   # [(guess, axvline, plot point), ...] (仮マーカーのArtist)
 
+        # --- 2Dマップからのドラッグによる1Dスライス抽出(項目C-511)用の変数 ---
+        self.slice_extraction_mode_enabled = False  # スライス抽出モードがONかOFFか
+        self._slice_extraction_press_cid = None
+        self._slice_extraction_motion_cid = None
+        self._slice_extraction_release_cid = None
+        self._slice_extraction_axes = None          # ドラッグ中のAxes、またはNone
+        self._slice_extraction_start = None         # ドラッグ開始点の(x, y)データ座標
+        self._slice_extraction_preview_artist = None  # ドラッグ中のプレビュー線
+
         # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
         # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
         #   _make_default_plot_font() (PLOT_DEFAULT_FONT_FAMILIES) を指定する。
@@ -761,6 +772,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.peak_placement_action.setCheckable(True)
         self.peak_placement_action.triggered.connect(self._toggle_peak_placement_mode)
         toolbar.addAction(self.peak_placement_action)
+
+        # --- ★ ツールバーにカスタムボタン (2Dマップからのスライス抽出) を追加 ★ ---
+        # 項目C-511: カレントの2Dマップ(ヒートマップ/等高線)上でドラッグした
+        # 線分に沿って1Dデータセットを抽出する。
+        self.slice_extraction_action = QAction(
+            _svg_icon("chart-line"),  # Tabler Icons "chart-line"(2Dマップから1D断面を抽出、の意)
+            tr("スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)"),
+            self
+        )
+        self.slice_extraction_action.setCheckable(True)
+        self.slice_extraction_action.triggered.connect(self._toggle_slice_extraction_mode)
+        toolbar.addAction(self.slice_extraction_action)
 
         # --- ★ ツールバーにカスタムボタン (ズームリセット) を追加 ★ ---
         # マウスドラッグ/矩形選択等で拡大した表示を、設定通りの既定表示に戻す。
@@ -1033,6 +1056,22 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.colormap_combo = QComboBox()
         self.colormap_combo.addItems(COLORMAP_CHOICES)
         self.ui.formLayout_4.addRow(self.colormap_label, self.colormap_combo)
+
+        # 2Dマップの描画方式(項目C-509)。'heatmap'(既定)/'contour'(線のみ)/
+        # 'contour_filled'(塗りつぶし等高線)/'heatmap_contour'(重ね描き)。
+        self.map_display_mode_label = QLabel(tr("2Dマップの表示方式"))
+        self.map_display_mode_combo = QComboBox()
+        self.map_display_mode_combo.addItem(tr("ヒートマップ"), "heatmap")
+        self.map_display_mode_combo.addItem(tr("等高線(線)"), "contour")
+        self.map_display_mode_combo.addItem(tr("等高線(塗りつぶし)"), "contour_filled")
+        self.map_display_mode_combo.addItem(tr("ヒートマップ+等高線"), "heatmap_contour")
+        self.ui.formLayout_4.addRow(self.map_display_mode_label, self.map_display_mode_combo)
+
+        self.contour_levels_label = QLabel(tr("等高線のレベル数"))
+        self.contour_levels_spinbox = QSpinBox()
+        self.contour_levels_spinbox.setRange(2, 100)
+        self.contour_levels_spinbox.setValue(10)
+        self.ui.formLayout_4.addRow(self.contour_levels_label, self.contour_levels_spinbox)
 
         self.grid_interp_method_label = QLabel(tr("散在データの補間方法"))
         self.grid_interp_method_combo = QComboBox()

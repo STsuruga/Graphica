@@ -46,6 +46,17 @@ def describe_operation(provenance):
         return f"カーブフィット({fit_type}{r2_text})"
     if operation == 'multi_peak_fit':
         return f"多峰分離フィット({params.get('component_type', '不明')} x{params.get('n_components', '?')})"
+    if operation == '2d_slice':
+        start, end = params.get('start'), params.get('end')
+        axis_label = {'x': 'X軸方向', 'y': 'Y軸方向', 'distance': '斜め方向'}.get(
+            params.get('axis_kind'), params.get('axis_kind')
+        )
+        if start and end:
+            return (
+                f"2Dマップからの1Dスライス抽出({axis_label}、"
+                f"始点=({start[0]:.4g}, {start[1]:.4g}), 終点=({end[0]:.4g}, {end[1]:.4g}))"
+            )
+        return f"2Dマップからの1Dスライス抽出({axis_label})"
     return operation or "不明な操作"
 
 

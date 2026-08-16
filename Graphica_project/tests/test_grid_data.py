@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from core.grid_data import compute_z_grid, is_regular_grid, GridDataError
+from core.grid_data import compute_z_grid, is_regular_grid, extract_slice, GridDataError
 
 
 def _make_regular_grid_points(xs, ys, z_func):
@@ -147,3 +147,95 @@ def test_compute_z_grid_rejects_invalid_resolution():
     z = x + y
     with pytest.raises(GridDataError, match="2以上"):
         compute_z_grid(x, y, z, resolution=(1, 5))
+
+
+# =============================================================================
+# extract_slice(項目C-511: 2Dマップからの1Dスライス抽出)
+# =============================================================================
+
+def _make_linear_grid(xs, ys, coef_x=1.0, coef_y=1.0, offset=0.0):
+    """z = coef_x*x + coef_y*y + offset という既知の平面を持つ規則格子を作る
+    (補間結果を厳密値と比較検証できるようにするためのテスト用ヘルパー)。"""
+    xx, yy = np.meshgrid(xs, ys)
+    z_grid = coef_x * xx + coef_y * yy + offset
+    return np.asarray(xs, dtype=float), np.asarray(ys, dtype=float), z_grid
+
+
+def test_extract_slice_horizontal_uses_x_axis_kind():
+    x_grid, y_grid, z_grid = _make_linear_grid(np.linspace(0, 10, 11), np.linspace(0, 10, 11), 2.0, 3.0)
+    result = extract_slice(x_grid, y_grid, z_grid, start=(0.0, 5.0), end=(10.0, 5.0), n_points=50)
+
+    assert result['axis_kind'] == 'x'
+    np.testing.assert_allclose(result['axis_values'][0], 0.0)
+    np.testing.assert_allclose(result['axis_values'][-1], 10.0)
+    # z = 2x + 3*5 = 2x + 15 のはず
+    np.testing.assert_allclose(result['z_values'], 2.0 * result['axis_values'] + 15.0, atol=1e-6)
+
+
+def test_extract_slice_vertical_uses_y_axis_kind():
+    x_grid, y_grid, z_grid = _make_linear_grid(np.linspace(0, 10, 11), np.linspace(0, 10, 11), 2.0, 3.0)
+    result = extract_slice(x_grid, y_grid, z_grid, start=(4.0, 0.0), end=(4.0, 10.0), n_points=50)
+
+    assert result['axis_kind'] == 'y'
+    # z = 2*4 + 3y = 8 + 3y のはず
+    np.testing.assert_allclose(result['z_values'], 8.0 + 3.0 * result['axis_values'], atol=1e-6)
+
+
+def test_extract_slice_diagonal_uses_distance_axis_kind():
+    x_grid, y_grid, z_grid = _make_linear_grid(np.linspace(0, 10, 11), np.linspace(0, 10, 11), 1.0, 1.0)
+    result = extract_slice(x_grid, y_grid, z_grid, start=(0.0, 0.0), end=(10.0, 10.0), n_points=50)
+
+    assert result['axis_kind'] == 'distance'
+    assert result['axis_values'][0] == pytest.approx(0.0)
+    assert result['axis_values'][-1] == pytest.approx(np.sqrt(200))  # sqrt(10^2+10^2)
+    # 線分上ではz=x+y、始点からの距離dに対し x=y=d/sqrt(2) なので z = 2d/sqrt(2) = d*sqrt(2)
+    np.testing.assert_allclose(result['z_values'], result['axis_values'] * np.sqrt(2), atol=1e-6)
+
+
+def test_extract_slice_near_horizontal_within_tolerance_treated_as_horizontal():
+    """許容誤差内のわずかな傾きは水平線分として扱われる(ドラッグ操作の
+    ピクセル単位の誤差を吸収するため)。"""
+    x_grid, y_grid, z_grid = _make_linear_grid(np.linspace(0, 100, 101), np.linspace(0, 100, 101))
+    # y方向のブレは全体レンジ(100)の1%未満(0.5)
+    result = extract_slice(x_grid, y_grid, z_grid, start=(0.0, 50.0), end=(100.0, 50.4), n_points=10)
+    assert result['axis_kind'] == 'x'
+
+
+def test_extract_slice_rejects_zero_length_segment():
+    x_grid, y_grid, z_grid = _make_linear_grid(np.linspace(0, 10, 11), np.linspace(0, 10, 11))
+    with pytest.raises(GridDataError, match="始点と終点が同じ"):
+        extract_slice(x_grid, y_grid, z_grid, start=(5.0, 5.0), end=(5.0, 5.0))
+
+
+def test_extract_slice_out_of_bounds_segment_yields_nan():
+    x_grid, y_grid, z_grid = _make_linear_grid(np.linspace(0, 10, 11), np.linspace(0, 10, 11))
+    result = extract_slice(x_grid, y_grid, z_grid, start=(-5.0, 5.0), end=(15.0, 5.0), n_points=20)
+
+    assert np.any(np.isnan(result['z_values']))  # 範囲外区間はNaN
+    assert np.any(~np.isnan(result['z_values']))  # 範囲内区間は値がある
+
+
+def test_extract_slice_respects_n_points():
+    x_grid, y_grid, z_grid = _make_linear_grid(np.linspace(0, 10, 11), np.linspace(0, 10, 11))
+    result = extract_slice(x_grid, y_grid, z_grid, start=(0.0, 5.0), end=(10.0, 5.0), n_points=37)
+
+    assert len(result['axis_values']) == 37
+    assert len(result['z_values']) == 37
+
+
+def test_extract_slice_works_on_interpolated_grid():
+    """散在データを補間して得たz_grid(is_regular=False)に対しても、
+    x_grid/y_grid自体は規則的な1次元配列であるためそのまま使える。"""
+    from core.grid_data import compute_z_grid
+    rng = np.random.default_rng(0)
+    x = rng.uniform(0, 10, size=50)
+    y = rng.uniform(0, 10, size=50)
+    z = x + y
+    grid = compute_z_grid(x, y, z, resolution=(20, 20))
+    assert grid['is_regular'] is False
+
+    result = extract_slice(grid['x_grid'], grid['y_grid'], grid['z_grid'],
+                            start=(2.0, 5.0), end=(8.0, 5.0), n_points=30)
+    assert result['axis_kind'] == 'x'
+    valid = ~np.isnan(result['z_values'])
+    assert valid.sum() > 0

@@ -259,6 +259,14 @@ class Dataset:
     vmin: float = field(default=None)
     vmax: float = field(default=None)
 
+    # 2Dグリッドデータの描画方式(項目C-509)。data_kind='2d_grid'の時のみ意味を
+    # 持つ。'heatmap'(既定、pcolormesh)/'contour'(線のみ、ds.colorを線色として
+    # 使う)/'contour_filled'(塗りつぶし等高線、ds.colormapで塗る)/
+    # 'heatmap_contour'(ヒートマップに等高線を重ね描き)。
+    map_display_mode: str = field(default='heatmap')
+    # 等高線のレベル数(contour/contour_filled/heatmap_contourで使用)。
+    contour_levels: int = field(default=10)
+
     # データセットリストの表示/非表示トグル(項目C-907)。Falseにすると、
     # データセット自体は削除せず保持したまま、プロット描画(gui/canvas.pyの
     # redraw_all)とエクスポート(gui/mixins/export_mixin.pyは常にredraw_all経由で

@@ -14,7 +14,12 @@ scipy.interpolate.griddataで規則格子へ補間する(is_regular=False)。
 """
 import numpy as np
 import pandas as pd
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata, RegularGridInterpolator
+
+# 始点/終点がほぼ水平/垂直とみなす許容誤差(各軸の範囲に対する割合)。
+# ドラッグ操作でピクセル単位の完全な水平/垂直はまず出せないため、
+# 「見た目上は水平/垂直に引いたつもり」を汲み取るための閾値。
+SLICE_AXIS_ALIGNMENT_TOLERANCE = 0.01
 
 # griddataのmethod引数として有効な値(項目C-510)
 GRID_INTERP_METHODS = ('linear', 'cubic', 'nearest')
@@ -116,3 +121,70 @@ def compute_z_grid(x, y, z, interp_method='linear', resolution=None):
         'z_grid': z_grid,
         'is_regular': False,
     }
+
+
+def extract_slice(x_grid, y_grid, z_grid, start, end, n_points=200):
+    """
+    2Dグリッド上の任意の線分に沿って1次元の断面(スライス)を抽出する
+    (項目C-511)。x_grid/y_gridは常に規則的な1次元配列(compute_z_grid()の
+    戻り値、実測データそのまま/補間結果のどちらでも同じ形)であるため、
+    scipy.interpolate.RegularGridInterpolatorで線分上の任意の点をサンプリング
+    できる。
+
+    Args:
+        x_grid, y_grid (array-like): compute_z_grid()の'x_grid'/'y_grid'
+            (1次元、ソート済み)。
+        z_grid (array-like): compute_z_grid()の'z_grid'(2次元、
+            shape=(len(y_grid), len(x_grid)))。
+        start, end (tuple[float, float]): 線分の始点・終点(x, y)。
+        n_points (int): サンプリングする点数。
+
+    Returns:
+        dict: {
+            'axis_values': np.ndarray (1次元、長さn_points。線分がほぼ水平なら
+                サンプリング点のX座標、ほぼ垂直ならY座標、それ以外(斜めの線分)
+                なら始点からの距離),
+            'axis_kind': str ('x'/'y'/'distance'、axis_valuesが何を表すか。
+                呼び出し側が新規データセットのX軸ラベルを決める材料),
+            'z_values': np.ndarray (1次元、長さn_points。線分上の各点でのZ値。
+                線分がグリッド範囲外に出た区間はnp.nan),
+        }
+
+    Raises:
+        GridDataError: 始点と終点が同一の場合(線分の長さが0)。
+    """
+    x0, y0 = float(start[0]), float(start[1])
+    x1, y1 = float(end[0]), float(end[1])
+    if x0 == x1 and y0 == y1:
+        raise GridDataError("始点と終点が同じ位置です(長さ0の線分は抽出できません)。")
+
+    x_grid = np.asarray(x_grid, dtype=float)
+    y_grid = np.asarray(y_grid, dtype=float)
+    z_grid = np.asarray(z_grid, dtype=float)
+
+    x_range = x_grid.max() - x_grid.min() if len(x_grid) > 1 else 1.0
+    y_range = y_grid.max() - y_grid.min() if len(y_grid) > 1 else 1.0
+
+    is_horizontal = abs(y1 - y0) <= SLICE_AXIS_ALIGNMENT_TOLERANCE * (y_range or 1.0)
+    is_vertical = abs(x1 - x0) <= SLICE_AXIS_ALIGNMENT_TOLERANCE * (x_range or 1.0)
+
+    if is_horizontal and not is_vertical:
+        axis_kind = 'x'
+        axis_values = np.linspace(x0, x1, n_points)
+        sample_x, sample_y = axis_values, np.full(n_points, y0)
+    elif is_vertical and not is_horizontal:
+        axis_kind = 'y'
+        axis_values = np.linspace(y0, y1, n_points)
+        sample_x, sample_y = np.full(n_points, x0), axis_values
+    else:
+        axis_kind = 'distance'
+        sample_x = np.linspace(x0, x1, n_points)
+        sample_y = np.linspace(y0, y1, n_points)
+        axis_values = np.sqrt((sample_x - x0) ** 2 + (sample_y - y0) ** 2)
+
+    interpolator = RegularGridInterpolator(
+        (y_grid, x_grid), z_grid, method='linear', bounds_error=False, fill_value=np.nan,
+    )
+    z_values = interpolator(np.column_stack([sample_y, sample_x]))
+
+    return {'axis_values': axis_values, 'axis_kind': axis_kind, 'z_values': z_values}
