@@ -365,16 +365,85 @@ class _CanvasDrawingMixin:
         Figure自体は一切触らない(fig.clf()を経由しないため、他のAxesを
         参照しているコード―NavigationToolbarのHomeキャッシュ、他インデックスの
         _annotation_artists/_highlight_artists/downsample_index_map等―への
-        影響がない)。1データセットのスタイル変更のような「軸の所属を変えない」
-        プロパティ変更専用(subplot_target/use_secondary_yの変更のような、
-        軸の所属自体を変える構造的な変更は呼び出し側でredraw_all()相当の
-        フル再描画に振り分けること)。
+        影響がない)。1データセットのスタイル変更や(項目C-003フェーズ3a)
+        subplot_target/use_secondary_yの変更(旧軸・新軸それぞれに対して
+        本メソッドを呼ぶ)専用。Axesの枚数・GridSpec配置自体を変える
+        構造的な変更(レイアウト行数/列数変更、自由配置のサブプロット
+        追加/削除)は呼び出し側でredraw_all()相当のフル再描画、または
+        add_free_axis()/remove_last_free_axis()に振り分けること。
         """
         self._redraw_single_axis_no_draw(
             axis_index, datasets, settings, rows=rows, cols=cols,
             share_x_axis=share_x_axis, share_y_axis=share_y_axis,
             panel_labels_enabled=panel_labels_enabled,
         )
+        self.draw_idle()
+
+    def add_free_axis(self, datasets, settings, panel_labels_enabled=False):
+        """
+        自由配置レイアウトへ、末尾に新しい1つのAxesを追加する(項目C-003
+        フェーズ3b)。他のAxes・Figure自体は一切触らない(fig.clf()を
+        経由しない)。「+ プロット追加」ボタン(gui/mixins/layout_edit_mixin.py
+        の_on_add_free_subplot)専用: 新規追加されるサブプロットは常に
+        既存データセットのどれからも参照されない空のAxesのため、他の
+        Axesへの影響が構造的に発生しない(update_single_axis()と違い
+        「既存Axesの中身を差し替える」のではなく「新しいAxesを1つ増やす」
+        操作であることに注意)。
+        """
+        rect = settings.get('free_rect') or self._default_free_rect(len(self.all_axes))
+        ax = self.fig.add_axes(rect)
+        self.all_axes.append(ax)
+        self.all_secondary_axes.append(None)
+        self.axis_is_date_x.append(False)
+        self.axis_is_category_x.append(False)
+
+        axis_index = len(self.all_axes) - 1
+        visible_datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
+        self._draw_data(ax, axis_index, visible_datasets)
+        self._apply_appearance(ax, axis_index, settings)
+        self._draw_annotations(ax, axis_index, settings)
+        if panel_labels_enabled:
+            self._draw_panel_label(ax, axis_index)
+
+        self.draw_idle()
+
+    def remove_last_free_axis(self, datasets):
+        """
+        自由配置レイアウトから、末尾の1つのAxesを削除する(項目C-003
+        フェーズ3b)。他のAxes・Figure自体は一切触らない。「- プロット削除」
+        ボタン(_on_remove_free_subplot)は常に末尾のサブプロットのみを
+        削除する仕様のため、削除対象は常にself.all_axesの最後の要素になる
+        (途中の要素を削除するケースは無いため、他のAxesのインデックスを
+        振り直す必要が生じない)。
+
+        ★ 呼び出し側の責務: 削除されたサブプロットに割り当てられていた
+        データセットは、_on_remove_free_subplot側で既に新しい末尾の
+        サブプロットへsubplot_targetを付け替え済みであることを前提とする
+        (このメソッド自体はAxesオブジェクトの後片付けのみ行い、付け替え後の
+        新しい末尾Axesへのデータ再描画は呼び出し側がupdate_single_axis()で
+        別途行うこと)。
+        """
+        if not self.all_axes:
+            return
+        removed_index = len(self.all_axes) - 1
+
+        secondary = self.all_secondary_axes[removed_index]
+        if secondary is not None:
+            secondary.remove()
+        self.all_axes[removed_index].remove()
+
+        self.all_axes.pop()
+        self.all_secondary_axes.pop()
+        if removed_index < len(self.axis_is_date_x):
+            self.axis_is_date_x.pop()
+        if removed_index < len(self.axis_is_category_x):
+            self.axis_is_category_x.pop()
+
+        self._annotation_artists.pop(removed_index, None)
+        for dataset_id in [ds.dataset_id for ds in datasets if ds.subplot_target == removed_index]:
+            self._highlight_artists.pop(dataset_id, None)
+            self.downsample_index_map.pop(dataset_id, None)
+
         self.draw_idle()
 
     def update_all_axes_appearance_and_data(self, datasets, rows, cols, all_plot_settings, layout_mode='grid',
@@ -384,14 +453,16 @@ class _CanvasDrawingMixin:
         一切変えず、全Axesのデータ・外観だけを軽量に描き直す(項目C-003
         フェーズ2)。パネルラベル表示切替・ダークモード切替のような「全Axesを
         均一に触るが軸の所属自体は変えない」トリガー専用。redraw_all()と異なり
-        fig.clf()を経由しないため、Axes数・GridSpec配置が変わるケース
-        (レイアウト行数/列数変更、自由配置のサブプロット追加/削除、
-        subplot_target/use_secondary_yの変更のような構造的なデータセット
-        プロパティ変更)には使えない――呼び出し側でこの前提が崩れないことを
-        保証すること。update_single_axis()を既存Axes数ぶんループしたのち、
-        redraw_all()が1回だけ行っていたFigureレベルの処理(facecolor設定・
-        tight_layout・実際のdraw()・is_secondary_visible_globalの再計算)を
-        ループの外側でまとめて1回だけ行う。
+        fig.clf()を経由しないため、Axes数・GridSpec配置自体が変わるケース
+        (レイアウト行数/列数変更)には使えない――呼び出し側でこの前提が
+        崩れないことを保証すること(subplot_target/use_secondary_yの変更や
+        自由配置のサブプロット追加/削除は、項目C-003フェーズ3aでの
+        update_single_axis()複数回呼び出し、フェーズ3bでのadd_free_axis()/
+        remove_last_free_axis()により、既にAxes単位の軽量パスへ移行済み)。
+        update_single_axis()を既存Axes数ぶんループしたのち、redraw_all()が
+        1回だけ行っていたFigureレベルの処理(facecolor設定・tight_layout・
+        実際のdraw()・is_secondary_visible_globalの再計算)をループの外側で
+        まとめて1回だけ行う。
         """
         is_free_layout = layout_mode == 'free'
         is_secondary_visible_global = False

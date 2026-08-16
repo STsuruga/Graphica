@@ -233,6 +233,40 @@ def test_removing_free_subplot_reassigns_datasets_instead_of_hiding_them(tmp_pat
     assert len(window.canvas.all_axes) == 1
 
 
+def test_on_add_free_subplot_uses_lightweight_canvas_path_not_full_replot(tmp_path, monkeypatch):
+    """項目C-003フェーズ3a: 新規サブプロット追加はcanvas.add_free_axis()経由の
+    軽量パスを使い、フルの_update_plot()は呼ばないこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.free_layout_checkbox.setChecked(True)
+
+    full_replot_calls = []
+    monkeypatch.setattr(window, '_update_plot', lambda light=False: full_replot_calls.append(light))
+
+    axes_before = len(window.canvas.all_axes)
+
+    window._on_add_free_subplot()
+
+    assert full_replot_calls == []
+    assert len(window.canvas.all_axes) == axes_before + 1
+
+
+def test_on_remove_free_subplot_uses_lightweight_canvas_path_not_full_replot(tmp_path, monkeypatch):
+    """項目C-003フェーズ3a: サブプロット削除もcanvas.remove_last_free_axis()+
+    canvas.update_single_axis()の軽量パスを使い、フルの_update_plot()は
+    呼ばないこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.free_layout_checkbox.setChecked(True)
+    window._on_add_free_subplot()  # index 0, 1 の2枚構成にする
+
+    full_replot_calls = []
+    monkeypatch.setattr(window, '_update_plot', lambda light=False: full_replot_calls.append(light))
+
+    window._on_remove_free_subplot()
+
+    assert full_replot_calls == []
+    assert len(window.canvas.all_axes) == 1
+
+
 def test_numeric_controls_hidden_when_not_in_free_layout_mode(tmp_path, monkeypatch):
     """
     自由配置レイアウトがOFFの間(既定状態)は、数値入力グループが表示されないことを確認する。

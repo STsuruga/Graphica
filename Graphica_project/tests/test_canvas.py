@@ -999,6 +999,106 @@ def test_update_all_axes_appearance_and_data_skips_axes_without_matching_setting
     assert len(canvas.all_axes) == 2  # 引き続き2枚のまま(作り直されていない)
 
 
+# --- 項目C-003フェーズ3b: add_free_axis/remove_last_free_axis
+#     (自由配置レイアウトのサブプロット追加/削除専用の軽量パス) ---
+
+def test_add_free_axis_appends_new_axis_without_touching_existing_ones(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    canvas.redraw_all([ds0], 0, 0, [{'free_rect': (0.1, 0.1, 0.4, 0.4)}], layout_mode='free')
+    axis0_before = canvas.all_axes[0]
+
+    canvas.add_free_axis([ds0], {'free_rect': (0.55, 0.55, 0.4, 0.4)})
+
+    assert len(canvas.all_axes) == 2
+    assert canvas.all_axes[0] is axis0_before
+    assert canvas.all_secondary_axes[1] is None
+    assert len(canvas.axis_is_date_x) == 2
+    assert len(canvas.axis_is_category_x) == 2
+
+
+def test_add_free_axis_draws_data_for_datasets_targeting_new_index(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1, 2], "y": [5, 6]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all([ds0], 0, 0, [{'free_rect': (0.1, 0.1, 0.4, 0.4)}], layout_mode='free')
+
+    canvas.add_free_axis([ds0, ds1], {'free_rect': (0.55, 0.55, 0.4, 0.4)})
+
+    assert len(canvas.all_axes[1].lines) == 1
+
+
+def test_add_free_axis_draws_panel_label_when_enabled(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    canvas.redraw_all([ds0], 0, 0, [{'free_rect': (0.1, 0.1, 0.4, 0.4)}], layout_mode='free')
+
+    canvas.add_free_axis([ds0], {'free_rect': (0.55, 0.55, 0.4, 0.4)}, panel_labels_enabled=True)
+
+    texts = [t.get_text() for t in canvas.all_axes[1].texts]
+    assert "(b)" in texts
+
+
+def test_remove_last_free_axis_removes_only_the_last_axis(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1, 2], "y": [5, 6]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    canvas.redraw_all(
+        [ds0, ds1], 0, 0,
+        [{'free_rect': (0.1, 0.1, 0.4, 0.4)}, {'free_rect': (0.55, 0.55, 0.4, 0.4)}],
+        layout_mode='free',
+    )
+    axis0_before = canvas.all_axes[0]
+
+    canvas.remove_last_free_axis([ds0, ds1])
+
+    assert len(canvas.all_axes) == 1
+    assert canvas.all_axes[0] is axis0_before
+    assert len(canvas.fig.axes) == 1
+
+
+def test_remove_last_free_axis_removes_secondary_axis_too(canvas):
+    ds_primary = Dataset(name="p", df=pd.DataFrame({"x": [1, 2], "y": [1, 2]}), x_col_name="x", y_col_name="y",
+                         subplot_target=0)
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=1)
+    ds_secondary = Dataset(name="s", df=pd.DataFrame({"x": [1, 2], "y": [10, 20]}), x_col_name="x", y_col_name="y",
+                           subplot_target=1, use_secondary_y=True)
+    canvas.redraw_all(
+        [ds_primary, ds0, ds_secondary], 0, 0,
+        [{'free_rect': (0.1, 0.1, 0.4, 0.4)}, {'free_rect': (0.55, 0.55, 0.4, 0.4)}],
+        layout_mode='free',
+    )
+    assert canvas.all_secondary_axes[1] is not None
+
+    canvas.remove_last_free_axis([ds_primary, ds0, ds_secondary])
+
+    assert len(canvas.all_axes) == 1
+    assert len(canvas.fig.axes) == 1  # 副軸も一緒に取り除かれている
+
+
+def test_remove_last_free_axis_cleans_up_annotation_state_for_removed_index(canvas):
+    ds0 = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                  subplot_target=0)
+    settings1 = {
+        'free_rect': (0.55, 0.55, 0.4, 0.4),
+        'annotations': [{'type': 'text', 'xy': (1, 1), 'text': 'hi'}],
+    }
+    canvas.redraw_all([ds0], 0, 0, [{'free_rect': (0.1, 0.1, 0.4, 0.4)}, settings1], layout_mode='free')
+    assert 1 in canvas._annotation_artists
+
+    canvas.remove_last_free_axis([ds0])
+
+    assert 1 not in canvas._annotation_artists
+
+
+def test_remove_last_free_axis_noop_when_no_axes(canvas):
+    canvas.remove_last_free_axis([])  # 例外が出なければOK
+    assert canvas.all_axes == []
+
+
 # --- 項目H-3: matplotlib(Figure)側の配色をgui/theme.pyのトークンと連動させる
 #     (以前はcanvas.py独自のハードコード値を持ち、theme.pyのトークンとは
 #     完全に無関係だった、H-0調査で判明した既知の不整合) ---

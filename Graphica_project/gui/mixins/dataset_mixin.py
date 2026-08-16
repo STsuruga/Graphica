@@ -1197,17 +1197,25 @@ class DatasetMixin:
         self._sync_dataset_list_widget_order()
         self._update_plot()
 
-    # 項目C-003フェーズ1: これらのプロパティは軸の所属自体を変えるため、
-    # フルの _update_plot() (redraw_all、全Axes再構築) が必要。それ以外の
-    # プロパティ変更は canvas.update_single_axis() による軽量な単一Axes更新で足りる。
-    _STRUCTURAL_DATASET_PROPERTIES = {'subplot_target', 'use_secondary_y'}
-
-    def _refresh_after_dataset_property_change(self, dataset, changed_keys=()):
+    def _refresh_after_dataset_property_change(self, dataset, changed_keys=(), old_values=None, new_values=None):
         """
         Undo/Redo でデータセットのプロパティが変更された後の共通後処理。
         - 変更されたデータセットがリストに表示されている名前と食い違っていれば同期
         - 変更されたデータセットが現在選択中なら、プロパティパネルにも反映
-        - グラフを再描画(軸の所属が変わらない変更は該当Axesのみの軽量更新)
+        - グラフを再描画(軽量な該当Axesのみの更新で足りる)
+
+        ★ 項目C-003フェーズ3a: 以前は`subplot_target`/`use_secondary_y`の
+        変更を「軸の所属自体が変わる構造的な変更」として一律フルの
+        `_update_plot()`(`redraw_all`、全Axes再構築)に振り分けていたが、
+        実際には`use_secondary_y`は現在の`subplot_target`軸1つだけで完結し、
+        `subplot_target`自体の変更も「旧軸から消える・新軸に現れる」という
+        2つのAxesだけで完結する(Axesの枚数・GridSpec配置自体は変わらない)
+        ため、`update_single_axis()`を対象Axesの数ぶん呼ぶだけで軽量に
+        対応できる。`SetDatasetPropertiesCommand.on_applied`はredo/undo
+        どちらの後でも同じコールバックが呼ばれる(方向を教えてくれない)ため、
+        `old_values`/`new_values`の両方から`subplot_target`の候補値を集め、
+        現在値(`dataset.subplot_target`)と合わせて集合として重複排除する
+        ことで、redo/undoのどちら向きでも新旧両方のAxesを正しく更新できる。
         """
         item = self._get_dataset_tree_item(dataset)
         if item is not None:
@@ -1223,11 +1231,20 @@ class DatasetMixin:
                 self._update_ui_state()
 
         axis_index = dataset.subplot_target
-        if (set(changed_keys) & self._STRUCTURAL_DATASET_PROPERTIES
-                or axis_index >= len(self.canvas.all_axes)
-                or axis_index >= len(self.project.all_plot_settings)):
+        if axis_index >= len(self.canvas.all_axes) or axis_index >= len(self.project.all_plot_settings):
             self._update_plot()
             return
+
+        axis_indices_to_refresh = {axis_index}
+        if 'subplot_target' in changed_keys:
+            if old_values and 'subplot_target' in old_values:
+                axis_indices_to_refresh.add(old_values['subplot_target'])
+            if new_values and 'subplot_target' in new_values:
+                axis_indices_to_refresh.add(new_values['subplot_target'])
+        axis_indices_to_refresh = {
+            i for i in axis_indices_to_refresh
+            if i < len(self.canvas.all_axes) and i < len(self.project.all_plot_settings)
+        }
 
         layout_mode = getattr(self.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
@@ -1236,13 +1253,14 @@ class DatasetMixin:
             rows = self.subplot_rows_spinbox.value()
             cols = self.subplot_cols_spinbox.value()
 
-        self.canvas.update_single_axis(
-            axis_index, self.project.datasets, self.project.all_plot_settings[axis_index],
-            rows=rows, cols=cols,
-            share_x_axis=getattr(self.project, 'share_x_axis', False),
-            share_y_axis=getattr(self.project, 'share_y_axis', False),
-            panel_labels_enabled=self.project.panel_labels_enabled,
-        )
+        for idx in axis_indices_to_refresh:
+            self.canvas.update_single_axis(
+                idx, self.project.datasets, self.project.all_plot_settings[idx],
+                rows=rows, cols=cols,
+                share_x_axis=getattr(self.project, 'share_x_axis', False),
+                share_y_axis=getattr(self.project, 'share_y_axis', False),
+                panel_labels_enabled=self.project.panel_labels_enabled,
+            )
         is_secondary_visible = any(sa is not None for sa in self.canvas.all_secondary_axes)
         self.tick_direction_y2_label.setVisible(is_secondary_visible)
         self.major_tick_direction_y2_combo.setVisible(is_secondary_visible)
@@ -1264,7 +1282,9 @@ class DatasetMixin:
             return
         command = SetDatasetPropertiesCommand(
             dataset, old_values, new_values,
-            on_applied=lambda: self._refresh_after_dataset_property_change(dataset, changed_keys=new_values.keys()),
+            on_applied=lambda: self._refresh_after_dataset_property_change(
+                dataset, changed_keys=new_values.keys(), old_values=old_values, new_values=new_values
+            ),
             description=description
         )
         self.undo_stack.push(command)

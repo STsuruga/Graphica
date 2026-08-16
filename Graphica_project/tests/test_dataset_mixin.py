@@ -2185,7 +2185,14 @@ def test_non_structural_property_change_uses_update_single_axis_not_full_replot(
     assert single_axis_calls[0][0][0] == ds.subplot_target
 
 
-def test_subplot_target_property_change_uses_full_replot(tmp_path, monkeypatch):
+def test_subplot_target_property_change_uses_lightweight_update_for_both_axes(tmp_path, monkeypatch):
+    """
+    項目C-003フェーズ3a: subplot_targetの変更は「軸の所属自体が変わる」ため
+    以前はフルの_update_plot()に振り分けていたが、実際には旧軸(データセットが
+    消える側)と新軸(現れる側)の2つのAxesだけで完結するため、
+    update_single_axis()を2回(旧軸・新軸それぞれに1回ずつ)呼ぶ軽量パスに
+    切り替わった。
+    """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.subplot_cols_spinbox.setValue(2)
     ds = _make_simple_dataset("d0")
@@ -2193,31 +2200,59 @@ def test_subplot_target_property_change_uses_full_replot(tmp_path, monkeypatch):
 
     full_replot_calls = []
     single_axis_calls = []
-    monkeypatch.setattr(window, '_update_plot', lambda: full_replot_calls.append(1))
-    monkeypatch.setattr(window.canvas, 'update_single_axis', lambda *a, **kw: single_axis_calls.append(1))
+    monkeypatch.setattr(window, '_update_plot', lambda light=False: full_replot_calls.append(1))
+    monkeypatch.setattr(window.canvas, 'update_single_axis', lambda *a, **kw: single_axis_calls.append(a[0]))
 
     window._push_dataset_property_command(
         ds, {'subplot_target': 0}, {'subplot_target': 1}, description="描画先プロットの変更")
 
-    assert full_replot_calls == [1]
-    assert single_axis_calls == []
+    assert full_replot_calls == []
+    assert set(single_axis_calls) == {0, 1}
 
 
-def test_use_secondary_y_property_change_uses_full_replot(tmp_path, monkeypatch):
+def test_subplot_target_property_change_undo_refreshes_both_axes(tmp_path, monkeypatch):
+    """
+    SetDatasetPropertiesCommand.on_appliedはredo/undoどちらの後でも同じ
+    コールバックが呼ばれる(方向を教えてくれない)ため、undo後もold_values/
+    new_valuesの両方から旧軸・新軸を正しく再導出できることを確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.subplot_cols_spinbox.setValue(2)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    window._push_dataset_property_command(
+        ds, {'subplot_target': 0}, {'subplot_target': 1}, description="描画先プロットの変更")
+    assert ds.subplot_target == 1
+
+    single_axis_calls = []
+    monkeypatch.setattr(window.canvas, 'update_single_axis', lambda *a, **kw: single_axis_calls.append(a[0]))
+
+    window.undo_stack.undo()
+
+    assert ds.subplot_target == 0
+    assert set(single_axis_calls) == {0, 1}
+
+
+def test_use_secondary_y_property_change_uses_lightweight_update_for_current_axis_only(tmp_path, monkeypatch):
+    """
+    項目C-003フェーズ3a: use_secondary_yの変更は現在のsubplot_target軸1つ
+    だけで完結する(twinx()の作成/削除もupdate_single_axis()が既に扱う)ため、
+    フルの_update_plot()ではなくupdate_single_axis()を1回だけ呼ぶ。
+    """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
 
     full_replot_calls = []
     single_axis_calls = []
-    monkeypatch.setattr(window, '_update_plot', lambda: full_replot_calls.append(1))
-    monkeypatch.setattr(window.canvas, 'update_single_axis', lambda *a, **kw: single_axis_calls.append(1))
+    monkeypatch.setattr(window, '_update_plot', lambda light=False: full_replot_calls.append(1))
+    monkeypatch.setattr(window.canvas, 'update_single_axis', lambda *a, **kw: single_axis_calls.append(a[0]))
 
     window._push_dataset_property_command(
         ds, {'use_secondary_y': False}, {'use_secondary_y': True}, description="第2Y軸の変更")
 
-    assert full_replot_calls == [1]
-    assert single_axis_calls == []
+    assert full_replot_calls == []
+    assert single_axis_calls == [0]
 
 
 def test_non_structural_property_change_still_updates_tree_item_and_plot_visually(tmp_path, monkeypatch):
@@ -3433,10 +3468,10 @@ def test_dataset_tree_item_clicked_triggers_replot(tmp_path, monkeypatch):
     """
     非表示にした瞬間にグラフから消えて見えるよう、クリック直後に再描画
     (_refresh_after_dataset_property_change経由)が呼ばれること。
-    ★ 項目C-003フェーズ1: visibleプロパティの変更は軸の所属を変えない
-    (_STRUCTURAL_DATASET_PROPERTIESに含まれない)ため、以前のような完全な
-    _update_plot()ではなく、より軽量なcanvas.update_single_axis()が
-    呼ばれるようになった(意図した最適化そのもの)。そのためモック対象を
+    ★ 項目C-003フェーズ1: visibleプロパティの変更は軸の所属を変えないため、
+    以前のような完全な_update_plot()ではなく、より軽量な
+    canvas.update_single_axis()が呼ばれるようになった(意図した最適化
+    そのもの)。そのためモック対象を
     _update_plotからcanvas.update_single_axisに変更する。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
