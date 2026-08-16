@@ -731,3 +731,59 @@ def test_calculate_size_in_inches_unknown_unit_falls_back_to_default():
         "width": 5, "height": 3, "unit": "unknown", "dpi": 300,
     })
     assert result == (8, 6)
+
+
+# --- _on_export_python_script (項目C-1103) ---
+
+def test_export_python_script_cancelled_dialog_writes_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+
+    window._on_export_python_script()
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_export_python_script_writes_runnable_script(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    out_path = tmp_path / "exported.py"
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(out_path), "Python Files (*.py)"))
+
+    window._on_export_python_script()
+
+    assert out_path.exists()
+    script_text = out_path.read_text(encoding="utf-8")
+    assert "import matplotlib.pyplot as plt" in script_text
+    assert "d1" in script_text  # _add_dataset()で追加したデータセット名
+
+
+def test_export_python_script_appends_py_extension_if_missing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    out_path_no_ext = tmp_path / "exported"
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(out_path_no_ext), "Python Files (*.py)"))
+
+    window._on_export_python_script()
+
+    assert (tmp_path / "exported.py").exists()
+
+
+def test_export_python_script_write_failure_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    bad_path = tmp_path / "a_directory.py"
+    bad_path.mkdir()
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(bad_path), ""))
+
+    warn_calls = []
+    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_export_python_script()
+
+    assert len(warn_calls) == 1

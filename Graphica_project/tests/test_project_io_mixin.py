@@ -251,20 +251,62 @@ def test_on_show_preferences_disabled_plugin_names_are_persisted(tmp_path, monke
     assert list(stored) == ["some_plugin"]
 
 
-# --- _on_save_plot_template ---
+# --- _on_save_plot_template (項目C-806: 新形式) ---
 
-def test_on_save_plot_template_writes_json_file(tmp_path, monkeypatch):
+def test_on_save_plot_template_writes_style_file(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.ui.title_text_edit.setText("My Saved Title")
-    out_path = tmp_path / "template.json"
+    out_path = tmp_path / "template.graphica-style"
     monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
-                         lambda *a, **k: (str(out_path), "Plotter Template Files (*.json)"))
+                         lambda *a, **k: (str(out_path), "Graphica Style Template (*.graphica-style)"))
 
     window._on_save_plot_template()
 
     assert out_path.exists()
     data = json.loads(out_path.read_text(encoding="utf-8"))
-    assert data["plot_settings"]["title"] == "My Saved Title"
+    assert data["format_version"] == 1
+    assert data["subplot_styles"][0]["title"] == "My Saved Title"
+
+
+def test_on_save_plot_template_excludes_annotations_and_free_rect(tmp_path, monkeypatch):
+    """注釈・凡例並び順・自由配置位置はスタイルとして不適切なため、
+    保存されるsubplot_stylesには含まれないこと"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.project.all_plot_settings[0]['annotations'] = [{'type': 'text', 'text': 'hi'}]
+    window.project.all_plot_settings[0]['legend_order'] = ['a', 'b']
+    window.project.all_plot_settings[0]['free_rect'] = (0.1, 0.1, 0.5, 0.5)
+    out_path = tmp_path / "template.graphica-style"
+    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(out_path), ""))
+
+    window._on_save_plot_template()
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    saved_style = data["subplot_styles"][0]
+    assert "annotations" not in saved_style
+    assert "legend_order" not in saved_style
+    assert "free_rect" not in saved_style
+
+
+def test_on_save_plot_template_saves_all_subplots_and_dataset_styles(tmp_path, monkeypatch):
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.subplot_cols_spinbox.setValue(2)
+    ds = Dataset(name="d0", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y",
+                 color="#ff0000")
+    window._add_dataset(ds, None, select=False)
+    out_path = tmp_path / "template.graphica-style"
+    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(out_path), ""))
+
+    window._on_save_plot_template()
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert len(data["subplot_styles"]) == 2
+    assert len(data["dataset_styles"]) == 1
+    assert data["dataset_styles"][0]["color"] == "#ff0000"
 
 
 def test_on_save_plot_template_cancelled_writes_nothing(tmp_path, monkeypatch):
@@ -281,10 +323,12 @@ def test_on_save_plot_template_write_failure_shows_warning(tmp_path, monkeypatch
     警告ダイアログが出てクラッシュしないこと"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     # ディレクトリと同名のパスを渡すことで open(..., 'w') を確実に失敗させる
-    bad_path = tmp_path / "a_directory"
+    # (拡張子を明示しておかないと、拡張子未指定時の自動補完で別パスに
+    #  ずれてしまい、ディレクトリと衝突しなくなってしまう)
+    bad_path = tmp_path / "a_directory.graphica-style"
     bad_path.mkdir()
     monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
-                         lambda *a, **k: (str(bad_path), "Plotter Template Files (*.json)"))
+                         lambda *a, **k: (str(bad_path), ""))
 
     warn_calls = []
     monkeypatch.setattr(project_io_mixin_module.QMessageBox, "warning",
@@ -295,9 +339,128 @@ def test_on_save_plot_template_write_failure_shows_warning(tmp_path, monkeypatch
     assert len(warn_calls) == 1
 
 
-# --- _on_load_plot_template ---
+# --- _on_load_plot_template (項目C-806: 新形式) ---
 
-def test_on_load_plot_template_applies_settings_to_ui(tmp_path, monkeypatch):
+def test_on_load_plot_template_new_format_applies_settings_to_ui(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    template_path = tmp_path / "template.graphica-style"
+    template_path.write_text(
+        json.dumps({
+            "format_version": 1,
+            "subplot_styles": [{"title": "Loaded Title", "x_label": "Loaded X"}],
+            "dataset_styles": [],
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(template_path), ""))
+
+    window._on_load_plot_template()
+
+    assert window.ui.title_text_edit.text() == "Loaded Title"
+    assert window.ui.x_label_text_edit.text() == "Loaded X"
+    active = window.project.all_plot_settings[window.project.active_axis_index]
+    assert active["title"] == "Loaded Title"
+
+
+def test_on_load_plot_template_new_format_preserves_annotations_and_free_rect(tmp_path, monkeypatch):
+    """テンプレート適用後も、既存の注釈・凡例並び順・自由配置位置は
+    上書きされず保持されること(スタイルだけが差し替わる)"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    existing_annotations = [{'type': 'text', 'text': 'keep me'}]
+    window.project.all_plot_settings[0]['annotations'] = existing_annotations
+    template_path = tmp_path / "template.graphica-style"
+    template_path.write_text(
+        json.dumps({
+            "format_version": 1,
+            "subplot_styles": [{"title": "New Title", "annotations": ["should be ignored"]}],
+            "dataset_styles": [],
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(template_path), ""))
+
+    window._on_load_plot_template()
+
+    assert window.project.all_plot_settings[0]['annotations'] == existing_annotations
+
+
+def test_on_load_plot_template_new_format_cyclic_apply_across_subplots(tmp_path, monkeypatch):
+    """サブプロット数がテンプレートより多くても、先頭からサイクリックに適用されること"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.subplot_cols_spinbox.setValue(2)  # 2枚構成にする
+    template_path = tmp_path / "template.graphica-style"
+    template_path.write_text(
+        json.dumps({
+            "format_version": 1,
+            "subplot_styles": [{"title": "Only Style"}],
+            "dataset_styles": [],
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(template_path), ""))
+
+    window._on_load_plot_template()
+
+    assert window.project.all_plot_settings[0]["title"] == "Only Style"
+    assert window.project.all_plot_settings[1]["title"] == "Only Style"
+
+
+def test_on_load_plot_template_new_format_applies_dataset_styles_cyclically(tmp_path, monkeypatch):
+    from core.dataset import Dataset
+    import pandas as pd
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds1 = Dataset(name="d1", df=pd.DataFrame({"x": [1], "y": [2]}), x_col_name="x", y_col_name="y")
+    ds2 = Dataset(name="d2", df=pd.DataFrame({"x": [1], "y": [2]}), x_col_name="x", y_col_name="y")
+    window._add_dataset(ds1, None, select=False)
+    window._add_dataset(ds2, None, select=False)
+    template_path = tmp_path / "template.graphica-style"
+    template_path.write_text(
+        json.dumps({
+            "format_version": 1,
+            "subplot_styles": [{}],
+            "dataset_styles": [{"color": "#00ff00", "linestyle": "--"}],
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(template_path), ""))
+
+    window._on_load_plot_template()
+
+    assert ds1.color == "#00ff00"
+    assert ds1.linestyle == "--"
+    assert ds2.color == "#00ff00"  # サイクリックに同じスタイルが2件目にも適用される
+    assert ds2.linestyle == "--"
+
+
+def test_on_load_plot_template_new_format_empty_subplot_styles_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.ui.title_text_edit.setText("unchanged")
+    template_path = tmp_path / "empty.graphica-style"
+    template_path.write_text(
+        json.dumps({"format_version": 1, "subplot_styles": [], "dataset_styles": []}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(template_path), ""))
+
+    warn_calls = []
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_load_plot_template()
+
+    assert len(warn_calls) == 1
+    assert window.ui.title_text_edit.text() == "unchanged"
+
+
+# --- _on_load_plot_template (項目C-806以前の旧形式との後方互換) ---
+
+def test_on_load_plot_template_legacy_format_applies_settings_to_ui(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     template_path = tmp_path / "template.json"
     template_path.write_text(
@@ -326,7 +489,7 @@ def test_on_load_plot_template_cancelled_leaves_ui_unchanged(tmp_path, monkeypat
     assert window.ui.title_text_edit.text() == "unchanged"
 
 
-def test_on_load_plot_template_empty_settings_shows_warning(tmp_path, monkeypatch):
+def test_on_load_plot_template_legacy_format_empty_settings_shows_warning(tmp_path, monkeypatch):
     """plot_settingsキーが空/存在しないファイルを読み込んだ場合、警告を出して何もしないこと"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.ui.title_text_edit.setText("unchanged")
