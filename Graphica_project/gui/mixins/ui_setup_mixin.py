@@ -351,6 +351,11 @@ class UISetupMixin:
             residual_dock_action.setText(tr("残差プロット"))
             view_menu.addAction(residual_dock_action)
 
+            # 処理履歴(provenance)ツリーパネル(項目C-1101、デフォルトは非表示)
+            provenance_dock_action = self.provenance_dock_widget.toggleViewAction()
+            provenance_dock_action.setText(tr("処理履歴"))
+            view_menu.addAction(provenance_dock_action)
+
             # ミニマップ(レンジスライダー、項目83)の表示/非表示切り替え。
             # チェック状態はQSettingsから復元済みの self.minimap_visible に合わせる。
             # setChecked() は toggled.connect() より前に行うことで、復元時に
