@@ -250,6 +250,7 @@ from gui.mixins.annotation_mixin import (
 )
 from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
 from gui.mixins.range_select_mixin import RangeSelectMixin
+from gui.mixins.peak_placement_mixin import PeakPlacementMixin
 from gui.mixins.export_mixin import ExportMixin
 from gui.mixins.project_io_mixin import ProjectIOMixin
 from gui.mixins.help_mixin import HelpMixin
@@ -422,10 +423,12 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
 #   ProjectIOMixin  : プロジェクト保存/読込メニューと書式テンプレート機能
 #   HelpMixin       : ヘルプダイアログ
 #   QuickAccessMixin: クイックアクセスのカスタムツールバー(項目87)
+#   PeakPlacementMixin: グラフクリックによる多峰分離フィットの初期値配置(項目C-410)
 # PlotterApp 本体には、初期化・ファイルI/Oの中核・プロット更新など、
 # 上記どれにも属さない「アプリのエントリーポイント」的な処理のみを残す。
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                   CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
+                  PeakPlacementMixin,
                   ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
     """
     メインアプリケーションウィンドウクラス。
@@ -525,6 +528,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
         self._fit_task_runner = None   # 曲線フィット用バックグラウンドタスク(項目C-004)の保持用
         self._batch_fit_task_runner = None  # バッチカーブフィット用バックグラウンドタスク(項目C-004フェーズ2)の保持用
+        self._multi_peak_fit_task_runner = None  # 多峰分離フィット用バックグラウンドタスク(項目C-409)の保持用
         self._batch_export_task_runner = None  # バッチエクスポート用バックグラウンドタスク(項目C-004フェーズ5b)の保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
@@ -595,6 +599,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._range_select_axes = None          # ドラッグ中のAxes、またはNone
         self._range_select_start_x = None       # ドラッグ開始点のXデータ座標
         self._range_select_preview_artist = None  # ドラッグ中のプレビュー矩形
+
+        # --- グラフクリックによるピーク配置(項目C-410、多峰分離フィットの初期値収集)用の変数 ---
+        self.peak_placement_mode_enabled = False  # ピーク配置モードがONかOFFか
+        self._peak_placement_press_cid = None
+        self._pending_peak_guesses = []   # [{'center':, 'height':, 'width':}, ...]
+        self._pending_peak_markers = []   # [(guess, axvline, plot point), ...] (仮マーカーのArtist)
 
         # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
         # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
@@ -729,6 +739,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.range_select_action.triggered.connect(self._toggle_range_select_mode)
         toolbar.addAction(self.range_select_action)
 
+        # --- ★ ツールバーにカスタムボタン (ピーク配置、多峰分離フィットの初期値収集) を追加 ★ ---
+        # 項目C-410: クリックした位置(中心X・高さY)を多峰分離フィット(項目C-409、
+        # 「多峰フィット...」ボタン)の初期値として集める。
+        self.peak_placement_action = QAction(
+            _svg_icon("mountain"),  # Tabler Icons "mountain"(ピーク検出ボタンと同じアイコン、意味の一貫性のため)
+            tr("ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)"),
+            self
+        )
+        self.peak_placement_action.setCheckable(True)
+        self.peak_placement_action.triggered.connect(self._toggle_peak_placement_mode)
+        toolbar.addAction(self.peak_placement_action)
+
         # --- ★ ツールバーにカスタムボタン (ズームリセット) を追加 ★ ---
         # マウスドラッグ/矩形選択等で拡大した表示を、設定通りの既定表示に戻す。
         self.reset_zoom_action = QAction(
@@ -815,6 +837,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.view_edit_data_button = QPushButton(tr("データ表示/編集"))
         self.fit_curve_button = QPushButton(tr("曲線フィット"))
         self.find_peaks_button = QPushButton(tr("ピーク検出"))
+        self.multi_peak_fit_button = QPushButton(tr("多峰フィット"))  # 項目C-409: N成分+ベースライン同時フィット
         self.auto_color_button = QPushButton(tr("自動配色"))  # 選択中の(複数可)データセットに配色を自動割り当て
         self.new_folder_button = QPushButton(tr("新しいフォルダ"))  # データセットのグループ分け用フォルダを作成
 
@@ -835,6 +858,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.ui.remove_dataset_button: ("trash", tr("削除")),
             self.fit_curve_button: ("chart-line", tr("曲線フィット")),
             self.find_peaks_button: ("mountain", tr("ピーク検出")),
+            self.multi_peak_fit_button: ("chart-histogram", tr("多峰フィット")),
             self.auto_color_button: ("palette", tr("自動配色")),
             self.new_folder_button: ("folder-plus", tr("新しいフォルダ")),
         }
@@ -865,6 +889,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 解析系グループ
         self.ui.horizontalLayout_3.addWidget(self.fit_curve_button)
         self.ui.horizontalLayout_3.addWidget(self.find_peaks_button)
+        self.ui.horizontalLayout_3.addWidget(self.multi_peak_fit_button)
 
         self.ui.horizontalLayout_3.addWidget(_make_group_separator())
         # 整理系グループ
@@ -1750,6 +1775,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._batch_fit_task_runner.wait()
             self._batch_fit_task_runner.deleteLater()
             self._batch_fit_task_runner = None
+
+        # ★ 項目C-409: 多峰分離フィット用のTaskRunnerも同じ理由で同型のクリーンアップを行う。
+        if self._multi_peak_fit_task_runner is not None:
+            try:
+                self._multi_peak_fit_task_runner.succeeded.disconnect()
+                self._multi_peak_fit_task_runner.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._multi_peak_fit_task_runner.requestInterruption()
+            self._multi_peak_fit_task_runner.wait()
+            self._multi_peak_fit_task_runner.deleteLater()
+            self._multi_peak_fit_task_runner = None
 
         # ★ 項目C-004フェーズ5b: バッチエクスポート用のTaskRunnerも同じ理由で
         # 同型のクリーンアップを行う。

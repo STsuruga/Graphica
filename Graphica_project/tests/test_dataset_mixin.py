@@ -4271,3 +4271,207 @@ def test_context_menu_copy_methods_text_action_enabled_for_derived_dataset(tmp_p
 
     action = _RecordingMenu.last_instance.actions_by_text["「方法」文をコピー..."]
     assert action.isEnabled() is True
+
+
+# =============================================================================
+# 多峰分離フィット (_on_multi_peak_fit、項目C-409/C-410)
+# =============================================================================
+
+def _make_two_gaussian_dataset(name, n=200):
+    x = np.linspace(-10, 20, n)
+    y = (
+        5.0 * np.exp(-((x - 0.0) ** 2) / (2 * 1.0 ** 2))
+        + 3.0 * np.exp(-((x - 8.0) ** 2) / (2 * 1.5 ** 2))
+        + 0.5
+    )
+    df = pd.DataFrame({'x': x, 'y': y})
+    return Dataset(name=name, df=df, x_col_name='x', y_col_name='y')
+
+
+def _patch_multi_peak_fit_dialog(monkeypatch, component_type, baseline_type='constant', initial_guesses=None):
+    """
+    MultiPeakFitDialog.get_multi_peak_fit_settings (staticmethod) をモーダル表示
+    なしのフェイクに差し替える(_patch_fit_dialogの多峰版)。component_type=None
+    はダイアログでキャンセルした場合を表す。
+    """
+    result = (component_type, baseline_type, initial_guesses) if component_type is not None \
+        else (None, None, None)
+    monkeypatch.setattr(
+        dataset_mixin_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
+        staticmethod(lambda *a, **k: result)
+    )
+
+
+def _pump_events_until_multi_peak_fit_task_done(window, max_iterations=300):
+    """_pump_events_until_fit_task_doneの多峰版。"""
+    app = QApplication.instance()
+    for _ in range(max_iterations):
+        app.processEvents()
+        if window._multi_peak_fit_task_runner is None:
+            return
+        time.sleep(0.01)
+    raise AssertionError("多峰分離フィット処理が時間内に完了しませんでした")
+
+
+def test_multi_peak_fit_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    before_count = len(window.project.datasets)
+    window._on_multi_peak_fit()
+    assert len(window.project.datasets) == before_count
+
+
+def test_multi_peak_fit_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_two_gaussian_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_multi_peak_fit_dialog(monkeypatch, None)
+    before_count = len(window.project.datasets)
+
+    window._on_multi_peak_fit()
+
+    assert window._multi_peak_fit_task_runner is None
+    assert len(window.project.datasets) == before_count
+
+
+def test_multi_peak_fit_success_adds_fit_dataset_and_shows_result(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_two_gaussian_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_multi_peak_fit_dialog(
+        monkeypatch, "gaussian", baseline_type="constant",
+        initial_guesses=[
+            {'center': 0.2, 'height': 4.5, 'width': 1.0},
+            {'center': 7.8, 'height': 2.8, 'width': 1.5},
+        ],
+    )
+    before_count = len(window.project.datasets)
+    assert window.fit_result_dialog is None
+
+    window._on_multi_peak_fit()
+    assert window._multi_peak_fit_task_runner is not None
+    assert not window.multi_peak_fit_button.isEnabled()
+    _pump_events_until_multi_peak_fit_task_done(window)
+    assert window.multi_peak_fit_button.isEnabled()
+
+    assert len(window.project.datasets) == before_count + 1
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == "MultiPeakFit (d0)"
+    assert new_ds.fit_info is not None
+    assert window.fit_result_dialog is not None
+
+    assert new_ds.fit_result is not None
+    assert new_ds.fit_result['fit_type'] == 'multi_peak'
+    assert new_ds.fit_result['component_type'] == 'gaussian'
+    assert new_ds.fit_result['n_components'] == 2
+    assert new_ds.fit_result['baseline_type'] == 'constant'
+    assert new_ds.fit_result['param_names'] == ['a1', 'b1', 'c1', 'a2', 'b2', 'c2', 'baseline_c']
+    assert len(new_ds.fit_result['params']) == 7
+    assert new_ds.fit_result['r_squared'] == pytest.approx(1.0, abs=1e-3)
+    assert len(new_ds.fit_result['components']) == 2
+    assert new_ds.fit_result['source_dataset_id'] == ds.dataset_id
+    assert new_ds.fit_result['source_dataset_name'] == "d0"
+
+
+def test_multi_peak_fit_records_provenance_reusing_fit_result_as_params(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_two_gaussian_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_multi_peak_fit_dialog(
+        monkeypatch, "gaussian", baseline_type="constant",
+        initial_guesses=[{'center': 0.0, 'height': 5.0, 'width': 1.0}, {'center': 8.0, 'height': 3.0, 'width': 1.5}],
+    )
+
+    window._on_multi_peak_fit()
+    _pump_events_until_multi_peak_fit_task_done(window)
+
+    new_ds = window.project.datasets[-1]
+    prov = new_ds.provenance
+    assert prov['operation'] == 'multi_peak_fit'
+    assert prov['source_dataset_ids'] == [ds.dataset_id]
+    assert prov['params'] is new_ds.fit_result
+
+
+def test_multi_peak_fit_methods_text_uses_component_type_and_count(tmp_path, monkeypatch):
+    """項目C-1102: describe_operation()がprovenance['params']から
+    component_type/n_componentsをそのまま参照できること(キー名の整合性確認)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_two_gaussian_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_multi_peak_fit_dialog(
+        monkeypatch, "gaussian", baseline_type="constant",
+        initial_guesses=[{'center': 0.0, 'height': 5.0, 'width': 1.0}, {'center': 8.0, 'height': 3.0, 'width': 1.5}],
+    )
+    window._on_multi_peak_fit()
+    _pump_events_until_multi_peak_fit_task_done(window)
+    fit_ds = window.project.datasets[-1]
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(fit_ds))
+
+    window._on_copy_methods_text()
+
+    clipboard_text = QApplication.clipboard().text()
+    assert "多峰分離フィット" in clipboard_text
+    assert "gaussian x2" in clipboard_text
+
+
+def test_multi_peak_fit_passes_and_clears_pending_peak_guesses(tmp_path, monkeypatch):
+    """項目C-410: ピーク配置クリックモードで集めたself._pending_peak_guessesが
+    ダイアログへ引き継がれ、ダイアログを閉じた後はクリアされること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_two_gaussian_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    window._pending_peak_guesses = [{'center': 0.0, 'height': 5.0, 'width': 1.0}]
+    window.peak_placement_mode_enabled = True
+    window.peak_placement_action.setChecked(True)
+
+    seen_kwargs = {}
+
+    def fake_get_settings(*args, **kwargs):
+        seen_kwargs.update(kwargs)
+        return None, None, None  # キャンセル
+
+    monkeypatch.setattr(
+        dataset_mixin_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
+        staticmethod(fake_get_settings)
+    )
+
+    window._on_multi_peak_fit()
+
+    assert seen_kwargs['initial_guesses'] == [{'center': 0.0, 'height': 5.0, 'width': 1.0}]
+    assert window._pending_peak_guesses == []
+    assert window.peak_placement_mode_enabled is False
+    assert window.peak_placement_action.isChecked() is False
+
+
+def test_multi_peak_fit_calculation_error_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_two_gaussian_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    # 不明な成分タイプを直接指定してcalculate_multi_peak_fit()側でValueErrorを
+    # 起こす(_on_fit_curveのcalculation_error系テストと同じ、ダイアログの
+    # 入力検証をバイパスしてバックグラウンド側のエラーハンドリングだけを狙う)。
+    _patch_multi_peak_fit_dialog(
+        monkeypatch, "not_a_real_component_type", baseline_type="constant",
+        initial_guesses=[{'center': 0.0, 'height': 5.0, 'width': 1.0}],
+    )
+    warn_calls = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_multi_peak_fit()
+    _pump_events_until_multi_peak_fit_task_done(window)
+
+    assert len(window.project.datasets) == before_count
+    assert len(warn_calls) == 1
+    assert window.multi_peak_fit_button.isEnabled()
+
+
+def test_multi_peak_fit_busy_shows_info_when_already_running(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_two_gaussian_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    info_calls = _patch_info_capture(monkeypatch)
+    window._multi_peak_fit_task_runner = object()  # 実行中を模擬
+
+    window._on_multi_peak_fit()
+
+    assert len(info_calls) == 1
+    window._multi_peak_fit_task_runner = None  # 後始末(他テストへの影響防止)

@@ -18,7 +18,7 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          ColumnPreviewDialog, ReplicateErrorDialog, ColumnTypeDialog,
                          ExcelMultiSheetDialog, DatasetArithmeticDialog, NormalizeDatasetDialog,
                          CommandPaletteDialog, QuickAccessManagerDialog, ShortcutsDialog,
-                         LegendOrderDialog)
+                         LegendOrderDialog, MultiPeakFitDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -1259,6 +1259,139 @@ def test_fit_dialog_get_fit_type_rejected_returns_none_tuple(monkeypatch):
     monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
     result = FitDialog.get_fit_type(parent=None)
     assert result == (None, None, False, None, {}, {}, {}, None)
+
+
+# --- MultiPeakFitDialog (項目C-409/C-410: 多峰分離フィット設定ダイアログ) ---
+
+def test_multi_peak_fit_dialog_defaults():
+    dlg = MultiPeakFitDialog()
+    assert dlg.get_component_type() == 'gaussian'
+    assert dlg.get_baseline_type() == 'constant'
+    assert dlg.guess_table.rowCount() == 0
+    assert dlg.auto_detect_button.isEnabled() is False
+
+
+def test_multi_peak_fit_dialog_auto_detect_enabled_when_data_provided():
+    dlg = MultiPeakFitDialog(x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]))
+    assert dlg.auto_detect_button.isEnabled() is True
+
+
+def test_multi_peak_fit_dialog_prefills_from_constructor_initial_guesses():
+    dlg = MultiPeakFitDialog(initial_guesses=[
+        {'center': 1.0, 'height': 5.0, 'width': 0.5},
+        {'center': 3.0, 'height': 2.0, 'width': 1.0},
+    ])
+    assert dlg.guess_table.rowCount() == 2
+    assert dlg.get_initial_guesses() == [
+        {'center': 1.0, 'height': 5.0, 'width': 0.5},
+        {'center': 3.0, 'height': 2.0, 'width': 1.0},
+    ]
+
+
+def test_multi_peak_fit_dialog_add_and_remove_guess_row():
+    dlg = MultiPeakFitDialog()
+    dlg._add_guess_row(center=1.0, height=2.0, width=0.3)
+    dlg._add_guess_row(center=4.0, height=6.0, width=0.7)
+    assert dlg.guess_table.rowCount() == 2
+
+    dlg.guess_table.selectRow(0)
+    dlg._remove_selected_rows()
+
+    assert dlg.guess_table.rowCount() == 1
+    assert dlg.get_initial_guesses() == [{'center': 4.0, 'height': 6.0, 'width': 0.7}]
+
+
+def test_multi_peak_fit_dialog_on_accept_rejects_empty_table(monkeypatch):
+    dlg = MultiPeakFitDialog()
+    warn_calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    dlg._on_accept()
+
+    assert len(warn_calls) == 1
+    assert dlg.result() != QDialog.DialogCode.Accepted
+
+
+def test_multi_peak_fit_dialog_on_accept_succeeds_with_at_least_one_row():
+    dlg = MultiPeakFitDialog()
+    dlg._add_guess_row(center=0.0, height=1.0, width=1.0)
+
+    dlg._on_accept()
+
+    assert dlg.result() == QDialog.DialogCode.Accepted
+
+
+def test_multi_peak_fit_dialog_auto_detect_appends_rows_from_peak_quantification(monkeypatch):
+    """項目C-411のピーク検出設定ダイアログ経由で得た検出結果(中心/高さ/FWHM)が
+    テーブルへ追加行として反映されること(既存行は消えない)。"""
+    x = np.linspace(-10, 10, 400)
+    y = 5.0 * np.exp(-((x - 0.0) ** 2) / (2 * 1.0 ** 2))
+    dlg = MultiPeakFitDialog(x_data=x, y_data=y)
+    dlg._add_guess_row(center=99.0, height=99.0, width=99.0)  # 既存の手動追加行
+
+    monkeypatch.setattr(
+        PeakSettingsDialog, "get_peak_settings",
+        staticmethod(lambda parent=None: {
+            "peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None,
+        }),
+    )
+
+    dlg._on_auto_detect()
+
+    assert dlg.guess_table.rowCount() == 2  # 既存1行 + 検出1ピーク
+    guesses = dlg.get_initial_guesses()
+    assert guesses[0] == {'center': 99.0, 'height': 99.0, 'width': 99.0}
+    assert guesses[1]['center'] == pytest.approx(0.0, abs=0.1)
+    assert guesses[1]['height'] == pytest.approx(5.0, abs=0.1)
+
+
+def test_multi_peak_fit_dialog_auto_detect_cancelled_leaves_table_unchanged():
+    dlg = MultiPeakFitDialog(x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]))
+    import gui.dialogs as dialogs_module
+    orig = dialogs_module.PeakSettingsDialog.get_peak_settings
+    dialogs_module.PeakSettingsDialog.get_peak_settings = staticmethod(lambda parent=None: None)
+    try:
+        dlg._on_auto_detect()
+    finally:
+        dialogs_module.PeakSettingsDialog.get_peak_settings = orig
+    assert dlg.guess_table.rowCount() == 0
+
+
+def test_multi_peak_fit_dialog_auto_detect_no_peaks_found_shows_info(monkeypatch):
+    dlg = MultiPeakFitDialog(x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 1.0, 1.0]))
+    monkeypatch.setattr(
+        PeakSettingsDialog, "get_peak_settings",
+        staticmethod(lambda parent=None: {
+            "peak_type": "上に凸 (Peaks)", "height": 100.0, "distance_x": 1.0, "prominence": None,
+        }),
+    )
+    info_calls = []
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    dlg._on_auto_detect()
+
+    assert dlg.guess_table.rowCount() == 0
+    assert len(info_calls) == 1
+
+
+def test_multi_peak_fit_dialog_get_multi_peak_fit_settings_accepted(monkeypatch):
+    def fake_exec(self):
+        self.component_combo.setCurrentIndex(1)  # lorentzian
+        self.baseline_combo.setCurrentIndex(0)    # none
+        self._add_guess_row(center=1.0, height=2.0, width=0.5)
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(MultiPeakFitDialog, "exec", fake_exec)
+    component_type, baseline_type, guesses = MultiPeakFitDialog.get_multi_peak_fit_settings(parent=None)
+    assert component_type == 'lorentzian'
+    assert baseline_type == 'none'
+    assert guesses == [{'center': 1.0, 'height': 2.0, 'width': 0.5}]
+
+
+def test_multi_peak_fit_dialog_get_multi_peak_fit_settings_rejected_returns_none_tuple(monkeypatch):
+    monkeypatch.setattr(MultiPeakFitDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
+    result = MultiPeakFitDialog.get_multi_peak_fit_settings(parent=None)
+    assert result == (None, None, None)
 
 
 # --- ColumnCalculatorDialog(列の計算プリセット) ---

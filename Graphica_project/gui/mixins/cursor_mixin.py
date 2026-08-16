@@ -115,6 +115,9 @@ class CursorMixin:
             if getattr(self, 'range_select_mode_enabled', False):
                 self.range_select_action.setChecked(False)
                 self._toggle_range_select_mode(False)
+            if getattr(self, 'peak_placement_mode_enabled', False):
+                self.peak_placement_action.setChecked(False)
+                self._toggle_peak_placement_mode(False)
 
             # --- モード ON ---
             logger.debug("データカーソルモード ON")

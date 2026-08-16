@@ -69,9 +69,10 @@ C-003の既存テストのモック対象ズレ、**C-004でTaskRunnerが部分�
 握りつぶし呼び出し元が完了を待ち続けるハングを起こしていた設計バグ**、
 など)。
 
-**トラック3-2完了後、ユーザー指示で続けてトラック3-3(差別化機能)に着手中。**
+**トラック3-2完了後、ユーザー指示で続けてトラック3-3(差別化機能)に着手し、2026-08-16に完了。**
 `docs/Graphica_MASTER_SCHEDULE.md`のトラック3進行順(3-1→3-2→3-3→3-4)に従い、
-3体のExploreエージェントによる事前調査を経てから着手。4項目を2ブランチに分割:
+3体のExploreエージェントによる事前調査を経てから着手。6項目を3ブランチに分割し、
+全て完了・master統合済み:
 - **C-1101(provenance記録+ツリー表示)・C-1102(「方法」文の自動生成)**:
   `feature/provenance-tracking`ブランチで完了。`core/dataset.py`の`Dataset`に
   `provenance: dict`フィールドを新設し、派生データセット生成7箇所
@@ -86,13 +87,29 @@ C-003の既存テストのモック対象ズレ、**C-004でTaskRunnerが部分�
   (新規`gui/provenance_panel.py`100%、`core/methods_text.py`96%)。
 - **C-1103(Pythonスクリプトエクスポート)・C-806(フィギュアテンプレートの
   独立ファイル化)**: `feature/export-and-templates`ブランチで並行完了
-  (C-1101/C-1102とは独立、こちらもフルスイート実行予定)。
+  (C-1101/C-1102とは独立)。フルスイート実行済み、失敗ゼロ。
 - **C-409/C-410(多峰分離フィット+クリック初期値配置UI)**: C-1101の
-  provenance基盤(フィット結果へのprovenance付与)がマージされてから、
-  `feature/multi-peak-fitting`ブランチで着手予定(まだ未着手)。
+  provenance基盤マージ後、`feature/multi-peak-fitting`ブランチ
+  (`D:\ユーザー\shuta\ドキュメント\PlotterApp-multi-peak`)で完了。
+  `core/analysis.py`の単峰フィットのp0上書き/固定/範囲拘束ロジックを
+  `_run_curve_fit_with_overrides()`として抽出・共有し、新設
+  `calculate_multi_peak_fit()`(N成分+ベースライン同時フィット)が
+  これを再利用する設計。新規`gui/mixins/peak_placement_mixin.py`
+  (グラフクリックでの初期値配置、既存4モードとの相互排他)+新規
+  `gui/dialogs.py`の`MultiPeakFitDialog`(手動テーブル編集+ピーク検出結果
+  からの自動配置)。詳細は`docs/CORE_FEATURES_PROGRESS.md`の
+  「トラック3-3」節参照。フルスイート(チャンク分割実行、1707件)を実行し、
+  実際のテスト失敗ゼロを確認済み(1件のプロセスクラッシュは下記「既知の
+  注意点」に記録済みの既知の環境起因クラッシュと同一パターン)。
+  カバレッジは今回未計測(ユーザー指示: 時間がかかる場合は省略可)。
 
-**次にやること**: 上記の残り2ブランチ(export-and-templates・
-multi-peak-fitting)を完了させてトラック3-3を完了させる。
+**トラック3-3、6項目全て完了。`docs/roadmap.html`の#69〜#74は全てtrueに
+更新・republish済み。**
+
+**次にやること**: トラック3-4(大型投資: C-508〜C-511の2Dマップ系+C-605軸の
+中断)。ユーザーと詳細計画(フェーズ分割・データモデル設計・カラーバー統合
+方針等)についてすり合わせ済み(このセッション内、実装はまだ未着手)。
+着手する場合は新規`git worktree`を切ること。
 - トラック4(プラグイン本体の開発、#163〜)は`feature/plugin-track4`
   ブランチ(`git worktree`で`D:\ユーザー\shuta\ドキュメント\PlotterApp-plugins`
   に作業中)で着手していたが、**ユーザーからの指示で現在一時停止中**。
