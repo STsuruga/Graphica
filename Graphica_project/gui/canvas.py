@@ -37,6 +37,13 @@ DEFAULT_POINT_LABEL_MAX_POINTS = 1000
 LTTB_DOWNSAMPLE_THRESHOLD = 20000
 LTTB_DOWNSAMPLE_TARGET_POINTS = 3000
 
+# 2Dマップ(ヒートマップ、項目C-508)の表示用解像度の上限。1軸あたりの点数が
+# これを超える場合、pcolormeshに渡す前に均等間引きして描画負荷を抑える
+# (LTTB(項目C-1001)と同じく、redraw_all()が画面表示/エクスポート両方の
+# 唯一の入口であるため、この間引きはエクスポートにも同様に適用される。
+# 既存のLTTBダウンサンプリングも同じ挙動のため、それに倣った)。
+GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS = 500
+
 
 def _apply_legend_order(lines, labels, order):
     """
@@ -182,6 +189,12 @@ class _CanvasDrawingMixin:
         # 一致しなくなるため、マップを経由しないと誤った行がハイライトされる)。
         # 間引きが適用されていないデータセットはこの辞書に一切現れない。
         self.downsample_index_map = {}
+        # 2Dマップ(項目C-508)の描画結果(pcolormeshのQuadMesh)を軸インデックス
+        # ごとに保持する。_apply_appearance()がこれを見てカラーバー(項目C-501)を
+        # 付けるかどうかを判断する(_draw_dataとは別メソッドなので、Artist自体を
+        # 一時的に受け渡す必要がある)。1軸に2Dデータセットが複数あっても
+        # 最後に描画したものだけを保持する(カラーバーは1軸につき最大1つ)。
+        self._axis_2d_mappables = {}
 
     def _effective_text_color(self, configured_color):
         """
@@ -226,6 +239,7 @@ class _CanvasDrawingMixin:
         self._annotation_artists.clear()
         self._highlight_artists.clear()
         self.downsample_index_map.clear()
+        self._axis_2d_mappables.clear()
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
 
         is_free_layout = layout_mode == 'free'
@@ -646,9 +660,76 @@ class _CanvasDrawingMixin:
         ax.update_datalim(np.array([[x_min, y_min], [x_max, y_max]]))
         return im
 
+    def _draw_2d_data(self, ax, axis_index, datasets_2d):
+        """
+        2Dマップ(ヒートマップ、項目C-508)を描画する。Dataset.z_grid
+        (core/dataset.py、core/grid_data.pyのcompute_z_grid()の結果をキャッシュした
+        もの)が既に規則格子/補間格子どちらの場合も同じ形の辞書を返すため、
+        ここでは区別せずpcolormeshに渡すだけでよい。imshow(規則格子限定・高速)
+        ではなくpcolormeshに統一しているのは、規則格子/補間格子のどちらの
+        X/Y間隔にも対応できる(imshowは等間隔前提)ことを優先したため
+        (大規模データはGRID_2D_MAX_DISPLAY_POINTS_PER_AXISの間引きで対応する)。
+        """
+        self._axis_2d_mappables.pop(axis_index, None)
+        for ds in datasets_2d:
+            grid = ds.z_grid
+            if grid is None:
+                continue
+            x_grid, y_grid, z_grid = grid['x_grid'], grid['y_grid'], grid['z_grid']
+
+            # 大規模グリッドの表示負荷対策: 1軸あたりの点数が上限を超える場合、
+            # 均等間隔で間引く(既存のLTTBダウンサンプリング(項目C-1001)と同じく、
+            # redraw_all()が画面表示/エクスポート両方の唯一の入口のため、この
+            # 間引きはエクスポートにも同様に適用される)。
+            if len(x_grid) > GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS:
+                step = int(np.ceil(len(x_grid) / GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS))
+                x_grid = x_grid[::step]
+                z_grid = z_grid[:, ::step]
+            if len(y_grid) > GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS:
+                step = int(np.ceil(len(y_grid) / GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS))
+                y_grid = y_grid[::step]
+                z_grid = z_grid[::step, :]
+
+            vmin = ds.vmin if ds.vmin is not None else (
+                float(np.nanmin(z_grid)) if np.any(~np.isnan(z_grid)) else None
+            )
+            vmax = ds.vmax if ds.vmax is not None else (
+                float(np.nanmax(z_grid)) if np.any(~np.isnan(z_grid)) else None
+            )
+
+            try:
+                # ★ label=ds.nameは付けない: QuadMeshは凡例のハンドルとして
+                # 非対応で、_apply_appearance()のax.get_legend_handles_labels()が
+                # 毎回「Legend does not support handles for QuadMesh instances」
+                # という警告を出してしまう(ヒートマップの識別はカラーバー
+                # (項目C-501)が担うため、凡例に載せる必要はない)。
+                mesh = ax.pcolormesh(
+                    x_grid, y_grid, z_grid, cmap=ds.colormap, vmin=vmin, vmax=vmax,
+                    shading='auto', alpha=ds.alpha,
+                )
+            except ValueError as e:
+                # 不明なカラーマップ名等、matplotlib側が拒否した場合は
+                # このデータセットの描画だけをスキップする(他のデータセットや
+                # 軸全体を巻き込んでクラッシュさせない)。
+                logger.warning("2Dマップの描画に失敗しました(%s): %s", ds.name, e)
+                continue
+
+            ds.artist = mesh
+            self._axis_2d_mappables[axis_index] = mesh
+
     def _draw_data(self, ax, axis_index, datasets):
         """指定された軸にデータをプロットする"""
-        datasets_for_this_axis = [ds for ds in datasets if ds.subplot_target == axis_index]
+        all_datasets_for_this_axis = [ds for ds in datasets if ds.subplot_target == axis_index]
+
+        # 2Dマップ(項目C-508)は、以下の1D点列前提のロジック(日付/カテゴリ軸判定・
+        # ウォーターフォール・LTTBダウンサンプリング・平滑化・plot_type分岐)を
+        # 一切経由しない別経路で描画する(x_data/y_dataは長形式の生の列であり、
+        # 1D描画にそのまま使うと無意味なため)。ヒートマップは背景として先に描き、
+        # 同じ軸に1Dデータ(例: 将来のC-511スライス線)が重なっても見えるようにする。
+        datasets_2d = [ds for ds in all_datasets_for_this_axis if ds.data_kind == '2d_grid']
+        datasets_for_this_axis = [ds for ds in all_datasets_for_this_axis if ds.data_kind != '2d_grid']
+        self._draw_2d_data(ax, axis_index, datasets_2d)
+
         needs_secondary = any(ds.use_secondary_y for ds in datasets_for_this_axis)
 
         # このプロット(軸)のX軸が日時データかどうかを判定し、目盛りフォーマットの
@@ -1269,6 +1350,32 @@ class _CanvasDrawingMixin:
                                         color=spine_color, labelcolor=tick_color, direction=major_dir)
             secondary_x_ax.spines['top'].set_linewidth(spine_width)
             secondary_x_ax.spines['top'].set_color(spine_color)
+
+        # カラーバー(項目C-501): このAxesに2Dマップ(項目C-508)が描画されていた
+        # 場合のみ意味を持つ。_draw_data()が_axis_2d_mappablesへ登録した
+        # QuadMeshを対象に、fig.colorbar()で付ける。位置(location)を指定すると
+        # matplotlibが向き(vertical/horizontal)を自動的に決めるため、orientationは
+        # 明示的に渡さない(両方渡すと衝突しうる)。
+        mappable = self._axis_2d_mappables.get(axis_index)
+        if mappable is not None and settings.get('colorbar_enabled', True):
+            position = settings.get('colorbar_position', 'right')
+            if position not in ('right', 'left', 'top', 'bottom'):
+                position = 'right'
+            try:
+                fraction = float(settings.get('colorbar_width_fraction', 0.05))
+            except (TypeError, ValueError):
+                fraction = 0.05
+            if fraction <= 0:
+                fraction = 0.05
+            cbar = self.fig.colorbar(mappable, ax=ax, location=position, fraction=fraction, pad=0.04)
+            colorbar_label = settings.get('colorbar_label', '')
+            if colorbar_label:
+                cbar.set_label(colorbar_label, **label_font_dict, color=label_color)
+            for tick_label in cbar.ax.get_yticklabels() + cbar.ax.get_xticklabels():
+                tick_label.set(**tick_font_dict)
+                tick_label.set_color(tick_color)
+            cbar.outline.set_edgecolor(spine_color)
+            cbar.outline.set_linewidth(spine_width)
 
 
 class MplCanvas(FigureCanvas, _CanvasDrawingMixin):

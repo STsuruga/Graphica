@@ -8,6 +8,7 @@
 
 ★ スコープ(意図的な簡略化、既知の制限として生成スクリプトの先頭コメントにも
 明記する): データ・基本的なプロット種別(Line/Scatter/Line+Scatter/Area/Bar)・
+2Dグリッドデータ(ヒートマップ、項目C-508、pcolormesh+カラーバー)・
 色/線種/線幅/マーカー/透明度・タイトル/軸ラベル/軸範囲/対数軸/凡例表示/
 グリッド表示/第2Y軸(twinx)の主要な見た目は再現するが、グラデーション・
 ウォーターフォール・エラーバー・注釈・パネルラベル・第2X軸の単位変換・
@@ -79,7 +80,40 @@ def _emit_dataset_plot_call(lines, ax_var, ds):
         lines.append(f"{ax_var}.bar(x, y, {kwargs})")
 
 
-def _emit_appearance_calls(lines, ax_var, settings):
+def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
+    """
+    2Dグリッドデータセット(項目C-508、data_kind='2d_grid')をpcolormeshとして
+    出力する。_emit_dataset_plot_call()(plot_type分岐)とは独立した経路
+    (gui/canvas.pyの_draw_data()がdata_kindで2D/1Dを振り分けるのと同じ設計)。
+    Dataset.z_grid(core/dataset.py、規則格子/散在データの補間どちらも同じ形の
+    辞書を返す)が既に計算済みのグリッドをそのまま埋め込む。
+
+    Returns:
+        bool: 実際にpcolormesh呼び出しを出力できたか(有効なグリッドが
+        構築できなかった場合はFalseを返し、呼び出し側はカラーバー出力を
+        スキップする)。
+    """
+    grid = ds.z_grid
+    if grid is None:
+        lines.append(
+            f"# {ds.name!r} は2Dグリッドデータですが、有効なグリッドを構築できなかったため出力をスキップしています"
+        )
+        return False
+    x_grid, y_grid, z_grid = grid['x_grid'], grid['y_grid'], grid['z_grid']
+    lines.append(f"x = np.array({_format_array_literal(list(x_grid))})")
+    lines.append(f"y = np.array({_format_array_literal(list(y_grid))})")
+    z_rows = ", ".join(_format_array_literal(list(row)) for row in z_grid)
+    lines.append(f"z = np.array([{z_rows}])")
+    kwargs = f"cmap={ds.colormap!r}, alpha={ds.alpha!r}, shading='auto'"
+    if ds.vmin is not None:
+        kwargs += f", vmin={_to_native(ds.vmin)!r}"
+    if ds.vmax is not None:
+        kwargs += f", vmax={_to_native(ds.vmax)!r}"
+    lines.append(f"{mesh_var} = {ax_var}.pcolormesh(x, y, z, {kwargs})")
+    return True
+
+
+def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):
     if settings.get('title'):
         lines.append(f"{ax_var}.set_title({settings['title']!r})")
     if settings.get('x_label'):
@@ -98,6 +132,21 @@ def _emit_appearance_calls(lines, ax_var, settings):
         lines.append(f"{ax_var}.grid(True)")
     if settings.get('legend_visible', True):
         lines.append(f"{ax_var}.legend()")
+
+    # カラーバー(項目C-501): このサブプロットに2Dマップ(項目C-508)が
+    # 描画されていた場合のみ(mesh_varは呼び出し側がgenerate_python_script内で
+    # _emit_2d_dataset_plot_call()が成功した軸だけに渡す)。
+    if mesh_var is not None and settings.get('colorbar_enabled', True):
+        position = settings.get('colorbar_position', 'right')
+        if position not in ('right', 'left', 'top', 'bottom'):
+            position = 'right'
+        fraction = settings.get('colorbar_width_fraction', 0.05)
+        lines.append(
+            f"cbar = fig.colorbar({mesh_var}, ax={ax_var}, location={position!r}, "
+            f"fraction={fraction!r}, pad=0.04)"
+        )
+        if settings.get('colorbar_label'):
+            lines.append(f"cbar.set_label({settings['colorbar_label']!r})")
 
 
 def generate_python_script(project) -> str:
@@ -151,6 +200,7 @@ def generate_python_script(project) -> str:
     if secondary_axis_indices:
         lines.append('')
 
+    mesh_var_by_axis = {}
     for ds in visible_datasets:
         if ds.subplot_target >= subplot_count:
             continue
@@ -160,13 +210,18 @@ def generate_python_script(project) -> str:
             else f'axes[{ds.subplot_target}]'
         )
         lines.append(f'# --- {ds.name} ---')
-        lines.append(f'x = np.array({_format_array_literal(list(ds.x_data))})')
-        lines.append(f'y = np.array({_format_array_literal(list(ds.y_data))})')
-        _emit_dataset_plot_call(lines, ax_var, ds)
+        if ds.data_kind == '2d_grid':
+            mesh_var = f'mesh{ds.subplot_target}'
+            if _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
+                mesh_var_by_axis[ds.subplot_target] = mesh_var
+        else:
+            lines.append(f'x = np.array({_format_array_literal(list(ds.x_data))})')
+            lines.append(f'y = np.array({_format_array_literal(list(ds.y_data))})')
+            _emit_dataset_plot_call(lines, ax_var, ds)
         lines.append('')
 
     for i, settings in enumerate(all_plot_settings[:subplot_count]):
-        _emit_appearance_calls(lines, f'axes[{i}]', settings)
+        _emit_appearance_calls(lines, f'axes[{i}]', settings, mesh_var_by_axis.get(i))
     lines.append('')
 
     lines.append('plt.tight_layout()')

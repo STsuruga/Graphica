@@ -80,6 +80,22 @@ def test_minimap_refresh_excludes_hidden_datasets(minimap):
     assert len(minimap.ax.lines) - baseline == 1
 
 
+def test_minimap_refresh_skips_2d_grid_datasets(minimap):
+    """2Dグリッドデータ(ヒートマップ、項目C-508)はx_data/y_dataが長形式の生の
+    列であり、そのままplot()すると意味のない折れ線になるためスキップする
+    (ミニマップは概観表示のみを目的とした簡易表示という設計)。"""
+    minimap.refresh([], dark_mode=False)
+    baseline = len(minimap.ax.lines)
+
+    df = pd.DataFrame({'x': [0.0, 1.0], 'y': [0.0, 1.0], 'z': [1.0, 2.0]})
+    ds_2d = Dataset(name="heatmap", df=df, x_col_name='x', y_col_name='y',
+                     data_kind='2d_grid', z_col_name='z')
+    ds_1d = _make_dataset("line")
+    minimap.refresh([ds_2d, ds_1d], dark_mode=False)
+
+    assert len(minimap.ax.lines) - baseline == 1
+
+
 def test_minimap_refresh_applies_dark_theme_colors(minimap):
     minimap.refresh([_make_dataset("a")], dark_mode=True)
     assert minimap.ax.get_facecolor() == pytest.approx(

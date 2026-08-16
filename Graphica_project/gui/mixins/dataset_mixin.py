@@ -61,9 +61,13 @@ ACTIVE_PALETTE_SETTINGS_KEY = "active_color_palette"
 NO_ERROR_COLUMN_LABEL = "(なし)"
 
 # 「スタイルのコピー&ペースト」で複製対象とする、見た目に関する属性
-# (凡例名・X/Y列・エラーバー列・描画先など、データ/構造に関わるものは含めない)
+# (凡例名・X/Y列・エラーバー列・描画先など、データ/構造に関わるものは含めない)。
+# colormap/vmin/vmax/grid_interp_methodは2Dマップ(項目C-508)の見た目に関する
+# 属性のため含めるが、data_kind/z_col_nameはX/Y列と同様に「どの列を使うか」という
+# 構造の選択であり、他のデータセットへ無条件にコピーすると意図しない相手を
+# 2Dグリッド扱いにしてしまうため、意図的に含めない。
 STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing', 'alpha',
-               'error_display')
+               'error_display', 'colormap', 'vmin', 'vmax', 'grid_interp_method')
 
 # カラーマップからの自動配色(項目C-805)で選ばせる候補。連続データの系列を
 # 表現するのに適した(知覚的に均一な、またはよく使われる)ものを厳選する。
@@ -1461,6 +1465,12 @@ class DatasetMixin:
             self.waterfall_offset_y_spinbox: ('waterfall_offset_y', self.waterfall_offset_y_spinbox.value()),
             # 誤差の表示形式(項目C-502)
             self.error_display_combo: ('error_display', self.error_display_combo.currentData()),
+            # 2Dグリッドデータ(ヒートマップ、項目C-508)のカラーマップ・補間方法。
+            # data_kind/z_col_name/vmin/vmaxはそれぞれ専用ハンドラ
+            # (_on_data_2d_toggled/_on_z_column_changed/_on_2d_value_range_changed)
+            # が個別に扱うため、ここには含めない。
+            self.colormap_combo: ('colormap', self.colormap_combo.currentText()),
+            self.grid_interp_method_combo: ('grid_interp_method', self.grid_interp_method_combo.currentText()),
         }
 
         changed = field_by_widget.get(self.sender())
@@ -1742,6 +1752,12 @@ class DatasetMixin:
             self.waterfall_offset_x_spinbox.blockSignals(True)
             self.waterfall_offset_y_spinbox.blockSignals(True)
             self.error_display_combo.blockSignals(True)
+            self.data_2d_checkbox.blockSignals(True)
+            self.colormap_combo.blockSignals(True)
+            self.grid_interp_method_combo.blockSignals(True)
+            self.color_range_auto_checkbox.blockSignals(True)
+            self.vmin_spinbox.blockSignals(True)
+            self.vmax_spinbox.blockSignals(True)
 
             # 4c. Dataset オブジェクトの値をUIにロード
             self.ui.legend_name_edit.setText(dataset.name)
@@ -1768,6 +1784,17 @@ class DatasetMixin:
             self.subplot_target_combo.setCurrentIndex(dataset.subplot_target)
             error_display_index = self.error_display_combo.findData(dataset.error_display)
             self.error_display_combo.setCurrentIndex(error_display_index if error_display_index != -1 else 0)
+            self.data_2d_checkbox.setChecked(dataset.data_kind == '2d_grid')
+            colormap_index = self.colormap_combo.findText(dataset.colormap)
+            self.colormap_combo.setCurrentIndex(colormap_index if colormap_index != -1 else 0)
+            interp_index = self.grid_interp_method_combo.findText(dataset.grid_interp_method)
+            self.grid_interp_method_combo.setCurrentIndex(interp_index if interp_index != -1 else 0)
+            is_range_auto = dataset.vmin is None and dataset.vmax is None
+            self.color_range_auto_checkbox.setChecked(is_range_auto)
+            self.vmin_spinbox.setValue(dataset.vmin if dataset.vmin is not None else 0.0)
+            self.vmax_spinbox.setValue(dataset.vmax if dataset.vmax is not None else 1.0)
+            self.vmin_spinbox.setEnabled(not is_range_auto)
+            self.vmax_spinbox.setEnabled(not is_range_auto)
 
             # 4d. ★★★ シグナルを解除 ★★★
             self.ui.legend_name_edit.blockSignals(False)
@@ -1790,8 +1817,15 @@ class DatasetMixin:
             self.waterfall_offset_x_spinbox.blockSignals(False)
             self.waterfall_offset_y_spinbox.blockSignals(False)
             self.error_display_combo.blockSignals(False)
+            self.data_2d_checkbox.blockSignals(False)
+            self.colormap_combo.blockSignals(False)
+            self.grid_interp_method_combo.blockSignals(False)
+            self.color_range_auto_checkbox.blockSignals(False)
+            self.vmin_spinbox.blockSignals(False)
+            self.vmax_spinbox.blockSignals(False)
             self._update_gradient_controls_visibility()
             self._update_waterfall_controls_visibility()
+            self._update_2d_controls_visibility()
 
             # 4e. X/Y軸コンボボックスの更新処理 (シグナルブロックを含む)
             self.x_col_combo.blockSignals(True)
@@ -1824,6 +1858,14 @@ class DatasetMixin:
             self.x_err_col_combo.blockSignals(False)
             self.y_err_col_combo.blockSignals(False)
 
+            # 4e-3. Z軸列コンボボックス(2Dグリッドデータ、項目C-508)
+            self.z_col_combo.blockSignals(True)
+            self.z_col_combo.clear()
+            self.z_col_combo.addItems(all_columns)
+            if dataset.z_col_name:
+                self.z_col_combo.setCurrentText(dataset.z_col_name)
+            self.z_col_combo.blockSignals(False)
+
             # 4f. フィット情報UIの更新
             if dataset.fit_info:
                 self.fit_info_label.setVisible(True)
@@ -1851,6 +1893,8 @@ class DatasetMixin:
             self.x_err_col_combo.clear()
             self.y_err_col_combo.clear()
             self.point_label_col_combo.clear()
+            self.z_col_combo.clear()
+            self._update_2d_controls_visibility()
 
             self.fit_info_label.setVisible(False)
             self.fit_info_textedit.setVisible(False)
@@ -1999,6 +2043,98 @@ class DatasetMixin:
 
         # Undo/Redo可能なコマンドとして発行 (X/Yが同時に変わった場合は1つの操作としてまとめる)
         self._push_dataset_property_command(dataset, old_values, new_values, description="プロット列の変更")
+
+    def _on_data_2d_toggled(self, checked):
+        """
+        「2Dグリッドデータとして扱う」チェックボックス(項目C-508)が切り替えられた
+        ときの処理。data_kindを'2d_grid'/'1d'に切り替える。ONにする際、
+        z_col_nameが未設定ならX/Y列以外の最初の列を自動選択する(候補が無ければ
+        未設定のままにし、ユーザーに手動選択を促す)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            return
+        new_data_kind = '2d_grid' if checked else '1d'
+        if dataset.data_kind == new_data_kind:
+            self._update_2d_controls_visibility()
+            return
+
+        old_values = {'data_kind': dataset.data_kind}
+        new_values = {'data_kind': new_data_kind}
+        if new_data_kind == '2d_grid' and not dataset.z_col_name:
+            candidates = [
+                c for c in dataset.df.columns
+                if c not in (dataset.x_col_name, dataset.y_col_name)
+            ]
+            if candidates:
+                old_values['z_col_name'] = dataset.z_col_name
+                new_values['z_col_name'] = candidates[0]
+
+        self._push_dataset_property_command(dataset, old_values, new_values, description="2Dグリッドデータの切り替え")
+        self._update_2d_controls_visibility()
+
+    def _on_z_column_changed(self):
+        """
+        「Z軸の列」コンボボックスが変更されたときに呼び出される
+        (_on_plot_column_changedのZ列版)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            return
+        new_z_col = self.z_col_combo.currentText()
+        if not new_z_col or new_z_col not in dataset.df.columns or new_z_col == dataset.z_col_name:
+            return
+        self._push_dataset_property_command(
+            dataset, {'z_col_name': dataset.z_col_name}, {'z_col_name': new_z_col},
+            description="Z軸列の変更"
+        )
+
+    def _on_2d_value_range_changed(self):
+        """
+        「値域を自動」チェックボックス、または値域の最小/最大スピンボックスが
+        変更されたときの処理(項目C-508)。自動が有効な間はvmin/vmaxを
+        Noneにする(core/dataset.pyのz_gridプロパティ・gui/canvas.pyの
+        _draw_2d_dataがNoneの場合は実データの最小/最大値を使う)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            return
+        is_auto = self.color_range_auto_checkbox.isChecked()
+        self.vmin_spinbox.setEnabled(not is_auto)
+        self.vmax_spinbox.setEnabled(not is_auto)
+
+        new_vmin = None if is_auto else self.vmin_spinbox.value()
+        new_vmax = None if is_auto else self.vmax_spinbox.value()
+        if new_vmin == dataset.vmin and new_vmax == dataset.vmax:
+            return
+        self._push_dataset_property_command(
+            dataset,
+            {'vmin': dataset.vmin, 'vmax': dataset.vmax},
+            {'vmin': new_vmin, 'vmax': new_vmax},
+            description="値域の変更"
+        )
+
+    def _update_2d_controls_visibility(self):
+        """
+        2Dグリッドデータ関連のコントロール(Z列・カラーマップ・補間方法・値域)の
+        表示/非表示を、現在選択中データセットのdata_kindに応じて更新する
+        (_update_gradient_controls_visibilityと同じパターン)。
+        """
+        dataset = self._get_current_dataset()
+        # ★ 選択なし(None)の場合は常に非表示にする(data_2d_checkboxのチェック状態は
+        # 直前に選択していたデータセットの値が残ったままなので、それにフォール
+        # バックすると選択解除後も2D系コントロールが表示されたままになるバグになる)。
+        is_2d = dataset is not None and dataset.data_kind == '2d_grid'
+
+        for widget in (
+            self.z_col_label, self.z_col_combo,
+            self.colormap_label, self.colormap_combo,
+            self.grid_interp_method_label, self.grid_interp_method_combo,
+            self.color_range_auto_checkbox,
+            self.vmin_label, self.vmin_spinbox,
+            self.vmax_label, self.vmax_spinbox,
+        ):
+            widget.setVisible(is_2d)
 
     def _on_error_column_changed(self):
         """

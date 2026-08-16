@@ -67,6 +67,49 @@ class Dataset:
         return self.__dict__['_visible_df_cache']
 
     @property
+    def z_grid(self):
+        """
+        項目C-508: data_kind='2d_grid'の場合の2Dグリッドデータ
+        (core.grid_data.compute_z_grid()の戻り値と同じ形、
+        {'x_grid','y_grid','z_grid','is_regular'})。data_kindが'2d_grid'
+        以外、またはz_col_name未設定の場合はNone。
+
+        散在データの補間(scipy.interpolate.griddata、項目C-510)は計算コストが
+        高いため、visible_dfと同じ_versionベースのキャッシュ機構を使い、毎回の
+        再描画で無条件に再計算しない。x_col_name/y_col_name/z_col_name/
+        grid_interp_method/grid_resolutionのいずれかが変わった場合も
+        再計算が必要なため、_versionだけでなくこれらもキャッシュキーに含める
+        (これらの変更は__setattr__のバージョン更新対象に含めていないため)。
+        """
+        if self.data_kind != '2d_grid' or not self.z_col_name:
+            return None
+
+        from core.grid_data import compute_z_grid, GridDataError
+
+        resolution_key = tuple(self.grid_resolution) if self.grid_resolution else None
+        version = self.__dict__.get('_version', 0)
+        cache_key = (
+            version, self.x_col_name, self.y_col_name, self.z_col_name,
+            self.grid_interp_method, resolution_key,
+        )
+        if self.__dict__.get('_z_grid_cache_key') != cache_key:
+            df = self.visible_df
+            if self.z_col_name not in df.columns:
+                grid = None
+            else:
+                try:
+                    grid = compute_z_grid(
+                        df[self.x_col_name].values, df[self.y_col_name].values,
+                        df[self.z_col_name].values,
+                        interp_method=self.grid_interp_method, resolution=resolution_key,
+                    )
+                except GridDataError:
+                    grid = None
+            self.__dict__['_z_grid_cache'] = grid
+            self.__dict__['_z_grid_cache_key'] = cache_key
+        return self.__dict__['_z_grid_cache']
+
+    @property
     def x_data(self) -> np.ndarray:
         """
         現在の X軸列名 (x_col_name) に基づいて、
@@ -195,6 +238,26 @@ class Dataset:
     # default=False とすることで、初期値は False になります
     use_secondary_y: bool = field(default=False) # 第2Y軸（右側）を使うかどうか
     subplot_target: int = field(default=0)     # 描画先のサブプロット番号 (0始まり)
+
+    # 2Dグリッドデータ(ヒートマップ/等高線、項目C-508)。既定'1d'は従来通りの
+    # 「1行=1点」の点列データを表す。'2d_grid'の場合、dfは長形式(x_col_name/
+    # y_col_name/z_col_nameの3列、1行=1つの(x,y,z)測定点)として扱い、
+    # z_gridプロパティが実際の2Dグリッド(または散在データならC-510の補間結果)
+    # を組み立てる。既存の1dデータセットはdata_kindフィールド自体を持たない
+    # 古いプロジェクトファイルから復元されてもデフォルト値'1d'で後方互換。
+    data_kind: str = field(default='1d')
+    z_col_name: str = field(default=None)
+    # 散在データ(不規則な格子)をgriddataで補間する際の手法(項目C-510)。
+    # 'linear'/'cubic'/'nearest'。規則格子データの場合は無視される。
+    grid_interp_method: str = field(default='linear')
+    # 散在データ補間時の出力グリッド解像度[nx, ny]。Noneなら自動決定。
+    # (JSON往復でtuple→listになる非対称を避けるため、最初からlistとして持つ)
+    grid_resolution: list = field(default=None)
+    # ヒートマップのカラーマップ名(matplotlib named colormap)と値域。
+    # vmin/vmaxがNoneの場合は実データの最小/最大値を自動的に使う。
+    colormap: str = field(default='viridis')
+    vmin: float = field(default=None)
+    vmax: float = field(default=None)
 
     # データセットリストの表示/非表示トグル(項目C-907)。Falseにすると、
     # データセット自体は削除せず保持したまま、プロット描画(gui/canvas.pyの
@@ -457,9 +520,10 @@ class Dataset:
         """
         state = self.__dict__.copy()
         state['artist'] = None
-        # visible_dfキャッシュ(C-002)は内部実装の都合であり、シリアライズ対象外
-        # (再構築後は次回アクセス時に自動的に再計算される)。
-        for cache_key in ('_visible_df_cache', '_visible_df_cache_version', '_version'):
+        # visible_dfキャッシュ(C-002)・z_gridキャッシュ(C-508)は内部実装の都合であり、
+        # シリアライズ対象外(再構築後は次回アクセス時に自動的に再計算される)。
+        for cache_key in ('_visible_df_cache', '_visible_df_cache_version', '_version',
+                          '_z_grid_cache', '_z_grid_cache_key'):
             state.pop(cache_key, None)
         return state
 

@@ -101,6 +101,17 @@ DEFAULT_DETACHED_CANVAS_HEIGHT = 700
 # デフォルトのドック配置を変えても既存ユーザーには反映されない)。
 DOCK_LAYOUT_VERSION = 4  # v4: 「プロットのプロパティ」「データセットのプロパティ」を1つのドックに統合
 
+# 2Dマップ(ヒートマップ、項目C-508)のカラーマップ選択肢。matplotlib組み込みの
+# 連続カラーマップから、科学データの可視化でよく使われるものを厳選(全カラーマップを
+# 網羅すると選択肢が多すぎて選びにくくなるため)。'viridis'を既定にしているのは
+# matplotlib自体の既定カラーマップであり、知覚的に均等(perceptually uniform)で
+# 色覚多様性にも配慮された設計のため。
+COLORMAP_CHOICES = [
+    'viridis', 'plasma', 'inferno', 'magma', 'cividis',
+    'coolwarm', 'RdBu', 'seismic', 'jet', 'turbo',
+    'gray', 'Blues', 'Greens', 'Reds', 'YlOrRd',
+]
+
 # --- オートセーブに関する定数 ---
 DEFAULT_AUTOSAVE_INTERVAL_MIN = 5  # 分単位 (0 = 無効化)
 MIN_AUTOSAVE_INTERVAL_MIN = 0
@@ -1005,6 +1016,48 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.error_display_combo.addItem(tr("両方"), "both")
         self.ui.formLayout_4.addRow(self.error_display_label, self.error_display_combo)
 
+        # 2f. 2Dグリッドデータ(ヒートマップ、項目C-508): 有効にすると、通常の
+        # 点列描画(plot_type)ではなく、X/Y/Z列を持つ長形式のdfをヒートマップ
+        # として描画する(core/dataset.pyのDataset.z_gridが実際のグリッド化/
+        # 補間を担う)。関連コントロール(Z列・カラーマップ・値域・補間方法)は
+        # data_2d_checkboxがONの時だけ表示する(_update_2d_controls_visibility、
+        # gui/mixins/dataset_mixin.py)。
+        self.data_2d_checkbox = QCheckBox(tr("2Dグリッドデータとして扱う(ヒートマップ)"))
+        self.ui.formLayout_4.addRow(self.data_2d_checkbox)
+
+        self.z_col_label = QLabel(tr("Z軸の列"))
+        self.z_col_combo = QComboBox()
+        self.ui.formLayout_4.addRow(self.z_col_label, self.z_col_combo)
+
+        self.colormap_label = QLabel(tr("カラーマップ"))
+        self.colormap_combo = QComboBox()
+        self.colormap_combo.addItems(COLORMAP_CHOICES)
+        self.ui.formLayout_4.addRow(self.colormap_label, self.colormap_combo)
+
+        self.grid_interp_method_label = QLabel(tr("散在データの補間方法"))
+        self.grid_interp_method_combo = QComboBox()
+        self.grid_interp_method_combo.addItems(['linear', 'cubic', 'nearest'])
+        self.ui.formLayout_4.addRow(self.grid_interp_method_label, self.grid_interp_method_combo)
+
+        self.color_range_auto_checkbox = QCheckBox(tr("値域を自動"))
+        self.color_range_auto_checkbox.setChecked(True)
+        self.ui.formLayout_4.addRow(self.color_range_auto_checkbox)
+
+        self.vmin_label = QLabel(tr("値域の最小"))
+        self.vmin_spinbox = QDoubleSpinBox()
+        self.vmin_spinbox.setRange(-1e12, 1e12)
+        self.vmin_spinbox.setDecimals(4)
+        self.vmin_spinbox.setEnabled(False)
+        self.ui.formLayout_4.addRow(self.vmin_label, self.vmin_spinbox)
+
+        self.vmax_label = QLabel(tr("値域の最大"))
+        self.vmax_spinbox = QDoubleSpinBox()
+        self.vmax_spinbox.setRange(-1e12, 1e12)
+        self.vmax_spinbox.setDecimals(4)
+        self.vmax_spinbox.setValue(1.0)
+        self.vmax_spinbox.setEnabled(False)
+        self.ui.formLayout_4.addRow(self.vmax_label, self.vmax_spinbox)
+
         # 3. 凡例の位置を選択するUIをコードで作成
         self.legend_loc_label = QLabel("凡例の位置")
         self.legend_loc_combo = QComboBox()
@@ -1186,6 +1239,35 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         ):
             self.ui.formLayout_3.insertRow(_grid_style_insert_at, _grid_style_label, _grid_style_layout)
             _grid_style_insert_at += 1
+
+        # 7b. カラーバー(ヒートマップ用、項目C-501): このサブプロットに2Dマップ
+        # (項目C-508)が描画されている場合のみ意味を持つ(gui/canvas.pyの
+        # _apply_appearanceが_axis_2d_mappablesを見て実際に付けるかを判断する)。
+        # addRow()で末尾に追加する(既存のformLayout_3への数字指定insertRow群は
+        # 呼び出し順に依存するため、ここでは絶対位置を指定しない安全な追加方法を使う)。
+        self.colorbar_enabled_checkbox = QCheckBox(tr("カラーバーを表示"))
+        self.colorbar_enabled_checkbox.setChecked(True)
+        self.ui.formLayout_3.addRow(self.colorbar_enabled_checkbox)
+
+        self.colorbar_position_label = QLabel(tr("カラーバーの位置"))
+        self.colorbar_position_combo = QComboBox()
+        self.colorbar_position_combo.addItem(tr("右"), "right")
+        self.colorbar_position_combo.addItem(tr("左"), "left")
+        self.colorbar_position_combo.addItem(tr("上"), "top")
+        self.colorbar_position_combo.addItem(tr("下"), "bottom")
+        self.ui.formLayout_3.addRow(self.colorbar_position_label, self.colorbar_position_combo)
+
+        self.colorbar_width_label = QLabel(tr("カラーバーの幅(割合)"))
+        self.colorbar_width_spinbox = QDoubleSpinBox()
+        self.colorbar_width_spinbox.setRange(0.01, 0.5)
+        self.colorbar_width_spinbox.setSingleStep(0.01)
+        self.colorbar_width_spinbox.setDecimals(2)
+        self.colorbar_width_spinbox.setValue(0.05)
+        self.ui.formLayout_3.addRow(self.colorbar_width_label, self.colorbar_width_spinbox)
+
+        self.colorbar_label_label = QLabel(tr("カラーバーのラベル"))
+        self.colorbar_label_edit = QLineEdit()
+        self.ui.formLayout_3.addRow(self.colorbar_label_label, self.colorbar_label_edit)
 
         # 8. 目盛りの指数表記フォーマット切り替え(項目62)
         #    自動/軸端にまとめて指数表記/目盛りごとに指数表記/常に小数表記 から選択

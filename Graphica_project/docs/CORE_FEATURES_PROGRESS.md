@@ -104,3 +104,35 @@ C-004(#62)はバックログの元の目標(`docs/Graphica_CORE_BACKLOG.md`記�
 | C-410 | グラフクリックによるピーク初期値配置UI | ✅ 完了 | 2026-08-16 | 新設`gui/mixins/peak_placement_mixin.py`。既存3モード(カーソル/注釈/範囲選択/レイアウト編集)と同じ「モードトグル+`mpl_connect('button_press_event', ...)`+相互排他」パターン(既存4モードの相互排他呼び出し全てに本モードも追加、双方向)。左クリックで`self._pending_peak_guesses`に`{'center', 'height', 'width'}`を追加しキャンバス上に仮マーカー(`axvline`+`x`点)を描画、右クリックで最近傍のマーカーを削除。仮マーカーはmatplotlibのArtistを直接保持するため、`range_select_mixin.py`のプレビュー矩形と同じ理由(`fig.clf()`による再描画でArtist参照が無効化されうる)で削除時に`ValueError`/`NotImplementedError`を握りつぶす防御を踏襲。新設`gui/dialogs.py`の`MultiPeakFitDialog`(`FitDialog`と同じ「静的メソッドで`exec()`し結果タプルを返す」パターン)は成分タイプ/ベースラインタイプの選択+初期値テーブル(手動での行追加・削除・編集)に加え、「ピーク検出から自動配置...」ボタンで既存`PeakSettingsDialog`(C-411のピーク検出設定を再利用)+`calculate_peak_quantification`の結果(中心/高さ/FWHM)を追加行として流し込める(手動クリックとの併用可、既存行は消さず追加)。`_on_multi_peak_fit`はダイアログを開く際`self._pending_peak_guesses`を初期値として引き継ぎ、ダイアログを閉じた時点(OK/Cancelいずれでも)でクリア(ダイアログ内の編集内容と二重管理しない設計) |
 
 **トラック3-3進捗**: C-1101/C-1102/C-1103/C-806/C-409/C-410の6項目全て完了。トラック3-3完結。
+
+## トラック3-4: 大型投資(着手はトラック3の中でも最後)
+
+3体のExploreエージェントによる事前調査は経ず、ユーザーとの直接のすり合わせ
+(3-4の各項目の内容説明→優先度確認→詳細計画のヒアリング、4問のAskUserQuestion:
+カラーバーはC-508に完全同梱/大規模グリッド性能を最初から設計に含める/散在データ
+補間もC-508と同時実装/軸の中断はフルスコープ、いずれも最大投資側で確定)を経て
+着手。5項目を4フェーズに分割:
+- **Phase1(C-508+C-501+C-510+性能)**: `feature/2d-map-foundation`ブランチで完了。
+- **Phase2(C-509 等高線図)・Phase3(C-511 1Dスライス抽出)**: Phase1完了後、
+  `feature/2d-map-extensions`ブランチで着手予定(未着手)。
+- **Phase4(C-605 軸の中断)**: **ユーザー判断によりスキップ**(2026-08-16)。
+  Phase1完了後、フルパリティ(既存の全インタラクティブ機能への対応)まで
+  含めた場合の工数・リスクを説明したところ、「Graphicaで作った図をさらに
+  イラレで編集する」運用が前提であることが分かり、軸中断は「別々のサブプロット
+  +エクスポート後にイラレで境界の破断記号を手作業追加」で代替可能と判断。
+  縮小版(表示/エクスポートのみ対応、インタラクティブ機能は対象外)の提案も
+  したが、それでもスキップを選択。worktree(`feature/axis-break`)・ブランチは
+  削除済み。バックログ上はID・行を保持したまま`docs/Graphica_CORE_BACKLOG.md`の
+  低優先索引セクションに追加、`docs/roadmap.html`にも低優先マーク済み。
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| C-508 | ヒートマップ/2Dマップ(imshow/pcolormesh) | ✅ 完了 | 2026-08-16 | `core/dataset.py`の`Dataset`に`data_kind`('1d'既定/'2d_grid')・`z_col_name`・`grid_interp_method`('linear'/'cubic'/'nearest')・`grid_resolution`(`[nx,ny]`、Noneなら自動)・`colormap`・`vmin`/`vmax`フィールドを追加(全てdefault付きのため既存プロジェクトファイルは無変更で読み込める)。`data_kind='2d_grid'`時、dfは長形式(x_col_name/y_col_name/z_col_nameの3列、1行=1測定点)として扱う。新設`core/grid_data.py`の`compute_z_grid(x,y,z,interp_method,resolution)`が、(x,y)が完全な直積格子(`is_regular_grid()`で判定)ならそのままpandas `pivot`で規則格子を組み立て(実測値を一切改変しない)、そうでない散在データ(項目C-510)は`scipy.interpolate.griddata`で規則格子へ補間する、という2経路を1つの共通戻り値形式(`{'x_grid','y_grid','z_grid','is_regular'}`)に統一。`Dataset.z_grid`プロパティが`visible_df`と同じ`_version`ベースのキャッシュ機構でこれをラップし(x_col_name/y_col_name/z_col_name/grid_interp_method/grid_resolutionの変更もキャッシュキーに含める)、griddata補間という計算コストの高い処理を毎回の再描画で無条件に再実行しない。`gui/canvas.py`の`_draw_data()`は先頭でdata_kindにより2D/1Dデータセットを振り分け、1D側の既存ロジック(日付/カテゴリ軸判定・ウォーターフォール・LTTBダウンサンプリング・平滑化・plot_type分岐)を一切通さない別経路`_draw_2d_data()`(pcolormesh、`shading='auto'`で規則格子/補間格子どちらのX/Y間隔にも対応、imshowより汎用性を優先)で描画する。大規模グリッド(`GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS`=500超)は表示直前に均等間引き(既存のLTTBダウンサンプリング(C-1001)がredraw_all()経由でエクスポートにも同じ間引きを適用しているのに倣い、この間引きもエクスポートに等しく適用される設計)。`gui/minimap_widget.py`は2Dデータセットを概観描画から除外(長形式x/yをそのままplot()すると意味のない線になるため)。`core/script_export.py`は`_emit_2d_dataset_plot_call()`でpcolormesh出力に対応(plot_type分岐は経由しない) |
+| C-501 | カラーバー(汎用+位置/幅/目盛り/ラベルのカスタマイズ) | ✅ 完了 | 2026-08-16 | C-508と同時実装(ユーザー指示: フル機能を同梱)。`gui/canvas.py`の`_draw_2d_data()`が描画したpcolormeshのQuadMeshを軸インデックスごとに`self._axis_2d_mappables`へキャッシュし、`_apply_appearance()`が(同じ軸に2Dマップが無ければ何もしない形で)`fig.colorbar(mappable, ax=ax, location=..., fraction=..., pad=0.04)`を呼ぶ。`location`引数を渡す場合は`orientation`を明示的に渡すと衝突しうるため意図的に省略(matplotlib側が`location`から自動推定)。軸設定(all_plot_settings)に`colorbar_enabled`(既定True)・`colorbar_position`('right'/'left'/'top'/'bottom'、不正値は'right'にフォールバック)・`colorbar_width_fraction`・`colorbar_label`を追加、`gui/mixins/settings_mixin.py`の`_gather_settings_from_ui`/`_apply_settings_to_ui_controls`/`_block_all_signals`に統合(他の軸設定と同じ扱い、C-806のテンプレート保存/適用にも自動的に乗る)。`core/script_export.py`も`fig.colorbar()`出力に対応 |
+| C-510 | 2D補間面の生成(散在点→格子) | ✅ 完了 | 2026-08-16 | C-508と同時実装(ユーザー指示: 散在データ対応も最初から)。`core/grid_data.py`の`compute_z_grid()`内に統合(独立関数として切り出さず、C-508のグリッド構築ロジックの一部として実装。「規則格子か散在データか」を`is_regular_grid()`で自動判定し、呼び出し側は意識しない設計とした)。`scipy.interpolate.griddata`の`method`引数('linear'/'cubic'/'nearest')をDataset.grid_interp_methodとしてUIから選択可能、出力解像度はDataset.grid_resolutionで指定(未指定時は点数から自動決定: `max(sqrt(n)*2, 10)`) |
+| C-509 | 等高線図(contour/contourf) | ⬜ 未着手 | - | Phase2、`feature/2d-map-extensions`ブランチで着手予定。C-508のZグリッド取得ロジック(`Dataset.z_grid`)をそのまま再利用できる見込み |
+| C-511 | 2Dマップからの1Dスライス抽出 | ⬜ 未着手 | - | Phase3、`feature/2d-map-extensions`ブランチで着手予定。C-410(クリック配置モード)と同じUIパターンの流用を想定 |
+| C-605 | 軸の中断(Axis Break) | 🔽 スキップ | 2026-08-16 | ユーザー判断により不要と確定。イラレでの後処理(別サブプロット+手動で破断記号追加)で代替可能なため、フルパリティ実装の工数・リスクに見合わないと判断。詳細は上記トラック3-4冒頭の説明を参照 |
+
+**トラック3-4進捗**: C-508/C-501/C-510(Phase1)完了。C-509/C-511(Phase2/3)は未着手。
+C-605(Phase4)はユーザー判断によりスキップ。

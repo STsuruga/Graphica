@@ -139,6 +139,13 @@ class UISetupMixin:
             self.major_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
             self.minor_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
 
+            # カラーバー(項目C-501)。2Dマップが描画されていないサブプロットでは
+            # 何の効果も持たないが、他の軸設定と同じく常に収集・適用の対象にする。
+            self.colorbar_enabled_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.colorbar_position_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
+            self.colorbar_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
+            self.colorbar_label_edit.textChanged.connect(self._on_axis_setting_changed)
+
 
             # --- 3. データセット関連のシグナル ---
 
@@ -210,6 +217,15 @@ class UISetupMixin:
             self.y_col_combo.currentTextChanged.connect(self._on_plot_column_changed)
             self.x_err_col_combo.currentTextChanged.connect(self._on_error_column_changed)
             self.y_err_col_combo.currentTextChanged.connect(self._on_error_column_changed)
+
+            # 2Dグリッドデータ(ヒートマップ、項目C-508)
+            self.data_2d_checkbox.toggled.connect(self._on_data_2d_toggled)
+            self.z_col_combo.currentTextChanged.connect(self._on_z_column_changed)
+            self.colormap_combo.currentTextChanged.connect(self._on_property_changed)
+            self.grid_interp_method_combo.currentTextChanged.connect(self._on_property_changed)
+            self.color_range_auto_checkbox.toggled.connect(self._on_2d_value_range_changed)
+            self.vmin_spinbox.valueChanged.connect(self._on_2d_value_range_changed)
+            self.vmax_spinbox.valueChanged.connect(self._on_2d_value_range_changed)
 
     def _create_menu_bar(self):
             """
