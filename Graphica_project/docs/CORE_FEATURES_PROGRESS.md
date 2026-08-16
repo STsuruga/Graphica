@@ -85,3 +85,23 @@ C-004(#62)はバックログの元の目標(`docs/Graphica_CORE_BACKLOG.md`記�
 可能と判断して`feature/canvas-scope-phase3`ブランチで着手・完了(フェーズ
 3a/3b、詳細は上記C-003の行を参照)。グリッド行数/列数変更のみ、リスクの
 割にメリットが小さいため意図的に対象外のまま残し、true化した。
+
+## トラック3-3: 差別化機能(`docs/Graphica_MASTER_SCHEDULE.md`のトラック3進行順に従い着手)
+
+3体のExploreエージェントによる事前調査(フィット基盤・Datasetのフィールド
+構成/永続化パターン・既存の書式テンプレート機能・`_apply_appearance`の
+全プロパティ一覧)を経てから着手。C-1101/C-1102は`feature/provenance-tracking`
+ブランチで先行完了させ(C-409/C-410がフィット結果へのprovenance付与で
+依存するため)、C-1103/C-806は独立して`feature/export-and-templates`
+ブランチで並行、C-409/C-410はprovenance基盤マージ後に`feature/multi-peak-fitting`
+ブランチで着手する計画(計画モードでユーザー承認済み、詳細は当時のplanファイル参照)。
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| C-1101 | provenance(処理履歴・親子関係)の記録とツリー表示 | ✅ 完了 | 2026-08-16 | `core/dataset.py`の`Dataset`に`provenance: dict`フィールドを新設(`default=None`、`fields(self)`ベースの`to_dict`/`from_dict`/`__setstate__`が自動的に拾うため`models/project.py`側の変更は不要)。キー: `operation`(str)・`params`(dict、素のPython型のみ)・`source_dataset_ids`(list[str])・`source_dataset_names`(list[str]、親削除後も表示名を残すため)・`timestamp`(ISO8601)。自身を生成した直近1回分の操作のみを保持し、全履歴は`source_dataset_ids`を辿って`project.datasets`から都度再構築する設計(子孫側に祖先の履歴を重複保持させないため)。`gui/mixins/dataset_mixin.py`に共通ヘルパー`_build_provenance(operation, params, source_datasets)`を新設し、派生データセットを生成する7箇所(`_on_dataset_arithmetic`・`_on_normalize_dataset`・`_on_savgol_dataset`・`_on_baseline_correction_dataset`・`_on_resample_dataset`・`_on_fit_curve_succeeded`・`_batch_fit_worker`)全てに適用。フィット系は既存の`fit_result`(C-401、既に素のPython型のみで構成済み)をそのまま`provenance['params']`として再利用し、重複データ構造を避けた。`SetDatasetPropertiesCommand.on_applied`はredo/undoどちらの後でも同じコールバックが呼ばれる(方向を教えてくれない)ため、`_push_dataset_property_command`が`old_values`/`new_values`の両方をコールバックへ渡すよう変更。新規UI: `gui/provenance_panel.py`の`ProvenancePanel`(`gui/residual_panel.py`と同じ「メインキャンバスとは別の、選択状態に連動する常設ドックパネル」パターン)。ツリー構造は「選択中データセット→操作内容ノード(`core/methods_text.py`の`describe_operation()`で日本語化)→元データセットノード」を1世代の単位とし、元データセット自身もprovenanceを持てば再帰的に祖先まで辿る。親が既に削除済み(`project.datasets`に見つからない)場合は「(削除済み)」と表示して再帰を打ち切る安全策、循環参照(理論上発生しないはずだが壊れた/手編集ファイルへの保険)もvisitedセットで検知して打ち切る |
+| C-1102 | 「方法」文の自動生成 | ✅ 完了 | 2026-08-16 | 新設`core/methods_text.py`の`generate_methods_text(dataset, project)`。provenanceチェーンを祖先から順にたどり(`source_dataset_ids`が複数ある場合はデータセット間演算等の合成処理のため単一の直線的な文章では表現しきれず、そこで祖先探索を打ち切って親データセット名を列挙する形に切り替える)、`describe_operation()`(C-1101と共有、operation文字列→日本語ラベルの変換をここに一本化)で各ステップを日本語化して連結する。UIは右クリックメニュー「「方法」文をコピー...」(`_on_copy_methods_text`、`export_fit_action`と同じ「常時メニューに出すが対象外時はグレーアウト」パターン、provenance無しの元データセットでは無効)でクリップボードへコピー |
+
+**トラック3-3進捗**: C-1101/C-1102は`feature/provenance-tracking`ブランチで完了。
+C-1103(Pythonスクリプトエクスポート)・C-806(フィギュアテンプレートの独立
+ファイル化)は`feature/export-and-templates`ブランチで並行進行中。C-409/C-410
+(多峰分離+クリック初期値配置UI)はprovenance基盤マージ後に着手予定。

@@ -207,6 +207,7 @@ def _svg_icon(name, size=20):
 from core.excel_utils import find_unevaluated_formula_cells
 from gui.export_preview_panel import ExportPreviewPanel
 from gui.residual_panel import ResidualPanel
+from gui.provenance_panel import ProvenancePanel
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN,
@@ -1385,6 +1386,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.residual_dock_widget.setWidget(self.residual_panel)
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.residual_dock_widget)
         self.residual_dock_widget.hide()
+
+        # 2d. ★ 処理履歴(provenance)ツリーの専用パネル(項目C-1101)。
+        #    残差プロットと同じ「選択状態に連動する常設パネル」方針、既定は
+        #    非表示(常時表示するほど確認頻度が高くないため)。
+        self.provenance_panel = ProvenancePanel(self)
+        self.provenance_dock_widget = QDockWidget(tr("処理履歴"), self)
+        self.provenance_dock_widget.setObjectName("ProvenanceDockWidget")
+        self.provenance_dock_widget.setWidget(self.provenance_panel)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.provenance_dock_widget)
+        self.provenance_dock_widget.hide()
 
         self.export_preview_dock_widget.visibilityChanged.connect(_on_export_preview_visibility_changed)
 

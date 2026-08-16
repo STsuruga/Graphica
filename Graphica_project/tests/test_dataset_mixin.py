@@ -4052,3 +4052,222 @@ def test_resample_cubic_extrapolate_success(tmp_path, monkeypatch):
     new_ds = window.project.datasets[-1]
     assert len(new_ds.y_data) == 10
     assert not np.isnan(new_ds.y_data).any()
+
+
+# =============================================================================
+# provenance記録 (項目C-1101): 派生データセット生成時にDataset.provenanceが
+# 正しく設定されること
+# =============================================================================
+
+def test_arithmetic_records_provenance_with_both_source_datasets(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_arith_pair()
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "DatasetArithmeticDialog", DatasetArithmeticDialog,
+        "get_settings", ("A - B", "diff")
+    )
+
+    window._on_dataset_arithmetic()
+
+    prov = window.project.datasets[-1].provenance
+    assert prov is not None
+    assert prov['operation'] == 'arithmetic'
+    assert set(prov['source_dataset_ids']) == {ds_a.dataset_id, ds_b.dataset_id}
+    assert set(prov['source_dataset_names']) == {ds_a.name, ds_b.name}
+    assert prov['params'] == {'operation_symbol': 'A - B'}
+    assert prov['timestamp']
+
+
+def test_normalize_records_provenance_with_source_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1, 2, 3], 'y': [1.0, 4.0, 2.0, 3.0]})
+    dataset = Dataset(name="sample", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, dataset)
+    _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
+
+    window._on_normalize_dataset()
+
+    prov = window.project.datasets[-1].provenance
+    assert prov['operation'] == 'normalize'
+    assert prov['source_dataset_ids'] == [dataset.dataset_id]
+    assert prov['source_dataset_names'] == [dataset.name]
+    assert prov['params']['mode'] == NormalizeDatasetDialog.MODE_MAX
+
+
+def test_savgol_records_provenance_with_filter_params(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_savgol_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "SavGolDialog", SavGolDialog, "get_settings",
+        (5, 2, 0, "curve_smoothed")
+    )
+
+    window._on_savgol_dataset()
+
+    prov = window.project.datasets[-1].provenance
+    assert prov['operation'] == 'savgol'
+    assert prov['source_dataset_ids'] == [ds.dataset_id]
+    assert prov['params'] == {'window_length': 5, 'polyorder': 2, 'deriv': 0}
+
+
+def test_baseline_correction_records_provenance_with_method_in_operation_name(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_baseline_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "BaselineCorrectionDialog", BaselineCorrectionDialog, "get_settings",
+        ("rubberband", {}, "corrected", False)
+    )
+
+    window._on_baseline_correction_dataset()
+
+    prov = window.project.datasets[-1].provenance
+    assert prov['operation'] == 'baseline_rubberband'
+    assert prov['source_dataset_ids'] == [ds.dataset_id]
+
+
+def test_resample_records_provenance_with_source_and_target_dataset_for_dataset_mode(tmp_path, monkeypatch):
+    """リサンプリング先が「他のデータセット」の場合、source_dataset_idsに
+    リサンプリング元(カレント)とリサンプリング先(target)の両方が入ること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset(name="source")
+    target = _make_resample_dataset(name="target")
+    window._add_dataset(ds, None, select=False)
+    window._add_dataset(target, None, select=False)
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(ds))
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("dataset", {"dataset_name": "target"}, "linear", False, "resampled")
+    )
+
+    window._on_resample_dataset()
+
+    prov = window.project.datasets[-1].provenance
+    assert prov['operation'] == 'resample'
+    assert set(prov['source_dataset_ids']) == {ds.dataset_id, target.dataset_id}
+    assert prov['params']['source'] == 'dataset'
+
+
+def test_resample_records_provenance_with_only_source_dataset_for_linspace_mode(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_resample_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "ResampleDatasetDialog", ResampleDatasetDialog, "get_settings",
+        ("linspace", {"start": 0.0, "stop": 10.0, "num_points": 20}, "linear", False, "resampled")
+    )
+
+    window._on_resample_dataset()
+
+    prov = window.project.datasets[-1].provenance
+    assert prov['source_dataset_ids'] == [ds.dataset_id]
+
+
+def test_fit_curve_records_provenance_reusing_fit_result_as_params(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+
+    window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
+
+    new_ds = window.project.datasets[-1]
+    prov = new_ds.provenance
+    assert prov['operation'] == 'curve_fit'
+    assert prov['source_dataset_ids'] == [ds.dataset_id]
+    assert prov['params'] is new_ds.fit_result
+
+
+def test_batch_curve_fit_records_provenance_per_result(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_linear_dataset(f"d{i}") for i in range(2)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    _patch_info_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_batch_curve_fit()
+    _pump_events_until_batch_fit_task_done(window)
+
+    new_datasets = window.project.datasets[before_count:]
+    assert len(new_datasets) == 2
+    for original, fit_ds in zip(datasets, new_datasets):
+        assert fit_ds.provenance['operation'] == 'batch_curve_fit'
+        assert fit_ds.provenance['source_dataset_ids'] == [original.dataset_id]
+
+
+# =============================================================================
+# 「方法」文のコピー (_on_copy_methods_text, 項目C-1102)
+# =============================================================================
+
+def test_copy_methods_text_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    QApplication.clipboard().setText("")
+    window._on_copy_methods_text()
+    assert QApplication.clipboard().text() == ""
+
+
+def test_copy_methods_text_dataset_without_provenance_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("raw")
+    _add_and_select_dataset(window, ds)
+    QApplication.clipboard().setText("")
+
+    window._on_copy_methods_text()
+
+    assert QApplication.clipboard().text() == ""
+
+
+def test_copy_methods_text_copies_generated_text_to_clipboard(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
+    fit_ds = window.project.datasets[-1]
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(fit_ds))
+
+    window._on_copy_methods_text()
+
+    clipboard_text = QApplication.clipboard().text()
+    assert "d0" in clipboard_text
+    assert "カーブフィット" in clipboard_text
+
+
+def test_context_menu_copy_methods_text_action_disabled_without_provenance(tmp_path, monkeypatch):
+    """処理履歴(provenance)を持たない元データでは、メニュー項目はグレーアウトされる"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("raw")
+    _add_and_select_dataset(window, ds)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    action = _RecordingMenu.last_instance.actions_by_text["「方法」文をコピー..."]
+    assert action.isEnabled() is False
+
+
+def test_context_menu_copy_methods_text_action_enabled_for_derived_dataset(tmp_path, monkeypatch):
+    """provenanceを持つ派生データセット(フィット結果等)を選択中は有効になる"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+    window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
+    fit_ds = window.project.datasets[-1]
+    _select_items(window, [fit_ds])
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    action = _RecordingMenu.last_instance.actions_by_text["「方法」文をコピー..."]
+    assert action.isEnabled() is True

@@ -179,6 +179,19 @@ class Dataset:
     # プラグイン以外の通常の操作で作られたDatasetはNoneのまま。
     source_plugin: str = field(default=None)
 
+    # 処理履歴・親子関係の記録(項目C-1101)。このデータセット自身を生成した
+    # 直近1回分の操作のみを保持する(全履歴は source_dataset_ids を辿って
+    # project.datasets から都度再構築する設計、子孫側に祖先の履歴を重複保持
+    # させないため)。手動読込・CSVインポート等の「元データ」はNoneのまま。
+    # キー: operation(str、'savgol'/'baseline_als'/'normalize'/'resample'/
+    # 'arithmetic'/'curve_fit'/'batch_curve_fit' 等)、params(dict、操作固有の
+    # パラメータ。素のPython型のみ)、source_dataset_ids(list[str])、
+    # source_dataset_names(list[str]、親が削除された後も名前は残せるよう
+    # source_dataset_idsとは別に保持)、timestamp(str、ISO8601)。
+    # fit系はDataset.fit_result(C-401)と重複させず、paramsにfit_resultを
+    # そのまま格納する(fit_resultは既に素のPython型のみで構成済みのため)。
+    provenance: dict = field(default=None)
+
     # default=False とすることで、初期値は False になります
     use_secondary_y: bool = field(default=False) # 第2Y軸（右側）を使うかどうか
     subplot_target: int = field(default=0)     # 描画先のサブプロット番号 (0始まり)
