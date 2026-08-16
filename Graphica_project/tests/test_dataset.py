@@ -418,6 +418,51 @@ def test_pickle_roundtrip_preserves_fit_result():
     assert restored.fit_result == fit_result
 
 
+def test_to_dict_from_dict_roundtrip_preserves_provenance():
+    """項目C-1101: 派生データセットの処理履歴(provenance)がto_dict/from_dictの
+    往復でそのまま保持されることを確認する。"""
+    provenance = {
+        'operation': 'savgol',
+        'params': {'window_length': 5, 'polyorder': 2, 'deriv': 0},
+        'source_dataset_ids': ['abc123'],
+        'source_dataset_names': ['raw'],
+        'timestamp': '2026-08-16T00:00:00+00:00',
+    }
+    ds = make_dataset(name="smoothed", provenance=provenance)
+
+    data = ds.to_dict()
+    assert data['provenance'] == provenance
+
+    restored = Dataset.from_dict(data)
+    assert restored.provenance == provenance
+
+
+def test_from_dict_missing_provenance_key_falls_back_to_none():
+    """provenance キーが無い(項目C-1101追加前に保存された)dict を読み込んでも
+    クラッシュせず、デフォルトのNoneで補われること。"""
+    ds = make_dataset(name="Legacy")
+    data = ds.to_dict()
+    data.pop('provenance', None)
+
+    restored = Dataset.from_dict(data)
+
+    assert restored.name == "Legacy"
+    assert restored.provenance is None
+
+
+def test_pickle_roundtrip_preserves_provenance():
+    provenance = {
+        'operation': 'curve_fit', 'params': {'r_squared': 0.99},
+        'source_dataset_ids': ['x1'], 'source_dataset_names': ['d0'],
+        'timestamp': '2026-08-16T00:00:00+00:00',
+    }
+    ds = make_dataset(provenance=provenance)
+
+    restored = pickle.loads(pickle.dumps(ds))
+
+    assert restored.provenance == provenance
+
+
 def test_to_dict_from_dict_roundtrip_preserves_fit_band_display():
     """項目C-405: fit_band_displayがto_dict()/from_dict()の往復で保持されること。"""
     ds = make_dataset(fit_band_display="prediction")

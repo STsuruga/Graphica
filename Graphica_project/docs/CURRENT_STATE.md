@@ -69,9 +69,30 @@ C-003の既存テストのモック対象ズレ、**C-004でTaskRunnerが部分�
 握りつぶし呼び出し元が完了を待ち続けるハングを起こしていた設計バグ**、
 など)。
 
-**次にやること**: C-003/C-004は上記の通り完全に完了(#61/#62とも`true`)。
-次に何を進めるかはユーザーに確認する方針(このセッションの区切りとして
-報告済み)。
+**トラック3-2完了後、ユーザー指示で続けてトラック3-3(差別化機能)に着手中。**
+`docs/Graphica_MASTER_SCHEDULE.md`のトラック3進行順(3-1→3-2→3-3→3-4)に従い、
+3体のExploreエージェントによる事前調査を経てから着手。4項目を2ブランチに分割:
+- **C-1101(provenance記録+ツリー表示)・C-1102(「方法」文の自動生成)**:
+  `feature/provenance-tracking`ブランチで完了。`core/dataset.py`の`Dataset`に
+  `provenance: dict`フィールドを新設し、派生データセット生成7箇所
+  (`_on_dataset_arithmetic`等)全てに適用。新規`gui/provenance_panel.py`
+  (`ProvenancePanel`、`gui/residual_panel.py`と同じ選択状態連動ドックパネル
+  パターン)と新規`core/methods_text.py`(`generate_methods_text`/
+  `describe_operation`)。詳細は`docs/CORE_FEATURES_PROGRESS.md`の
+  「トラック3-3」節参照。フルスイート(チャンク分割実行、1622件)を実行し、
+  実際のテスト失敗ゼロを確認済み(1件のプロセスクラッシュは下記「既知の
+  注意点」に記録済みの既知の環境起因クラッシュ、`test_export_preview_panel.py`
+  を含むチャンクで全テスト成功後に発生)。カバレッジ TOTAL 95%
+  (新規`gui/provenance_panel.py`100%、`core/methods_text.py`96%)。
+- **C-1103(Pythonスクリプトエクスポート)・C-806(フィギュアテンプレートの
+  独立ファイル化)**: `feature/export-and-templates`ブランチで並行完了
+  (C-1101/C-1102とは独立、こちらもフルスイート実行予定)。
+- **C-409/C-410(多峰分離フィット+クリック初期値配置UI)**: C-1101の
+  provenance基盤(フィット結果へのprovenance付与)がマージされてから、
+  `feature/multi-peak-fitting`ブランチで着手予定(まだ未着手)。
+
+**次にやること**: 上記の残り2ブランチ(export-and-templates・
+multi-peak-fitting)を完了させてトラック3-3を完了させる。
 - トラック4(プラグイン本体の開発、#163〜)は`feature/plugin-track4`
   ブランチ(`git worktree`で`D:\ユーザー\shuta\ドキュメント\PlotterApp-plugins`
   に作業中)で着手していたが、**ユーザーからの指示で現在一時停止中**。

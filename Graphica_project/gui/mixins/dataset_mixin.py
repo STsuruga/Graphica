@@ -18,11 +18,12 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu,
+from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu,
                                QProgressDialog)
 
 from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_quantification,
@@ -33,6 +34,7 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_resample_to_grid)
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand
 from core.dataset import Dataset
+from core.methods_text import generate_methods_text
 from core.plugin_api import get_registered_importer_extensions
 from core.plugin_types import AnalysisResult, PluginExecutionError
 from core.safe_eval import safe_eval_column_formula
@@ -207,6 +209,15 @@ class DatasetMixin:
             # ベースライン補正と同じく「カレント1件から新しいデータセットを1つ作る」操作。
             resample_action = menu.addAction("共通X格子へのリサンプリング/補間...")
             resample_action.triggered.connect(self._on_resample_dataset)
+
+            # 「方法」文の自動生成(項目C-1102): カレントデータセットが処理履歴
+            # (dataset.provenance、項目C-1101)を持っている場合のみ有効にする
+            # (export_fit_actionと同じ、常時メニューには出すが対象外の状態では
+            # グレーアウトするパターン)。元データ(provenance無し)には
+            # 生成する意味のある「方法」が無いため対象外。
+            copy_methods_text_action = menu.addAction("「方法」文をコピー...")
+            copy_methods_text_action.setEnabled(self._get_current_dataset().provenance is not None)
+            copy_methods_text_action.triggered.connect(self._on_copy_methods_text)
 
         selected_count = len(self._get_selected_datasets())
         if selected_count >= 2:
@@ -426,7 +437,10 @@ class DatasetMixin:
                 result = yb_interp / ya_sub
 
         result_df = pd.DataFrame({'x': xa_sub, 'y': result})
-        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        new_dataset = Dataset(
+            name=output_name, df=result_df, x_col_name='x', y_col_name='y',
+            provenance=self._build_provenance('arithmetic', {'operation_symbol': operation}, [ds_a, ds_b]),
+        )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
 
@@ -484,7 +498,14 @@ class DatasetMixin:
             return
 
         result_df = pd.DataFrame({'x': x_data, 'y': y_data / reference_value})
-        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        new_dataset = Dataset(
+            name=output_name, df=result_df, x_col_name='x', y_col_name='y',
+            provenance=self._build_provenance(
+                'normalize',
+                {'mode': mode, 'reference_x': reference_x, 'reference_value': reference_value},
+                [original_dataset],
+            ),
+        )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
 
@@ -523,7 +544,14 @@ class DatasetMixin:
             return
 
         result_df = pd.DataFrame({'x': x_sorted, 'y': y_result})
-        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        new_dataset = Dataset(
+            name=output_name, df=result_df, x_col_name='x', y_col_name='y',
+            provenance=self._build_provenance(
+                'savgol',
+                {'window_length': window_length, 'polyorder': polyorder, 'deriv': deriv},
+                [original_dataset],
+            ),
+        )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
 
@@ -587,7 +615,10 @@ class DatasetMixin:
             return
 
         result_df = pd.DataFrame({'x': x_sorted, 'y': corrected})
-        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        new_dataset = Dataset(
+            name=output_name, df=result_df, x_col_name='x', y_col_name='y',
+            provenance=self._build_provenance(f'baseline_{method}', dict(params), [original_dataset]),
+        )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
 
         if add_baseline_dataset:
@@ -744,7 +775,14 @@ class DatasetMixin:
         # (calculate_savgol等と異なり「Xの昇順に正規化する」責務はここにはない —
         # ユーザーが選んだ格子の並び順をそのまま尊重する)。
         result_df = pd.DataFrame({'x': target_x, 'y': result_y})
-        new_dataset = Dataset(name=output_name, df=result_df, x_col_name='x', y_col_name='y')
+        provenance_sources = [original_dataset] + ([target_dataset] if source == "dataset" else [])
+        new_dataset = Dataset(
+            name=output_name, df=result_df, x_col_name='x', y_col_name='y',
+            provenance=self._build_provenance(
+                'resample', {'source': source, 'method': method, 'extrapolate': extrapolate},
+                provenance_sources,
+            ),
+        )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
 
@@ -1047,6 +1085,7 @@ class DatasetMixin:
                 fit_info=result_text,
                 fit_result=fit_result,
                 fit_band_display=applied_band_type,
+                provenance=self._build_provenance('batch_curve_fit', fit_result, [dataset]),
             )
             results.append({'source_name': dataset.name, 'fit_dataset': fit_dataset, 'error': None})
 
@@ -1801,6 +1840,9 @@ class DatasetMixin:
             # 無ければパネル側がプレースホルダ表示に戻す(再計算はしない)。
             self.residual_panel.refresh(dataset)
 
+            # 4i. 処理履歴(provenance)ツリーパネルの更新(項目C-1101)。
+            self.provenance_panel.refresh(dataset, self.project)
+
         # 5. 【非選択中 (またはフォルダ選択中)】の場合: UIをクリア
         else:
             self.x_col_combo.clear()
@@ -1813,6 +1855,7 @@ class DatasetMixin:
             self.fit_info_textedit.setVisible(False)
             self.fit_info_textedit.clear()
             self.residual_panel.refresh(None)
+            self.provenance_panel.refresh(None, self.project)
 
             self.gradient_checkbox.setVisible(False)
             self.gradient_color2_label.setVisible(False)
@@ -2114,6 +2157,7 @@ class DatasetMixin:
             fit_info=result_text,
             fit_result=fit_result,
             fit_band_display=applied_band_type,
+            provenance=self._build_provenance('curve_fit', fit_result, [original_dataset]),
         )
 
         self.project.datasets.append(fit_dataset)
@@ -2133,6 +2177,24 @@ class DatasetMixin:
             residual_x=residual_x, residual_y=residuals
         )
         self.fit_result_dialog.show()
+
+    @staticmethod
+    def _build_provenance(operation, params, source_datasets):
+        """
+        派生データセット生成時にDataset.provenanceへ設定する共通ヘルパー
+        (項目C-1101)。source_datasetsは親となったDatasetオブジェクトの
+        リスト(1個なら単純な派生、複数ならデータセット間演算のような
+        合成処理)。paramsは素のPython型のみで構成すること(pickle/JSON
+        双方でそのまま往復できるようにするため、Dataset.fit_result等と
+        同じ制約)。
+        """
+        return {
+            'operation': operation,
+            'params': params,
+            'source_dataset_ids': [ds.dataset_id for ds in source_datasets],
+            'source_dataset_names': [ds.name for ds in source_datasets],
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+        }
 
     @staticmethod
     def _build_fit_result_dict(fit_type, custom_formula, fit, weighted, x_range, source_dataset,
@@ -2233,6 +2295,20 @@ class DatasetMixin:
         if fit_result.get('bounds'):
             result_text += f"  (範囲拘束: {fit_result['bounds']})\n"
         return result_text
+
+    def _on_copy_methods_text(self):
+        """
+        「「方法」文をコピー...」メニューの処理(項目C-1102)。
+        カレントデータセットのprovenanceチェーン(項目C-1101)から
+        generate_methods_text()で組み立てた日本語の説明文をクリップボードへ
+        コピーする(論文の「方法」節にそのまま使える体裁を意図している)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None or dataset.provenance is None:
+            return
+        text = generate_methods_text(dataset, self.project)
+        QApplication.clipboard().setText(text)
+        self.statusBar().showMessage("「方法」文をクリップボードにコピーしました", 3000)
 
     def _on_export_fit_result(self):
         """
