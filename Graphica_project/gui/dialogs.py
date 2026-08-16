@@ -1047,6 +1047,178 @@ class FitDialog(QDialog):
 
 
 #==============================================================================
+# カスタムダイアログクラス (4b): 多峰分離フィット (項目C-409/C-410)
+#==============================================================================
+class MultiPeakFitDialog(QDialog):
+    """
+    多峰分離フィット(項目C-409)の設定ダイアログ。成分タイプ(全成分共通)・
+    ベースラインタイプに加え、各ピークの初期値(中心/高さ/幅)を行として持つ
+    テーブルを編集できる。行は手動追加/削除のほか、「ピーク検出から自動配置...」
+    ボタン(項目C-411のcalculate_peak_quantificationを流用)、および
+    キャンバス上のクリック配置モード(項目C-410、gui/mixins/peak_placement_mixin.py)
+    で集めた初期値(initial_guesses引数)からも事前入力できる。
+    """
+
+    COMPONENT_TYPES = [
+        ('gaussian', 'ガウシアン'),
+        ('lorentzian', 'ローレンツ'),
+        ('pseudo_voigt', '擬似フォークト'),
+        ('voigt', 'フォークト'),
+    ]
+    BASELINE_TYPES = [
+        ('none', 'なし'),
+        ('constant', '定数'),
+        ('linear', '1次'),
+    ]
+
+    def __init__(self, parent=None, x_data=None, y_data=None, initial_guesses=None):
+        """
+        Args:
+            parent (QWidget, optional): 親ウィジェット。
+            x_data, y_data (array-like, optional): 「ピーク検出から自動配置...」用の
+                対象データセットの生データ。Noneの場合はそのボタンを無効化する。
+            initial_guesses (list[dict], optional): 事前入力する初期値
+                ([{'center':, 'height':, 'width':}, ...])。ピーク配置クリック
+                モードで集めた点を引き継ぐ想定。
+        """
+        super().__init__(parent)
+        self.setWindowTitle("多峰分離フィット")
+        self._x_data = x_data
+        self._y_data = y_data
+
+        layout = QVBoxLayout(self)
+
+        form = QFormLayout()
+        self.component_combo = QComboBox()
+        for key, label in self.COMPONENT_TYPES:
+            self.component_combo.addItem(label, key)
+        form.addRow("成分タイプ(全ピーク共通)", self.component_combo)
+
+        self.baseline_combo = QComboBox()
+        for key, label in self.BASELINE_TYPES:
+            self.baseline_combo.addItem(label, key)
+        self.baseline_combo.setCurrentIndex(1)  # 既定は「定数」
+        form.addRow("ベースライン", self.baseline_combo)
+        layout.addLayout(form)
+
+        layout.addWidget(QLabel(
+            "各ピークの初期値(中心X・高さ・おおよその幅[FWHM]):"
+        ))
+        self.guess_table = QTableWidget(0, 3)
+        self.guess_table.setHorizontalHeaderLabels(["中心 (X)", "高さ", "幅 (FWHM)"])
+        self.guess_table.verticalHeader().setVisible(False)
+        self.guess_table.setMaximumHeight(200)
+        layout.addWidget(self.guess_table)
+
+        row_button_layout = QHBoxLayout()
+        add_row_button = QPushButton("行を追加")
+        add_row_button.clicked.connect(lambda: self._add_guess_row())
+        remove_row_button = QPushButton("選択行を削除")
+        remove_row_button.clicked.connect(self._remove_selected_rows)
+        self.auto_detect_button = QPushButton("ピーク検出から自動配置...")
+        self.auto_detect_button.clicked.connect(self._on_auto_detect)
+        self.auto_detect_button.setEnabled(x_data is not None and y_data is not None)
+        row_button_layout.addWidget(add_row_button)
+        row_button_layout.addWidget(remove_row_button)
+        row_button_layout.addWidget(self.auto_detect_button)
+        row_button_layout.addStretch()
+        layout.addLayout(row_button_layout)
+
+        for guess in (initial_guesses or []):
+            self._add_guess_row(
+                center=guess.get('center', 0.0),
+                height=guess.get('height', 0.0),
+                width=guess.get('width', 1.0),
+            )
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                       QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self._on_accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def _add_guess_row(self, center=0.0, height=0.0, width=1.0):
+        row = self.guess_table.rowCount()
+        self.guess_table.insertRow(row)
+        for col, value in enumerate((center, height, width)):
+            spin = QDoubleSpinBox()
+            spin.setRange(-1e12, 1e12)
+            spin.setDecimals(6)
+            spin.setValue(float(value))
+            self.guess_table.setCellWidget(row, col, spin)
+
+    def _remove_selected_rows(self):
+        rows = sorted({idx.row() for idx in self.guess_table.selectedIndexes()}, reverse=True)
+        for row in rows:
+            self.guess_table.removeRow(row)
+
+    def _on_auto_detect(self):
+        """
+        項目C-411のピーク検出設定ダイアログ(PeakSettingsDialog)を再利用して
+        検出条件を尋ね、calculate_peak_quantification()の結果(中心/高さ/FWHM)を
+        テーブルへ追加する(既存行は消さずに追加する — クリック配置と併用可能)。
+        """
+        settings = PeakSettingsDialog.get_peak_settings(self)
+        if settings is None:
+            return
+        from core.analysis import calculate_peak_quantification
+        try:
+            result = calculate_peak_quantification(
+                self._x_data, self._y_data, settings['peak_type'], settings
+            )
+        except Exception as e:
+            QMessageBox.warning(self, "ピーク検出", f"ピーク検出に失敗しました:\n{e}")
+            return
+        if len(result['peak_x']) == 0:
+            QMessageBox.information(self, "ピーク検出", "条件に一致するピークが見つかりませんでした。")
+            return
+        for x, y, fwhm in zip(result['peak_x'], result['peak_y'], result['fwhm']):
+            self._add_guess_row(center=float(x), height=float(y), width=float(fwhm) or 1.0)
+
+    def _on_accept(self):
+        if self.guess_table.rowCount() == 0:
+            QMessageBox.warning(self, "多峰分離フィット", "少なくとも1つのピークの初期値が必要です。")
+            return
+        self.accept()
+
+    def get_component_type(self):
+        return self.component_combo.currentData()
+
+    def get_baseline_type(self):
+        return self.baseline_combo.currentData()
+
+    def get_initial_guesses(self):
+        """
+        Returns:
+            list[dict]: [{'center': float, 'height': float, 'width': float}, ...]
+            (calculate_multi_peak_fit()にそのまま渡せる形)。
+        """
+        guesses = []
+        for row in range(self.guess_table.rowCount()):
+            center = self.guess_table.cellWidget(row, 0).value()
+            height = self.guess_table.cellWidget(row, 1).value()
+            width = self.guess_table.cellWidget(row, 2).value()
+            guesses.append({'center': center, 'height': height, 'width': width})
+        return guesses
+
+    @staticmethod
+    def get_multi_peak_fit_settings(parent=None, x_data=None, y_data=None, initial_guesses=None):
+        """
+        【スタティックメソッド】
+        ダイアログをモーダルで表示し、OKが押された場合は
+        (component_type, baseline_type, initial_guesses) のタプルを、
+        Cancelが押された場合は (None, None, None) を返す。
+
+        Returns:
+            tuple(str|None, str|None, list[dict]|None)
+        """
+        dialog = MultiPeakFitDialog(parent, x_data=x_data, y_data=y_data, initial_guesses=initial_guesses)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            return dialog.get_component_type(), dialog.get_baseline_type(), dialog.get_initial_guesses()
+        return None, None, None
+
+
+#==============================================================================
 # カスタムダイアログクラス (5)
 #==============================================================================
 class ColumnCalculatorDialog(QDialog):

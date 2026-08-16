@@ -11,7 +11,9 @@ from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgo
                             calculate_baseline_rubberband, calculate_baseline_manual,
                             get_fit_param_names, calculate_interval_integral,
                             calculate_confidence_band, calculate_resample_to_grid,
-                            calculate_lttb_downsample)
+                            calculate_lttb_downsample,
+                            calculate_multi_peak_fit, get_multi_peak_param_names,
+                            multi_peak_fit_task)
 
 
 def test_linear_fit_recovers_known_parameters():
@@ -1517,3 +1519,255 @@ def test_lttb_rejects_absurdly_small_n_out_by_returning_all_points():
     y = np.sin(x)
     idx = calculate_lttb_downsample(x, y, 2)
     np.testing.assert_array_equal(idx, np.arange(100))
+
+
+# =============================================================================
+# 多峰分離フィット (calculate_multi_peak_fit, 項目C-409)
+# =============================================================================
+
+def _two_gaussians(x, a1, b1, c1, a2, b2, c2, baseline):
+    return (
+        a1 * np.exp(-((x - b1) ** 2) / (2 * c1 ** 2))
+        + a2 * np.exp(-((x - b2) ** 2) / (2 * c2 ** 2))
+        + baseline
+    )
+
+
+def test_multi_peak_gaussian_two_components_recovers_known_parameters():
+    x = np.linspace(-10, 20, 400)
+    y = _two_gaussians(x, 5.0, 0.0, 1.0, 3.0, 8.0, 1.5, 0.5)
+    initial_guesses = [
+        {'center': 0.2, 'height': 4.5, 'width': 1.0},
+        {'center': 7.8, 'height': 2.8, 'width': 1.5},
+    ]
+
+    result = calculate_multi_peak_fit(x, y, 'gaussian', initial_guesses, baseline_type='constant')
+
+    assert result['param_names'] == ['a1', 'b1', 'c1', 'a2', 'b2', 'c2', 'baseline_c']
+    np.testing.assert_allclose(
+        result['popt'], [5.0, 0.0, 1.0, 3.0, 8.0, 1.5, 0.5], atol=1e-2
+    )
+    assert result['r_squared'] == pytest.approx(1.0, abs=1e-4)
+    assert result['component_type'] == 'gaussian'
+    assert result['n_components'] == 2
+    assert result['baseline_type'] == 'constant'
+    assert len(result['components']) == 2
+    assert result['components'][0]['type'] == 'gaussian'
+    assert result['components'][0]['param_names'] == ['a1', 'b1', 'c1']
+    np.testing.assert_allclose(result['components'][0]['params'], [5.0, 0.0, 1.0], atol=1e-2)
+    np.testing.assert_allclose(result['components'][1]['params'], [3.0, 8.0, 1.5], atol=1e-2)
+
+
+def test_multi_peak_single_component_matches_shape_of_single_peak_fit():
+    """成分数1のgaussianフィットは、単峰版のガウシアンフィットと同じ形状に
+    収束すること(合成ロジック自体の妥当性の間接的な確認)。"""
+    x = np.linspace(-10, 10, 200)
+    y = 5.0 * np.exp(-((x - 2.0) ** 2) / (2 * 1.5 ** 2)) + 0.5
+
+    result = calculate_multi_peak_fit(
+        x, y, 'gaussian', [{'center': 2.0, 'height': 5.0, 'width': 1.5}], baseline_type='constant'
+    )
+
+    np.testing.assert_allclose(result['popt'], [5.0, 2.0, 1.5, 0.5], atol=1e-2)
+
+
+def test_multi_peak_lorentzian_recovers_known_parameters():
+    x = np.linspace(-10, 10, 400)
+    y = 4.0 / (1 + ((x - 1.0) / 2.0) ** 2) + 0.2
+
+    result = calculate_multi_peak_fit(
+        x, y, 'lorentzian', [{'center': 1.0, 'height': 4.0, 'width': 4.0}], baseline_type='constant'
+    )
+
+    np.testing.assert_allclose(result['popt'], [4.0, 1.0, 2.0, 0.2], atol=1e-2)
+
+
+def test_multi_peak_pseudo_voigt_recovers_known_parameters():
+    x = np.linspace(-10, 10, 400)
+    eta = 0.4
+    lorentzian_shape = 1 / (1 + ((x - 0.0) / 2.0) ** 2)
+    gaussian_shape = np.exp(-4 * np.log(2) * ((x - 0.0) / 2.0) ** 2)
+    y = 3.0 * (eta * lorentzian_shape + (1 - eta) * gaussian_shape)
+
+    result = calculate_multi_peak_fit(
+        x, y, 'pseudo_voigt', [{'center': 0.0, 'height': 3.0, 'width': 2.0}], baseline_type='none'
+    )
+
+    np.testing.assert_allclose(result['popt'], [3.0, 0.0, 2.0, 0.4], atol=1e-2)
+    assert result['param_names'] == ['a1', 'b1', 'c1', 'eta1']  # baseline_type='none'なのでベースライン項なし
+
+
+def test_multi_peak_voigt_fit_converges_and_matches_shape():
+    x = np.linspace(-15, 15, 400)
+    sigma0, gamma0 = 1.0, 0.8
+    z = ((x - 0.0) + 1j * gamma0) / (sigma0 * np.sqrt(2))
+    from scipy.special import wofz
+    true_amplitude = 3.0 * sigma0 * np.sqrt(2 * np.pi)
+    y = true_amplitude * np.real(wofz(z)) / (sigma0 * np.sqrt(2 * np.pi))
+
+    result = calculate_multi_peak_fit(
+        x, y, 'voigt', [{'center': 0.0, 'height': 3.0, 'width': 2.0}], baseline_type='none'
+    )
+
+    # フィットした形状が真の形状とよく一致していることを直接確認する
+    # (voigtのsigma/gammaは縮退しうるため、パラメータ値そのものの一致は要求しない)。
+    fit_func = result['fit_func']
+    y_reconstructed = fit_func(x, *result['popt'])
+    np.testing.assert_allclose(y_reconstructed, y, atol=1e-2)
+    assert result['r_squared'] == pytest.approx(1.0, abs=1e-3)
+
+
+def test_multi_peak_baseline_none_omits_baseline_param():
+    x = np.linspace(-5, 5, 100)
+    y = 2.0 * np.exp(-((x) ** 2) / (2 * 1.0 ** 2))
+    result = calculate_multi_peak_fit(
+        x, y, 'gaussian', [{'center': 0.0, 'height': 2.0, 'width': 1.0}], baseline_type='none'
+    )
+    assert result['param_names'] == ['a1', 'b1', 'c1']
+
+
+def test_multi_peak_baseline_linear_recovers_slope_and_intercept():
+    x = np.linspace(-10, 10, 300)
+    y = 4.0 * np.exp(-((x - 1.0) ** 2) / (2 * 1.0 ** 2)) + 0.3 * x + 1.0
+    result = calculate_multi_peak_fit(
+        x, y, 'gaussian', [{'center': 1.0, 'height': 4.0, 'width': 1.0}], baseline_type='linear'
+    )
+    assert result['param_names'] == ['a1', 'b1', 'c1', 'baseline_m', 'baseline_b']
+    np.testing.assert_allclose(result['popt'], [4.0, 1.0, 1.0, 0.3, 1.0], atol=1e-2)
+
+
+def test_multi_peak_rejects_unknown_component_type():
+    x = np.array([1.0, 2.0, 3.0])
+    y = np.array([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError, match="不明な成分タイプ"):
+        calculate_multi_peak_fit(x, y, 'not_a_type', [{'center': 1, 'height': 1, 'width': 1}])
+
+
+def test_multi_peak_rejects_empty_initial_guesses():
+    x = np.array([1.0, 2.0, 3.0])
+    y = np.array([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError, match="少なくとも1つ"):
+        calculate_multi_peak_fit(x, y, 'gaussian', [])
+
+
+def test_multi_peak_rejects_unknown_baseline_type():
+    x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    y = np.array([1.0, 2.0, 3.0, 2.0, 1.0])
+    with pytest.raises(ValueError, match="不明なベースラインタイプ"):
+        calculate_multi_peak_fit(
+            x, y, 'gaussian', [{'center': 3, 'height': 2, 'width': 1}], baseline_type='exponential'
+        )
+
+
+def test_multi_peak_fit_excludes_nan_rows():
+    x = np.array([-2.0, -1.0, 0.0, np.nan, 1.0, 2.0])
+    y_clean = 3.0 * np.exp(-((np.array([-2.0, -1.0, 0.0, 1.0, 2.0])) ** 2) / (2 * 1.0 ** 2))
+    y = np.array([y_clean[0], y_clean[1], y_clean[2], np.nan, y_clean[3], y_clean[4]])
+
+    result = calculate_multi_peak_fit(
+        x, y, 'gaussian', [{'center': 0.0, 'height': 3.0, 'width': 1.0}], baseline_type='none'
+    )
+
+    assert len(result['x_data_used']) == 5  # NaN行(2箇所どちらかがNaNの行)を除いた5点
+
+
+def test_multi_peak_fit_applies_x_range_filter():
+    x = np.linspace(-10, 10, 400)
+    y = 5.0 * np.exp(-((x - 0.0) ** 2) / (2 * 1.0 ** 2)) + 0.5 + 100 * (x > 5)  # 範囲外に外れ値
+    result = calculate_multi_peak_fit(
+        x, y, 'gaussian', [{'center': 0.0, 'height': 5.0, 'width': 1.0}],
+        baseline_type='constant', x_range=(-5.0, 5.0),
+    )
+    assert result['x_data_used'].max() <= 5.0
+    np.testing.assert_allclose(result['popt'], [5.0, 0.0, 1.0, 0.5], atol=1e-2)
+
+
+def test_multi_peak_fit_raises_when_data_points_fewer_than_params():
+    x = np.array([1.0, 2.0])
+    y = np.array([1.0, 2.0])
+    with pytest.raises(ValueError, match="データ点数"):
+        calculate_multi_peak_fit(
+            x, y, 'gaussian',
+            [{'center': 1, 'height': 1, 'width': 1}, {'center': 5, 'height': 1, 'width': 1}],
+            baseline_type='linear',
+        )
+
+
+def test_multi_peak_fit_respects_fixed_params():
+    """項目C-403の固定パラメータ機構(_run_curve_fit_with_overrides共有)が
+    多峰分離フィットでも正しく機能すること。"""
+    x = np.linspace(-10, 10, 300)
+    y = 5.0 * np.exp(-((x - 2.0) ** 2) / (2 * 1.5 ** 2)) + 0.5
+    result = calculate_multi_peak_fit(
+        x, y, 'gaussian', [{'center': 2.0, 'height': 5.0, 'width': 1.5}], baseline_type='constant',
+        fixed_params={'b1': 2.0},
+    )
+    assert result['popt'][1] == pytest.approx(2.0)
+    assert result['pcov'][1, 1] == 0.0  # 固定パラメータの行/列は0で復元される
+
+
+def test_multi_peak_fit_respects_bounds():
+    x = np.linspace(-10, 10, 300)
+    y = 5.0 * np.exp(-((x - 2.0) ** 2) / (2 * 1.5 ** 2)) + 0.5
+    result = calculate_multi_peak_fit(
+        x, y, 'gaussian', [{'center': 2.0, 'height': 5.0, 'width': 1.5}], baseline_type='constant',
+        bounds={'a1': (0.0, 4.0)},  # 真の値5.0より低い上限に拘束
+    )
+    assert result['popt'][0] <= 4.0 + 1e-6
+
+
+def test_multi_peak_fit_rejects_unknown_p0_override_param_name():
+    x = np.linspace(-10, 10, 100)
+    y = 5.0 * np.exp(-((x) ** 2) / (2 * 1.0 ** 2))
+    with pytest.raises(ValueError, match="未知のパラメータ名"):
+        calculate_multi_peak_fit(
+            x, y, 'gaussian', [{'center': 0, 'height': 5, 'width': 1}], baseline_type='none',
+            p0_overrides={'not_a_real_param': 1.0},
+        )
+
+
+# --- get_multi_peak_param_names ---
+
+def test_get_multi_peak_param_names_gaussian_two_components_constant_baseline():
+    names = get_multi_peak_param_names('gaussian', 2, baseline_type='constant')
+    assert names == ['a1', 'b1', 'c1', 'a2', 'b2', 'c2', 'baseline_c']
+
+
+def test_get_multi_peak_param_names_voigt_one_component_linear_baseline():
+    names = get_multi_peak_param_names('voigt', 1, baseline_type='linear')
+    assert names == ['a1', 'b1', 'sigma1', 'gamma1', 'baseline_m', 'baseline_b']
+
+
+def test_get_multi_peak_param_names_no_baseline():
+    names = get_multi_peak_param_names('pseudo_voigt', 1, baseline_type='none')
+    assert names == ['a1', 'b1', 'c1', 'eta1']
+
+
+def test_get_multi_peak_param_names_matches_calculate_multi_peak_fit():
+    """get_multi_peak_param_names()が実際のフィット結果のparam_namesと一致すること
+    (get_fit_param_names()とcalculate_curve_fitの関係と同じ整合性チェック)。"""
+    x = np.linspace(-10, 10, 200)
+    y = 5.0 * np.exp(-((x - 2.0) ** 2) / (2 * 1.5 ** 2)) + 3.0 * np.exp(-((x + 3.0) ** 2) / (2 * 1.0 ** 2)) + 0.5
+    initial_guesses = [
+        {'center': 2.0, 'height': 5.0, 'width': 1.5},
+        {'center': -3.0, 'height': 3.0, 'width': 1.0},
+    ]
+    result = calculate_multi_peak_fit(x, y, 'gaussian', initial_guesses, baseline_type='constant')
+    assert get_multi_peak_param_names('gaussian', 2, baseline_type='constant') == result['param_names']
+
+
+def test_get_multi_peak_param_names_rejects_zero_components():
+    with pytest.raises(ValueError, match="1以上"):
+        get_multi_peak_param_names('gaussian', 0)
+
+
+# --- multi_peak_fit_task (TaskRunner用ラッパー) ---
+
+def test_multi_peak_fit_task_returns_same_shape_as_calculate_multi_peak_fit():
+    x = np.linspace(-10, 10, 200)
+    y = 5.0 * np.exp(-((x - 2.0) ** 2) / (2 * 1.5 ** 2)) + 0.5
+    result = multi_peak_fit_task(
+        x, y, 'gaussian', [{'center': 2.0, 'height': 5.0, 'width': 1.5}], baseline_type='constant',
+        report_progress=lambda *a: None, is_cancelled=lambda: False,
+    )
+    np.testing.assert_allclose(result['popt'], [5.0, 2.0, 1.5, 0.5], atol=1e-2)

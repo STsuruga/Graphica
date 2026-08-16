@@ -31,7 +31,7 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_baseline_als, calculate_baseline_polynomial,
                            calculate_baseline_rubberband, calculate_baseline_manual,
                            calculate_interval_integral, calculate_confidence_band,
-                           calculate_resample_to_grid)
+                           calculate_resample_to_grid, multi_peak_fit_task)
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand
 from core.dataset import Dataset
 from core.methods_text import generate_methods_text
@@ -43,7 +43,8 @@ from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
-                         BaselineCorrectionDialog, IntervalIntegralDialog, ResampleDatasetDialog)
+                         BaselineCorrectionDialog, IntervalIntegralDialog, ResampleDatasetDialog,
+                         MultiPeakFitDialog)
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -2177,6 +2178,145 @@ class DatasetMixin:
             residual_x=residual_x, residual_y=residuals
         )
         self.fit_result_dialog.show()
+
+    def _on_multi_peak_fit(self):
+        """
+        「多峰フィット」ボタンが押されたときの処理(項目C-409/C-410)。
+        _on_fit_curve()と同じ「ダイアログでの入力収集はメインスレッド、
+        実計算(calculate_multi_peak_fit)はTaskRunner経由でバックグラウンド」
+        という配線を踏襲する。ピーク配置クリックモード(項目C-410、
+        gui/mixins/peak_placement_mixin.py)で集めた self._pending_peak_guesses を
+        ダイアログの初期値テーブルへ引き継ぎ、ダイアログを閉じた時点(OK/Cancel
+        いずれでも)でクリアする(ダイアログ内でさらに編集・追加された内容は
+        ダイアログのテーブルにのみ残る、ペンディング状態と重複保持しない)。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+        if self._multi_peak_fit_task_runner is not None:
+            QMessageBox.information(self, "実行中", "別のフィット処理が実行中です。完了までお待ちください。")
+            return
+        x_data, y_data = original_dataset.x_data, original_dataset.y_data
+
+        component_type, baseline_type, initial_guesses = MultiPeakFitDialog.get_multi_peak_fit_settings(
+            self, x_data=x_data, y_data=y_data, initial_guesses=list(self._pending_peak_guesses)
+        )
+        self._clear_pending_peak_guesses()
+        if getattr(self, 'peak_placement_mode_enabled', False):
+            self.peak_placement_action.setChecked(False)
+            self._toggle_peak_placement_mode(False)
+        if component_type is None:
+            return
+
+        runner = TaskRunner(
+            multi_peak_fit_task, x_data, y_data, component_type, initial_guesses,
+            baseline_type=baseline_type,
+        )
+        runner.succeeded.connect(
+            lambda fit: self._on_multi_peak_fit_succeeded(original_dataset, fit)
+        )
+        runner.failed.connect(self._on_multi_peak_fit_failed)
+        self._multi_peak_fit_task_runner = runner
+        self.multi_peak_fit_button.setEnabled(False)
+        runner.start()
+
+    def _cleanup_multi_peak_fit_task_runner(self):
+        """_multi_peak_fit_task_runner の後始末(_cleanup_fit_task_runnerと同じ手順)。"""
+        if self._multi_peak_fit_task_runner is not None:
+            self._multi_peak_fit_task_runner.wait()
+            self._multi_peak_fit_task_runner.deleteLater()
+            self._multi_peak_fit_task_runner = None
+        self.multi_peak_fit_button.setEnabled(True)
+
+    def _on_multi_peak_fit_failed(self, error_message):
+        self._cleanup_multi_peak_fit_task_runner()
+        QMessageBox.warning(self, "多峰分離フィットエラー", f"フィッティングに失敗しました:\n{error_message}")
+
+    def _on_multi_peak_fit_succeeded(self, original_dataset, fit):
+        """
+        バックグラウンドで完了した多峰分離フィット計算(fit dict、
+        calculate_multi_peak_fit()の戻り値と同じ形)をメインスレッド側で適用する。
+        _on_fit_curve_succeeded()と対になる処理だが、今回のスコープでは
+        C-403のp0上書き/固定/範囲拘束UI・重み付け・フィット範囲・信頼帯は
+        含めない(パラメータ名が成分数に応じて動的になるためC-403の
+        テーブルとは噛み合わず、いずれも単峰版で既にカバー済みの機能である
+        ため、多峰版での再現は将来の拡張とする)。
+        """
+        self._cleanup_multi_peak_fit_task_runner()
+
+        popt, params_info = fit['popt'], fit['param_names']
+        x_fit, y_fit = fit['x_fit'], fit['y_fit']
+        r_squared, residuals = fit['r_squared'], fit['residuals']
+        residual_x = fit['x_data_used']
+
+        component_label = dict(MultiPeakFitDialog.COMPONENT_TYPES).get(
+            fit['component_type'], fit['component_type']
+        )
+        fit_label = f"多峰分離({component_label} x{fit['n_components']})"
+        result_text = f"[{fit_label}] のフィッティング結果:\n"
+        for param_name, param_value in zip(params_info, popt):
+            result_text += f"  {param_name} = {param_value: .4e}\n"
+        result_text += f"  R^2 = {r_squared: .5f}\n"
+
+        fit_result = self._build_multi_peak_fit_result_dict(fit, source_dataset=original_dataset)
+
+        fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
+        fit_dataset = Dataset(
+            name=f"MultiPeakFit ({original_dataset.name})",
+            df=fit_df,
+            x_col_name='x_fit', y_col_name='y_fit',
+            color=original_dataset.color, linestyle='--', marker='None',
+            linewidth=original_dataset.linewidth,
+            use_secondary_y=original_dataset.use_secondary_y,
+            subplot_target=original_dataset.subplot_target,
+            fit_info=result_text,
+            fit_result=fit_result,
+            provenance=self._build_provenance('multi_peak_fit', fit_result, [original_dataset]),
+        )
+
+        self.project.datasets.append(fit_dataset)
+        original_item = self._get_dataset_tree_item(original_dataset)
+        self._add_dataset_list_item(fit_dataset, original_item.parent() if original_item else None)
+        self._update_plot()
+
+        if self.fit_result_dialog is not None:
+            self.fit_result_dialog.close()
+        fit_csv_data = pd.DataFrame({
+            'パラメータ': list(params_info) + ['R^2'],
+            '値': list(popt) + [r_squared],
+        })
+        self.fit_result_dialog = ResultDialog(
+            "多峰分離フィット完了", result_text, self, csv_data=fit_csv_data,
+            residual_x=residual_x, residual_y=residuals
+        )
+        self.fit_result_dialog.show()
+
+    @staticmethod
+    def _build_multi_peak_fit_result_dict(fit, source_dataset):
+        """
+        calculate_multi_peak_fit()の戻り値から、Dataset.fit_result(項目C-401)に
+        保持するプレーンなdictを組み立てる(_build_fit_result_dictの多峰版)。
+        'component_type'/'n_components' は core/methods_text.py の
+        describe_operation() がそのままprovenance['params']経由で参照するキー名
+        のため、勝手にリネームしないこと。
+        """
+        popt, pcov, perr = fit['popt'], fit['pcov'], fit['perr']
+        return {
+            'fit_type': 'multi_peak',
+            'component_type': fit['component_type'],
+            'n_components': fit['n_components'],
+            'baseline_type': fit['baseline_type'],
+            'components': fit['components'],
+            'param_names': list(fit['param_names']),
+            'params': [float(v) for v in popt],
+            'param_errors': [float(v) for v in perr],
+            'covariance': [[float(v) for v in row] for row in pcov],
+            'r_squared': float(fit['r_squared']),
+            'residuals': [float(v) for v in fit['residuals']],
+            'residual_x': [float(v) for v in fit['x_data_used']],
+            'source_dataset_id': source_dataset.dataset_id,
+            'source_dataset_name': source_dataset.name,
+        }
 
     @staticmethod
     def _build_provenance(operation, params, source_datasets):

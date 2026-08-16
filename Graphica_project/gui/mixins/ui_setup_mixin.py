@@ -195,6 +195,7 @@ class UISetupMixin:
 
             self.fit_curve_button.clicked.connect(self._on_fit_curve)
             self.find_peaks_button.clicked.connect(self._on_find_peaks)
+            self.multi_peak_fit_button.clicked.connect(self._on_multi_peak_fit)
 
             self.use_secondary_y_checkbox.stateChanged.connect(self._on_secondary_y_changed)
             self.subplot_target_combo.currentIndexChanged.connect(self._on_subplot_target_changed)

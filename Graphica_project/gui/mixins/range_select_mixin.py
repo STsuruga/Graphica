@@ -46,6 +46,9 @@ class RangeSelectMixin:
             if getattr(self, 'layout_edit_mode_enabled', False):
                 self.layout_edit_action.setChecked(False)
                 self._toggle_layout_edit_mode(False)
+            if getattr(self, 'peak_placement_mode_enabled', False):
+                self.peak_placement_action.setChecked(False)
+                self._toggle_peak_placement_mode(False)
 
             self._range_select_press_cid = self.canvas.mpl_connect(
                 'button_press_event', self._on_range_select_press

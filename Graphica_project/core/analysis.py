@@ -155,6 +155,133 @@ def get_fit_param_names(fit_type, custom_formula=None):
         raise ValueError(f"不明なフィットタイプ: {fit_type}")
 
 
+def _run_curve_fit_with_overrides(fit_func, params_info, p0, x_data, y_data, sigma,
+                                   p0_overrides, fixed_params, bounds, fit_type_label):
+    """
+    calculate_curve_fit()/calculate_multi_peak_fit()(項目C-409)の両方で共通の、
+    p0上書き・パラメータ固定・範囲拘束(項目C-403)を適用してscipy.optimize.
+    curve_fitを実行する部分を切り出したもの(元々calculate_curve_fit内に
+    直接書かれていたロジックをそのまま抽出、挙動は無変更)。fit_type_labelは
+    収束失敗時のエラーメッセージにのみ使う表示用文字列。
+
+    Returns:
+        (popt, pcov): params_infoと同じフルサイズ(固定パラメータは指定値
+            そのまま、pcovの対応する行/列は「最適化されていない=不確かさ
+            不明」を表す0で復元済み)。
+    """
+    if len(x_data) < len(params_info):
+        raise ValueError(
+            f"データ点数 ({len(x_data)}) がフィットに必要なパラメータ数 "
+            f"({len(params_info)}) より少ないため、フィッティングできません。"
+        )
+
+    p0_overrides = p0_overrides or {}
+    fixed_params = fixed_params or {}
+    bounds = bounds or {}
+
+    for name_dict, label in (
+        (p0_overrides, "p0_overrides"), (fixed_params, "fixed_params"), (bounds, "bounds"),
+    ):
+        for pname in name_dict:
+            if pname not in params_info:
+                raise ValueError(
+                    f"未知のパラメータ名です({label}): '{pname}' "
+                    f"(このフィットタイプのパラメータ: {params_info})"
+                )
+
+    if fixed_params and len(fixed_params) >= len(params_info):
+        raise ValueError(
+            "すべてのパラメータを固定することはできません"
+            "(最適化する自由パラメータが1つも残りません)。"
+        )
+
+    # p0の一部上書き(指定されなかったパラメータは自動推定のデフォルトのまま)
+    p0 = list(p0)
+    for i, name in enumerate(params_info):
+        if name in p0_overrides:
+            p0[i] = float(p0_overrides[name])
+
+    free_indices = [i for i, name in enumerate(params_info) if name not in fixed_params]
+    fixed_indices = [i for i, name in enumerate(params_info) if name in fixed_params]
+    fixed_values = {i: float(fixed_params[params_info[i]]) for i in fixed_indices}
+
+    if fixed_indices:
+        # 固定パラメータを持たない元のfit_funcを、自由パラメータだけを受け取り
+        # 内部で固定値を元の位置に挿し込んでからfit_funcを呼ぶ関数でラップする。
+        # curve_fitにはこのラップ後の関数と、自由パラメータ分だけのp0を渡す。
+        original_fit_func = fit_func
+
+        def fit_func_for_curve_fit(x, *free_args):
+            full_params = [None] * len(params_info)
+            for i in fixed_indices:
+                full_params[i] = fixed_values[i]
+            for idx, i in enumerate(free_indices):
+                full_params[i] = free_args[idx]
+            return original_fit_func(x, *full_params)
+
+        p0_for_curve_fit = [p0[i] for i in free_indices]
+    else:
+        fit_func_for_curve_fit = fit_func
+        p0_for_curve_fit = p0
+
+    curve_fit_kwargs = {
+        "p0": p0_for_curve_fit,
+        "sigma": sigma,
+        "absolute_sigma": sigma is not None,
+    }
+    if bounds:
+        lower, upper = [], []
+        for i in free_indices:
+            lo, hi = bounds.get(params_info[i], (-np.inf, np.inf))
+            lower.append(lo)
+            upper.append(hi)
+        # curve_fitのbounds引数は「p0が境界の厳密に内側にあること」を要求する
+        # (等しいだけでも例外になる)。ユーザーが「初期値=下限/上限」と自然に
+        # 入力した場合にscipyの分かりにくいエラーで落ちないよう、境界上/境界外の
+        # 初期値はここでわずかに内側へナッジしておく。
+        for idx in range(len(p0_for_curve_fit)):
+            lo, hi = lower[idx], upper[idx]
+            val = p0_for_curve_fit[idx]
+            if val <= lo or val >= hi:
+                span = hi - lo
+                nudge = span * 1e-6 if np.isfinite(span) and span > 0 else max(abs(val), 1.0) * 1e-6 or 1e-9
+                p0_for_curve_fit[idx] = min(max(val, lo + nudge), hi - nudge)
+        curve_fit_kwargs["bounds"] = (lower, upper)
+        # bounds付きのcurve_fitはtrf法を使い、leastsq専用のmaxfevではなく
+        # max_nfevを受け取る(maxfevのままだと"unexpected keyword argument"になる)
+        curve_fit_kwargs["max_nfev"] = CURVE_FIT_MAX_ITERATIONS
+    else:
+        curve_fit_kwargs["maxfev"] = CURVE_FIT_MAX_ITERATIONS
+
+    # 最適化の実行 (収束しないケースに備え、初期値と最大反復回数を指定)
+    try:
+        popt_free, pcov_free = curve_fit(fit_func_for_curve_fit, x_data, y_data, **curve_fit_kwargs)
+    except RuntimeError as e:
+        raise RuntimeError(
+            f"フィッティングが収束しませんでした（{fit_type_label}）。データの分布が"
+            f"このモデルに適していない可能性があります。詳細: {e}"
+        ) from e
+
+    if fixed_indices:
+        # 固定パラメータを元の位置に挿し戻し、popt/pcovをparams_infoと同じ
+        # フルサイズに復元する(固定パラメータの行/列は「最適化されていない=
+        # 不確かさ不明」を表す0で埋める)。
+        popt = np.empty(len(params_info))
+        for i in fixed_indices:
+            popt[i] = fixed_values[i]
+        for idx, i in enumerate(free_indices):
+            popt[i] = popt_free[idx]
+
+        pcov = np.zeros((len(params_info), len(params_info)))
+        for row_idx, i in enumerate(free_indices):
+            for col_idx, j in enumerate(free_indices):
+                pcov[i, j] = pcov_free[row_idx, col_idx]
+    else:
+        popt, pcov = popt_free, pcov_free
+
+    return popt, pcov
+
+
 def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_range=None,
                          p0_overrides=None, fixed_params=None, bounds=None):
     """
@@ -426,119 +553,10 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
     else:
         raise ValueError(f"不明なフィットタイプ: {fit_type}")
 
-    if len(x_data) < len(params_info):
-        raise ValueError(
-            f"データ点数 ({len(x_data)}) がフィットに必要なパラメータ数 "
-            f"({len(params_info)}) より少ないため、フィッティングできません。"
-        )
-
-    # --- 項目C-403: 初期値上書き/パラメータ固定/範囲拘束 -------------------
-    # ここから下は「fixed_params/bounds/p0_overridesの複雑さをこの関数の中に
-    # 閉じ込め、呼び出し側やこの後のR²・残差計算(fit_func(x_data, *popt)を
-    # そのまま使う)には一切漏らさない」という方針で実装する。
-    p0_overrides = p0_overrides or {}
-    fixed_params = fixed_params or {}
-    bounds = bounds or {}
-
-    for name_dict, label in (
-        (p0_overrides, "p0_overrides"), (fixed_params, "fixed_params"), (bounds, "bounds"),
-    ):
-        for pname in name_dict:
-            if pname not in params_info:
-                raise ValueError(
-                    f"未知のパラメータ名です({label}): '{pname}' "
-                    f"(このフィットタイプのパラメータ: {params_info})"
-                )
-
-    if fixed_params and len(fixed_params) >= len(params_info):
-        raise ValueError(
-            "すべてのパラメータを固定することはできません"
-            "(最適化する自由パラメータが1つも残りません)。"
-        )
-
-    # p0の一部上書き(指定されなかったパラメータは自動推定のデフォルトのまま)
-    p0 = list(p0)
-    for i, name in enumerate(params_info):
-        if name in p0_overrides:
-            p0[i] = float(p0_overrides[name])
-
-    free_indices = [i for i, name in enumerate(params_info) if name not in fixed_params]
-    fixed_indices = [i for i, name in enumerate(params_info) if name in fixed_params]
-    fixed_values = {i: float(fixed_params[params_info[i]]) for i in fixed_indices}
-
-    if fixed_indices:
-        # 固定パラメータを持たない元のfit_funcを、自由パラメータだけを受け取り
-        # 内部で固定値を元の位置に挿し込んでからfit_funcを呼ぶ関数でラップする。
-        # curve_fitにはこのラップ後の関数と、自由パラメータ分だけのp0を渡す。
-        original_fit_func = fit_func
-
-        def fit_func_for_curve_fit(x, *free_args):
-            full_params = [None] * len(params_info)
-            for i in fixed_indices:
-                full_params[i] = fixed_values[i]
-            for idx, i in enumerate(free_indices):
-                full_params[i] = free_args[idx]
-            return original_fit_func(x, *full_params)
-
-        p0_for_curve_fit = [p0[i] for i in free_indices]
-    else:
-        fit_func_for_curve_fit = fit_func
-        p0_for_curve_fit = p0
-
-    curve_fit_kwargs = {
-        "p0": p0_for_curve_fit,
-        "sigma": sigma,
-        "absolute_sigma": sigma is not None,
-    }
-    if bounds:
-        lower, upper = [], []
-        for i in free_indices:
-            lo, hi = bounds.get(params_info[i], (-np.inf, np.inf))
-            lower.append(lo)
-            upper.append(hi)
-        # curve_fitのbounds引数は「p0が境界の厳密に内側にあること」を要求する
-        # (等しいだけでも例外になる)。ユーザーが「初期値=下限/上限」と自然に
-        # 入力した場合にscipyの分かりにくいエラーで落ちないよう、境界上/境界外の
-        # 初期値はここでわずかに内側へナッジしておく。
-        for idx in range(len(p0_for_curve_fit)):
-            lo, hi = lower[idx], upper[idx]
-            val = p0_for_curve_fit[idx]
-            if val <= lo or val >= hi:
-                span = hi - lo
-                nudge = span * 1e-6 if np.isfinite(span) and span > 0 else max(abs(val), 1.0) * 1e-6 or 1e-9
-                p0_for_curve_fit[idx] = min(max(val, lo + nudge), hi - nudge)
-        curve_fit_kwargs["bounds"] = (lower, upper)
-        # bounds付きのcurve_fitはtrf法を使い、leastsq専用のmaxfevではなく
-        # max_nfevを受け取る(maxfevのままだと"unexpected keyword argument"になる)
-        curve_fit_kwargs["max_nfev"] = CURVE_FIT_MAX_ITERATIONS
-    else:
-        curve_fit_kwargs["maxfev"] = CURVE_FIT_MAX_ITERATIONS
-
-    # 最適化の実行 (収束しないケースに備え、初期値と最大反復回数を指定)
-    try:
-        popt_free, pcov_free = curve_fit(fit_func_for_curve_fit, x_data, y_data, **curve_fit_kwargs)
-    except RuntimeError as e:
-        raise RuntimeError(
-            f"フィッティングが収束しませんでした（{fit_type}）。データの分布が"
-            f"このモデルに適していない可能性があります。詳細: {e}"
-        ) from e
-
-    if fixed_indices:
-        # 固定パラメータを元の位置に挿し戻し、popt/pcovをparams_infoと同じ
-        # フルサイズに復元する(固定パラメータの行/列は「最適化されていない=
-        # 不確かさ不明」を表す0で埋める)。
-        popt = np.empty(len(params_info))
-        for i in fixed_indices:
-            popt[i] = fixed_values[i]
-        for idx, i in enumerate(free_indices):
-            popt[i] = popt_free[idx]
-
-        pcov = np.zeros((len(params_info), len(params_info)))
-        for row_idx, i in enumerate(free_indices):
-            for col_idx, j in enumerate(free_indices):
-                pcov[i, j] = pcov_free[row_idx, col_idx]
-    else:
-        popt, pcov = popt_free, pcov_free
+    popt, pcov = _run_curve_fit_with_overrides(
+        fit_func, params_info, p0, x_data, y_data, sigma,
+        p0_overrides, fixed_params, bounds, fit_type,
+    )
 
     # パラメータの標準誤差(項目C-401、後続のC-403初期値表示・C-405信頼帯の土台)。
     # pcovの対角成分が負/infになる退化したフィット(パラメータ数=データ点数等)でも
@@ -579,6 +597,227 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
     }
 
 
+# --- 多峰分離(項目C-409): N成分+ベースライン同時フィット ------------------
+# 以下の成分関数は、calculate_curve_fit()内のガウシアン/ローレンツ/擬似フォークト/
+# フォークトの各closure定義(オフセットd付き)と全く同じ形状関数だが、多峰合成では
+# ベースラインを全成分で共有する1つの独立した項として扱うため、オフセット無し
+# (振幅・中心・幅のみ)のモジュールレベル版として複製してある(単峰版の既存
+# closureはそのまま無変更、この複製は多峰合成専用)。
+
+def _gaussian_component(x, a, b, c):
+    return a * np.exp(-((x - b) ** 2) / (2 * c ** 2))
+
+
+def _lorentzian_component(x, a, b, c):
+    return a / (1 + ((x - b) / c) ** 2)
+
+
+def _pseudo_voigt_component(x, a, b, c, eta):
+    lorentzian_shape = 1 / (1 + ((x - b) / c) ** 2)
+    gaussian_shape = np.exp(-4 * np.log(2) * ((x - b) / c) ** 2)
+    return a * (eta * lorentzian_shape + (1 - eta) * gaussian_shape)
+
+
+def _voigt_component(x, a, b, sigma, gamma):
+    z = ((x - b) + 1j * gamma) / (sigma * np.sqrt(2))
+    return a * np.real(wofz(z)) / (sigma * np.sqrt(2 * np.pi))
+
+
+def _constant_baseline(x, c):
+    return np.full_like(np.asarray(x, dtype=float), c)
+
+
+def _linear_baseline(x, m, b):
+    return m * np.asarray(x, dtype=float) + b
+
+
+# component_type文字列(UIの成分タイプ選択に対応) -> 成分関数・パラメータ名の登録。
+# 新しい成分タイプを追加する場合は、ここに1エントリ追加するだけでよい
+# (calculate_multi_peak_fit()自体はこの辞書経由でしか成分関数を参照しない)。
+_MULTI_PEAK_COMPONENT_TYPES = {
+    'gaussian': {'label': 'ガウシアン', 'func': _gaussian_component, 'param_names': ['a', 'b', 'c']},
+    'lorentzian': {'label': 'ローレンツ', 'func': _lorentzian_component, 'param_names': ['a', 'b', 'c']},
+    'pseudo_voigt': {'label': '擬似フォークト', 'func': _pseudo_voigt_component, 'param_names': ['a', 'b', 'c', 'eta']},
+    'voigt': {'label': 'フォークト', 'func': _voigt_component, 'param_names': ['a', 'b', 'sigma', 'gamma']},
+}
+
+
+def get_multi_peak_param_names(component_type, n_components, baseline_type='constant'):
+    """
+    calculate_multi_peak_fit()が組み立てるパラメータ名一覧(各成分のパラメータ名に
+    1始まりの成分番号を付けたもの+ベースラインパラメータ)を、実際にフィット計算を
+    せずに返す軽量関数(get_fit_param_names()と同じ役割、UIのパラメータテーブル
+    構築に使う想定)。
+    """
+    if component_type not in _MULTI_PEAK_COMPONENT_TYPES:
+        raise ValueError(f"不明な成分タイプ: {component_type}")
+    if n_components < 1:
+        raise ValueError("成分数は1以上である必要があります。")
+    component_param_names = _MULTI_PEAK_COMPONENT_TYPES[component_type]['param_names']
+    names = []
+    for i in range(1, n_components + 1):
+        names.extend(f"{p}{i}" for p in component_param_names)
+    if baseline_type == 'constant':
+        names.append('baseline_c')
+    elif baseline_type == 'linear':
+        names.extend(['baseline_m', 'baseline_b'])
+    elif baseline_type != 'none':
+        raise ValueError(f"不明なベースラインタイプ: {baseline_type}")
+    return names
+
+
+def calculate_multi_peak_fit(x_data, y_data, component_type, initial_guesses, baseline_type='constant',
+                              x_range=None, sigma=None, p0_overrides=None, fixed_params=None, bounds=None):
+    """
+    N成分(同一の成分タイプ)+ベースラインを同時に最適化する多峰分離フィット
+    (項目C-409)。calculate_curve_fit()の単峰版と対になる関数で、パラメータの
+    p0上書き/固定/範囲拘束(項目C-403)の適用ロジックは_run_curve_fit_with_
+    overrides()を共有する(重複実装を避けるため)。
+
+    Args:
+        component_type: _MULTI_PEAK_COMPONENT_TYPESのキー
+            ('gaussian'/'lorentzian'/'pseudo_voigt'/'voigt')。全成分で共通。
+        initial_guesses: [{'center': float, 'height': float, 'width': float}, ...]
+            のリスト(N=len(initial_guesses)が成分数になる)。ピーク配置UI
+            (項目C-410)のクリック操作、またはC-411のピーク検出結果(FWHM)から
+            組み立てる想定。widthは各成分タイプの1個目の「幅」パラメータの
+            初期値推定に使うおおまかなFWHM(未指定/0なら1.0にフォールバック)。
+        baseline_type: 'none'(ベースライン無し) / 'constant'(定数オフセット、
+            既定) / 'linear'(1次)。全成分で共有する1つの項として扱う。
+
+    Returns:
+        calculate_curve_fit()と同じキー構成のdictに加え、'component_type'/
+        'n_components'/'baseline_type'/'components'(各成分のtype/param_names/
+        paramsを持つdictのリスト、将来の個別成分オーバーレイ描画の土台)を
+        追加したもの。'components'はDataset.fit_result(項目C-401)へそのまま
+        素のPython型として格納できる(pickle/JSON両対応)。
+    """
+    if component_type not in _MULTI_PEAK_COMPONENT_TYPES:
+        raise ValueError(f"不明な成分タイプ: {component_type}")
+    if not initial_guesses:
+        raise ValueError("少なくとも1つのピークの初期値が必要です。")
+    if baseline_type not in ('none', 'constant', 'linear'):
+        raise ValueError(f"不明なベースラインタイプ: {baseline_type}")
+
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+    if sigma is not None:
+        sigma = np.asarray(sigma, dtype=float)
+    if x_range is not None:
+        x_min, x_max = x_range
+        range_mask = (x_data >= x_min) & (x_data <= x_max)
+        x_data, y_data = x_data[range_mask], y_data[range_mask]
+        if sigma is not None:
+            sigma = sigma[range_mask]
+
+    # calculate_curve_fit()と同じNaN除外(理由も同じ、docstring参照不要なほど
+    # 定型的なため簡潔にコメントするに留める: NaNが残るとcurve_fitが素の
+    # ValueErrorを送出し、下のRuntimeErrorハンドリングを素通りしてしまう)。
+    nan_mask = np.isnan(x_data) | np.isnan(y_data)
+    if sigma is not None:
+        nan_mask |= np.isnan(sigma)
+    if nan_mask.any():
+        x_data, y_data = x_data[~nan_mask], y_data[~nan_mask]
+        if sigma is not None:
+            sigma = sigma[~nan_mask]
+
+    if len(x_data) == 0:
+        raise ValueError("有効なデータ点がありません(すべて欠損値です)。フィッティングできません。")
+
+    component_info = _MULTI_PEAK_COMPONENT_TYPES[component_type]
+    component_func = component_info['func']
+    component_param_names = component_info['param_names']
+    n_component_params = len(component_param_names)
+    n_components = len(initial_guesses)
+
+    params_info = []
+    p0 = []
+    for i, guess in enumerate(initial_guesses, start=1):
+        height = float(guess['height'])
+        center = float(guess['center'])
+        width = float(guess.get('width') or 1.0) or 1.0
+        params_info.extend(f"{p}{i}" for p in component_param_names)
+        if component_type == 'gaussian':
+            p0.extend([height, center, width])
+        elif component_type == 'lorentzian':
+            # widthはFWHM相当の見積もりとして渡される想定、cはHWHMのため半分にする
+            # (単峰版のローレンツフィットのp0推定と同じ考え方)。
+            p0.extend([height, center, (width / 2) or 1.0])
+        elif component_type == 'pseudo_voigt':
+            # pseudo_voigt_funcの定義上cはFWHMそのもの(単峰版と同じ)。
+            p0.extend([height, center, width, 0.5])
+        else:  # voigt
+            # 単峰版のフォークトフィットのp0推定と同じ配分(2.355*sigma≈ガウシアン
+            # FWHM、4*gamma≈ローレンツ寄与分)、amplitudeもsigma0でスケールする。
+            sigma0 = (width / 2.355) or 1.0
+            gamma0 = (width / 4) or 1.0
+            amplitude0 = height * sigma0 * np.sqrt(2 * np.pi)
+            p0.extend([amplitude0, center, sigma0, gamma0])
+
+    if baseline_type == 'constant':
+        params_info.append('baseline_c')
+        p0.append(float(np.nanmin(y_data)))
+        baseline_func = _constant_baseline
+    elif baseline_type == 'linear':
+        params_info.extend(['baseline_m', 'baseline_b'])
+        p0.extend([0.0, float(np.nanmin(y_data))])
+        baseline_func = _linear_baseline
+    else:
+        baseline_func = None
+
+    def fit_func(x, *params):
+        total = np.zeros_like(np.asarray(x, dtype=float))
+        for i in range(n_components):
+            comp_params = params[i * n_component_params:(i + 1) * n_component_params]
+            total = total + component_func(x, *comp_params)
+        if baseline_func is not None:
+            baseline_params = params[n_components * n_component_params:]
+            total = total + baseline_func(x, *baseline_params)
+        return total
+
+    fit_type_label = f"多峰分離({component_info['label']} x{n_components})"
+    popt, pcov = _run_curve_fit_with_overrides(
+        fit_func, params_info, p0, x_data, y_data, sigma,
+        p0_overrides, fixed_params, bounds, fit_type_label,
+    )
+
+    perr = np.sqrt(np.diag(pcov))
+    x_fit = np.linspace(x_data.min(), x_data.max(), 200)
+    y_fit = fit_func(x_fit, *popt)
+    residuals = y_data - fit_func(x_data, *popt)
+    ss_res = np.sum(residuals ** 2)
+    ss_tot = np.sum((y_data - np.mean(y_data)) ** 2)
+    r_squared = 1.0 if ss_tot == 0 else 1.0 - (ss_res / ss_tot)
+
+    components = []
+    for i in range(n_components):
+        start = i * n_component_params
+        end = start + n_component_params
+        components.append({
+            'type': component_type,
+            'param_names': list(params_info[start:end]),
+            'params': [float(v) for v in popt[start:end]],
+        })
+
+    return {
+        'popt': popt,
+        'pcov': pcov,
+        'perr': perr,
+        'param_names': params_info,
+        'fit_func': fit_func,
+        'x_fit': x_fit,
+        'y_fit': y_fit,
+        'r_squared': r_squared,
+        'residuals': residuals,
+        'x_data_used': x_data,
+        'y_data_used': y_data,
+        'component_type': component_type,
+        'n_components': n_components,
+        'baseline_type': baseline_type,
+        'components': components,
+    }
+
+
 def fit_curve_task(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_range=None,
                     p0_overrides=None, fixed_params=None, bounds=None,
                     report_progress=None, is_cancelled=None):
@@ -593,6 +832,21 @@ def fit_curve_task(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_
     return calculate_curve_fit(
         x_data, y_data, fit_type, custom_formula=custom_formula, sigma=sigma, x_range=x_range,
         p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+    )
+
+
+def multi_peak_fit_task(x_data, y_data, component_type, initial_guesses, baseline_type='constant',
+                         x_range=None, sigma=None, p0_overrides=None, fixed_params=None, bounds=None,
+                         report_progress=None, is_cancelled=None):
+    """
+    calculate_multi_peak_fit() を gui/task_runner.py の TaskRunner から呼び出す
+    ための薄いラッパー(項目C-409、fit_curve_task()と同じ理由でreport_progress/
+    is_cancelledは受け取るだけで使わない)。戻り値は calculate_multi_peak_fit()
+    と完全に同じ dict。
+    """
+    return calculate_multi_peak_fit(
+        x_data, y_data, component_type, initial_guesses, baseline_type=baseline_type,
+        x_range=x_range, sigma=sigma, p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
     )
 
 
