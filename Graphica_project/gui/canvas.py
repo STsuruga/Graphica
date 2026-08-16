@@ -660,15 +660,27 @@ class _CanvasDrawingMixin:
         ax.update_datalim(np.array([[x_min, y_min], [x_max, y_max]]))
         return im
 
+    # data_kind='2d_grid'データセットのmap_display_modeとして有効な値
+    _VALID_MAP_DISPLAY_MODES = ('heatmap', 'contour', 'contour_filled', 'heatmap_contour')
+
     def _draw_2d_data(self, ax, axis_index, datasets_2d):
         """
-        2Dマップ(ヒートマップ、項目C-508)を描画する。Dataset.z_grid
+        2Dマップ(ヒートマップ/等高線、項目C-508/C-509)を描画する。Dataset.z_grid
         (core/dataset.py、core/grid_data.pyのcompute_z_grid()の結果をキャッシュした
         もの)が既に規則格子/補間格子どちらの場合も同じ形の辞書を返すため、
-        ここでは区別せずpcolormeshに渡すだけでよい。imshow(規則格子限定・高速)
-        ではなくpcolormeshに統一しているのは、規則格子/補間格子のどちらの
-        X/Y間隔にも対応できる(imshowは等間隔前提)ことを優先したため
-        (大規模データはGRID_2D_MAX_DISPLAY_POINTS_PER_AXISの間引きで対応する)。
+        ここでは区別せずpcolormesh/contour/contourfに渡すだけでよい。imshow
+        (規則格子限定・高速)ではなくpcolormeshに統一しているのは、規則格子/
+        補間格子のどちらのX/Y間隔にも対応できる(imshowは等間隔前提)ことを
+        優先したため(大規模データはGRID_2D_MAX_DISPLAY_POINTS_PER_AXISの
+        間引きで対応する)。
+
+        ds.map_display_mode(項目C-509)で描画方式を切り替える:
+        'heatmap'(既定、pcolormesh) / 'contour'(線のみ、ds.colorを線色・
+        ds.linewidthを太さとして使う) / 'contour_filled'(塗りつぶし等高線、
+        ds.colormapで塗る) / 'heatmap_contour'(ヒートマップに等高線を重ね描き)。
+        カラーバー用のmappable(_axis_2d_mappables)には、塗りを伴うモード
+        (heatmap/contour_filled/heatmap_contour)の場合のみ登録する
+        (線のみのcontourは通常カラーバーを付けない慣習に合わせる)。
         """
         self._axis_2d_mappables.pop(axis_index, None)
         for ds in datasets_2d:
@@ -697,16 +709,31 @@ class _CanvasDrawingMixin:
                 float(np.nanmax(z_grid)) if np.any(~np.isnan(z_grid)) else None
             )
 
+            mode = ds.map_display_mode if ds.map_display_mode in self._VALID_MAP_DISPLAY_MODES else 'heatmap'
+
             try:
-                # ★ label=ds.nameは付けない: QuadMeshは凡例のハンドルとして
-                # 非対応で、_apply_appearance()のax.get_legend_handles_labels()が
-                # 毎回「Legend does not support handles for QuadMesh instances」
-                # という警告を出してしまう(ヒートマップの識別はカラーバー
-                # (項目C-501)が担うため、凡例に載せる必要はない)。
-                mesh = ax.pcolormesh(
-                    x_grid, y_grid, z_grid, cmap=ds.colormap, vmin=vmin, vmax=vmax,
-                    shading='auto', alpha=ds.alpha,
-                )
+                mappable = None
+                contour_set = None
+                # ★ label=ds.nameは付けない: QuadMesh/ContourSetは凡例の
+                # ハンドルとして非対応で、_apply_appearance()の
+                # ax.get_legend_handles_labels()が毎回警告を出してしまう
+                # (2Dマップの識別はカラーバー(項目C-501)が担うため、凡例に
+                # 載せる必要はない)。
+                if mode in ('heatmap', 'heatmap_contour'):
+                    mappable = ax.pcolormesh(
+                        x_grid, y_grid, z_grid, cmap=ds.colormap, vmin=vmin, vmax=vmax,
+                        shading='auto', alpha=ds.alpha,
+                    )
+                elif mode == 'contour_filled':
+                    mappable = ax.contourf(
+                        x_grid, y_grid, z_grid, levels=ds.contour_levels, cmap=ds.colormap,
+                        vmin=vmin, vmax=vmax, alpha=ds.alpha,
+                    )
+                if mode in ('contour', 'heatmap_contour'):
+                    contour_set = ax.contour(
+                        x_grid, y_grid, z_grid, levels=ds.contour_levels, colors=ds.color,
+                        alpha=ds.alpha, linewidths=ds.linewidth,
+                    )
             except ValueError as e:
                 # 不明なカラーマップ名等、matplotlib側が拒否した場合は
                 # このデータセットの描画だけをスキップする(他のデータセットや
@@ -714,8 +741,12 @@ class _CanvasDrawingMixin:
                 logger.warning("2Dマップの描画に失敗しました(%s): %s", ds.name, e)
                 continue
 
-            ds.artist = mesh
-            self._axis_2d_mappables[axis_index] = mesh
+            # ds.artistはカラーバー対象のmappable(塗りを伴うモード)を優先し、
+            # 線のみのcontourモードではcontour_set自体を保持する(データカーソル等の
+            # 将来的な連動を見据えて、描画されたArtistを必ず何か保持しておく)。
+            ds.artist = mappable if mappable is not None else contour_set
+            if mappable is not None:
+                self._axis_2d_mappables[axis_index] = mappable
 
     def _draw_data(self, ax, axis_index, datasets):
         """指定された軸にデータをプロットする"""

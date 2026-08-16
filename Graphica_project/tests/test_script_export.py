@@ -295,3 +295,50 @@ def test_generated_script_handles_mixed_1d_and_2d_datasets_on_same_subplot():
     assert "pcolormesh" in script
     assert ".plot(x, y" in script
     _exec_script(script)
+
+
+# --- 等高線図(項目C-509) ---
+
+def test_generated_script_contour_mode_uses_contour_not_pcolormesh():
+    ds = _make_2d_dataset(map_display_mode='contour', color='#ff0000')
+    project = _make_project(datasets=[ds])
+    script = generate_python_script(project)
+    assert "pcolormesh" not in script
+    assert ".contour(x, y, z" in script
+    _exec_script(script)
+
+
+def test_generated_script_contour_mode_omits_colorbar():
+    ds = _make_2d_dataset(map_display_mode='contour')
+    project = _make_project(datasets=[ds])
+    script = generate_python_script(project)
+    assert "fig.colorbar(" not in script
+    _exec_script(script)
+
+
+def test_generated_script_contour_filled_mode_uses_contourf_and_colorbar():
+    ds = _make_2d_dataset(map_display_mode='contour_filled', colormap='plasma')
+    project = _make_project(datasets=[ds])
+    script = generate_python_script(project)
+    assert ".contourf(x, y, z" in script
+    assert "cmap='plasma'" in script
+    assert "fig.colorbar(" in script
+    _exec_script(script)
+
+
+def test_generated_script_heatmap_contour_mode_uses_both():
+    ds = _make_2d_dataset(map_display_mode='heatmap_contour')
+    project = _make_project(datasets=[ds])
+    script = generate_python_script(project)
+    assert "pcolormesh" in script
+    assert ".contour(x, y, z" in script
+    assert "fig.colorbar(" in script
+    _exec_script(script)
+
+
+def test_generated_script_respects_contour_levels():
+    ds = _make_2d_dataset(map_display_mode='contour', contour_levels=4)
+    project = _make_project(datasets=[ds])
+    script = generate_python_script(project)
+    assert "levels=4" in script
+    _exec_script(script)

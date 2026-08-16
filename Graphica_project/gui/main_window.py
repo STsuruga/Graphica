@@ -1034,6 +1034,22 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.colormap_combo.addItems(COLORMAP_CHOICES)
         self.ui.formLayout_4.addRow(self.colormap_label, self.colormap_combo)
 
+        # 2Dマップの描画方式(項目C-509)。'heatmap'(既定)/'contour'(線のみ)/
+        # 'contour_filled'(塗りつぶし等高線)/'heatmap_contour'(重ね描き)。
+        self.map_display_mode_label = QLabel(tr("2Dマップの表示方式"))
+        self.map_display_mode_combo = QComboBox()
+        self.map_display_mode_combo.addItem(tr("ヒートマップ"), "heatmap")
+        self.map_display_mode_combo.addItem(tr("等高線(線)"), "contour")
+        self.map_display_mode_combo.addItem(tr("等高線(塗りつぶし)"), "contour_filled")
+        self.map_display_mode_combo.addItem(tr("ヒートマップ+等高線"), "heatmap_contour")
+        self.ui.formLayout_4.addRow(self.map_display_mode_label, self.map_display_mode_combo)
+
+        self.contour_levels_label = QLabel(tr("等高線のレベル数"))
+        self.contour_levels_spinbox = QSpinBox()
+        self.contour_levels_spinbox.setRange(2, 100)
+        self.contour_levels_spinbox.setValue(10)
+        self.ui.formLayout_4.addRow(self.contour_levels_label, self.contour_levels_spinbox)
+
         self.grid_interp_method_label = QLabel(tr("散在データの補間方法"))
         self.grid_interp_method_combo = QComboBox()
         self.grid_interp_method_combo.addItems(['linear', 'cubic', 'nearest'])

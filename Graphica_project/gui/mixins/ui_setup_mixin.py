@@ -226,6 +226,9 @@ class UISetupMixin:
             self.color_range_auto_checkbox.toggled.connect(self._on_2d_value_range_changed)
             self.vmin_spinbox.valueChanged.connect(self._on_2d_value_range_changed)
             self.vmax_spinbox.valueChanged.connect(self._on_2d_value_range_changed)
+            # 2Dマップの表示方式・等高線レベル数(項目C-509)
+            self.map_display_mode_combo.currentIndexChanged.connect(self._on_property_changed)
+            self.contour_levels_spinbox.valueChanged.connect(self._on_property_changed)
 
     def _create_menu_bar(self):
             """

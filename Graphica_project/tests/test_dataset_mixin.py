@@ -4620,6 +4620,45 @@ def test_grid_interp_method_changed_updates_dataset(tmp_path, monkeypatch):
     assert ds.grid_interp_method == 'nearest'
 
 
+def test_map_display_mode_changed_updates_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    _add_and_select_dataset(window, ds)
+    assert ds.map_display_mode == 'heatmap'
+
+    contour_index = window.map_display_mode_combo.findData('contour_filled')
+    window.map_display_mode_combo.setCurrentIndex(contour_index)
+
+    assert ds.map_display_mode == 'contour_filled'
+
+
+def test_contour_levels_changed_updates_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    _add_and_select_dataset(window, ds)
+
+    window.contour_levels_spinbox.setValue(25)
+
+    assert ds.contour_levels == 25
+
+
+def test_selecting_dataset_loads_map_display_mode_and_contour_levels(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    ds.map_display_mode = 'contour'
+    ds.contour_levels = 7
+    _add_and_select_dataset(window, ds)
+
+    assert window.map_display_mode_combo.currentData() == 'contour'
+    assert window.contour_levels_spinbox.value() == 7
+
+
 def test_value_range_auto_checked_sets_vmin_vmax_none(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_2d_grid_ui_dataset()

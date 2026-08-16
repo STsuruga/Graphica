@@ -1471,6 +1471,9 @@ class DatasetMixin:
             # が個別に扱うため、ここには含めない。
             self.colormap_combo: ('colormap', self.colormap_combo.currentText()),
             self.grid_interp_method_combo: ('grid_interp_method', self.grid_interp_method_combo.currentText()),
+            # 2Dマップの表示方式・等高線レベル数(項目C-509)
+            self.map_display_mode_combo: ('map_display_mode', self.map_display_mode_combo.currentData()),
+            self.contour_levels_spinbox: ('contour_levels', self.contour_levels_spinbox.value()),
         }
 
         changed = field_by_widget.get(self.sender())
@@ -1754,6 +1757,8 @@ class DatasetMixin:
             self.error_display_combo.blockSignals(True)
             self.data_2d_checkbox.blockSignals(True)
             self.colormap_combo.blockSignals(True)
+            self.map_display_mode_combo.blockSignals(True)
+            self.contour_levels_spinbox.blockSignals(True)
             self.grid_interp_method_combo.blockSignals(True)
             self.color_range_auto_checkbox.blockSignals(True)
             self.vmin_spinbox.blockSignals(True)
@@ -1787,6 +1792,9 @@ class DatasetMixin:
             self.data_2d_checkbox.setChecked(dataset.data_kind == '2d_grid')
             colormap_index = self.colormap_combo.findText(dataset.colormap)
             self.colormap_combo.setCurrentIndex(colormap_index if colormap_index != -1 else 0)
+            display_mode_index = self.map_display_mode_combo.findData(dataset.map_display_mode)
+            self.map_display_mode_combo.setCurrentIndex(display_mode_index if display_mode_index != -1 else 0)
+            self.contour_levels_spinbox.setValue(dataset.contour_levels)
             interp_index = self.grid_interp_method_combo.findText(dataset.grid_interp_method)
             self.grid_interp_method_combo.setCurrentIndex(interp_index if interp_index != -1 else 0)
             is_range_auto = dataset.vmin is None and dataset.vmax is None
@@ -1819,6 +1827,8 @@ class DatasetMixin:
             self.error_display_combo.blockSignals(False)
             self.data_2d_checkbox.blockSignals(False)
             self.colormap_combo.blockSignals(False)
+            self.map_display_mode_combo.blockSignals(False)
+            self.contour_levels_spinbox.blockSignals(False)
             self.grid_interp_method_combo.blockSignals(False)
             self.color_range_auto_checkbox.blockSignals(False)
             self.vmin_spinbox.blockSignals(False)
@@ -2129,6 +2139,8 @@ class DatasetMixin:
         for widget in (
             self.z_col_label, self.z_col_combo,
             self.colormap_label, self.colormap_combo,
+            self.map_display_mode_label, self.map_display_mode_combo,
+            self.contour_levels_label, self.contour_levels_spinbox,
             self.grid_interp_method_label, self.grid_interp_method_combo,
             self.color_range_auto_checkbox,
             self.vmin_label, self.vmin_spinbox,

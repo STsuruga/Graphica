@@ -766,6 +766,8 @@ def test_2d_field_defaults():
     assert ds.colormap == 'viridis'
     assert ds.vmin is None
     assert ds.vmax is None
+    assert ds.map_display_mode == 'heatmap'
+    assert ds.contour_levels == 10
 
 
 def test_z_grid_is_none_for_1d_dataset():
@@ -858,7 +860,8 @@ def test_z_grid_returns_none_on_invalid_data_rather_than_raising():
 
 def test_2d_dataset_json_roundtrip_preserves_new_fields():
     ds = _make_2d_grid_dataset(grid_interp_method='cubic', grid_resolution=[15, 12],
-                                colormap='plasma', vmin=0.0, vmax=100.0)
+                                colormap='plasma', vmin=0.0, vmax=100.0,
+                                map_display_mode='contour_filled', contour_levels=15)
     restored = Dataset.from_dict(ds.to_dict())
     assert restored.data_kind == '2d_grid'
     assert restored.z_col_name == 'z'
@@ -867,6 +870,8 @@ def test_2d_dataset_json_roundtrip_preserves_new_fields():
     assert restored.colormap == 'plasma'
     assert restored.vmin == 0.0
     assert restored.vmax == 100.0
+    assert restored.map_display_mode == 'contour_filled'
+    assert restored.contour_levels == 15
     grid = restored.z_grid
     assert grid is not None and grid['is_regular'] is True
 
