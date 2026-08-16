@@ -734,3 +734,151 @@ def test_visible_df_cache_survives_pickle_roundtrip_correctly():
     assert len(restored.visible_df) == 3
     restored.masked_row_indices = [1, 2]
     assert len(restored.visible_df) == 2
+
+
+# =============================================================================
+# 2Dグリッドデータ(z_gridプロパティ、項目C-508)
+# =============================================================================
+
+def _make_2d_grid_dataset(**overrides):
+    xs, ys = [0.0, 1.0, 2.0], [10.0, 20.0]
+    x, y, z = [], [], []
+    for yi in ys:
+        for xi in xs:
+            x.append(xi)
+            y.append(yi)
+            z.append(xi * 10 + yi)
+    df = pd.DataFrame({'x': x, 'y': y, 'z': z})
+    kwargs = dict(
+        name="2d", df=df, x_col_name='x', y_col_name='y',
+        data_kind='2d_grid', z_col_name='z',
+    )
+    kwargs.update(overrides)
+    return Dataset(**kwargs)
+
+
+def test_2d_field_defaults():
+    ds = make_dataset()
+    assert ds.data_kind == '1d'
+    assert ds.z_col_name is None
+    assert ds.grid_interp_method == 'linear'
+    assert ds.grid_resolution is None
+    assert ds.colormap == 'viridis'
+    assert ds.vmin is None
+    assert ds.vmax is None
+
+
+def test_z_grid_is_none_for_1d_dataset():
+    ds = make_dataset()
+    assert ds.z_grid is None
+
+
+def test_z_grid_is_none_when_z_col_name_not_set():
+    ds = make_dataset(data_kind='2d_grid')
+    assert ds.z_grid is None
+
+
+def test_z_grid_builds_regular_grid_from_long_format_df():
+    ds = _make_2d_grid_dataset()
+    grid = ds.z_grid
+    assert grid is not None
+    assert grid['is_regular'] is True
+    np.testing.assert_array_equal(grid['x_grid'], [0.0, 1.0, 2.0])
+    np.testing.assert_array_equal(grid['y_grid'], [10.0, 20.0])
+    assert grid['z_grid'].shape == (2, 3)
+    assert grid['z_grid'][0, 0] == pytest.approx(10.0)  # x=0, y=10
+
+
+def test_z_grid_is_cached_across_repeated_access():
+    ds = _make_2d_grid_dataset()
+    first = ds.z_grid
+    second = ds.z_grid
+    assert first is second
+
+
+def test_z_grid_cache_invalidated_by_df_reassignment():
+    ds = _make_2d_grid_dataset()
+    _ = ds.z_grid
+    new_df = pd.DataFrame({'x': [0.0, 1.0], 'y': [0.0, 0.0], 'z': [5.0, 6.0]})
+    ds.df = new_df
+    ds.x_col_name, ds.y_col_name, ds.z_col_name = 'x', 'y', 'z'
+    grid = ds.z_grid
+    np.testing.assert_array_equal(grid['x_grid'], [0.0, 1.0])
+
+
+def test_z_grid_cache_invalidated_by_z_col_name_change():
+    ds = _make_2d_grid_dataset()
+    first = ds.z_grid
+    ds.df['z2'] = ds.df['z'] * 2
+    ds.z_col_name = 'z2'
+    second = ds.z_grid
+    assert second is not first
+    np.testing.assert_array_equal(second['z_grid'], first['z_grid'] * 2)
+
+
+def test_z_grid_cache_invalidated_by_grid_interp_method_change():
+    rng = np.random.default_rng(0)
+    x = rng.uniform(0, 10, size=20)
+    y = rng.uniform(0, 10, size=20)
+    z = x + y
+    df = pd.DataFrame({'x': x, 'y': y, 'z': z})
+    ds = Dataset(name="scattered", df=df, x_col_name='x', y_col_name='y',
+                 data_kind='2d_grid', z_col_name='z', grid_interp_method='linear')
+    first = ds.z_grid
+    ds.grid_interp_method = 'nearest'
+    second = ds.z_grid
+    assert second is not first
+
+
+def test_z_grid_not_included_in_pickle_state():
+    ds = _make_2d_grid_dataset()
+    _ = ds.z_grid
+    state = ds.__getstate__()
+    assert '_z_grid_cache' not in state
+    assert '_z_grid_cache_key' not in state
+
+
+def test_z_grid_survives_pickle_roundtrip():
+    ds = _make_2d_grid_dataset()
+    _ = ds.z_grid
+    restored = pickle.loads(pickle.dumps(ds))
+    grid = restored.z_grid
+    assert grid is not None
+    assert grid['is_regular'] is True
+
+
+def test_z_grid_returns_none_on_invalid_data_rather_than_raising():
+    """core.grid_data.GridDataErrorはz_gridプロパティ内で握りつぶし、
+    呼び出し側(gui/canvas.py)には単にNone(=描画対象なし)として見せる。"""
+    df = pd.DataFrame({'x': [np.nan, np.nan], 'y': [1.0, 2.0], 'z': [1.0, 2.0]})
+    ds = Dataset(name="bad", df=df, x_col_name='x', y_col_name='y',
+                 data_kind='2d_grid', z_col_name='z')
+    assert ds.z_grid is None
+
+
+def test_2d_dataset_json_roundtrip_preserves_new_fields():
+    ds = _make_2d_grid_dataset(grid_interp_method='cubic', grid_resolution=[15, 12],
+                                colormap='plasma', vmin=0.0, vmax=100.0)
+    restored = Dataset.from_dict(ds.to_dict())
+    assert restored.data_kind == '2d_grid'
+    assert restored.z_col_name == 'z'
+    assert restored.grid_interp_method == 'cubic'
+    assert restored.grid_resolution == [15, 12]
+    assert restored.colormap == 'plasma'
+    assert restored.vmin == 0.0
+    assert restored.vmax == 100.0
+    grid = restored.z_grid
+    assert grid is not None and grid['is_regular'] is True
+
+
+def test_1d_dataset_from_dict_without_2d_fields_defaults_gracefully():
+    """2Dフィールド追加前に保存された旧形式のプロジェクトファイル(dictにこれらの
+    キーが存在しない)でも、dataclassのデフォルト値で補われクラッシュしないこと。"""
+    ds = make_dataset()
+    data = ds.to_dict()
+    for key in ('data_kind', 'z_col_name', 'grid_interp_method', 'grid_resolution',
+                'colormap', 'vmin', 'vmax'):
+        data.pop(key, None)
+    restored = Dataset.from_dict(data)
+    assert restored.data_kind == '1d'
+    assert restored.z_grid is None
