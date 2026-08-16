@@ -4475,3 +4475,240 @@ def test_multi_peak_fit_busy_shows_info_when_already_running(tmp_path, monkeypat
 
     assert len(info_calls) == 1
     window._multi_peak_fit_task_runner = None  # 後始末(他テストへの影響防止)
+
+
+# =============================================================================
+# 2Dグリッドデータのプロパティパネル配線(項目C-508)
+# =============================================================================
+
+def _make_2d_grid_ui_dataset(name="heatmap"):
+    df = pd.DataFrame({
+        'x': [0.0, 1.0, 0.0, 1.0],
+        'y': [0.0, 0.0, 1.0, 1.0],
+        'z': [1.0, 2.0, 3.0, 4.0],
+    })
+    return Dataset(name=name, df=df, x_col_name='x', y_col_name='y')
+
+
+def test_data_2d_toggle_on_sets_data_kind_and_auto_selects_z_column(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    _add_and_select_dataset(window, ds)
+    assert ds.data_kind == '1d'
+
+    window.data_2d_checkbox.setChecked(True)
+
+    assert ds.data_kind == '2d_grid'
+    assert ds.z_col_name == 'z'  # x/y以外の唯一の列が自動選択される
+
+    window.undo_stack.undo()
+    assert ds.data_kind == '1d'
+    assert ds.z_col_name is None
+
+
+def test_data_2d_toggle_off_reverts_to_1d(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    _add_and_select_dataset(window, ds)
+
+    window.data_2d_checkbox.setChecked(False)
+
+    assert ds.data_kind == '1d'
+
+
+def test_data_2d_toggle_does_not_overwrite_existing_z_column(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0.0, 1.0], 'y': [0.0, 1.0], 'z1': [1.0, 2.0], 'z2': [3.0, 4.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y', z_col_name='z2')
+    _add_and_select_dataset(window, ds)
+
+    window.data_2d_checkbox.setChecked(True)
+
+    assert ds.z_col_name == 'z2'  # 既存の選択が優先される(自動選択で上書きしない)
+
+
+def test_data_2d_toggle_updates_controls_visibility(tmp_path, monkeypatch):
+    """
+    ★ ウィンドウをshow()していない(_make_isolated_plotter_appの仕様)ため
+    isVisible()は常にFalseを返す(祖先の表示状態に依存するため)。isVisibleTo(window)
+    (windowまでの祖先チェーンだけを見た実効的な表示状態)で検証する
+    (tests/test_dataset_mixin.pyの残差プロットパネルのテストと同じ方式)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    _add_and_select_dataset(window, ds)
+    assert window.z_col_combo.isVisibleTo(window) is False
+
+    window.data_2d_checkbox.setChecked(True)
+    assert window.z_col_combo.isVisibleTo(window) is True
+    assert window.colormap_combo.isVisibleTo(window) is True
+
+    window.data_2d_checkbox.setChecked(False)
+    assert window.z_col_combo.isVisibleTo(window) is False
+
+
+def test_z_column_changed_updates_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0.0, 1.0], 'y': [0.0, 1.0], 'z1': [1.0, 2.0], 'z2': [3.0, 4.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y',
+                 data_kind='2d_grid', z_col_name='z1')
+    _add_and_select_dataset(window, ds)
+
+    window.z_col_combo.setCurrentText('z2')
+
+    assert ds.z_col_name == 'z2'
+    window.undo_stack.undo()
+    assert ds.z_col_name == 'z1'
+
+
+def test_z_column_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    before_count = window.undo_stack.count()
+    window._on_z_column_changed()
+    assert window.undo_stack.count() == before_count
+
+
+def test_colormap_changed_updates_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    _add_and_select_dataset(window, ds)
+
+    window.colormap_combo.setCurrentText('plasma')
+
+    assert ds.colormap == 'plasma'
+
+
+def test_grid_interp_method_changed_updates_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    _add_and_select_dataset(window, ds)
+
+    window.grid_interp_method_combo.setCurrentText('nearest')
+
+    assert ds.grid_interp_method == 'nearest'
+
+
+def test_value_range_auto_checked_sets_vmin_vmax_none(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    ds.vmin, ds.vmax = 0.0, 10.0
+    _add_and_select_dataset(window, ds)
+    window.color_range_auto_checkbox.setChecked(False)  # 選択直後は自動のままなので一旦手動へ
+    assert ds.vmin == 0.0
+
+    window.color_range_auto_checkbox.setChecked(True)
+
+    assert ds.vmin is None
+    assert ds.vmax is None
+    assert window.vmin_spinbox.isEnabled() is False
+    assert window.vmax_spinbox.isEnabled() is False
+
+
+def test_value_range_manual_spinboxes_set_vmin_vmax(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    _add_and_select_dataset(window, ds)
+
+    window.color_range_auto_checkbox.setChecked(False)
+    window.vmin_spinbox.setValue(-5.0)
+    window.vmax_spinbox.setValue(50.0)
+
+    assert ds.vmin == pytest.approx(-5.0)
+    assert ds.vmax == pytest.approx(50.0)
+    assert window.vmin_spinbox.isEnabled() is True
+
+
+def test_value_range_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    before_count = window.undo_stack.count()
+    window._on_2d_value_range_changed()
+    assert window.undo_stack.count() == before_count
+
+
+def test_selecting_1d_dataset_after_2d_hides_2d_controls(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_2d = _make_2d_grid_ui_dataset("heatmap")
+    ds_2d.data_kind = '2d_grid'
+    ds_2d.z_col_name = 'z'
+    ds_1d = Dataset(name="line", df=pd.DataFrame({'x': [0.0, 1.0], 'y': [1.0, 2.0]}),
+                     x_col_name='x', y_col_name='y')
+    window._add_dataset(ds_2d, None, select=True)
+    window._add_dataset(ds_1d, None, select=True)
+
+    assert window.z_col_combo.isVisibleTo(window) is False
+    assert window.data_2d_checkbox.isChecked() is False
+
+
+def test_deselecting_dataset_hides_2d_controls_and_clears_z_combo(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_2d_grid_ui_dataset()
+    ds.data_kind = '2d_grid'
+    ds.z_col_name = 'z'
+    _add_and_select_dataset(window, ds)
+    assert window.z_col_combo.count() > 0
+
+    window.ui.dataset_list_widget.setCurrentItem(None)
+
+    assert window.z_col_combo.count() == 0
+    assert window.z_col_combo.isVisibleTo(window) is False
+
+
+# --- 軸設定側のカラーバー設定(項目C-501) ---
+
+def test_gather_settings_from_ui_includes_colorbar_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.colorbar_enabled_checkbox.setChecked(False)
+    window.colorbar_position_combo.setCurrentIndex(
+        window.colorbar_position_combo.findData('bottom')
+    )
+    window.colorbar_width_spinbox.setValue(0.12)
+    window.colorbar_label_edit.setText("強度 (a.u.)")
+
+    settings = window._gather_settings_from_ui()
+
+    assert settings['colorbar_enabled'] is False
+    assert settings['colorbar_position'] == 'bottom'
+    assert settings['colorbar_width_fraction'] == pytest.approx(0.12)
+    assert settings['colorbar_label'] == "強度 (a.u.)"
+
+
+def test_apply_settings_to_ui_controls_restores_colorbar_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    settings.update({
+        'colorbar_enabled': False, 'colorbar_position': 'left',
+        'colorbar_width_fraction': 0.2, 'colorbar_label': 'Z値',
+    })
+
+    window._apply_settings_to_ui_controls(settings)
+
+    assert window.colorbar_enabled_checkbox.isChecked() is False
+    assert window.colorbar_position_combo.currentData() == 'left'
+    assert window.colorbar_width_spinbox.value() == pytest.approx(0.2)
+    assert window.colorbar_label_edit.text() == 'Z値'
+
+
+def test_apply_settings_to_ui_controls_defaults_colorbar_keys_when_missing(tmp_path, monkeypatch):
+    """2Dマップ導入前に保存された旧プロジェクトのsettings辞書(カラーバー
+    キーを持たない)を読み込んでも、既定値で補われクラッシュしないこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    for key in ('colorbar_enabled', 'colorbar_position', 'colorbar_width_fraction', 'colorbar_label'):
+        settings.pop(key, None)
+
+    window._apply_settings_to_ui_controls(settings)  # 例外を投げないこと
+
+    assert window.colorbar_enabled_checkbox.isChecked() is True
+    assert window.colorbar_position_combo.currentData() == 'right'
+    assert window.colorbar_width_spinbox.value() == pytest.approx(0.05)
+    assert window.colorbar_label_edit.text() == ''

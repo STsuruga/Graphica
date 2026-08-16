@@ -595,6 +595,13 @@ class SettingsMixin:
             'legend_color': self._legend_color,
             'spine_width': self.ui.spine_width_spinbox.value(),
             'spine_color': self._spine_color,
+
+            # カラーバー(ヒートマップ用、項目C-501)。2Dマップが描画されていない
+            # サブプロットでは何の効果も持たない(gui/canvas.pyの_apply_appearance参照)。
+            'colorbar_enabled': self.colorbar_enabled_checkbox.isChecked(),
+            'colorbar_position': self.colorbar_position_combo.currentData(),
+            'colorbar_width_fraction': self.colorbar_width_spinbox.value(),
+            'colorbar_label': self.colorbar_label_edit.text(),
         }
 
         # ★ 注釈(テキスト・矢印)はUIコントロールを持たず、_add_annotation等から
@@ -731,6 +738,14 @@ class SettingsMixin:
             self.ui.spine_width_spinbox.setValue(self._spine_width) # ★ UIにも反映
             self._spine_color = settings.get('spine_color', '#000000')
 
+            # カラーバー(項目C-501)
+            self.colorbar_enabled_checkbox.setChecked(settings.get('colorbar_enabled', True))
+            _cb_position = settings.get('colorbar_position', 'right')
+            _cb_position_index = self.colorbar_position_combo.findData(_cb_position)
+            self.colorbar_position_combo.setCurrentIndex(_cb_position_index if _cb_position_index != -1 else 0)
+            self.colorbar_width_spinbox.setValue(settings.get('colorbar_width_fraction', 0.05))
+            self.colorbar_label_edit.setText(settings.get('colorbar_label', ''))
+
             # 4. UIの状態を更新 (スピンボックスの有効/無効など)
             #    (★ _connect_signals での接続修正が前提)
             self._on_x_autoscale_changed()
@@ -815,3 +830,7 @@ class SettingsMixin:
         self.minor_tick_direction_combo.blockSignals(block)
         self.major_tick_direction_y2_combo.blockSignals(block)
         self.minor_tick_direction_y2_combo.blockSignals(block)
+        self.colorbar_enabled_checkbox.blockSignals(block)
+        self.colorbar_position_combo.blockSignals(block)
+        self.colorbar_width_spinbox.blockSignals(block)
+        self.colorbar_label_edit.blockSignals(block)
