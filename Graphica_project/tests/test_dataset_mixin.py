@@ -1059,6 +1059,32 @@ def test_paste_dataset_style_single_dataset_applies_and_is_undoable(tmp_path, mo
     assert target.color == original_color
 
 
+def test_copy_paste_dataset_style_includes_2d_appearance_but_not_structure(tmp_path, monkeypatch):
+    """
+    項目C-508: colormap/vmin/vmaxは「見た目」としてSTYLE_ATTRSに含めるが、
+    data_kind/z_col_nameはX/Y列選択と同じ「構造」の一部として除外する
+    (無関係なデータセットに貼り付けても勝手に2Dグリッド扱いにしない)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    source = _make_simple_dataset("source")
+    source.colormap = "plasma"
+    source.vmin, source.vmax = -1.0, 99.0
+    source.data_kind = '2d_grid'
+    source.z_col_name = 'some_z_col'
+    _add_and_select_dataset(window, source)
+    window._on_copy_dataset_style()
+
+    target = _make_simple_dataset("target")
+    _add_and_select_dataset(window, target)
+    window._on_paste_dataset_style()
+
+    assert target.colormap == "plasma"
+    assert target.vmin == -1.0
+    assert target.vmax == 99.0
+    assert target.data_kind == '1d'  # 構造は貼り付けられない
+    assert target.z_col_name is None
+
+
 def test_paste_dataset_style_batch_uses_single_macro(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     source = _make_simple_dataset("source")
