@@ -13,12 +13,22 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 from gui.dialogs import PreferencesDialog
 from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.mixins.annotation_mixin import DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
+from gui.mixins.dataset_mixin import STYLE_ATTRS
 from core.i18n import tr, get_language
 
 logger = logging.getLogger(__name__)
 
 # オートセーブ間隔として指定できる範囲 (分)
 AUTOSAVE_INTERVAL_MIN_BOUNDS = (0, 180)
+
+# 項目C-806: フィギュアテンプレートの現在のスキーマバージョン。
+TEMPLATE_FORMAT_VERSION = 1
+
+# all_plot_settings[index]のうち、注釈・凡例の並び順・自由配置の位置は
+# サブプロットごとの「内容」寄りで、別のデータセット/プロジェクトへ持ち込む
+# 「見た目のスタイル」としては不適切なため、テンプレートの保存/適用対象から除外する
+# (保存時は除いて書き出し、適用時は現在のサブプロットが持つ値をそのまま保持する)。
+TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS = ('annotations', 'legend_order', 'free_rect')
 
 
 class ProjectIOMixin:
@@ -162,38 +172,66 @@ class ProjectIOMixin:
 
     def _on_save_plot_template(self):
         """
-        現在の「アクティブなプロット」の外観設定を
-        テンプレートファイル(*.json)として保存する
+        現在のプロジェクトの全サブプロットの外観設定+全データセットのスタイルを、
+        独立したテンプレートファイル(*.graphica-style)として保存する(項目C-806)。
+        データそのもの(df/x_col_name等、識別/データ系フィールド)は含まない。
+        注釈・凡例の並び順・自由配置の位置(TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS)は
+        サブプロットの「内容」寄りのため対象外(見た目のスタイルのみを対象とする)。
         """
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "書式テンプレートを保存", "", "Plotter Template Files (*.json)"
+            self, "書式テンプレートを保存", "", "Graphica Style Template (*.graphica-style)"
         )
         if not file_path:
             return
+        if not (file_path.endswith('.graphica-style') or file_path.endswith('.json')):
+            file_path += '.graphica-style'
 
-        # 1. 外観設定を「現在アクティブなUI」から収集 (ヘルパーメソッドを使用)
-        plot_settings = self._gather_settings_from_ui()
+        # 保存直前に、現在アクティブな軸のUI状態を all_plot_settings へ反映させておく
+        # (_gather_settings_from_ui はUIコントロールの現在値を読むだけで、
+        #  自動的には保存されないため)。
+        if self.project.active_axis_index < len(self.project.all_plot_settings):
+            self.project.all_plot_settings[self.project.active_axis_index] = self._gather_settings_from_ui()
 
-        # 2. テンプレートファイルとして保存 (データは含まない)
+        subplot_styles = [
+            {k: v for k, v in settings.items() if k not in TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS}
+            for settings in self.project.all_plot_settings
+        ]
+        dataset_styles = [
+            {attr: getattr(ds, attr) for attr in STYLE_ATTRS}
+            for ds in self.project.datasets
+        ]
+
         template_data = {
-            'plot_settings': plot_settings
+            'format_version': TEMPLATE_FORMAT_VERSION,
+            'subplot_styles': subplot_styles,
+            'dataset_styles': dataset_styles,
         }
 
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(template_data, f, indent=4)
+                json.dump(template_data, f, indent=4, ensure_ascii=False)
         except Exception as e:
             QMessageBox.warning(self, "保存エラー", f"テンプレートの保存中にエラーが発生しました:\n{e}")
             logger.exception("テンプレートの保存中にエラー")
 
     def _on_load_plot_template(self):
         """
-        【★ 修正済み ★】
-        書式テンプレートをJSONファイルから読み込み、
-        「現在アクティブなプロット」に適用する
+        書式テンプレートファイル(*.graphica-style、または項目C-806以前の
+        *.json形式との後方互換あり)を読み込み、現在のプロジェクトへ適用する。
+
+        新形式(format_versionあり、項目C-806): 保存時の並び順のまま、現在の
+        サブプロット数ぶんサイクリックに外観設定を適用する(既存の注釈・
+        凡例並び順・自由配置位置はサブプロットごとに保持したまま、それ以外の
+        見た目だけ差し替える)。データセットのスタイルも同様にサイクリックに
+        適用する(データセット数がテンプレート保存時と異なっていても破綻しない)。
+        Undo/Redoには対応しない(旧形式のテンプレート適用も同様に非対応だった
+        既存の挙動を踏襲)。
+
+        旧形式(plot_settingsキーのみ): 従来通り「現在アクティブな1サブプロット」
+        にのみ適用する(既存の互換動作をそのまま維持)。
         """
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "書式テンプレートを適用", "", "Plotter Template Files (*.json)"
+            self, "書式テンプレートを適用", "", "Graphica Style Template (*.graphica-style *.json)"
         )
         if not file_path:
             return
@@ -202,22 +240,38 @@ class ProjectIOMixin:
             with open(file_path, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
 
-            # 1. 外観設定をファイルから読み込む
-            settings = template_data.get('plot_settings', {})
-            if not settings:
-                QMessageBox.warning(self, "読込エラー", "有効な書式設定がファイルに含まれていません。")
-                return
+            if 'format_version' in template_data:
+                subplot_styles = template_data.get('subplot_styles') or []
+                if not subplot_styles:
+                    QMessageBox.warning(self, "読込エラー", "有効な書式設定がファイルに含まれていません。")
+                    return
 
-            # 2. 設定をUIコントロールに適用する (ヘルパーメソッドを使用)
-            #    (この時点ではまだ all_plot_settings には保存されていない)
-            self._apply_settings_to_ui_controls(settings)
+                for i, settings in enumerate(self.project.all_plot_settings):
+                    style = subplot_styles[i % len(subplot_styles)]
+                    merged = dict(settings)
+                    for k, v in style.items():
+                        if k not in TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS:
+                            merged[k] = v
+                    self.project.all_plot_settings[i] = merged
+                    if i == self.project.active_axis_index:
+                        self._apply_settings_to_ui_controls(merged)
 
-            # 3. 【★ 修正箇所 ★】
-            #    _on_axis_setting_changed() を呼び出す。
-            #    これにより、UIにロードされた設定が _gather_settings_from_ui() され、
-            #    all_plot_settings リストに「保存」され、
-            #    _update_plot_appearance() が呼ばれてグラフに「適用」される。
-            self._on_axis_setting_changed()
+                dataset_styles = template_data.get('dataset_styles') or []
+                if dataset_styles:
+                    for i, dataset in enumerate(self.project.datasets):
+                        style = dataset_styles[i % len(dataset_styles)]
+                        for attr, value in style.items():
+                            setattr(dataset, attr, value)
+
+                self._update_plot()
+            else:
+                # 旧形式(項目C-806以前): アクティブな1サブプロットのみに適用
+                settings = template_data.get('plot_settings', {})
+                if not settings:
+                    QMessageBox.warning(self, "読込エラー", "有効な書式設定がファイルに含まれていません。")
+                    return
+                self._apply_settings_to_ui_controls(settings)
+                self._on_axis_setting_changed()
 
         except Exception as e:
             QMessageBox.warning(self, "読込エラー", f"テンプレートの読み込み中にエラーが発生しました:\n{e}")

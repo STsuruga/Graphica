@@ -20,6 +20,7 @@ from gui.task_runner import TaskRunner
 from models.project import ProjectModel
 from core.plugin_api import get_plugin_api, get_registered_exporters
 from core.plugin_types import PluginExecutionError
+from core.script_export import generate_python_script
 
 logger = logging.getLogger(__name__)
 
@@ -315,6 +316,34 @@ class ExportMixin:
                 logger.exception("バッチエクスポート(プロジェクトファイル)に失敗しました: %s", path)
                 results.append((os.path.basename(path), str(e)))
         return results
+
+    def _on_export_python_script(self):
+        """
+        「Pythonスクリプトとしてエクスポート...」メニューの処理(項目C-1103)。
+        現在のプロジェクトを、matplotlib単体で完結するスタンドアロンの
+        Pythonスクリプトとして書き出す(囲い込み感の解消が狙い、Graphica本体が
+        無くても図を再現できる)。コード生成自体はGUI非依存の
+        core/script_export.py に委譲し、ここではファイルダイアログとエラー
+        表示だけを担当する。
+        """
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Pythonスクリプトとしてエクスポート", "", "Python Files (*.py)"
+        )
+        if not file_path:
+            return
+        if not file_path.endswith('.py'):
+            file_path += '.py'
+
+        try:
+            script_text = generate_python_script(self.project)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(script_text)
+        except Exception as e:
+            QMessageBox.warning(self, "保存エラー", f"スクリプトの書き出し中にエラーが発生しました:\n{e}")
+            logger.exception("Pythonスクリプトの書き出し中にエラー")
+            return
+
+        self.statusBar().showMessage(f"Pythonスクリプトを書き出しました: {file_path}", 3000)
 
     def _on_export_plot(self):
             """

@@ -286,6 +286,11 @@ class UISetupMixin:
             batch_export_action = file_menu.addAction(tr("バッチエクスポート(&B)..."))
             batch_export_action.triggered.connect(self._on_batch_export)
 
+            # (Pythonスクリプトとしてエクスポート、項目C-1103: Graphica本体への
+            #  囲い込みを解消し、matplotlib単体で図を再現できるようにする)
+            export_script_action = file_menu.addAction(tr("Pythonスクリプトとしてエクスポート..."))
+            export_script_action.triggered.connect(self._on_export_python_script)
+
             file_menu.addSeparator() # --- 区切り線 ---
 
             # (オートセーブ設定: テキストには現在の状態(有効/無効・間隔)を表示する)

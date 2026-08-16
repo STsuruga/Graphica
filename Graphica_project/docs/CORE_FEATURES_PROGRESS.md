@@ -85,3 +85,14 @@ C-004(#62)はバックログの元の目標(`docs/Graphica_CORE_BACKLOG.md`記�
 可能と判断して`feature/canvas-scope-phase3`ブランチで着手・完了(フェーズ
 3a/3b、詳細は上記C-003の行を参照)。グリッド行数/列数変更のみ、リスクの
 割にメリットが小さいため意図的に対象外のまま残し、true化した。
+
+## トラック3-3: 差別化機能(`docs/Graphica_MASTER_SCHEDULE.md`のトラック3進行順に従い着手)
+
+C-1101/C-1102(provenance記録+「方法」文の自動生成)は`feature/provenance-tracking`
+ブランチで並行して先行完了。C-1103/C-806は互いに独立しているため、この
+`feature/export-and-templates`ブランチでまとめて実装。
+
+| ID | 項目 | 状態 | 完了日 | 備考 |
+|---|---|---|---|---|
+| C-1103 | Pythonスクリプトとしてエクスポート | ✅ 完了 | 2026-08-16 | 新設`core/script_export.py`の`generate_python_script(project)`。GUI(`gui/canvas.py`)には一切依存しない純粋関数群とし、`project.datasets`/`project.all_plot_settings`だけを読んでPythonソースコードの文字列を組み立てる(`import numpy`/`import matplotlib.pyplot`のみで実行できるスタンドアロンスクリプト、データは`np.array([...])`としてスクリプト内に直接埋め込み、外部ファイル依存を排除)。numpy>=2.0で`repr(np.float64(...))`が`"np.float64(1.5)"`のような冗長な表記になる問題を`_to_native()`(`.item()`でPython組み込み型に変換)で回避、NaNは`repr()`すると未定義の識別子`nan`になり構文エラーになるため`float('nan')`という有効なPython式に明示変換。対応するplot_typeはLine/Scatter/Line+Scatter/Area/Barの組み込み5種のみで、プラグイン提供の`plot_type`(`register_plot_type`)はスクリプト側にプラグインを持ち出せないため、コメント付きでLineとして代替出力する。グリッド/自由配置レイアウト・第2Y軸(twinx)・非表示データセットの除外にも対応。**スコープの意図的な簡略化**(生成スクリプトの先頭コメントにも明記): グラデーション・ウォーターフォール・エラーバー・注釈・パネルラベル・第2X軸の単位変換・グリッド線の詳細設定・日付軸/カテゴリ軸の専用フォーマットは非対応(`_apply_appearance`が持つ240行超のスタイル項目のうち主要なもの=タイトル/軸ラベル/軸範囲/対数軸/凡例表示/グリッド表示のみを再現)。UIは「Pythonスクリプトとしてエクスポート...」メニュー(`gui/mixins/export_mixin.py`の`_on_export_python_script`、既存のバッチエクスポート等と同じ配置)。**テストの要点**: 生成したスクリプトを実際に`exec()`して構文/実行時エラーが無いことを確認(文字列アサーションだけでは検知できない不具合を捕まえるため、これが最も重要な検証観点だった) |
+| C-806 | フィギュアテンプレートの独立ファイル化・共有・後適用 | ✅ 完了 | 2026-08-16 | 既存の`_on_save_plot_template`/`_on_load_plot_template`(`gui/mixins/project_io_mixin.py`)を拡張。以前は「現在アクティブな1サブプロットの軸設定のみ」を`.json`へ保存/復元していたが、`format_version`(新形式の目印を兼ねる)・全サブプロット分の外観設定(`subplot_styles`)・全データセットのスタイル(`dataset_styles`、既存の「スタイルをコピー」機能=`_on_copy_dataset_style`が使う`STYLE_ATTRS`と同じキー一覧を再利用し、表記のズレを防いだ)を保存する新形式に拡張。拡張子は`.graphica-style`(中身はJSONのまま)。読込時は現在のサブプロット数/データセット数に応じて保存時の並び順から先頭サイクリックに適用するため、保存時と数が異なっていても破綻しない。**注釈・凡例の並び順・自由配置の位置(`TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS`)は保存/適用の対象から除外**(サブプロットの「内容」寄りで、別のデータセット/プロジェクトへ持ち込む「見た目のスタイル」としては不適切なため、適用後も既存データセット側の値をそのまま保持する)。旧形式(`plot_settings`キーのみ、`format_version`無し)のテンプレートファイルは引き続き「アクティブな1サブプロットのみに適用」という既存の互換動作のまま読み込める(後方互換)。Undo/Redoには対応しない(旧形式のテンプレート適用も同様に非対応だった既存の挙動を踏襲) |
