@@ -79,6 +79,19 @@ class ExportPreviewPanel(QWidget):
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
+        # フル解像度エクスポート: ExportDialogと同じオプション。ライブプレビュー
+        # 自体はスピンボックス変更のたびに自動再描画されるため、応答性を優先して
+        # 常に間引き済みで描画する(このチェックは「名前を付けて保存」/「コピー」の
+        # 実際の出力にのみ適用される)。
+        self.full_resolution_checkbox = QCheckBox("フル解像度で保存/コピー(間引きなし)")
+        self.full_resolution_checkbox.setToolTip(
+            "「名前を付けて保存」「コピー」の出力にのみ適用されます(常時更新される"
+            "プレビュー自体は応答性のため常に間引いたまま表示します)。点数の多い"
+            "Line(折れ線)データセットや2Dマップ(ヒートマップ/等高線)の間引きを"
+            "無効化し、常に全データ点/全解像度で保存/コピーします。"
+        )
+        form.addRow(self.full_resolution_checkbox)
+
         layout.addLayout(form)
         apply_form_spacing(self)
 
@@ -126,6 +139,7 @@ class ExportPreviewPanel(QWidget):
             "dpi": self.dpi_spinbox.value(),
             "transparent": self.transparent_checkbox.isChecked(),
             "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),
+            "full_resolution": self.full_resolution_checkbox.isChecked(),
         }
 
     def refresh_preview(self):
@@ -167,12 +181,18 @@ class ExportPreviewPanel(QWidget):
                                             Qt.TransformationMode.SmoothTransformation)
             )
 
-    def _make_temp_canvas_for_full_figure(self, width_in, height_in, dpi):
+    def _make_temp_canvas_for_full_figure(self, width_in, height_in, dpi, full_resolution=False):
         """
         現在の全プロット(全サブプロット)を指定したサイズ・DPIで描画した、
         一時的な MplCanvas を作って返す(呼び出し側が保存/コピー形式に応じて
         savefig するために使う)。画面表示用の本体キャンバス(main_window.canvas)
         には一切影響を与えない。有効なプロットが無ければ None を返す。
+
+        full_resolution=True: LTTB/2Dグリッド間引きを無視して全データ点/全解像度で
+        描画する。呼び出し側は、常時更新されるライブプレビュー(_render_preview→
+        _render_full_figure_pixmap)では応答性のため常にFalseを渡し、実際の保存/
+        コピー(_on_save_clicked/_on_copy_clicked経由の_render_full_figure_bytes)
+        でのみget_options()['full_resolution']を渡すこと。
         """
         mw = self.main_window
         layout_mode = getattr(mw.project, 'layout_mode', 'grid')
@@ -191,6 +211,7 @@ class ExportPreviewPanel(QWidget):
         temp_canvas.redraw_all(
             mw.project.datasets, rows, cols, mw.project.all_plot_settings, layout_mode=layout_mode,
             panel_labels_enabled=mw.project.panel_labels_enabled,
+            full_resolution=full_resolution,
         )
         return temp_canvas
 
@@ -221,7 +242,8 @@ class ExportPreviewPanel(QWidget):
             logger.exception("エクスポートプレビューの生成に失敗しました。")
             return None
 
-    def _render_full_figure_bytes(self, width_in, height_in, dpi, fmt, transparent, svg_text_as_path=False):
+    def _render_full_figure_bytes(self, width_in, height_in, dpi, fmt, transparent, svg_text_as_path=False,
+                                   full_resolution=False):
         """
         現在の全プロットを、指定した形式('png'または'svg')・透過設定で保存し、
         そのバイト列を返す(コピー/保存で共有するヘルパー)。SVGの場合は
@@ -229,7 +251,7 @@ class ExportPreviewPanel(QWidget):
         (既定、項目108)またはパス(svg_text_as_path=True、項目88)として出力する。
         """
         try:
-            temp_canvas = self._make_temp_canvas_for_full_figure(width_in, height_in, dpi)
+            temp_canvas = self._make_temp_canvas_for_full_figure(width_in, height_in, dpi, full_resolution=full_resolution)
             if temp_canvas is None:
                 return None
             try:
@@ -263,7 +285,7 @@ class ExportPreviewPanel(QWidget):
         if self.copy_format_combo.currentText() == "SVG":
             svg_bytes = self._render_full_figure_bytes(
                 width_in, height_in, options["dpi"], fmt='svg', transparent=options["transparent"],
-                svg_text_as_path=options["svg_text_as_path"]
+                svg_text_as_path=options["svg_text_as_path"], full_resolution=options["full_resolution"]
             )
             if svg_bytes is None:
                 QMessageBox.warning(self, "コピーエラー", "コピーする画像がありません。")
@@ -274,7 +296,8 @@ class ExportPreviewPanel(QWidget):
             self.main_window.statusBar().showMessage("プレビュー画像をSVG形式でクリップボードにコピーしました", 3000)
         else:
             png_bytes = self._render_full_figure_bytes(
-                width_in, height_in, options["dpi"], fmt='png', transparent=options["transparent"]
+                width_in, height_in, options["dpi"], fmt='png', transparent=options["transparent"],
+                full_resolution=options["full_resolution"]
             )
             if png_bytes is None:
                 QMessageBox.warning(self, "コピーエラー", "コピーする画像がありません。")
@@ -307,7 +330,9 @@ class ExportPreviewPanel(QWidget):
             return
 
         file_ext = os.path.splitext(file_path)[1].lower().lstrip('.')
-        temp_canvas = self._make_temp_canvas_for_full_figure(width_in, height_in, options["dpi"])
+        temp_canvas = self._make_temp_canvas_for_full_figure(
+            width_in, height_in, options["dpi"], full_resolution=options["full_resolution"]
+        )
         if temp_canvas is None:
             QMessageBox.warning(self, "保存エラー", "有効なプロットがありません。")
             return

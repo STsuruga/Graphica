@@ -285,7 +285,7 @@ def _pump_events_until_batch_export_task_done(window, max_iterations=300):
 
 def _patch_batch_export_dialog(monkeypatch, *, accepted=True, mode_index=0, output_dir="",
                                 prefix="export", format_index=0, subplot_checked=None,
-                                project_file_paths=None):
+                                project_file_paths=None, full_resolution=None):
     class FakeBatchExportDialog(BatchExportDialog):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -300,6 +300,8 @@ def _patch_batch_export_dialog(monkeypatch, *, accepted=True, mode_index=0, outp
             if project_file_paths:
                 for p in project_file_paths:
                     self.project_files_list.addItem(p)
+            if full_resolution is not None:
+                self.full_resolution_checkbox.setChecked(full_resolution)
 
         def exec(self):
             return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
@@ -406,6 +408,34 @@ def test_batch_export_subplots_writes_image_and_reports_completion(tmp_path, mon
     assert out_files[0].name == "myexport_P1.png"
     assert len(info_calls) == 1
     assert "1件を書き出しました" in info_calls[0][2]
+
+
+def test_batch_export_subplots_passes_full_resolution_option_through(tmp_path, monkeypatch):
+    """バッチエクスポートダイアログの「フル解像度でエクスポート」が有効な場合、
+    使い捨てcanvasのredraw_all()にfull_resolution=Trueが渡ること(単発エクスポート
+    と異なり使い捨てcanvasのため、事後の復帰処理は不要)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    _patch_batch_export_dialog(monkeypatch, accepted=True, output_dir=str(out_dir), mode_index=0,
+                                subplot_checked=[True], full_resolution=True)
+    monkeypatch.setattr(export_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: None))
+
+    calls = []
+    original_redraw_all = export_mixin_module._HeadlessRenderCanvas.redraw_all
+
+    def spy_redraw_all(self, *args, **kwargs):
+        calls.append(kwargs.get('full_resolution', False))
+        return original_redraw_all(self, *args, **kwargs)
+
+    monkeypatch.setattr(export_mixin_module._HeadlessRenderCanvas, "redraw_all", spy_redraw_all)
+
+    window._on_batch_export()
+    _pump_events_until_batch_export_task_done(window)
+
+    assert calls == [True]
 
 
 def test_batch_export_subplots_reports_failure_without_crashing(tmp_path, monkeypatch):
@@ -550,7 +580,7 @@ def test_batch_export_project_files_reports_failure_for_missing_file(tmp_path, m
 # --- _on_export_plot ---
 
 def _patch_export_dialog(monkeypatch, *, accepted=True, width=None, height=None, unit=None,
-                          dpi=None, transparent=None, svg_text_as_path=None):
+                          dpi=None, transparent=None, svg_text_as_path=None, full_resolution=None):
     class FakeExportDialog(ExportDialog):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -566,6 +596,8 @@ def _patch_export_dialog(monkeypatch, *, accepted=True, width=None, height=None,
                 self.transparent_checkbox.setChecked(transparent)
             if svg_text_as_path is not None:
                 self.svg_text_as_path_checkbox.setChecked(svg_text_as_path)
+            if full_resolution is not None:
+                self.full_resolution_checkbox.setChecked(full_resolution)
 
         def exec(self):
             return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
@@ -623,6 +655,52 @@ def test_export_plot_writes_svg_with_text_as_path_option(tmp_path, monkeypatch):
     window._on_export_plot()
 
     assert out_path.exists()
+
+
+def test_export_plot_full_resolution_option_redraws_full_and_restores_display(tmp_path, monkeypatch):
+    """「フル解像度でエクスポート」が有効な場合、savefig前に
+    _update_plot(full_resolution=True)で全点再描画してから保存し、保存後は
+    画面表示を通常の間引き済み状態(full_resolution=False)へ確実に戻すこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    out_path = tmp_path / "out.png"
+    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)", full_resolution=True)
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
+
+    calls = []
+    original_update_plot = window._update_plot
+
+    def spy_update_plot(*args, **kwargs):
+        calls.append(kwargs.get('full_resolution', False))
+        return original_update_plot(*args, **kwargs)
+
+    monkeypatch.setattr(window, "_update_plot", spy_update_plot)
+
+    window._on_export_plot()
+
+    assert out_path.exists()
+    assert calls == [True, False]  # フル解像度で再描画→保存後に通常表示へ復帰
+
+
+def test_export_plot_without_full_resolution_option_does_not_touch_update_plot(tmp_path, monkeypatch):
+    """フル解像度オプションが無効な場合(既定)、_update_plotは一切呼ばれない
+    (通常の間引き済み画面表示をそのままsavefigするだけで済むため、余計な
+    再描画は行わない)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    out_path = tmp_path / "out.png"
+    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)", full_resolution=False)
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
+
+    calls = []
+    monkeypatch.setattr(window, "_update_plot", lambda *a, **k: calls.append(True))
+
+    window._on_export_plot()
+
+    assert out_path.exists()
+    assert calls == []
 
 
 def test_export_plot_writes_pdf_with_truetype_fonts(tmp_path, monkeypatch):

@@ -34,6 +34,10 @@ DEFAULT_POINT_LABEL_MAX_POINTS = 1000
 # 表示用ダウンサンプリング(LTTB、項目C-1001)。1データセットあたりの点数が
 # これを超える場合のみ、calculate_lttb_downsample()でLTTB_DOWNSAMPLE_TARGET_POINTS
 # 点程度まで間引いて描画する(小〜中規模データセットは今まで通り無加工で描画)。
+# ★ Line(連続曲線)にのみ適用する。LTTBは「線で結んだときの見た目の形状」を
+#   保つアルゴリズムであり、点の疎密自体が情報であるScatter/Line+Scatterの
+#   マーカーに適用すると実際のデータ密度分布が失われるため対象外とする
+#   (過去にScatterも対象に含めていたのは設計上の見落としだった)。
 LTTB_DOWNSAMPLE_THRESHOLD = 20000
 LTTB_DOWNSAMPLE_TARGET_POINTS = 3000
 
@@ -189,6 +193,19 @@ class _CanvasDrawingMixin:
         # 一致しなくなるため、マップを経由しないと誤った行がハイライトされる)。
         # 間引きが適用されていないデータセットはこの辞書に一切現れない。
         self.downsample_index_map = {}
+        # 平滑化(CubicSpline)された曲線を持つデータセット(元データと1:1に対応
+        # しない200点の補間点のため、クリックしても正しい行を特定できない)の
+        # dataset_idを保持する(downsample_index_mapと同じくdataset_idキーの
+        # 辞書/集合にしておくことで、ax.cla()を経て古いArtistが破棄され新しい
+        # Artistがメモリ上の同じアドレスに再割り当てされてもidベースの集合の
+        # ような取り違えが起きない)。gui/mixins/cursor_mixin.pyの
+        # _toggle_cursor_mode()が「データカーソルモード」ON時に軸内の全
+        # Line2D/PathCollectionへ一括でset_picker(5)を呼ぶため、_draw_data側の
+        # 個別のpicker制御(_enable_element_picking呼び出し判定)だけでは
+        # 不十分(モードON操作でpickerが再度有効化されてしまう)。この集合を
+        # cursor_mixin.py側でも参照し、該当データセットのArtistへは
+        # set_picker(5)を呼ばないようにする(二箇所で同じ判定基準を共有)。
+        self._non_pickable_dataset_ids = set()
         # 2Dマップ(項目C-508)の描画結果(pcolormeshのQuadMesh)を軸インデックス
         # ごとに保持する。_apply_appearance()がこれを見てカラーバー(項目C-501)を
         # 付けるかどうかを判断する(_draw_dataとは別メソッドなので、Artist自体を
@@ -218,8 +235,13 @@ class _CanvasDrawingMixin:
         return (left, max(bottom, 0.08), 0.45, 0.38)
 
     def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False,
-                    share_x_axis=False, share_y_axis=False):
-        """メインウィンドウから呼ばれる、全体の再描画メソッド"""
+                    share_x_axis=False, share_y_axis=False, full_resolution=False):
+        """
+        メインウィンドウから呼ばれる、全体の再描画メソッド。
+        full_resolution=True の場合、LTTB表示用ダウンサンプリング(項目C-1001)を
+        無視して常に全点描画する(_draw_data参照。単発/バッチエクスポートの
+        「フル解像度」オプションから渡される)。
+        """
         # データセットの表示/非表示トグル(項目C-907): visible=Falseのデータセットは
         # 削除せず保持したまま、描画対象から除外する。redraw_all()はメイン画面の
         # 再描画・エクスポート(gui/mixins/export_mixin.pyの単発/バッチ書き出しは
@@ -239,6 +261,7 @@ class _CanvasDrawingMixin:
         self._annotation_artists.clear()
         self._highlight_artists.clear()
         self.downsample_index_map.clear()
+        self._non_pickable_dataset_ids.clear()
         self._axis_2d_mappables.clear()
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
 
@@ -279,7 +302,7 @@ class _CanvasDrawingMixin:
                 continue
 
             # データの描画
-            self._draw_data(ax, index, datasets)
+            self._draw_data(ax, index, datasets, full_resolution=full_resolution)
             # 外観の適用
             self._apply_appearance(ax, index, settings)
             # 自由なテキスト注釈・矢印の描画
@@ -336,7 +359,8 @@ class _CanvasDrawingMixin:
             ax.tick_params(labelleft=False)
 
     def _redraw_single_axis_no_draw(self, axis_index, datasets, settings, rows=1, cols=1,
-                                     share_x_axis=False, share_y_axis=False, panel_labels_enabled=False):
+                                     share_x_axis=False, share_y_axis=False, panel_labels_enabled=False,
+                                     full_resolution=False):
         """
         update_single_axis()の実体(self.draw_idle()を呼ぶ直前まで)。項目C-003
         フェーズ2のupdate_all_axes_appearance_and_data()が全Axes分ループする際、
@@ -362,9 +386,10 @@ class _CanvasDrawingMixin:
         for dataset_id in [ds.dataset_id for ds in datasets if ds.subplot_target == axis_index]:
             self._highlight_artists.pop(dataset_id, None)
             self.downsample_index_map.pop(dataset_id, None)
+            self._non_pickable_dataset_ids.discard(dataset_id)
 
         visible_datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
-        self._draw_data(ax, axis_index, visible_datasets)
+        self._draw_data(ax, axis_index, visible_datasets, full_resolution=full_resolution)
         self._apply_appearance(ax, axis_index, settings)
         self._draw_annotations(ax, axis_index, settings)
         if panel_labels_enabled:
@@ -373,7 +398,8 @@ class _CanvasDrawingMixin:
         self._apply_shared_axis_tick_visibility(axis_index, rows, cols, share_x_axis, share_y_axis)
 
     def update_single_axis(self, axis_index, datasets, settings, rows=1, cols=1,
-                            share_x_axis=False, share_y_axis=False, panel_labels_enabled=False):
+                            share_x_axis=False, share_y_axis=False, panel_labels_enabled=False,
+                            full_resolution=False):
         """
         指定した1つのAxesだけを描き直す(項目C-003 フェーズ1)。他のAxes・
         Figure自体は一切触らない(fig.clf()を経由しないため、他のAxesを
@@ -389,7 +415,7 @@ class _CanvasDrawingMixin:
         self._redraw_single_axis_no_draw(
             axis_index, datasets, settings, rows=rows, cols=cols,
             share_x_axis=share_x_axis, share_y_axis=share_y_axis,
-            panel_labels_enabled=panel_labels_enabled,
+            panel_labels_enabled=panel_labels_enabled, full_resolution=full_resolution,
         )
         self.draw_idle()
 
@@ -457,11 +483,13 @@ class _CanvasDrawingMixin:
         for dataset_id in [ds.dataset_id for ds in datasets if ds.subplot_target == removed_index]:
             self._highlight_artists.pop(dataset_id, None)
             self.downsample_index_map.pop(dataset_id, None)
+            self._non_pickable_dataset_ids.discard(dataset_id)
 
         self.draw_idle()
 
     def update_all_axes_appearance_and_data(self, datasets, rows, cols, all_plot_settings, layout_mode='grid',
-                                             panel_labels_enabled=False, share_x_axis=False, share_y_axis=False):
+                                             panel_labels_enabled=False, share_x_axis=False, share_y_axis=False,
+                                             full_resolution=False):
         """
         既存のAxes枚数・GridSpec配置(all_axes/all_secondary_axesの所属)を
         一切変えず、全Axesのデータ・外観だけを軽量に描き直す(項目C-003
@@ -488,7 +516,7 @@ class _CanvasDrawingMixin:
             self._redraw_single_axis_no_draw(
                 index, datasets, settings, rows=rows, cols=cols,
                 share_x_axis=share_x_axis, share_y_axis=share_y_axis,
-                panel_labels_enabled=panel_labels_enabled,
+                panel_labels_enabled=panel_labels_enabled, full_resolution=full_resolution,
             )
             if self.all_secondary_axes[index] is not None:
                 is_secondary_visible_global = True
@@ -663,7 +691,7 @@ class _CanvasDrawingMixin:
     # data_kind='2d_grid'データセットのmap_display_modeとして有効な値
     _VALID_MAP_DISPLAY_MODES = ('heatmap', 'contour', 'contour_filled', 'heatmap_contour')
 
-    def _draw_2d_data(self, ax, axis_index, datasets_2d):
+    def _draw_2d_data(self, ax, axis_index, datasets_2d, full_resolution=False):
         """
         2Dマップ(ヒートマップ/等高線、項目C-508/C-509)を描画する。Dataset.z_grid
         (core/dataset.py、core/grid_data.pyのcompute_z_grid()の結果をキャッシュした
@@ -692,12 +720,14 @@ class _CanvasDrawingMixin:
             # 大規模グリッドの表示負荷対策: 1軸あたりの点数が上限を超える場合、
             # 均等間隔で間引く(既存のLTTBダウンサンプリング(項目C-1001)と同じく、
             # redraw_all()が画面表示/エクスポート両方の唯一の入口のため、この
-            # 間引きはエクスポートにも同様に適用される)。
-            if len(x_grid) > GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS:
+            # 間引きはエクスポートにも同様に適用される)。full_resolution=True
+            # (エクスポート時の「フル解像度」オプション、_draw_data参照)が
+            # 指定された場合は、Line用LTTBと同様に間引きを無視する。
+            if not full_resolution and len(x_grid) > GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS:
                 step = int(np.ceil(len(x_grid) / GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS))
                 x_grid = x_grid[::step]
                 z_grid = z_grid[:, ::step]
-            if len(y_grid) > GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS:
+            if not full_resolution and len(y_grid) > GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS:
                 step = int(np.ceil(len(y_grid) / GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS))
                 y_grid = y_grid[::step]
                 z_grid = z_grid[::step, :]
@@ -748,8 +778,12 @@ class _CanvasDrawingMixin:
             if mappable is not None:
                 self._axis_2d_mappables[axis_index] = mappable
 
-    def _draw_data(self, ax, axis_index, datasets):
-        """指定された軸にデータをプロットする"""
+    def _draw_data(self, ax, axis_index, datasets, full_resolution=False):
+        """
+        指定された軸にデータをプロットする。
+        full_resolution=True の場合、LTTB表示用ダウンサンプリング(項目C-1001)を
+        無視して常に全点描画する(エクスポート時の「フル解像度」オプション用)。
+        """
         all_datasets_for_this_axis = [ds for ds in datasets if ds.subplot_target == axis_index]
 
         # 2Dマップ(項目C-508)は、以下の1D点列前提のロジック(日付/カテゴリ軸判定・
@@ -759,7 +793,7 @@ class _CanvasDrawingMixin:
         # 同じ軸に1Dデータ(例: 将来のC-511スライス線)が重なっても見えるようにする。
         datasets_2d = [ds for ds in all_datasets_for_this_axis if ds.data_kind == '2d_grid']
         datasets_for_this_axis = [ds for ds in all_datasets_for_this_axis if ds.data_kind != '2d_grid']
-        self._draw_2d_data(ax, axis_index, datasets_2d)
+        self._draw_2d_data(ax, axis_index, datasets_2d, full_resolution=full_resolution)
 
         needs_secondary = any(ds.use_secondary_y for ds in datasets_for_this_axis)
 
@@ -821,11 +855,16 @@ class _CanvasDrawingMixin:
             # ウォーターフォール(項目80/109): 有効な場合、以降の描画処理は全て
             # 積み重ねインデックス分だけずらしたX/Yを使う。plot_type別のスタイル
             # (線種・マーカー・塗り等)は各分岐でそのまま個別に選べる。
+            # ★ 文字列カテゴリX軸(is_category_x)の場合、ds.x_dataは文字列の
+            #   object配列のため数値オフセットを加算するとTypeErrorになる。
+            #   Xオフセットは意味を持たない(カテゴリの「ずらし」に相当する演算が
+            #   無い)ためスキップし、Yオフセットのみ適用する(同じX位置での
+            #   縦方向の積み重ね表示として引き続き使える)。
             waterfall_zorder = None
             plot_kwargs = {}
             if ds.waterfall_enabled:
                 w_idx = waterfall_index.get(ds.dataset_id, 0)
-                plot_x_data = ds.x_data + w_idx * ds.waterfall_offset_x
+                plot_x_data = ds.x_data if is_category_x else ds.x_data + w_idx * ds.waterfall_offset_x
                 plot_y_data = ds.y_data + w_idx * ds.waterfall_offset_y
                 # 手前(インデックスが小さい)ほど大きいzorderにし、後ろのトレースの
                 # 上に重なって描画されるようにする。
@@ -835,15 +874,19 @@ class _CanvasDrawingMixin:
                 plot_x_data = ds.x_data
                 plot_y_data = ds.y_data
 
-            # 表示用ダウンサンプリング(LTTB、項目C-1001): Line/Scatter/Line+Scatter
-            # かつ点数が閾値を超える場合のみ、LTTBで代表点を間引いて描画負荷を
-            # 下げる(Bar/Areaは1本ごと/塗り形状の意味が変わるため対象外)。
+            # 表示用ダウンサンプリング(LTTB、項目C-1001): Lineのみ、かつ点数が
+            # 閾値を超える場合のみ、LTTBで代表点を間引いて描画負荷を下げる
+            # (Scatter/Line+Scatterはマーカーの疎密自体が情報のため対象外、
+            # Bar/Areaは1本ごと/塗り形状の意味が変わるため対象外)。
+            # full_resolution=True(エクスポート時の「フル解像度」オプション)が
+            # 指定された場合は、点数によらず常に全点描画する。
             # LTTBはXが昇順であることを前提とするアルゴリズムのため、既に昇順の
             # データにのみ適用する(降順/非単調なXはまれなケースとして対象外にし、
             # 従来通り全点描画する — 誤って形状を変えてしまうより安全側に倒す)。
             downsample_indices = None
             if (
-                ds.plot_type in ('Line', 'Scatter', 'Line+Scatter')
+                ds.plot_type == 'Line'
+                and not full_resolution
                 and not is_category_x
                 and len(plot_x_data) > LTTB_DOWNSAMPLE_THRESHOLD
                 and np.all(np.diff(plot_x_data) >= 0)
@@ -860,9 +903,31 @@ class _CanvasDrawingMixin:
                 else:
                     downsample_indices = None
 
-            # ★ 平滑化(CubicSpline)は数値のX軸でのみ意味を持つ/計算可能なため、
-            # 文字列カテゴリ軸の場合はスキップして通常のプロット経路に進む。
-            if ds.smoothing and len(plot_x_data) > 1 and not is_category_x:
+            # ★ 平滑化(CubicSpline)は「線で結んだ曲線」を滑らかにする機能のため、
+            # Line/Line+Scatterでのみ意味を持つ。Scatter/Bar/Areaに適用すると、
+            # 平滑化した線がマーカー/棒/塗りつぶしを完全に置き換えてしまい
+            # (Line+Scatter以外は元データ点を重ね描きする分岐が無いため)、
+            # ユーザーが選んだ見た目が丸ごと消えてしまう実害があった(過去の
+            # 見落とし)。UIの平滑化チェックボックスも同じ条件で非表示にする
+            # (dataset_mixin.pyの_update_smoothing_control_visibility参照、
+            # グラデーション機能と同じ「表示制御はUI側、描画側も独立して
+            # 適用条件を再チェックする」の二重ガード方針)。数値のX軸でのみ
+            # 意味を持つ/計算可能なため、文字列カテゴリ軸の場合もスキップする。
+            # ★ データカーソル(cursor_mixin.py)は「artist上のインデックス」を
+            #   そのままds.visible_dfの行番号として解釈するため、平滑化された
+            #   曲線(元データと1:1に対応しない200点のCubicSpline補間点)を
+            #   クリック可能にすると、無関係な行を選択する/範囲外で無反応になる
+            #   (過去の見落とし)。CubicSplineが成功して実際に平滑化曲線を
+            #   描いた場合のみTrueにし、下のpicker登録箇所でクリック検出を
+            #   スキップする(ValueErrorフォールバック時は元データ点のままの
+            #   線を描くため、通常通りクリック可能にしてよい)。
+            is_smoothed_artist = False
+            if (
+                ds.smoothing
+                and ds.plot_type in ('Line', 'Line+Scatter')
+                and len(plot_x_data) > 1
+                and not is_category_x
+            ):
                 sort_indices = np.argsort(plot_x_data)
                 x_sorted = plot_x_data[sort_indices]
                 y_sorted = plot_y_data[sort_indices]
@@ -881,6 +946,7 @@ class _CanvasDrawingMixin:
                     else:
                         (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                         ds.artist = artist_line
+                    is_smoothed_artist = True
                     if ds.plot_type == 'Line+Scatter':
                         target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **plot_kwargs)
                 except ValueError:
@@ -985,7 +1051,18 @@ class _CanvasDrawingMixin:
             # ★ グラフ要素の直接クリック選択(項目35)のため、常にクリック検出を有効にする。
             # (データカーソルモードの ON/OFF とは独立。データカーソル自体のpick_event処理は
             #  cursor_mixin._on_pick 側で cursor_mode_enabled を見て有効/無効を判断している)
-            if ds.artist is not None:
+            # 平滑化曲線(is_smoothed_artist)は元データと1:1に対応しないため、
+            # クリック検出自体を無効のままにする(上記コメント参照)。_non_pickable_dataset_ids
+            # にも登録/除外し、cursor_mixin.pyの「データカーソルモード」ON操作(軸内の全
+            # Line2D/PathCollectionへ一括でset_picker(5)する別経路)からもこの
+            # データセットが除外されるようにする(ここでの判定だけでは、モードON操作で
+            # picker が再度有効化されてしまう)。平滑化がOFFに戻された場合に備え、
+            # 該当しない場合は明示的にdiscardして古い状態を残さない。
+            if is_smoothed_artist:
+                self._non_pickable_dataset_ids.add(ds.dataset_id)
+            else:
+                self._non_pickable_dataset_ids.discard(ds.dataset_id)
+            if ds.artist is not None and not is_smoothed_artist:
                 self._enable_element_picking(ds.artist)
 
             # ★ 誤差の表示(X/Y誤差列が設定されている場合のみ描画、項目C-502で
@@ -1040,8 +1117,18 @@ class _CanvasDrawingMixin:
             # 点数が point_label_max_points を超える場合は、フリーズ防止のため描画しない
             # (ダイアログ側で有効化時に確認ポップアップを出しているが、これは別プロジェクトの
             #  読み込みなど確認を経ないケースも含めて描画時にも必ず効くようにするための保険)。
+            # ★ point_label_max_points はLTTB_DOWNSAMPLE_THRESHOLD(20,000)より大きい値に
+            #   環境設定で変更できるため、その場合はLTTB間引き済みのplot_x_data/plot_y_data
+            #   (間引き後の点数)とラベル値(常にvisible_df基準のフルサイズ)の長さが
+            #   ズレ、zip()が短い方に合わせて打ち切られた結果「間引き後のi番目の点」に
+            #   「元データi番目の行のラベル値」という無関係な組み合わせが表示される
+            #   実害があった(過去の見落とし)。誤差バンド/バーと同じdownsample_indices
+            #   を渡してラベル値側も同じ並びに揃える。
             if ds.show_point_labels and len(ds.visible_df) <= self.point_label_max_points:
-                self._draw_point_labels(target_ax, ds, x_data=plot_x_data, y_data=plot_y_data)
+                self._draw_point_labels(
+                    target_ax, ds, x_data=plot_x_data, y_data=plot_y_data,
+                    downsample_indices=downsample_indices,
+                )
 
     def set_highlighted_points(self, dataset, master_indices):
         """
@@ -1099,13 +1186,20 @@ class _CanvasDrawingMixin:
         self._highlight_artists[dataset.dataset_id] = artist
         self.draw_idle()
 
-    def _draw_point_labels(self, ax, ds, x_data=None, y_data=None):
+    def _draw_point_labels(self, ax, ds, x_data=None, y_data=None, downsample_indices=None):
         """
         データセットの各点の脇に、Y値または指定列の値をテキストとして表示する。
         point_label_col_name が None ならY値そのもの、指定されていればその列の値を使う。
         x_data/y_data を明示的に渡すと、そちらを表示位置として使う(ウォーターフォール
         (項目80/109)有効時に、ずらした後の位置にラベルを追従させるため)。
         省略時は ds.x_data/ds.y_data (元の位置) を使う。
+
+        downsample_indices: LTTB表示用ダウンサンプリング(項目C-1001)が適用された
+        場合の間引き後→元のvisible_df上の位置への変換配列(_draw_data参照、
+        誤差バー/バンドと同じもの)。指定された場合、label_values側も同じ
+        インデックスで間引いて揃える(揃えないとzip()が短い方(間引き後の
+        x_data/y_data)で打ち切られ、「間引き後のi番目の点」に「元データi番目の
+        行のラベル値」という無関係な組み合わせが表示されてしまう)。
         """
         if x_data is None:
             x_data = ds.x_data
@@ -1118,6 +1212,8 @@ class _CanvasDrawingMixin:
             label_values = ds.visible_df[ds.point_label_col_name].values
         else:
             label_values = ds.y_data
+        if downsample_indices is not None:
+            label_values = label_values[downsample_indices]
 
         for x, y, label_value in zip(x_data, y_data, label_values):
             if pd.isna(x) or pd.isna(y):

@@ -1421,6 +1421,20 @@ class ExportDialog(QDialog):
             "崩れませんが、テキストとしての検索・編集はできなくなります。"
         )
 
+        # フル解像度エクスポート: 表示用ダウンサンプリング(LTTB、項目C-1001)は
+        # Line(連続曲線)が20,000点を超えた場合のみ画面表示を軽量化するが、
+        # 出版・印刷用など間引き無しのデータが必要な場合はこれを有効にする。
+        # 2Dマップ(ヒートマップ/等高線)のグリッド間引き(1軸500点超で発動)も
+        # 同じチェックボックスで無効化される。
+        self.full_resolution_checkbox = QCheckBox("フル解像度でエクスポート(間引きなし)")
+        self.full_resolution_checkbox.setToolTip(
+            "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/"
+            "等高線)は画面表示同様に間引いて描画されます。このチェックを入れると"
+            "間引きを無効化し、常に全データ点/全解像度でエクスポートします"
+            "(処理が遅くなる場合があります)。Scatter/Line+Scatterのマーカーは"
+            "この設定に関わらず常に全点描画されます。"
+        )
+
         # --- プレビュー関連 ---
         self.preview_button = QPushButton("プレビュー更新")
         self.preview_button.setToolTip("現在の設定でプレビュー画像を生成します。")
@@ -1447,6 +1461,7 @@ class ExportDialog(QDialog):
         form_layout.addRow("解像度", self.dpi_spinbox)
         form_layout.addRow(self.transparent_checkbox)
         form_layout.addRow(self.svg_text_as_path_checkbox)
+        form_layout.addRow(self.full_resolution_checkbox)
 
         # 2. 全体をまとめる垂直レイアウト
         main_layout = QVBoxLayout()
@@ -1473,6 +1488,7 @@ class ExportDialog(QDialog):
             "dpi": self.dpi_spinbox.value(),
             "transparent": self.transparent_checkbox.isChecked(),
             "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),
+            "full_resolution": self.full_resolution_checkbox.isChecked(),
         }
 
 
@@ -3751,6 +3767,17 @@ class BatchExportDialog(QDialog):
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
+        # フル解像度エクスポート: ExportDialogと同じオプション
+        self.full_resolution_checkbox = QCheckBox("フル解像度でエクスポート(間引きなし)")
+        self.full_resolution_checkbox.setToolTip(
+            "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/"
+            "等高線)は画面表示同様に間引いて描画されます。このチェックを入れると"
+            "間引きを無効化し、常に全データ点/全解像度でエクスポートします"
+            "(処理が遅くなる場合があります)。Scatter/Line+Scatterのマーカーは"
+            "この設定に関わらず常に全点描画されます。"
+        )
+        form.addRow(self.full_resolution_checkbox)
+
         layout.addLayout(form)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -3799,6 +3826,7 @@ class BatchExportDialog(QDialog):
             'dpi': self.dpi_spinbox.value(),
             'transparent': self.transparent_checkbox.isChecked(),
             'svg_text_as_path': self.svg_text_as_path_checkbox.isChecked(),
+            'full_resolution': self.full_resolution_checkbox.isChecked(),
         }
 
 

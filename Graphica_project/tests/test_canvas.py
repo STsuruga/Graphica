@@ -531,6 +531,26 @@ def test_waterfall_combines_with_line_plus_scatter_plot_type(canvas):
     assert ds1.artist.get_linestyle() == '-'
 
 
+def test_waterfall_with_category_x_axis_does_not_crash(canvas):
+    """文字列カテゴリX軸(Barの主要用途)にウォーターフォールを適用すると、
+    以前はds.x_data(文字列のobject配列)に数値のXオフセットを加算しようとして
+    TypeErrorでredraw_all全体がクラッシュしていた(過去の見落とし)。カテゴリ軸
+    ではXオフセットをスキップし、Yオフセットのみ適用することで、縦方向の
+    積み重ね表示自体は維持しつつクラッシュを防ぐ。"""
+    x, y = ['a', 'b', 'c'], [1.0, 2.0, 3.0]
+    ds0 = Dataset(name="wf0", df=pd.DataFrame({"x": x, "y": y}), x_col_name="x", y_col_name="y",
+                   plot_type='Bar', color='#112233', waterfall_enabled=True,
+                   waterfall_offset_x=1.0, waterfall_offset_y=2.0)
+    ds1 = Dataset(name="wf1", df=pd.DataFrame({"x": x, "y": y}), x_col_name="x", y_col_name="y",
+                   plot_type='Bar', color='#334455', waterfall_enabled=True,
+                   waterfall_offset_x=1.0, waterfall_offset_y=2.0)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])  # 例外が出なければOK
+
+    ax = canvas.all_axes[0]
+    assert len(ax.patches) == 6  # 2データセット x 3カテゴリ = 6本の棒
+
+
 def test_grid_minor_hidden_when_minor_grid_visible_false():
     """主グリッドはONでも補助グリッドがOFFなら、補助目盛グリッド線は表示されない
     (X/Y独立カスタマイズ導入後も、この既存の on/off 挙動は変わらない)"""
@@ -1368,6 +1388,88 @@ def test_smoothing_success_draws_cubicspline_curve_without_gradient(canvas):
     assert len(ds.artist.get_xdata()) == 200
 
 
+def test_smoothing_not_applied_for_scatter_plot_type(canvas):
+    """平滑化は「線で結んだ曲線」を滑らかにする機能のためScatterには適用しない
+    (過去はplot_typeを問わず適用し、Scatterのマーカーが平滑化した線に丸ごと
+    置き換わってしまう実害があったため修正)。"""
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0], plot_type='Scatter')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert hasattr(ds.artist, 'get_offsets')  # PathCollection(通常のScatter)のまま
+    assert len(ds.artist.get_offsets()) == 4  # 元のデータ点数のまま(平滑化されていない)
+
+
+def test_smoothing_not_applied_for_bar_plot_type(canvas):
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0], plot_type='Bar')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.patches) == 4  # 通常のBarのまま(4本の棒)
+
+
+def test_smoothing_not_applied_for_area_plot_type(canvas):
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0], plot_type='Area')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert _poly_collections(ax) != []  # fill_between(Areaの塗りつぶし)が描画されている
+
+
+def test_smoothing_disables_picking_on_smoothed_artist(canvas):
+    """平滑化曲線(元データと1:1対応しない200点のCubicSpline補間点)は、
+    データカーソルのクリック選択が誤った/無関係な行を指してしまうため、
+    ピッカー自体を有効化しない(cursor_mixin._on_pickに到達させない)。"""
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0])
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.artist.get_picker() is None
+
+
+def test_non_smoothed_line_keeps_picking_enabled(canvas):
+    """平滑化していない通常のLineは、これまで通りクリック選択が有効。"""
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0], smoothing=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.artist.get_picker() == 5
+
+
+def test_smoothed_dataset_registered_in_non_pickable_dataset_ids(canvas):
+    """平滑化曲線のdataset_idは_non_pickable_dataset_idsに登録される
+    (cursor_mixin.pyの「データカーソルモード」ON操作が、この集合を見て
+    一括set_picker(5)の対象から除外するために参照する)。"""
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0])
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id in canvas._non_pickable_dataset_ids
+
+
+def test_non_pickable_dataset_ids_cleared_when_smoothing_disabled_on_redraw(canvas):
+    """平滑化をOFFに戻して再描画すると、_non_pickable_dataset_idsから
+    そのdataset_idが取り除かれる(古い状態が残ってピッカーが永久に無効化
+    されたままにならないこと)。"""
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0])
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id in canvas._non_pickable_dataset_ids
+
+    ds.smoothing = False
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id not in canvas._non_pickable_dataset_ids
+    assert ds.artist.get_picker() == 5
+
+
+def test_non_pickable_dataset_ids_cleared_on_full_redraw(canvas):
+    """redraw_all()の冒頭で_non_pickable_dataset_idsが全クリアされる
+    (downsample_index_map等の他の再描画状態と同じ扱い)。"""
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0])
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert canvas._non_pickable_dataset_ids  # 空でないことを確認
+
+    canvas.redraw_all([], 1, 1, [{}])  # 全データセット削除後の再描画
+    assert canvas._non_pickable_dataset_ids == set()
+
+
+def test_smoothing_cubicspline_failure_keeps_picking_enabled(canvas):
+    """CubicSpline失敗時のフォールバック(元データ点のまま描画)は、平滑化された
+    わけではないので通常通りクリック選択を有効にしてよい。"""
+    ds = _make_smoothing_dataset([0.0, 0.0, 1.0, 2.0], [0.0, 1.0, 2.0, 3.0])
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.artist.get_picker() == 5
+
+
 def test_smoothing_success_with_gradient_uses_linecollection(canvas):
     ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0],
                                   gradient_enabled=True, gradient_target='line')
@@ -1630,11 +1732,61 @@ def test_downsampling_not_applied_below_threshold(canvas):
     assert len(ds.artist.get_xdata()) == LTTB_DOWNSAMPLE_THRESHOLD - 1
 
 
-def test_downsampling_applied_for_scatter(canvas):
-    ds = _make_large_dataset(LTTB_DOWNSAMPLE_THRESHOLD + 1, plot_type="Scatter")
+def test_downsampling_not_applied_for_scatter(canvas):
+    """LTTBは「線で結んだ形状」を保つアルゴリズムであり、点の疎密自体が情報
+    であるScatterに適用すると実際のデータ密度分布が失われるため、Scatterは
+    間引き対象から除外する(過去はScatterも対象に含めていたが設計上の
+    見落としだったため修正)。"""
+    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    ds = _make_large_dataset(n, plot_type="Scatter")
     canvas.redraw_all([ds], 1, 1, [{}])
-    assert ds.dataset_id in canvas.downsample_index_map
-    assert len(ds.artist.get_offsets()) == LTTB_DOWNSAMPLE_TARGET_POINTS
+    assert ds.dataset_id not in canvas.downsample_index_map
+    assert len(ds.artist.get_offsets()) == n
+
+
+def test_downsampling_not_applied_for_line_plus_scatter(canvas):
+    """Line+Scatterもマーカーの疎密が情報のため、Scatterと同様に間引き対象外。"""
+    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    ds = _make_large_dataset(n, plot_type="Line+Scatter")
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.dataset_id not in canvas.downsample_index_map
+    assert len(ds.artist.get_xdata()) == n
+
+
+def test_full_resolution_bypasses_line_downsampling(canvas):
+    """full_resolution=Trueが指定された場合、Lineでも点数によらず全点描画する
+    (エクスポート時の「フル解像度」オプション用)。"""
+    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    ds = _make_large_dataset(n)
+    canvas.redraw_all([ds], 1, 1, [{}], full_resolution=True)
+    assert ds.dataset_id not in canvas.downsample_index_map
+    assert len(ds.artist.get_xdata()) == n
+
+
+def test_point_labels_aligned_with_lttb_downsampled_points(canvas):
+    """point_label_max_pointsがLTTB_DOWNSAMPLE_THRESHOLDより大きい値に設定
+    されている場合(環境設定で変更可能)、LTTB間引きとポイントラベルが同時に
+    適用されうる。間引き後の点数(x_data/y_data)とラベル値(元々visible_df
+    基準のフルサイズ)の長さが揃っていないと、zip()が短い方で打ち切られ
+    「間引き後のi番目の点」に「元データi番目の行の値」という無関係なラベルが
+    付いてしまう実害があった。既知の平面 y = 2x のデータで、各点のラベルが
+    間引き後もその点自身のY値(=2倍の関係)のまま保たれることを確認する。"""
+    canvas.point_label_max_points = LTTB_DOWNSAMPLE_THRESHOLD + 10000
+    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    x = np.arange(n, dtype=float)
+    y = x * 2.0
+    ds = Dataset(name="labeled_big", df=pd.DataFrame({"x": x, "y": y}),
+                 x_col_name="x", y_col_name="y", plot_type="Line", show_point_labels=True)
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+    assert ds.dataset_id in canvas.downsample_index_map  # 実際に間引きが発生した前提の確認
+    ax = canvas.all_axes[0]
+    labels = [t for t in ax.texts]
+    assert len(labels) == LTTB_DOWNSAMPLE_TARGET_POINTS
+    for t in labels:
+        px, py = t.xy
+        # ラベル文字列は".4g"(有効数字4桁)で丸められるため、相対誤差を広めに取る
+        assert float(t.get_text()) == pytest.approx(py, rel=1e-3)  # ラベル値は自分自身の位置のY値と一致
 
 
 def test_downsampling_not_applied_to_bar_plot_type(canvas):
@@ -1873,6 +2025,31 @@ def test_heatmap_large_grid_is_decimated_for_display():
     c.redraw_all([ds], 1, 1, [{}])
 
     assert ds.artist.get_array().shape[1] <= GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS
+    plt.close(c.fig)
+
+
+def test_heatmap_full_resolution_bypasses_grid_decimation():
+    """full_resolution=Trueが指定された場合、Line用LTTBと同様に2Dグリッドの
+    間引き(GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS)も無視して全解像度で描画する
+    (エクスポート時の「フル解像度」オプションが2Dマップにも一貫して効くように
+    するための修正、以前は_draw_2d_dataにfull_resolutionが渡っておらず
+    このオプションが2Dマップには効かなかった)。"""
+    n = GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS + 200
+    xs = np.linspace(0.0, 1.0, n)
+    ys = np.linspace(0.0, 1.0, 5)
+    x, y, z = [], [], []
+    for yi in ys:
+        for xi in xs:
+            x.append(xi)
+            y.append(yi)
+            z.append(xi + yi)
+    df = pd.DataFrame({'x': x, 'y': y, 'z': z})
+    ds = Dataset(name="big", df=df, x_col_name='x', y_col_name='y',
+                 data_kind='2d_grid', z_col_name='z')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    c.redraw_all([ds], 1, 1, [{}], full_resolution=True)
+
+    assert ds.artist.get_array().shape[1] == n
     plt.close(c.fig)
 
 

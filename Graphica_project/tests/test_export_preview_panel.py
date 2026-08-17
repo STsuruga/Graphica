@@ -253,6 +253,25 @@ def test_on_copy_clicked_png_sets_clipboard_pixmap(window_with_plot):
     assert pixmap is not None and not pixmap.isNull()
 
 
+def test_on_copy_clicked_passes_full_resolution_to_render_bytes(window_with_plot, monkeypatch):
+    panel = window_with_plot.export_preview_panel
+    panel.copy_format_combo.setCurrentText("PNG")
+    panel.full_resolution_checkbox.setChecked(True)
+
+    calls = []
+    original = panel._render_full_figure_bytes
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs.get('full_resolution', False))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(panel, "_render_full_figure_bytes", spy)
+
+    panel._on_copy_clicked()
+
+    assert calls == [True]
+
+
 def test_on_copy_clicked_png_none_shows_warning(window_with_plot, monkeypatch):
     panel = window_with_plot.export_preview_panel
     panel.copy_format_combo.setCurrentText("PNG")
@@ -331,6 +350,57 @@ def test_on_save_clicked_saves_png_file(window_with_plot, monkeypatch, tmp_path)
 
     import os
     assert os.path.exists(out_path)
+
+
+def test_get_options_includes_full_resolution(window_with_plot):
+    panel = window_with_plot.export_preview_panel
+    assert panel.get_options()["full_resolution"] is False  # 既定は無効
+
+    panel.full_resolution_checkbox.setChecked(True)
+    assert panel.get_options()["full_resolution"] is True
+
+
+def test_on_save_clicked_passes_full_resolution_to_temp_canvas(window_with_plot, monkeypatch, tmp_path):
+    """「フル解像度で保存/コピー」が有効な場合、実際の保存時は
+    _make_temp_canvas_for_full_figure()にfull_resolution=Trueが渡ること。"""
+    out_path = str(tmp_path / "out.png")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: (out_path, "")))
+    panel = window_with_plot.export_preview_panel
+    panel.full_resolution_checkbox.setChecked(True)
+
+    calls = []
+    original = panel._make_temp_canvas_for_full_figure
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs.get('full_resolution', False))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(panel, "_make_temp_canvas_for_full_figure", spy)
+
+    panel._on_save_clicked()
+
+    assert calls == [True]
+
+
+def test_render_preview_never_uses_full_resolution_regardless_of_checkbox(window_with_plot, monkeypatch):
+    """常時更新されるライブプレビューは応答性のため、「フル解像度」チェックが
+    入っていても常に間引いたまま(full_resolution=False)描画する。実際の保存/
+    コピーとは独立していることを確認する。"""
+    panel = window_with_plot.export_preview_panel
+    panel.full_resolution_checkbox.setChecked(True)
+
+    calls = []
+    original = panel._make_temp_canvas_for_full_figure
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs.get('full_resolution', False))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(panel, "_make_temp_canvas_for_full_figure", spy)
+
+    panel._render_preview()
+
+    assert calls == [False]
 
 
 def test_on_save_clicked_saves_svg_file_with_text_as_path(window_with_plot, monkeypatch, tmp_path):

@@ -259,7 +259,7 @@ class ExportMixin:
                 ]
                 temp_canvas = _HeadlessRenderCanvas(width=BATCH_EXPORT_FIGSIZE[0], height=BATCH_EXPORT_FIGSIZE[1], dpi=options['dpi'])
                 temp_canvas.dark_mode = self.canvas.dark_mode
-                temp_canvas.redraw_all(datasets_for_axis, 1, 1, [settings])
+                temp_canvas.redraw_all(datasets_for_axis, 1, 1, [settings], full_resolution=options.get('full_resolution', False))
                 self._save_figure_with_options(temp_canvas.fig, out_path, options)
                 results.append((out_name, None))
             except Exception as e:
@@ -309,6 +309,7 @@ class ExportMixin:
                 temp_canvas.redraw_all(
                     temp_project.datasets, rows, cols, temp_project.all_plot_settings, layout_mode=layout_mode,
                     panel_labels_enabled=temp_project.panel_labels_enabled,
+                    full_resolution=options.get('full_resolution', False),
                 )
                 self._save_figure_with_options(temp_canvas.fig, out_path, options)
                 results.append((out_name, None))
@@ -380,6 +381,14 @@ class ExportMixin:
                 # 6. ヘルパーメソッドで、設定 (px, cm) をインチ (in) に変換
                 width_in, height_in = self._calculate_size_in_inches(options)
 
+                # 6.5. フル解像度エクスポート: 有効な場合、LTTB/2Dグリッド間引きを
+                #    無視して全データ点/全解像度で再描画してから保存する
+                #    (self.canvasは画面表示用の本体キャンバスのため、finallyで
+                #    必ず通常の間引き済み状態へ戻す)。
+                full_resolution = options.get('full_resolution', False)
+                if full_resolution:
+                    self._update_plot(full_resolution=True)
+
                 # 7. ★ 一時的に Figure サイズを変更して保存
                 original_size = self.canvas.fig.get_size_inches() # 現在のサイズを退避
 
@@ -433,6 +442,10 @@ class ExportMixin:
                     #    保存が成功しても失敗しても、Figure のサイズを
                     #    GUI上の元のサイズ (original_size) に戻す
                     self.canvas.fig.set_size_inches(original_size)
+                    # フル解像度エクスポートのために全点描画へ切り替えていた場合、
+                    # 画面表示を通常の間引き済み状態へ戻す。
+                    if full_resolution:
+                        self._update_plot(full_resolution=False)
                     self.canvas.draw_idle() # GUIのキャンバスを再描画
 
     def _generate_preview(self, dialog):
@@ -470,7 +483,10 @@ class ExportMixin:
                 while len(self.canvas.all_secondary_axes) <= active_index:
                      self.canvas.all_secondary_axes.append(None)
 
-                self.canvas._draw_data(temp_ax, active_index, self.project.datasets)
+                self.canvas._draw_data(
+                    temp_ax, active_index, self.project.datasets,
+                    full_resolution=options.get('full_resolution', False),
+                )
                 self.canvas._apply_appearance(temp_ax, active_index, active_settings)
 
                 self.canvas.all_secondary_axes = original_secondary

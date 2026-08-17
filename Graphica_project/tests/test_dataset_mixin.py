@@ -2462,6 +2462,59 @@ def test_property_changed_plot_type_combo_single_dataset(tmp_path, monkeypatch):
     assert ds.plot_type == "Line"
 
 
+def test_smoothing_checkbox_hidden_for_scatter_plot_type(tmp_path, monkeypatch):
+    """平滑化はLine/Line+Scatterでのみ意味を持つため、Scatter/Bar/Areaでは
+    チェックボックス自体を隠す(グラデーション機能と同じパターン。過去は
+    plot_typeを問わず常に表示されており、Scatter等に適用すると見た目が
+    丸ごと平滑化した線に置き換わってしまう実害があった)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    assert window.ui.smoothing_checkbox.isVisibleTo(window) is True  # Line既定では表示
+
+    window.ui.plot_type_combo.setCurrentText("Scatter")
+    assert window.ui.smoothing_checkbox.isVisibleTo(window) is False
+
+    window.ui.plot_type_combo.setCurrentText("Bar")
+    assert window.ui.smoothing_checkbox.isVisibleTo(window) is False
+
+    window.ui.plot_type_combo.setCurrentText("Area")
+    assert window.ui.smoothing_checkbox.isVisibleTo(window) is False
+
+    window.ui.plot_type_combo.setCurrentText("Line+Scatter")
+    assert window.ui.smoothing_checkbox.isVisibleTo(window) is True
+
+    window.ui.plot_type_combo.setCurrentText("Line")
+    assert window.ui.smoothing_checkbox.isVisibleTo(window) is True
+
+
+def test_error_display_band_option_disabled_for_bar_and_area_plot_type(tmp_path, monkeypatch):
+    """誤差の「帯」表示(fill_between)は、離散的なBarや自身の塗りつぶしと
+    二重に重なるAreaでは視覚的に不自然なため、コンボの該当項目を無効化する
+    (Bar側の「バー」選択肢自体は引き続き選べる)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    model = window.error_display_combo.model()
+    band_index = window.error_display_combo.findData('band')
+    both_index = window.error_display_combo.findData('both')
+    bar_index = window.error_display_combo.findData('bar')
+
+    assert model.item(band_index).isEnabled() is True  # Line既定では有効
+    assert model.item(both_index).isEnabled() is True
+
+    window.ui.plot_type_combo.setCurrentText("Bar")
+    assert model.item(band_index).isEnabled() is False
+    assert model.item(both_index).isEnabled() is False
+    assert model.item(bar_index).isEnabled() is True  # 「バー」は引き続き選べる
+
+    window.ui.plot_type_combo.setCurrentText("Area")
+    assert model.item(band_index).isEnabled() is False
+
+    window.ui.plot_type_combo.setCurrentText("Scatter")
+    assert model.item(band_index).isEnabled() is True  # Bar/Area以外では再度有効
+
+
 def test_property_changed_marker_none_maps_to_none_attr(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")

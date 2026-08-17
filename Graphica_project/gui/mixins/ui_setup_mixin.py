@@ -173,6 +173,11 @@ class UISetupMixin:
             # 「線/塗り/両方」のうちどれが意味を持つかが変わるため、プロットタイプの
             # 変更のたびに表示/非表示を更新し直す(_on_property_changedとは別経路)。
             self.ui.plot_type_combo.currentTextChanged.connect(self._update_gradient_controls_visibility)
+            # ★ 平滑化チェックボックス(Line/Line+Scatterでのみ意味を持つ)も同様に、
+            # プロットタイプの変更のたびに表示/非表示を更新し直す。
+            self.ui.plot_type_combo.currentTextChanged.connect(self._update_smoothing_control_visibility)
+            # ★ 誤差表示コンボの「誤差バンド」項目(Bar/Areaでは無効化)も同様。
+            self.ui.plot_type_combo.currentTextChanged.connect(self._update_error_display_control_items)
             self.color_picker_widget.colorChanged.connect(self._on_dataset_color_changed)
             self.ui.linestyle_combo.currentTextChanged.connect(self._on_property_changed)
             self.ui.linewidth_spinbox.valueChanged.connect(self._on_property_changed)

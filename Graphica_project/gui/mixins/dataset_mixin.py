@@ -1566,6 +1566,42 @@ class DatasetMixin:
         self.gradient_target_label.setVisible(show_target_combo)
         self.gradient_target_combo.setVisible(show_target_combo)
 
+    def _update_smoothing_control_visibility(self):
+        """
+        平滑化(CubicSpline)チェックボックスの表示/非表示を、現在選択中データセットの
+        plot_type に応じて更新する(_update_gradient_controls_visibilityと同じ
+        パターン)。平滑化は「線で結んだ曲線」を滑らかにする機能のため
+        'Line'/'Line+Scatter' でのみ意味を持つ。Scatter/Bar/Areaに適用すると、
+        平滑化した線がマーカー/棒/塗りつぶしを完全に置き換えてしまう実害が
+        あったため、対象外のplot_typeではチェックボックス自体を隠す
+        (gui/canvas.pyの_draw_data側でも同じ条件を独立に再チェックしている、
+        二重ガード方針)。
+        """
+        dataset = self._get_current_dataset()
+        plot_type = dataset.plot_type if dataset is not None else self.ui.plot_type_combo.currentText()
+        self.ui.smoothing_checkbox.setVisible(plot_type in ('Line', 'Line+Scatter'))
+
+    def _update_error_display_control_items(self):
+        """
+        誤差表示コンボ(エラーバー/誤差バンド/両方)のうち「誤差バンド」
+        (fill_betweenによる連続的な帯)を選べるplot_typeを制限する。
+        Bar(離散的な棒)には連続的な帯が視覚的に合わず、Areaは自身の
+        塗りつぶしと二重に重なって煩雑になるため、これら2種別では
+        「誤差バンド」「両方」の項目を無効化する(グラデーション/平滑化と
+        同じ「状況に応じて選択肢を制限する」方針だが、コンボ全体ではなく
+        個別項目の有効/無効化のため setVisible ではなく QStandardItem の
+        setEnabled を使う)。既に保存済みの値は変更しない(選び直しは
+        ユーザーに委ねる、_update_gradient_controls_visibilityと同じ方針)。
+        """
+        dataset = self._get_current_dataset()
+        plot_type = dataset.plot_type if dataset is not None else self.ui.plot_type_combo.currentText()
+        band_ok = plot_type not in ('Bar', 'Area')
+        model = self.error_display_combo.model()
+        for value in ('band', 'both'):
+            index = self.error_display_combo.findData(value)
+            if index != -1:
+                model.item(index).setEnabled(band_ok)
+
     def _update_waterfall_controls_visibility(self):
         """
         ウォーターフォールプロット(項目80)のオフセット量スピンボックスの表示/非表示を
@@ -1835,6 +1871,8 @@ class DatasetMixin:
             self.vmax_spinbox.blockSignals(False)
             self._update_gradient_controls_visibility()
             self._update_waterfall_controls_visibility()
+            self._update_smoothing_control_visibility()
+            self._update_error_display_control_items()
             self._update_2d_controls_visibility()
 
             # 4e. X/Y軸コンボボックスの更新処理 (シグナルブロックを含む)

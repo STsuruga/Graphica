@@ -133,11 +133,23 @@ class CursorMixin:
 
             # 2. すべてのプロット要素 (線, 点) をピック可能にする
             #    (all_secondary_axes には None が含まれる可能性があるのでチェック)
+            # ★ 平滑化(CubicSpline)曲線のArtist(元データと1:1に対応しない200点の
+            #   補間点、gui/canvas.py の_non_pickable_dataset_ids参照)は、この
+            #   一括有効化からも除外する。ds.dataset_id→ds.artistの対応はこの
+            #   呼び出しの直前(現在の描画結果)から都度組み立てるため、過去に
+            #   破棄されたArtistオブジェクトのメモリアドレス再利用による誤った
+            #   一致が起きる余地はない。
+            non_pickable_artists = {
+                ds.artist for ds in self.project.datasets
+                if ds.dataset_id in self.canvas._non_pickable_dataset_ids and ds.artist is not None
+            }
             all_valid_axes = [ax for ax in self.all_axes + self.all_secondary_axes if ax is not None]
             for ax in all_valid_axes:
                 # ax.get_lines() -> plot() で描画された線 (Line2D)
                 # ax.collections -> scatter() で描画された点 (PathCollection)
                 for item in ax.get_lines() + ax.collections:
+                    if item in non_pickable_artists:
+                        continue
                     try:
                         # set_picker(5) : マウスクリック位置から 5 ピクセル以内を検出範囲とする
                         item.set_picker(5)

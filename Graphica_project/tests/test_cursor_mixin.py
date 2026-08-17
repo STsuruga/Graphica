@@ -85,6 +85,28 @@ def test_toggle_cursor_mode_on_sets_picker_and_connects_pick_event(tmp_path, mon
     assert window.coordinate_label.text() == "クリックしてデータを選択"
 
 
+def test_toggle_cursor_mode_on_skips_smoothed_artist(tmp_path, monkeypatch):
+    """平滑化(CubicSpline)された曲線は、_draw_data側の個別制御だけでなく
+    「データカーソルモード」ONの一括set_picker(5)からも除外されること
+    (過去は_draw_data側だけの制御だったため、モードをONにすると平滑化曲線が
+    再びクリック可能になり、無関係な行を選択してしまう抜け穴があった)。
+    CubicSplineの既定境界条件(not-a-knot)は最低4点必要なため、4点のデータを使う。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(
+        name="smooth_d", df=pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0], "y": [0.0, 1.0, 4.0, 9.0]}),
+        x_col_name="x", y_col_name="y", plot_type="Line", smoothing=True,
+    )
+    window.project.datasets.append(ds)
+    window._update_plot()
+    line = window.canvas.all_axes[0].get_lines()[0]
+    assert line.get_picker() is None  # 描画直後の時点でも既に無効
+
+    window._toggle_cursor_mode(True)
+
+    assert line.get_picker() is None
+    assert ds.dataset_id in window.canvas._non_pickable_dataset_ids
+
+
 def test_toggle_cursor_mode_on_swallows_set_picker_attribute_error(tmp_path, monkeypatch, caplog):
     """
     一部のArtistがset_pickerをサポートしない場合(AttributeError)でも、

@@ -2178,7 +2178,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         self._update_plot()
 
-    def _update_plot(self, light=False):
+    def _update_plot(self, light=False, full_resolution=False):
         """
         グラフ全体を再描画する（MVC対応版）。
 
@@ -2189,6 +2189,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         canvas.update_all_axes_appearance_and_data()(既存Axesのデータ・外観
         だけを描き直す)を使う。呼び出し側は上記の前提が崩れないことを保証する
         こと(レイアウト行数/列数変更やデータセット追加削除では使わない)。
+
+        full_resolution=True: LTTB表示用ダウンサンプリング(項目C-1001)を
+        無視して常に全点描画する。単発エクスポート(export_mixin.py の
+        _on_export_plot)が「フル解像度でエクスポート」オプション有効時に、
+        savefig直前でTrueとして呼び、savefig後に既定(False)で呼び直して
+        画面表示を通常の間引き済み状態へ戻す。
         """
         layout_mode = getattr(self.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
@@ -2212,6 +2218,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             panel_labels_enabled=self.project.panel_labels_enabled,
             share_x_axis=getattr(self.project, 'share_x_axis', False),
             share_y_axis=getattr(self.project, 'share_y_axis', False),
+            full_resolution=full_resolution,
         )
 
         # ★ Canvasから返ってきた結果をもとに、UI（チェックボックス等）を制御する
