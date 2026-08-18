@@ -142,7 +142,7 @@ from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
 from core.plugin_api import load_plugins_once, get_registered_importer_extensions
-from core.app_paths import get_user_plugins_dir
+from core.app_paths import get_app_data_dir, get_user_plugins_dir
 
 # --- Matplotlib ---
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
@@ -198,6 +198,12 @@ LABEL_SYMBOL_PALETTE = [
     ("≈", "approx"), ("≠", "neq"), ("≤", "leq"), ("≥", "geq"),
     ("∞", "infty"), ("→", "rightarrow"), ("←", "leftarrow"), ("∂", "partial"),
     ("∇", "nabla"), ("∫", "int"), ("∝", "propto"), ("°", "degree"),
+    # ★ 実機フィードバック: ハイフン(-)やen dash(–)ではなく、正しい
+    #   マイナス記号(U+2212、通常のハイフンより長く中央揃えの符号)を
+    #   挿入したいとの要望。mathtextのマクロではなく生の文字そのものを
+    #   挿入したいので、macro=Noneにして_insert_symbol()側で
+    #   $...$のmathtext包装をせず素のテキストとして挿入させる。
+    ("−", None),
 ]
 
 
@@ -215,7 +221,24 @@ def _svg_icon(name, size=20):
     color = theme.current_tokens()["text_secondary"]
     return load_svg_icon(resource_path(os.path.join(ICONS_DIR, f"{name}.svg")),
                           color=color, size=size)
-from core.excel_utils import find_unevaluated_formula_cells
+
+
+def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, max_scan_cells=200_000):
+    """
+    core.excel_utils.find_unevaluated_formula_cells() への遅延importラッパー。
+
+    core.excel_utils はopenpyxlに依存しており、これをモジュール先頭でimportすると
+    Excelを一切扱わない起動時にも毎回openpyxlの読み込みコストがかかってしまう
+    (実測 約350ms)。Excelファイルを実際に読み込む時(_import_loaded_dataframe内)
+    にだけ発生するよう、呼び出しの都度ここでimportする。関数名・シグネチャを
+    そのまま維持しているのは、既存テストが
+    monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", ...)
+    でこのモジュール属性を直接差し替える前提になっているため。
+    """
+    from core.excel_utils import find_unevaluated_formula_cells as _impl
+    return _impl(file_path, sheet_name, max_examples, max_scan_cells)
+
+
 from gui.export_preview_panel import ExportPreviewPanel
 from gui.residual_panel import ResidualPanel
 from gui.provenance_panel import ProvenancePanel
@@ -547,6 +570,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
         self._data_load_queue_done = 0   # 現在処理中のバッチで読み込みを開始した件数 (進捗表示用)
         self._copied_dataset_style = None  # 「スタイルをコピー」でコピーした属性値の辞書
+        # 上書き保存(実機フィードバック)用: 現在開いている/直前に保存した
+        # プロジェクトファイルのパス。未保存(一度もsave/loadしていない)なら
+        # None のままで、manual_save()はこの場合manual_save_as()へフォールバックする。
+        self._current_project_path = None
 
         # データセットのプロパティ変更 (色・線種・凡例名など) 用の Undo/Redo スタック
         # (DataEditorDialog 内のセル編集用スタックとは別物)
@@ -707,6 +734,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #   アプリ内の他のアイコンボタン(18px)とトーンを揃えつつ、必要幅を
         #   縮めてオーバーフローしにくくする。
         toolbar.setIconSize(QSize(TOOLBAR_ICON_SIZE, TOOLBAR_ICON_SIZE))
+        self._localize_navigation_toolbar(toolbar)
 
         # --- ★ ツールバーにカスタムボタン (データカーソル) を追加 ★ ---
         toolbar.addSeparator()
@@ -905,6 +933,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             button.setIcon(_svg_icon(icon_name, size=18))
             button.setProperty("iconOnly", True)
             button.setFixedSize(34, 34)
+            # ★ 実機フィードバック: 「ボタンが一回押すと他のボタン押すまで
+            #   ずっと色付きになる」。QPushButtonの既定フォーカスポリシー
+            #   により、クリック後もgui/theme.pyのQPushButton:focus(青枠)が
+            #   居座り続けるため、フォーカスを持たせないようにする。
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         def _make_group_separator():
             sep = QFrame()
@@ -1021,6 +1054,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_offset_y_spinbox.setDecimals(4)
         self.waterfall_offset_y_spinbox.setValue(1.0)
         self.ui.formLayout_4.addRow(self.waterfall_offset_y_label, self.waterfall_offset_y_spinbox)
+
+        # ★ 実機フィードバック: 「手前が奥を隠す(オクルージョン)はon/off切り替え
+        #   可能にして」。既定はTrue(従来通りの見た目)。
+        self.waterfall_occlusion_checkbox = QCheckBox(tr("背面のトレースを隠す(オクルージョン)"))
+        self.waterfall_occlusion_checkbox.setChecked(True)
+        self.ui.formLayout_4.addRow(self.waterfall_occlusion_checkbox)
 
         # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")
@@ -1236,7 +1275,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             width_spinbox.setDecimals(1)
             width_spinbox.setValue(default_width)
             width_spinbox.setToolTip(tr("太さ"))
-            width_spinbox.setMaximumWidth(65)
+            # ★ 実機フィードバック: 「グリッド設定のスピンボックスの数字が
+            #   見切れてる」。65pxだと上下矢印ボタンと数字表示が競合し、
+            #   "10.0"のような4桁の値が見切れていたため広げる。
+            width_spinbox.setMinimumWidth(60)
+            width_spinbox.setMaximumWidth(78)
 
             alpha_spinbox = QDoubleSpinBox()
             alpha_spinbox.setRange(0.0, 1.0)
@@ -1244,7 +1287,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             alpha_spinbox.setDecimals(2)
             alpha_spinbox.setValue(1.0)
             alpha_spinbox.setToolTip(tr("透過度(アルファ)"))
-            alpha_spinbox.setMaximumWidth(65)
+            alpha_spinbox.setMinimumWidth(60)
+            alpha_spinbox.setMaximumWidth(78)
 
             row_layout = QHBoxLayout()
             row_layout.addWidget(linestyle_combo)
@@ -1307,6 +1351,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.colorbar_label_label = QLabel(tr("カラーバーのラベル"))
         self.colorbar_label_edit = QLineEdit()
         self.ui.formLayout_3.addRow(self.colorbar_label_label, self.colorbar_label_edit)
+
+        # 7c. 目盛(目盛線本体)・目盛数値の表示/非表示切り替え(実機フィードバック):
+        #     グリッド線(格子)とは別に、軸の目盛マーク自体と、その数値ラベルを
+        #     個別にON/OFFできるようにする。既存の動的UI構築コードの
+        #     insertRow(N, ...)は位置がハードコードされているため、新規追加は
+        #     CLAUDE.mdの方針通り末尾へのaddRow()で統一する。
+        self.ticks_visible_checkbox = QCheckBox(tr("目盛を表示"))
+        self.ticks_visible_checkbox.setChecked(True)
+        self.ui.formLayout_3.addRow(self.ticks_visible_checkbox)
+        self.tick_labels_visible_checkbox = QCheckBox(tr("目盛の数値を表示"))
+        self.tick_labels_visible_checkbox.setChecked(True)
+        self.ui.formLayout_3.addRow(self.tick_labels_visible_checkbox)
 
         # 8. 目盛りの指数表記フォーマット切り替え(項目62)
         #    自動/軸端にまとめて指数表記/目盛りごとに指数表記/常に小数表記 から選択
@@ -2015,10 +2071,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     def _update_autosave_path(self):
         """
         QSettingsの "autosave_dir" (環境設定ダイアログで指定可能) に基づいて
-        self._autosave_filename を再計算する。未設定/空文字の場合は従来どおり
-        アプリのフォルダ(ファイル名のみ、resource_path基準ではなくcwd相対)に
-        保存する。保存先ディレクトリが存在しない場合は作成しておく
-        (auto_save() が失敗しないようにするため)。
+        self._autosave_filename を再計算する。保存先ディレクトリが存在しない
+        場合は作成しておく(auto_save() が失敗しないようにするため)。
+
+        ★ 実機フィードバック(バグ報告、ログで確認): 未設定/空文字時、以前は
+        「アプリのフォルダ」のつもりでファイル名のみ(cwd相対)を使っていたが、
+        これはCLAUDE.mdの「プロセスのカレントディレクトリに依存しない」方針に
+        反しており、macOSで.appとして起動した際のcwdが読み取り専用領域になる
+        ケースがあった(実機ログ: "[Errno 30] Read-only file system:
+        'autosave.graphica'" が5分間隔で繰り返し失敗、オートセーブが実質
+        機能していなかった)。ログファイル(gui/crash_handler.py)やユーザー
+        プラグイン(get_user_plugins_dir)と同じget_app_data_dir()(常に
+        書き込み可能なユーザーごとのディレクトリ)を既定値にする。
         """
         autosave_dir = self.settings.value("autosave_dir", "", type=str)
         if autosave_dir:
@@ -2027,10 +2091,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             except OSError as e:
                 logger.warning("オートセーブ保存先フォルダの作成に失敗しました: %s", e)
                 autosave_dir = ""
-        self._autosave_filename = (
-            os.path.join(autosave_dir, self._autosave_base_filename)
-            if autosave_dir else self._autosave_base_filename
-        )
+        if not autosave_dir:
+            autosave_dir = get_app_data_dir()
+        self._autosave_filename = os.path.join(autosave_dir, self._autosave_base_filename)
 
     def _rotate_autosave_generations(self):
         """
@@ -2071,13 +2134,28 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.statusBar().showMessage(f"オートセーブ失敗: {e}", 3000)
 
     def manual_save(self):
-        """ユーザーが保存操作をしたときの処理"""
+        """
+        「上書き保存」の処理。実機フィードバック(「プロジェクトの上書き保存と
+        名前つけて保存を追加」)を受け、以前は保存操作が常に「名前を付けて
+        保存」ダイアログを開いていた(既存の保存先へ即座に上書きする手段が
+        無かった)ものを分離した。self._current_project_path(現在開いている/
+        直前に保存したプロジェクトのパス)が分かっていればそこへ直接
+        上書き保存し、まだ一度も保存/読込していない(パス不明)場合のみ
+        manual_save_as()にフォールバックしてダイアログを出す。
+        """
+        if not self._current_project_path:
+            self.manual_save_as()
+            return
+        self._save_project_to_path(self._current_project_path)
+
+    def manual_save_as(self):
+        """「名前を付けて保存」の処理。常に保存先ダイアログを開く。"""
         # ★ 新形式(.graphica, JSON)をデフォルトの保存先とする。任意コード実行の
         #   リスクが無い安全なフォーマットへの移行を促すため、先頭のフィルタを
         #   .graphica にしている。ただし従来形式で保存したいユーザーのために、
         #   .pkl も引き続き選択できるようにしておく。
         filepath, selected_filter = QFileDialog.getSaveFileName(
-            self, "プロジェクトを保存", "",
+            self, "名前を付けて保存", "",
             "Graphica Project (*.graphica);;Project Files (*.pkl)"
         )
         if filepath:
@@ -2085,18 +2163,23 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             # 自動付加しないため、拡張子が無い場合は選択されたフィルタから補う。
             if not os.path.splitext(filepath)[1]:
                 filepath += '.graphica' if 'graphica' in selected_filter else '.pkl'
-            try:
-                # フォルダ構造(現在のツリーの状態)を保存直前にキャプチャする
-                self.project.dataset_group_tree = self._capture_dataset_group_tree()
-                # ★ サブプロットの行数/列数もUIから保存直前に同期する (auto_saveと同じ理由)
-                self.project.layout_rows = self.subplot_rows_spinbox.value()
-                self.project.layout_cols = self.subplot_cols_spinbox.value()
-                self.project.save_project(filepath)
-                self.statusBar().showMessage(f"保存しました: {filepath}", 3000)
-                self._add_recent_file(filepath)
-                self.project_state_changed.emit()
-            except Exception as e:
-                QMessageBox.critical(self, "エラー", f"保存に失敗しました:\n{e}")
+            self._save_project_to_path(filepath)
+
+    def _save_project_to_path(self, filepath):
+        """manual_save()/manual_save_as()共通の実際の保存処理。"""
+        try:
+            # フォルダ構造(現在のツリーの状態)を保存直前にキャプチャする
+            self.project.dataset_group_tree = self._capture_dataset_group_tree()
+            # ★ サブプロットの行数/列数もUIから保存直前に同期する (auto_saveと同じ理由)
+            self.project.layout_rows = self.subplot_rows_spinbox.value()
+            self.project.layout_cols = self.subplot_cols_spinbox.value()
+            self.project.save_project(filepath)
+            self._current_project_path = filepath
+            self.statusBar().showMessage(f"保存しました: {filepath}", 3000)
+            self._add_recent_file(filepath)
+            self.project_state_changed.emit()
+        except Exception as e:
+            QMessageBox.critical(self, "エラー", f"保存に失敗しました:\n{e}")
 
     def manual_load(self):
         """ユーザーが読み込み操作をしたときの処理"""
@@ -2160,6 +2243,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.statusBar().showMessage("プロジェクトを読み込みました", 3000)
             if add_to_recent:
                 self._add_recent_file(filepath)
+                # ★ オートセーブからの復元(add_to_recent=False)は内部的な
+                #   一時ファイルからの読み込みのため、上書き保存の対象には
+                #   しない(復元後に「上書き保存」を押したらユーザーが選んだ
+                #   覚えのないautosaveファイルへ上書きされてしまうのを防ぐ)。
+                self._current_project_path = filepath
             self.project_state_changed.emit()
         except Exception as e:
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
@@ -3039,6 +3127,39 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         QMessageBox.critical(self, "エラー", f"読み込みエラー: {error_message}")
         self._process_next_queued_file()
 
+    def _localize_navigation_toolbar(self, toolbar):
+        """
+        matplotlib純正のNavigationToolbar2QTが持つボタンのツールチップは、
+        matplotlib側にハードコードされた英語文字列("Reset original view"等)の
+        ため、アプリ全体を日本語化してもここだけ英語のまま残ってしまう。
+        NavigationToolbar2QT._actions(コールバックメソッド名→QActionの辞書、
+        matplotlib内部実装だが長年安定している)経由でツールチップ/ステータス
+        バー文言を差し替える。将来のmatplotlibで_actionsの構造が変わっても
+        アプリがクラッシュしないよう、失敗時は静かに元の英語表示のまま諦める。
+        """
+        labels = {
+            'home': (tr("元の表示に戻す"), tr("最初の表示範囲にリセットします")),
+            'back': (tr("前の表示に戻る"), tr("1つ前の表示範囲に戻ります")),
+            'forward': (tr("次の表示に進む"), tr("戻る前の表示範囲に進みます")),
+            'pan': (tr("パン/ズーム"),
+                    tr("左ドラッグで移動、右ドラッグで拡大縮小(x/yキーで軸固定)")),
+            'zoom': (tr("矩形ズーム"), tr("ドラッグした矩形範囲に拡大します(x/yキーで軸固定)")),
+            'configure_subplots': (tr("サブプロット調整"), tr("サブプロット間の余白を調整します")),
+            'save_figure': (tr("画像として保存"), tr("グラフを画像ファイルとして保存します")),
+        }
+        try:
+            actions = toolbar._actions
+        except AttributeError:
+            logger.warning("NavigationToolbar2QTの_actionsが見つからず、ツールチップの日本語化をスキップしました。")
+            return
+        for name, action in actions.items():
+            localized = labels.get(name)
+            if localized is None:
+                continue
+            tooltip, status_tip = localized
+            action.setToolTip(tooltip)
+            action.setStatusTip(status_tip)
+
     def _cleanup_data_load_task_runner(self):
         """読み込み完了/失敗後の後片付け(UIの再有効化とTaskRunnerの破棄)"""
         self.ui.add_dataset_button.setEnabled(True)
@@ -3074,21 +3195,28 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _update_recent_files_menu(self):
         """「最近使ったファイル」サブメニューの中身を、現在の履歴に合わせて再構築する"""
-        self.recent_files_menu.clear()
-        files = self._get_recent_files()
+        try:
+            self.recent_files_menu.clear()
+            files = self._get_recent_files()
 
-        if not files:
-            empty_action = self.recent_files_menu.addAction("(履歴なし)")
-            empty_action.setEnabled(False)
-            return
+            if not files:
+                empty_action = self.recent_files_menu.addAction("(履歴なし)")
+                empty_action.setEnabled(False)
+                return
 
-        for file_path in files:
-            action = self.recent_files_menu.addAction(file_path)
-            action.triggered.connect(lambda checked=False, p=file_path: self._on_open_recent_file(p))
+            for file_path in files:
+                action = self.recent_files_menu.addAction(file_path)
+                action.triggered.connect(lambda checked=False, p=file_path: self._on_open_recent_file(p))
 
-        self.recent_files_menu.addSeparator()
-        clear_action = self.recent_files_menu.addAction("履歴をクリア")
-        clear_action.triggered.connect(self._on_clear_recent_files)
+            self.recent_files_menu.addSeparator()
+            clear_action = self.recent_files_menu.addAction("履歴をクリア")
+            clear_action.triggered.connect(self._on_clear_recent_files)
+        except RuntimeError:
+            # ★ ごく稀に、このメニューのC++側オブジェクトが既に破棄されている
+            #   状態でこのメソッドが呼ばれることがある(shiboken6絡みの既知の
+            #   問題、原因箇所は未特定)。実害は「履歴メニューの表示が古いまま」
+            #   程度のため、アプリ全体をクラッシュさせずログに残すだけに留める。
+            logger.warning("recent_files_menuの更新に失敗しました(既に破棄されている可能性があります)。", exc_info=True)
 
     def _on_open_recent_file(self, file_path):
         """「最近使ったファイル」の項目がクリックされたときの処理"""

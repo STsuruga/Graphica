@@ -160,11 +160,77 @@ class DatasetMixin:
 
         self._add_dataset_folder_item(name, parent_item)
 
+    def _on_rename_dataset_folder(self):
+        """
+        実機フィードバック(「データセットのフォルダ名編集」)。選択中のフォルダの
+        名前を変更する。フォルダ構造自体はUndo/Redo管理の対象外(_on_new_folder
+        によるフォルダ作成も同様に非対応)のため、リネームも同じ方針で扱う。
+        _capture_dataset_group_tree()は保存の都度ツリーウィジェットの表示
+        テキストを読み取って構築するだけなので、setText(0, ...)だけで
+        永続化上も反映される。
+        """
+        current_item = self.ui.dataset_list_widget.currentItem()
+        if current_item is None or current_item.data(0, Qt.ItemDataRole.UserRole) is not None:
+            return  # データセット項目、または未選択なら対象外
+        old_name = current_item.text(0)
+        new_name, ok = QInputDialog.getText(self, "フォルダ名を変更", "新しいフォルダ名:", text=old_name)
+        if not ok or not new_name:
+            return
+        current_item.setText(0, new_name)
+
+    def _set_folder_datasets_visibility(self, folder_item, visible):
+        """folder_item配下(再帰的に、サブフォルダも含む)の全データセットの
+        表示/非表示をまとめて切り替える(項目C-907の一括版)。"""
+        dataset_items = self._flatten_dataset_tree(folder_item)
+        datasets = [item.data(0, Qt.ItemDataRole.UserRole) for item in dataset_items]
+        if not datasets:
+            return
+        is_batch = len(datasets) > 1
+        if is_batch:
+            self.undo_stack.beginMacro(f"フォルダ内の表示/非表示切替 ({len(datasets)}件)")
+        for ds in datasets:
+            self._push_dataset_property_command(
+                ds, {'visible': ds.visible}, {'visible': visible},
+                description="データセットの表示/非表示切替"
+            )
+        if is_batch:
+            self.undo_stack.endMacro()
+
+    def _on_show_all_in_folder(self):
+        """実機フィードバック(「フォルダの表示非表示追加」)。選択中のフォルダ内の
+        全データセットを表示状態にする。"""
+        current_item = self.ui.dataset_list_widget.currentItem()
+        if current_item is None:
+            return
+        self._set_folder_datasets_visibility(current_item, True)
+
+    def _on_hide_all_in_folder(self):
+        """選択中のフォルダ内の全データセットを非表示状態にする。"""
+        current_item = self.ui.dataset_list_widget.currentItem()
+        if current_item is None:
+            return
+        self._set_folder_datasets_visibility(current_item, False)
+
     def _on_dataset_tree_context_menu(self, pos):
         """データセットツリーを右クリックしたときのコンテキストメニュー"""
         menu = QMenu(self)
         new_folder_action = menu.addAction("新しいフォルダ")
         new_folder_action.triggered.connect(self._on_new_folder)
+
+        current_item = self.ui.dataset_list_widget.currentItem()
+        is_folder_selected = (
+            current_item is not None and current_item.data(0, Qt.ItemDataRole.UserRole) is None
+        )
+        if is_folder_selected:
+            # 実機フィードバック: フォルダの名前変更、フォルダ内一括表示/非表示
+            rename_folder_action = menu.addAction("フォルダ名を変更...")
+            rename_folder_action.triggered.connect(self._on_rename_dataset_folder)
+
+            show_all_action = menu.addAction("フォルダ内を全て表示")
+            show_all_action.triggered.connect(self._on_show_all_in_folder)
+
+            hide_all_action = menu.addAction("フォルダ内を全て非表示")
+            hide_all_action.triggered.connect(self._on_hide_all_in_folder)
 
         if self._get_current_dataset() is not None:
             menu.addSeparator()
@@ -1463,6 +1529,9 @@ class DatasetMixin:
             self.waterfall_checkbox: ('waterfall_enabled', self.waterfall_checkbox.isChecked()),
             self.waterfall_offset_x_spinbox: ('waterfall_offset_x', self.waterfall_offset_x_spinbox.value()),
             self.waterfall_offset_y_spinbox: ('waterfall_offset_y', self.waterfall_offset_y_spinbox.value()),
+            self.waterfall_occlusion_checkbox: (
+                'waterfall_occlusion_enabled', self.waterfall_occlusion_checkbox.isChecked()
+            ),
             # 誤差の表示形式(項目C-502)
             self.error_display_combo: ('error_display', self.error_display_combo.currentData()),
             # 2Dグリッドデータ(ヒートマップ、項目C-508)のカラーマップ・補間方法。
@@ -1618,6 +1687,8 @@ class DatasetMixin:
         self.waterfall_offset_x_spinbox.setVisible(show_offsets)
         self.waterfall_offset_y_label.setVisible(show_offsets)
         self.waterfall_offset_y_spinbox.setVisible(show_offsets)
+        # オクルージョンON/OFFも、有効時だけ意味を持つ設定のため同じ条件で表示する
+        self.waterfall_occlusion_checkbox.setVisible(show_offsets)
 
     def _on_auto_assign_colors(self):
         """
@@ -1790,6 +1861,7 @@ class DatasetMixin:
             self.waterfall_checkbox.blockSignals(True)
             self.waterfall_offset_x_spinbox.blockSignals(True)
             self.waterfall_offset_y_spinbox.blockSignals(True)
+            self.waterfall_occlusion_checkbox.blockSignals(True)
             self.error_display_combo.blockSignals(True)
             self.data_2d_checkbox.blockSignals(True)
             self.colormap_combo.blockSignals(True)
@@ -1817,6 +1889,7 @@ class DatasetMixin:
             self.waterfall_checkbox.setChecked(dataset.waterfall_enabled)
             self.waterfall_offset_x_spinbox.setValue(dataset.waterfall_offset_x)
             self.waterfall_offset_y_spinbox.setValue(dataset.waterfall_offset_y)
+            self.waterfall_occlusion_checkbox.setChecked(dataset.waterfall_occlusion_enabled)
             self.point_labels_checkbox.setChecked(dataset.show_point_labels)
             self.point_label_col_combo.clear()
             self.point_label_col_combo.addItems([POINT_LABEL_Y_VALUE_LABEL] + dataset.df.columns.tolist())
@@ -1860,6 +1933,7 @@ class DatasetMixin:
             self.waterfall_checkbox.blockSignals(False)
             self.waterfall_offset_x_spinbox.blockSignals(False)
             self.waterfall_offset_y_spinbox.blockSignals(False)
+            self.waterfall_occlusion_checkbox.blockSignals(False)
             self.error_display_combo.blockSignals(False)
             self.data_2d_checkbox.blockSignals(False)
             self.colormap_combo.blockSignals(False)
@@ -1961,6 +2035,7 @@ class DatasetMixin:
             self.waterfall_offset_x_spinbox.setVisible(False)
             self.waterfall_offset_y_label.setVisible(False)
             self.waterfall_offset_y_spinbox.setVisible(False)
+            self.waterfall_occlusion_checkbox.setVisible(False)
 
             self.stats_summary_label.setText("-")
             self.dataset_mini_stats_label.setText("-")
@@ -2037,7 +2112,18 @@ class DatasetMixin:
         if dataset is None:
             return
 
-        # 1. もし古いダイアログが画面に残っていれば、閉じて削除する
+        # 0. 実機フィードバック(「データエディタが背面に行くと表に出すのが
+        #    面倒」、ユーザー選択: 「タスクバー化+再クリックで最前面」):
+        #    既に同じデータセットのエディタが開いている場合、閉じて作り直す
+        #    (=ソート状態・スクロール位置・選択中の行が失われる)のではなく、
+        #    既存のウィンドウをそのまま最前面に呼び戻すだけにする。
+        if self.data_editor_dialog is not None and self.data_editor_dialog.dataset is dataset:
+            self.data_editor_dialog.show()
+            self.data_editor_dialog.raise_()
+            self.data_editor_dialog.activateWindow()
+            return
+
+        # 1. もし別のデータセット用の古いダイアログが画面に残っていれば、閉じて削除する
         #    (これにより、常に選択中のデータセットに対応したエディタが表示される)
         if self.data_editor_dialog:
             self.data_editor_dialog.close() # ウィンドウを閉じる

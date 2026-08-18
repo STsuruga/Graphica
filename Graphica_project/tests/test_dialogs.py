@@ -738,6 +738,18 @@ def test_preferences_dialog_plugin_tab_lists_loaded_plugin_with_checkbox():
     assert item.checkState() == Qt.CheckState.Checked
 
 
+def test_preferences_dialog_plugin_action_buttons_do_not_retain_focus():
+    """
+    実機フィードバック(「プラグインとデータテーブルのとこのボタンが一回
+    押すと他のボタン押すまでずっと色付きになる」)。「プラグインをインストール...」
+    「プラグインフォルダを開く」はOK/Cancelフローとは独立した即時実行ボタンなので、
+    フォーカスの青枠(gui/theme.pyのQPushButton:focus)が居座らないようにする。
+    """
+    dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
+    assert dlg.install_plugin_button.focusPolicy() == Qt.FocusPolicy.NoFocus
+    assert dlg.open_plugins_folder_button.focusPolicy() == Qt.FocusPolicy.NoFocus
+
+
 def test_preferences_dialog_plugin_tab_shows_error_for_failed_plugin():
     records = [{"name": "broken_plugin", "info": None, "error": "plugin.json が見つかりません",
                 "disabled": False}]

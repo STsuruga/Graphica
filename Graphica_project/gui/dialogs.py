@@ -2921,10 +2921,16 @@ class PreferencesDialog(QDialog):
         self.install_plugin_button = QPushButton(tr("プラグインをインストール..."))
         self.install_plugin_button.setIcon(icon_utils.icon("download"))
         self.install_plugin_button.clicked.connect(self._on_install_plugin)
+        # ★ 実機フィードバック: 「ボタンが一回押すと他のボタン押すまでずっと
+        #   色付きになる」。QPushButtonの既定フォーカスポリシー(StrongFocus/
+        #   ClickFocus)によりクリック後もフォーカスの青枠が残り続けるため、
+        #   即時実行ボタン(OK/Cancelフローとは独立)はフォーカスを持たせない。
+        self.install_plugin_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         plugin_actions_row.addWidget(self.install_plugin_button)
         self.open_plugins_folder_button = QPushButton(tr("プラグインフォルダを開く"))
         self.open_plugins_folder_button.setIcon(icon_utils.icon("folder"))
         self.open_plugins_folder_button.clicked.connect(self._on_open_plugins_folder)
+        self.open_plugins_folder_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         plugin_actions_row.addWidget(self.open_plugins_folder_button)
         plugin_actions_row.addStretch()
         plugin_tab_layout.addLayout(plugin_actions_row)
@@ -3459,14 +3465,22 @@ class LabelEditDialog(QDialog):
         symbol_grid = QGridLayout(symbol_panel)
         symbol_grid.setContentsMargins(6, 6, 6, 6)
         symbol_grid.setSpacing(2)
+        # ★ 実機フィードバック: 「ここの文字をもう少し大きくしてほしい」。
+        #   既定のUIフォントサイズのままだとグリフが小さく判読しづらいため、
+        #   このパレット内のボタンだけ明示的に大きくする。
+        symbol_font = QFont(self.font())
+        symbol_font.setPointSize(symbol_font.pointSize() + 4)
         for index, (glyph, macro) in enumerate(symbol_palette):
             item_button = QToolButton()
             item_button.setText(glyph)
-            item_button.setToolTip(f"\\{macro}")
-            item_button.setFixedSize(26, 26)
+            item_button.setFont(symbol_font)
+            # macro=Noneは「mathtextマクロを持たない生の文字」を表す
+            # (例: マイナス記号U+2212)。ツールチップもそれに合わせて分岐する。
+            item_button.setToolTip(f"\\{macro}" if macro else glyph)
+            item_button.setFixedSize(30, 30)
             item_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             item_button.clicked.connect(
-                lambda checked=False, m=macro, sm=symbol_menu: (self._insert_symbol(m), sm.close())
+                lambda checked=False, g=glyph, m=macro, sm=symbol_menu: (self._insert_symbol(g, m), sm.close())
             )
             symbol_grid.addWidget(item_button, index // 4, index % 4)
         symbol_widget_action = QWidgetAction(symbol_button)
@@ -3528,6 +3542,9 @@ class LabelEditDialog(QDialog):
     _MATH_SPAN_RE = re.compile(r'^\$(.*)\$$', re.DOTALL)
     _MATHBF_RE = re.compile(r'^\\mathbf\{(.*)\}$', re.DOTALL)
     _MATHIT_RE = re.compile(r'^\\mathit\{(.*)\}$', re.DOTALL)
+    _BOLDSYMBOL_RE = re.compile(r'^\\boldsymbol\{(.*)\}$', re.DOTALL)
+    _SUPER_RE = re.compile(r'^\{\}\^\{(.*)\}$', re.DOTALL)
+    _SUB_RE = re.compile(r'^\{\}_\{(.*)\}$', re.DOTALL)
 
     def _apply_wrap(self, kind, wrap_fn):
         """
@@ -3561,11 +3578,23 @@ class LabelEditDialog(QDialog):
         場合(既存の中身が\\mathbf{...}でこれからイタリックを適用する、また
         はその逆)は、代わりに太字とイタリックを同時に表現できる
         \\boldsymbol{...}に置き換える。
+
+        ★ 実機フィードバック(バグ報告): 「文字スタイルが異常な重ねがけ出来る」。
+        装飾ボタンは各操作後、置き換えた範囲全体を選択状態に戻すため
+        (末尾のsetSelection参照)、同じボタンを連打すると
+        \\mathbf{\\mathbf{\\mathbf{x}}}のように無意味な入れ子が際限なく
+        積み重なっていた。同じ種類の装飾が既に外側にかかっている場合は、
+        再度押すとトグルオフ(その装飾だけを剥がす)するようにする。
+        剥がした結果が装飾を一切含まない生のテキストに戻る場合は、
+        $...$自体も外す(mathtext内の裸の文字はデフォルトで斜体表示される
+        ため、$で囲んだままだと「無装飾のはずが斜体に見える」という別の
+        見た目のズレを生むため)。異なる種類の装飾同士(太字+イタリック→
+        \\boldsymbol、太字+上付き/下付きの入れ子等)は従来通り重ねがけできる。
         """
         if not self._pending_selection:
-            QMessageBox.information(
-                self, "文字装飾", "装飾したい文字を選択してから、このボタンを押してください。"
-            )
+            # ★ 実機フィードバック: 「文字選択されてないときにポップアップ
+            #   ウィンドウ出るけどウィンドウ出さないで、ただ変更を適用しない
+            #   だけでいい」。案内ダイアログは出さず、単に何もしない。
             return
         start, selected = self._pending_selection
         span_match = self._MATH_SPAN_RE.match(selected)
@@ -3573,27 +3602,59 @@ class LabelEditDialog(QDialog):
 
         combined = None
         if kind == "bold":
-            m = self._MATHIT_RE.match(inner)
+            m = self._BOLDSYMBOL_RE.match(inner)
             if m:
-                combined = f"\\boldsymbol{{{m.group(1)}}}"
+                combined = f"\\mathit{{{m.group(1)}}}"  # 太字だけトグルオフ、イタリックは残す
+            else:
+                m = self._MATHIT_RE.match(inner)
+                if m:
+                    combined = f"\\boldsymbol{{{m.group(1)}}}"
+                else:
+                    m = self._MATHBF_RE.match(inner)
+                    if m:
+                        combined = m.group(1)  # 太字のみ → トグルオフ
         elif kind == "italic":
-            m = self._MATHBF_RE.match(inner)
+            m = self._BOLDSYMBOL_RE.match(inner)
             if m:
-                combined = f"\\boldsymbol{{{m.group(1)}}}"
+                combined = f"\\mathbf{{{m.group(1)}}}"  # イタリックだけトグルオフ、太字は残す
+            else:
+                m = self._MATHBF_RE.match(inner)
+                if m:
+                    combined = f"\\boldsymbol{{{m.group(1)}}}"
+                else:
+                    m = self._MATHIT_RE.match(inner)
+                    if m:
+                        combined = m.group(1)  # イタリックのみ → トグルオフ
+        elif kind == "super":
+            m = self._SUPER_RE.match(inner)
+            if m:
+                combined = m.group(1)  # 上付きをトグルオフ
+        elif kind == "sub":
+            m = self._SUB_RE.match(inner)
+            if m:
+                combined = m.group(1)  # 下付きをトグルオフ
 
         new_inner = combined if combined is not None else wrap_fn(inner)
-        replacement = f"${new_inner}$"
+        if re.search(r'[\\^_{}]', new_inner):
+            replacement = f"${new_inner}$"
+        else:
+            # 装飾を全てトグルオフし尽くして生のテキストに戻った場合は、
+            # $...$自体も外して元の見た目(斜体化されない通常表示)に戻す。
+            replacement = new_inner
         text = self.text_edit.text()
         self.text_edit.setText(text[:start] + replacement + text[start + len(selected):])
         self.text_edit.setSelection(start, len(replacement))
 
-    def _insert_symbol(self, macro):
+    def _insert_symbol(self, glyph, macro):
         """
         ギリシャ文字/記号パレットの1項目が選ばれたときの処理。装飾ボタンと
-        異なり、選択文字列を装飾するのではなく$\\macro$という新しい断片を
-        挿入するものなので、pressed時点の選択範囲(_pending_selection)が
-        あればそれを置き換え、無ければpressed時点のカーソル位置
-        (_pending_cursor)に挿入する。
+        異なり、選択文字列を装飾するのではなく新しい断片を挿入するものなので、
+        pressed時点の選択範囲(_pending_selection)があればそれを置き換え、
+        無ければpressed時点のカーソル位置(_pending_cursor)に挿入する。
+
+        macroがNone(例: マイナス記号)の場合は、mathtextマクロを持たない
+        生の文字そのものなので$...$では包まず、glyphをそのまま挿入する
+        (mathtext内の裸の文字はデフォルトで斜体表示されてしまうため)。
         """
         text = self.text_edit.text()
         if self._pending_selection:
@@ -3601,7 +3662,7 @@ class LabelEditDialog(QDialog):
             end = start + len(selected)
         else:
             start = end = self._pending_cursor
-        replacement = f"$\\{macro}$"
+        replacement = glyph if macro is None else f"$\\{macro}$"
         self.text_edit.setText(text[:start] + replacement + text[end:])
         self.text_edit.setCursorPosition(start + len(replacement))
 

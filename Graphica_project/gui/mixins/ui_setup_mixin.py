@@ -138,6 +138,8 @@ class UISetupMixin:
             self.minor_tick_direction_combo.currentTextChanged.connect(self._on_axis_setting_changed)
             self.major_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
             self.minor_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
+            self.ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.tick_labels_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
 
             # カラーバー(項目C-501)。2Dマップが描画されていないサブプロットでは
             # 何の効果も持たないが、他の軸設定と同じく常に収集・適用の対象にする。
@@ -197,6 +199,8 @@ class UISetupMixin:
             self.waterfall_checkbox.toggled.connect(self._update_waterfall_controls_visibility)
             self.waterfall_offset_x_spinbox.valueChanged.connect(self._on_property_changed)
             self.waterfall_offset_y_spinbox.valueChanged.connect(self._on_property_changed)
+            # オクルージョン(実機フィードバック): on/off切り替え可能にする
+            self.waterfall_occlusion_checkbox.toggled.connect(self._on_property_changed)
             # 項目105: ラベル有効化時、データ点が多いと確認ポップアップを挟むための
             # 専用ハンドラ経由にする(_on_property_changedへは内部で委譲される)
             self.point_labels_checkbox.toggled.connect(self._on_point_labels_toggled)
@@ -268,9 +272,17 @@ class UISetupMixin:
             self.open_project_action.setShortcut(QKeySequence.StandardKey.Open)
             self.open_project_action.triggered.connect(self._on_load_project)
 
-            self.save_project_action = file_menu.addAction(tr("プロジェクトを保存(&P)..."))
+            # ★ 実機フィードバック: 「プロジェクトの上書き保存と名前つけて保存を
+            #   追加」。以前は1つのアクションが常に「名前を付けて保存」ダイアログを
+            #   開いていた(既存の保存先へ即座に上書きする手段が無かった)ため、
+            #   Ctrl+S=上書き保存/Ctrl+Shift+S=名前を付けて保存 の2アクションに分ける。
+            self.save_project_action = file_menu.addAction(tr("上書き保存(&P)"))
             self.save_project_action.setShortcut(QKeySequence.StandardKey.Save)
             self.save_project_action.triggered.connect(self._on_save_project)
+
+            self.save_project_as_action = file_menu.addAction(tr("名前を付けて保存(&A)..."))
+            self.save_project_as_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+            self.save_project_as_action.triggered.connect(self._on_save_project_as)
 
             # (クリップボードから表データを貼り付け: Excel/スプレッドシートでコピーした
             #  セル範囲をタブ区切りテキストとして解釈し、新しいデータセットにする)

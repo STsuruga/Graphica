@@ -293,6 +293,25 @@ def test_on_copy_clicked_svg_sets_clipboard_mime_data(window_with_plot):
     assert mime_data.hasFormat("image/svg+xml")
 
 
+def test_on_copy_clicked_svg_also_sets_png_fallback_image_data(window_with_plot):
+    """
+    実機フィードバック(「エクスポートのコピーボタンがsvgだとコピーされない」):
+    ほとんどのアプリはクリップボードのimage/svg+xmlを認識しないため、SVGを
+    選んだ場合もPNG版をsetImageData()経由で併せて持たせ、SVGを解釈できない
+    貼り付け先ではPNGとして貼り付けられるようにする。
+    """
+    panel = window_with_plot.export_preview_panel
+    panel.copy_format_combo.setCurrentText("SVG")
+
+    panel._on_copy_clicked()
+
+    mime_data = QApplication.clipboard().mimeData()
+    assert mime_data.hasFormat("image/svg+xml")
+    assert mime_data.hasImage()
+    image = QApplication.clipboard().image()
+    assert not image.isNull()
+
+
 def test_on_copy_clicked_svg_none_shows_warning(window_with_plot, monkeypatch):
     panel = window_with_plot.export_preview_panel
     panel.copy_format_combo.setCurrentText("SVG")

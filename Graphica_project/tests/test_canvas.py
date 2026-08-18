@@ -815,6 +815,27 @@ def test_redraw_all_skips_secondary_x_axis_when_range_includes_zero(canvas):
     assert ax.child_axes == []
 
 
+def test_secondary_x_axis_uses_bounded_locator_for_extreme_converted_range(canvas):
+    """
+    実機フィードバック(ログで確認): matplotlib.ticker "Locator attempting to
+    generate N ticks...exceeds Locator.MAXTICKS"警告。nm<->cm^-1/Hz等の
+    反比例変換では、主軸側は常識的な範囲でも第2X軸側の値域が桁違いに広がる
+    ことがあり、既定のAutoLocatorに任せきりだと極端に多い目盛りを生成しようと
+    していた。MaxNLocatorを明示していることで、変換後の値域がどれだけ
+    極端でも目盛り本数が妥当な範囲に収まることを確認する。
+    """
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1.0, 1000.0], "y": [1.0, 2.0]}),
+                 x_col_name="x", y_col_name="y")
+    settings = {'x_secondary_axis_source_unit': 'nm', 'x_secondary_axis_target_unit': 'Hz'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    secondary_ax = [child for child in ax.child_axes if child.get_xlabel() == 'Hz(周波数)'][0]
+    locator = secondary_ax.xaxis.get_major_locator()
+    assert isinstance(locator, ticker.MaxNLocator)
+    tick_values = locator.tick_values(*secondary_ax.get_xlim())
+    assert len(tick_values) <= 20
+
+
 def test_secondary_x_axis_ticks_reflect_converted_values(canvas):
     ds = Dataset(name="d", df=pd.DataFrame({"x": [400.0, 500.0, 600.0], "y": [1.0, 2.0, 3.0]}),
                  x_col_name="x", y_col_name="y")
@@ -1308,6 +1329,43 @@ def test_update_appearance_only_swallows_tight_layout_value_error(canvas, monkey
     canvas.update_appearance_only([{}])
 
 
+# --- tight_layout()のFileNotFoundError(実機フィードバック: 環境依存の
+#     フォント欠落によるクラッシュ)を3箇所とも吸収することの回帰テスト ---
+
+def test_redraw_all_swallows_tight_layout_file_not_found_error(canvas, monkeypatch):
+    """
+    実機フィードバック(ログで確認): 一部環境ではmatplotlib自体のインストールが
+    不完全でフォールバック用フォント(LastResortHE-Regular.ttf)が欠落しており、
+    tight_layout()がFileNotFoundErrorで失敗してアプリ全体がクラッシュしていた。
+    """
+    ds = _make_dataset(3, show_point_labels=False)
+    monkeypatch.setattr(
+        canvas.fig, "tight_layout",
+        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("LastResortHE-Regular.ttf")),
+    )
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+
+def test_update_appearance_only_swallows_tight_layout_file_not_found_error(canvas, monkeypatch):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    monkeypatch.setattr(
+        canvas.fig, "tight_layout",
+        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("LastResortHE-Regular.ttf")),
+    )
+    canvas.update_appearance_only([{}])
+
+
+def test_update_all_axes_appearance_and_data_swallows_tight_layout_file_not_found_error(canvas, monkeypatch):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    monkeypatch.setattr(
+        canvas.fig, "tight_layout",
+        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("LastResortHE-Regular.ttf")),
+    )
+    canvas.update_all_axes_appearance_and_data([ds], 1, 1, [{}])
+
+
 # --- _draw_annotations(): 削除失敗/描画失敗が例外を伝播させない ---
 
 def test_draw_annotations_remove_failure_is_swallowed(canvas):
@@ -1368,6 +1426,85 @@ def test_waterfall_baseline_calculation_skips_dataset_with_empty_data(canvas):
     # 空のデータセットが混ざっていてもベースライン計算がクラッシュしない
     canvas.redraw_all([ds_empty, ds_data], 1, 1, [{}])
     assert len(ds_data.artist.get_xdata()) == 2
+
+
+# --- ウォーターフォールのzorderが軸の枠線/目盛を隠さないこと(実機フィードバック) ---
+
+def test_waterfall_zorder_stays_below_default_spine_and_tick_zorder(canvas):
+    """
+    実機フィードバック(バグ報告): 「ウォーターフォール適用すると枠とかメモリが
+    隠れる」。以前は積み重ね数に比例して際限なく大きくなるzorderを使っていた
+    ため、トレースが数件あるだけでオクルージョン用fill_betweenのzorderが
+    matplotlib既定のスパインzorder(2.5)・目盛zorder(約2.01)を超え、背景色の
+    塗りつぶしがそれらを覆い隠していた。トレース本体・オクルージョン用
+    fill_betweenの両方のzorderが、トレース数によらず常にそれらを下回ることを
+    確認する。
+    """
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    datasets = [_make_waterfall_dataset(f"wf{i}", x, y, offset_x=0.5, offset_y=1.0) for i in range(6)]
+
+    canvas.redraw_all(datasets, 1, 1, [{}])
+
+    ax = canvas.all_axes[0]
+    spine_zorder = ax.spines['bottom'].get_zorder()
+    tick_zorder = ax.xaxis.get_major_ticks()[0].tick1line.get_zorder()
+    safe_ceiling = min(spine_zorder, tick_zorder)
+
+    for ds in datasets:
+        assert ds.artist.get_zorder() < safe_ceiling
+    for collection in ax.collections:  # fill_between()が積むPolyCollection群
+        assert collection.get_zorder() < safe_ceiling
+
+
+def test_waterfall_zorder_preserves_relative_stacking_order(canvas):
+    """積み重ねインデックスが小さい(手前の)トレースほど高いzorderを持ち、
+    その相対順序がzorderの正規化後も保たれることを確認する。"""
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    datasets = [_make_waterfall_dataset(f"wf{i}", x, y, offset_x=0.5, offset_y=1.0) for i in range(4)]
+
+    canvas.redraw_all(datasets, 1, 1, [{}])
+
+    zorders = [ds.artist.get_zorder() for ds in datasets]
+    assert zorders == sorted(zorders, reverse=True)  # 先頭(手前)ほど高い
+
+
+# --- ウォーターフォールのオクルージョンON/OFF切り替え(実機フィードバック) ---
+
+def test_waterfall_occlusion_enabled_draws_background_fill(canvas):
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    ds0 = _make_waterfall_dataset("wf0", x, y, waterfall_occlusion_enabled=True)
+    ds1 = _make_waterfall_dataset("wf1", x, y, waterfall_occlusion_enabled=True)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    ax = canvas.all_axes[0]
+    assert len(ax.collections) > 0  # fill_between()によるPolyCollectionが存在する
+
+
+def test_waterfall_occlusion_disabled_skips_background_fill(canvas):
+    """実機フィードバック: 「手前が奥を隠す(オクルージョン)はon/off切り替え
+    可能にして」。waterfall_occlusion_enabled=Falseならfill_betweenを描かない。"""
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    ds0 = _make_waterfall_dataset("wf0", x, y, waterfall_occlusion_enabled=False)
+    ds1 = _make_waterfall_dataset("wf1", x, y, waterfall_occlusion_enabled=False)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    ax = canvas.all_axes[0]
+    assert len(ax.collections) == 0
+
+
+def test_waterfall_occlusion_toggle_is_per_dataset(canvas):
+    """オクルージョンのON/OFFは他の設定と同じくデータセット単位のため、
+    同じ軸内で混在させた場合も個別に反映される。"""
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    ds0 = _make_waterfall_dataset("wf0", x, y, waterfall_occlusion_enabled=True)
+    ds1 = _make_waterfall_dataset("wf1", x, y, waterfall_occlusion_enabled=False)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    ax = canvas.all_axes[0]
+    assert len(ax.collections) == 1  # ds0の分だけfill_betweenが描かれる
 
 
 # --- 平滑化 (CubicSpline): 成功時/失敗時のフォールバック経路 ---
@@ -1675,6 +1812,50 @@ def test_apply_appearance_manual_major_tick_interval_for_x_and_y(canvas):
     assert x_locator._edge.step == pytest.approx(2)
     assert isinstance(y_locator, ticker.MultipleLocator)
     assert y_locator._edge.step == pytest.approx(3)
+
+
+# --- _apply_appearance(): 目盛(目盛線本体)・目盛数値の表示/非表示切り替え ---
+
+def test_apply_appearance_ticks_visible_default_shows_ticks_and_labels(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert ax.xaxis._major_tick_kw.get('tick1On', True) is True
+    assert ax.xaxis._major_tick_kw.get('label1On', True) is True
+
+
+def test_apply_appearance_ticks_visible_false_hides_tick_marks_but_not_labels(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{'ticks_visible': False}])
+    ax = canvas.all_axes[0]
+    assert ax.xaxis._major_tick_kw.get('tick1On') is False
+    assert ax.yaxis._major_tick_kw.get('tick1On') is False
+    assert ax.xaxis._major_tick_kw.get('label1On', True) is True
+
+
+def test_apply_appearance_tick_labels_visible_false_hides_numbers_but_not_marks(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{'tick_labels_visible': False}])
+    ax = canvas.all_axes[0]
+    assert ax.xaxis._major_tick_kw.get('label1On') is False
+    assert ax.yaxis._major_tick_kw.get('label1On') is False
+    assert ax.xaxis._major_tick_kw.get('tick1On', True) is True
+
+
+def test_apply_appearance_ticks_visible_true_does_not_override_shared_axis_label_hiding(canvas):
+    """
+    ticks_visible/tick_labels_visible=True(既定)は「明示的にTrueへ戻す」
+    操作を行わないため、軸共有(share_x_axis)が内側のサブプロットの
+    目盛数値を隠した結果を誤って上書きしないことを確認する回帰テスト。
+    """
+    ds = _make_dataset(5, show_point_labels=False)
+    settings = [{'tick_labels_visible': True}, {'tick_labels_visible': True}]
+    canvas.redraw_all([ds], 2, 1, settings, share_x_axis=True)
+    # 2行1列レイアウトでshare_x_axis=Trueの場合、_apply_shared_axis_tick_visibilityは
+    # 最下行以外(=1行目、axis_index 0)のX軸目盛数値を隠す仕様のため、
+    # 「軸共有の対象になる側で実際に隠れていること」を確認する。
+    first_ax = canvas.all_axes[0]
+    assert first_ax.xaxis._major_tick_kw.get('label1On') is False
 
 
 # --- _apply_appearance(): 凡例(第2Y軸のみ/主+第2Y軸結合/非表示時の削除) ---

@@ -10,7 +10,8 @@ TRANSLATIONS = {
     # --- メニューバー: ファイル ---
     "ファイル(&F)": "&File",
     "プロジェクトを開く(&O)...": "&Open Project...",
-    "プロジェクトを保存(&P)...": "&Save Project...",
+    "上書き保存(&P)": "&Save Project",
+    "名前を付けて保存(&A)...": "Save Project &As...",
     "クリップボードから貼り付け(&V)...": "Paste from Clipboard(&V)...",
     "最近使ったファイル": "Recent Files",
     "書式テンプレートを保存(&T)...": "Save Style Template(&T)...",
@@ -49,6 +50,24 @@ TRANSLATIONS = {
     # --- 環境設定ダイアログ: 表示言語 ---
     "表示言語の変更": "Language Changed",
     "表示言語の変更は、次回起動時に反映されます。": "The new display language will take effect the next time you start the app.",
+
+    # --- メインウィンドウ: matplotlibナビゲーションツールバー(項目62) ---
+    "元の表示に戻す": "Reset to Original View",
+    "最初の表示範囲にリセットします": "Reset to the initial view",
+    "前の表示に戻る": "Back to Previous View",
+    "1つ前の表示範囲に戻ります": "Back to the previous view",
+    "次の表示に進む": "Forward to Next View",
+    "戻る前の表示範囲に進みます": "Forward to the view before the last back",
+    "パン/ズーム": "Pan/Zoom",
+    "左ドラッグで移動、右ドラッグで拡大縮小(x/yキーで軸固定)":
+        "Left-drag to pan, right-drag to zoom (hold x/y to lock an axis)",
+    "矩形ズーム": "Zoom to Rectangle",
+    "ドラッグした矩形範囲に拡大します(x/yキーで軸固定)":
+        "Zoom to the dragged rectangle (hold x/y to lock an axis)",
+    "サブプロット調整": "Configure Subplots",
+    "サブプロット間の余白を調整します": "Adjust the spacing between subplots",
+    "画像として保存": "Save as Image",
+    "グラフを画像ファイルとして保存します": "Save the plot as an image file",
 
     # --- メインウィンドウ: ツールバー/主要ボタン/パネル見出し ---
     "プロットのプロパティ": "Plot Properties",

@@ -24,6 +24,15 @@ logger = logging.getLogger(__name__)
 #   境界の丸め誤差でそこに接触しないよう、余裕を持たせた値にしている。
 MAX_TICKS_PER_AXIS = 500
 
+# ウォーターフォール(積み重ね)表示の zorder を正規化する範囲(実機フィード
+# バック: 「ウォーターフォール適用すると枠とかメモリが隠れる」の対策)。
+# matplotlibの既定値は、目盛マーク(tick1line)が約2.01、スパイン(軸の枠線)が
+# 2.5。オクルージョン用fill_between・トレース本体のzorderが常にこの範囲
+# (WATERFALL_ZORDER_BASE 〜 WATERFALL_ZORDER_TOP)に収まるようにすることで、
+# トレース数によらず軸の枠線・目盛より確実に下に描画されるようにする。
+WATERFALL_ZORDER_BASE = 0.1
+WATERFALL_ZORDER_TOP = 1.9
+
 # データ点ラベル表示(各点の脇にテキストを描画)は、点数が多いと
 # ax.annotate() の呼び出し回数がそのまま増えてアプリがフリーズする原因になるため、
 # この件数を超えるデータセットには自動的にラベルを描画しない。
@@ -319,9 +328,16 @@ class _CanvasDrawingMixin:
             # ★ 自由配置レイアウトでは、各サブプロットの位置・サイズをユーザーが
             # 明示的に指定しているため、tight_layout() で自動再配置すると
             # その指定が上書きされてしまう。そのためグリッドレイアウトのみ適用する。
+            # ★ 実機フィードバック(ログで確認): 環境によってはmatplotlib自体の
+            #   インストールが不完全で、フォールバック用フォント
+            #   (LastResortHE-Regular.ttf)が欠落しているケースがある。この場合
+            #   tight_layout()のラベルbbox計算がFileNotFoundErrorで失敗し、
+            #   アプリ全体がクラッシュしていた。Graphica側で修正できる問題では
+            #   ないため、レイアウト最適化自体を諦めて描画を続行する
+            #   (見た目が多少崩れるだけで、クラッシュよりはるかに良い)。
             try:
                 self.fig.tight_layout()
-            except ValueError:
+            except (ValueError, FileNotFoundError):
                 pass
 
         self.draw()
@@ -337,7 +353,9 @@ class _CanvasDrawingMixin:
                 self._draw_annotations(ax, index, settings)
         try:
             self.fig.tight_layout()
-        except ValueError:
+        except (ValueError, FileNotFoundError):
+            # ★ FileNotFoundError: 環境依存のフォント欠落によるクラッシュ対策。
+            #   redraw_all()側の同名except節のコメント参照。
             pass
         self.draw()
 
@@ -528,7 +546,9 @@ class _CanvasDrawingMixin:
             # グリッドレイアウトのみ適用する。
             try:
                 self.fig.tight_layout()
-            except ValueError:
+            except (ValueError, FileNotFoundError):
+                # ★ FileNotFoundError: 環境依存のフォント欠落によるクラッシュ対策。
+                #   redraw_all()側の同名except節のコメント参照。
                 pass
 
         self.draw()
@@ -861,6 +881,7 @@ class _CanvasDrawingMixin:
             #   無い)ためスキップし、Yオフセットのみ適用する(同じX位置での
             #   縦方向の積み重ね表示として引き続き使える)。
             waterfall_zorder = None
+            waterfall_fill_zorder = None
             plot_kwargs = {}
             if ds.waterfall_enabled:
                 w_idx = waterfall_index.get(ds.dataset_id, 0)
@@ -868,11 +889,34 @@ class _CanvasDrawingMixin:
                 plot_y_data = ds.y_data + w_idx * ds.waterfall_offset_y
                 # 手前(インデックスが小さい)ほど大きいzorderにし、後ろのトレースの
                 # 上に重なって描画されるようにする。
-                waterfall_zorder = (waterfall_count - w_idx) * 2
+                # ★ 実機フィードバック(バグ報告): 「ウォーターフォール適用すると
+                #   枠とかメモリが隠れる」。以前は waterfall_count に比例して
+                #   際限なく大きくなる値((count - w_idx) * 2)を使っていたため、
+                #   トレース数が増えるとオクルージョン用fill_betweenのzorderが
+                #   matplotlib既定のスパインzorder(2.5)・目盛zorder(約2.01)を
+                #   簡単に超えてしまい、背景色の塗りつぶしが軸の枠線・目盛を
+                #   覆い隠していた(実機確認: わずか2トレースでも再現)。
+                #   WATERFALL_ZORDER_BASE〜WATERFALL_ZORDER_TOPの狭い範囲に
+                #   正規化することで、トレース数によらず常にスパイン/目盛より
+                #   下に収まるようにする(隣接インデックス間の相対順序は
+                #   従来通り保たれる)。
+                step = (WATERFALL_ZORDER_TOP - WATERFALL_ZORDER_BASE) / (waterfall_count + 1)
+                waterfall_zorder = WATERFALL_ZORDER_BASE + (waterfall_count - w_idx) * step
+                waterfall_fill_zorder = waterfall_zorder - step / 2
                 plot_kwargs['zorder'] = waterfall_zorder
             else:
                 plot_x_data = ds.x_data
                 plot_y_data = ds.y_data
+
+            if is_category_x:
+                # 混在型列(文字列+数値/NaN等)対策: matplotlibのカテゴリ軸変換は
+                # 全要素がstr/bytesであることを厳密に要求するため、列のdtypeが
+                # 非数値(=is_category_x)と判定されても個々の値に文字列以外が
+                # 混ざっているとTypeErrorでクラッシュする。ここで非文字列値のみ
+                # 文字列化しておく。
+                plot_x_data = np.array(
+                    [v if isinstance(v, str) else str(v) for v in plot_x_data]
+                )
 
             # 表示用ダウンサンプリング(LTTB、項目C-1001): Lineのみ、かつ点数が
             # 閾値を超える場合のみ、LTTBで代表点を間引いて描画負荷を下げる
@@ -1037,15 +1081,21 @@ class _CanvasDrawingMixin:
                         ds.artist = artist
 
             # ウォーターフォール(項目80/109): 手前のトレースが奥のトレースを隠すよう、
-            # 描画したアーティストの下(waterfall_zorder - 1)に軸背景色のfill_betweenを
-            # 敷く(occlusion)。Areaは自身の塗りつぶしと二重になり見た目が煩雑になる
-            # ため対象外とする。plot_type分岐の後にまとめて行うことで、どの見た目
-            # (Line/Scatter/Line+Scatter/Bar)と組み合わせても同じ処理で済む。
-            if ds.waterfall_enabled and ds.plot_type != 'Area' and len(plot_x_data) > 0:
+            # 描画したアーティストの下(waterfall_fill_zorder)に軸背景色の
+            # fill_betweenを敷く(オクルージョン)。Areaは自身の塗りつぶしと
+            # 二重になり見た目が煩雑になるため対象外とする。plot_type分岐の後に
+            # まとめて行うことで、どの見た目(Line/Scatter/Line+Scatter/Bar)と
+            # 組み合わせても同じ処理で済む。
+            # ★ 実機フィードバック: 「オクルージョンはon/off切り替え可能にして」。
+            #   ds.waterfall_occlusion_enabled(既定True)で切り替えられる。
+            if (
+                ds.waterfall_enabled and ds.waterfall_occlusion_enabled
+                and ds.plot_type != 'Area' and len(plot_x_data) > 0
+            ):
                 bg_color = DARK_AXES_FACECOLOR if self.dark_mode else LIGHT_AXES_FACECOLOR
                 target_ax.fill_between(
                     plot_x_data, plot_y_data, waterfall_baseline,
-                    color=bg_color, alpha=1.0, zorder=waterfall_zorder - 1, linewidth=0,
+                    color=bg_color, alpha=1.0, zorder=waterfall_fill_zorder, linewidth=0,
                 )
 
             # ★ グラフ要素の直接クリック選択(項目35)のため、常にクリック検出を有効にする。
@@ -1330,8 +1380,23 @@ class _CanvasDrawingMixin:
             spine.set_linewidth(spine_width)
             spine.set_color(spine_color)
 
-        ax.tick_params(axis='both', which='major', width=tick_width, color=spine_color, labelcolor=tick_color, direction=major_dir)
-        ax.tick_params(axis='both', which='minor', width=tick_width * 0.75, color=spine_color, direction=minor_dir)
+        # ★ 実機フィードバック: 目盛(目盛線本体)・目盛数値の表示/非表示を
+        #   個別に切り替えられるようにする。既定(True)では何もせず、
+        #   従来通りの見た目を保つ。Falseの場合のみ明示的に隠すことで、
+        #   軸共有(_apply_shared_axis_tick_visibility、内側の目盛数値を
+        #   常に隠す)が先に適用した labelbottom/labelleft=False を
+        #   誤って上書きしないようにする(このメソッドは軸共有の適用後に
+        #   呼ばれるため、Trueを明示すると軸共有の結果を消してしまう)。
+        tick_visibility_kwargs = {}
+        if not settings.get('ticks_visible', True):
+            tick_visibility_kwargs['bottom'] = False
+            tick_visibility_kwargs['left'] = False
+        if not settings.get('tick_labels_visible', True):
+            tick_visibility_kwargs['labelbottom'] = False
+            tick_visibility_kwargs['labelleft'] = False
+
+        ax.tick_params(axis='both', which='major', width=tick_width, color=spine_color, labelcolor=tick_color, direction=major_dir, **tick_visibility_kwargs)
+        ax.tick_params(axis='both', which='minor', width=tick_width * 0.75, color=spine_color, direction=minor_dir, **tick_visibility_kwargs)
 
         if settings.get('legend_visible', True):
             lines_primary, labels_primary = ax.get_legend_handles_labels()
@@ -1468,6 +1533,17 @@ class _CanvasDrawingMixin:
                 return convert_x_axis_unit(x, _to, _from)
 
             secondary_x_ax = ax.secondary_xaxis('top', functions=(_forward, _inverse))
+            # ★ 実機フィードバック(ログで確認): nm<->cm^-1等の非線形(逆数)変換では、
+            #   主軸側では常識的な範囲でも変換後の第2X軸の値域が極端に広がる
+            #   ことがあり、matplotlib既定のAutoLocatorがGraphica側の
+            #   _safe_multiple_locator(主軸の目盛り間隔手動指定にのみ適用され、
+            #   この既定ロケータ生成経路は素通りする)の対象外のまま
+            #   千本を超える目盛りを生成しようとし、
+            #   "Locator attempting to generate N ticks...exceeds MAXTICKS"の
+            #   警告を出していた(実害としては描画が極端に重くなる/崩れる)。
+            #   MaxNLocatorは変換後の値域の大小に関わらず常に妥当な本数に
+            #   収まるため、明示的に設定して既定のAutoLocatorに任せきりにしない。
+            secondary_x_ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=8))
             secondary_x_ax.set_xlabel(X_AXIS_UNIT_LABELS.get(target_unit, target_unit),
                                        **label_font_dict, color=label_color)
             for label in secondary_x_ax.get_xticklabels():

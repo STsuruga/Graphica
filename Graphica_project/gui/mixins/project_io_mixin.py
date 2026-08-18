@@ -33,8 +33,13 @@ TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS = ('annotations', 'legend_order', 'free_rect
 
 class ProjectIOMixin:
     def _on_save_project(self):
-        """プロジェクト保存（MVC対応）"""
-        self.manual_save() # 既に定義されている保存処理を呼ぶ(拡張子でJSON/pickleを振り分け)
+        """プロジェクトの上書き保存(MVC対応)。既存の保存先が未確定なら
+        自動的に「名前を付けて保存」ダイアログにフォールバックする(manual_save()参照)。"""
+        self.manual_save()
+
+    def _on_save_project_as(self):
+        """プロジェクトを「名前を付けて保存」(MVC対応)。常に保存先ダイアログを開く。"""
+        self.manual_save_as()
 
     def _on_load_project(self):
         """プロジェクト読込（MVC対応）"""

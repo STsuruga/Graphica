@@ -584,6 +584,8 @@ class SettingsMixin:
             'minor_tick_direction': self.minor_tick_direction_combo.currentText(),
             'major_tick_direction_y2': self.major_tick_direction_y2_combo.currentText(),
             'minor_tick_direction_y2': self.minor_tick_direction_y2_combo.currentText(),
+            'ticks_visible': self.ticks_visible_checkbox.isChecked(),
+            'tick_labels_visible': self.tick_labels_visible_checkbox.isChecked(),
 
             # 内部の (self._...) 変数
             'tick_font': self._font_props_to_dict(self._tick_font),
@@ -703,6 +705,8 @@ class SettingsMixin:
             self.minor_tick_direction_combo.setCurrentText(settings.get('minor_tick_direction', 'out'))
             self.major_tick_direction_y2_combo.setCurrentText(settings.get('major_tick_direction_y2', 'out'))
             self.minor_tick_direction_y2_combo.setCurrentText(settings.get('minor_tick_direction_y2', 'out'))
+            self.ticks_visible_checkbox.setChecked(settings.get('ticks_visible', True))
+            self.tick_labels_visible_checkbox.setChecked(settings.get('tick_labels_visible', True))
 
             # 3. 内部の (self._...) 変数を辞書から復元
 

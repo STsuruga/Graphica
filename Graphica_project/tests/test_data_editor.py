@@ -57,6 +57,27 @@ def test_editing_bool_cell_to_true_string_stays_true(qapp):
         dlg.close()
 
 
+def test_icon_only_toolbar_buttons_do_not_retain_focus(qapp):
+    """
+    実機フィードバック(「ボタンが一回押すと他のボタン押すまでずっと色付きに
+    なる」): QPushButtonの既定フォーカスポリシーのままだと、クリック後も
+    gui/theme.pyのQPushButton:focus(青枠)が居座り続けてしまう。データテーブル
+    (Data Editor)のアイコンのみのツールバーボタン群がNoFocusになっていることを
+    確認する。
+    """
+    ds = _make_simple_dataset()
+    dlg = DataEditorDialog(ds)
+    try:
+        for button in (
+            dlg.add_row_button, dlg.delete_row_button, dlg.mask_rows_button,
+            dlg.add_col_button, dlg.delete_col_button, dlg.calc_button,
+            dlg.replicate_error_button, dlg.save_csv_button,
+        ):
+            assert button.focusPolicy() == Qt.FocusPolicy.NoFocus
+    finally:
+        dlg.close()
+
+
 def test_editing_bool_cell_with_unparseable_text_does_not_raise(qapp):
     ds = _make_dataset_with_bool_column(flag_value=True)
     dlg = DataEditorDialog(ds)

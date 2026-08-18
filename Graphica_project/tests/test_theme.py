@@ -133,6 +133,26 @@ class TestFlatThemeProxyStyle:
             qss = theme.build_qss(theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS)
             assert not re.search(r"QTabBar::close-button\s*\{[^}]*\S[^}]*\}", qss)
 
+    def test_scrollbar_handle_hover_and_pressed_use_selection_accent_not_accent(self):
+        """
+        実機フィードバック(「スクロールバーを動かすときの色が緑のまま
+        だから他のとこの青で統一」)。QScrollBar::handle:hover/:pressedは
+        selection_accent(青)を使い、ブランドアクセント(accent、緑寄り)を
+        使っていないことを確認する。
+        """
+        for dark in (False, True):
+            tokens = theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS
+            qss = theme.build_qss(tokens)
+            for orientation in ("vertical", "horizontal"):
+                m = re.search(
+                    rf"QScrollBar::handle:{orientation}:hover,\s*"
+                    rf"QScrollBar::handle:{orientation}:pressed\s*\{{([^}}]*)\}}",
+                    qss,
+                )
+                assert m, f"QScrollBar::handle:{orientation}:hover/:pressedのルールが見つからない"
+                assert tokens["selection_accent"] in m.group(1)
+                assert tokens["accent"] not in m.group(1)
+
     def test_generated_qss_does_not_style_checkbox_indicator(self):
         # QCheckBox::indicator { ... } を指定するとチェックマークが描画され
         # なくなるため、こちらもQSSにプロパティ指定が含まれていないことを

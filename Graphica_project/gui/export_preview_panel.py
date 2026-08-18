@@ -292,6 +292,22 @@ class ExportPreviewPanel(QWidget):
                 return
             mime_data = QMimeData()
             mime_data.setData("image/svg+xml", QByteArray(svg_bytes))
+            # ★ 実機フィードバック: 「エクスポートのコピーボタンがsvgだとコピー
+            #   されない」。Word/PowerPoint等ほとんどのアプリはクリップボードの
+            #   image/svg+xmlを認識せず、SVG単体だと貼り付けても何も起きない。
+            #   同じQMimeDataにPNG版もsetImageData()経由(Qt標準の画像系
+            #   フォーマットとして広く認識される)で併せて持たせておくことで、
+            #   SVGを解釈できないアプリではPNGとして貼り付けられ、対応アプリ
+            #   (Illustrator等)ではSVGとして扱える。
+            png_fallback_bytes = self._render_full_figure_bytes(
+                width_in, height_in, options["dpi"], fmt='png', transparent=options["transparent"],
+                full_resolution=options["full_resolution"]
+            )
+            if png_fallback_bytes is not None:
+                fallback_pixmap = QPixmap()
+                fallback_pixmap.loadFromData(png_fallback_bytes)
+                if not fallback_pixmap.isNull():
+                    mime_data.setImageData(fallback_pixmap.toImage())
             QApplication.clipboard().setMimeData(mime_data)
             self.main_window.statusBar().showMessage("プレビュー画像をSVG形式でクリップボードにコピーしました", 3000)
         else:

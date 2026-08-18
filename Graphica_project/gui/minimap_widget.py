@@ -19,15 +19,32 @@ gui/minimap_widget.py
 """
 import logging
 
+import numpy as np
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.widgets import SpanSelector
 from PySide6.QtCore import Signal
 
+from core.analysis import calculate_lttb_downsample
+
 logger = logging.getLogger(__name__)
 
 # ミニマップの高さ(px)。「小さな概観」であることが一目でわかる程度に抑える。
 MINIMAP_HEIGHT_PX = 70
+
+# 実機不具合対応:「プロットを処理した後にミニマップを動かそうとすると異常に重くなる」。
+# ★ 根本原因: refresh()は各データセットのx_data/y_dataを間引かずそのままax.plot()
+#   していた。SpanSelectorはuseblit=Trueでドラッグ中の再描画自体は軽量(blit)だが、
+#   その裏で使う背景画像(canvas.copy_from_bbox)は「ミニマップFigure全体をフル描画
+#   した結果」であり、refresh()のたびに_create_span_selector()が新しいSpanSelector
+#   を作り直してbackgroundキャッシュを破棄する(=プロットを1回処理するたびに、
+#   直後のドラッグ操作で必ずこのフル描画が起きる)。データ点数が数十万〜数百万点
+#   あるデータセットでは、この「間引かれていない折れ線」のフル描画コストがそのまま
+#   ミニマップ操作の重さとして体感される。gui/canvas.pyのLTTB間引き
+#   (LTTB_DOWNSAMPLE_THRESHOLD/LTTB_DOWNSAMPLE_TARGET_POINTS)と同じ考え方だが、
+#   ミニマップは表示幅が数百pxしかない概観表示のため、より小さい目標点数で十分。
+MINIMAP_DOWNSAMPLE_THRESHOLD = 2000
+MINIMAP_DOWNSAMPLE_TARGET_POINTS = 500
 
 # gui/canvas.py の配色定数と揃える(ダーク/ライト両テーマで浮かないように)
 DARK_FIGURE_FACECOLOR = '#2b2b2b'
@@ -122,6 +139,25 @@ class MinimapWidget(FigureCanvas):
             return
         self.range_selected.emit(xmin, xmax)
 
+    @staticmethod
+    def _downsample_for_overview(x, y):
+        """
+        概観描画用に点数を MINIMAP_DOWNSAMPLE_TARGET_POINTS 程度まで間引く。
+        LTTB(calculate_lttb_downsample)はXが昇順ソート済みであることを前提と
+        するため、gui/canvas.pyのLTTB適用条件と同様にXの昇順を確認してから
+        使う。Xが昇順でない(Scatterの取り込み順序等)場合は形状保持の意味が
+        薄いため、単純な等間隔間引きで点数だけ落とす。
+        """
+        n = len(x)
+        if n <= MINIMAP_DOWNSAMPLE_THRESHOLD:
+            return x, y
+        if np.all(np.diff(x) >= 0):
+            idx = calculate_lttb_downsample(x, y, MINIMAP_DOWNSAMPLE_TARGET_POINTS)
+        else:
+            step = max(1, n // MINIMAP_DOWNSAMPLE_TARGET_POINTS)
+            idx = np.arange(0, n, step)
+        return x[idx], y[idx]
+
     # --- 公開API ---
 
     def refresh(self, datasets, dark_mode=False):
@@ -158,6 +194,7 @@ class MinimapWidget(FigureCanvas):
             if x is None or len(x) == 0:
                 continue
             try:
+                x, y = self._downsample_for_overview(x, y)
                 self.ax.plot(x, y, color=line_color, linewidth=0.7, alpha=0.6)
                 has_data = True
             except Exception:

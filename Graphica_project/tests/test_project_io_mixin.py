@@ -77,6 +77,17 @@ def test_on_save_project_delegates_to_manual_save(tmp_path, monkeypatch):
     assert calls == [True]
 
 
+def test_on_save_project_as_delegates_to_manual_save_as(tmp_path, monkeypatch):
+    """実機フィードバック(「プロジェクトの上書き保存と名前つけて保存を追加」)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window, "manual_save_as", lambda: calls.append(True))
+
+    window._on_save_project_as()
+
+    assert calls == [True]
+
+
 def test_on_load_project_delegates_to_manual_load(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []

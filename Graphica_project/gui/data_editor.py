@@ -62,6 +62,17 @@ class DataEditorDialog(QDialog):
             parent (QWidget, optional): 親ウィジェット。
         """
         super().__init__(parent)
+        # ★ 実機フィードバック(ユーザー選択: 「タスクバー化+再クリックで最前面」):
+        #   既定のQDialog(親ウィンドウの子)のままだと、Windows/macOS双方で
+        #   OS標準のタスクバー/Alt+Tab(macOSはDock/Cmd+Tab)一覧に独立した
+        #   項目として現れず、メインウィンドウの背面に隠れると「親を介した
+        #   間接的な手段」でしか呼び戻せなかった(不便との報告)。
+        #   Qt.WindowType.Windowフラグを付けて独立したトップレベルウィンドウ
+        #   として扱わせることで、OS標準の手段(タスクバークリック/Alt+Tab/
+        #   Dockクリック)で直接前面に呼び戻せるようにする。
+        #   親子関係(parent)自体は維持するため、メインウィンドウが閉じられれば
+        #   このダイアログも従来通り一緒に閉じる。
+        self.setWindowFlag(Qt.WindowType.Window, True)
         self.setWindowTitle(f"データエディタ: {dataset.name}")
         self.resize(800, 600)
         
@@ -124,6 +135,13 @@ class DataEditorDialog(QDialog):
             button.setIcon(icon_utils.icon(icon_name, size=18))
             button.setProperty("iconOnly", True)
             button.setFixedSize(34, 34)
+            # ★ 実機フィードバック: 「ボタンが一回押すと他のボタン押すまで
+            #   ずっと色付きになる」。QPushButtonの既定フォーカスポリシー
+            #   (StrongFocus)により、クリック後もキーボードフォーカスが
+            #   居座り続け、gui/theme.pyのQPushButton:focus(青枠)が
+            #   他のウィジェットにフォーカスが移るまで表示され続けていた。
+            #   フォーカスを一切受け取らないようにして解消する。
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         button_layout.addWidget(self.add_row_button)
         button_layout.addWidget(self.delete_row_button)

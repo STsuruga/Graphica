@@ -24,6 +24,9 @@ _current_proxy_style = None  # QApplication.setStyle()に渡したオブジェ�
 _current_tokens = None  # 現在適用中のLIGHT_TOKENS/DARK_TOKENS(項目H-2-2:
                          # QSSだけでは表現できない選択ハイライトをカスタム
                          # デリゲートで描く際に、ライト/ダーク現在値を参照するため)
+_last_applied_dark = None  # 直近にQApplicationへ実際に適用した dark 値(起動高速化:
+                            # 同じ値でのapply_theme()再呼び出し時、高コストな
+                            # setPalette()/setStyleSheet()の再実行を省略するため)
 
 # データセットリストの角丸(選択ハイライト用デリゲートが、リスト自体の角丸
 # (下のQTreeWidget, QListWidget, QTableWidget規則のborder-radius)と揃える
@@ -750,8 +753,13 @@ QScrollBar::handle:vertical {{
     border-radius: 5px;
     min-height: 24px;
 }}
-QScrollBar::handle:vertical:hover {{
-    background: {accent};
+QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed {{
+    /* ★ 実機フィードバック: 「スクロールバーを動かすときの色が緑のまま
+       だから他のとこの青で統一」。hover/focus/選択等の他の強調表現は
+       既にselection_accent(青)へ統一済みだったが、ここだけ取り残されて
+       いた(ブランドアクセントのaccentのまま)。ドラッグ中はQtの挙動上
+       :hoverスタイルが適用され続けるため、:pressedも明示して揃える。 */
+    background: {selection_accent};
 }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0;
@@ -766,8 +774,8 @@ QScrollBar::handle:horizontal {{
     border-radius: 5px;
     min-width: 24px;
 }}
-QScrollBar::handle:horizontal:hover {{
-    background: {accent};
+QScrollBar::handle:horizontal:hover, QScrollBar::handle:horizontal:pressed {{
+    background: {selection_accent};
 }}
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
     width: 0;
@@ -934,12 +942,26 @@ def apply_theme(app, dark: bool):
     スタイルは固定してモード間の見た目の一貫性を保つ。
     """
     global _original_palette, _original_style_name, _current_proxy_style, _current_tokens
+    global _last_applied_dark
     if _original_palette is None:
         _original_palette = QPalette(app.palette())
         _original_style_name = app.style().objectName()
 
     tokens = DARK_TOKENS if dark else LIGHT_TOKENS
     _current_tokens = tokens
+
+    # ★ 起動高速化: PlotterApp.__init__は同じ dark 値でapply_theme()を2回
+    #   呼ぶ(アイコン構築前の早期反映用と、_create_menu_bar()側の冪等性
+    #   確保用)。複数タブを開いた場合もタブごとに同じ値で再度呼ばれる。
+    #   setPalette()/app.setStyleSheet()はQApplication配下の全ウィジェットに
+    #   対する処理でQt側のコストが大きい(実測: 1回あたり約130ms)ため、
+    #   直前に適用済みの値と変わらない場合は完全にスキップする。
+    #   _on_toggle_dark_mode等、実際にモードが変わる呼び出しでは
+    #   _last_applied_dark と異なる値が渡るため、従来通りフルに適用される。
+    if _current_proxy_style is not None and _last_applied_dark == dark:
+        return
+    _last_applied_dark = dark
+
     # ★ バグ修正: 以前は呼び出しのたびに新しい QProxyStyle(+ラップ元の新しい
     # Fusionスタイル)を作ってapp.setStyle()で丸ごと差し替えていた。
     # QApplication.setStyle()は「差し替え前の古いスタイルオブジェクトを

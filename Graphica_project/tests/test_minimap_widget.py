@@ -9,19 +9,38 @@
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pytest
+from matplotlib.backend_bases import MouseEvent
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 import gui.main_window as main_window_module
 from gui.main_window import PlotterApp
-from gui.minimap_widget import MinimapWidget, DARK_AXES_FACECOLOR, LIGHT_AXES_FACECOLOR
+from gui.minimap_widget import (
+    MinimapWidget,
+    DARK_AXES_FACECOLOR,
+    LIGHT_AXES_FACECOLOR,
+    MINIMAP_DOWNSAMPLE_THRESHOLD,
+    MINIMAP_DOWNSAMPLE_TARGET_POINTS,
+)
 from core.dataset import Dataset
 
 
 def _make_dataset(name, n_points=5):
     df = pd.DataFrame({"x": range(n_points), "y": [v * v for v in range(n_points)]})
+    return Dataset(name=name, df=df, x_col_name="x", y_col_name="y")
+
+
+def _make_large_dataset(name, n_points, sorted_x=True):
+    if sorted_x:
+        x = np.linspace(0, 100, n_points)
+    else:
+        rng = np.random.default_rng(0)
+        x = rng.uniform(0, 100, n_points)
+    y = np.sin(x)
+    df = pd.DataFrame({"x": x, "y": y})
     return Dataset(name=name, df=df, x_col_name="x", y_col_name="y")
 
 
@@ -155,6 +174,98 @@ def test_minimap_span_selection_ignores_zero_width_click(minimap):
     minimap._on_select(2.0, 2.0)
 
     assert received == []
+
+
+# --- ミニマップ操作の重さ対策(実機不具合: プロット処理後にドラッグが重い) ---
+#
+# 根本原因: refresh() が各データセットのx_data/y_dataを間引かずそのまま
+# ax.plot() していたため、点数が多いデータセットでは、refresh()のたびに
+# 作り直されるSpanSelectorの背景キャプチャ(フル描画)が重くなり、直後の
+# ドラッグ操作が重く感じられた。対策: 概観描画用にLTTBで間引く
+# (MINIMAP_DOWNSAMPLE_THRESHOLD超のデータセットのみ)。
+
+def test_minimap_refresh_downsamples_large_datasets_for_overview(minimap):
+    """点数が閾値を超えるデータセットは、概観描画時に目標点数まで間引かれること
+    (間引かないと、データ量に比例してミニマップのフル再描画コストが増え、
+    直後のドラッグ操作が重くなる)。"""
+    ds = _make_large_dataset("big", MINIMAP_DOWNSAMPLE_THRESHOLD * 50)
+    minimap.refresh([ds], dark_mode=False)
+
+    plotted_x = minimap.ax.lines[0].get_xdata()
+    assert len(plotted_x) == MINIMAP_DOWNSAMPLE_TARGET_POINTS
+
+
+def test_minimap_refresh_does_not_downsample_small_datasets(minimap):
+    """閾値以下のデータセットは、これまで通り間引かずそのまま描画すること
+    (小規模データセットで概観の精度を不要に落とさないため)。"""
+    n_points = MINIMAP_DOWNSAMPLE_THRESHOLD - 1
+    ds = _make_large_dataset("small", n_points)
+    minimap.refresh([ds], dark_mode=False)
+
+    plotted_x = minimap.ax.lines[0].get_xdata()
+    assert len(plotted_x) == n_points
+
+
+def test_minimap_refresh_downsamples_unsorted_large_datasets(minimap):
+    """X軸が昇順でない(Scatter等)大規模データセットも、LTTBではなく等間隔間引き
+    にフォールバックしつつ、点数は同様に目標点数まで抑えられること。"""
+    ds = _make_large_dataset("scattered", MINIMAP_DOWNSAMPLE_THRESHOLD * 10, sorted_x=False)
+    minimap.refresh([ds], dark_mode=False)
+
+    plotted_x = minimap.ax.lines[0].get_xdata()
+    assert len(plotted_x) <= MINIMAP_DOWNSAMPLE_TARGET_POINTS
+    assert len(plotted_x) > 0
+
+
+def test_minimap_drag_only_emits_range_selected_on_release_not_per_move(minimap):
+    """
+    回帰テスト: ドラッグ中の各motion_notify_event(マウス移動)のたびに
+    range_selectedが発火する(=main_window.pyの_on_minimap_range_selectedが
+    毎回呼ばれ、全サブプロットのset_xlim+draw_idleというメインキャンバス側の
+    重い処理が走る)実装だと、データ量に関わらずドラッグそのものが重くなる。
+    現在の設計(matplotlib SpanSelectorのonselectはbutton_release時のみ発火、
+    motion中はblitでの矩形位置更新のみ)がこの性質を保っていることを固定する。
+    """
+    ds = _make_large_dataset("big", MINIMAP_DOWNSAMPLE_THRESHOLD * 20)
+    minimap.refresh([ds], dark_mode=False)
+    minimap.resize(600, minimap.height())
+    minimap.show()
+    app = QApplication.instance()
+    for _ in range(5):
+        app.processEvents()
+    # SpanSelectorが背景キャプチャ済みの状態にしておく(実際の操作フローと同じ)
+    minimap.draw()
+    for _ in range(5):
+        app.processEvents()
+
+    received = []
+    minimap.range_selected.connect(lambda xmin, xmax: received.append((xmin, xmax)))
+
+    span = minimap._span_selector
+    ax = minimap.ax
+    bbox = ax.bbox
+    y_px = bbox.y0 + bbox.height * 0.5
+
+    def make_event(frac, name):
+        x_px = bbox.x0 + bbox.width * frac
+        ev = MouseEvent(name, minimap, x_px, y_px)
+        ev.xdata = 100.0 * frac
+        ev.ydata = 0.0
+        ev.inaxes = ax
+        ev.button = 1
+        ev.key = None
+        return ev
+
+    span.press(make_event(0.2, 'button_press_event'))
+    for i in range(50):
+        frac = 0.2 + 0.6 * (i / 50)
+        span.onmove(make_event(frac, 'motion_notify_event'))
+        # ドラッグの途中経過では一度もrange_selectedが発火していないこと
+        assert received == []
+    span.release(make_event(0.8, 'button_release_event'))
+
+    # release時に一度だけ発火すること
+    assert len(received) == 1
 
 
 # --- PlotterAppへの組み込み ---

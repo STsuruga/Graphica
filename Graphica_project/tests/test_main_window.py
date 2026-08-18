@@ -365,31 +365,35 @@ def test_properties_dock_vertical_scroll_still_works_after_collapse(tmp_path, mo
 
 # --- ギリシャ文字/記号パレット(項目81: mathtext拡充、H-2-4で算術/数学記号を追加) ---
 
-def test_label_symbol_palette_has_thirty_two_unique_entries():
+def test_label_symbol_palette_has_thirty_three_unique_entries():
     """
-    項目81のギリシャ文字16個に加え、実機フィードバック(「四則演算の記号とか
-    プロットでよく使う数学記号があるといいかも」)を受けて算術・数学記号16個を
-    追加し、合計32個になった。
+    項目81のギリシャ文字16個+算術・数学記号16個(32個)に加え、実機
+    フィードバック(「minus signを追加して」)を受けてマイナス記号
+    (macro=Noneの生文字エントリ)を追加し、合計33個になった。macroは
+    マイナス記号のみNoneのため、setにしても他のマクロ名と衝突しない。
     """
     palette = main_window_module.LABEL_SYMBOL_PALETTE
-    assert len(palette) == 32
+    assert len(palette) == 33
     glyphs = [glyph for glyph, _ in palette]
     macros = [macro for _, macro in palette]
     assert len(set(glyphs)) == len(glyphs)
     assert len(set(macros)) == len(macros)
+    assert macros.count(None) == 1
 
 
 def test_label_symbol_palette_macros_are_valid_matplotlib_mathtext():
     """
-    パレットの全マクロが、$\\macro$という単純な埋め込み方式(引数不要)で
-    実際にmatplotlibのmathtextパーサーを通ることを確認する(\\sqrtのように
-    引数を必須とするマクロは、この挿入方式と相性が悪いため収録していない
-    ことの裏付け)。
+    パレットの全マクロ(macro=Noneの生文字エントリを除く)が、$\\macro$という
+    単純な埋め込み方式(引数不要)で実際にmatplotlibのmathtextパーサーを
+    通ることを確認する(\\sqrtのように引数を必須とするマクロは、この挿入方式と
+    相性が悪いため収録していないことの裏付け)。
     """
     from matplotlib.mathtext import MathTextParser
 
     parser = MathTextParser('path')
     for glyph, macro in main_window_module.LABEL_SYMBOL_PALETTE:
+        if macro is None:
+            continue
         parser.parse(f"$\\{macro}$", dpi=100)  # 例外が出ないことを確認するだけでよい
 
 
@@ -542,9 +546,22 @@ def test_label_edit_dialog_symbol_click_inserts_at_cursor_when_no_selection(qapp
     dialog.text_edit.setCursorPosition(1)  # "V|T"
     dialog._capture_pending_selection()  # ボタンのpressedで起きる処理を模擬
 
-    dialog._insert_symbol('alpha')
+    dialog._insert_symbol('α', 'alpha')
 
     assert dialog.get_text() == r"V$\alpha$T"
+
+
+def test_label_edit_dialog_symbol_click_inserts_raw_glyph_for_macroless_entry(qapp):
+    """項目60: マイナス記号(macro=None)はmathtextで包まず生の文字を挿入する。"""
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("y=x", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setCursorPosition(1)  # "y|=x"
+    dialog._capture_pending_selection()
+
+    dialog._insert_symbol('−', None)
+
+    assert dialog.get_text() == "y−=x"
 
 
 def test_label_edit_dialog_symbol_click_replaces_selection(qapp):
@@ -554,7 +571,7 @@ def test_label_edit_dialog_symbol_click_replaces_selection(qapp):
     dialog.text_edit.setSelection(5, 3)  # "XYZ"
     dialog._capture_pending_selection()
 
-    dialog._insert_symbol('Omega')
+    dialog._insert_symbol('Ω', 'Omega')
 
     assert dialog.get_text() == r"Peak $\Omega$"
 
@@ -571,7 +588,91 @@ def test_label_edit_dialog_bold_wraps_selection(qapp):
     assert dialog.get_text() == r"$\mathbf{Peak}$ XYZ"
 
 
-def test_label_edit_dialog_wrap_without_selection_shows_message(qapp, monkeypatch):
+def test_label_edit_dialog_reapplying_same_style_toggles_it_off(qapp):
+    """
+    項目59: 「文字スタイルが異常な重ねがけ出来る」バグ修正。同じ装飾ボタンを
+    連打すると以前は\\mathbf{\\mathbf{Peak}}のように無意味な入れ子が積み
+    重なっていたが、既に同じ種類の装飾がかかっている場合はトグルオフする。
+    """
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setSelection(0, 4)  # "Peak"
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+    assert dialog.get_text() == r"$\mathbf{Peak}$ XYZ"
+
+    # 直前の置き換え結果全体が選択された状態のまま、同じボタンをもう一度押す
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    assert dialog.get_text() == "Peak XYZ"  # $も外れて元の生テキストに戻る
+
+
+def test_label_edit_dialog_bold_then_italic_combines_to_boldsymbol(qapp):
+    """太字→イタリックの組み合わせは、従来通り\\boldsymbolへ合成される。"""
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setSelection(0, 4)
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}")
+
+    assert dialog.get_text() == r"$\boldsymbol{Peak}$ XYZ"
+
+
+def test_label_edit_dialog_bold_then_superscript_nests_and_toggles_independently(qapp):
+    """太字+上付きのような異なる種類の重ねがけは、従来通り入れ子で組み合わせられる。"""
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setSelection(0, 4)
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("super", lambda s: f"{{}}^{{{s}}}")
+    assert dialog.get_text() == r"${}^{\mathbf{Peak}}$ XYZ"
+
+    # 上付きだけをトグルオフすると、太字は残る
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("super", lambda s: f"{{}}^{{{s}}}")
+    assert dialog.get_text() == r"$\mathbf{Peak}$ XYZ"
+
+
+def test_label_edit_dialog_toggling_off_boldsymbol_step_by_step_returns_to_plain_text(qapp):
+    """太字+イタリック(boldsymbol)を1つずつトグルオフすると、最終的に完全な生テキストへ戻る。"""
+    from gui.dialogs import LabelEditDialog
+
+    dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
+    dialog.text_edit.setSelection(0, 4)
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}")
+    assert dialog.get_text() == r"$\boldsymbol{Peak}$ XYZ"
+
+    # イタリックだけトグルオフ → 太字のみ残る
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("italic", lambda s: f"\\mathit{{{s}}}")
+    assert dialog.get_text() == r"$\mathbf{Peak}$ XYZ"
+
+    # 太字もトグルオフ → $も外れて完全に生のテキストへ戻る
+    dialog._capture_pending_selection()
+    dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
+    assert dialog.get_text() == "Peak XYZ"
+
+
+def test_label_edit_dialog_wrap_without_selection_does_nothing_silently(qapp, monkeypatch):
+    """
+    項目63: 以前は選択なしで装飾ボタンを押すとQMessageBox.informationの
+    案内ポップアップが出ていたが、実機フィードバック(「ウィンドウ出さないで、
+    ただ変更を適用しないだけでいい」)を受けて、ポップアップを出さず
+    単に何もしないだけにした。
+    """
     from gui.dialogs import LabelEditDialog
     from PySide6.QtWidgets import QMessageBox
 
@@ -582,7 +683,7 @@ def test_label_edit_dialog_wrap_without_selection_shows_message(qapp, monkeypatc
     dialog._capture_pending_selection()  # 選択なしの状態を確定させる
     dialog._apply_wrap("bold", lambda s: f"\\mathbf{{{s}}}")
 
-    assert shown == [True]
+    assert shown == []
     assert dialog.get_text() == "Peak XYZ"  # 変更されない
 
 
@@ -707,6 +808,18 @@ def test_clickable_math_preview_label_emits_clicked_on_left_click(qapp):
     assert received == [True]
 
 
+def test_dataset_action_buttons_do_not_retain_focus(tmp_path, monkeypatch):
+    """
+    実機フィードバック(「プラグインとデータテーブルのとこのボタンが一回
+    押すと他のボタン押すまでずっと色付きになる」)。データセット操作ボタン行
+    (項目70でアイコンのみの正方形ボタンに再編)がフォーカスを持たないことを
+    確認する(gui/theme.pyのQPushButton:focus(青枠)が居座り続ける原因)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    for button in window._dataset_action_button_icons:
+        assert button.focusPolicy() == Qt.FocusPolicy.NoFocus
+
+
 def test_clickable_math_preview_label_has_hover_attribute_enabled(qapp):
     from PySide6.QtCore import Qt
     from gui.main_window import _ClickableMathPreviewLabel
@@ -803,6 +916,19 @@ def test_mpl_toolbar_attribute_is_the_navigation_toolbar(tmp_path, monkeypatch):
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     assert isinstance(window.mpl_toolbar, NavigationToolbar2QT)
+
+
+def test_navigation_toolbar_tooltips_are_localized_to_japanese(tmp_path, monkeypatch):
+    """項目62: matplotlib純正ツールバーの英語ツールチップ("Reset original view"等)を
+    日本語に差し替えていることを確認する。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    actions = window.mpl_toolbar._actions
+    assert actions["home"].toolTip() == "元の表示に戻す"
+    assert actions["pan"].toolTip() == "パン/ズーム"
+    assert actions["zoom"].toolTip() == "矩形ズーム"
+    assert actions["save_figure"].toolTip() == "画像として保存"
+    for action in actions.values():
+        assert "Reset original view" not in action.toolTip()
 
 
 def test_refresh_mpl_toolbar_icons_updates_action_icons_without_raising(tmp_path, monkeypatch):
@@ -1307,7 +1433,13 @@ def test_load_sample_data_existing_file_calls_load_data(tmp_path, monkeypatch):
 
 # --- _update_autosave_path() ---
 
-def test_update_autosave_path_makedirs_failure_falls_back_to_base_filename(tmp_path, monkeypatch):
+def test_update_autosave_path_makedirs_failure_falls_back_to_app_data_dir(tmp_path, monkeypatch):
+    """
+    実機フィードバック(バグ報告、ログで確認): 以前はフォールバック先が
+    ファイル名のみ(cwd相対)で、macOSの.app起動時にcwdが読み取り専用に
+    なるケースでオートセーブが繰り返し失敗していた。書き込み可能な
+    get_app_data_dir()配下にフォールバックすることを確認する。
+    """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     target_dir = str(tmp_path / "some_autosave_dir")
     window.settings.setValue("autosave_dir", target_dir)
@@ -1322,7 +1454,23 @@ def test_update_autosave_path_makedirs_failure_falls_back_to_base_filename(tmp_p
     monkeypatch.setattr(main_window_module.os, "makedirs", _flaky_makedirs)
     window._update_autosave_path()
 
-    assert window._autosave_filename == window._autosave_base_filename
+    expected = os.path.join(main_window_module.get_app_data_dir(), window._autosave_base_filename)
+    assert window._autosave_filename == expected
+
+
+def test_update_autosave_path_default_uses_app_data_dir_not_cwd_relative(tmp_path, monkeypatch):
+    """
+    autosave_dir未設定(空文字)の既定ケースでも、cwd相対の裸のファイル名では
+    なくget_app_data_dir()配下を使うことを確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("autosave_dir", "")
+
+    window._update_autosave_path()
+
+    expected = os.path.join(main_window_module.get_app_data_dir(), window._autosave_base_filename)
+    assert window._autosave_filename == expected
+    assert window._autosave_filename != window._autosave_base_filename
 
 
 # --- manual_save() / manual_load() ---
@@ -1372,6 +1520,64 @@ def test_manual_save_exception_shows_critical_dialog(tmp_path, monkeypatch):
     assert len(critical_calls) == 1
 
 
+def test_manual_save_overwrites_current_project_path_without_dialog(tmp_path, monkeypatch):
+    """
+    実機フィードバック(「プロジェクトの上書き保存と名前つけて保存を追加」):
+    _current_project_pathが分かっている場合、manual_save()はダイアログを
+    出さずそのパスへ直接上書き保存する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    existing_path = str(tmp_path / "existing.graphica")
+    window._current_project_path = existing_path
+
+    dialog_calls = []
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: dialog_calls.append(1) or ("", "")),
+    )
+    saved_paths = []
+    monkeypatch.setattr(window.project, "save_project", lambda path: saved_paths.append(path))
+
+    window.manual_save()
+
+    assert dialog_calls == []
+    assert saved_paths == [existing_path]
+
+
+def test_manual_save_without_current_project_path_falls_back_to_save_as(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window._current_project_path is None
+    target = str(tmp_path / "newproject.graphica")
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (target, "Graphica Project (*.graphica)")),
+    )
+    saved_paths = []
+    monkeypatch.setattr(window.project, "save_project", lambda path: saved_paths.append(path))
+
+    window.manual_save()
+
+    assert saved_paths == [target]
+    assert window._current_project_path == target
+
+
+def test_manual_save_as_always_shows_dialog_even_with_current_project_path(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._current_project_path = str(tmp_path / "existing.graphica")
+    new_target = str(tmp_path / "copy.graphica")
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (new_target, "Graphica Project (*.graphica)")),
+    )
+    saved_paths = []
+    monkeypatch.setattr(window.project, "save_project", lambda path: saved_paths.append(path))
+
+    window.manual_save_as()
+
+    assert saved_paths == [new_target]
+    assert window._current_project_path == new_target
+
+
 def test_manual_load_cancelled_dialog_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("", "")))
@@ -1407,6 +1613,23 @@ def test_load_project_from_path_success_rebuilds_ui_and_updates_recent_files(tmp
     assert len(window.project.datasets) == 1
     assert window.project.datasets[0].name == "d"
     assert window._get_recent_files()[0] == os.path.abspath(save_path)
+    assert window._current_project_path == save_path
+
+
+def test_load_project_from_path_autosave_recovery_does_not_set_current_project_path(tmp_path, monkeypatch):
+    """
+    実機フィードバック(上書き保存機能の追加)に伴う回帰テスト: オートセーブ
+    からの復元(add_to_recent=False)は内部的な一時ファイルからの読み込みの
+    ため、_current_project_pathを更新しない(復元後に「上書き保存」を押しても
+    ユーザーが選んだ覚えのないautosaveファイルへ上書きされないようにするため)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    save_path = str(tmp_path / "autosave.graphica")
+    window.project.save_project(save_path)
+
+    window._load_project_from_path(save_path, add_to_recent=False)
+
+    assert window._current_project_path is None
 
 
 def test_load_project_from_path_exception_shows_critical_dialog(tmp_path, monkeypatch):

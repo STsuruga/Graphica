@@ -17,7 +17,7 @@ import time
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtCore import QSettings, QPoint
+from PySide6.QtCore import QSettings, QPoint, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox
 
 import gui.main_window as main_window_module
@@ -881,6 +881,151 @@ def test_on_new_folder_empty_name_adds_nothing(tmp_path, monkeypatch):
 
 
 # =============================================================================
+# フォルダ名の変更 (_on_rename_dataset_folder、実機フィードバック)
+# =============================================================================
+
+def test_rename_dataset_folder_updates_item_text(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("旧フォルダ名")
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getText",
+        staticmethod(lambda *a, **k: ("新フォルダ名", True))
+    )
+
+    window._on_rename_dataset_folder()
+
+    assert folder.text(0) == "新フォルダ名"
+
+
+def test_rename_dataset_folder_cancelled_leaves_name_unchanged(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("フォルダ")
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getText",
+        staticmethod(lambda *a, **k: ("", False))
+    )
+
+    window._on_rename_dataset_folder()
+
+    assert folder.text(0) == "フォルダ"
+
+
+def test_rename_dataset_folder_does_nothing_when_dataset_selected(tmp_path, monkeypatch):
+    """データセット項目が選択されている(フォルダでない)場合は何もしない。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    calls = []
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getText",
+        staticmethod(lambda *a, **k: calls.append(1) or ("x", True))
+    )
+
+    window._on_rename_dataset_folder()
+
+    assert calls == []
+
+
+def test_rename_dataset_folder_persists_through_capture_dataset_group_tree(tmp_path, monkeypatch):
+    """_capture_dataset_group_tree()はツリーの表示テキストを都度読み取るだけ
+    なので、setText()だけで保存用のフォルダ構造にも新名が反映されることを確認する。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("旧名")
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getText",
+        staticmethod(lambda *a, **k: ("新名", True))
+    )
+
+    window._on_rename_dataset_folder()
+    tree = window._capture_dataset_group_tree()
+
+    assert tree['children'][0]['name'] == "新名"
+
+
+# =============================================================================
+# フォルダ内一括表示/非表示 (_on_show_all_in_folder/_on_hide_all_in_folder、
+# 実機フィードバック「フォルダの表示非表示追加」)
+# =============================================================================
+
+def test_show_all_in_folder_makes_all_datasets_in_folder_visible(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("Folder")
+    ds1 = _make_simple_dataset("d1")
+    ds2 = _make_simple_dataset("d2")
+    ds1.visible = False
+    ds2.visible = False
+    window.project.datasets.extend([ds1, ds2])
+    window._add_dataset_list_item(ds1, folder)
+    window._add_dataset_list_item(ds2, folder)
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+
+    window._on_show_all_in_folder()
+
+    assert ds1.visible is True
+    assert ds2.visible is True
+
+
+def test_hide_all_in_folder_makes_all_datasets_in_folder_hidden(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("Folder")
+    ds1 = _make_simple_dataset("d1")
+    ds2 = _make_simple_dataset("d2")
+    window.project.datasets.extend([ds1, ds2])
+    window._add_dataset_list_item(ds1, folder)
+    window._add_dataset_list_item(ds2, folder)
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+
+    window._on_hide_all_in_folder()
+
+    assert ds1.visible is False
+    assert ds2.visible is False
+
+
+def test_hide_all_in_folder_only_affects_datasets_inside_that_folder(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("Folder")
+    ds_inside = _make_simple_dataset("inside")
+    ds_outside = _make_simple_dataset("outside")
+    window.project.datasets.extend([ds_inside, ds_outside])
+    window._add_dataset_list_item(ds_inside, folder)
+    window._add_dataset_list_item(ds_outside, None)
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+
+    window._on_hide_all_in_folder()
+
+    assert ds_inside.visible is False
+    assert ds_outside.visible is True
+
+
+def test_hide_all_in_folder_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("Folder")
+    ds1 = _make_simple_dataset("d1")
+    window.project.datasets.append(ds1)
+    window._add_dataset_list_item(ds1, folder)
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+
+    window._on_hide_all_in_folder()
+    assert ds1.visible is False
+
+    window.undo_stack.undo()
+    assert ds1.visible is True
+
+
+def test_show_all_in_folder_does_nothing_when_folder_empty(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("Empty")
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+
+    window._on_show_all_in_folder()  # 例外を投げないこと
+
+    assert window.undo_stack.count() == 0
+
+
+# =============================================================================
 # データセットツリーの右クリックメニュー (_on_dataset_tree_context_menu)
 # =============================================================================
 
@@ -915,6 +1060,35 @@ def test_context_menu_no_selection_shows_only_new_folder(tmp_path, monkeypatch):
     window._on_dataset_tree_context_menu(QPoint(0, 0))
 
     assert _RecordingMenu.last_instance.added_texts == ["新しいフォルダ"]
+
+
+def test_context_menu_folder_selected_shows_rename_and_bulk_visibility_actions(tmp_path, monkeypatch):
+    """実機フィードバック(「データセットのフォルダ名編集とフォルダの表示非表示追加」)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = window._add_dataset_folder_item("Folder")
+    window.ui.dataset_list_widget.setCurrentItem(folder)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    texts = _RecordingMenu.last_instance.added_texts
+    assert "フォルダ名を変更..." in texts
+    assert "フォルダ内を全て表示" in texts
+    assert "フォルダ内を全て非表示" in texts
+
+
+def test_context_menu_dataset_selected_does_not_show_folder_actions(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    texts = _RecordingMenu.last_instance.added_texts
+    assert "フォルダ名を変更..." not in texts
+    assert "フォルダ内を全て表示" not in texts
+    assert "フォルダ内を全て非表示" not in texts
 
 
 def test_context_menu_single_dataset_selected_shows_style_and_export_actions(tmp_path, monkeypatch):
@@ -2578,6 +2752,36 @@ def test_property_changed_waterfall_checkbox_and_offsets(tmp_path, monkeypatch):
     assert ds.waterfall_offset_y == 3.0
 
 
+def test_property_changed_waterfall_occlusion_checkbox(tmp_path, monkeypatch):
+    """実機フィードバック(「手前が奥を隠す(オクルージョン)はon/off切り替え
+    可能にして」)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    assert ds.waterfall_occlusion_enabled is True  # 既定値(後方互換)
+
+    window.waterfall_occlusion_checkbox.setChecked(False)
+
+    assert ds.waterfall_occlusion_enabled is False
+
+
+def test_waterfall_occlusion_checkbox_visibility_follows_waterfall_checkbox(tmp_path, monkeypatch):
+    """
+    トップレベルウィンドウ自体をshow()していない状態ではQWidget.isVisible()が
+    常にFalseを返す(Qtの仕様、tests/test_main_app_window.pyの同種テスト参照)
+    ため、setVisible()が実際に設定した論理的な状態(WA_WState_Hidden属性)で確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    window.waterfall_checkbox.setChecked(False)
+    assert window.waterfall_occlusion_checkbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden) is True
+
+    window.waterfall_checkbox.setChecked(True)
+    assert window.waterfall_occlusion_checkbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden) is False
+
+
 def test_property_changed_error_display_combo(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
@@ -2916,6 +3120,66 @@ def test_show_data_editor_no_current_dataset_does_nothing(tmp_path, monkeypatch)
     assert window.data_editor_dialog is None
     window._on_show_data_editor()
     assert window.data_editor_dialog is None
+
+
+def test_show_data_editor_creates_dialog_registered_as_independent_taskbar_window(tmp_path, monkeypatch):
+    """
+    実機フィードバック(「データエディタが背面に行くと表に出すのが面倒」、
+    ユーザー選択: 「タスクバー化+再クリックで最前面」)。DataEditorDialogが
+    OS標準のタスクバー/Alt+Tab一覧に独立して現れるよう、Qt.WindowType.Window
+    フラグが付与されていることを確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    window._on_show_data_editor()
+
+    assert window.data_editor_dialog is not None
+    assert window.data_editor_dialog.windowFlags() & Qt.WindowType.Window
+
+
+def test_show_data_editor_reclicking_same_dataset_raises_existing_dialog(tmp_path, monkeypatch):
+    """
+    同じデータセットに対して「データ表示/編集」を再度押した場合、閉じて
+    作り直す(=ソート/スクロール状態が失われる)のではなく、既存のダイアログ
+    インスタンスをそのまま最前面に呼び戻すことを確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    window._on_show_data_editor()
+    first_dialog = window.data_editor_dialog
+
+    raise_calls = []
+    activate_calls = []
+    monkeypatch.setattr(first_dialog, "raise_", lambda: raise_calls.append(1))
+    monkeypatch.setattr(first_dialog, "activateWindow", lambda: activate_calls.append(1))
+
+    window._on_show_data_editor()
+
+    assert window.data_editor_dialog is first_dialog  # 作り直されていない
+    assert raise_calls == [1]
+    assert activate_calls == [1]
+
+
+def test_show_data_editor_switching_dataset_closes_old_and_creates_new_dialog(tmp_path, monkeypatch):
+    """異なるデータセットを選択して「データ表示/編集」を押した場合は、従来通り
+    古いダイアログを閉じて新しいダイアログを作成する。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds1 = _make_simple_dataset("d0")
+    ds2 = _make_simple_dataset("d1")
+    _add_and_select_dataset(window, ds1)
+    window._on_show_data_editor()
+    first_dialog = window.data_editor_dialog
+
+    _add_and_select_dataset(window, ds2)
+    window._on_show_data_editor()
+
+    assert window.data_editor_dialog is not None
+    assert window.data_editor_dialog is not first_dialog
+    assert window.data_editor_dialog.dataset is ds2
 
 
 # =============================================================================
@@ -4830,3 +5094,41 @@ def test_apply_settings_to_ui_controls_defaults_colorbar_keys_when_missing(tmp_p
     assert window.colorbar_position_combo.currentData() == 'right'
     assert window.colorbar_width_spinbox.value() == pytest.approx(0.05)
     assert window.colorbar_label_edit.text() == ''
+
+
+# --- 軸設定側の目盛(目盛線本体)・目盛数値の表示/非表示(実機フィードバック) ---
+
+def test_gather_settings_from_ui_includes_tick_visibility_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.ticks_visible_checkbox.setChecked(False)
+    window.tick_labels_visible_checkbox.setChecked(False)
+
+    settings = window._gather_settings_from_ui()
+
+    assert settings['ticks_visible'] is False
+    assert settings['tick_labels_visible'] is False
+
+
+def test_apply_settings_to_ui_controls_restores_tick_visibility_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    settings.update({'ticks_visible': False, 'tick_labels_visible': False})
+
+    window._apply_settings_to_ui_controls(settings)
+
+    assert window.ticks_visible_checkbox.isChecked() is False
+    assert window.tick_labels_visible_checkbox.isChecked() is False
+
+
+def test_apply_settings_to_ui_controls_tick_visibility_defaults_true_for_legacy_projects(tmp_path, monkeypatch):
+    """項目20(グローバルCLAUDE.md方針): 新フィールドは旧プロジェクトの
+    設定辞書に存在しなくても既定値(True=従来通り表示)で補われること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    settings.pop('ticks_visible', None)
+    settings.pop('tick_labels_visible', None)
+
+    window._apply_settings_to_ui_controls(settings)  # 例外を投げないこと
+
+    assert window.ticks_visible_checkbox.isChecked() is True
+    assert window.tick_labels_visible_checkbox.isChecked() is True

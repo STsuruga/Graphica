@@ -176,6 +176,10 @@ class Dataset:
     waterfall_enabled: bool = False
     waterfall_offset_x: float = 0.0
     waterfall_offset_y: float = 1.0
+    # 実機フィードバック: オクルージョン(手前のトレースで奥のトレースを隠す
+    # 背景色fill_between、gui/canvas.pyの_draw_data参照)のON/OFF切り替え。
+    # 既定はTrue(従来通りの挙動、後方互換のため)。
+    waterfall_occlusion_enabled: bool = True
 
     # データポイントラベル表示 (各点の脇に値を表示するかどうか、および表示する列)
     show_point_labels: bool = False

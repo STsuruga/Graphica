@@ -57,6 +57,13 @@ hiddenimports = [
     # 静的解析で検出されるが、明示しておく。
     "matplotlib.backends.backend_qtagg",
     "matplotlib.backends.backend_agg",
+    # savefig(format='svg'/'pdf') は matplotlib.backend_bases が実行時に
+    # importlib.import_module() でバックエンドモジュールを動的に読み込むため、
+    # gui/canvas.pyやgui/mixins/export_mixin.py内に直接のimport文が無く、
+    # PyInstallerの静的解析では検出されない(exe化で初めてSVG出力が
+    # ModuleNotFoundErrorになった実例があり、同じ仕組みのPDFも対象に含める)。
+    "matplotlib.backends.backend_svg",
+    "matplotlib.backends.backend_pdf",
     # gui/icon_utils.py の SVG レンダリングに必要。
     "PySide6.QtSvg",
     # gui/mixins/export_mixin.py の PDF エクスポートに使用。
