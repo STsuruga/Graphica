@@ -39,13 +39,46 @@
     `true`に更新・republish済み。#79(C-605)は上記の理由注記付きで`false`
     のまま(実装しない意思決定であり、未着手ではない)。
 
-**リリース**: https://github.com/STsuruga/Graphica/releases/tag/v1.3.2
-(`core/version.py`は`1.3.2`)。Windows exe・macOS `.app`(未署名、Apple
+**リリース**: https://github.com/STsuruga/Graphica/releases/tag/v1.3.3
+(`core/version.py`は`1.3.3`)。Windows exe・macOS `.app`(未署名、Apple
 Silicon/arm64のみ)の両方をビルド・添付済み。CI
-(`.github/workflows/build.yml`)の`build-windows`(12m5s)/`build-macos`
-(10m17s)両ジョブがこのタグに対してgreenであることを確認済み。**v1.3.0の
-主な内容**は`CHANGELOG.md`のv1.3.0節参照(トラック3全体の集大成: フィット
-機能拡充・2Dマップ新機能・provenance追跡・スクリプトエクスポート・性能改善)。
+(`.github/workflows/build.yml`)がgreenであることを確認済み(13m6s)。
+直前のv1.3.2 (https://github.com/STsuruga/Graphica/releases/tag/v1.3.2)
+も両OSビルドgreenで公開済み。**v1.3.0の主な内容**は`CHANGELOG.md`の
+v1.3.0節参照(トラック3全体の集大成: フィット機能拡充・2Dマップ新機能・
+provenance追跡・スクリプトエクスポート・性能改善)。
+
+**v1.3.3(2026-08-19、v1.3.2の直後にパッチリリース)**: v1.3.2で追加した
+「目盛/目盛数値の表示切替」機能へのユーザーからの追加フィードバック2件
+(「メモリと数字の表示非表示がちゃんと切り替わらない」「X軸Y軸一括じゃ
+なくてそれぞれで設定できるように」に対応。詳細は`CHANGELOG.md`のv1.3.3節。
+
+**技術的な学び(表示切替バグの根本原因)**: matplotlibの`ax.tick_params()`が
+設定した値は`ax.cla()`を挟んでも保持され続ける(既定値に戻らない)。
+「Falseの時だけ明示的に隠す」という実装(v1.3.2で導入)は、既存のAxesを
+使い回す軽量再描画パス(`update_appearance_only`等)で「一度非表示にすると
+二度と表示に戻せない」というバグを生んだ。修正は常にTrue/Falseを明示的に
+設定する形にし、軸共有(`share_x_axis`/`share_y_axis`)による内側の目盛数値
+抑制は`_apply_appearance()`の"後"に適用する順序へ統一した。**今後、
+Axesの状態を`tick_params()`等で変更する機能を追加する際は、「既定値では
+何もしない」という設計が軽量再描画パス(Axesを作り直さない経路)でも
+正しく動くかを必ず確認すること。**
+
+**運用上の学び(CI監視Monitorの誤検知、2回連続で発生)**: v1.3.2リリース時、
+CI完了をポーリングするMonitorスクリプトが実際には13分で正常完了していた
+CIを「45分経過してもスタックの可能性」と誤検知した。当初「`cd`が日本語
+パスで効いていない」と推測したが、v1.3.3リリース時に同じパターンの
+Monitorを組んだところ`jq: command not found`のエラーが即座に出た
+(**MonitorツールのシェルにはjqがPATHに無い**。対話的なBashツール呼び出し
+とは別のシェル環境であるため)。真因は`cd`ではなく`jq`未導入だった。
+**教訓: MonitorツールでCI状態等をポーリングする際は`jq`に依存しない
+(素の`gh run list`のテキスト出力を`grep -E "in_progress|queued"`で
+判定する等)。また「N分おきに進捗を報告して」という指示であっても、
+状態文字列に経過時間を含めて差分比較すると毎回「変化あり」と誤判定し
+通知が過剰に頻発する(v1.3.3で実際に発生、30秒おきに通知が来た)。
+1回だけの完了通知で十分な場合は、Monitorではなく`Bash`の
+`run_in_background: true`+`until`ループ(条件が満たされたら終了する
+コマンド)を使う方が適切。**
 
 **v1.3.2(2026-08-19、3時間後の予約実行タスクとして自動実施)**: v1.3.1の
 リリース後、ユーザーが実機で使いながら見つけたバグ・改善要望を21件まとめて
