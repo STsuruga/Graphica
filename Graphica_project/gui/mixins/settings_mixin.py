@@ -584,8 +584,12 @@ class SettingsMixin:
             'minor_tick_direction': self.minor_tick_direction_combo.currentText(),
             'major_tick_direction_y2': self.major_tick_direction_y2_combo.currentText(),
             'minor_tick_direction_y2': self.minor_tick_direction_y2_combo.currentText(),
-            'ticks_visible': self.ticks_visible_checkbox.isChecked(),
-            'tick_labels_visible': self.tick_labels_visible_checkbox.isChecked(),
+            # 目盛(目盛線本体)・目盛数値の表示/非表示(実機フィードバック:
+            # X軸/Y軸それぞれ独立して設定できるように分割済み)。
+            'x_ticks_visible': self.x_ticks_visible_checkbox.isChecked(),
+            'x_tick_labels_visible': self.x_tick_labels_visible_checkbox.isChecked(),
+            'y_ticks_visible': self.y_ticks_visible_checkbox.isChecked(),
+            'y_tick_labels_visible': self.y_tick_labels_visible_checkbox.isChecked(),
 
             # 内部の (self._...) 変数
             'tick_font': self._font_props_to_dict(self._tick_font),
@@ -705,8 +709,18 @@ class SettingsMixin:
             self.minor_tick_direction_combo.setCurrentText(settings.get('minor_tick_direction', 'out'))
             self.major_tick_direction_y2_combo.setCurrentText(settings.get('major_tick_direction_y2', 'out'))
             self.minor_tick_direction_y2_combo.setCurrentText(settings.get('minor_tick_direction_y2', 'out'))
-            self.ticks_visible_checkbox.setChecked(settings.get('ticks_visible', True))
-            self.tick_labels_visible_checkbox.setChecked(settings.get('tick_labels_visible', True))
+            # ★ 後方互換: v1.3.2で導入した軸共通のticks_visible/
+            #   tick_labels_visibleキーのみを持つ既存プロジェクトでは、
+            #   その値をX/Y両方の既定値として使う(gui/canvas.pyの
+            #   _apply_appearance()と同じフォールバック方針)。
+            legacy_ticks_visible = settings.get('ticks_visible', True)
+            legacy_tick_labels_visible = settings.get('tick_labels_visible', True)
+            self.x_ticks_visible_checkbox.setChecked(settings.get('x_ticks_visible', legacy_ticks_visible))
+            self.x_tick_labels_visible_checkbox.setChecked(
+                settings.get('x_tick_labels_visible', legacy_tick_labels_visible))
+            self.y_ticks_visible_checkbox.setChecked(settings.get('y_ticks_visible', legacy_ticks_visible))
+            self.y_tick_labels_visible_checkbox.setChecked(
+                settings.get('y_tick_labels_visible', legacy_tick_labels_visible))
 
             # 3. 内部の (self._...) 変数を辞書から復元
 

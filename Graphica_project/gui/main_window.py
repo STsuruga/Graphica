@@ -1357,12 +1357,21 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #     個別にON/OFFできるようにする。既存の動的UI構築コードの
         #     insertRow(N, ...)は位置がハードコードされているため、新規追加は
         #     CLAUDE.mdの方針通り末尾へのaddRow()で統一する。
-        self.ticks_visible_checkbox = QCheckBox(tr("目盛を表示"))
-        self.ticks_visible_checkbox.setChecked(True)
-        self.ui.formLayout_3.addRow(self.ticks_visible_checkbox)
-        self.tick_labels_visible_checkbox = QCheckBox(tr("目盛の数値を表示"))
-        self.tick_labels_visible_checkbox.setChecked(True)
-        self.ui.formLayout_3.addRow(self.tick_labels_visible_checkbox)
+        #     ★ 実機フィードバック(追加): 「X軸Y軸一括じゃなくてそれぞれで
+        #     設定できるように」を受け、X軸/Y軸独立の4チェックボックスに
+        #     分割する(以前はaxis='both'で一括の2チェックボックスだった)。
+        self.x_ticks_visible_checkbox = QCheckBox(tr("X軸の目盛を表示"))
+        self.x_ticks_visible_checkbox.setChecked(True)
+        self.ui.formLayout_3.addRow(self.x_ticks_visible_checkbox)
+        self.x_tick_labels_visible_checkbox = QCheckBox(tr("X軸の目盛数値を表示"))
+        self.x_tick_labels_visible_checkbox.setChecked(True)
+        self.ui.formLayout_3.addRow(self.x_tick_labels_visible_checkbox)
+        self.y_ticks_visible_checkbox = QCheckBox(tr("Y軸の目盛を表示"))
+        self.y_ticks_visible_checkbox.setChecked(True)
+        self.ui.formLayout_3.addRow(self.y_ticks_visible_checkbox)
+        self.y_tick_labels_visible_checkbox = QCheckBox(tr("Y軸の目盛数値を表示"))
+        self.y_tick_labels_visible_checkbox.setChecked(True)
+        self.ui.formLayout_3.addRow(self.y_tick_labels_visible_checkbox)
 
         # 8. 目盛りの指数表記フォーマット切り替え(項目62)
         #    自動/軸端にまとめて指数表記/目盛りごとに指数表記/常に小数表記 から選択
@@ -2485,8 +2494,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _update_plot_appearance(self):
         """外観のみを更新する（MVC対応版）"""
+        layout_mode = getattr(self.project, 'layout_mode', 'grid')
+        if layout_mode == 'free':
+            rows, cols = 0, 0
+        else:
+            rows = self.subplot_rows_spinbox.value()
+            cols = self.subplot_cols_spinbox.value()
         # 外観の更新もCanvasに丸投げ
-        self.canvas.update_appearance_only(self.project.all_plot_settings)
+        self.canvas.update_appearance_only(
+            self.project.all_plot_settings, rows=rows, cols=cols, layout_mode=layout_mode,
+            share_x_axis=getattr(self.project, 'share_x_axis', False),
+            share_y_axis=getattr(self.project, 'share_y_axis', False),
+        )
 
         if hasattr(self, 'export_preview_panel'):
             self.export_preview_panel.refresh_preview()

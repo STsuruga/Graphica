@@ -302,7 +302,6 @@ class _CanvasDrawingMixin:
                 ax = self.fig.add_subplot(rows, cols, i + 1, sharex=share_x_target, sharey=share_y_target)
                 self.all_axes.append(ax)
                 self.all_secondary_axes.append(None)
-                self._apply_shared_axis_tick_visibility(i, rows, cols, share_x_axis, share_y_axis)
 
         for index, ax in enumerate(self.all_axes):
             if index < len(all_plot_settings):
@@ -314,6 +313,12 @@ class _CanvasDrawingMixin:
             self._draw_data(ax, index, datasets, full_resolution=full_resolution)
             # 外観の適用
             self._apply_appearance(ax, index, settings)
+            # ★ 軸共有(項目C-601)による内側の目盛数値抑制は、_apply_appearance()が
+            #   目盛/目盛数値の表示状態を常に明示的に設定するようになった後で
+            #   最後に適用する必要がある(先に適用すると_apply_appearance()に
+            #   上書きされてしまう)。
+            if not is_free_layout:
+                self._apply_shared_axis_tick_visibility(index, rows, cols, share_x_axis, share_y_axis)
             # 自由なテキスト注釈・矢印の描画
             self._draw_annotations(ax, index, settings)
             # パネルラベルの自動採番(項目C-712): (a)(b)(c)...をサブプロットの
@@ -343,13 +348,22 @@ class _CanvasDrawingMixin:
         self.draw()
         return is_secondary_visible_global # UI更新用にメインウィンドウへ結果を返す
 
-    def update_appearance_only(self, all_plot_settings):
+    def update_appearance_only(self, all_plot_settings, rows=1, cols=1,
+                                layout_mode='grid', share_x_axis=False, share_y_axis=False):
         """データはそのままに、外観設定だけを適用し直す（軽量版）"""
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
+        is_free_layout = layout_mode == 'free'
         for index, ax in enumerate(self.all_axes):
             if index < len(all_plot_settings):
                 settings = all_plot_settings[index]
                 self._apply_appearance(ax, index, settings)
+                # ★ redraw_all()と同じ理由: 軸共有による内側の目盛数値抑制は
+                #   _apply_appearance()の後に適用しないと上書きされてしまう
+                #   (実機フィードバック: 目盛表示切替のON/OFFが反映されない
+                #   バグの修正に伴い、_apply_appearance()が常に明示的に
+                #   表示状態を設定するようになったため)。
+                if not is_free_layout:
+                    self._apply_shared_axis_tick_visibility(index, rows, cols, share_x_axis, share_y_axis)
                 self._draw_annotations(ax, index, settings)
         try:
             self.fig.tight_layout()
@@ -1380,23 +1394,35 @@ class _CanvasDrawingMixin:
             spine.set_linewidth(spine_width)
             spine.set_color(spine_color)
 
-        # ★ 実機フィードバック: 目盛(目盛線本体)・目盛数値の表示/非表示を
-        #   個別に切り替えられるようにする。既定(True)では何もせず、
-        #   従来通りの見た目を保つ。Falseの場合のみ明示的に隠すことで、
-        #   軸共有(_apply_shared_axis_tick_visibility、内側の目盛数値を
-        #   常に隠す)が先に適用した labelbottom/labelleft=False を
-        #   誤って上書きしないようにする(このメソッドは軸共有の適用後に
-        #   呼ばれるため、Trueを明示すると軸共有の結果を消してしまう)。
-        tick_visibility_kwargs = {}
-        if not settings.get('ticks_visible', True):
-            tick_visibility_kwargs['bottom'] = False
-            tick_visibility_kwargs['left'] = False
-        if not settings.get('tick_labels_visible', True):
-            tick_visibility_kwargs['labelbottom'] = False
-            tick_visibility_kwargs['labelleft'] = False
+        # ★ 実機フィードバック: 「目盛/目盛数値の表示非表示がちゃんと切り替わらない」
+        #   「X軸Y軸一括じゃなくてそれぞれで設定できるように」。
+        #   旧実装は「Falseの時だけ明示的に隠す」設計だったが、
+        #   ax.tick_params()が設定した値はax.cla()を挟んでも保持され続ける
+        #   ("既定はTrueなので何もしない"という前提が成り立たない)ため、
+        #   一度非表示にしてから再度表示に戻しても反映されないバグがあった。
+        #   常にTrue/Falseを明示的に指定することで確実に反映されるようにし、
+        #   同時にX軸/Y軸をそれぞれ独立して設定できるよう分離する。
+        #   後方互換: v1.3.2で導入した軸共通のticks_visible/tick_labels_visible
+        #   キーのみを持つ既存プロジェクトでは、その値をX/Y両方の既定値として使う。
+        #   ★ 軸共有(_apply_shared_axis_tick_visibility)による内側の目盛数値
+        #   抑制は、このメソッドの呼び出し後に別途適用される(呼び出し側の
+        #   redraw_all()/update_appearance_only()/_redraw_single_axis_no_draw()
+        #   参照)ため、ここで軸共有を意識する必要はない。
+        legacy_ticks_visible = settings.get('ticks_visible', True)
+        legacy_tick_labels_visible = settings.get('tick_labels_visible', True)
+        x_ticks_visible = settings.get('x_ticks_visible', legacy_ticks_visible)
+        y_ticks_visible = settings.get('y_ticks_visible', legacy_ticks_visible)
+        x_tick_labels_visible = settings.get('x_tick_labels_visible', legacy_tick_labels_visible)
+        y_tick_labels_visible = settings.get('y_tick_labels_visible', legacy_tick_labels_visible)
 
-        ax.tick_params(axis='both', which='major', width=tick_width, color=spine_color, labelcolor=tick_color, direction=major_dir, **tick_visibility_kwargs)
-        ax.tick_params(axis='both', which='minor', width=tick_width * 0.75, color=spine_color, direction=minor_dir, **tick_visibility_kwargs)
+        ax.tick_params(axis='x', which='major', width=tick_width, color=spine_color, labelcolor=tick_color,
+                        direction=major_dir, bottom=x_ticks_visible, labelbottom=x_tick_labels_visible)
+        ax.tick_params(axis='x', which='minor', width=tick_width * 0.75, color=spine_color,
+                        direction=minor_dir, bottom=x_ticks_visible, labelbottom=x_tick_labels_visible)
+        ax.tick_params(axis='y', which='major', width=tick_width, color=spine_color, labelcolor=tick_color,
+                        direction=major_dir, left=y_ticks_visible, labelleft=y_tick_labels_visible)
+        ax.tick_params(axis='y', which='minor', width=tick_width * 0.75, color=spine_color,
+                        direction=minor_dir, left=y_ticks_visible, labelleft=y_tick_labels_visible)
 
         if settings.get('legend_visible', True):
             lines_primary, labels_primary = ax.get_legend_handles_labels()

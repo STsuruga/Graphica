@@ -138,8 +138,10 @@ class UISetupMixin:
             self.minor_tick_direction_combo.currentTextChanged.connect(self._on_axis_setting_changed)
             self.major_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
             self.minor_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-            self.ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-            self.tick_labels_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.x_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.x_tick_labels_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.y_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.y_tick_labels_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
 
             # カラーバー(項目C-501)。2Dマップが描画されていないサブプロットでは
             # 何の効果も持たないが、他の軸設定と同じく常に収集・適用の対象にする。

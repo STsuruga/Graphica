@@ -5096,28 +5096,38 @@ def test_apply_settings_to_ui_controls_defaults_colorbar_keys_when_missing(tmp_p
     assert window.colorbar_label_edit.text() == ''
 
 
-# --- 軸設定側の目盛(目盛線本体)・目盛数値の表示/非表示(実機フィードバック) ---
+# --- 軸設定側の目盛(目盛線本体)・目盛数値の表示/非表示(実機フィードバック、
+#     X軸/Y軸それぞれ独立して設定できるように分割済み) ---
 
-def test_gather_settings_from_ui_includes_tick_visibility_keys(tmp_path, monkeypatch):
+def test_gather_settings_from_ui_includes_per_axis_tick_visibility_keys(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.ticks_visible_checkbox.setChecked(False)
-    window.tick_labels_visible_checkbox.setChecked(False)
+    window.x_ticks_visible_checkbox.setChecked(False)
+    window.x_tick_labels_visible_checkbox.setChecked(False)
+    window.y_ticks_visible_checkbox.setChecked(True)
+    window.y_tick_labels_visible_checkbox.setChecked(True)
 
     settings = window._gather_settings_from_ui()
 
-    assert settings['ticks_visible'] is False
-    assert settings['tick_labels_visible'] is False
+    assert settings['x_ticks_visible'] is False
+    assert settings['x_tick_labels_visible'] is False
+    assert settings['y_ticks_visible'] is True
+    assert settings['y_tick_labels_visible'] is True
 
 
-def test_apply_settings_to_ui_controls_restores_tick_visibility_keys(tmp_path, monkeypatch):
+def test_apply_settings_to_ui_controls_restores_per_axis_tick_visibility_keys(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     settings = window._gather_settings_from_ui()
-    settings.update({'ticks_visible': False, 'tick_labels_visible': False})
+    settings.update({
+        'x_ticks_visible': False, 'x_tick_labels_visible': True,
+        'y_ticks_visible': True, 'y_tick_labels_visible': False,
+    })
 
     window._apply_settings_to_ui_controls(settings)
 
-    assert window.ticks_visible_checkbox.isChecked() is False
-    assert window.tick_labels_visible_checkbox.isChecked() is False
+    assert window.x_ticks_visible_checkbox.isChecked() is False
+    assert window.x_tick_labels_visible_checkbox.isChecked() is True
+    assert window.y_ticks_visible_checkbox.isChecked() is True
+    assert window.y_tick_labels_visible_checkbox.isChecked() is False
 
 
 def test_apply_settings_to_ui_controls_tick_visibility_defaults_true_for_legacy_projects(tmp_path, monkeypatch):
@@ -5125,10 +5135,33 @@ def test_apply_settings_to_ui_controls_tick_visibility_defaults_true_for_legacy_
     設定辞書に存在しなくても既定値(True=従来通り表示)で補われること。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     settings = window._gather_settings_from_ui()
-    settings.pop('ticks_visible', None)
-    settings.pop('tick_labels_visible', None)
+    for key in ('x_ticks_visible', 'x_tick_labels_visible', 'y_ticks_visible', 'y_tick_labels_visible',
+                'ticks_visible', 'tick_labels_visible'):
+        settings.pop(key, None)
 
     window._apply_settings_to_ui_controls(settings)  # 例外を投げないこと
 
-    assert window.ticks_visible_checkbox.isChecked() is True
-    assert window.tick_labels_visible_checkbox.isChecked() is True
+    assert window.x_ticks_visible_checkbox.isChecked() is True
+    assert window.x_tick_labels_visible_checkbox.isChecked() is True
+    assert window.y_ticks_visible_checkbox.isChecked() is True
+    assert window.y_tick_labels_visible_checkbox.isChecked() is True
+
+
+def test_apply_settings_to_ui_controls_falls_back_to_v1_3_2_combined_tick_visibility_keys(tmp_path, monkeypatch):
+    """
+    後方互換: v1.3.2で導入した軸共通のticks_visible/tick_labels_visible
+    キーのみを持つ(x_/y_分割前の)既存プロジェクトを読み込んだ場合、
+    その値をX/Y両方の既定値として使うこと。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    for key in ('x_ticks_visible', 'x_tick_labels_visible', 'y_ticks_visible', 'y_tick_labels_visible'):
+        settings.pop(key, None)
+    settings.update({'ticks_visible': False, 'tick_labels_visible': False})
+
+    window._apply_settings_to_ui_controls(settings)
+
+    assert window.x_ticks_visible_checkbox.isChecked() is False
+    assert window.x_tick_labels_visible_checkbox.isChecked() is False
+    assert window.y_ticks_visible_checkbox.isChecked() is False
+    assert window.y_tick_labels_visible_checkbox.isChecked() is False

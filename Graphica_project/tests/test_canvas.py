@@ -1844,9 +1844,11 @@ def test_apply_appearance_tick_labels_visible_false_hides_numbers_but_not_marks(
 
 def test_apply_appearance_ticks_visible_true_does_not_override_shared_axis_label_hiding(canvas):
     """
-    ticks_visible/tick_labels_visible=True(既定)は「明示的にTrueへ戻す」
-    操作を行わないため、軸共有(share_x_axis)が内側のサブプロットの
-    目盛数値を隠した結果を誤って上書きしないことを確認する回帰テスト。
+    tick_labels_visible=True(既定)であっても、軸共有(share_x_axis)が
+    内側のサブプロットの目盛数値を隠した結果を上書きしないことを確認する
+    回帰テスト。_apply_shared_axis_tick_visibility()は_apply_appearance()の
+    「後」に適用される(redraw_all()側の呼び出し順)ことで、この優先順位を
+    保証している。
     """
     ds = _make_dataset(5, show_point_labels=False)
     settings = [{'tick_labels_visible': True}, {'tick_labels_visible': True}]
@@ -1856,6 +1858,76 @@ def test_apply_appearance_ticks_visible_true_does_not_override_shared_axis_label
     # 「軸共有の対象になる側で実際に隠れていること」を確認する。
     first_ax = canvas.all_axes[0]
     assert first_ax.xaxis._major_tick_kw.get('label1On') is False
+
+
+def test_apply_appearance_re_enabling_tick_visibility_after_disabling_actually_restores_it(canvas):
+    """
+    実機フィードバック(バグ報告): 「目盛と数字の表示非表示がちゃんと
+    切り替わらない」。ax.tick_params()が設定した値はax.cla()を挟んでも
+    保持され続けるため、「Falseの時だけ明示的に隠す」実装では、一度
+    非表示にしてから再度表示に戻しても反映されなかった。同じAxesを
+    使い回すupdate_appearance_only()(項目C-003の軽量再描画パス、実際に
+    このバグが起きたのはこの経路)で、非表示→表示の順に設定し直すと
+    正しく復元されることを確認する。
+    """
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{'x_ticks_visible': False, 'x_tick_labels_visible': False}])
+    ax = canvas.all_axes[0]
+    assert ax.xaxis._major_tick_kw.get('tick1On') is False
+    assert ax.xaxis._major_tick_kw.get('label1On') is False
+
+    # 同じAxesを使い回す軽量パスで、今度は表示に戻す
+    canvas.update_appearance_only([{'x_ticks_visible': True, 'x_tick_labels_visible': True}])
+
+    assert ax.xaxis._major_tick_kw.get('tick1On') is True
+    assert ax.xaxis._major_tick_kw.get('label1On') is True
+
+
+def test_update_appearance_only_reapplies_shared_axis_tick_suppression(canvas):
+    """
+    update_appearance_only()もredraw_all()と同様、_apply_appearance()の後に
+    軸共有による目盛数値抑制を再適用することを確認する(以前はこの経路に
+    軸共有の再適用が無く、軽量再描画のたびに内側の目盛数値が復活して
+    しまう可能性があった)。
+    """
+    ds = _make_dataset(5, show_point_labels=False)
+    settings = [{}, {}]
+    canvas.redraw_all([ds], 2, 1, settings, share_x_axis=True)
+    first_ax = canvas.all_axes[0]
+    assert first_ax.xaxis._major_tick_kw.get('label1On') is False
+
+    canvas.update_appearance_only(settings, rows=2, cols=1, share_x_axis=True)
+
+    assert first_ax.xaxis._major_tick_kw.get('label1On') is False
+
+
+def test_apply_appearance_x_and_y_tick_visibility_are_independent(canvas):
+    """実機フィードバック: 「X軸Y軸一括じゃなくてそれぞれで設定できるように」。"""
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{
+        'x_ticks_visible': False, 'x_tick_labels_visible': True,
+        'y_ticks_visible': True, 'y_tick_labels_visible': False,
+    }])
+    ax = canvas.all_axes[0]
+    assert ax.xaxis._major_tick_kw.get('tick1On') is False
+    assert ax.xaxis._major_tick_kw.get('label1On') is True
+    assert ax.yaxis._major_tick_kw.get('tick1On') is True
+    assert ax.yaxis._major_tick_kw.get('label1On') is False
+
+
+def test_apply_appearance_falls_back_to_legacy_combined_tick_visibility_keys(canvas):
+    """
+    後方互換: v1.3.2で保存されたプロジェクト(軸共通のticks_visible/
+    tick_labels_visibleキーのみ)を読み込んだ場合、その値がX/Y両方に
+    適用されること。
+    """
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{'ticks_visible': False, 'tick_labels_visible': False}])
+    ax = canvas.all_axes[0]
+    assert ax.xaxis._major_tick_kw.get('tick1On') is False
+    assert ax.xaxis._major_tick_kw.get('label1On') is False
+    assert ax.yaxis._major_tick_kw.get('tick1On') is False
+    assert ax.yaxis._major_tick_kw.get('label1On') is False
 
 
 # --- _apply_appearance(): 凡例(第2Y軸のみ/主+第2Y軸結合/非表示時の削除) ---
