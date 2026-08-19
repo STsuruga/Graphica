@@ -1352,27 +1352,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.colorbar_label_edit = QLineEdit()
         self.ui.formLayout_3.addRow(self.colorbar_label_label, self.colorbar_label_edit)
 
-        # 7c. 目盛(目盛線本体)・目盛数値の表示/非表示切り替え(実機フィードバック):
-        #     グリッド線(格子)とは別に、軸の目盛マーク自体と、その数値ラベルを
-        #     個別にON/OFFできるようにする。既存の動的UI構築コードの
-        #     insertRow(N, ...)は位置がハードコードされているため、新規追加は
-        #     CLAUDE.mdの方針通り末尾へのaddRow()で統一する。
-        #     ★ 実機フィードバック(追加): 「X軸Y軸一括じゃなくてそれぞれで
-        #     設定できるように」を受け、X軸/Y軸独立の4チェックボックスに
-        #     分割する(以前はaxis='both'で一括の2チェックボックスだった)。
-        self.x_ticks_visible_checkbox = QCheckBox(tr("X軸の目盛を表示"))
-        self.x_ticks_visible_checkbox.setChecked(True)
-        self.ui.formLayout_3.addRow(self.x_ticks_visible_checkbox)
-        self.x_tick_labels_visible_checkbox = QCheckBox(tr("X軸の目盛数値を表示"))
-        self.x_tick_labels_visible_checkbox.setChecked(True)
-        self.ui.formLayout_3.addRow(self.x_tick_labels_visible_checkbox)
-        self.y_ticks_visible_checkbox = QCheckBox(tr("Y軸の目盛を表示"))
-        self.y_ticks_visible_checkbox.setChecked(True)
-        self.ui.formLayout_3.addRow(self.y_ticks_visible_checkbox)
-        self.y_tick_labels_visible_checkbox = QCheckBox(tr("Y軸の目盛数値を表示"))
-        self.y_tick_labels_visible_checkbox.setChecked(True)
-        self.ui.formLayout_3.addRow(self.y_tick_labels_visible_checkbox)
-
         # 8. 目盛りの指数表記フォーマット切り替え(項目62)
         #    自動/軸端にまとめて指数表記/目盛りごとに指数表記/常に小数表記 から選択
         tick_format_choices = [
@@ -1385,6 +1364,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.x_tick_format_combo = QComboBox()
         self.x_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout.addRow(self.x_tick_format_label, self.x_tick_format_combo)
+
+        # 目盛(目盛線本体)・目盛数値の表示/非表示切り替え(実機フィードバック):
+        # グリッド線(格子)とは別に、軸の目盛マーク自体と、その数値ラベルを
+        # 個別にON/OFFできるようにする。「X軸Y軸一括じゃなくてそれぞれで
+        # 設定できるように」との追加フィードバックを受け、ラベル/書式タブでは
+        # なくX軸/Y軸それぞれのタブに(x_minor_ticks_visible_checkbox等の
+        # 既存の目盛関連設定と同じ場所に)配置する。
+        self.x_ticks_visible_checkbox = QCheckBox(tr("目盛を表示"))
+        self.x_ticks_visible_checkbox.setChecked(True)
+        self.ui.formLayout.addRow(self.x_ticks_visible_checkbox)
+        self.x_tick_labels_visible_checkbox = QCheckBox(tr("目盛の数値を表示"))
+        self.x_tick_labels_visible_checkbox.setChecked(True)
+        self.ui.formLayout.addRow(self.x_tick_labels_visible_checkbox)
 
         # 単位変換の第2X軸(項目C-602): X軸データの単位(source)と第2X軸に
         # 表示したい単位(target)を選び、双方が「なし」以外かつ異なる場合のみ
@@ -1414,6 +1406,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_tick_format_combo = QComboBox()
         self.y_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout_2.addRow(self.y_tick_format_label, self.y_tick_format_combo)
+
+        self.y_ticks_visible_checkbox = QCheckBox(tr("目盛を表示"))
+        self.y_ticks_visible_checkbox.setChecked(True)
+        self.ui.formLayout_2.addRow(self.y_ticks_visible_checkbox)
+        self.y_tick_labels_visible_checkbox = QCheckBox(tr("目盛の数値を表示"))
+        self.y_tick_labels_visible_checkbox.setChecked(True)
+        self.ui.formLayout_2.addRow(self.y_tick_labels_visible_checkbox)
 
         # 9. タイトル/軸ラベル入力欄を、クリックで編集ダイアログを開く
         #    mathtextプレビューラベルに差し替える(項目61/H-2-4追加分)。
