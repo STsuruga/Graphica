@@ -39,14 +39,72 @@
     `true`に更新・republish済み。#79(C-605)は上記の理由注記付きで`false`
     のまま(実装しない意思決定であり、未着手ではない)。
 
-**リリース**: https://github.com/STsuruga/Graphica/releases/tag/v1.3.3
-(`core/version.py`は`1.3.3`)。Windows exe・macOS `.app`(未署名、Apple
+**リリース**: https://github.com/STsuruga/Graphica/releases/tag/v1.3.4
+(`core/version.py`は`1.3.4`)。Windows exe・macOS `.app`(未署名、Apple
 Silicon/arm64のみ)の両方をビルド・添付済み。CI
-(`.github/workflows/build.yml`)がgreenであることを確認済み(13m6s)。
-直前のv1.3.2 (https://github.com/STsuruga/Graphica/releases/tag/v1.3.2)
+(`.github/workflows/build.yml`)がgreenであることを確認済み(master push分
+30m31s、v1.3.4タグ分32m32s、後述の理由で通常より長め)。
+直前のv1.3.3 (https://github.com/STsuruga/Graphica/releases/tag/v1.3.3)、
+v1.3.2 (https://github.com/STsuruga/Graphica/releases/tag/v1.3.2)
 も両OSビルドgreenで公開済み。**v1.3.0の主な内容**は`CHANGELOG.md`の
 v1.3.0節参照(トラック3全体の集大成: フィット機能拡充・2Dマップ新機能・
 provenance追跡・スクリプトエクスポート・性能改善)。
+
+**v1.3.4(2026-08-27、v1.3.3の直後にパッチリリース)**: 実機(Mac)での
+利用中に報告された複数の不具合(軸min/max順序依存バグ、Arial Narrow等の
+Narrow/Condensed系フォントが反映されない、エクスポートのクリップボード
+コピーが透過ON時に黒画像になる、QGroupBoxタイトルの見切れ)+目盛り数値の
+小数桁数指定機能(新規)。詳細は`CHANGELOG.md`のv1.3.4節。バージョンは
+直近の前例に倣いpatchバンプ(1.3.4)。
+
+**技術的な学び(Arial Narrow問題の真因)**: Windows上の「Arial Narrow」
+本体(`ARIALN.TTF`)は、matplotlibのフォントキャッシュに
+`family="Arial", stretch="condensed"`として登録されており、
+「Arial Narrow」という名前のファミリーとしては一切存在しない(GDIの
+伝統的なスタイルリンク方式)。文字列そのままで`findfont()`すると解決
+できず、matplotlibは既定フォントへ静かにフォールバックする。対策として、
+末尾のNarrow/Condensed等のキーワードを切り離しfamily+stretchで再解決を
+試みる関数を追加(`gui/mixins/settings_mixin.py`の
+`_resolve_font_family_for_matplotlib()`)。**今後、複合名を持つOSフォントを
+扱う機能を追加する際は、文字列一致だけに頼らずfamily+stretch/weight/style
+等の属性ベースでの解決を検討すること。**
+
+**運用上の学び(重いGUIテストスイートの単一プロセス劣化、実際に発生)**:
+CLAUDE.mdに記録済みの既知の環境制約が実際に発生した実例。全1954件・
+67ファイルを`pytest -q`一発で実行したところ、CPU時間は着実に増え続けて
+いた(ハングではなく本当に計算していた)にもかかわらず、1時間経っても
+完走しなかった(プロセスメモリは5.8GBまで膨張)。対策として
+`scripts/run_tests_chunked.sh`(既存)と同じ考え方で、ファイル単位に
+新規プロセスを起動するチャンク方式に切り替えたところ、正常に完走した
+(セグフォルト1件を除き全件パス、詳細は下記)。**教訓: 「CPU時間が
+増え続けている=健全」という判定だけでは不十分。全体の所要時間が
+過去の実績(このプロジェクトでは25〜30分)を大幅に超えた場合は、
+ハングでなくとも「単一プロセスでの実行を疑い、チャンク方式に切り替える」
+判断を優先すること。**
+
+**既知の問題として確認・記録(新規)**: `tests/test_export_preview_panel.py`
+は、全34件PASSした後にプロセス終了処理で確実にセグメンテーションフォルト
+する(3回再現、exit 139)。`git stash`でv1.3.3時点のコードに戻しても同じ
+箇所で再現するため、**今回のセッションの変更とは無関係の既存の環境依存
+問題**と確認済み。テストランナー側は`exit code`だけでなく「N passed」の
+サマリー行の有無で成否を判定すること(既存の教訓の実例が増えた形)。
+
+**運用上の学び(pushトリガーの遅延+concurrencyによる誤キャンセル)**:
+v1.3.4のリリースpush後、`gh run list`で13分待っても対応するCI実行が
+一切現れなかった(Actions自体は有効、`workflow_dispatch`での手動起動は
+即座に成功したため、Actions基盤自体の問題ではないと判断)。手動起動した
+ビルドを監視していたところ、14分経過時点で本来のpushトリガーのビルドが
+遅れて出現し、`.github/workflows/build.yml`の
+`concurrency: group: build-${{ github.ref }}, cancel-in-progress: true`
+設定により、同じref(master)への実行だったため手動起動分が自動
+キャンセルされた。真因はGitHub側のwebhook配信遅延(push自体は
+`git ls-remote`で即座に反映確認済みだった)と推測されるが、確定は
+できていない。**教訓: pushしてもCI実行が現れない場合、まず
+`workflow_dispatch`で手動起動して基盤自体の健全性を切り分け、その後も
+`gh run list`を数分おきに確認し続けること(遅れて本来のpushトリガーが
+出現し、concurrency設定により手動起動分と衝突・キャンセルされることが
+ある)。タグpush分(`refs/tags/v*`)はmasterとは別のconcurrencyグループ
+なので、両方が必要な場合は個別に確認すること。**
 
 **v1.3.3(2026-08-19、v1.3.2の直後にパッチリリース)**: v1.3.2で追加した
 「目盛/目盛数値の表示切替」機能へのユーザーからの追加フィードバック2件
