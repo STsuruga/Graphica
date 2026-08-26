@@ -18,10 +18,12 @@ import numpy as np
 import pandas as pd
 import pytest
 from PySide6.QtCore import QSettings, QPoint, Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox
 
 import gui.main_window as main_window_module
 import gui.mixins.dataset_mixin as dataset_mixin_module
+import gui.mixins.settings_mixin as settings_mixin_module
 from gui.main_window import PlotterApp
 from gui.dialogs import (
     NormalizeDatasetDialog, PluginParamDialog, FitDialog, PeakSettingsDialog,
@@ -5165,3 +5167,304 @@ def test_apply_settings_to_ui_controls_falls_back_to_v1_3_2_combined_tick_visibi
     assert window.x_tick_labels_visible_checkbox.isChecked() is False
     assert window.y_ticks_visible_checkbox.isChecked() is False
     assert window.y_tick_labels_visible_checkbox.isChecked() is False
+
+
+# --- 軸設定側の目盛りの小数点以下桁数(実機フィードバック、X軸/Y軸独立) ---
+
+def test_gather_settings_from_ui_includes_per_axis_tick_decimals_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.x_tick_decimals_spinbox.setValue(2)
+    window.y_tick_decimals_spinbox.setValue(0)
+
+    settings = window._gather_settings_from_ui()
+
+    assert settings['x_tick_decimals'] == 2
+    assert settings['y_tick_decimals'] == 0
+
+
+def test_apply_settings_to_ui_controls_restores_per_axis_tick_decimals_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    settings.update({'x_tick_decimals': 3, 'y_tick_decimals': 1})
+
+    window._apply_settings_to_ui_controls(settings)
+
+    assert window.x_tick_decimals_spinbox.value() == 3
+    assert window.y_tick_decimals_spinbox.value() == 1
+
+
+def test_apply_settings_to_ui_controls_tick_decimals_defaults_to_auto_for_legacy_projects(tmp_path, monkeypatch):
+    """項目20(グローバルCLAUDE.md方針): 新フィールドは旧プロジェクトの設定辞書に
+    存在しなくても既定値(-1=「自動」)で補われ、既存の見た目を変えないこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    settings.pop('x_tick_decimals', None)
+    settings.pop('y_tick_decimals', None)
+
+    window._apply_settings_to_ui_controls(settings)  # 例外を投げないこと
+
+    assert window.x_tick_decimals_spinbox.value() == -1
+    assert window.y_tick_decimals_spinbox.value() == -1
+
+
+def test_tick_decimals_spinbox_special_value_text_is_auto(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.x_tick_decimals_spinbox.setValue(-1)
+    assert window.x_tick_decimals_spinbox.text() == "自動"
+
+
+# =============================================================================
+# フォント選択時のmatplotlib非対応フォント警告(実機フィードバック:
+# 「フォントがちゃんと反映されてない、少なくともArial narrowは反映されてない。
+# 反映されるのとされないのある」)
+# =============================================================================
+
+def test_warn_if_font_family_unavailable_shows_warning_for_unresolvable_font(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings_mixin_module._resolve_font_family_for_matplotlib.cache_clear()
+    calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
+
+    class _FakeFontManager:
+        @staticmethod
+        def findfont(family, fallback_to_default=True):
+            raise ValueError(f"Failed to find font {family}")
+
+    monkeypatch.setattr(
+        "matplotlib.font_manager.findfont", _FakeFontManager.findfont,
+    )
+
+    window._warn_if_font_family_unavailable_for_graph(QFont("Arial Narrow"))
+
+    assert len(calls) == 1
+    assert "Arial Narrow" in calls[0][2]
+
+
+def test_warn_if_font_family_unavailable_does_not_warn_for_resolvable_font(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings_mixin_module._resolve_font_family_for_matplotlib.cache_clear()
+    calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
+    monkeypatch.setattr(
+        "matplotlib.font_manager.findfont", lambda family, fallback_to_default=True: "/fake/path/to/font.ttf",
+    )
+
+    window._warn_if_font_family_unavailable_for_graph(QFont("Arial"))
+
+    assert calls == []
+
+
+def test_on_change_tick_font_warns_when_unresolvable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    warn_calls = []
+    monkeypatch.setattr(window, "_warn_if_font_family_unavailable_for_graph", lambda font: warn_calls.append(font))
+    monkeypatch.setattr(
+        settings_mixin_module.QFontDialog, "getFont",
+        staticmethod(lambda *a, **k: (True, QFont("Arial Narrow"))),
+    )
+
+    window._on_change_tick_font()
+
+    assert len(warn_calls) == 1
+    assert warn_calls[0].family() == "Arial Narrow"
+
+
+def test_on_change_tick_font_cancelled_does_not_warn(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    warn_calls = []
+    monkeypatch.setattr(window, "_warn_if_font_family_unavailable_for_graph", lambda font: warn_calls.append(font))
+    monkeypatch.setattr(
+        settings_mixin_module.QFontDialog, "getFont",
+        staticmethod(lambda *a, **k: (False, QFont())),
+    )
+
+    window._on_change_tick_font()
+
+    assert warn_calls == []
+
+
+def test_on_change_axis_label_font_warns_when_unresolvable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    warn_calls = []
+    monkeypatch.setattr(window, "_warn_if_font_family_unavailable_for_graph", lambda font: warn_calls.append(font))
+    monkeypatch.setattr(
+        settings_mixin_module.QFontDialog, "getFont",
+        staticmethod(lambda *a, **k: (True, QFont("Arial Narrow"))),
+    )
+
+    window._on_change_axis_label_font()
+
+    assert len(warn_calls) == 1
+
+
+def test_on_change_legend_font_warns_when_unresolvable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    warn_calls = []
+    monkeypatch.setattr(window, "_warn_if_font_family_unavailable_for_graph", lambda font: warn_calls.append(font))
+    monkeypatch.setattr(
+        settings_mixin_module.QFontDialog, "getFont",
+        staticmethod(lambda *a, **k: (True, QFont("Arial Narrow"))),
+    )
+
+    window._on_change_legend_font()
+
+    assert len(warn_calls) == 1
+
+
+# =============================================================================
+# 自動スケール解除時のmin/maxスピンボックス初期値シード(実機フィードバック:
+# 「軸の値は変わるようになったけど挙動が少し変。最小値から変更するとすぐに
+# 反映されなくて…最大値から変更した場合には最初から変更が反映される」)
+# =============================================================================
+
+def _make_offset_range_dataset(name):
+    """0を含まない実際的なレンジのデータセット(min/maxスピンボックスの
+    未シード値0.0が実際の軸範囲と偶然一致してしまうのを避けるため)"""
+    df = pd.DataFrame({'x': [400, 1000, 2000, 3000, 4000], 'y': [10, 20, 15, 30, 25]})
+    return Dataset(name=name, df=df, x_col_name='x', y_col_name='y')
+
+
+def test_x_autoscale_unchecked_seeds_min_max_spinboxes_from_current_axis_limits(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_offset_range_dataset("d1")
+    _add_and_select_dataset(window, ds)
+
+    axis = window.canvas.all_axes[window.project.active_axis_index]
+    real_xlim = axis.get_xlim()
+    assert real_xlim[0] > 0  # 0を跨がないレンジであることの前提確認
+
+    window.ui.x_autoscale_checkbox.setChecked(False)
+
+    assert window.ui.x_min_spinbox.value() == pytest.approx(real_xlim[0])
+    assert window.ui.x_max_spinbox.value() == pytest.approx(real_xlim[1])
+
+
+def test_y_autoscale_unchecked_seeds_min_max_spinboxes_from_current_axis_limits(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_offset_range_dataset("d1")
+    _add_and_select_dataset(window, ds)
+
+    axis = window.canvas.all_axes[window.project.active_axis_index]
+    real_ylim = axis.get_ylim()
+    assert real_ylim[0] > 0
+
+    window.ui.y_autoscale_checkbox.setChecked(False)
+
+    assert window.ui.y_min_spinbox.value() == pytest.approx(real_ylim[0])
+    assert window.ui.y_max_spinbox.value() == pytest.approx(real_ylim[1])
+
+
+def test_editing_x_min_spinbox_first_still_applies_after_seeding(tmp_path, monkeypatch):
+    """
+    シード前は min/max スピンボックスがDesignerの初期値0.0/0.0のままだった
+    ため、min側を先に変更すると「新min >= 未更新のmax(0.0)」となり
+    gui/canvas.pyのmin_val < max_valガードに阻まれて無反映になっていた
+    (max側を先に変更した場合はガードを通るため問題なく見えていた)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_offset_range_dataset("d1")
+    _add_and_select_dataset(window, ds)
+    window.ui.x_autoscale_checkbox.setChecked(False)
+
+    window.ui.x_min_spinbox.setValue(1000.0)
+
+    axis = window.canvas.all_axes[window.project.active_axis_index]
+    assert axis.get_xlim()[0] == pytest.approx(1000.0)
+
+
+def test_editing_y_min_spinbox_first_still_applies_after_seeding(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_offset_range_dataset("d1")
+    _add_and_select_dataset(window, ds)
+    window.ui.y_autoscale_checkbox.setChecked(False)
+
+    window.ui.y_min_spinbox.setValue(12.0)
+
+    axis = window.canvas.all_axes[window.project.active_axis_index]
+    assert axis.get_ylim()[0] == pytest.approx(12.0)
+
+
+def test_current_active_axis_returns_none_when_out_of_range(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.project.active_axis_index = 99
+    assert window._current_active_axis() is None
+
+
+# =============================================================================
+# 「Narrow」等の複合フォント名をfamily+stretchへ変換して実際に反映する
+# (実機フィードバック: 「macはarial narrow反映されるのにwinはされない」→
+# Windows上のArial Narrow本体(ARIALN.TTF)はmatplotlibのフォントキャッシュに
+# family="Arial", stretch="condensed"として登録されており、"Arial Narrow"と
+# いう名前のファミリーとしては存在しないと判明。文字列そのままでなく
+# family+stretchで再解決することで、Windows上でも実際に反映されるようにする)
+# =============================================================================
+
+def _fake_findfont_arial_narrow_via_stretch(prop, fallback_to_default=True):
+    """family="Arial"+stretch="condensed"の組み合わせでだけ解決に成功する偽findfont"""
+    family = prop.get_family() if hasattr(prop, "get_family") else [prop]
+    stretch = prop.get_stretch() if hasattr(prop, "get_stretch") else "normal"
+    if family == ["Arial"] and stretch == "condensed":
+        return "/fake/ARIALN.TTF"
+    raise ValueError(f"Failed to find font {family}:stretch={stretch}")
+
+
+def test_resolve_font_family_falls_back_to_stretch_for_narrow_suffix(monkeypatch):
+    settings_mixin_module._resolve_font_family_for_matplotlib.cache_clear()
+    monkeypatch.setattr("matplotlib.font_manager.findfont", _fake_findfont_arial_narrow_via_stretch)
+
+    name, stretch, ok = settings_mixin_module._resolve_font_family_for_matplotlib("Arial Narrow")
+
+    assert ok is True
+    assert name == "Arial"
+    assert stretch == "condensed"
+
+
+def test_resolve_font_family_returns_literal_when_directly_resolvable(monkeypatch):
+    settings_mixin_module._resolve_font_family_for_matplotlib.cache_clear()
+    monkeypatch.setattr("matplotlib.font_manager.findfont", lambda *a, **k: "/fake/path.ttf")
+
+    name, stretch, ok = settings_mixin_module._resolve_font_family_for_matplotlib("Meiryo")
+
+    assert ok is True
+    assert name == "Meiryo"
+    assert stretch is None
+
+
+def test_resolve_font_family_returns_unresolved_when_nothing_matches(monkeypatch):
+    settings_mixin_module._resolve_font_family_for_matplotlib.cache_clear()
+
+    def _always_fail(*a, **k):
+        raise ValueError("nope")
+
+    monkeypatch.setattr("matplotlib.font_manager.findfont", _always_fail)
+
+    name, stretch, ok = settings_mixin_module._resolve_font_family_for_matplotlib("Totally Fake Font")
+
+    assert ok is False
+    assert name == "Totally Fake Font"
+    assert stretch is None
+
+
+def test_font_props_to_dict_converts_narrow_family_to_stretch(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings_mixin_module._resolve_font_family_for_matplotlib.cache_clear()
+    monkeypatch.setattr("matplotlib.font_manager.findfont", _fake_findfont_arial_narrow_via_stretch)
+
+    font = QFont()
+    font.setFamilies(["Arial Narrow"])
+    result = window._font_props_to_dict(font)
+
+    assert result["family"] == ["Arial"]
+    assert result["stretch"] == "condensed"
+
+
+def test_warn_if_font_family_unavailable_does_not_warn_when_stretch_resolvable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings_mixin_module._resolve_font_family_for_matplotlib.cache_clear()
+    calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
+    monkeypatch.setattr("matplotlib.font_manager.findfont", _fake_findfont_arial_narrow_via_stretch)
+
+    window._warn_if_font_family_unavailable_for_graph(QFont("Arial Narrow"))
+
+    assert calls == []

@@ -6,6 +6,7 @@
 - フォント/色選択ダイアログ
 - 各種チェックボックス変更に伴うUIの有効/無効切り替え
 """
+import functools
 import logging
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFontDialog, QColorDialog, QMessageBox
@@ -17,6 +18,66 @@ from gui.color_history import get_color_with_history
 from gui.dialogs import LegendOrderDialog, LabelEditDialog
 
 logger = logging.getLogger(__name__)
+
+
+# 実機フィードバック: 「Arial narrowは反映されない」→ 原因調査の結果、Windows上の
+# 「Arial Narrow」本体(ARIALN.TTF)はmatplotlibのフォントキャッシュに
+# family="Arial", stretch(幅)="condensed"として登録されており、"Arial Narrow"
+# という名前のファミリーとしては一切存在しない(GDIの伝統的なスタイルリンク方式。
+# fm.fontManager.ttflistを直接調べて確認)。そのため文字列そのままfindfontすると
+# 解決できず、matplotlibは既定フォントへ静かにフォールバックしてしまう。
+# ここでmatplotlib自身のstretch語彙にマッピングし、family+stretchで再解決を
+# 試みることで、Windows上でもNarrow/Condensed系フォントを実際に反映できるようにする。
+_FONT_STRETCH_KEYWORDS = {
+    'narrow': 'condensed',
+    'condensed': 'condensed',
+    'semicondensed': 'semi-condensed',
+    'extracondensed': 'extra-condensed',
+    'ultracondensed': 'ultra-condensed',
+    'wide': 'expanded',
+    'expanded': 'expanded',
+    'semiexpanded': 'semi-expanded',
+    'extraexpanded': 'extra-expanded',
+    'ultraexpanded': 'ultra-expanded',
+}
+
+
+@functools.lru_cache(maxsize=256)
+def _resolve_font_family_for_matplotlib(family_name: str):
+    """
+    フォント名がmatplotlibのfindfontでそのまま解決できるかを確認し、
+    できなければ末尾の「Narrow」「Condensed」等のスタイルキーワードを
+    切り離し、family=基底名 + stretch=condensed等で再解決を試みる。
+
+    戻り値: (matplotlibに渡すべきfamily名, stretch値 or None, 解決できたか: bool)。
+    どちらの方法でも解決できない場合は (family_name, None, False) を返す
+    (呼び出し側の未解決フォント警告に委ねる)。
+
+    lru_cacheを付けているのは、_font_props_to_dict()が軸設定の変更のたびに
+    (_gather_settings_from_ui()経由で)毎回呼ばれるため、同じフォント名に
+    ついてfindfont(実質的にファイルシステム/フォントキャッシュへの問い合わせ)
+    を毎回繰り返さないようにするため。
+    """
+    import matplotlib.font_manager as fm
+
+    try:
+        fm.findfont(fm.FontProperties(family=family_name), fallback_to_default=False)
+        return family_name, None, True
+    except ValueError:
+        pass
+
+    words = family_name.rsplit(None, 1)
+    if len(words) == 2:
+        base, suffix = words
+        stretch = _FONT_STRETCH_KEYWORDS.get(suffix.lower())
+        if stretch is not None:
+            try:
+                fm.findfont(fm.FontProperties(family=base, stretch=stretch), fallback_to_default=False)
+                return base, stretch, True
+            except ValueError:
+                pass
+
+    return family_name, None, False
 
 
 def _qfont_from_family_props(font_props: dict) -> QFont:
@@ -218,6 +279,38 @@ class SettingsMixin:
     # 漏れているため、現状では機能しません (上記【指摘】参照)。
     # #==========================================================================
 
+    def _seed_min_max_spinboxes(self, min_spinbox, max_spinbox, limits):
+        """
+        実機フィードバック(バグ報告: 「軸の値は変わるようになったけど挙動が
+        少し変。最小値から変更するとすぐに反映されなくて…最大値から変更した
+        場合には最初から変更が反映される」): 自動スケールを外した直後、
+        min/maxのスピンボックスがDesignerの初期値(0.0/0.0)のまま放置されて
+        いたため、min側を先に変更すると「新しいmin >= 古い(未更新の)max」に
+        なり、gui/canvas.pyの`if min_val < max_val: ax.set_xlim(...)`という
+        ガードに阻まれて反映されなかった(max側を先に変更した場合は
+        たまたまガードを通るため問題なく見え、変更する順序によって挙動が
+        変わるという分かりにくいバグになっていた、実機ログでは再現せず
+        Windows上のオフラインスクリプトで実際に再現・確認済み)。
+        自動スケールを外す瞬間に、現在実際に表示されている軸範囲を
+        スピンボックスへ反映しておくことで、この不整合を解消する。
+        """
+        if limits is None:
+            return
+        min_lim, max_lim = limits
+        min_spinbox.blockSignals(True)
+        max_spinbox.blockSignals(True)
+        min_spinbox.setValue(min_lim)
+        max_spinbox.setValue(max_lim)
+        min_spinbox.blockSignals(False)
+        max_spinbox.blockSignals(False)
+
+    def _current_active_axis(self):
+        """編集対象として選択中のAxesを返す(未構築・範囲外なら None)。"""
+        axis_index = self.project.active_axis_index
+        if 0 <= axis_index < len(self.canvas.all_axes):
+            return self.canvas.all_axes[axis_index]
+        return None
+
     def _on_x_autoscale_changed(self):
         """X軸オートスケール チェックボックスが変更された"""
         is_autoscale = self.ui.x_autoscale_checkbox.isChecked()
@@ -225,10 +318,15 @@ class SettingsMixin:
         self.ui.x_min_spinbox.setEnabled(not is_autoscale)
         self.ui.x_max_spinbox.setEnabled(not is_autoscale)
 
-        # ★ ユーザーのコードのパターン (非効率だが意図を尊重)
-        # 本来は _on_axis_setting_changed が呼ばれるので不要だが、
-        # 元のコードの _on_grid_... に合わせて plot_appearance を呼ぶ
-        self._update_plot_appearance()
+        if not is_autoscale:
+            axis = self._current_active_axis()
+            self._seed_min_max_spinboxes(
+                self.ui.x_min_spinbox, self.ui.x_max_spinbox, axis.get_xlim() if axis is not None else None)
+
+        # ★ 上でスピンボックスの値をコード側から書き換えた可能性があるため、
+        #   _update_plot_appearance()だけでなく_on_axis_setting_changed()を
+        #   呼び、UIの最新値(seedした値を含む)を改めて収集してから描画する。
+        self._on_axis_setting_changed()
 
     def _on_y_autoscale_changed(self):
         """Y軸オートスケール チェックボックスが変更された"""
@@ -236,7 +334,13 @@ class SettingsMixin:
         # オートスケールが ON なら、最小/最大スピンボックスを無効化
         self.ui.y_min_spinbox.setEnabled(not is_autoscale)
         self.ui.y_max_spinbox.setEnabled(not is_autoscale)
-        self._update_plot_appearance()
+
+        if not is_autoscale:
+            axis = self._current_active_axis()
+            self._seed_min_max_spinboxes(
+                self.ui.y_min_spinbox, self.ui.y_max_spinbox, axis.get_ylim() if axis is not None else None)
+
+        self._on_axis_setting_changed()
 
     def _on_x_tick_mode_changed(self):
         """X軸 主目盛モード (自動/固定) コンボボックスが変更された"""
@@ -343,11 +447,42 @@ class SettingsMixin:
     # 4. _on_axis_setting_changed() を呼び出し、変更を保存・適用する
     #==========================================================================
 
+    def _warn_if_font_family_unavailable_for_graph(self, font):
+        """
+        実機フィードバック: 「フォントがちゃんと反映されてない、少なくとも
+        Arial Narrowは反映されてない。反映されるのとされないのある」。
+        QFontDialogが一覧表示するフォントはOS(Qt)側が把握しているものだが、
+        実際にグラフを描画するmatplotlib自身のフォント探索
+        (matplotlib.font_manager、Qtの一覧とは完全に独立したキャッシュ)には
+        含まれていないことがある。一致しない場合、matplotlibはエラーも
+        警告ダイアログも出さず既定フォントへ静かにフォールバックするだけ
+        (ログにfindfont警告が出るのみ)なので、「選んでも反映されない」
+        「フォントによって効くものと効かないものがある」という一見不可解な
+        挙動になっていた。
+
+        ★ 「Arial Narrow」のような複合名はfamily+stretchへの変換で実際に
+        解決できることが判明したため(_resolve_font_family_for_matplotlib参照)、
+        ここでも同じ解決ロジックを使い、変換後も解決できない場合のみ警告する
+        (選択自体は妨げない――将来そのフォントをインストールした場合に
+        備えて、設定としてはそのまま保持する)。
+        """
+        family = font.family()
+        _resolved_name, _stretch, resolved = _resolve_font_family_for_matplotlib(family)
+        if not resolved:
+            QMessageBox.warning(
+                self, "フォントが見つかりません",
+                f"フォント「{family}」はグラフの描画エンジン(matplotlib)には認識されず、"
+                "代わりに既定のフォントで表示されます。\n\n"
+                "OS側のフォント一覧には表示されていても、グラフの描画には使えない"
+                "フォントがあります。別のフォントをお試しください。"
+            )
+
     def _on_change_tick_font(self):
         """「目盛フォント」ボタンが押された"""
         # (現在のフォント, 親ウィジェット) を渡す
         ok, font = QFontDialog.getFont(self._tick_font, self)
         if ok:
+            self._warn_if_font_family_unavailable_for_graph(font)
             self._tick_font = font
             self._on_axis_setting_changed() # 変更を保存・適用
 
@@ -362,6 +497,7 @@ class SettingsMixin:
         """「軸ラベルフォント」ボタンが押された"""
         ok, font = QFontDialog.getFont(self._axis_label_font, self)
         if ok:
+            self._warn_if_font_family_unavailable_for_graph(font)
             self._axis_label_font = font
             # 【★ バグ修正 ★】
             # _update_plot_appearance() ではなく _on_axis_setting_changed() を呼び出し、
@@ -381,6 +517,7 @@ class SettingsMixin:
         """「凡例フォント」ボタンが押された"""
         ok, font = QFontDialog.getFont(self._legend_font, self)
         if ok:
+            self._warn_if_font_family_unavailable_for_graph(font)
             self._legend_font = font
             self._on_axis_setting_changed() # 変更を保存・適用
 
@@ -510,13 +647,28 @@ class SettingsMixin:
         残って日本語が文字化けする。matplotlibのfamilyキーワードはstr/list
         どちらも受け付けるため、ユーザーがQFontDialogで単一フォントを選んだ
         場合(families()が1件のリストを返す)も含めて、常にリストとして保存する。
+
+        ★ 各候補名は_resolve_font_family_for_matplotlib()で解決を試み、
+        「Arial Narrow」のような複合名がmatplotlibに直接認識されない場合は
+        family+stretchのペアに変換する(詳細は同関数のdocstring参照)。
         """
-        return {
-            'family': list(qfont.families()),
+        resolved_families = []
+        stretch = None
+        for name in qfont.families():
+            resolved_name, resolved_stretch, _ok = _resolve_font_family_for_matplotlib(name)
+            resolved_families.append(resolved_name)
+            if stretch is None and resolved_stretch is not None:
+                stretch = resolved_stretch
+
+        result = {
+            'family': resolved_families,
             'size': qfont.pointSize(),
             'weight': 'bold' if qfont.bold() else 'normal',
             'style': 'italic' if qfont.italic() else 'normal'
         }
+        if stretch is not None:
+            result['stretch'] = stretch
+        return result
 
     def _gather_settings_from_ui(self) -> dict:
         """
@@ -544,6 +696,7 @@ class SettingsMixin:
             'x_minor_ticks_visible': self.ui.x_minor_ticks_visible_checkbox.isChecked(),
             'x_minor_tick_interval': self.ui.x_minor_tick_interval_spinbox.value(),
             'x_tick_format_mode': self.x_tick_format_combo.currentIndex(),
+            'x_tick_decimals': self.x_tick_decimals_spinbox.value(),
             'x_secondary_axis_source_unit':
                 X_AXIS_UNIT_CHOICES[self.x_secondary_axis_source_unit_combo.currentIndex()],
             'x_secondary_axis_target_unit':
@@ -560,6 +713,7 @@ class SettingsMixin:
             'y_minor_ticks_visible': self.ui.y_minor_ticks_visible_checkbox.isChecked(),
             'y_minor_tick_interval': self.ui.y_minor_tick_interval_spinbox.value(),
             'y_tick_format_mode': self.y_tick_format_combo.currentIndex(),
+            'y_tick_decimals': self.y_tick_decimals_spinbox.value(),
 
             # ラベル/書式タブ (続き)
             'legend_visible': self.ui.legend_visible_checkbox.isChecked(),
@@ -661,6 +815,7 @@ class SettingsMixin:
             self.ui.x_minor_ticks_visible_checkbox.setChecked(settings.get('x_minor_ticks_visible', False))
             self.ui.x_minor_tick_interval_spinbox.setValue(settings.get('x_minor_tick_interval', 0.5))
             self.x_tick_format_combo.setCurrentIndex(settings.get('x_tick_format_mode', 0))
+            self.x_tick_decimals_spinbox.setValue(settings.get('x_tick_decimals', -1))
             _source_unit = settings.get('x_secondary_axis_source_unit', X_AXIS_UNIT_NONE)
             self.x_secondary_axis_source_unit_combo.setCurrentIndex(
                 X_AXIS_UNIT_CHOICES.index(_source_unit) if _source_unit in X_AXIS_UNIT_CHOICES else 0)
@@ -679,6 +834,7 @@ class SettingsMixin:
             self.ui.y_minor_ticks_visible_checkbox.setChecked(settings.get('y_minor_ticks_visible', False))
             self.ui.y_minor_tick_interval_spinbox.setValue(settings.get('y_minor_tick_interval', 0.5))
             self.y_tick_format_combo.setCurrentIndex(settings.get('y_tick_format_mode', 0))
+            self.y_tick_decimals_spinbox.setValue(settings.get('y_tick_decimals', -1))
 
             # ラベル/書式 (続き)
             self.ui.legend_visible_checkbox.setChecked(settings.get('legend_visible', True))
@@ -799,6 +955,9 @@ class SettingsMixin:
         self.ui.x_minor_ticks_visible_checkbox.blockSignals(block)
         self.ui.x_minor_tick_interval_spinbox.blockSignals(block)
         self.x_tick_format_combo.blockSignals(block)
+        self.x_tick_decimals_spinbox.blockSignals(block)
+        self.x_ticks_visible_checkbox.blockSignals(block)
+        self.x_tick_labels_visible_checkbox.blockSignals(block)
         self.x_secondary_axis_source_unit_combo.blockSignals(block)
         self.x_secondary_axis_target_unit_combo.blockSignals(block)
 
@@ -813,6 +972,9 @@ class SettingsMixin:
         self.ui.y_minor_ticks_visible_checkbox.blockSignals(block)
         self.ui.y_minor_tick_interval_spinbox.blockSignals(block)
         self.y_tick_format_combo.blockSignals(block)
+        self.y_tick_decimals_spinbox.blockSignals(block)
+        self.y_ticks_visible_checkbox.blockSignals(block)
+        self.y_tick_labels_visible_checkbox.blockSignals(block)
 
         # ラベル/書式タブ
         self.ui.title_text_edit.blockSignals(block)
