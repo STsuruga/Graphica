@@ -386,7 +386,13 @@ QDockWidget QGroupBox {{
 }}
 QDockWidget QGroupBox::title {{
     left: 0;
-    top: -4px;
+    /* ★ 実機フィードバック(画像提示、「グラフ全体レイアウト」「編集対象の
+       プロット」の見出しチップ): 上のQGroupBox::title(モーダルダイアログ側)
+       は同じ「見出しが見切れる」問題を既にtop: -6px→0pxで解消済みだったが、
+       このドック専用ルールだけ古いtop: -4pxのまま残っていて見落とされていた
+       (Win/Mac両方で発生、枠の外へはみ出す量に依存する問題のためOS非依存)。
+       同じ理由・同じ直し方で0pxに揃える。 */
+    top: 0px;
     padding: 0;
     color: {text_secondary};
     background: transparent;

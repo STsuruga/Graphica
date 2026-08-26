@@ -732,6 +732,24 @@ def test_generated_qss_groupbox_title_chip_does_not_overflow_above_border():
     assert all(int(value) >= 0 for value in top_matches)
 
 
+def test_generated_qss_dock_groupbox_title_chip_does_not_overflow_above_border():
+    """
+    バグ回帰テスト(実機フィードバック、画像提示):「グラフ全体レイアウト」
+    「編集対象のプロット」の見出しが見切れる(Win/Mac両方で報告)。
+    QDockWidget QGroupBox::title は上のQGroupBox::title(モーダルダイアログ側)
+    と同じ「枠の外へはみ出す配置だと見切れる」問題を抱えていたが、そちらの
+    top: -6px→0pxの修正が反映されておらず、top: -4pxのまま取り残されていた。
+    ドック側のルールも0px以上であることを確認する。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    match = re.search(r"^QDockWidget QGroupBox::title\s*\{([^}]*)\}", qss, re.MULTILINE)
+    assert match, "QDockWidget QGroupBox::title のルールが見つかりません"
+    body_without_comments = re.sub(r"/\*.*?\*/", "", match.group(1), flags=re.DOTALL)
+    top_matches = re.findall(r"top:\s*(-?\d+)px", body_without_comments)
+    assert top_matches, "QDockWidget QGroupBox::title に top プロパティが見つかりません"
+    assert all(int(value) >= 0 for value in top_matches)
+
+
 def test_current_tokens_returns_light_tokens_by_default(qapp, monkeypatch):
     monkeypatch.setattr(theme, "_current_tokens", None)
     assert theme.current_tokens() == theme.LIGHT_TOKENS
