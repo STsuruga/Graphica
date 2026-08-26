@@ -126,6 +126,21 @@ def _apply_tick_format_mode(axis, mode):
         axis.set_major_formatter(formatter)
 
 
+def _apply_tick_decimal_places(axis, decimals):
+    """
+    実機フィードバック: 目盛りの数値を小数点以下何桁まで表示するかを、
+    X軸/Y軸それぞれ独立して指定できるようにする。
+    decimals が None または負値(既定、「自動」)の場合は何もせず、
+    直前に_apply_tick_format_mode()が設定したフォーマッタ(指数表記モード等)
+    をそのまま使う。0以上が指定された場合は、指数表記モードの設定に関わらず
+    常に"%.{decimals}f"形式の固定小数点表記で上書きする(小数点以下の桁数を
+    明示的に指定したいという要求は、指数表記との併用を想定していないため)。
+    """
+    if decimals is None or decimals < 0:
+        return
+    axis.set_major_formatter(ticker.FormatStrFormatter(f'%.{decimals}f'))
+
+
 # --- ダーク/ライトモード用の配色(項目H-3) ---
 # ★ 以前はここに個別のハードコード値(例: '#2b2b2b')を持っており、
 #   gui/theme.py のデザイントークンとは完全に無関係だった(H-0調査で判明した
@@ -243,6 +258,39 @@ class _CanvasDrawingMixin:
         bottom = min(0.55 - offset, 0.55) if index % 2 == 0 else min(0.1 + offset, 0.5)
         return (left, max(bottom, 0.08), 0.45, 0.38)
 
+    def _safe_draw(self):
+        """
+        self.draw()(matplotlibの実際の描画処理)を例外に対して防御的に
+        呼び出す共通ヘルパー。実機フィードバック調査(macOSのある環境で、
+        目盛りフォント関連の環境依存クラッシュ(LastResortHE-Regular.ttf
+        欠落、redraw_all()側のtight_layout()の同種コメント参照)が
+        繰り返し発生していた)から派生した対策。
+
+        ★ 重要な違い: draw_idle()経由の遅延描画は、matplotlib自身の
+        backend_qt.FigureCanvasQT._draw_idle()内で既に
+        `try: self.draw() except Exception: traceback.print_exc()`と
+        例外を握りつぶしている(コメント曰く「PyQt5では未捕捉例外が
+        致命的になるため」)。この`traceback.print_exc()`は標準エラー出力に
+        書くだけで、コンソールを持たないwindowedビルドのexe/appでは
+        どこにも出力されず、こちらのlogger(ファイルログ)にも一切残らない。
+        一方、redraw_all()/update_appearance_only()/
+        update_all_axes_appearance_and_data()が最後に呼ぶself.draw()は
+        「直接呼び出し」であり、これ自体には何の防御も無かった――例外が
+        起きればログには残るはずだが、呼び出し元によっては見た目上
+        「操作しても何も反映されない」ように見えるだけで終わることがある
+        (呼び出し元のPySide6のシグナル配送経路によっては、例外が
+        クラッシュハンドラまで届かないケースが実際にあり得る)。
+        このヘルパーに統一することで、少なくとも自分のloggerには必ず
+        記録が残るようにし、次回以降の実機での原因切り分けを容易にする。
+        """
+        try:
+            self.draw()
+        except Exception:
+            logger.exception(
+                "Figureの描画(self.draw())に失敗しました。"
+                "グラフの表示が更新されていない可能性があります。"
+            )
+
     def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False,
                     share_x_axis=False, share_y_axis=False, full_resolution=False):
         """
@@ -345,7 +393,7 @@ class _CanvasDrawingMixin:
             except (ValueError, FileNotFoundError):
                 pass
 
-        self.draw()
+        self._safe_draw()
         return is_secondary_visible_global # UI更新用にメインウィンドウへ結果を返す
 
     def update_appearance_only(self, all_plot_settings, rows=1, cols=1,
@@ -371,7 +419,7 @@ class _CanvasDrawingMixin:
             # ★ FileNotFoundError: 環境依存のフォント欠落によるクラッシュ対策。
             #   redraw_all()側の同名except節のコメント参照。
             pass
-        self.draw()
+        self._safe_draw()
 
     def _apply_shared_axis_tick_visibility(self, axis_index, rows, cols, share_x_axis, share_y_axis):
         """
@@ -565,7 +613,7 @@ class _CanvasDrawingMixin:
                 #   redraw_all()側の同名except節のコメント参照。
                 pass
 
-        self.draw()
+        self._safe_draw()
         return is_secondary_visible_global
 
     def _draw_panel_label(self, ax, index):
@@ -1366,7 +1414,9 @@ class _CanvasDrawingMixin:
         # 専用のFormatterを既に設定済みのため、数値軸のX軸(および常に数値のY軸)のみ適用する。
         if not is_date_x and not is_category_x:
             _apply_tick_format_mode(ax.xaxis, settings.get('x_tick_format_mode', 0))
+            _apply_tick_decimal_places(ax.xaxis, settings.get('x_tick_decimals', -1))
         _apply_tick_format_mode(ax.yaxis, settings.get('y_tick_format_mode', 0))
+        _apply_tick_decimal_places(ax.yaxis, settings.get('y_tick_decimals', -1))
 
         tick_font_dict = settings.get('tick_font', {})
         label_font_dict = settings.get('axis_label_font', {})
@@ -1441,7 +1491,8 @@ class _CanvasDrawingMixin:
                     family=legend_font_dict.get('family'),
                     size=legend_font_dict.get('size'),
                     weight=legend_font_dict.get('weight'),
-                    style=legend_font_dict.get('style')
+                    style=legend_font_dict.get('style'),
+                    stretch=legend_font_dict.get('stretch')
                 )
                 # 凡例の並び順(ドラッグで並べ替え可能): 描画順とは独立に指定できる
                 legend_order = settings.get('legend_order')

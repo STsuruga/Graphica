@@ -1378,6 +1378,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.x_tick_labels_visible_checkbox.setChecked(True)
         self.ui.formLayout.addRow(self.x_tick_labels_visible_checkbox)
 
+        # 目盛りの数値を小数点以下何桁まで表示するか(実機フィードバック)。
+        # X軸/Y軸それぞれ独立して設定できるようにする。-1(最小値)は
+        # 「自動」を表し、既存の指数表記モード設定(上のx_tick_format_combo)を
+        # そのまま使う(=既存プロジェクトの見た目を変えない既定値)。
+        self.x_tick_decimals_spinbox = QSpinBox()
+        self.x_tick_decimals_spinbox.setRange(-1, 10)
+        self.x_tick_decimals_spinbox.setSpecialValueText(tr("自動"))
+        self.x_tick_decimals_spinbox.setValue(-1)
+        self.x_tick_decimals_spinbox.setToolTip(
+            tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
+        self.ui.formLayout.addRow(QLabel(tr("小数桁数")), self.x_tick_decimals_spinbox)
+
         # 単位変換の第2X軸(項目C-602): X軸データの単位(source)と第2X軸に
         # 表示したい単位(target)を選び、双方が「なし」以外かつ異なる場合のみ
         # 上部にnm<->eV<->cm^-1<->Hz変換済みの第2X軸を表示する
@@ -1413,6 +1425,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_tick_labels_visible_checkbox = QCheckBox(tr("目盛の数値を表示"))
         self.y_tick_labels_visible_checkbox.setChecked(True)
         self.ui.formLayout_2.addRow(self.y_tick_labels_visible_checkbox)
+
+        self.y_tick_decimals_spinbox = QSpinBox()
+        self.y_tick_decimals_spinbox.setRange(-1, 10)
+        self.y_tick_decimals_spinbox.setSpecialValueText(tr("自動"))
+        self.y_tick_decimals_spinbox.setValue(-1)
+        self.y_tick_decimals_spinbox.setToolTip(
+            tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
+        self.ui.formLayout_2.addRow(QLabel(tr("小数桁数")), self.y_tick_decimals_spinbox)
 
         # 9. タイトル/軸ラベル入力欄を、クリックで編集ダイアログを開く
         #    mathtextプレビューラベルに差し替える(項目61/H-2-4追加分)。

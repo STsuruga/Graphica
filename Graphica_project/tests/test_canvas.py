@@ -14,7 +14,7 @@ import pytest
 
 from gui.canvas import (
     _apply_legend_order, _safe_multiple_locator,
-    _sci_each_formatter, _apply_tick_format_mode,
+    _sci_each_formatter, _apply_tick_format_mode, _apply_tick_decimal_places,
     MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
     LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
     GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS,
@@ -120,6 +120,53 @@ def test_apply_tick_format_mode_always_plain(axis):
     formatter.set_locs([1e8, 2e8, 3e8])
     label = formatter(2e8)
     assert "10^" not in label
+
+
+# --- _apply_tick_decimal_places (実機フィードバック: 目盛りの小数点以下桁数) ---
+
+def test_apply_tick_decimal_places_auto_does_not_change_formatter(axis):
+    """-1(既定、「自動」)は_apply_tick_format_mode()が設定したフォーマッタを変更しない。"""
+    _apply_tick_format_mode(axis, mode=1)
+    formatter_after_mode = axis.get_major_formatter()
+    _apply_tick_decimal_places(axis, -1)
+    assert axis.get_major_formatter() is formatter_after_mode
+
+
+def test_apply_tick_decimal_places_none_does_not_change_formatter(axis):
+    original_formatter = axis.get_major_formatter()
+    _apply_tick_decimal_places(axis, None)
+    assert axis.get_major_formatter() is original_formatter
+
+
+def test_apply_tick_decimal_places_zero_formats_as_integer():
+    _apply_tick_decimal_places_and_check(0, 3.14159, "3")
+
+
+def test_apply_tick_decimal_places_two_formats_two_digits():
+    _apply_tick_decimal_places_and_check(2, 3.14159, "3.14")
+
+
+def test_apply_tick_decimal_places_overrides_exponential_format_mode(axis):
+    """
+    指数表記モード(mode=1)が先に適用されていても、小数点以下桁数が
+    明示的に指定されていれば常に固定小数点表記で上書きすること。
+    """
+    _apply_tick_format_mode(axis, mode=1)
+    _apply_tick_decimal_places(axis, 1)
+    formatter = axis.get_major_formatter()
+    assert isinstance(formatter, ticker.FormatStrFormatter)
+    assert formatter(1234.5) == "1234.5"
+
+
+def _apply_tick_decimal_places_and_check(decimals, value, expected):
+    fig, ax = plt.subplots()
+    try:
+        _apply_tick_decimal_places(ax.xaxis, decimals)
+        formatter = ax.xaxis.get_major_formatter()
+        assert isinstance(formatter, ticker.FormatStrFormatter)
+        assert formatter(value) == expected
+    finally:
+        plt.close(fig)
 
 
 # --- データ点ラベルの表示上限(項目105: 大量データでのフリーズ防止) ---
@@ -1366,6 +1413,56 @@ def test_update_all_axes_appearance_and_data_swallows_tight_layout_file_not_foun
     canvas.update_all_axes_appearance_and_data([ds], 1, 1, [{}])
 
 
+# --- _safe_draw(): self.draw()の例外を握りつぶさず必ずログに残す(実機調査) ---
+
+def test_safe_draw_swallows_exception_and_does_not_propagate(canvas, monkeypatch):
+    """
+    実機調査(macOSの一部環境で、X/Y軸のmin/max変更が反映されないバグ):
+    matplotlibのdraw_idle()経由の描画は、matplotlib自身の内部で例外を
+    traceback.print_exc()だけで握りつぶしており(コンソールを持たない
+    windowedビルドでは行き場がなくログにも残らない)、直接呼んでいる
+    self.draw()にはそれすら無かった。_safe_draw()に統一し、例外が
+    起きても最低限アプリを止めず、こちらのloggerには必ず記録されることを
+    確認する。
+    """
+    monkeypatch.setattr(canvas, "draw", lambda: (_ for _ in ()).throw(FileNotFoundError("boom")))
+    canvas._safe_draw()  # 例外が伝播しなければOK
+
+
+def test_safe_draw_logs_the_exception(canvas, monkeypatch, caplog):
+    monkeypatch.setattr(canvas, "draw", lambda: (_ for _ in ()).throw(FileNotFoundError("boom")))
+    with caplog.at_level("ERROR"):
+        canvas._safe_draw()
+    assert any("boom" in record.message or "描画" in record.message for record in caplog.records)
+
+
+def test_safe_draw_calls_draw_normally_when_no_exception(canvas):
+    calls = []
+    canvas.draw = lambda: calls.append(1)
+    canvas._safe_draw()
+    assert calls == [1]
+
+
+def test_redraw_all_uses_safe_draw_and_does_not_crash_when_draw_fails(canvas, monkeypatch):
+    ds = _make_dataset(3, show_point_labels=False)
+    monkeypatch.setattr(canvas, "draw", lambda: (_ for _ in ()).throw(FileNotFoundError("boom")))
+    canvas.redraw_all([ds], 1, 1, [{}])  # 例外が伝播しなければOK
+
+
+def test_update_appearance_only_uses_safe_draw_and_does_not_crash_when_draw_fails(canvas, monkeypatch):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    monkeypatch.setattr(canvas, "draw", lambda: (_ for _ in ()).throw(FileNotFoundError("boom")))
+    canvas.update_appearance_only([{}])  # 例外が伝播しなければOK
+
+
+def test_update_all_axes_appearance_and_data_uses_safe_draw_and_does_not_crash_when_draw_fails(canvas, monkeypatch):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    monkeypatch.setattr(canvas, "draw", lambda: (_ for _ in ()).throw(FileNotFoundError("boom")))
+    canvas.update_all_axes_appearance_and_data([ds], 1, 1, [{}])  # 例外が伝播しなければOK
+
+
 # --- _draw_annotations(): 削除失敗/描画失敗が例外を伝播させない ---
 
 def test_draw_annotations_remove_failure_is_swallowed(canvas):
@@ -1426,6 +1523,25 @@ def test_waterfall_baseline_calculation_skips_dataset_with_empty_data(canvas):
     # 空のデータセットが混ざっていてもベースライン計算がクラッシュしない
     canvas.redraw_all([ds_empty, ds_data], 1, 1, [{}])
     assert len(ds_data.artist.get_xdata()) == 2
+
+
+# --- _apply_appearance()を通じたX軸/Y軸独立の小数点以下桁数(実機フィードバック) ---
+
+def test_apply_appearance_x_and_y_tick_decimals_are_independent(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{'x_tick_decimals': 1, 'y_tick_decimals': 3}])
+    ax = canvas.all_axes[0]
+    assert ax.xaxis.get_major_formatter()(3.14159) == "3.1"
+    assert ax.yaxis.get_major_formatter()(3.14159) == "3.142"
+
+
+def test_apply_appearance_tick_decimals_default_leaves_formatter_unchanged(canvas):
+    ds = _make_dataset(5, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    from matplotlib.ticker import FormatStrFormatter
+    assert not isinstance(ax.xaxis.get_major_formatter(), FormatStrFormatter)
+    assert not isinstance(ax.yaxis.get_major_formatter(), FormatStrFormatter)
 
 
 # --- ウォーターフォールのzorderが軸の枠線/目盛を隠さないこと(実機フィードバック) ---
