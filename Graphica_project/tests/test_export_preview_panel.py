@@ -253,6 +253,55 @@ def test_on_copy_clicked_png_sets_clipboard_pixmap(window_with_plot):
     assert pixmap is not None and not pixmap.isNull()
 
 
+def test_on_copy_clicked_png_always_renders_opaque_regardless_of_transparent_checkbox(window_with_plot, monkeypatch):
+    """
+    実機フィードバック: 「コピーはできるけど真っ黒な画像が張り付けられる」。
+    「背景を透過」は既定でONだが、透過PNGをそのままクリップボードに乗せると
+    Qt/macOSのクリップボード連携がアルファチャンネルを正しく引き継がず、
+    貼り付け先で真っ黒になっていた(既知のQt/macOSクリップボードの弱点)。
+    クリップボードへのコピーに限っては、透過設定に関わらず常に
+    transparent=Falseでレンダリングされることを確認する
+    (ファイル保存時の透過設定はこの回帰テストの対象外、影響を受けない)。
+    """
+    panel = window_with_plot.export_preview_panel
+    panel.copy_format_combo.setCurrentText("PNG")
+    panel.transparent_checkbox.setChecked(True)
+
+    calls = []
+    original = panel._render_full_figure_bytes
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs.get('transparent'))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(panel, "_render_full_figure_bytes", spy)
+
+    panel._on_copy_clicked()
+
+    assert calls == [False]
+
+
+def test_on_copy_clicked_svg_png_fallback_always_renders_opaque(window_with_plot, monkeypatch):
+    """SVGコピー時のPNGフォールバックも同様に、常に不透過でレンダリングすること。"""
+    panel = window_with_plot.export_preview_panel
+    panel.copy_format_combo.setCurrentText("SVG")
+    panel.transparent_checkbox.setChecked(True)
+
+    calls = []
+    original = panel._render_full_figure_bytes
+
+    def spy(*args, **kwargs):
+        calls.append((kwargs.get('fmt'), kwargs.get('transparent')))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(panel, "_render_full_figure_bytes", spy)
+
+    panel._on_copy_clicked()
+
+    png_calls = [transparent for fmt, transparent in calls if fmt == 'png']
+    assert png_calls == [False]
+
+
 def test_on_copy_clicked_passes_full_resolution_to_render_bytes(window_with_plot, monkeypatch):
     panel = window_with_plot.export_preview_panel
     panel.copy_format_combo.setCurrentText("PNG")

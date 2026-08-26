@@ -299,8 +299,18 @@ class ExportPreviewPanel(QWidget):
             #   フォーマットとして広く認識される)で併せて持たせておくことで、
             #   SVGを解釈できないアプリではPNGとして貼り付けられ、対応アプリ
             #   (Illustrator等)ではSVGとして扱える。
+            # ★ さらなる実機フィードバック: 「背景を透過」が既定でONのため、
+            #   透過PNGをそのままクリップボードに乗せると、Qt/macOSの
+            #   クリップボード連携(NSPasteboard)がアルファチャンネルを
+            #   正しく引き継がず、貼り付け先で真っ黒な画像になっていた
+            #   (透過部分のRGBが0,0,0でアルファだけ失われるとこう見える、
+            #   既知のQt/macOSクリップボード周りの弱点)。
+            #   クリップボードへコピーする用途に限っては常に不透過(Figureの
+            #   実際の背景色、ライト/ダークモードに連動)でレンダリングし、
+            #   この問題を回避する(ファイル保存時は影響を受けないため、
+            #   透過設定はそのまま尊重する)。
             png_fallback_bytes = self._render_full_figure_bytes(
-                width_in, height_in, options["dpi"], fmt='png', transparent=options["transparent"],
+                width_in, height_in, options["dpi"], fmt='png', transparent=False,
                 full_resolution=options["full_resolution"]
             )
             if png_fallback_bytes is not None:
@@ -311,8 +321,12 @@ class ExportPreviewPanel(QWidget):
             QApplication.clipboard().setMimeData(mime_data)
             self.main_window.statusBar().showMessage("プレビュー画像をSVG形式でクリップボードにコピーしました", 3000)
         else:
+            # ★ 実機フィードバック: 上のSVGコピー分岐と同じ理由(Qt/macOSの
+            #   クリップボード連携が透過PNGのアルファチャンネルを正しく
+            #   引き継がず、貼り付け先で真っ黒な画像になる)で、PNGコピーも
+            #   常に不透過でレンダリングする。
             png_bytes = self._render_full_figure_bytes(
-                width_in, height_in, options["dpi"], fmt='png', transparent=options["transparent"],
+                width_in, height_in, options["dpi"], fmt='png', transparent=False,
                 full_resolution=options["full_resolution"]
             )
             if png_bytes is None:
