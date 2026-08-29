@@ -39,16 +39,37 @@
     `true`に更新・republish済み。#79(C-605)は上記の理由注記付きで`false`
     のまま(実装しない意思決定であり、未着手ではない)。
 
-**リリース**: https://github.com/STsuruga/Graphica/releases/tag/v1.3.4
-(`core/version.py`は`1.3.4`)。Windows exe・macOS `.app`(未署名、Apple
+**リリース**: https://github.com/STsuruga/Graphica/releases/tag/v1.3.5
+(`core/version.py`は`1.3.5`)。Windows exe・macOS `.app`(未署名、Apple
 Silicon/arm64のみ)の両方をビルド・添付済み。CI
-(`.github/workflows/build.yml`)がgreenであることを確認済み(master push分
-30m31s、v1.3.4タグ分32m32s、後述の理由で通常より長め)。
-直前のv1.3.3 (https://github.com/STsuruga/Graphica/releases/tag/v1.3.3)、
+(`.github/workflows/build.yml`)がgreenであることを確認済み(今回はpush
+トリガーの遅延なく即座に起動)。
+直前のv1.3.4 (https://github.com/STsuruga/Graphica/releases/tag/v1.3.4)、
+v1.3.3 (https://github.com/STsuruga/Graphica/releases/tag/v1.3.3)、
 v1.3.2 (https://github.com/STsuruga/Graphica/releases/tag/v1.3.2)
 も両OSビルドgreenで公開済み。**v1.3.0の主な内容**は`CHANGELOG.md`の
 v1.3.0節参照(トラック3全体の集大成: フィット機能拡充・2Dマップ新機能・
 provenance追跡・スクリプトエクスポート・性能改善)。
+
+**v1.3.5(2026-08-27、v1.3.4の直後にパッチリリース)**: 実機(Mac)からの
+新規報告2件のうち、緊急度の高い方(「タブを増やしたときに増やしたタブが
+何も操作できない」)を修正してリリース。もう1件(書式フォーマットとは別に
+「アプリ起動時のグラフ既定値」を設定できるようにしてほしい、Win/Mac両方)は
+設計が必要な新機能のため、`docs/Graphica_CORE_BACKLOG.md`のC-913として
+記録し、今回のリリース対象からは外した。詳細は`CHANGELOG.md`のv1.3.5節。
+
+**技術的な学び(タブ埋め込みの不具合)**: `gui/main_app_window.py`の
+`add_new_project_tab()`は、各タブ用に独立した`QMainWindow`(`PlotterApp`)を
+`QTabWidget`へ埋め込む際、「ウィンドウフラグを`Qt.Widget`に変更→
+`addTab()`でreparent」の順で処理していた。フラグ変更が親を持たない状態で
+行われ、その後別途reparentされるという2段階の遷移になり、ネイティブ
+ウィンドウハンドルの生成・破棄が余分に発生していた。Windowsでは表面化
+しなかったが、macOS(Cocoa)は敏感なことが知られている。**reparentを
+先に行い、最終的な親が確定してから1回だけフラグを変更する**順序に修正。
+ヘッドレス環境では実際のクリック応答性までは検証できないため、有力な
+候補への対応として実施し、次回Macでの実機確認待ち。**今後、QMainWindowや
+その他「本来トップレベルなウィジェット」を子ウィジェットとして埋め込む
+機能を追加する際は、reparent→フラグ変更の順序を守ること。**
 
 **v1.3.4(2026-08-27、v1.3.3の直後にパッチリリース)**: 実機(Mac)での
 利用中に報告された複数の不具合(軸min/max順序依存バグ、Arial Narrow等の
