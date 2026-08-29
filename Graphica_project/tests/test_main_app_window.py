@@ -69,6 +69,33 @@ def test_adding_second_tab_registers_its_stack_and_makes_it_active(tmp_path, mon
     assert window.undo_group.activeStack() is second_tab.undo_stack
 
 
+def test_added_tab_is_correctly_embedded_not_top_level(tmp_path, monkeypatch):
+    """
+    実機フィードバック(Mac): 「タブを増やしたときに増やしたタブが何も
+    操作できない」。QMainWindowをタブとして埋め込む際、reparent(addTab)と
+    ウィンドウフラグの変更(Qt.WindowType.Widget)の順序次第では、フラグを
+    変更してもなお最上位ウィンドウ扱いのまま(またはその逆の中途半端な
+    状態)になりうる。ヘッドレス環境(offscreen)では実際のクリック応答性
+    までは検証できないが、少なくとも「最終的にisWindow()==Falseかつ
+    QTabWidget内部のQStackedWidgetの子になっている」という状態不変条件は
+    検証できる。
+    """
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    second_tab = window.add_new_project_tab()
+
+    assert second_tab.isWindow() is False
+    assert second_tab.parent() is not None
+    # 埋め込み後の親をたどるとQTabWidget自身に行き着くはず
+    ancestor = second_tab.parent()
+    found_tab_widget = False
+    while ancestor is not None:
+        if ancestor is window.tab_widget:
+            found_tab_widget = True
+            break
+        ancestor = ancestor.parent()
+    assert found_tab_widget
+
+
 def test_toggling_dark_mode_on_one_tab_syncs_sibling_tabs(tmp_path, monkeypatch):
     """
     回帰テスト: 各タブは完全に独立したPlotterAppインスタンスのため、

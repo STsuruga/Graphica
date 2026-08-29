@@ -159,9 +159,6 @@ class MainAppWindow(QMainWindow):
             run_startup_checks=run_startup_checks,
             tab_id=(None if run_startup_checks else tab_id),
         )
-        # QMainWindow を子ウィジェットとして埋め込む際、既定のウィンドウフラグのままだと
-        # 最上位ウィンドウとして扱われてしまうことがあるため、明示的に通常ウィジェット化する。
-        project_window.setWindowFlags(Qt.WindowType.Widget)
         project_window.project_state_changed.connect(
             lambda pw=project_window: self._refresh_tab_title(pw)
         )
@@ -170,7 +167,23 @@ class MainAppWindow(QMainWindow):
         # project_window.undo_stack、PlotterApp側は無改修)をグループに登録する。
         self.undo_group.addStack(project_window.undo_stack)
 
+        # ★ 実機フィードバック(Mac): 「タブを増やしたときに増やしたタブが
+        #   何も操作できない」。QMainWindowを子ウィジェットとして埋め込む際、
+        #   既定のウィンドウフラグのままだと最上位ウィンドウとして扱われて
+        #   しまうことがあるため、明示的に通常ウィジェット化する必要がある
+        #   (Qtのドキュメント通り、親を変えるだけではウィンドウフラグは
+        #   自動的にはクリアされない)。
+        #   以前はこの明示的なフラグ変更をaddTab()より前(=まだ親を持たない
+        #   状態)で行っていたが、「フラグ変更→別の親へ再度reparent」という
+        #   2段階の遷移になり、ネイティブウィンドウハンドルの生成・破棄が
+        #   余分に発生する。Windowsでは問題が表面化しなかったが、
+        #   macOS(Cocoa)のウィンドウ/ビュー管理はこの種の遷移により敏感な
+        #   ことが知られており、この2段階遷移が「タブは表示されるが入力を
+        #   一切受け付けない」不具合の原因になっている可能性が高い。
+        #   まず最終的な親(タブウィジェット内部のQStackedWidget)を確定させて
+        #   から1回だけフラグを変更する順序に統一し、余分な遷移を無くす。
         index = self.tab_widget.addTab(project_window, self._tab_title_for(project_window))
+        project_window.setWindowFlags(Qt.WindowType.Widget)
         self.tab_widget.setCurrentIndex(index)
         project_window.show()
         return project_window
