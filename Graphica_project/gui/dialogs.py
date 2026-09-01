@@ -86,18 +86,31 @@ class AboutDialog(QDialog):
 #==============================================================================
 class WelcomeDialog(QDialog):
     """
-    初回起動時にだけ表示するウェルカムダイアログ。
-    簡単な操作ガイドと、すぐに試せるサンプルデータの読み込みボタンを提供する。
+    初回起動時に表示するウェルカムダイアログ兼スタートアップ画面(項目C-912)。
+    簡単な操作ガイド(チュートリアル)・すぐに試せるサンプルデータの読み込み・
+    最近使ったファイルへの入口・書式テンプレートを開く入口をまとめて提供する。
+
+    初回起動時(gui/main_window.pyの_check_first_launch、has_shown_welcome
+    QSettingsフラグで一度きり)に加え、「ファイル」メニューの
+    「スタートアップ画面...」(_on_show_startup_screen)からいつでも同じ内容を
+    開ける。呼び出し元は、閉じた後に load_sample_requested/selected_recent_file/
+    load_template_requested のいずれが立っているかを見て、対応する処理
+    (サンプル読込/該当ファイルを開く/書式テンプレート読込ダイアログを開く)を行う
+    (このダイアログ自身はファイルI/Oを一切行わない、意思表示のみの役割)。
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, recent_files=None):
         super().__init__(parent)
+        import os
         from core.version import APP_NAME
         from core.i18n import tr
 
         self.setWindowTitle(tr("{app} へようこそ").format(app=APP_NAME))
-        self.resize(460, 420)
+        self.resize(480, 560)
         self.load_sample_requested = False
+        self.selected_recent_file = None
+        self.load_template_requested = False
+        self._recent_file_paths = list(recent_files) if recent_files else []
 
         layout = QVBoxLayout(self)
 
@@ -126,15 +139,39 @@ class WelcomeDialog(QDialog):
             <li>「曲線フィット」「ピーク検出」などの解析機能を試す</li>
             <li>「ファイル」メニューの「名前を付けてエクスポート」で画像として保存する</li>
         </ol>
-        <p>このガイドは初回起動時にのみ表示されます。「ヘルプ」メニューからいつでも
-        各種リファレンスを確認できます。</p>
+        <p>この画面は初回起動時に表示されます。「ファイル」メニューの
+        「スタートアップ画面...」からいつでも開けます。</p>
         """.format(app=APP_NAME))
+        guide_browser.setMaximumHeight(180)
         layout.addWidget(guide_browser)
+
+        # 最近使ったファイル(項目C-912)。履歴が無い場合(主に初回起動時)は
+        # そもそも何も選べないため、セクション自体を表示しない。
+        if self._recent_file_paths:
+            recent_group = QGroupBox(tr("最近使ったファイル"))
+            recent_layout = QVBoxLayout(recent_group)
+            self.recent_list = QListWidget()
+            for path in self._recent_file_paths:
+                item = QListWidgetItem(os.path.basename(path))
+                item.setToolTip(path)
+                self.recent_list.addItem(item)
+            self.recent_list.itemDoubleClicked.connect(self._on_recent_item_double_clicked)
+            recent_layout.addWidget(self.recent_list)
+            open_recent_button = QPushButton(tr("選択したファイルを開く"))
+            open_recent_button.clicked.connect(self._on_open_recent_clicked)
+            recent_layout.addWidget(open_recent_button)
+            layout.addWidget(recent_group)
+        else:
+            self.recent_list = None
 
         button_row = QHBoxLayout()
         self.load_sample_button = QPushButton(tr("サンプルデータを開く"))
         self.load_sample_button.clicked.connect(self._on_load_sample_clicked)
         button_row.addWidget(self.load_sample_button)
+
+        self.load_template_button = QPushButton(tr("書式テンプレートを開く..."))
+        self.load_template_button.clicked.connect(self._on_load_template_clicked)
+        button_row.addWidget(self.load_template_button)
         button_row.addStretch()
 
         close_button = QPushButton(tr("閉じる"))
@@ -144,6 +181,22 @@ class WelcomeDialog(QDialog):
 
     def _on_load_sample_clicked(self):
         self.load_sample_requested = True
+        self.accept()
+
+    def _on_open_recent_clicked(self):
+        row = self.recent_list.currentRow() if self.recent_list is not None else -1
+        if row < 0:
+            return
+        self.selected_recent_file = self._recent_file_paths[row]
+        self.accept()
+
+    def _on_recent_item_double_clicked(self, item):
+        row = self.recent_list.row(item)
+        self.selected_recent_file = self._recent_file_paths[row]
+        self.accept()
+
+    def _on_load_template_clicked(self):
+        self.load_template_requested = True
         self.accept()
 
 
@@ -2111,6 +2164,240 @@ class ColorPaletteDialog(QDialog):
         QSettingsへの実際の保存は呼び出し側が行う。
         """
         return self.palettes, self.palette_combo.currentText()
+
+
+#==============================================================================
+# カスタムダイアログクラス: 列の分割・結合・数値抽出 (項目C-205)
+#==============================================================================
+class ColumnStringOpsDialog(QDialog):
+    """
+    データエディタの「文字列操作...」機能で使用するダイアログ(項目C-205:
+    列の分割・結合・文字列操作)。「列の分割」「列の結合」「数値抽出」の
+    3モードをコンボボックスで切り替え、モードごとの入力欄をQStackedWidgetで
+    表示する(gui/dialogs.pyのResampleDatasetDialogと同じパターン)。
+    実際の分割/結合/抽出処理は呼び出し側(gui/data_editor.pyのDataEditorDialog)
+    が行う。このダイアログは設定値の入力・受け渡しのみを担う。
+    """
+
+    MODE_SPLIT = "列の分割"
+    MODE_MERGE = "列の結合"
+    MODE_EXTRACT_NUMERIC = "数値抽出"
+    MODES = [MODE_SPLIT, MODE_MERGE, MODE_EXTRACT_NUMERIC]
+
+    def __init__(self, column_names, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("文字列操作")
+        self.resize(420, 400)
+        self.column_names = column_names
+
+        layout = QVBoxLayout(self)
+
+        mode_form = QFormLayout()
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(self.MODES)
+        mode_form.addRow("操作", self.mode_combo)
+        layout.addLayout(mode_form)
+
+        self.stack = QStackedWidget()
+        layout.addWidget(self.stack)
+
+        # --- 列の分割: 1列を区切り文字で複数列に分ける ---
+        split_page = QWidget()
+        split_form = QFormLayout(split_page)
+        self.split_source_combo = QComboBox()
+        self.split_source_combo.addItems(column_names)
+        split_form.addRow("対象列", self.split_source_combo)
+        self.split_delimiter_edit = QLineEdit()
+        self.split_delimiter_edit.setPlaceholderText("例: , や _ (空白なら半角スペース)")
+        split_form.addRow("区切り文字", self.split_delimiter_edit)
+        self.split_prefix_edit = QLineEdit()
+        self.split_prefix_edit.setPlaceholderText("例: part (空欄なら対象列名を使用)")
+        split_form.addRow("出力列名の接頭辞", self.split_prefix_edit)
+        self.stack.addWidget(split_page)
+
+        # --- 列の結合: 複数列を区切り文字でつなげて1列にする ---
+        merge_page = QWidget()
+        merge_layout = QVBoxLayout(merge_page)
+        merge_layout.addWidget(QLabel("結合する列を2つ以上選択してください:"))
+        self.merge_column_list = QListWidget()
+        for name in column_names:
+            item = QListWidgetItem(str(name))
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self.merge_column_list.addItem(item)
+        merge_layout.addWidget(self.merge_column_list)
+        merge_form = QFormLayout()
+        self.merge_separator_edit = QLineEdit()
+        self.merge_separator_edit.setPlaceholderText("例: _ (空欄可)")
+        merge_form.addRow("区切り文字", self.merge_separator_edit)
+        self.merge_output_edit = QLineEdit()
+        merge_form.addRow("出力列名", self.merge_output_edit)
+        merge_layout.addLayout(merge_form)
+        self.stack.addWidget(merge_page)
+
+        # --- 数値抽出: 正規表現で文字列から数値部分を取り出す ---
+        extract_page = QWidget()
+        extract_form = QFormLayout(extract_page)
+        self.extract_source_combo = QComboBox()
+        self.extract_source_combo.addItems(column_names)
+        extract_form.addRow("対象列", self.extract_source_combo)
+        self.extract_pattern_edit = QLineEdit(r'[-+]?\d*\.?\d+')
+        extract_form.addRow("正規表現", self.extract_pattern_edit)
+        extract_help = QLabel('既定は数値(整数/小数、符号付き)を抽出します。例: "400nm" → 400')
+        extract_help.setWordWrap(True)
+        extract_help.setStyleSheet("font-size: 9pt; color: gray;")
+        extract_form.addRow(extract_help)
+        self.extract_output_edit = QLineEdit()
+        extract_form.addRow("出力列名", self.extract_output_edit)
+        self.stack.addWidget(extract_page)
+
+        self.mode_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_mode(self):
+        return self.mode_combo.currentText()
+
+    def get_split_settings(self):
+        """Returns: (対象列名, 区切り文字, 出力列名の接頭辞)"""
+        return (
+            self.split_source_combo.currentText(),
+            self.split_delimiter_edit.text(),
+            self.split_prefix_edit.text().strip(),
+        )
+
+    def get_merge_settings(self):
+        """Returns: (選択された列名のリスト, 区切り文字, 出力列名)"""
+        selected = []
+        for i in range(self.merge_column_list.count()):
+            item = self.merge_column_list.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                selected.append(item.text())
+        return selected, self.merge_separator_edit.text(), self.merge_output_edit.text().strip()
+
+    def get_extract_settings(self):
+        """Returns: (対象列名, 正規表現パターン, 出力列名)"""
+        return (
+            self.extract_source_combo.currentText(),
+            self.extract_pattern_edit.text(),
+            self.extract_output_edit.text().strip(),
+        )
+
+
+#==============================================================================
+# カスタムダイアログクラス: 列の表示/非表示 (項目C-207)
+#==============================================================================
+class ColumnVisibilityDialog(QDialog):
+    """
+    データエディタの「列の表示/非表示...」機能で使用するダイアログ(項目C-207)。
+    チェックを外した列は、テーブル上でのみ非表示になる(dataset.df自体は
+    変更しない、ソート状態と同じ「ビュー専用」の状態)。
+    """
+
+    def __init__(self, column_names, hidden_columns, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("列の表示/非表示")
+        self.resize(280, 380)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("表示する列にチェックを入れてください:"))
+
+        self.column_list = QListWidget()
+        for name in column_names:
+            item = QListWidgetItem(str(name))
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            state = Qt.CheckState.Unchecked if name in hidden_columns else Qt.CheckState.Checked
+            item.setCheckState(state)
+            self.column_list.addItem(item)
+        layout.addWidget(self.column_list)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def get_hidden_columns(self):
+        """チェックが外された(非表示にする)列名のリストを返す"""
+        hidden = []
+        for i in range(self.column_list.count()):
+            item = self.column_list.item(i)
+            if item.checkState() == Qt.CheckState.Unchecked:
+                hidden.append(item.text())
+        return hidden
+
+
+#==============================================================================
+# カスタムダイアログクラス: 検索/置換 (項目C-208)
+#==============================================================================
+class FindReplaceDialog(QDialog):
+    """
+    データエディタの「検索/置換...」機能で使用する非モーダルダイアログ
+    (項目C-208: テーブルの検索・置換・行ジャンプ)。「次を検索」でテーブル上の
+    次の一致セルへ移動し、「すべて置換」で一致する全セルの値を置換する。
+
+    実際の検索/置換ロジックは呼び出し側(gui/data_editor.pyのDataEditorDialog、
+    _on_find_next/_on_replace_all)が持ち、このダイアログは入力欄・ボタン・
+    状態表示ラベルだけを提供する薄いUI。データエディタ側のテーブルを見ながら
+    次々に検索できるよう非モーダル(exec()ではなくshow())で使うことを想定する。
+    """
+
+    def __init__(self, column_names, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("検索/置換")
+        # 常にデータエディタの上に浮かぶツールウィンドウにする(非モーダルのため、
+        # 裏に隠れて操作できなくなるのを防ぐ)。
+        self.setWindowFlag(Qt.WindowType.Tool, True)
+        self.resize(340, 200)
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        self.search_edit = QLineEdit()
+        form.addRow("検索文字列", self.search_edit)
+        self.replace_edit = QLineEdit()
+        form.addRow("置換後の文字列", self.replace_edit)
+        self.column_combo = QComboBox()
+        self.column_combo.addItem("(すべての列)")
+        self.column_combo.addItems(column_names)
+        form.addRow("対象列", self.column_combo)
+        layout.addLayout(form)
+
+        button_row = QHBoxLayout()
+        self.find_next_button = QPushButton("次を検索")
+        self.replace_all_button = QPushButton("すべて置換")
+        button_row.addWidget(self.find_next_button)
+        button_row.addWidget(self.replace_all_button)
+        button_row.addStretch()
+        close_button = QPushButton("閉じる")
+        close_button.clicked.connect(self.close)
+        button_row.addWidget(close_button)
+        layout.addLayout(button_row)
+
+        self.status_label = QLabel("")
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
+
+        apply_form_spacing(self)
+
+    def get_search_text(self):
+        return self.search_edit.text()
+
+    def get_replace_text(self):
+        return self.replace_edit.text()
+
+    def get_target_column(self):
+        """選択中の対象列名、「(すべての列)」ならNoneを返す"""
+        text = self.column_combo.currentText()
+        return None if text == "(すべての列)" else text
+
+    def set_status(self, text):
+        self.status_label.setText(text)
 
 
 #==============================================================================

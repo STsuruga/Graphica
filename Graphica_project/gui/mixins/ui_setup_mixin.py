@@ -301,6 +301,12 @@ class UISetupMixin:
             self.recent_files_menu = file_menu.addMenu(tr("最近使ったファイル"))
             self._update_recent_files_menu()
 
+            # スタートアップ画面(項目C-912): 初回起動時にのみ表示される
+            # WelcomeDialog(最近使ったファイル・サンプル・書式テンプレートへの
+            # 入口)を、いつでも開けるようにする。
+            startup_screen_action = file_menu.addAction(tr("スタートアップ画面(&W)..."))
+            startup_screen_action.triggered.connect(self._on_show_startup_screen)
+
             file_menu.addSeparator() # 区切り線
 
             # (テンプレート機能)

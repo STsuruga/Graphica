@@ -18,7 +18,8 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          ColumnPreviewDialog, ReplicateErrorDialog, ColumnTypeDialog,
                          ExcelMultiSheetDialog, DatasetArithmeticDialog, NormalizeDatasetDialog,
                          CommandPaletteDialog, QuickAccessManagerDialog, ShortcutsDialog,
-                         LegendOrderDialog, MultiPeakFitDialog)
+                         LegendOrderDialog, MultiPeakFitDialog, ColumnStringOpsDialog,
+                         ColumnVisibilityDialog, FindReplaceDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -1086,6 +1087,136 @@ def test_welcome_dialog_with_parent_icon_shows_icon_label(qapp):
 
     dlg = WelcomeDialog(parent=parent)
     assert dlg.windowTitle() != ""
+
+
+# --- WelcomeDialog: スタートアップ画面としての拡張(項目C-912) ---
+
+def test_welcome_dialog_without_recent_files_hides_section(qapp):
+    dlg = WelcomeDialog(recent_files=[])
+    assert dlg.recent_list is None
+
+
+def test_welcome_dialog_with_recent_files_lists_basenames(qapp):
+    dlg = WelcomeDialog(recent_files=["C:/data/a.csv", "C:/data/b.graphica"])
+    assert dlg.recent_list is not None
+    assert dlg.recent_list.count() == 2
+    assert dlg.recent_list.item(0).text() == "a.csv"
+    assert dlg.recent_list.item(1).text() == "b.graphica"
+
+
+def test_welcome_dialog_open_recent_button_sets_selected_file(qapp):
+    dlg = WelcomeDialog(recent_files=["C:/data/a.csv", "C:/data/b.graphica"])
+    dlg.recent_list.setCurrentRow(1)
+
+    dlg._on_open_recent_clicked()
+
+    assert dlg.selected_recent_file == "C:/data/b.graphica"
+    assert dlg.result() == QDialog.DialogCode.Accepted
+
+
+def test_welcome_dialog_open_recent_button_without_selection_does_nothing(qapp):
+    dlg = WelcomeDialog(recent_files=["C:/data/a.csv"])
+    dlg._on_open_recent_clicked()
+    assert dlg.selected_recent_file is None
+    assert dlg.result() != QDialog.DialogCode.Accepted
+
+
+def test_welcome_dialog_double_click_recent_item_sets_selected_file(qapp):
+    dlg = WelcomeDialog(recent_files=["C:/data/a.csv", "C:/data/b.graphica"])
+    dlg._on_recent_item_double_clicked(dlg.recent_list.item(0))
+    assert dlg.selected_recent_file == "C:/data/a.csv"
+    assert dlg.result() == QDialog.DialogCode.Accepted
+
+
+def test_welcome_dialog_load_template_button_sets_flag_and_accepts(qapp):
+    dlg = WelcomeDialog()
+    dlg._on_load_template_clicked()
+    assert dlg.load_template_requested is True
+    assert dlg.result() == QDialog.DialogCode.Accepted
+
+
+# --- ColumnStringOpsDialog(項目C-205: 列の分割・結合・数値抽出) ---
+
+def test_column_string_ops_dialog_default_mode_is_split(qapp):
+    dlg = ColumnStringOpsDialog(["A", "B"])
+    assert dlg.get_mode() == ColumnStringOpsDialog.MODE_SPLIT
+
+
+def test_column_string_ops_dialog_get_split_settings(qapp):
+    dlg = ColumnStringOpsDialog(["A", "B"])
+    dlg.split_source_combo.setCurrentText("A")
+    dlg.split_delimiter_edit.setText(",")
+    dlg.split_prefix_edit.setText("part")
+    assert dlg.get_split_settings() == ("A", ",", "part")
+
+
+def test_column_string_ops_dialog_get_merge_settings(qapp):
+    dlg = ColumnStringOpsDialog(["A", "B", "C"])
+    dlg.merge_column_list.item(0).setCheckState(Qt.CheckState.Checked)
+    dlg.merge_column_list.item(2).setCheckState(Qt.CheckState.Checked)
+    dlg.merge_separator_edit.setText("_")
+    dlg.merge_output_edit.setText("combined")
+    selected, sep, output = dlg.get_merge_settings()
+    assert selected == ["A", "C"]
+    assert sep == "_"
+    assert output == "combined"
+
+
+def test_column_string_ops_dialog_get_extract_settings(qapp):
+    dlg = ColumnStringOpsDialog(["A"])
+    dlg.extract_source_combo.setCurrentText("A")
+    dlg.extract_output_edit.setText("A_numeric")
+    source, pattern, output = dlg.get_extract_settings()
+    assert source == "A"
+    assert pattern == r'[-+]?\d*\.?\d+'  # 既定の正規表現
+    assert output == "A_numeric"
+
+
+def test_column_string_ops_dialog_mode_switch_changes_stack_page(qapp):
+    dlg = ColumnStringOpsDialog(["A", "B"])
+    dlg.mode_combo.setCurrentText(ColumnStringOpsDialog.MODE_MERGE)
+    assert dlg.stack.currentIndex() == 1
+    dlg.mode_combo.setCurrentText(ColumnStringOpsDialog.MODE_EXTRACT_NUMERIC)
+    assert dlg.stack.currentIndex() == 2
+
+
+# --- ColumnVisibilityDialog(項目C-207: 列の表示/非表示) ---
+
+def test_column_visibility_dialog_marks_hidden_columns_unchecked(qapp):
+    dlg = ColumnVisibilityDialog(["A", "B", "C"], hidden_columns={"B"})
+    assert dlg.column_list.item(0).checkState() == Qt.CheckState.Checked
+    assert dlg.column_list.item(1).checkState() == Qt.CheckState.Unchecked
+    assert dlg.column_list.item(2).checkState() == Qt.CheckState.Checked
+
+
+def test_column_visibility_dialog_get_hidden_columns_reflects_unchecked(qapp):
+    dlg = ColumnVisibilityDialog(["A", "B", "C"], hidden_columns=set())
+    dlg.column_list.item(0).setCheckState(Qt.CheckState.Unchecked)
+    dlg.column_list.item(2).setCheckState(Qt.CheckState.Unchecked)
+    assert dlg.get_hidden_columns() == ["A", "C"]
+
+
+# --- FindReplaceDialog(項目C-208: 検索/置換) ---
+
+def test_find_replace_dialog_getters():
+    dlg = FindReplaceDialog(["A", "B"])
+    dlg.search_edit.setText("foo")
+    dlg.replace_edit.setText("bar")
+    assert dlg.get_search_text() == "foo"
+    assert dlg.get_replace_text() == "bar"
+    assert dlg.get_target_column() is None  # 既定は「(すべての列)」
+
+
+def test_find_replace_dialog_target_column_selection():
+    dlg = FindReplaceDialog(["A", "B"])
+    dlg.column_combo.setCurrentText("B")
+    assert dlg.get_target_column() == "B"
+
+
+def test_find_replace_dialog_set_status_updates_label():
+    dlg = FindReplaceDialog(["A"])
+    dlg.set_status("見つかりました")
+    assert dlg.status_label.text() == "見つかりました"
 
 
 # --- ResultDialog: コピー/CSV保存ボタン ---

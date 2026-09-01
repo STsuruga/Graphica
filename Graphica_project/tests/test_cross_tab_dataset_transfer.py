@@ -40,6 +40,11 @@ def _make_isolated_main_app_window(tmp_path, monkeypatch):
     class FakeWelcomeDialog:
         def __init__(self, *args, **kwargs):
             self.load_sample_requested = False
+            # 項目C-912: 実際のWelcomeDialogはこれらも常に設定するため、
+            # _show_welcome_dialog()の分岐でAttributeErrorにならないよう
+            # フェイクでも同じ属性一式を用意する。
+            self.selected_recent_file = None
+            self.load_template_requested = False
 
         def exec(self):
             return 0

@@ -1393,8 +1393,10 @@ def test_check_first_launch_loads_sample_when_requested(tmp_path, monkeypatch):
     window.settings.setValue("has_shown_welcome", False)
 
     class _FakeWelcomeDialog:
-        def __init__(self, parent=None):
+        def __init__(self, parent=None, recent_files=None):
             self.load_sample_requested = True
+            self.selected_recent_file = None
+            self.load_template_requested = False
 
         def exec(self):
             return QDialog.DialogCode.Accepted
@@ -1407,6 +1409,78 @@ def test_check_first_launch_loads_sample_when_requested(tmp_path, monkeypatch):
 
     assert calls == [True]
     assert window.settings.value("has_shown_welcome", False, type=bool) is True
+
+
+# --- _show_welcome_dialog() / _on_show_startup_screen() (項目C-912) ---
+
+def _make_fake_welcome_dialog(load_sample=False, selected_recent_file=None, load_template=False):
+    class _FakeWelcomeDialog:
+        def __init__(self, parent=None, recent_files=None):
+            self.recent_files_passed = recent_files
+            self.load_sample_requested = load_sample
+            self.selected_recent_file = selected_recent_file
+            self.load_template_requested = load_template
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+    return _FakeWelcomeDialog
+
+
+def test_show_startup_screen_ignores_has_shown_welcome_flag(tmp_path, monkeypatch):
+    """初回起動時のみのゲート(has_shown_welcome)を無視して、いつでも開けること"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("has_shown_welcome", True)
+    monkeypatch.setattr(main_window_module, "WelcomeDialog", _make_fake_welcome_dialog())
+
+    window._on_show_startup_screen()  # 例外にならない(_check_first_launchと違い早期returnしない)
+
+
+def test_show_startup_screen_passes_recent_files(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("recent_files", ["C:/data/a.csv"])
+    fake_cls = _make_fake_welcome_dialog()
+    monkeypatch.setattr(main_window_module, "WelcomeDialog", fake_cls)
+    captured = {}
+    original_init = fake_cls.__init__
+
+    def _capturing_init(self, parent=None, recent_files=None):
+        captured['recent_files'] = recent_files
+        original_init(self, parent=parent, recent_files=recent_files)
+
+    fake_cls.__init__ = _capturing_init
+
+    window._on_show_startup_screen()
+
+    assert captured['recent_files'] == ["C:/data/a.csv"]
+
+
+def test_show_startup_screen_opens_selected_recent_file(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        main_window_module, "WelcomeDialog",
+        _make_fake_welcome_dialog(selected_recent_file="C:/data/a.csv"),
+    )
+    calls = []
+    monkeypatch.setattr(window, "_on_open_recent_file", lambda p: calls.append(p))
+
+    window._on_show_startup_screen()
+
+    assert calls == ["C:/data/a.csv"]
+
+
+def test_show_startup_screen_opens_template_dialog(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        main_window_module, "WelcomeDialog",
+        _make_fake_welcome_dialog(load_template=True),
+    )
+    calls = []
+    monkeypatch.setattr(window, "_on_load_plot_template", lambda: calls.append(True))
+
+    window._on_show_startup_screen()
+
+    assert calls == [True]
 
 
 def test_load_sample_data_missing_file_shows_warning_and_does_not_load(tmp_path, monkeypatch):
@@ -2208,6 +2282,43 @@ def test_paste_from_clipboard_success_adds_dataset(tmp_path, monkeypatch):
     window._on_paste_data_from_clipboard()
 
     assert len(window._flatten_dataset_tree()) == initial_count + 1
+
+
+def test_paste_from_clipboard_auto_detects_comma_delimiter(tmp_path, monkeypatch):
+    """項目C-102: タブ固定ではなく、カンマ区切りの貼り付けも正しく列を認識する"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "x,y\n1,2\n3,4\n")
+
+    captured = {}
+
+    class _CapturingColumnPreviewDialog(_FakeAcceptedColumnPreviewDialog):
+        def __init__(self, df, file_name, parent=None, file_path=None):
+            captured['df'] = df
+            super().__init__(df, file_name, parent=parent, file_path=file_path)
+
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _CapturingColumnPreviewDialog)
+
+    window._on_paste_data_from_clipboard()
+
+    assert list(captured['df'].columns) == ['x', 'y']
+
+
+def test_paste_from_clipboard_auto_detects_semicolon_delimiter(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "x;y\n1;2\n3;4\n")
+
+    captured = {}
+
+    class _CapturingColumnPreviewDialog(_FakeAcceptedColumnPreviewDialog):
+        def __init__(self, df, file_name, parent=None, file_path=None):
+            captured['df'] = df
+            super().__init__(df, file_name, parent=parent, file_path=file_path)
+
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _CapturingColumnPreviewDialog)
+
+    window._on_paste_data_from_clipboard()
+
+    assert list(captured['df'].columns) == ['x', 'y']
 
 
 # --- _on_data_load_failed() ---

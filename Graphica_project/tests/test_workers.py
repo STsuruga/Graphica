@@ -10,7 +10,8 @@ import pytest
 import core.plugin_api as plugin_api_module
 from core.plugin_api import GraphicaPluginAPI
 from core.plugin_types import PluginExecutionError
-from gui.workers import load_data_file_task, read_data_file, detect_csv_encoding, detect_csv_delimiter
+from gui.workers import (load_data_file_task, read_data_file, detect_csv_encoding, detect_csv_delimiter,
+                         detect_clipboard_delimiter)
 
 
 @pytest.fixture(autouse=True)
@@ -248,3 +249,25 @@ def test_detect_csv_delimiter_falls_back_to_comma_when_undetectable(tmp_path):
     path = tmp_path / "data.csv"
     path.write_text("onlyonecolumn\n\n\n", encoding='utf-8')
     assert detect_csv_delimiter(str(path), 'utf-8') == ','
+
+
+# --- detect_clipboard_delimiter (項目C-102、クリップボードのスマート貼り付け) ---
+
+def test_detect_clipboard_delimiter_tab():
+    assert detect_clipboard_delimiter("x\ty\tz\n1\t2\t3\n4\t5\t6\n") == '\t'
+
+
+def test_detect_clipboard_delimiter_comma():
+    assert detect_clipboard_delimiter("x,y,z\n1,2,3\n4,5,6\n") == ','
+
+
+def test_detect_clipboard_delimiter_semicolon():
+    assert detect_clipboard_delimiter("x;y;z\n1;2;3\n4;5;6\n") == ';'
+
+
+def test_detect_clipboard_delimiter_falls_back_to_comma_when_undetectable():
+    assert detect_clipboard_delimiter("onlyonecolumn\n\n\n") == ','
+
+
+def test_detect_clipboard_delimiter_empty_text_falls_back_to_comma():
+    assert detect_clipboard_delimiter("") == ','

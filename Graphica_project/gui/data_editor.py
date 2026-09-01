@@ -1,5 +1,6 @@
 import os
 import logging
+import re
 import numpy as np
 import pandas as pd
 from scipy import stats as scipy_stats
@@ -16,7 +17,8 @@ from core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
                            AddColumnCommand, DeleteColumnCommand, SetMaskedRowsCommand,
                            RenameColumnCommand)
 from core.safe_eval import safe_eval_column_formula
-from gui.dialogs import ColumnCalculatorDialog, ReplicateErrorDialog
+from gui.dialogs import (ColumnCalculatorDialog, ReplicateErrorDialog, ColumnStringOpsDialog,
+                         ColumnVisibilityDialog, FindReplaceDialog)
 from gui import icon_utils
 from gui import theme
 
@@ -95,6 +97,16 @@ class DataEditorDialog(QDialog):
         self.view_df = self.dataset.df.copy()
         self.sort_state = (None, True) # (現在ソート中の列名, 昇順かどうか)。未ソート時は (None, True)
 
+        # 列の表示/非表示(項目C-207)。ソート状態と同じく「ビュー専用」の状態
+        # (dataset.df自体は変更しない)。列名の集合で保持する。
+        self._hidden_columns = set()
+
+        # 検索/置換(項目C-208)。非モーダルダイアログの参照を保持し、
+        # 「次を検索」の再クリックで前回の続きから探索を再開できるようにする。
+        self._find_replace_dialog = None
+        self._last_search_query = None
+        self._last_search_index = -1
+
         # --- ★ Undo/Redo スタックを作成 ---
         self.undo_stack = QUndoStack(self)
         # コマンドが push/undo/redo されるたびに呼ばれる (コマンド自体はGUIを一切知らない)
@@ -107,6 +119,10 @@ class DataEditorDialog(QDialog):
         self.table_widget.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
         # 列ヘッダーのダブルクリックで列名をリネームできるようにする(項目64)
         self.table_widget.horizontalHeader().sectionDoubleClicked.connect(self._on_header_double_clicked)
+        # 列のドラッグ&ドロップ並べ替え(項目C-207)。ソート(_on_header_clicked)と
+        # 同じく見た目上の並び替えのみで、dataset.df自体の列順は変更しない
+        # (Qt標準機能、追加のロジック不要)。
+        self.table_widget.horizontalHeader().setSectionsMovable(True)
         # 選択中の行が変わるたびに、対応するデータ点をグラフ上でハイライトする
         self.table_widget.itemSelectionChanged.connect(self._on_table_selection_changed)
         self._populate_table()
@@ -120,6 +136,10 @@ class DataEditorDialog(QDialog):
         self.delete_col_button = QPushButton("選択列を削除")
         self.calc_button = QPushButton("列の計算...")
         self.replicate_error_button = QPushButton("誤差の自動計算...")
+        self.string_ops_button = QPushButton("文字列操作...")
+        self.column_visibility_button = QPushButton("列の表示/非表示...")
+        self.find_replace_button = QPushButton("検索/置換...")
+        self.jump_to_row_button = QPushButton("行へ移動...")
         self.save_csv_button = QPushButton("CSVとして保存...")
 
         # メインウィンドウの操作ボタン行(項目70)と統一感を持たせるため、
@@ -133,6 +153,10 @@ class DataEditorDialog(QDialog):
             (self.delete_col_button, "column-remove"),
             (self.calc_button, "calculator"),
             (self.replicate_error_button, "math-function"),
+            (self.string_ops_button, "typography"),
+            (self.column_visibility_button, "eye"),
+            (self.find_replace_button, "search"),
+            (self.jump_to_row_button, "arrow-right"),
             (self.save_csv_button, "download"),
         )
         self.mask_rows_button.setToolTip(
@@ -162,6 +186,11 @@ class DataEditorDialog(QDialog):
         button_layout.addStretch()
         button_layout.addWidget(self.calc_button)
         button_layout.addWidget(self.replicate_error_button)
+        button_layout.addWidget(self.string_ops_button)
+        button_layout.addStretch()
+        button_layout.addWidget(self.column_visibility_button)
+        button_layout.addWidget(self.find_replace_button)
+        button_layout.addWidget(self.jump_to_row_button)
         button_layout.addStretch()
         button_layout.addWidget(self.save_csv_button)
 
@@ -210,6 +239,10 @@ class DataEditorDialog(QDialog):
         self.delete_col_button.clicked.connect(self._on_delete_column)
         self.calc_button.clicked.connect(self._on_calculate_column)
         self.replicate_error_button.clicked.connect(self._on_calculate_replicate_error)
+        self.string_ops_button.clicked.connect(self._on_column_string_ops)
+        self.column_visibility_button.clicked.connect(self._on_toggle_column_visibility)
+        self.find_replace_button.clicked.connect(self._on_open_find_replace)
+        self.jump_to_row_button.clicked.connect(self._on_jump_to_row)
         self.save_csv_button.clicked.connect(self._on_save_as_csv)
 
     def _populate_table(self):
@@ -256,6 +289,12 @@ class DataEditorDialog(QDialog):
                 self.table_widget.setItem(i, j, item)
         
         self.table_widget.resizeColumnsToContents() # 列幅を自動調整
+
+        # 列の表示/非表示(項目C-207)。テーブルが再構築されるたびに必ず
+        # 呼ばれるここで再適用することで、ソート・列追加・Undo/Redo後の
+        # 再描画いずれの経路でも非表示状態が失われないようにする。
+        for col_idx, col_name in enumerate(df.columns):
+            self.table_widget.setColumnHidden(col_idx, col_name in self._hidden_columns)
 
         # ソート中の列があれば、ヘッダーに矢印アイコンで表示する
         sort_col, sort_ascending = self.sort_state
@@ -699,6 +738,228 @@ class DataEditorDialog(QDialog):
         except Exception as e:
             logger.exception("誤差自動計算エラー")
             QMessageBox.critical(self, "計算エラー", f"誤差の計算に失敗しました:\n{e}")
+
+    def _on_column_string_ops(self):
+        """
+        「文字列操作...」ボタンが押されたときの処理(項目C-205: 列の分割・結合・
+        文字列操作)。「列の分割」「列の結合」「数値抽出」のいずれかを行い、
+        結果を新しい列として追加する(既存列は上書きしない)。
+        _on_calculate_column/_on_calculate_replicate_errorと同様、この操作は
+        Undo/Redo非対応(既知の制限、列計算機能と同じ扱い)。
+        """
+        dialog = ColumnStringOpsDialog(self.dataset.df.columns.tolist(), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        mode = dialog.get_mode()
+
+        if mode == ColumnStringOpsDialog.MODE_SPLIT:
+            source_col, delimiter, prefix = dialog.get_split_settings()
+            if not delimiter:
+                QMessageBox.warning(self, "入力エラー", "区切り文字が空です。")
+                return
+            prefix = prefix or source_col
+            try:
+                split_result = self.dataset.df[source_col].astype(str).str.split(delimiter, expand=True)
+            except Exception as e:
+                logger.exception("列の分割エラー")
+                QMessageBox.critical(self, "列の分割エラー", f"分割に失敗しました:\n{e}")
+                return
+            new_names = []
+            for i in range(split_result.shape[1]):
+                name = f"{prefix}_{i + 1}"
+                while name in self.dataset.df.columns or name in new_names:
+                    name = f"{name}_2"
+                new_names.append(name)
+            for name, col_idx in zip(new_names, split_result.columns):
+                self.dataset.df[name] = split_result[col_idx]
+            self.dataset.invalidate_visible_df_cache()
+            logger.info("列の分割完了: %s -> %s (区切り文字: %r)", source_col, new_names, delimiter)
+
+        elif mode == ColumnStringOpsDialog.MODE_MERGE:
+            selected_cols, separator, output_col = dialog.get_merge_settings()
+            if len(selected_cols) < 2:
+                QMessageBox.warning(self, "入力エラー", "結合する列を2つ以上選択してください。")
+                return
+            if not output_col:
+                QMessageBox.warning(self, "入力エラー", "出力列名が空です。")
+                return
+            if output_col in self.dataset.df.columns:
+                QMessageBox.warning(self, "入力エラー", f"列名 '{output_col}' は既に存在します。")
+                return
+            try:
+                merged = self.dataset.df[selected_cols[0]].astype(str)
+                for col in selected_cols[1:]:
+                    merged = merged + separator + self.dataset.df[col].astype(str)
+            except Exception as e:
+                logger.exception("列の結合エラー")
+                QMessageBox.critical(self, "列の結合エラー", f"結合に失敗しました:\n{e}")
+                return
+            self.dataset.df[output_col] = merged
+            self.dataset.invalidate_visible_df_cache()
+            logger.info("列の結合完了: %s -> %s (区切り文字: %r)", selected_cols, output_col, separator)
+
+        else:  # MODE_EXTRACT_NUMERIC
+            source_col, pattern, output_col = dialog.get_extract_settings()
+            if not pattern:
+                QMessageBox.warning(self, "入力エラー", "正規表現が空です。")
+                return
+            if not output_col:
+                QMessageBox.warning(self, "入力エラー", "出力列名が空です。")
+                return
+            if output_col in self.dataset.df.columns:
+                QMessageBox.warning(self, "入力エラー", f"列名 '{output_col}' は既に存在します。")
+                return
+            try:
+                extracted = self.dataset.df[source_col].astype(str).str.extract(f"({pattern})", expand=False)
+                values = pd.to_numeric(extracted, errors='coerce')
+            except Exception as e:
+                logger.exception("数値抽出エラー")
+                QMessageBox.critical(self, "数値抽出エラー", f"正規表現が不正です:\n{e}")
+                return
+            self.dataset.df[output_col] = values
+            self.dataset.invalidate_visible_df_cache()
+            logger.info("数値抽出完了: %s -> %s (パターン: %r)", source_col, output_col, pattern)
+
+        self._reset_view()
+        self.dataChanged.emit()
+
+    def _on_toggle_column_visibility(self):
+        """
+        「列の表示/非表示...」ボタンが押されたときの処理(項目C-207)。
+        チェックを外した列をテーブル上で非表示にする(ビュー専用の状態、
+        ソート状態(sort_state)と同様マスターデータ(dataset.df)には影響しない)。
+        """
+        dialog = ColumnVisibilityDialog(self.view_df.columns.tolist(), self._hidden_columns, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._hidden_columns = set(dialog.get_hidden_columns())
+        for col_idx, col_name in enumerate(self.view_df.columns):
+            self.table_widget.setColumnHidden(col_idx, col_name in self._hidden_columns)
+
+    def _on_open_find_replace(self):
+        """
+        「検索/置換...」ボタンが押されたときの処理(項目C-208)。非モーダルな
+        FindReplaceDialogを開く(既に開いていれば前面に出すだけで、
+        新しいダイアログは作り直さない)。
+        """
+        if self._find_replace_dialog is None:
+            self._find_replace_dialog = FindReplaceDialog(self.dataset.df.columns.tolist(), self)
+            self._find_replace_dialog.find_next_button.clicked.connect(self._on_find_next)
+            self._find_replace_dialog.replace_all_button.clicked.connect(self._on_replace_all)
+        self._find_replace_dialog.show()
+        self._find_replace_dialog.raise_()
+        self._find_replace_dialog.activateWindow()
+
+    def _on_find_next(self):
+        """
+        FindReplaceDialogの「次を検索」ボタンの処理(項目C-208)。テーブル上の
+        セルを行優先(表示上の行0列0、行0列1、...)で走査し、前回見つけた
+        位置の次から大文字小文字を区別せず部分一致するセルを探す。1周しても
+        見つからなければ「見つかりませんでした」を表示する。検索文字列が
+        前回と変わった場合は探索位置をリセットする。
+        """
+        dialog = self._find_replace_dialog
+        query = dialog.get_search_text()
+        if not query:
+            dialog.set_status("検索文字列を入力してください")
+            return
+
+        target_col = dialog.get_target_column()
+        df = self.view_df
+        columns = [target_col] if target_col else list(df.columns)
+        if not columns or len(df) == 0:
+            dialog.set_status("検索対象のデータがありません")
+            return
+
+        if self._last_search_query != query:
+            self._last_search_index = -1
+            self._last_search_query = query
+
+        cells = [(r, c) for r in range(len(df)) for c in columns]
+        total = len(cells)
+        for offset in range(1, total + 1):
+            idx = (self._last_search_index + offset) % total
+            row, col_name = cells[idx]
+            value = df.iloc[row][col_name]
+            if pd.isna(value):
+                continue
+            if query.lower() in str(value).lower():
+                col_index = df.columns.get_loc(col_name)
+                self.table_widget.setCurrentCell(row, col_index)
+                item = self.table_widget.item(row, col_index)
+                if item is not None:
+                    self.table_widget.scrollToItem(item)
+                self._last_search_index = idx
+                dialog.set_status(f"見つかりました(表示上の{row + 1}行目、列「{col_name}」)")
+                return
+
+        dialog.set_status("見つかりませんでした")
+
+    def _on_replace_all(self):
+        """
+        FindReplaceDialogの「すべて置換」ボタンの処理(項目C-208)。一致する
+        全セルの値を置換する。既存セルの直接編集(_on_cell_changed)と同じ
+        EditCellCommandを使うため、通常のセル編集と同様にUndo/Redo可能
+        (1回の「すべて置換」を1つのUndoマクロにまとめる)。
+        置換後の値は常に文字列として書き込むため、対象を文字列(object)型の
+        列に限定する(数値/真偽値/日付列は列全体がobject型に暗黙変換されて
+        しまうのを避けるため、検索(_on_find_next)はできるが置換の対象外とする)。
+        """
+        dialog = self._find_replace_dialog
+        query = dialog.get_search_text()
+        replacement = dialog.get_replace_text()
+        if not query:
+            dialog.set_status("検索文字列を入力してください")
+            return
+
+        target_col = dialog.get_target_column()
+        all_columns = [target_col] if target_col else list(self.dataset.df.columns)
+        columns = [c for c in all_columns if self.dataset.df[c].dtype == object]
+        skipped_non_string = len(all_columns) - len(columns)
+
+        matches = []  # (行ラベル, 列名, 旧値, 新値)
+        for col_name in columns:
+            for row_label, value in self.dataset.df[col_name].items():
+                if pd.isna(value):
+                    continue
+                text = str(value)
+                new_text = re.sub(re.escape(query), replacement, text, flags=re.IGNORECASE)
+                if new_text != text:
+                    matches.append((row_label, col_name, value, new_text))
+
+        if not matches:
+            note = "(数値/真偽値/日付列は置換対象外です)" if skipped_non_string else ""
+            dialog.set_status(f"置換対象が見つかりませんでした{note}")
+            return
+
+        self.undo_stack.beginMacro(f"検索/置換 ({len(matches)}件)")
+        for row_label, col_name, old_value, new_value in matches:
+            self.undo_stack.push(EditCellCommand(self.dataset, row_label, col_name, old_value, new_value))
+        self.undo_stack.endMacro()
+
+        note = "(数値/真偽値/日付列は置換対象外です)" if skipped_non_string else ""
+        dialog.set_status(f"{len(matches)}件を置換しました{note}")
+
+    def _on_jump_to_row(self):
+        """
+        「行へ移動...」ボタンが押されたときの処理(項目C-208: 行ジャンプ)。
+        表示上の行番号(1始まり)を入力させ、その行を選択・スクロールして表示する。
+        """
+        if len(self.view_df) == 0:
+            QMessageBox.information(self, "行へ移動", "テーブルにデータがありません。")
+            return
+        row_number, ok = QInputDialog.getInt(
+            self, "行へ移動", f"移動先の行番号 (1〜{len(self.view_df)}):",
+            1, 1, len(self.view_df)
+        )
+        if not ok:
+            return
+        row_index = row_number - 1
+        self.table_widget.setCurrentCell(row_index, 0)
+        item = self.table_widget.item(row_index, 0)
+        if item is not None:
+            self.table_widget.scrollToItem(item)
 
     def _on_save_as_csv(self):
         """現在のDataFrameをCSVファイルとして保存する"""

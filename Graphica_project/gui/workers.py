@@ -73,11 +73,27 @@ def detect_csv_encoding(file_path):
     )
 
 
+def _sniff_delimiter_from_text(sample_text):
+    """
+    csv.Sniffer を使い、テキストサンプルから区切り文字を推測する共通ロジック
+    (項目C-101/C-102)。カンマ/タブ/セミコロン/空白のいずれかを想定し、
+    判定できない場合(1列のみのデータ等)はカンマにフォールバックする。
+    detect_csv_delimiter(ファイル用)とdetect_clipboard_delimiter
+    (クリップボード用)の両方から、同じ判定ロジックとして共有される。
+    """
+    if not sample_text.strip():
+        return ','
+    try:
+        dialect = csv.Sniffer().sniff(sample_text, delimiters=',\t; ')
+        return dialect.delimiter
+    except csv.Error:
+        return ','
+
+
 def detect_csv_delimiter(file_path, encoding, sample_lines=50):
     """
-    csv.Sniffer を使い、ファイル先頭付近のサンプルから区切り文字を推測する
-    (項目C-101)。カンマ/タブ/セミコロン/空白のいずれかを想定し、判定できない
-    場合(1列のみのデータ等)はカンマにフォールバックする。
+    ファイル先頭付近のサンプルから区切り文字を推測する(項目C-101)。
+    実際の判定ロジックは_sniff_delimiter_from_textに委譲する。
     """
     lines = []
     try:
@@ -89,14 +105,20 @@ def detect_csv_delimiter(file_path, encoding, sample_lines=50):
                 lines.append(line)
     except OSError:
         return ','
-    sample = ''.join(lines)
-    if not sample.strip():
-        return ','
-    try:
-        dialect = csv.Sniffer().sniff(sample, delimiters=',\t; ')
-        return dialect.delimiter
-    except csv.Error:
-        return ','
+    return _sniff_delimiter_from_text(''.join(lines))
+
+
+def detect_clipboard_delimiter(text, sample_lines=50):
+    """
+    クリップボードのテキストから区切り文字を推測する(項目C-102、
+    クリップボードのスマート貼り付け)。detect_csv_delimiterと同じ
+    Snifferロジックを共有するが、ファイルI/Oを経由せず、既にメモリ上にある
+    テキストをそのまま使う(Excel等からのコピーは通常タブ区切りになるが、
+    プレーンテキストのCSV/セミコロン区切りデータが貼り付けられた場合にも
+    対応するため)。
+    """
+    sample = ''.join(text.splitlines(keepends=True)[:sample_lines])
+    return _sniff_delimiter_from_text(sample)
 
 
 def read_data_file(file_path):

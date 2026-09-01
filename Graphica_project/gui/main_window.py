@@ -2118,11 +2118,31 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         if self.settings.value("has_shown_welcome", False, type=bool):
             return
         self.settings.setValue("has_shown_welcome", True)
+        self._show_welcome_dialog()
 
-        dialog = WelcomeDialog(self)
+    def _on_show_startup_screen(self):
+        """
+        「スタートアップ画面...」メニューの処理(項目C-912)。初回起動時にのみ
+        表示される_check_first_launchのWelcomeDialogを、いつでも開けるように
+        したもの(最近使ったファイル・サンプルデータ・書式テンプレートへの入口)。
+        """
+        self._show_welcome_dialog()
+
+    def _show_welcome_dialog(self):
+        """
+        WelcomeDialog(初回起動時のウェルカム画面兼スタートアップ画面、項目C-912)を
+        表示し、閉じた後の選択結果に応じた処理を行う共通ヘルパー。
+        _check_first_launch(初回のみ)と_on_show_startup_screen(いつでも)の
+        両方から呼ばれる。
+        """
+        dialog = WelcomeDialog(self, recent_files=self._get_recent_files())
         dialog.exec()
         if dialog.load_sample_requested:
             self._load_sample_data()
+        elif dialog.selected_recent_file:
+            self._on_open_recent_file(dialog.selected_recent_file)
+        elif dialog.load_template_requested:
+            self._on_load_plot_template()
 
     def _load_sample_data(self):
         """ウェルカムダイアログの「サンプルデータを開く」ボタンから呼ばれる"""
@@ -3166,18 +3186,22 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _on_paste_data_from_clipboard(self):
         """
-        「クリップボードから貼り付け」メニューの処理。
+        「クリップボードから貼り付け」メニューの処理(項目C-102、スマート貼り付け)。
         Excel/スプレッドシートでコピーしたセル範囲は、クリップボードに
-        タブ区切りテキストとして格納されるため、それをそのままpandasで解釈し、
-        新しいデータセットとして追加する。
+        タブ区切りテキストとして格納されるのが一般的だが、プレーンテキストの
+        CSV(カンマ区切り)やセミコロン区切りのデータが貼り付けられることもある
+        ため、区切り文字を自動判定する(gui/workers.pyのdetect_clipboard_delimiter、
+        C-101のファイル読み込みウィザードと同じSnifferロジックを共有)。
         """
         text = QApplication.clipboard().text()
         if not text.strip():
             QMessageBox.information(self, "クリップボードから貼り付け", "クリップボードにテキストデータがありません。")
             return
 
+        from gui.workers import detect_clipboard_delimiter
+        delimiter = detect_clipboard_delimiter(text)
         try:
-            df = pd.read_csv(io.StringIO(text), sep='\t', engine='python')
+            df = pd.read_csv(io.StringIO(text), sep=delimiter, engine='python')
         except Exception as e:
             QMessageBox.warning(
                 self, "貼り付けエラー",
