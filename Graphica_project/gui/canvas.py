@@ -111,6 +111,54 @@ def _apply_nan_policy(x_data, y_data, policy):
     return x_data, y_data
 
 
+# 統計値アンカーラベル(項目C-708)の表示見出し。内部キー -> 表示ラベル。
+STAT_LABEL_TITLES = {
+    'r_squared': 'R²',
+    'mean': '平均',
+    'std': '標準偏差',
+    'max': '最大値',
+    'min': '最小値',
+}
+
+
+def _compute_stat_label_text(dataset, stat):
+    """
+    統計値アンカーラベル(項目C-708)の表示文字列を、dataset.y_data/fit_resultから
+    その都度計算する。固定テキストではなく毎回の描画で再計算するため、データや
+    フィットを更新すると値が自動的に追従する(イラレでの後処理では代替できない、
+    このラベルの存在意義そのもの)。
+    紐づくdatasetが見つからない(削除された)/値がまだ計算できない場合は、
+    例外にせず「何を待っているか」が分かる短いプレースホルダを返す。
+    """
+    title = STAT_LABEL_TITLES.get(stat, stat)
+    if dataset is None:
+        return f"{title} = (データセットなし)"
+
+    if stat == 'r_squared':
+        fit_result = dataset.fit_result
+        if not fit_result or fit_result.get('r_squared') is None:
+            return f"{title} = (フィット未実行)"
+        return f"{title} = {fit_result['r_squared']:.4g}"
+
+    y = np.asarray(dataset.y_data, dtype=float)
+    y = y[~np.isnan(y)]
+    if len(y) == 0:
+        return f"{title} = (データなし)"
+    if stat == 'mean':
+        value = np.mean(y)
+    elif stat == 'std':
+        if len(y) < 2:
+            return f"{title} = (データ不足)"
+        value = np.std(y, ddof=1)
+    elif stat == 'max':
+        value = np.max(y)
+    elif stat == 'min':
+        value = np.min(y)
+    else:
+        return f"{title} = (未対応の統計値)"
+    return f"{title} = {value:.4g}"
+
+
 def _safe_multiple_locator(interval, axis_min, axis_max):
     """
     MultipleLocator(interval) を作るが、現在の軸範囲に対して目盛りの本数が
@@ -402,8 +450,8 @@ class _CanvasDrawingMixin:
             #   上書きされてしまう)。
             if not is_free_layout:
                 self._apply_shared_axis_tick_visibility(index, rows, cols, share_x_axis, share_y_axis)
-            # 自由なテキスト注釈・矢印の描画
-            self._draw_annotations(ax, index, settings)
+            # 自由なテキスト注釈・矢印・領域ハイライト・統計値アンカーラベルの描画
+            self._draw_annotations(ax, index, settings, datasets=datasets)
             # パネルラベルの自動採番(項目C-712): (a)(b)(c)...をサブプロットの
             # 並び順(index)から機械的に計算する(文字自体は保存しない)。
             if panel_labels_enabled:
@@ -431,9 +479,15 @@ class _CanvasDrawingMixin:
         self._safe_draw()
         return is_secondary_visible_global # UI更新用にメインウィンドウへ結果を返す
 
-    def update_appearance_only(self, all_plot_settings, rows=1, cols=1,
+    def update_appearance_only(self, all_plot_settings, datasets=(), rows=1, cols=1,
                                 layout_mode='grid', share_x_axis=False, share_y_axis=False):
-        """データはそのままに、外観設定だけを適用し直す（軽量版）"""
+        """
+        データはそのままに、外観設定だけを適用し直す（軽量版）。
+        datasets は統計値アンカーラベル(項目C-708)の値再計算にのみ使う
+        (_draw_dataは呼ばないため、この経路ではデータそのものは再描画されない)。
+        省略時(既定の空タプル)は統計値アンカーラベルが「データセットなし」表示に
+        フォールバックするだけで、他の描画には影響しない。
+        """
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
         is_free_layout = layout_mode == 'free'
         for index, ax in enumerate(self.all_axes):
@@ -447,7 +501,7 @@ class _CanvasDrawingMixin:
                 #   表示状態を設定するようになったため)。
                 if not is_free_layout:
                     self._apply_shared_axis_tick_visibility(index, rows, cols, share_x_axis, share_y_axis)
-                self._draw_annotations(ax, index, settings)
+                self._draw_annotations(ax, index, settings, datasets=datasets)
         try:
             self.fig.tight_layout()
         except (ValueError, FileNotFoundError):
@@ -506,7 +560,7 @@ class _CanvasDrawingMixin:
         visible_datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
         self._draw_data(ax, axis_index, visible_datasets, full_resolution=full_resolution)
         self._apply_appearance(ax, axis_index, settings)
-        self._draw_annotations(ax, axis_index, settings)
+        self._draw_annotations(ax, axis_index, settings, datasets=datasets)
         if panel_labels_enabled:
             self._draw_panel_label(ax, axis_index)
 
@@ -556,7 +610,7 @@ class _CanvasDrawingMixin:
         visible_datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
         self._draw_data(ax, axis_index, visible_datasets)
         self._apply_appearance(ax, axis_index, settings)
-        self._draw_annotations(ax, axis_index, settings)
+        self._draw_annotations(ax, axis_index, settings, datasets=datasets)
         if panel_labels_enabled:
             self._draw_panel_label(ax, axis_index)
 
@@ -678,17 +732,24 @@ class _CanvasDrawingMixin:
             n -= 1
         return ''.join(reversed(letters))
 
-    def _draw_annotations(self, ax, axis_index, settings):
+    def _draw_annotations(self, ax, axis_index, settings, datasets=None):
         """
-        settings['annotations'] (テキスト注釈・矢印注釈・領域ハイライトのリスト) を
-        描画する。再描画のたびに、まず前回このAxesに描画した注釈Artistを削除してから
-        描き直すことで、update_appearance_only 経由での重複描画を防ぐ。
+        settings['annotations'] (テキスト注釈・矢印注釈・領域ハイライト・統計値
+        アンカーラベルのリスト) を描画する。再描画のたびに、まず前回このAxesに
+        描画した注釈Artistを削除してから描き直すことで、update_appearance_only
+        経由での重複描画を防ぐ。
+
+        datasets は統計値アンカーラベル(項目C-708、type='stat')が参照先の
+        Datasetを解決するために使う。省略時(None)は全て「データセットなし」
+        表示にフォールバックする(既存呼び出し元・テストとの後方互換のため)。
         """
         for artist in self._annotation_artists.get(axis_index, []):
             try:
                 artist.remove()
             except (ValueError, NotImplementedError):
                 pass
+
+        datasets_by_id = {ds.dataset_id: ds for ds in (datasets or ())}
 
         new_artists = []
         for ann in settings.get('annotations', []):
@@ -713,6 +774,18 @@ class _CanvasDrawingMixin:
                         artist = ax.axvspan(lo, hi, color=color, alpha=alpha, zorder=0.5)
                     else:
                         artist = ax.axhspan(lo, hi, color=color, alpha=alpha, zorder=0.5)
+                elif ann_type == 'stat':
+                    # 統計値アンカーラベル(項目C-708)。Axes相対座標(0〜1、
+                    # ax.transAxes)を使うため、データのズーム/パンに関わらず
+                    # 常に同じ画面上の位置(既定では左上を起点に縦積み)に留まる。
+                    color = self._effective_text_color(ann.get('color', '#000000'))
+                    xy = ann.get('xy', (0.05, 0.95))
+                    dataset = datasets_by_id.get(ann.get('dataset_id'))
+                    label_text = _compute_stat_label_text(dataset, ann.get('stat'))
+                    artist = ax.text(
+                        xy[0], xy[1], label_text, transform=ax.transAxes,
+                        color=color, fontsize=9, va='top', ha='left', zorder=10,
+                    )
                 else:
                     color = self._effective_text_color(ann.get('color', '#000000'))
                     xy = ann.get('xy', (0, 0))

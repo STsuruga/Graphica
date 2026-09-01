@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import uuid
 from datetime import datetime, timezone
 import matplotlib as mpl
 import numpy as np
@@ -289,6 +290,14 @@ class DatasetMixin:
             resample_action = menu.addAction("共通X格子へのリサンプリング/補間...")
             resample_action.triggered.connect(self._on_resample_dataset)
 
+            # 統計値アンカーラベル(項目C-708): カレントデータセットのR²/Y平均/
+            # Y標準偏差/Y最大値/Y最小値のいずれかを、データ座標ではなくAxes相対
+            # 座標(左上起点に縦積み)に追加する。固定テキストではなく描画のたびに
+            # 再計算される(gui/canvas.pyの_compute_stat_label_text)ため、
+            # データやフィットを更新すると値が自動的に追従する。
+            add_stat_label_action = menu.addAction("統計値アンカーラベルを追加...")
+            add_stat_label_action.triggered.connect(self._on_add_stat_anchor_label)
+
             # 「方法」文の自動生成(項目C-1102): カレントデータセットが処理履歴
             # (dataset.provenance、項目C-1101)を持っている場合のみ有効にする
             # (export_fit_actionと同じ、常時メニューには出すが対象外の状態では
@@ -305,6 +314,11 @@ class DatasetMixin:
                 arithmetic_action = menu.addAction("データセット間演算...")
                 arithmetic_action.triggered.connect(self._on_dataset_arithmetic)
 
+            # 複数データセットの平均±SD生成(項目C-312): 2件以上を対象にする
+            # (「ちょうど2件」限定のデータセット間演算とは異なる)。
+            mean_sd_action = menu.addAction("平均±SD生成...")
+            mean_sd_action.triggered.connect(self._on_generate_mean_sd)
+
             batch_calc_action = menu.addAction("バッチ列計算...")
             batch_calc_action.triggered.connect(self._on_batch_column_calculate)
 
@@ -315,6 +329,16 @@ class DatasetMixin:
             menu.addSeparator()
             export_data_action = menu.addAction("データ表をファイルに書き出す...")
             export_data_action.triggered.connect(self._on_export_dataset_data)
+
+            # タブ間のデータセットコピー/移動(項目C-905): タブ=完全に独立した
+            # プロジェクトという設計上、他のタブが無ければ意味を成さないため
+            # 常に表示しつつハンドラ側で案内する(setEnabledで隠すより、
+            # 「タブが無いから使えない」ことに気づける方が親切なため)。
+            copy_to_tab_action = menu.addAction("別のタブへコピー...")
+            copy_to_tab_action.triggered.connect(lambda: self._on_copy_or_move_dataset_to_tab(move=False))
+
+            move_to_tab_action = menu.addAction("別のタブへ移動...")
+            move_to_tab_action.triggered.connect(lambda: self._on_copy_or_move_dataset_to_tab(move=True))
 
         if self.ui.dataset_list_widget.selectedItems():
             menu.addSeparator()
@@ -413,6 +437,103 @@ class DatasetMixin:
             if failed:
                 message += "\n\n失敗:\n" + "\n".join(failed)
             QMessageBox.information(self, "書き出し完了", message)
+
+    def _get_sibling_tabs(self):
+        """
+        自分以外のタブ(PlotterAppインスタンス)を、(タブのタイトル文字列, その
+        PlotterAppインスタンス) のリストとして返す(項目C-905)。
+        gui/main_app_window.pyのMainAppWindowが実際にタブを保持しているが、
+        PlotterApp生成時には参照を渡されていないため、self.window()
+        (Qt標準、自分が属する最上位ウィンドウを返す)経由で辿る。
+        gui.main_app_windowをモジュールレベルでインポートすると循環インポートに
+        なる(main_app_window.pyがgui.main_windowをインポートしているため)、
+        ここで遅延インポートする。単体PlotterAppとして起動された場合
+        (self.window()がMainAppWindowでない、主にテスト環境)は空リストを返す。
+        """
+        from gui.main_app_window import MainAppWindow
+        top = self.window()
+        if not isinstance(top, MainAppWindow):
+            return []
+        return [
+            (top.tab_widget.tabText(i), top.tab_widget.widget(i))
+            for i in range(top.tab_widget.count())
+            if top.tab_widget.widget(i) is not self
+        ]
+
+    def _remove_datasets_without_confirmation(self, datasets):
+        """
+        指定したDatasetのリストを、確認ダイアログなしでこのタブから削除する
+        (項目C-905の「別のタブへ移動」専用ヘルパー)。_on_remove_dataset
+        (右クリック「削除」)と削除ロジック自体は同じだが、ツリーの選択状態では
+        なく呼び出し元が渡した具体的なDatasetのリストを対象にする点が異なる。
+        """
+        self.ui.dataset_list_widget.blockSignals(True)
+        rows_to_remove = sorted(
+            {row for ds in datasets if (row := self._find_dataset_row(ds)) != -1},
+            reverse=True
+        )
+        for row in rows_to_remove:
+            del self.project.datasets[row]
+
+        for ds in datasets:
+            item = self._get_dataset_tree_item(ds)
+            if item is None:
+                continue
+            parent = item.parent()
+            if parent is not None:
+                parent.removeChild(item)
+            else:
+                idx = self.ui.dataset_list_widget.indexOfTopLevelItem(item)
+                if idx != -1:
+                    self.ui.dataset_list_widget.takeTopLevelItem(idx)
+        self.ui.dataset_list_widget.blockSignals(False)
+
+        self._update_ui_state()
+        self._update_plot()
+
+    def _on_copy_or_move_dataset_to_tab(self, move):
+        """
+        「別のタブへコピー...」/「別のタブへ移動...」メニューの処理(項目C-905)。
+        タブ=完全に独立したPlotterAppインスタンス(1プロジェクト)という設計上、
+        選択中のデータセットを丸ごと複製し、対象タブのproject.datasetsへ
+        直接追加する(ファイル保存/読込を経由しない、インメモリでの転送)。
+        複製自体は「プロット複製」(_on_duplicate_dataset)と同じ
+        copy.deepcopy()を使う(DataFrame等を含め完全に独立させる、既に
+        確立済みの安全なDataset複製方法)。dataset_idだけは、コピー先タブで
+        元と衝突しないよう新しく振り直す。
+        移動の場合は、対象タブへの追加が成功した後に元タブから削除する。
+        データセットの追加/削除どちらも、このコードベースの他の同種の構造的
+        操作(規格化・複製・削除など)と同様にUndo非対応。
+        """
+        selected = self._get_selected_datasets()
+        if not selected:
+            return
+
+        sibling_tabs = self._get_sibling_tabs()
+        if not sibling_tabs:
+            QMessageBox.information(self, "タブ間のデータセット転送", "コピー/移動先の他のタブがありません。")
+            return
+
+        tab_titles = [title for title, _ in sibling_tabs]
+        action_label = "移動" if move else "コピー"
+        choice, ok = QInputDialog.getItem(
+            self, f"別のタブへ{action_label}", "転送先のタブ:", tab_titles, 0, False
+        )
+        if not ok:
+            return
+        target_window = sibling_tabs[tab_titles.index(choice)][1]
+
+        for dataset in selected:
+            new_dataset = copy.deepcopy(dataset)
+            new_dataset.dataset_id = uuid.uuid4().hex
+            target_window._add_dataset(new_dataset, target_window._get_target_folder_for_new_dataset())
+
+        if move:
+            self._remove_datasets_without_confirmation(selected)
+
+        self.statusBar().showMessage(
+            f"{len(selected)}件のデータセットを「{choice}」へ{action_label}しました", 3000
+        )
 
     def _on_copy_dataset_style(self):
         """
@@ -599,6 +720,73 @@ class DatasetMixin:
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    def _on_generate_mean_sd(self):
+        """
+        「平均±SD生成...」メニューの処理(項目C-312)。選択中の2件以上の
+        データセットを、全データセットのXレンジが重なる範囲内の共通X格子
+        (点数は選択中で最も点数の多いデータセットに合わせる)へリサンプリング
+        (core.analysis.calculate_resample_to_grid、項目C-305と共有)してから、
+        行ごとの平均と標本標準偏差(ddof=1)を計算し、誤差列(SD)付きの新しい
+        データセットとして追加する。同一条件の反復測定を1本の「平均±SD」曲線に
+        まとめる、論文図の定番の表現(項目C-312、#12誤差自動計算の一般化)。
+        """
+        selected = self._get_selected_datasets()
+        if len(selected) < 2:
+            QMessageBox.information(self, "平均±SD生成", "平均±SDの生成には、データセットを2つ以上選択してください。")
+            return
+
+        x_arrays, y_arrays = [], []
+        for ds in selected:
+            x = np.asarray(ds.x_data, dtype=float)
+            y = np.asarray(ds.y_data, dtype=float)
+            valid = ~(np.isnan(x) | np.isnan(y))
+            x, y = x[valid], y[valid]
+            if len(x) < 2:
+                QMessageBox.warning(
+                    self, "平均±SD生成",
+                    f"「{ds.name}」に有効なデータ点が不足しています(最低2点必要)。"
+                )
+                return
+            x_arrays.append(x)
+            y_arrays.append(y)
+
+        x_min = max(float(np.min(x)) for x in x_arrays)
+        x_max = min(float(np.max(x)) for x in x_arrays)
+        if x_min >= x_max:
+            QMessageBox.warning(self, "平均±SD生成", "選択したデータセット間でX軸の範囲が重なっていません。")
+            return
+
+        num_points = max(len(x) for x in x_arrays)
+        common_x = np.linspace(x_min, x_max, num_points)
+
+        resampled = []
+        for x, y in zip(x_arrays, y_arrays):
+            try:
+                resampled.append(calculate_resample_to_grid(x, y, common_x, method='linear', extrapolate=False))
+            except ValueError as e:
+                QMessageBox.warning(self, "平均±SD生成", str(e))
+                return
+        stacked = np.vstack(resampled)  # (データセット数, num_points)
+
+        mean_y = np.nanmean(stacked, axis=0)
+        std_y = np.nanstd(stacked, axis=0, ddof=1)
+
+        default_name = f"{selected[0].name} 他{len(selected) - 1}件の平均±SD"
+        output_name, ok = QInputDialog.getText(self, "平均±SD生成", "出力データセット名:", text=default_name)
+        if not ok or not output_name.strip():
+            return
+
+        result_df = pd.DataFrame({'x': common_x, 'y_mean': mean_y, 'y_sd': std_y})
+        new_dataset = Dataset(
+            name=output_name.strip(), df=result_df, x_col_name='x', y_col_name='y_mean',
+            y_err_col_name='y_sd',
+            provenance=self._build_provenance(
+                'mean_sd', {'method': 'linear', 'n_source': len(selected)}, selected,
+            ),
+        )
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self.statusBar().showMessage(f"「{output_name.strip()}」を追加しました", 3000)
 
     def _on_normalize_dataset(self):
         """
@@ -941,6 +1129,48 @@ class DatasetMixin:
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    # 統計値アンカーラベル(項目C-708)の選択肢: 表示名 -> gui/canvas.pyの
+    # _compute_stat_label_text/STAT_LABEL_TITLESが解釈する内部キー。
+    STAT_ANCHOR_LABEL_CHOICES = {
+        'R²': 'r_squared', 'Y平均': 'mean', 'Y標準偏差': 'std',
+        'Y最大値': 'max', 'Y最小値': 'min',
+    }
+
+    def _on_add_stat_anchor_label(self):
+        """
+        「統計値アンカーラベルを追加...」メニューの処理(項目C-708)。
+        カレントデータセットに紐づく統計値(R²/Y平均/Y標準偏差/Y最大値/Y最小値)を
+        選ばせ、そのデータセットが描画されている軸のAxes相対座標(左上を起点に、
+        既存の統計値ラベル件数ぶん縦にずらして重ならないようにする)に注釈として
+        追加する。表示テキストは固定文字列ではなく、描画のたびに
+        dataset.y_data/fit_resultから再計算される(gui/canvas.pyの
+        _compute_stat_label_text)ため、R²を選んでからフィットを実行/更新しても
+        自動的に値が反映される。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            return
+
+        choice, ok = QInputDialog.getItem(
+            self, "統計値アンカーラベルの追加", "表示する統計値:",
+            list(self.STAT_ANCHOR_LABEL_CHOICES.keys()), 0, False
+        )
+        if not ok:
+            return
+        stat = self.STAT_ANCHOR_LABEL_CHOICES[choice]
+
+        axis_index = dataset.subplot_target
+        settings = self.project.all_plot_settings[axis_index]
+        existing_stat_count = sum(
+            1 for ann in settings.get('annotations', []) if ann.get('type') == 'stat'
+        )
+        xy = (0.05, max(0.95 - 0.07 * existing_stat_count, 0.05))
+
+        self._add_annotation(axis_index, {
+            'type': 'stat', 'dataset_id': dataset.dataset_id, 'stat': stat,
+            'xy': xy, 'color': '#000000',
+        }, description="統計値アンカーラベルの追加")
 
     def _on_run_plugin_processor(self, processor):
         """

@@ -495,6 +495,74 @@ def test_delete_annotation_near_too_far_is_ignored(tmp_path, monkeypatch):
     assert len(window.project.all_plot_settings[0]['annotations']) == 1
 
 
+def test_delete_annotation_near_skips_region_highlight_entries_without_crashing(tmp_path, monkeypatch):
+    """
+    回帰テスト(項目C-701で作り込んだバグ): 領域ハイライト(vspan/hspan、
+    'xy'/'xytext'キーを持たない)が同じannotationsリストに混在していると、
+    以前は ax.transData.transform(None) がValueErrorでクラッシュしていた。
+    領域ハイライトの削除は領域ハイライトモード側の責務のため、注釈モードでの
+    右クリックでは黙ってスキップされ、他のテキスト注釈は問題なく削除できること。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    window.project.all_plot_settings[0]['annotations'] = [
+        {'id': 'region-id', 'type': 'vspan', 'range': (1.0, 3.0), 'color': '#F2A72B', 'alpha': 0.18},
+        {'id': 'text-id', 'type': 'text', 'text': '消す注釈', 'xy': (1.0, 2.0), 'xytext': (1.0, 2.0),
+         'color': '#000000'},
+    ]
+    monkeypatch.setattr(QMessageBox, "question",
+                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 1.0, 2.0))  # 例外にならない
+
+    remaining = window.project.all_plot_settings[0]['annotations']
+    assert len(remaining) == 1
+    assert remaining[0]['type'] == 'vspan'  # テキスト注釈だけ削除され、領域ハイライトは残る
+
+
+def _seed_stat_annotation(window, axis_index=0, xy=(0.05, 0.95), dataset_id='ds-id', stat='mean'):
+    window.project.all_plot_settings[axis_index]['annotations'] = [{
+        'id': 'stat-id', 'type': 'stat', 'dataset_id': dataset_id, 'stat': stat,
+        'xy': xy, 'color': '#000000',
+    }]
+
+
+def test_delete_annotation_near_matches_stat_label_via_axes_transform(tmp_path, monkeypatch):
+    """統計値アンカーラベル(項目C-708)はAxes相対座標を持つため、クリック位置との
+    距離判定にtransAxes(transDataではなく)を使うこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    # xlim/ylimをAxes相対座標(0〜1)とは異なる範囲にしておく: transData(データ座標)
+    # とtransAxes(Axes相対座標)を取り違えていたら、この設定ではヒットしなくなる。
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    _seed_stat_annotation(window, xy=(0.05, 0.95))
+    monkeypatch.setattr(QMessageBox, "question",
+                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 5.0, 95.0))  # Axes相対(0.05, 0.95)相当のデータ座標
+
+    assert window.project.all_plot_settings[0]['annotations'] == []
+
+
+def test_delete_annotation_near_stat_label_confirmation_message(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    _seed_stat_annotation(window, xy=(0.05, 0.95))
+    calls = []
+    monkeypatch.setattr(
+        QMessageBox, "question",
+        staticmethod(lambda *a, **k: calls.append(a) or QMessageBox.StandardButton.No),
+    )
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 5.0, 95.0))
+
+    assert len(calls) == 1
+    assert "統計値アンカーラベル" in calls[0][2]
+
+
 def test_right_click_press_deletes_nearest_annotation_end_to_end(tmp_path, monkeypatch):
     """_on_annotation_pressから右クリック経由で削除まで通しで動くことを確認する統合テスト"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)

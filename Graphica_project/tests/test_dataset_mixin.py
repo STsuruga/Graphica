@@ -1107,8 +1107,11 @@ def test_context_menu_single_dataset_selected_shows_style_and_export_actions(tmp
     assert "元ファイルから再読み込み" in texts
     assert "規格化(ノーマライズ)..." in texts
     assert "Savitzky-Golayフィルタ(平滑化/微分)..." in texts
+    assert "統計値アンカーラベルを追加..." in texts
     assert "データセット間演算..." not in texts
     assert "データ表をファイルに書き出す..." in texts
+    assert "別のタブへコピー..." in texts
+    assert "別のタブへ移動..." in texts
     assert "削除" in texts
 
 
@@ -1150,6 +1153,7 @@ def test_context_menu_two_datasets_selected_shows_arithmetic_and_batch_actions(t
 
     texts = _RecordingMenu.last_instance.added_texts
     assert "データセット間演算..." in texts
+    assert "平均±SD生成..." in texts
     assert "バッチ列計算..." in texts
     assert "バッチカーブフィット..." in texts
 
@@ -1166,6 +1170,7 @@ def test_context_menu_three_datasets_selected_hides_pairwise_arithmetic(tmp_path
 
     texts = _RecordingMenu.last_instance.added_texts
     assert "データセット間演算..." not in texts
+    assert "平均±SD生成..." in texts  # データセット間演算とは異なり、2件超でも使える
     assert "バッチ列計算..." in texts
 
 
@@ -5669,3 +5674,214 @@ def test_reload_dataset_excel_uses_source_sheet(tmp_path, monkeypatch):
     window._on_reload_dataset_from_source()
 
     np.testing.assert_allclose(dataset.y_data, np.array([100.0, 200.0]))
+
+
+# =============================================================================
+# 複数データセットの平均±SD生成 (_on_generate_mean_sd, 項目C-312)
+# =============================================================================
+
+def _select_and_add(window, datasets):
+    """複数のデータセットを追加してから、まとめて選択状態にする"""
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets)
+
+
+def test_mean_sd_requires_at_least_two_selected(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    info_calls = []
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    before_count = len(window.project.datasets)
+    window._on_generate_mean_sd()
+
+    assert len(info_calls) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_mean_sd_computes_mean_and_std_on_common_grid(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df_a = pd.DataFrame({'x': [0.0, 1.0, 2.0], 'y': [1.0, 2.0, 3.0]})
+    df_b = pd.DataFrame({'x': [0.0, 1.0, 2.0], 'y': [3.0, 4.0, 5.0]})
+    ds_a = Dataset(name="A", df=df_a, x_col_name='x', y_col_name='y')
+    ds_b = Dataset(name="B", df=df_b, x_col_name='x', y_col_name='y')
+    _select_and_add(window, [ds_a, ds_b])
+
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getText",
+        staticmethod(lambda *a, **k: ("平均SD結果", True)),
+    )
+
+    before_count = len(window.project.datasets)
+    window._on_generate_mean_sd()
+
+    assert len(window.project.datasets) == before_count + 1
+    new_dataset = window.project.datasets[-1]
+    assert new_dataset.name == "平均SD結果"
+    np.testing.assert_allclose(new_dataset.y_data, [2.0, 3.0, 4.0])
+    assert new_dataset.y_err_col_name == 'y_sd'
+    np.testing.assert_allclose(new_dataset.df['y_sd'].values, np.std([[1, 3], [2, 4], [3, 5]], axis=1, ddof=1))
+
+
+def test_mean_sd_uses_overlapping_x_range_only(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df_a = pd.DataFrame({'x': [0.0, 1.0, 2.0], 'y': [1.0, 2.0, 3.0]})
+    df_b = pd.DataFrame({'x': [1.0, 2.0, 3.0], 'y': [10.0, 20.0, 30.0]})
+    ds_a = Dataset(name="A", df=df_a, x_col_name='x', y_col_name='y')
+    ds_b = Dataset(name="B", df=df_b, x_col_name='x', y_col_name='y')
+    _select_and_add(window, [ds_a, ds_b])
+
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getText",
+        staticmethod(lambda *a, **k: ("結果", True)),
+    )
+
+    window._on_generate_mean_sd()
+
+    new_dataset = window.project.datasets[-1]
+    assert new_dataset.x_data.min() == pytest.approx(1.0)
+    assert new_dataset.x_data.max() == pytest.approx(2.0)
+
+
+def test_mean_sd_no_overlap_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df_a = pd.DataFrame({'x': [0.0, 1.0], 'y': [1.0, 2.0]})
+    df_b = pd.DataFrame({'x': [5.0, 6.0], 'y': [3.0, 4.0]})
+    ds_a = Dataset(name="A", df=df_a, x_col_name='x', y_col_name='y')
+    ds_b = Dataset(name="B", df=df_b, x_col_name='x', y_col_name='y')
+    _select_and_add(window, [ds_a, ds_b])
+
+    warn_calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    before_count = len(window.project.datasets)
+    window._on_generate_mean_sd()
+
+    assert len(warn_calls) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_mean_sd_cancelled_name_dialog_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df_a = pd.DataFrame({'x': [0.0, 1.0], 'y': [1.0, 2.0]})
+    df_b = pd.DataFrame({'x': [0.0, 1.0], 'y': [3.0, 4.0]})
+    ds_a = Dataset(name="A", df=df_a, x_col_name='x', y_col_name='y')
+    ds_b = Dataset(name="B", df=df_b, x_col_name='x', y_col_name='y')
+    _select_and_add(window, [ds_a, ds_b])
+
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getText",
+        staticmethod(lambda *a, **k: ("", False)),
+    )
+
+    before_count = len(window.project.datasets)
+    window._on_generate_mean_sd()
+
+    assert len(window.project.datasets) == before_count
+
+
+def test_mean_sd_three_datasets_records_provenance(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [
+        Dataset(name=f"d{i}", df=pd.DataFrame({'x': [0.0, 1.0], 'y': [float(i), float(i) + 1]}),
+                x_col_name='x', y_col_name='y')
+        for i in range(3)
+    ]
+    _select_and_add(window, datasets)
+
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getText",
+        staticmethod(lambda *a, **k: ("結果", True)),
+    )
+
+    window._on_generate_mean_sd()
+
+    new_dataset = window.project.datasets[-1]
+    assert new_dataset.provenance['operation'] == 'mean_sd'
+    assert new_dataset.provenance['params']['n_source'] == 3
+    assert set(new_dataset.provenance['source_dataset_ids']) == {ds.dataset_id for ds in datasets}
+
+
+# =============================================================================
+# 統計値アンカーラベル (_on_add_stat_anchor_label, 項目C-708)
+# =============================================================================
+
+def test_add_stat_anchor_label_no_selection_is_noop(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_add_stat_anchor_label()  # 例外にならず何もしない
+
+
+def test_add_stat_anchor_label_adds_stat_annotation(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getItem",
+        staticmethod(lambda *a, **k: ("Y平均", True)),
+    )
+
+    window._on_add_stat_anchor_label()
+
+    settings = window.project.all_plot_settings[ds.subplot_target]
+    annotations = settings.get('annotations', [])
+    assert len(annotations) == 1
+    assert annotations[0]['type'] == 'stat'
+    assert annotations[0]['stat'] == 'mean'
+    assert annotations[0]['dataset_id'] == ds.dataset_id
+
+
+def test_add_stat_anchor_label_cancelled_dialog_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getItem",
+        staticmethod(lambda *a, **k: ("Y平均", False)),
+    )
+
+    window._on_add_stat_anchor_label()
+
+    settings = window.project.all_plot_settings[ds.subplot_target]
+    assert settings.get('annotations', []) == []
+
+
+def test_add_stat_anchor_label_stacks_multiple_labels_without_overlap(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    choices = iter(["Y平均", "Y標準偏差", "Y最大値"])
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getItem",
+        staticmethod(lambda *a, **k: (next(choices), True)),
+    )
+
+    for _ in range(3):
+        window._on_add_stat_anchor_label()
+
+    annotations = window.project.all_plot_settings[ds.subplot_target]['annotations']
+    assert len(annotations) == 3
+    y_positions = [ann['xy'][1] for ann in annotations]
+    assert len(set(y_positions)) == 3  # それぞれ異なる高さに積まれる
+    assert y_positions == sorted(y_positions, reverse=True)  # 上から下へ積まれる
+
+
+def test_add_stat_anchor_label_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    monkeypatch.setattr(
+        dataset_mixin_module.QInputDialog, "getItem",
+        staticmethod(lambda *a, **k: ("R²", True)),
+    )
+
+    window._on_add_stat_anchor_label()
+    assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) == 1
+
+    window.undo_stack.undo()
+    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []

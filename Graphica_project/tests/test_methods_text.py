@@ -67,6 +67,13 @@ def test_describe_operation_arithmetic_includes_symbol():
     assert "A - B" in text
 
 
+def test_describe_operation_mean_sd_includes_count_and_method():
+    text = describe_operation({'operation': 'mean_sd', 'params': {'method': 'linear', 'n_source': 3}})
+    assert "平均±SD" in text
+    assert "3" in text
+    assert "linear" in text
+
+
 def test_describe_operation_curve_fit_includes_fit_type_and_r_squared():
     text = describe_operation({
         'operation': 'curve_fit',

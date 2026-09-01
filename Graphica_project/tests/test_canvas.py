@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from gui.canvas import (
-    _apply_legend_order, _safe_multiple_locator, _apply_nan_policy,
+    _apply_legend_order, _safe_multiple_locator, _apply_nan_policy, _compute_stat_label_text,
     _sci_each_formatter, _apply_tick_format_mode, _apply_tick_decimal_places,
     MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
     LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
@@ -83,6 +83,125 @@ def test_apply_nan_policy_no_nan_data_unchanged_in_value():
         new_x, new_y = _apply_nan_policy(x, y, policy)
         np.testing.assert_allclose(new_x, x)
         np.testing.assert_allclose(new_y, y)
+
+
+# --- _compute_stat_label_text(項目C-708: 統計値アンカーラベル) ---
+
+def _make_dataset_for_stats(y_values, fit_result=None):
+    df = pd.DataFrame({"x": list(range(len(y_values))), "y": y_values})
+    return Dataset(name="d", df=df, x_col_name="x", y_col_name="y", fit_result=fit_result)
+
+
+def test_compute_stat_label_text_none_dataset():
+    assert _compute_stat_label_text(None, 'mean') == "平均 = (データセットなし)"
+
+
+def test_compute_stat_label_text_mean():
+    ds = _make_dataset_for_stats([1.0, 2.0, 3.0, 4.0])
+    assert _compute_stat_label_text(ds, 'mean') == "平均 = 2.5"
+
+
+def test_compute_stat_label_text_std():
+    ds = _make_dataset_for_stats([1.0, 2.0, 3.0])
+    text = _compute_stat_label_text(ds, 'std')
+    assert text.startswith("標準偏差 = ")
+    np.testing.assert_allclose(float(text.split('= ')[1]), np.std([1.0, 2.0, 3.0], ddof=1))
+
+
+def test_compute_stat_label_text_std_insufficient_data():
+    ds = _make_dataset_for_stats([1.0])
+    assert _compute_stat_label_text(ds, 'std') == "標準偏差 = (データ不足)"
+
+
+def test_compute_stat_label_text_max_min():
+    ds = _make_dataset_for_stats([3.0, 1.0, 4.0, 1.5])
+    assert _compute_stat_label_text(ds, 'max') == "最大値 = 4"
+    assert _compute_stat_label_text(ds, 'min') == "最小値 = 1"
+
+
+def test_compute_stat_label_text_ignores_nan_values():
+    ds = _make_dataset_for_stats([1.0, np.nan, 3.0])
+    assert _compute_stat_label_text(ds, 'mean') == "平均 = 2"
+
+
+def test_compute_stat_label_text_no_data_after_nan_removal():
+    ds = _make_dataset_for_stats([np.nan, np.nan])
+    assert _compute_stat_label_text(ds, 'mean') == "平均 = (データなし)"
+
+
+def test_compute_stat_label_text_r_squared_no_fit():
+    ds = _make_dataset_for_stats([1.0, 2.0])
+    assert _compute_stat_label_text(ds, 'r_squared') == "R² = (フィット未実行)"
+
+
+def test_compute_stat_label_text_r_squared_with_fit():
+    ds = _make_dataset_for_stats([1.0, 2.0], fit_result={'r_squared': 0.98765})
+    assert _compute_stat_label_text(ds, 'r_squared') == "R² = 0.9877"
+
+
+def test_compute_stat_label_text_unknown_stat_key_used_as_title():
+    ds = _make_dataset_for_stats([1.0, 2.0])
+    assert _compute_stat_label_text(ds, 'unknown_stat') == "unknown_stat = (未対応の統計値)"
+
+
+# --- _draw_annotations(): 統計値アンカーラベル(項目C-708)の実描画配線 ---
+
+def test_draw_annotations_stat_label_shows_computed_value(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'annotations': [
+        {'type': 'stat', 'dataset_id': ds.dataset_id, 'stat': 'mean', 'xy': (0.05, 0.95), 'color': '#000000'}
+    ]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    artist = canvas._annotation_artists[0][0]
+    assert artist.get_text() == _compute_stat_label_text(ds, 'mean')
+
+
+def test_draw_annotations_stat_label_uses_axes_transform(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'annotations': [
+        {'type': 'stat', 'dataset_id': ds.dataset_id, 'stat': 'mean', 'xy': (0.05, 0.95), 'color': '#000000'}
+    ]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    artist = canvas._annotation_artists[0][0]
+    assert artist.get_transform() == canvas.all_axes[0].transAxes
+
+
+def test_draw_annotations_stat_label_follows_updated_fit_result(canvas):
+    """固定テキストではなく、再描画のたびにfit_resultから再計算される
+    (フィット結果を更新すると、既存のラベルの表示も自動的に追従する)。"""
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'annotations': [
+        {'type': 'stat', 'dataset_id': ds.dataset_id, 'stat': 'r_squared', 'xy': (0.05, 0.95), 'color': '#000000'}
+    ]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    assert canvas._annotation_artists[0][0].get_text() == "R² = (フィット未実行)"
+
+    ds.fit_result = {'r_squared': 0.5}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    assert canvas._annotation_artists[0][0].get_text() == "R² = 0.5"
+
+
+def test_draw_annotations_stat_label_missing_dataset_shows_placeholder(canvas):
+    """紐づくデータセットが削除された(datasetsリストに存在しない)場合でも
+    例外にならず、プレースホルダ表示になること。"""
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'annotations': [
+        {'type': 'stat', 'dataset_id': 'deleted-id', 'stat': 'mean', 'xy': (0.05, 0.95), 'color': '#000000'}
+    ]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    assert canvas._annotation_artists[0][0].get_text() == "平均 = (データセットなし)"
+
+
+def test_draw_annotations_stat_label_without_datasets_arg_falls_back(canvas):
+    """datasets引数を省略した既存の呼び出し元(後方互換)でも例外にならない"""
+    canvas.redraw_all([], 1, 1, [{}])
+    settings = {'annotations': [
+        {'type': 'stat', 'dataset_id': 'x', 'stat': 'mean', 'xy': (0.05, 0.95), 'color': '#000000'}
+    ]}
+    canvas._draw_annotations(canvas.all_axes[0], 0, settings)
+    assert canvas._annotation_artists[0][0].get_text() == "平均 = (データセットなし)"
 
 
 # --- _apply_legend_order ---

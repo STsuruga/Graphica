@@ -203,8 +203,18 @@ class AnnotationMixin:
 
         best_index, best_distance = None, None
         for i, ann in enumerate(annotations):
+            ann_type = ann.get('type')
+            if ann_type in ('vspan', 'hspan'):
+                # 領域ハイライト(項目C-701)は 'xy'/'xytext' を持たず、削除は
+                # 領域ハイライトモード側(_try_delete_region_near)が担当するため対象外。
+                continue
             pos = ann.get('xytext') or ann.get('xy')
-            pos_px = ax.transData.transform(pos)
+            if pos is None:
+                continue
+            # 統計値アンカーラベル(項目C-708)はAxes相対座標(0〜1)で位置を持つため、
+            # データ座標変換(transData)ではなくtransAxesでピクセル位置を求める。
+            transform = ax.transAxes if ann_type == 'stat' else ax.transData
+            pos_px = transform.transform(pos)
             distance = ((pos_px[0] - click_px[0]) ** 2 + (pos_px[1] - click_px[1]) ** 2) ** 0.5
             if best_distance is None or distance < best_distance:
                 best_distance, best_index = distance, i
@@ -213,7 +223,10 @@ class AnnotationMixin:
             return
 
         target = annotations[best_index]
-        label = target.get('text') or ("矢印注釈" if target.get('type') == 'arrow' else "テキスト注釈")
+        if target.get('type') == 'stat':
+            label = "統計値アンカーラベル"
+        else:
+            label = target.get('text') or ("矢印注釈" if target.get('type') == 'arrow' else "テキスト注釈")
         reply = QMessageBox.question(
             self, "注釈の削除", f"この注釈を削除しますか?\n\n{label}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,

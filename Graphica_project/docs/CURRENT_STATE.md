@@ -16,13 +16,14 @@
 ## 次にやること(2026-09-02時点、TODO)
 
 - **今回のセッションでroadmap #82(C-101)・#84(C-103)・#91(C-201)・
-  #128(C-701)を実装完了**(詳細は`docs/CORE_FEATURES_PROGRESS.md`末尾の
-  「未分類の残り項目」節)。関連テストファイル(`test_dataset_mixin.py`
-  325件チャンク実行・`test_main_window.py`130件チャンク実行・
-  `test_canvas.py`/`test_data_editor.py`/`test_workers.py`/`test_dialogs.py`/
-  各モードmixin専用ファイル)は全て失敗ゼロを確認済み。ユーザー指示
-  (「pushは項目を実装するごとに実施して」)によりコミット・push運用に
-  切り替え済み。
+  #128(C-701)・#108(C-312)・#135(C-708)・#148(C-905)を実装完了**
+  (詳細は`docs/CORE_FEATURES_PROGRESS.md`末尾の「未分類の残り項目」節)。
+  ユーザー指示(「pushは項目を実装するごとに実施して」)によりコミット・
+  push運用に切り替え済み(#82/#84/#91/#128は`0c5e483`で、#146は`6206423`で
+  push済み。#108/#135/#148はテスト完了後にコミット・push予定)。
+  #108/#135/#708実装時にC-701の副作用バグ(vspan/hspan混在時の
+  `_try_delete_annotation_near`クラッシュ)を発見・修正済み(詳細は
+  `docs/CORE_FEATURES_PROGRESS.md`のC-708行)。
 - **#146(C-903 スタイルペインター)は既存実装確認で完了扱い済み**(2026-09-02、
   ユーザー確認済み)。「書式のコピー&ペースト」は#64(C-902、
   `_on_copy_dataset_style`/`_on_paste_dataset_style`)と機能的に同一のため、

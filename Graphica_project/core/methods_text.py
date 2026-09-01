@@ -39,6 +39,8 @@ def describe_operation(provenance):
         return f"共通X格子へのリサンプリング/補間(手法: {params.get('method')})"
     if operation == 'arithmetic':
         return f"データセット間演算({params.get('operation_symbol')})"
+    if operation == 'mean_sd':
+        return f"複数データセットの平均±SD生成({params.get('n_source')}件、手法: {params.get('method')})"
     if operation in ('curve_fit', 'batch_curve_fit'):
         fit_type = params.get('fit_type', '不明')
         r_squared = params.get('r_squared')

@@ -2557,7 +2557,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             cols = self.subplot_cols_spinbox.value()
         # 外観の更新もCanvasに丸投げ
         self.canvas.update_appearance_only(
-            self.project.all_plot_settings, rows=rows, cols=cols, layout_mode=layout_mode,
+            self.project.all_plot_settings, datasets=self.project.datasets, rows=rows, cols=cols,
+            layout_mode=layout_mode,
             share_x_axis=getattr(self.project, 'share_x_axis', False),
             share_y_axis=getattr(self.project, 'share_y_axis', False),
         )
