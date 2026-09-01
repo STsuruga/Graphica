@@ -1104,11 +1104,38 @@ def test_context_menu_single_dataset_selected_shows_style_and_export_actions(tmp
     texts = _RecordingMenu.last_instance.added_texts
     assert "スタイルをコピー" in texts
     assert "スタイルを貼り付け" in texts
+    assert "元ファイルから再読み込み" in texts
     assert "規格化(ノーマライズ)..." in texts
     assert "Savitzky-Golayフィルタ(平滑化/微分)..." in texts
     assert "データセット間演算..." not in texts
     assert "データ表をファイルに書き出す..." in texts
     assert "削除" in texts
+
+
+def test_context_menu_reload_action_disabled_without_source_file(tmp_path, monkeypatch):
+    """元ファイルを持たないデータセット(クリップボード貼り付け等)では再読み込みがグレーアウトする"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")  # source_file未設定
+    _add_and_select_dataset(window, ds)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    action = _RecordingMenu.last_instance.actions_by_text["元ファイルから再読み込み"]
+    assert action.isEnabled() is False
+
+
+def test_context_menu_reload_action_enabled_with_source_file(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1], 'y': [1.0, 2.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y', source_file=str(tmp_path / "d0.csv"))
+    _add_and_select_dataset(window, ds)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    action = _RecordingMenu.last_instance.actions_by_text["元ファイルから再読み込み"]
+    assert action.isEnabled() is True
 
 
 def test_context_menu_two_datasets_selected_shows_arithmetic_and_batch_actions(tmp_path, monkeypatch):
@@ -2793,6 +2820,51 @@ def test_property_changed_error_display_combo(tmp_path, monkeypatch):
     window.error_display_combo.setCurrentIndex(index)
 
     assert ds.error_display == "band"
+
+
+# =============================================================================
+# 欠損値(NaN)の方針設定 (nan_policy_combo, 項目C-201)
+# =============================================================================
+
+def test_property_changed_nan_policy_combo(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    index = window.nan_policy_combo.findData("drop")
+    window.nan_policy_combo.setCurrentIndex(index)
+
+    assert ds.nan_policy == "drop"
+
+
+def test_selecting_dataset_loads_nan_policy_into_combo(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1], 'y': [1.0, 2.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y', nan_policy='ffill')
+    _add_and_select_dataset(window, ds)
+
+    assert window.nan_policy_combo.currentData() == 'ffill'
+
+
+def test_nan_policy_combo_disabled_without_selection(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.nan_policy_combo.isEnabled() is False
+
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    assert window.nan_policy_combo.isEnabled() is True
+
+
+def test_nan_policy_combo_batch_applies_to_all_selected_datasets(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_simple_dataset(f"d{i}") for i in range(2)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets)
+
+    window.nan_policy_combo.setCurrentIndex(window.nan_policy_combo.findData("drop"))
+
+    assert all(ds.nan_policy == "drop" for ds in datasets)
 
 
 # =============================================================================
@@ -5468,3 +5540,132 @@ def test_warn_if_font_family_unavailable_does_not_warn_when_stretch_resolvable(t
     window._warn_if_font_family_unavailable_for_graph(QFont("Arial Narrow"))
 
     assert calls == []
+
+
+# =============================================================================
+# 元ファイルからの再読み込み (_on_reload_dataset_from_source, 項目C-103)
+# =============================================================================
+
+def test_reload_dataset_replaces_data_and_preserves_style(tmp_path, monkeypatch):
+    """データ本体(df)は差し替わるが、書式(color等)・名前は維持される"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    path = tmp_path / "measurement.csv"
+    path.write_text("x,y\n1,2\n3,4\n", encoding='utf-8')
+
+    old_df = pd.DataFrame({'x': [1, 3], 'y': [2, 4]})
+    dataset = Dataset(name="measurement", df=old_df, x_col_name='x', y_col_name='y',
+                       color='#ff0000', source_file=str(path))
+    _add_and_select_dataset(window, dataset)
+
+    # ファイルを更新してから再読み込み(測定やり直しを模す)
+    path.write_text("x,y\n1,20\n3,40\n5,60\n", encoding='utf-8')
+
+    window._on_reload_dataset_from_source()
+
+    assert dataset.name == "measurement"
+    assert dataset.color == '#ff0000'
+    np.testing.assert_allclose(dataset.y_data, np.array([20.0, 40.0, 60.0]))
+
+
+def test_reload_dataset_clears_masked_rows(tmp_path, monkeypatch):
+    """再読み込み後、旧データの行に紐づいたマスクは意味を持たなくなるためクリアされる"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    path = tmp_path / "measurement.csv"
+    path.write_text("x,y\n1,2\n3,4\n", encoding='utf-8')
+
+    old_df = pd.DataFrame({'x': [1, 3], 'y': [2, 4]})
+    dataset = Dataset(name="measurement", df=old_df, x_col_name='x', y_col_name='y',
+                       source_file=str(path), masked_row_indices=[0])
+    _add_and_select_dataset(window, dataset)
+
+    window._on_reload_dataset_from_source()
+
+    assert dataset.masked_row_indices == []
+
+
+def test_reload_dataset_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    path = tmp_path / "measurement.csv"
+    path.write_text("x,y\n1,2\n3,4\n", encoding='utf-8')
+
+    old_df = pd.DataFrame({'x': [1, 3], 'y': [2, 4]})
+    dataset = Dataset(name="measurement", df=old_df, x_col_name='x', y_col_name='y', source_file=str(path))
+    _add_and_select_dataset(window, dataset)
+
+    path.write_text("x,y\n1,20\n3,40\n", encoding='utf-8')
+    window._on_reload_dataset_from_source()
+    np.testing.assert_allclose(dataset.y_data, np.array([20.0, 40.0]))
+
+    window.undo_stack.undo()
+    np.testing.assert_allclose(dataset.y_data, np.array([2.0, 4.0]))
+
+    window.undo_stack.redo()
+    np.testing.assert_allclose(dataset.y_data, np.array([20.0, 40.0]))
+
+
+def test_reload_dataset_without_source_file_is_noop(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    dataset = _make_simple_dataset("no_source")  # source_file未設定
+    _add_and_select_dataset(window, dataset)
+    before_index = window.undo_stack.index()
+
+    window._on_reload_dataset_from_source()  # 例外にならず何もしない
+
+    assert window.undo_stack.index() == before_index
+
+
+def test_reload_dataset_missing_file_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    missing_path = str(tmp_path / "does_not_exist.csv")
+    dataset = Dataset(name="d0", df=pd.DataFrame({'x': [1], 'y': [2]}),
+                       x_col_name='x', y_col_name='y', source_file=missing_path)
+    _add_and_select_dataset(window, dataset)
+
+    calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
+
+    window._on_reload_dataset_from_source()
+
+    assert len(calls) == 1
+    assert "見つかりません" in calls[0][2]
+
+
+def test_reload_dataset_missing_column_aborts_with_warning(tmp_path, monkeypatch):
+    """再読み込み後のファイルにx_col_name/y_col_nameが存在しない場合は中断する"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    path = tmp_path / "measurement.csv"
+    path.write_text("x,y\n1,2\n3,4\n", encoding='utf-8')
+
+    old_df = pd.DataFrame({'x': [1, 3], 'y': [2, 4]})
+    dataset = Dataset(name="measurement", df=old_df, x_col_name='x', y_col_name='y', source_file=str(path))
+    _add_and_select_dataset(window, dataset)
+
+    # ファイルの列名が変わってしまったケース
+    path.write_text("a,b\n1,2\n3,4\n", encoding='utf-8')
+
+    calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
+
+    window._on_reload_dataset_from_source()
+
+    assert len(calls) == 1
+    assert "見つかりませんでした" in calls[0][2]
+    # 中断されるため、元のデータは変更されない
+    np.testing.assert_allclose(dataset.y_data, np.array([2.0, 4.0]))
+
+
+def test_reload_dataset_excel_uses_source_sheet(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    path = tmp_path / "measurement.xlsx"
+    with pd.ExcelWriter(str(path)) as writer:
+        pd.DataFrame({'x': [1, 2], 'y': [10, 20]}).to_excel(writer, sheet_name="Sheet1", index=False)
+        pd.DataFrame({'x': [1, 2], 'y': [100, 200]}).to_excel(writer, sheet_name="Sheet2", index=False)
+
+    old_df = pd.DataFrame({'x': [1, 2], 'y': [100, 200]})
+    dataset = Dataset(name="measurement", df=old_df, x_col_name='x', y_col_name='y',
+                       source_file=str(path), source_sheet="Sheet2")
+    _add_and_select_dataset(window, dataset)
+
+    window._on_reload_dataset_from_source()
+
+    np.testing.assert_allclose(dataset.y_data, np.array([100.0, 200.0]))

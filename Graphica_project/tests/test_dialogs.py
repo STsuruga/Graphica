@@ -1579,6 +1579,127 @@ def test_column_preview_dialog_apply_type_overrides_skips_missing_column():
     dlg._apply_type_overrides()  # 例外にならず単にスキップされる
 
 
+# --- ColumnPreviewDialog(CSV: 文字コード/区切り文字/ヘッダー行/固定長、項目C-101) ---
+# file_path付きで実ファイルを渡した場合のみ、これらのコントロールが有効になる
+# (file_path無しの上記テスト群は「非Excel全般」の最小構成の確認であり、is_csvはFalseのまま)。
+
+def test_column_preview_dialog_csv_is_csv_true_only_with_file_path(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("x,y\n1,2\n3,4\n", encoding='utf-8')
+    df = pd.read_csv(path)
+    dlg = ColumnPreviewDialog(df, "data.csv", file_path=str(path))
+    assert dlg.is_csv is True
+    assert dlg.is_excel is False
+    assert dlg.encoding_combo is not None
+    assert dlg.delimiter_combo is not None
+
+
+def test_column_preview_dialog_csv_without_file_path_has_no_csv_controls():
+    df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
+    dlg = ColumnPreviewDialog(df, "data.csv")  # file_path省略
+    assert dlg.is_csv is False
+    assert dlg.encoding_combo is None
+
+
+def test_column_preview_dialog_csv_auto_detects_semicolon_delimiter(tmp_path):
+    """初期dfはカンマ前提で読まれ1列に崩れているが、ダイアログが自動判定した
+    区切り文字(セミコロン)で再読み込みし、正しい列数のプレビューになる。"""
+    path = tmp_path / "data.csv"
+    path.write_text("x;y;z\n1;2;3\n4;5;6\n", encoding='utf-8')
+    broken_initial_df = pd.read_csv(path)  # 既定のカンマ区切りでは1列に崩れる
+
+    dlg = ColumnPreviewDialog(broken_initial_df, "data.csv", file_path=str(path))
+
+    assert list(dlg.current_df.columns) == ['x', 'y', 'z']
+    assert dlg.delimiter_combo.currentText() == dlg._AUTO_LABEL
+
+
+def test_column_preview_dialog_csv_manual_delimiter_override(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("x|y\n1|2\n3|4\n", encoding='utf-8')
+    df = pd.read_csv(path)  # 崩れた初期プレビュー
+    dlg = ColumnPreviewDialog(df, "data.csv", file_path=str(path))
+
+    dlg.delimiter_combo.setCurrentText(ColumnPreviewDialog._DELIMITER_CUSTOM_LABEL)
+    dlg.custom_delimiter_edit.setText("|")
+    dlg._reload_csv_preview()
+
+    assert list(dlg.current_df.columns) == ['x', 'y']
+
+
+def test_column_preview_dialog_csv_header_row_skips_device_preamble(tmp_path):
+    """装置が出力する説明文(前文)をヘッダー行の指定でスキップできる(項目C-101)。
+    前文もカンマ区切り("パラメータ,値"形式)にしておき、既定のヘッダー1行目読みでも
+    パースエラーにはならない(列数の不一致による警告ダイアログを避けるため)。"""
+    path = tmp_path / "data.csv"
+    path.write_text("Device,Spectrometer X\nDate,2026-01-01\nx,y\n1,2\n3,4\n", encoding='utf-8')
+    df = pd.read_csv(path)  # 前文込みで意味的に崩れた初期プレビュー(パース自体は成功する)
+    dlg = ColumnPreviewDialog(df, "data.csv", file_path=str(path))
+
+    dlg.csv_header_row_spinbox.setValue(3)  # 3行目("x,y")をヘッダーとして使う
+
+    assert list(dlg.current_df.columns) == ['x', 'y']
+    assert len(dlg.current_df) == 2
+
+
+def test_column_preview_dialog_csv_encoding_manual_override(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("列1,列2\n1,あ\n", encoding='cp932')
+    df = pd.read_csv(path, encoding='cp932')
+    dlg = ColumnPreviewDialog(df, "data.csv", file_path=str(path))
+
+    dlg.encoding_combo.setCurrentText("Shift_JIS")
+
+    assert list(dlg.current_df.columns) == ['列1', '列2']
+    assert dlg.current_df['列2'].iloc[0] == 'あ'
+
+
+def test_column_preview_dialog_csv_fixed_width_auto_infer(tmp_path):
+    """固定長チェックを入れると、列幅を明示しなくても(自動推測、pandas既定)読める"""
+    path = tmp_path / "data.csv"
+    path.write_text("x    y   \n1    10  \n2    20  \n", encoding='utf-8')
+    df = pd.read_csv(path)  # ただのCSVとして読むと1列に崩れる
+    dlg = ColumnPreviewDialog(df, "data.csv", file_path=str(path))
+
+    dlg.fixed_width_checkbox.setChecked(True)  # 列幅は空欄のまま(自動推測)
+
+    assert dlg.current_df.shape[1] == 2
+    assert list(dlg.current_df.iloc[:, 0]) == [1, 2]
+    assert list(dlg.current_df.iloc[:, 1]) == [10, 20]
+
+
+def test_column_preview_dialog_csv_fixed_width_explicit_widths(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("1   10  \n2   20  \n", encoding='utf-8')
+    df = pd.read_csv(path)
+    dlg = ColumnPreviewDialog(df, "data.csv", file_path=str(path))
+
+    dlg.csv_header_row_spinbox.setValue(1)
+    dlg.fixed_width_checkbox.setChecked(True)
+    dlg.fixed_width_edit.setText("4,4")
+    dlg._reload_csv_preview()
+
+    assert dlg.current_df.shape[1] == 2
+    assert dlg.delimiter_combo.isEnabled() is False
+
+
+def test_column_preview_dialog_csv_invalid_settings_shows_warning(tmp_path, monkeypatch):
+    calls = {"warning": []}
+    monkeypatch.setattr(
+        QMessageBox, "warning", staticmethod(lambda *a, **k: calls["warning"].append(a))
+    )
+    path = tmp_path / "data.csv"
+    path.write_text("x,y\n1,2\n", encoding='utf-8')
+    df = pd.read_csv(path)
+    dlg = ColumnPreviewDialog(df, "data.csv", file_path=str(path))
+
+    dlg.fixed_width_checkbox.setChecked(True)
+    dlg.fixed_width_edit.setText("not,a,number")
+    dlg._reload_csv_preview()
+
+    assert len(calls["warning"]) == 1
+
+
 # --- ColorPaletteDialog: パレットの新規作成/名前変更/削除/色追加/削除 ---
 
 def test_color_palette_dialog_new_palette_via_input_dialog(qapp, monkeypatch):

@@ -214,6 +214,9 @@ class UISetupMixin:
             # 誤差の表示形式(項目C-502)
             self.error_display_combo.currentIndexChanged.connect(self._on_property_changed)
 
+            # 欠損値(NaN)の方針設定(項目C-201)
+            self.nan_policy_combo.currentIndexChanged.connect(self._on_property_changed)
+
             self.fit_curve_button.clicked.connect(self._on_fit_curve)
             self.find_peaks_button.clicked.connect(self._on_find_peaks)
             self.multi_peak_fit_button.clicked.connect(self._on_multi_peak_fit)

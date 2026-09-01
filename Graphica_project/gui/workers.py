@@ -7,6 +7,7 @@ TaskRunner(汎用バックグラウンドワーカー)に委ねる(項目C-004�
 不要になったため削除し、TaskRunnerへ注入する薄い関数(load_data_file_task)に
 置き換えた。
 """
+import csv
 import pandas as pd
 
 # CSV読み込み時に順番に試す文字コード。
@@ -36,6 +37,68 @@ def _detect_bom_encoding(file_path):
     return None
 
 
+def _csv_encoding_candidates(file_path):
+    """
+    BOM検出結果を先頭に、CSV_ENCODING_FALLBACKSを順に並べた候補リストを返す。
+    read_data_file()(初回読み込み)と detect_csv_encoding()(項目C-101、
+    gui/dialogs.py の ColumnPreviewDialog がエンコーディング欄の「自動判定」表示・
+    区切り文字推測のサンプル読み取りに使う)が同じ判定順序を共有するための共通処理。
+    """
+    bom_encoding = _detect_bom_encoding(file_path)
+    candidates = [bom_encoding] if bom_encoding else []
+    candidates += [e for e in CSV_ENCODING_FALLBACKS if e not in candidates]
+    return candidates
+
+
+def detect_csv_encoding(file_path):
+    """
+    CSVファイルの文字コードを判定し、成功した1つを返す(項目C-101)。
+    read_data_file()と違い実際にDataFrameとしてパースはせず、テキストとして
+    デコードできるかどうかのみを見る軽量な判定(ColumnPreviewDialogの
+    エンコーディング欄の初期値・区切り文字自動判定のサンプル読み取りに使うため、
+    ファイル全体のパースコストをかけずに済ませる)。
+    """
+    last_error = None
+    for encoding in _csv_encoding_candidates(file_path):
+        try:
+            with open(file_path, encoding=encoding) as f:
+                f.read()
+            return encoding
+        except UnicodeDecodeError as e:
+            last_error = e
+            continue
+    raise ValueError(
+        f"CSVファイルの文字コードを判定できませんでした "
+        f"(試行: {', '.join(CSV_ENCODING_FALLBACKS)})。詳細: {last_error}"
+    )
+
+
+def detect_csv_delimiter(file_path, encoding, sample_lines=50):
+    """
+    csv.Sniffer を使い、ファイル先頭付近のサンプルから区切り文字を推測する
+    (項目C-101)。カンマ/タブ/セミコロン/空白のいずれかを想定し、判定できない
+    場合(1列のみのデータ等)はカンマにフォールバックする。
+    """
+    lines = []
+    try:
+        with open(file_path, encoding=encoding, errors='replace') as f:
+            for _ in range(sample_lines):
+                line = f.readline()
+                if not line:
+                    break
+                lines.append(line)
+    except OSError:
+        return ','
+    sample = ''.join(lines)
+    if not sample.strip():
+        return ','
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=',\t; ')
+        return dialect.delimiter
+    except csv.Error:
+        return ','
+
+
 def read_data_file(file_path):
     """
     データファイルを読み込み、DataFrame を返す。
@@ -44,7 +107,8 @@ def read_data_file(file_path):
     それを優先し、ビルトインのCSV/Excel読み込みは行わない(プラグイン未登録の
     拡張子・プラグイン0件の場合は、従来通りのビルトイン処理のみが動く)。
     CSVはまずBOMから文字コードを検出し、判定できなければ複数の文字コードを
-    順に試して、最初に成功したものを採用する。
+    順に試して、最初に成功したものを採用する(区切り文字は既定のカンマ固定。
+    実際と異なる場合はColumnPreviewDialog、項目C-101、で読み直せる)。
     """
     ext = file_path.lower().split('.')[-1]
 
@@ -66,15 +130,8 @@ def read_data_file(file_path):
         return result
 
     if ext == 'csv':
-        bom_encoding = _detect_bom_encoding(file_path)
-        if bom_encoding is not None:
-            try:
-                return pd.read_csv(file_path, header=0, encoding=bom_encoding)
-            except (UnicodeDecodeError, pd.errors.ParserError):
-                pass  # BOMはあるが読めない場合は、通常のフォールバックへ
-
         last_error = None
-        for encoding in CSV_ENCODING_FALLBACKS:
+        for encoding in _csv_encoding_candidates(file_path):
             try:
                 return pd.read_csv(file_path, header=0, encoding=encoding)
             except (UnicodeDecodeError, pd.errors.ParserError) as e:

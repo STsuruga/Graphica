@@ -241,6 +241,14 @@ class DatasetMixin:
             paste_style_action.setEnabled(self._copied_dataset_style is not None)
             paste_style_action.triggered.connect(self._on_paste_dataset_style)
 
+            # 元ファイルからの再読み込み(項目C-103): ファイル読み込みで作成された
+            # データセット(dataset.source_fileを保持)のみ有効。クリップボード貼り付け・
+            # データセット間演算・プラグインprocessor/analyzerの生成物等、元ファイルを
+            # 持たないデータセットではグレーアウトする。
+            reload_action = menu.addAction("元ファイルから再読み込み")
+            reload_action.setEnabled(bool(self._get_current_dataset().source_file))
+            reload_action.triggered.connect(self._on_reload_dataset_from_source)
+
             # 規格化(ノーマライズ、項目78): 曲線フィット/ピーク検出と同様、1つの
             # データセット(フォーカス中のカレントアイテム)に対する操作なので、
             # 複数選択かどうかに関わらずこのブロック(カレントデータセットが
@@ -442,6 +450,83 @@ class DatasetMixin:
             )
         if is_batch:
             self.undo_stack.endMacro()
+
+    def _on_reload_dataset_from_source(self):
+        """
+        「元ファイルから再読み込み」メニューの処理(項目C-103)。
+        dataset.source_file(gui/main_window.pyの_import_loaded_dataframeが
+        ファイル読み込み時に設定)からファイルを読み直し、書式・注釈・データセット名は
+        そのままに df(データ本体)だけを差し替える。測定をやり直すたびに図を
+        ゼロから作り直さずに済むようにする機能。
+
+        X/Y軸・エラーバー・データ点ラベルの列選択(x_col_name等)は変更しない
+        (ファイルの列構成が変わっていなければ引き続き正しく参照できるため)。
+        ただし再読み込み後にそれらの列が見つからない場合は、壊れた状態で
+        グラフが描画される前にエラーで中断する。
+
+        ★ 既知の制約: インポートウィザード(項目C-101)で文字コード/区切り文字/
+        ヘッダー行/固定長を個別に調整して読み込んだCSVについては、その調整内容は
+        保持していないため、再読み込みは常に標準設定(自動判定)で読み直す。
+        調整が必要なファイルで列が見つからない場合は、このメソッドではなく
+        通常のインポート操作(ウィザードで再調整)でのデータセット追加をお勧めする
+        メッセージを表示する。
+
+        マスク済み行(masked_row_indices)は、旧データの行ラベルに紐づいた情報であり
+        新しいデータでは無意味(むしろ別の行を誤って除外し続ける)になるため、
+        再読み込みと同時にクリアする。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None or not dataset.source_file:
+            return
+
+        if not os.path.exists(dataset.source_file):
+            QMessageBox.warning(
+                self, "再読み込み",
+                f"元ファイルが見つかりません:\n{dataset.source_file}"
+            )
+            return
+
+        from gui.workers import read_data_file
+        try:
+            if dataset.source_sheet:
+                new_df = pd.read_excel(dataset.source_file, sheet_name=dataset.source_sheet, engine='openpyxl')
+            else:
+                new_df = read_data_file(dataset.source_file)
+        except Exception as e:
+            QMessageBox.warning(self, "再読み込み", f"ファイルの読み込みに失敗しました:\n{e}")
+            return
+
+        required_columns = (
+            dataset.x_col_name, dataset.y_col_name,
+            dataset.x_err_col_name, dataset.y_err_col_name, dataset.point_label_col_name,
+        )
+        missing = [col for col in required_columns if col and col not in new_df.columns]
+        if missing:
+            QMessageBox.warning(
+                self, "再読み込み",
+                "再読み込みしたファイルに、現在使用中の列が見つかりませんでした:\n"
+                + "\n".join(missing)
+                + "\n\nファイルの構造(列名/区切り文字/ヘッダー行など)が変わった可能性があります。"
+                "「データセット追加」から改めてインポートし直すことをお勧めします。"
+                "再読み込みは中止しました。"
+            )
+            return
+
+        old_values = {'df': dataset.df, 'masked_row_indices': list(dataset.masked_row_indices)}
+        new_values = {'df': new_df, 'masked_row_indices': []}
+        # ★ _push_dataset_property_command は old_values == new_values で変更なし判定を
+        #   行うが、辞書にDataFrameが含まれると == の評価自体が
+        #   ValueError("The truth value of a DataFrame is ambiguous") になるため、
+        #   ここでは使わずSetDatasetPropertiesCommandを直接発行する。
+        command = SetDatasetPropertiesCommand(
+            dataset, old_values, new_values,
+            on_applied=lambda: self._refresh_after_dataset_property_change(
+                dataset, changed_keys=new_values.keys(), old_values=old_values, new_values=new_values
+            ),
+            description=f"「{dataset.name}」を再読み込み"
+        )
+        self.undo_stack.push(command)
+        self.statusBar().showMessage(f"「{dataset.name}」を元ファイルから再読み込みしました", 3000)
 
     def _on_dataset_arithmetic(self):
         """
@@ -1534,6 +1619,8 @@ class DatasetMixin:
             ),
             # 誤差の表示形式(項目C-502)
             self.error_display_combo: ('error_display', self.error_display_combo.currentData()),
+            # 欠損値(NaN)の方針設定(項目C-201)
+            self.nan_policy_combo: ('nan_policy', self.nan_policy_combo.currentData()),
             # 2Dグリッドデータ(ヒートマップ、項目C-508)のカラーマップ・補間方法。
             # data_kind/z_col_name/vmin/vmaxはそれぞれ専用ハンドラ
             # (_on_data_2d_toggled/_on_z_column_changed/_on_2d_value_range_changed)
@@ -1833,6 +1920,7 @@ class DatasetMixin:
         self.x_err_col_combo.setEnabled(has_dataset_selection)
         self.y_err_col_combo.setEnabled(has_dataset_selection)
         self.error_display_combo.setEnabled(has_dataset_selection)
+        self.nan_policy_combo.setEnabled(has_dataset_selection)
 
         # 4. 【選択中】の場合: 選択された Dataset の内容をUIにロード
         #    (current_dataset は「カレント」アイテムがフォルダの場合や、
@@ -1863,6 +1951,7 @@ class DatasetMixin:
             self.waterfall_offset_y_spinbox.blockSignals(True)
             self.waterfall_occlusion_checkbox.blockSignals(True)
             self.error_display_combo.blockSignals(True)
+            self.nan_policy_combo.blockSignals(True)
             self.data_2d_checkbox.blockSignals(True)
             self.colormap_combo.blockSignals(True)
             self.map_display_mode_combo.blockSignals(True)
@@ -1898,6 +1987,8 @@ class DatasetMixin:
             self.subplot_target_combo.setCurrentIndex(dataset.subplot_target)
             error_display_index = self.error_display_combo.findData(dataset.error_display)
             self.error_display_combo.setCurrentIndex(error_display_index if error_display_index != -1 else 0)
+            nan_policy_index = self.nan_policy_combo.findData(dataset.nan_policy)
+            self.nan_policy_combo.setCurrentIndex(nan_policy_index if nan_policy_index != -1 else 0)
             self.data_2d_checkbox.setChecked(dataset.data_kind == '2d_grid')
             colormap_index = self.colormap_combo.findText(dataset.colormap)
             self.colormap_combo.setCurrentIndex(colormap_index if colormap_index != -1 else 0)
@@ -1935,6 +2026,7 @@ class DatasetMixin:
             self.waterfall_offset_y_spinbox.blockSignals(False)
             self.waterfall_occlusion_checkbox.blockSignals(False)
             self.error_display_combo.blockSignals(False)
+            self.nan_policy_combo.blockSignals(False)
             self.data_2d_checkbox.blockSignals(False)
             self.colormap_combo.blockSignals(False)
             self.map_display_mode_combo.blockSignals(False)

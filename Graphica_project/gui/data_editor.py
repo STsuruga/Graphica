@@ -25,6 +25,16 @@ def _masked_row_background():
     """マスク済み行の背景色を、現在のテーマトークンから解決する。"""
     return QColor(theme.current_tokens()["surface_2"])
 
+
+def _nan_cell_background():
+    """
+    欠損値(NaN/NaT)セルの背景色を、現在のテーマトークンから解決する(項目C-201:
+    欠損値の可視化)。マスク済み行の背景(surface_2、中立グレー)とは別の
+    warning_softトークンを使い、「除外されている」行全体の印と「値そのものが
+    欠損している」セル単位の印を混同しないようにする。
+    """
+    return QColor(theme.current_tokens()["warning_soft"])
+
 # 外れ値のマスク機能(項目36): 除外中の行をテーブル上でひと目で分かるように示す背景色。
 # ★ バグ修正: 以前はライトモード専用の固定色(#DCDCDC)がハードコードされて
 # おり、ダークモード(surfaceが#1B1F22のような暗色)ではほぼ白に近いこの色が
@@ -231,12 +241,18 @@ class DataEditorDialog(QDialog):
                 value = df.iloc[i, j]
 
                 # ★ pd.isna で NaN (Not a Number) や NaT (Not a Time) をチェック
-                item_text = "" if pd.isna(value) else str(value)
+                is_nan = pd.isna(value)
+                item_text = "" if is_nan else str(value)
 
                 item = QTableWidgetItem(item_text)
                 if is_masked:
                     item.setBackground(_masked_row_background())
                     item.setToolTip("この行はフィット/プロットから除外されています")
+                elif is_nan:
+                    # 欠損値の可視化(項目C-201)。マスク済み行(上の分岐)は既に
+                    # 別の背景色で行全体が示されているため、二重に色を重ねない。
+                    item.setBackground(_nan_cell_background())
+                    item.setToolTip("欠損値(NaN)です")
                 self.table_widget.setItem(i, j, item)
         
         self.table_widget.resizeColumnsToContents() # 列幅を自動調整

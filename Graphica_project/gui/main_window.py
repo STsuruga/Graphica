@@ -286,6 +286,7 @@ from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
 from gui.mixins.range_select_mixin import RangeSelectMixin
 from gui.mixins.peak_placement_mixin import PeakPlacementMixin
 from gui.mixins.slice_extraction_mixin import SliceExtractionMixin
+from gui.mixins.region_highlight_mixin import RegionHighlightMixin
 from gui.mixins.export_mixin import ExportMixin
 from gui.mixins.project_io_mixin import ProjectIOMixin
 from gui.mixins.help_mixin import HelpMixin
@@ -460,11 +461,12 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
 #   QuickAccessMixin: クイックアクセスのカスタムツールバー(項目87)
 #   PeakPlacementMixin: グラフクリックによる多峰分離フィットの初期値配置(項目C-410)
 #   SliceExtractionMixin: 2Dマップからのドラッグによる1Dスライス抽出(項目C-511)
+#   RegionHighlightMixin: ドラッグによる領域ハイライト(縦帯/横帯)の追加(項目C-701)
 # PlotterApp 本体には、初期化・ファイルI/Oの中核・プロット更新など、
 # 上記どれにも属さない「アプリのエントリーポイント」的な処理のみを残す。
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                   CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
-                  PeakPlacementMixin, SliceExtractionMixin,
+                  PeakPlacementMixin, SliceExtractionMixin, RegionHighlightMixin,
                   ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
     """
     メインアプリケーションウィンドウクラス。
@@ -655,6 +657,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._slice_extraction_start = None         # ドラッグ開始点の(x, y)データ座標
         self._slice_extraction_preview_artist = None  # ドラッグ中のプレビュー線
 
+        # --- 領域ハイライト(項目C-701、ドラッグによる縦帯/横帯の追加)用の変数 ---
+        self.region_highlight_mode_enabled = False  # 領域ハイライトモードがONかOFFか
+        self._region_highlight_press_cid = None
+        self._region_highlight_motion_cid = None
+        self._region_highlight_release_cid = None
+        self._region_highlight_axes = None          # ドラッグ中のAxes、またはNone
+        self._region_highlight_start = None         # ドラッグ開始点の(x, y)データ座標
+        self._region_highlight_preview_artist = None  # ドラッグ中のプレビュー矩形
+
         # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
         # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
         #   _make_default_plot_font() (PLOT_DEFAULT_FONT_FAMILIES) を指定する。
@@ -812,6 +823,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.slice_extraction_action.setCheckable(True)
         self.slice_extraction_action.triggered.connect(self._toggle_slice_extraction_mode)
         toolbar.addAction(self.slice_extraction_action)
+
+        # --- ★ ツールバーにカスタムボタン (領域ハイライト) を追加 ★ ---
+        # 項目C-701: 横方向にドラッグすると縦帯(axvspan)、縦方向にドラッグすると
+        # 横帯(axhspan)を追加する。データ座標に紐づくハイライトのため、
+        # データセットを差し替えても(項目C-103の再読み込み等)位置が保たれる。
+        self.region_highlight_action = QAction(
+            _svg_icon("highlight"),  # Tabler Icons "highlight"
+            tr("領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)"),
+            self
+        )
+        self.region_highlight_action.setCheckable(True)
+        self.region_highlight_action.triggered.connect(self._toggle_region_highlight_mode)
+        toolbar.addAction(self.region_highlight_action)
 
         # --- ★ ツールバーにカスタムボタン (ズームリセット) を追加 ★ ---
         # マウスドラッグ/矩形選択等で拡大した表示を、設定通りの既定表示に戻す。
@@ -1135,6 +1159,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.vmax_spinbox.setValue(1.0)
         self.vmax_spinbox.setEnabled(False)
         self.ui.formLayout_4.addRow(self.vmax_label, self.vmax_spinbox)
+
+        # 2g. 欠損値(NaN)の方針設定(項目C-201): プロット描画時のみに効く表示上の
+        # 設定で、Dataset.x_data/y_data(フィット・エクスポート等の他の消費者が使う
+        # 生データ)自体は変更しない(gui/canvas.pyの_draw_dataが描画直前に適用)。
+        # 既定'gap'は導入前からの挙動(matplotlibが自然にNaNで線を切る)そのものの
+        # ため、既存プロジェクトファイルを読み込んでも見た目は変わらない。
+        self.nan_policy_label = QLabel(tr("欠損値(NaN)の扱い"))
+        self.nan_policy_combo = QComboBox()
+        self.nan_policy_combo.addItem(tr("線を切る(既定)"), "gap")
+        self.nan_policy_combo.addItem(tr("前の値で埋める"), "ffill")
+        self.nan_policy_combo.addItem(tr("無視してつなぐ"), "drop")
+        self.ui.formLayout_4.addRow(self.nan_policy_label, self.nan_policy_combo)
 
         # 3. 凡例の位置を選択するUIをコードで作成
         self.legend_loc_label = QLabel("凡例の位置")
@@ -3105,7 +3141,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             # シート/ヘッダー行/usecols/nrowsを変更していた場合はそちらを反映したDataFrameを使う
             final_df = preview_dialog.get_dataframe()
 
-            new_dataset = Dataset(name=preview_name, df=final_df, x_col_name=x_col, y_col_name=y_col)
+            # 元ファイルへのリンク保持(項目C-103): 「再読み込み」
+            # (gui/mixins/dataset_mixin.pyの_on_reload_dataset_from_source)が
+            # このパスからファイルを読み直せるよう、絶対パスを保持しておく。
+            # Excelでシートを切り替えていた場合に備え、ダイアログのシートコンボの
+            # 最終的な選択値(checked_sheetではなく、こちらが実際に使われた値)を使う。
+            source_sheet = (
+                preview_dialog.sheet_combo.currentText()
+                if (is_excel and preview_dialog.sheet_combo is not None) else None
+            )
+            new_dataset = Dataset(
+                name=preview_name, df=final_df, x_col_name=x_col, y_col_name=y_col,
+                source_file=os.path.abspath(file_path), source_sheet=source_sheet,
+            )
             self._add_dataset(new_dataset, target_folder)
             added_count += 1
 

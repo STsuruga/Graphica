@@ -102,6 +102,11 @@ class _FakeSheetCombo:
     def setCurrentText(self, text):
         self.current_text = text
 
+    def currentText(self):
+        # 項目C-103: _import_loaded_dataframeがsource_sheetの記録に使う
+        # (実際のQComboBoxと同じメソッド名)。
+        return self.current_text
+
 
 class _FakeColumnPreviewDialogWithSheetCombo:
     """sheet_comboを持つ点だけが_FakeAcceptedColumnPreviewDialogと異なるダブル。"""
@@ -2103,6 +2108,43 @@ def test_import_loaded_dataframe_column_preview_dialog_rejected_shows_cancelled_
 
     assert len(window._flatten_dataset_tree()) == initial_count
     assert window.statusBar().currentMessage() == "読み込みをキャンセルしました"
+
+
+# --- _import_loaded_dataframe(): source_file / source_sheet の記録(項目C-103) ---
+
+def test_import_loaded_dataframe_records_source_file_for_csv(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    csv_path = tmp_path / "data.csv"
+    csv_path.write_text("x,y\n1,2\n", encoding="utf-8")
+    df = pd.DataFrame({"x": [1], "y": [2]})
+
+    window._import_loaded_dataframe(df, str(csv_path))
+
+    new_dataset = window.project.datasets[-1]
+    assert new_dataset.source_file == os.path.abspath(str(csv_path))
+    assert new_dataset.source_sheet is None
+
+
+def test_import_loaded_dataframe_records_source_sheet_for_excel_multi_sheet(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    excel_path = tmp_path / "multi.xlsx"
+    _write_multi_sheet_excel(excel_path, {
+        "Sheet1": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
+        "Sheet2": pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
+    })
+    monkeypatch.setattr(
+        main_window_module, "ExcelMultiSheetDialog",
+        _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=["Sheet1", "Sheet2"]),
+    )
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeColumnPreviewDialogWithSheetCombo)
+    monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", lambda fp, sheet: (False, [], True))
+
+    window._import_loaded_dataframe(pd.DataFrame(), str(excel_path))
+
+    added = window.project.datasets[-2:]
+    assert [d.source_sheet for d in added] == ["Sheet1", "Sheet2"]
+    assert all(d.source_file == os.path.abspath(str(excel_path)) for d in added)
 
 
 # --- _on_paste_data_from_clipboard() ---

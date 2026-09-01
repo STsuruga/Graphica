@@ -13,13 +13,76 @@ import pandas as pd
 import pytest
 
 from gui.canvas import (
-    _apply_legend_order, _safe_multiple_locator,
+    _apply_legend_order, _safe_multiple_locator, _apply_nan_policy,
     _sci_each_formatter, _apply_tick_format_mode, _apply_tick_decimal_places,
     MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
     LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
     GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS,
 )
 from core.dataset import Dataset
+
+
+# --- _apply_nan_policy(項目C-201: 欠損値の方針設定) ---
+
+def test_apply_nan_policy_gap_returns_data_unchanged():
+    x = np.array([1.0, 2.0, np.nan, 4.0])
+    y = np.array([10.0, np.nan, 30.0, 40.0])
+    new_x, new_y = _apply_nan_policy(x, y, 'gap')
+    assert new_x is x
+    assert new_y is y
+
+
+def test_apply_nan_policy_unknown_policy_returns_data_unchanged():
+    """将来の後方互換(未知のnan_policy値)は'gap'と同じく何もしない"""
+    x = np.array([1.0, np.nan])
+    y = np.array([10.0, 20.0])
+    new_x, new_y = _apply_nan_policy(x, y, 'some_future_policy')
+    assert new_x is x
+    assert new_y is y
+
+
+def test_apply_nan_policy_ffill_forward_fills_both_axes():
+    x = np.array([1.0, np.nan, 3.0])
+    y = np.array([10.0, 20.0, np.nan])
+    new_x, new_y = _apply_nan_policy(x, y, 'ffill')
+    np.testing.assert_allclose(new_x, [1.0, 1.0, 3.0])
+    np.testing.assert_allclose(new_y, [10.0, 20.0, 20.0])
+
+
+def test_apply_nan_policy_ffill_leading_nan_stays_nan():
+    """先頭がNaNの場合、埋める値が無いためNaNのまま残る(pandasのffillと同じ)"""
+    x = np.array([np.nan, 2.0, 3.0])
+    y = np.array([np.nan, 20.0, 30.0])
+    new_x, new_y = _apply_nan_policy(x, y, 'ffill')
+    assert np.isnan(new_x[0])
+    assert np.isnan(new_y[0])
+    np.testing.assert_allclose(new_x[1:], [2.0, 3.0])
+
+
+def test_apply_nan_policy_drop_removes_rows_with_either_axis_nan():
+    x = np.array([1.0, 2.0, 3.0, 4.0])
+    y = np.array([10.0, np.nan, 30.0, np.nan])
+    new_x, new_y = _apply_nan_policy(x, y, 'drop')
+    np.testing.assert_allclose(new_x, [1.0, 3.0])
+    np.testing.assert_allclose(new_y, [10.0, 30.0])
+
+
+def test_apply_nan_policy_drop_handles_datetime_x_without_error():
+    """日付軸(datetime64)のXでもdtype変換エラーにならないこと"""
+    x = pd.to_datetime(['2024-01-01', '2024-01-02', 'NaT', '2024-01-04']).to_numpy()
+    y = np.array([1.0, np.nan, 3.0, 4.0])
+    new_x, new_y = _apply_nan_policy(x, y, 'drop')
+    assert len(new_x) == 2  # index1(y=NaN)とindex2(x=NaT)が落ちる
+    np.testing.assert_allclose(new_y, [1.0, 4.0])
+
+
+def test_apply_nan_policy_no_nan_data_unchanged_in_value():
+    x = np.array([1.0, 2.0, 3.0])
+    y = np.array([10.0, 20.0, 30.0])
+    for policy in ('ffill', 'drop'):
+        new_x, new_y = _apply_nan_policy(x, y, policy)
+        np.testing.assert_allclose(new_x, x)
+        np.testing.assert_allclose(new_y, y)
 
 
 # --- _apply_legend_order ---
@@ -517,6 +580,56 @@ def test_waterfall_two_datasets_shift_by_stacking_index(canvas):
     assert list(ds0.artist.get_ydata()) == pytest.approx(y)
     assert list(ds1.artist.get_xdata()) == pytest.approx([v + 1.0 for v in x])
     assert list(ds1.artist.get_ydata()) == pytest.approx([v + 2.0 for v in y])
+
+
+# --- Dataset.nan_policy の描画への反映(項目C-201、_draw_dataでの実配線) ---
+
+def test_draw_data_default_nan_policy_gap_leaves_nan_in_drawn_line(canvas):
+    """既定'gap'は導入前からの挙動そのまま(NaNが描画データにも残る、
+    matplotlibが自然に線を切る)。"""
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0], "y": [0.0, np.nan, 2.0, 3.0]})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y", plot_type='Line', color='#112233')
+
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+    assert len(ds.artist.get_xdata()) == 4
+    assert np.isnan(ds.artist.get_ydata()[1])
+
+
+def test_draw_data_nan_policy_drop_removes_nan_points_from_drawn_line(canvas):
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0], "y": [0.0, np.nan, 2.0, 3.0]})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y", plot_type='Line', color='#112233',
+                 nan_policy='drop')
+
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+    assert list(ds.artist.get_xdata()) == pytest.approx([0.0, 2.0, 3.0])
+    assert list(ds.artist.get_ydata()) == pytest.approx([0.0, 2.0, 3.0])
+
+
+def test_draw_data_nan_policy_ffill_fills_drawn_line():
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0], "y": [1.0, np.nan, 3.0]})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y", plot_type='Line', color='#112233',
+                 nan_policy='ffill')
+    c = MplCanvas(width=4, height=3, dpi=80)
+    try:
+        c.redraw_all([ds], 1, 1, [{}])
+        assert list(ds.artist.get_ydata()) == pytest.approx([1.0, 1.0, 3.0])
+    finally:
+        plt.close(c.fig)
+
+
+def test_draw_data_nan_policy_does_not_mutate_underlying_dataset_data(canvas):
+    """nan_policyは描画専用の変換であり、Dataset.x_data/y_data(フィット等の
+    他の消費者が使う生データ)自体は変更されないこと。"""
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0], "y": [0.0, np.nan, 2.0, 3.0]})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y", plot_type='Line', color='#112233',
+                 nan_policy='drop')
+
+    canvas.redraw_all([ds], 1, 1, [{}])
+
+    assert len(ds.y_data) == 4
+    assert np.isnan(ds.y_data[1])
 
 
 def test_waterfall_non_waterfall_datasets_unaffected_and_excluded_from_index(canvas):
@@ -1483,6 +1596,54 @@ def test_draw_annotations_exception_during_draw_is_logged_and_skipped(canvas, ca
     with caplog.at_level("ERROR"):
         canvas.redraw_all([ds], 1, 1, [settings])
     assert canvas._annotation_artists[0] == []
+
+
+# --- _draw_annotations(): 領域ハイライト(vspan/hspan、項目C-701) ---
+
+def test_draw_annotations_vspan_creates_axvspan_patch(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'annotations': [{'type': 'vspan', 'range': (1.0, 3.0), 'color': '#F2A72B', 'alpha': 0.18}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    ax = canvas.all_axes[0]
+    assert len(canvas._annotation_artists[0]) == 1
+    patch = canvas._annotation_artists[0][0]
+    assert patch in ax.patches
+    assert patch.get_x() == pytest.approx(1.0)
+    assert patch.get_x() + patch.get_width() == pytest.approx(3.0)
+
+
+def test_draw_annotations_hspan_creates_axhspan_patch(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    settings = {'annotations': [{'type': 'hspan', 'range': (2.0, 5.0), 'color': '#F2A72B', 'alpha': 0.18}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    ax = canvas.all_axes[0]
+    patch = canvas._annotation_artists[0][0]
+    assert patch in ax.patches
+    assert patch.get_y() == pytest.approx(2.0)
+    assert patch.get_y() + patch.get_height() == pytest.approx(5.0)
+
+
+def test_draw_annotations_region_highlight_uses_missing_key_fallback_defaults(canvas):
+    """'color'/'alpha'キーが無い(将来の後方互換)場合でも、フォールバック値で
+    落ちずに描画されること。"""
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [{'type': 'vspan', 'range': (0.0, 1.0)}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    assert len(canvas._annotation_artists[0]) == 1
+
+
+def test_draw_annotations_region_highlight_removed_on_redraw(canvas):
+    """再描画のたびに前回分を削除してから描き直す(重複描画しない)。"""
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [{'type': 'vspan', 'range': (0.0, 1.0), 'color': '#F2A72B', 'alpha': 0.18}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    ax = canvas.all_axes[0]
+    assert len(canvas._annotation_artists[0]) == 1
+    assert sum(1 for p in ax.patches if p is canvas._annotation_artists[0][0]) == 1
 
 
 # --- _enable_element_picking(): BarContainerのpatches個別ピッカー設定 ---

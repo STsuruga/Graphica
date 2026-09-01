@@ -113,6 +113,74 @@ def test_masked_row_background_follows_current_theme_instead_of_fixed_light_gray
         theme.apply_theme(qapp, dark=False)
 
 
+# --- 欠損値(NaN)の可視化(項目C-201) ---
+
+def test_nan_cell_gets_warning_soft_background(qapp):
+    from gui import theme
+    from PySide6.QtGui import QColor
+
+    df = pd.DataFrame({'x': [1.0, 2.0], 'y': [10.0, np.nan]})
+    ds = Dataset(name="D", df=df, x_col_name='x', y_col_name='y')
+    dlg = DataEditorDialog(ds)
+    try:
+        nan_item = dlg.table_widget.item(1, 1)
+        normal_item = dlg.table_widget.item(0, 1)
+        assert nan_item.background().color() == QColor(theme.current_tokens()['warning_soft'])
+        assert nan_item.text() == ""
+        assert normal_item.background() != nan_item.background()
+    finally:
+        dlg.close()
+
+
+def test_nan_cell_background_follows_current_theme(qapp):
+    from gui import theme
+    from PySide6.QtGui import QColor
+
+    df = pd.DataFrame({'x': [1.0, np.nan], 'y': [10.0, 20.0]})
+    ds = Dataset(name="D", df=df, x_col_name='x', y_col_name='y')
+
+    theme.apply_theme(qapp, dark=True)
+    try:
+        dlg = DataEditorDialog(ds)
+        try:
+            item = dlg.table_widget.item(1, 0)
+            assert item.background().color() == QColor(theme.DARK_TOKENS['warning_soft'])
+        finally:
+            dlg.close()
+    finally:
+        theme.apply_theme(qapp, dark=False)
+
+
+def test_masked_row_background_takes_priority_over_nan_highlight(qapp):
+    """マスク済み行(行全体の背景)とNaNセルの可視化が同じセルで重なる場合、
+    マスク済みの背景色が優先され、二重に色が重ならないこと。"""
+    from gui import theme
+    from PySide6.QtGui import QColor
+
+    df = pd.DataFrame({'x': [1.0, 2.0], 'y': [np.nan, 20.0]})
+    ds = Dataset(name="D", df=df, x_col_name='x', y_col_name='y', masked_row_indices=[0])
+    dlg = DataEditorDialog(ds)
+    try:
+        item = dlg.table_widget.item(0, 1)  # マスク済み行のNaNセル
+        assert item.background().color() == QColor(theme.current_tokens()['surface_2'])
+    finally:
+        dlg.close()
+
+
+def test_empty_string_cell_is_not_treated_as_nan(qapp):
+    """実際の空文字列(オブジェクト列)はpd.isnaでFalseになるため、NaN扱いされない"""
+    df = pd.DataFrame({'x': [1.0, 2.0], 'label': ["", "b"]})
+    ds = Dataset(name="D", df=df, x_col_name='x', y_col_name='x')
+    dlg = DataEditorDialog(ds)
+    try:
+        col_index = list(dlg.view_df.columns).index('label')
+        item = dlg.table_widget.item(0, col_index)
+        # 何も背景色を設定していない場合、QBrushのスタイルはNoBrush(既定・透明)のまま
+        assert item.background().style() == Qt.BrushStyle.NoBrush
+    finally:
+        dlg.close()
+
+
 # --- セル編集: 数値列・文字列列(bool以外の型変換パス) ---
 
 def test_editing_numeric_cell_converts_to_float_and_pushes_command(qapp):

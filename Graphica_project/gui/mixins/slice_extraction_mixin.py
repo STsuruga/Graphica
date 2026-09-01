@@ -55,6 +55,9 @@ class SliceExtractionMixin:
             if getattr(self, 'peak_placement_mode_enabled', False):
                 self.peak_placement_action.setChecked(False)
                 self._toggle_peak_placement_mode(False)
+            if getattr(self, 'region_highlight_mode_enabled', False):
+                self.region_highlight_action.setChecked(False)
+                self._toggle_region_highlight_mode(False)
 
             self._slice_extraction_press_cid = self.canvas.mpl_connect(
                 'button_press_event', self._on_slice_extraction_press

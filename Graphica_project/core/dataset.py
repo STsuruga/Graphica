@@ -226,6 +226,28 @@ class Dataset:
     # プラグイン以外の通常の操作で作られたDatasetはNoneのまま。
     source_plugin: str = field(default=None)
 
+    # 元ファイルへのリンク保持と再読み込み(項目C-103)。ファイル読み込みで
+    # 作成されたDatasetについて、読込元ファイルの絶対パスを保持しておき、
+    # 「再読み込み」(gui/mixins/dataset_mixin.pyの_on_reload_dataset_from_source)
+    # でファイルの最新内容に df だけを差し替えられるようにする(書式・注釈・
+    # X/Y列選択は維持)。クリップボード貼り付け・プラグインprocessor/analyzerの
+    # 生成物・データセット間演算等の「元ファイルを持たない」Datasetは常にNone。
+    # source_sheet はExcelファイルの場合のみ使用する読み込み元シート名
+    # (CSV、または単一シートのExcelの場合はNone)。
+    source_file: str = field(default=None)
+    source_sheet: str = field(default=None)
+
+    # 欠損値(NaN)の方針設定(項目C-201)。プロット描画時にのみ効く表示上の設定で、
+    # x_data/y_data(フィット・ピーク検出・エクスポート等の他の消費者が使う生データ)
+    # 自体は変更しない(gui/canvas.pyの_draw_dataが描画直前に適用する)。
+    # 'gap'(既定、線を切る): 何もしない。matplotlibが自然にNaNの箇所で線を
+    #   切ってくれる、導入前からの挙動そのもの(既存プロジェクトファイルを
+    #   読み込んでも見た目が変わらないよう、これを既定値にしている)。
+    # 'ffill'(前の値で埋める): 直前の非NaN値で埋めてから描画する。
+    # 'drop'(無視してつなぐ): NaNの行を取り除いてから描画し、前後の点を
+    #   直接つないだ連続な線にする(データ自体からは削除しない、非破壊)。
+    nan_policy: str = field(default='gap')
+
     # 処理履歴・親子関係の記録(項目C-1101)。このデータセット自身を生成した
     # 直近1回分の操作のみを保持する(全履歴は source_dataset_ids を辿って
     # project.datasets から都度再構築する設計、子孫側に祖先の履歴を重複保持

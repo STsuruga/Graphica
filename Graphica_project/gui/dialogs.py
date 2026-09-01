@@ -1506,7 +1506,34 @@ class ColumnPreviewDialog(QDialog):
 
     Excelファイルの場合は、シートの切り替えとヘッダー行の指定にも対応する
     (どちらも変更するとファイルからその場で再読み込みしてプレビューを更新する)。
+
+    CSVファイルの場合は、文字コード・区切り文字の自動判定+手動上書き、
+    ヘッダー行の指定(装置が出力する説明文などの前文をスキップする用途を兼ねる)、
+    固定長フォーマットとしての読み込みに対応する(項目C-101、インポートウィザード強化)。
+    実測データはこの手の「綺麗でないCSV」であることが多いため、Excel同様
+    その場で再読み込みしてプレビューを更新する。
     """
+
+    # 区切り文字コンボの表示名 -> 実際の区切り文字(pandas read_csv の sep に渡す値)。
+    # 「空白」は空白1文字以上の連続を区切りとみなすため正規表現になる
+    # (engine='python' が必要、_reload_csv_preview 側で常にpythonエンジンを使う)。
+    _DELIMITER_CHOICES = {
+        "カンマ (,)": ",",
+        "タブ": "\t",
+        "セミコロン (;)": ";",
+        "空白": r"\s+",
+    }
+    _DELIMITER_CUSTOM_LABEL = "その他..."
+
+    # エンコーディングコンボの表示名 -> Python/pandasのエンコーディング名。
+    _ENCODING_CHOICES = {
+        "UTF-8": "utf-8",
+        "UTF-8 (BOM付き)": "utf-8-sig",
+        "Shift_JIS": "cp932",
+        "Latin-1": "latin-1",
+        "UTF-16": "utf-16",
+    }
+    _AUTO_LABEL = "自動判定"
 
     def __init__(self, df, file_name, parent=None, file_path=None):
         """
@@ -1515,8 +1542,9 @@ class ColumnPreviewDialog(QDialog):
                 先頭シート・1行目ヘッダーで読み込んだ初期状態)。
             file_name (str): 表示用のファイル名。
             parent (QWidget, optional): 親ウィジェット。
-            file_path (str, optional): 実ファイルパス。Excelファイルの場合、
-                シート切り替え・ヘッダー行変更時の再読み込みに使う。
+            file_path (str, optional): 実ファイルパス。Excel/CSVファイルの場合、
+                シート切り替え・ヘッダー行変更・文字コード/区切り文字の上書き時の
+                再読み込みに使う。
         """
         super().__init__(parent)
         self.setWindowTitle(f"列の選択: {file_name}")
@@ -1525,6 +1553,10 @@ class ColumnPreviewDialog(QDialog):
         self.file_path = file_path
         self.current_df = df
         self.is_excel = bool(file_path) and file_path.lower().endswith(('.xlsx', '.xls'))
+        # ビルトインのCSV読み込み(gui/workers.pyのread_data_file)経由のファイルのみ
+        # 対象(プラグインインポーターが読み込んだ他形式やクリップボード貼り付けは
+        # file_path=Noneまたは非csv拡張子のため、以下の追加コントロールは表示しない)。
+        self.is_csv = bool(file_path) and not self.is_excel and file_path.lower().endswith('.csv')
         # 「列の型を確認...」で設定された、列ごとの型上書き ({列名: "数値"/"文字列"/"日付"})
         self.type_overrides = {}
 
@@ -1534,6 +1566,21 @@ class ColumnPreviewDialog(QDialog):
                 self.sheet_names = pd.ExcelFile(file_path).sheet_names
             except Exception as e:
                 logger.warning("Excelのシート一覧取得に失敗しました: %s", e)
+
+        self._detected_encoding = None
+        self._detected_delimiter = None
+        if self.is_csv:
+            from gui.workers import detect_csv_encoding, detect_csv_delimiter
+            try:
+                self._detected_encoding = detect_csv_encoding(file_path)
+            except Exception as e:
+                logger.warning("CSVの文字コード自動判定に失敗しました: %s", e)
+                self._detected_encoding = 'utf-8-sig'
+            try:
+                self._detected_delimiter = detect_csv_delimiter(file_path, self._detected_encoding)
+            except Exception as e:
+                logger.warning("CSVの区切り文字自動判定に失敗しました: %s", e)
+                self._detected_delimiter = ','
 
         layout = QVBoxLayout(self)
 
@@ -1582,6 +1629,70 @@ class ColumnPreviewDialog(QDialog):
             self.usecols_edit = None
             self.nrows_spinbox = None
 
+        # --- CSV専用: 文字コード・区切り文字・ヘッダー行・固定長(項目C-101) ---
+        if self.is_csv:
+            csv_form = QFormLayout()
+
+            self.encoding_combo = QComboBox()
+            self.encoding_combo.addItems([self._AUTO_LABEL] + list(self._ENCODING_CHOICES.keys()))
+            self.encoding_combo.setToolTip(
+                "文字化けする場合は手動で選択してください(自動判定は"
+                f"「{self._detected_encoding}」と判定しました)"
+            )
+            csv_form.addRow("文字コード", self.encoding_combo)
+
+            self.delimiter_combo = QComboBox()
+            self.delimiter_combo.addItems(
+                [self._AUTO_LABEL] + list(self._DELIMITER_CHOICES.keys()) + [self._DELIMITER_CUSTOM_LABEL]
+            )
+            self.delimiter_combo.setToolTip(
+                f"自動判定は「{self._describe_delimiter(self._detected_delimiter)}」と判定しました"
+            )
+            csv_form.addRow("区切り文字", self.delimiter_combo)
+
+            self.custom_delimiter_label = QLabel("区切り文字(直接入力)")
+            self.custom_delimiter_edit = QLineEdit()
+            self.custom_delimiter_edit.setPlaceholderText("区切り文字を入力(例: |)")
+            csv_form.addRow(self.custom_delimiter_label, self.custom_delimiter_edit)
+            self.custom_delimiter_label.setVisible(False)
+            self.custom_delimiter_edit.setVisible(False)
+
+            self.csv_header_row_spinbox = QSpinBox()
+            self.csv_header_row_spinbox.setRange(1, 100)
+            self.csv_header_row_spinbox.setValue(1)
+            self.csv_header_row_spinbox.setToolTip(
+                "列名として使う行を指定します(装置が出力する説明文などの前文がある場合は、"
+                "その行数分だけ後ろにずらしてください)"
+            )
+            csv_form.addRow("ヘッダー行", self.csv_header_row_spinbox)
+
+            self.fixed_width_checkbox = QCheckBox("固定長フォーマットとして読み込む")
+            self.fixed_width_checkbox.setToolTip("区切り文字を使わず、列の文字位置で区切られたデータの場合に選択します")
+            csv_form.addRow(self.fixed_width_checkbox)
+
+            self.fixed_width_label = QLabel("列幅 (固定長)")
+            self.fixed_width_edit = QLineEdit()
+            self.fixed_width_edit.setPlaceholderText("カンマ区切りで指定(空欄なら自動推測)")
+            csv_form.addRow(self.fixed_width_label, self.fixed_width_edit)
+            self.fixed_width_label.setVisible(False)
+            self.fixed_width_edit.setVisible(False)
+
+            layout.addLayout(csv_form)
+
+            self.encoding_combo.currentIndexChanged.connect(self._reload_csv_preview)
+            self.delimiter_combo.currentIndexChanged.connect(self._on_delimiter_combo_changed)
+            self.custom_delimiter_edit.editingFinished.connect(self._reload_csv_preview)
+            self.csv_header_row_spinbox.valueChanged.connect(self._reload_csv_preview)
+            self.fixed_width_checkbox.toggled.connect(self._on_fixed_width_toggled)
+            self.fixed_width_edit.editingFinished.connect(self._reload_csv_preview)
+        else:
+            self.encoding_combo = None
+            self.delimiter_combo = None
+            self.custom_delimiter_edit = None
+            self.csv_header_row_spinbox = None
+            self.fixed_width_checkbox = None
+            self.fixed_width_edit = None
+
         self.info_label = QLabel()
         layout.addWidget(self.info_label)
 
@@ -1606,6 +1717,81 @@ class ColumnPreviewDialog(QDialog):
 
         apply_form_spacing(self)
 
+        if self.is_csv:
+            # 自動判定したエンコーディング/区切り文字で初回プレビューを作る
+            # (workers.load_data_file_task が既定のカンマ区切りで読んだ初期dfは、
+            # 実際の区切り文字がカンマでない場合1列に崩れていることがあるため)。
+            self._reload_csv_preview()
+        else:
+            self._rebuild_preview_table()
+
+    @staticmethod
+    def _describe_delimiter(delimiter):
+        """区切り文字を人間が読める短いラベルにする(ツールチップ表示用)"""
+        labels = {',': 'カンマ', '\t': 'タブ', ';': 'セミコロン', r'\s+': '空白'}
+        return labels.get(delimiter, repr(delimiter))
+
+    def _resolve_csv_encoding(self):
+        """エンコーディングコンボの選択値を、pandasに渡すエンコーディング名に変換する"""
+        text = self.encoding_combo.currentText()
+        if text == self._AUTO_LABEL:
+            return self._detected_encoding or 'utf-8-sig'
+        return self._ENCODING_CHOICES.get(text, 'utf-8-sig')
+
+    def _resolve_csv_delimiter(self):
+        """区切り文字コンボの選択値を、pandasのsepに渡す実際の区切り文字に変換する"""
+        text = self.delimiter_combo.currentText()
+        if text == self._AUTO_LABEL:
+            return self._detected_delimiter or ','
+        if text == self._DELIMITER_CUSTOM_LABEL:
+            return self.custom_delimiter_edit.text() or ','
+        return self._DELIMITER_CHOICES.get(text, ',')
+
+    def _on_delimiter_combo_changed(self, _index=None):
+        """区切り文字コンボの選択に応じて「その他」用のカスタム入力欄の表示を切り替える"""
+        is_custom = self.delimiter_combo.currentText() == self._DELIMITER_CUSTOM_LABEL
+        self.custom_delimiter_label.setVisible(is_custom)
+        self.custom_delimiter_edit.setVisible(is_custom)
+        self._reload_csv_preview()
+
+    def _on_fixed_width_toggled(self, checked):
+        """固定長チェックボックスに応じて、区切り文字系コントロールと列幅入力の有効/表示を切り替える"""
+        self.delimiter_combo.setEnabled(not checked)
+        self.custom_delimiter_edit.setEnabled(not checked)
+        self.fixed_width_label.setVisible(checked)
+        self.fixed_width_edit.setVisible(checked)
+        self._reload_csv_preview()
+
+    def _reload_csv_preview(self, *_args):
+        """
+        CSV(項目C-101)の文字コード・区切り文字・ヘッダー行・固定長設定のいずれかが
+        変更されたときに呼ばれる。指定された条件でファイルから再読み込みし、
+        プレビュー全体を更新する(_on_sheet_or_header_changedのCSV版)。
+        区切り文字に「空白」等の正規表現が来ることがあるため、常にPythonエンジンで読む。
+        """
+        encoding = self._resolve_csv_encoding()
+        header_row = self.csv_header_row_spinbox.value() - 1  # UIは1始まり、pandasは0始まり
+        try:
+            if self.fixed_width_checkbox.isChecked():
+                widths_text = self.fixed_width_edit.text().strip()
+                read_kwargs = {'header': header_row, 'encoding': encoding}
+                if widths_text:
+                    read_kwargs['widths'] = [int(w.strip()) for w in widths_text.split(',') if w.strip()]
+                new_df = pd.read_fwf(self.file_path, **read_kwargs)
+            else:
+                delimiter = self._resolve_csv_delimiter()
+                new_df = pd.read_csv(
+                    self.file_path, sep=delimiter, header=header_row,
+                    encoding=encoding, engine='python'
+                )
+        except Exception as e:
+            QMessageBox.warning(
+                self, "読み込みエラー",
+                f"指定した条件(文字コード/区切り文字/ヘッダー行/固定長)では読み込めませんでした:\n{e}"
+            )
+            return
+        self.current_df = new_df
+        self._apply_type_overrides()
         self._rebuild_preview_table()
 
     def _on_sheet_or_header_changed(self):

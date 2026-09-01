@@ -121,6 +121,9 @@ class CursorMixin:
             if getattr(self, 'slice_extraction_mode_enabled', False):
                 self.slice_extraction_action.setChecked(False)
                 self._toggle_slice_extraction_mode(False)
+            if getattr(self, 'region_highlight_mode_enabled', False):
+                self.region_highlight_action.setChecked(False)
+                self._toggle_region_highlight_mode(False)
 
             # --- モード ON ---
             logger.debug("データカーソルモード ON")

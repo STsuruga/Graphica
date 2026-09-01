@@ -118,6 +118,12 @@ LIGHT_TOKENS = {
     # 塗りつぶしのような「完全に不透明であるべき」用途には透過が邪魔になるため、
     # 同じ色相のopaque版を別トークンとして用意した。
     "selection_accent": "#2563EB",
+    # 欠損値(NaN)セルの可視化(項目C-201)。データセットリストの選択ハイライト
+    # (青系)・アプリ全体のアクセント(ティール系)のどちらとも被らない、
+    # 「注意を引くが警告/エラーではない」ニュートラルな琥珀系の淡色。
+    # 将来のC-210(テーブルの条件付き書式)でも同系統の用途に再利用できるよう、
+    # 単発のハードコード値ではなくトークンとして定義する。
+    "warning_soft": "#FDF1D8",
 }
 DARK_TOKENS = {
     "bg": "#14171A", "surface": "#1B1F22", "surface_2": "#21262A",
@@ -126,6 +132,7 @@ DARK_TOKENS = {
     "accent": "#5FB6BE", "accent_soft": "rgba(95, 182, 190, 0.16)", "accent_text": "#0E1113",
     "selection_highlight": "rgba(59, 130, 246, 0.22)",
     "selection_accent": "#3B82F6",
+    "warning_soft": "rgba(250, 204, 21, 0.16)",
 }
 
 _FLAT_QSS_TEMPLATE = """

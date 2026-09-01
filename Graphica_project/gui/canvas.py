@@ -57,6 +57,13 @@ LTTB_DOWNSAMPLE_TARGET_POINTS = 3000
 # 既存のLTTBダウンサンプリングも同じ挙動のため、それに倣った)。
 GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS = 500
 
+# 領域ハイライト(縦帯/横帯、項目C-701)の既定色・透明度。ann辞書に'color'/'alpha'
+# キーが無い(将来の後方互換)場合のフォールバックとして使う。実際に新規作成される
+# 領域ハイライトの既定値はgui/mixins/region_highlight_mixin.pyが常に明示的に
+# 書き込むため、通常はここまで来ない値だが、両者は同じ値に保つこと。
+REGION_HIGHLIGHT_DEFAULT_COLOR = '#F2A72B'
+REGION_HIGHLIGHT_DEFAULT_ALPHA = 0.18
+
 
 def _apply_legend_order(lines, labels, order):
     """
@@ -74,6 +81,34 @@ def _apply_legend_order(lines, labels, order):
         key=lambda i: (0, order_index[labels[i]]) if labels[i] in order_index else (1, i)
     )
     return [lines[i] for i in indices], [labels[i] for i in indices]
+
+
+def _apply_nan_policy(x_data, y_data, policy):
+    """
+    欠損値(NaN)の方針設定(項目C-201)を、描画直前のX/Y配列に適用する。
+    Dataset.x_data/y_data(フィット・ピーク検出・エクスポート等の他の消費者が使う
+    生データ)自体は書き換えない、表示専用の変換。
+
+    'gap'(既定): 何もしない。matplotlibが自然にNaNの箇所で線を切ってくれる、
+        この設定導入前からの挙動そのもの。
+    'ffill': 直前の非NaN値で埋める(numpy配列のためpandas Seriesを介す)。
+        先頭がNaNの場合は埋められる値が無いためNaNのまま残る(pandasのffillと同じ)。
+    'drop': XかYどちらかがNaNの行を取り除き、前後の点を直接つないだ連続な線にする。
+    未知の値(将来の後方互換のため)は 'gap' と同じく何もしない。
+    """
+    if policy == 'ffill':
+        return (
+            pd.Series(x_data).ffill().to_numpy(),
+            pd.Series(y_data).ffill().to_numpy(),
+        )
+    if policy == 'drop':
+        # pd.Series.isna() を使う(np.isnanではなく): 日付軸(datetime64)のX値でも
+        # dtype変換なしにそのままNaT/NaN判定できるため。
+        x_series = pd.Series(x_data)
+        y_series = pd.Series(y_data)
+        valid = (~x_series.isna()) & (~y_series.isna())
+        return x_series[valid].to_numpy(), y_series[valid].to_numpy()
+    return x_data, y_data
 
 
 def _safe_multiple_locator(interval, axis_min, axis_max):
@@ -645,8 +680,8 @@ class _CanvasDrawingMixin:
 
     def _draw_annotations(self, ax, axis_index, settings):
         """
-        settings['annotations'] (テキスト注釈・矢印注釈のリスト) を描画する。
-        再描画のたびに、まず前回このAxesに描画した注釈Artistを削除してから
+        settings['annotations'] (テキスト注釈・矢印注釈・領域ハイライトのリスト) を
+        描画する。再描画のたびに、まず前回このAxesに描画した注釈Artistを削除してから
         描き直すことで、update_appearance_only 経由での重複描画を防ぐ。
         """
         for artist in self._annotation_artists.get(axis_index, []):
@@ -657,16 +692,29 @@ class _CanvasDrawingMixin:
 
         new_artists = []
         for ann in settings.get('annotations', []):
-            color = self._effective_text_color(ann.get('color', '#000000'))
+            ann_type = ann.get('type')
             text = ann.get('text', '')
             try:
-                if ann.get('type') == 'arrow':
+                if ann_type == 'arrow':
+                    color = self._effective_text_color(ann.get('color', '#000000'))
                     artist = ax.annotate(
                         text, xy=ann['xy'], xytext=ann['xytext'],
                         arrowprops=dict(arrowstyle='->', color=color),
                         color=color, fontsize=9
                     )
+                elif ann_type in ('vspan', 'hspan'):
+                    # 領域ハイライト(項目C-701)。色は注釈の文字色(テーマの
+                    # 明暗による自動反転、_effective_text_color)とは無関係の
+                    # ユーザー指定色をそのまま使うため変換しない。
+                    lo, hi = ann.get('range', (0, 0))
+                    color = ann.get('color', REGION_HIGHLIGHT_DEFAULT_COLOR)
+                    alpha = ann.get('alpha', REGION_HIGHLIGHT_DEFAULT_ALPHA)
+                    if ann_type == 'vspan':
+                        artist = ax.axvspan(lo, hi, color=color, alpha=alpha, zorder=0.5)
+                    else:
+                        artist = ax.axhspan(lo, hi, color=color, alpha=alpha, zorder=0.5)
                 else:
+                    color = self._effective_text_color(ann.get('color', '#000000'))
                     xy = ann.get('xy', (0, 0))
                     artist = ax.text(xy[0], xy[1], text, color=color, fontsize=9)
                 new_artists.append(artist)
@@ -969,6 +1017,15 @@ class _CanvasDrawingMixin:
             else:
                 plot_x_data = ds.x_data
                 plot_y_data = ds.y_data
+
+            # 欠損値(NaN)の方針設定(項目C-201)。カテゴリX軸は文字列変換
+            # (このすぐ下)で個別に扱われるため対象外(既定'gap'相当のまま)。
+            # ★ 既知の制約: 'drop'は配列を短くするため、この後のLTTBダウンサンプリング
+            # (downsample_index_map)経由のデータカーソル位置対応が、NaN行が
+            # 除かれた分だけvisible_df上の実際の行位置とずれる可能性がある
+            # (ダウンサンプリング閾値を超える大量データ+'drop'併用時のみ)。
+            if not is_category_x and ds.nan_policy != 'gap':
+                plot_x_data, plot_y_data = _apply_nan_policy(plot_x_data, plot_y_data, ds.nan_policy)
 
             if is_category_x:
                 # 混在型列(文字列+数値/NaN等)対策: matplotlibのカテゴリ軸変換は

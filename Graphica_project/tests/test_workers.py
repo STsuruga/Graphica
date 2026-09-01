@@ -10,7 +10,7 @@ import pytest
 import core.plugin_api as plugin_api_module
 from core.plugin_api import GraphicaPluginAPI
 from core.plugin_types import PluginExecutionError
-from gui.workers import load_data_file_task, read_data_file
+from gui.workers import load_data_file_task, read_data_file, detect_csv_encoding, detect_csv_delimiter
 
 
 @pytest.fixture(autouse=True)
@@ -203,3 +203,48 @@ def test_load_data_file_task_accepts_but_ignores_report_progress_and_is_cancelle
     df = load_data_file_task(str(path), report_progress=lambda *a: None, is_cancelled=lambda: False)
 
     assert list(df.columns) == ['x', 'y']
+
+
+# --- detect_csv_encoding / detect_csv_delimiter (項目C-101、インポートウィザード強化) ---
+
+def test_detect_csv_encoding_utf8_sig(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("x,y\n1,2\n", encoding='utf-8-sig')
+    assert detect_csv_encoding(str(path)) == 'utf-8-sig'
+
+
+def test_detect_csv_encoding_utf16_bom(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("x,y\n1,2\n", encoding='utf-16')
+    assert detect_csv_encoding(str(path)) == 'utf-16'
+
+
+def test_detect_csv_encoding_shift_jis(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("列1,列2\n1,あ\n", encoding='cp932')
+    assert detect_csv_encoding(str(path)) == 'cp932'
+
+
+def test_detect_csv_delimiter_comma(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("x,y,z\n1,2,3\n4,5,6\n", encoding='utf-8')
+    assert detect_csv_delimiter(str(path), 'utf-8') == ','
+
+
+def test_detect_csv_delimiter_tab(tmp_path):
+    path = tmp_path / "data.tsv"
+    path.write_text("x\ty\tz\n1\t2\t3\n4\t5\t6\n", encoding='utf-8')
+    assert detect_csv_delimiter(str(path), 'utf-8') == '\t'
+
+
+def test_detect_csv_delimiter_semicolon(tmp_path):
+    path = tmp_path / "data.csv"
+    path.write_text("x;y;z\n1;2;3\n4;5;6\n", encoding='utf-8')
+    assert detect_csv_delimiter(str(path), 'utf-8') == ';'
+
+
+def test_detect_csv_delimiter_falls_back_to_comma_when_undetectable(tmp_path):
+    """1列だけのデータなど、区切り文字を判定できない場合はカンマにフォールバックする"""
+    path = tmp_path / "data.csv"
+    path.write_text("onlyonecolumn\n\n\n", encoding='utf-8')
+    assert detect_csv_delimiter(str(path), 'utf-8') == ','
