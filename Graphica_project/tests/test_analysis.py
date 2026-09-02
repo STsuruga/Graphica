@@ -10,6 +10,9 @@ from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgo
                             calculate_baseline_als, calculate_baseline_polynomial,
                             calculate_baseline_rubberband, calculate_baseline_manual,
                             get_fit_param_names, calculate_interval_integral,
+                            calculate_cumulative_integral,
+                            calculate_moving_average_smooth, calculate_median_smooth,
+                            calculate_gaussian_smooth,
                             calculate_confidence_band, calculate_resample_to_grid,
                             calculate_lttb_downsample,
                             calculate_multi_peak_fit, get_multi_peak_param_names,
@@ -1201,6 +1204,179 @@ def test_interval_integral_rejects_all_nan_data():
     y = np.array([1.0, 2.0, 3.0])
     with pytest.raises(ValueError, match="欠損値"):
         calculate_interval_integral(x, y, (0, 1))
+
+
+# --- 累積積分(C-303) ---
+
+def test_cumulative_integral_trapezoid_linear_function_matches_analytic_area():
+    # y = x の累積積分は x^2/2 になるはず(0起点)。
+    x = np.linspace(0, 10, 101)
+    y = x.copy()
+    result = calculate_cumulative_integral(x, y, method="trapezoid")
+    assert result['method'] == "trapezoid"
+    assert result['n_points'] == len(x)
+    assert result['y_cumulative'][0] == pytest.approx(0.0, abs=1e-9)
+    np.testing.assert_allclose(result['x_used'], x, atol=1e-9)
+    np.testing.assert_allclose(result['y_cumulative'], x ** 2 / 2, atol=1e-2)
+
+
+def test_cumulative_integral_simpson_quadratic_more_accurate_than_trapezoid():
+    x = np.linspace(0, 10, 21)
+    y = x ** 2
+    exact = x ** 3 / 3
+    trap = calculate_cumulative_integral(x, y, method="trapezoid")
+    simpson = calculate_cumulative_integral(x, y, method="simpson")
+    # 終点(全区間)の誤差を比較する
+    assert abs(simpson['y_cumulative'][-1] - exact[-1]) < abs(trap['y_cumulative'][-1] - exact[-1])
+
+
+def test_cumulative_integral_sorts_unsorted_input():
+    x = np.array([2.0, 0.0, 1.0])
+    y = np.array([2.0, 0.0, 1.0])  # y = x
+    result = calculate_cumulative_integral(x, y, method="trapezoid")
+    np.testing.assert_allclose(result['x_used'], [0.0, 1.0, 2.0])
+    np.testing.assert_allclose(result['y_cumulative'], [0.0, 0.5, 2.0], atol=1e-9)
+
+
+def test_cumulative_integral_ignores_nan_rows():
+    x = np.linspace(0, 10, 20)
+    y = x.copy()
+    y[5] = np.nan
+    result = calculate_cumulative_integral(x, y, method="trapezoid")
+    assert result['n_points'] == 19
+
+
+def test_cumulative_integral_rejects_unknown_method():
+    x = np.linspace(0, 10, 10)
+    y = x.copy()
+    with pytest.raises(ValueError, match="積分方法"):
+        calculate_cumulative_integral(x, y, method="bogus")
+
+
+def test_cumulative_integral_rejects_too_few_points():
+    with pytest.raises(ValueError, match="最低2点"):
+        calculate_cumulative_integral(np.array([1.0]), np.array([1.0]))
+
+
+def test_cumulative_integral_rejects_all_nan_data():
+    x = np.array([np.nan, np.nan])
+    y = np.array([1.0, 2.0])
+    with pytest.raises(ValueError):
+        calculate_cumulative_integral(x, y)
+
+
+# --- ライン表示の平滑化手法(C-304): 移動平均/中央値/ガウシアンフィルタ ---
+
+def test_moving_average_smooth_reduces_noise_variance():
+    rng = np.random.default_rng(0)
+    x = np.linspace(0, 10, 200)
+    y = np.sin(x) + rng.normal(0, 0.3, size=len(x))
+    x_smooth, y_smooth = calculate_moving_average_smooth(x, y, window=9)
+    np.testing.assert_allclose(x_smooth, x)
+    assert len(y_smooth) == len(y)
+    # 平滑化後は真の信号(sin(x))からの残差の分散がノイズそのものより小さくなるはず
+    assert np.var(y_smooth - np.sin(x)) < np.var(y - np.sin(x))
+
+
+def test_moving_average_smooth_window_clipped_to_data_length():
+    x = np.array([0.0, 1.0, 2.0])
+    y = np.array([1.0, 2.0, 3.0])
+    # windowがデータ点数を大きく超えてもエラーにならず、クリップして計算する
+    x_smooth, y_smooth = calculate_moving_average_smooth(x, y, window=999)
+    assert len(y_smooth) == 3
+
+
+def test_moving_average_smooth_window_one_returns_original_values():
+    x = np.array([0.0, 1.0, 2.0])
+    y = np.array([1.0, 5.0, 3.0])
+    _x, y_smooth = calculate_moving_average_smooth(x, y, window=1)
+    np.testing.assert_allclose(y_smooth, y)
+
+
+def test_median_smooth_removes_single_spike():
+    x = np.arange(11, dtype=float)
+    y = np.ones_like(x)
+    y[5] = 100.0  # 単発のスパイクノイズ
+    _x, y_smooth = calculate_median_smooth(x, y, window=5)
+    # 中央値フィルタは単発スパイクを完全に除去できるはず
+    assert y_smooth[5] == pytest.approx(1.0)
+
+
+def test_median_smooth_sorts_unsorted_input():
+    x = np.array([2.0, 0.0, 1.0])
+    y = np.array([20.0, 0.0, 10.0])
+    x_smooth, _y_smooth = calculate_median_smooth(x, y, window=3)
+    np.testing.assert_allclose(x_smooth, [0.0, 1.0, 2.0])
+
+
+def test_gaussian_smooth_reduces_noise_variance():
+    rng = np.random.default_rng(1)
+    x = np.linspace(0, 10, 200)
+    y = np.sin(x) + rng.normal(0, 0.3, size=len(x))
+    _x, y_smooth = calculate_gaussian_smooth(x, y, sigma=3.0)
+    assert np.var(y_smooth - np.sin(x)) < np.var(y - np.sin(x))
+
+
+def test_gaussian_smooth_non_positive_sigma_returns_original_values():
+    x = np.array([0.0, 1.0, 2.0])
+    y = np.array([1.0, 5.0, 3.0])
+    _x, y_smooth = calculate_gaussian_smooth(x, y, sigma=0.0)
+    np.testing.assert_allclose(y_smooth, y)
+
+
+# --- ロバストフィット(C-407): loss='soft_l1'/'huber' ---
+
+def test_robust_fit_soft_l1_less_affected_by_outlier_than_linear():
+    x = np.linspace(0, 10, 50)
+    y = 2.0 * x + 1.0
+    y[5] = 200.0  # 明確な外れ値
+
+    linear_fit = calculate_curve_fit(x, y, "線形 (y = ax + b)")
+    robust_fit = calculate_curve_fit(x, y, "線形 (y = ax + b)", loss='soft_l1')
+
+    # 外れ値の影響で通常の最小二乗の傾きは真値(2.0)から大きくズレるが、
+    # ロバストフィットはそれよりも真値に近い値を返すはず。
+    assert abs(robust_fit['popt'][0] - 2.0) < abs(linear_fit['popt'][0] - 2.0)
+    assert robust_fit['loss'] == 'soft_l1'
+    assert linear_fit['loss'] == 'linear'
+
+
+def test_robust_fit_huber_also_less_affected_by_outlier():
+    x = np.linspace(0, 10, 50)
+    y = 2.0 * x + 1.0
+    y[5] = 200.0
+
+    linear_fit = calculate_curve_fit(x, y, "線形 (y = ax + b)")
+    robust_fit = calculate_curve_fit(x, y, "線形 (y = ax + b)", loss='huber')
+    assert abs(robust_fit['popt'][0] - 2.0) < abs(linear_fit['popt'][0] - 2.0)
+    assert robust_fit['loss'] == 'huber'
+
+
+def test_robust_fit_default_loss_is_linear_and_matches_previous_behavior():
+    x = np.linspace(0, 10, 50)
+    y = 2.5 * x + 1.3
+    result = calculate_curve_fit(x, y, "線形 (y = ax + b)")
+    assert result['loss'] == 'linear'
+    np.testing.assert_allclose(result['popt'], [2.5, 1.3], atol=1e-6)
+
+
+def test_robust_fit_rejects_unknown_loss():
+    x = np.linspace(0, 10, 20)
+    y = 2.0 * x + 1.0
+    with pytest.raises(ValueError, match="損失関数"):
+        calculate_curve_fit(x, y, "線形 (y = ax + b)", loss='bogus')
+
+
+def test_robust_fit_works_with_bounds_and_fixed_params():
+    # bounds指定時は既にmethod='trf'が自動選択されるため、lossとの組み合わせでも
+    # 例外なく動作することを確認する回帰テスト。
+    x = np.linspace(0, 10, 50)
+    y = 2.0 * x + 1.0
+    result = calculate_curve_fit(
+        x, y, "線形 (y = ax + b)", loss='huber', bounds={'a': (0.0, 10.0)},
+    )
+    assert result['loss'] == 'huber'
+    assert 0.0 <= result['popt'][0] <= 10.0
 
 
 # --- 信頼帯・予測帯(C-405) ---

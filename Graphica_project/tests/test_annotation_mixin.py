@@ -12,13 +12,34 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QInputDialog, QMessageBox
 
 import gui.main_window as main_window_module
+import gui.mixins.annotation_mixin as annotation_mixin_module
 from gui.main_window import PlotterApp
 from gui.mixins.annotation_mixin import (
     AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX,
 )
+from gui.dialogs import ArrowAnnotationDialog
+
+
+def _patch_arrow_dialog(monkeypatch, text="", style="single", curvature=0.0, accepted=True):
+    """
+    ArrowAnnotationDialog(項目C-703)を、実際にウィジェットを構築したり
+    exec()でイベントループをブロックしたりしない軽量なフェイクに差し替える
+    (tests/test_dataset_mixin.pyの_patch_dialog_resultと同じ方針)。
+    """
+    class FakeArrowAnnotationDialog(ArrowAnnotationDialog):
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
+
+        def get_settings(self):
+            return text, style, curvature
+
+    monkeypatch.setattr(annotation_mixin_module, "ArrowAnnotationDialog", FakeArrowAnnotationDialog)
 
 
 class _SnapHost(AnnotationMixin):
@@ -117,7 +138,7 @@ def test_annotation_drag_without_snap_produces_exact_unsnapped_position(tmp_path
     ax = window.all_axes[0]
     window.annotation_mode_enabled = True
 
-    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("", True)))
+    _patch_arrow_dialog(monkeypatch)
 
     start_x, start_y = 1.0, 2.0
     end_x, end_y = 5.0, 8.0
@@ -131,6 +152,10 @@ def test_annotation_drag_without_snap_produces_exact_unsnapped_position(tmp_path
     assert ann['type'] == 'arrow'
     assert ann['xy'] == (end_x, end_y)
     assert ann['xytext'] == (start_x, start_y)
+    # 項目C-703: フェイクダイアログの既定戻り値(single/曲率0.0)がそのまま
+    # 注釈辞書に反映されること
+    assert ann['arrow_style'] == 'single'
+    assert ann['arrow_curvature'] == 0.0
 
 
 def test_annotation_drag_with_snap_enabled_snaps_pixel_position(tmp_path, monkeypatch):
@@ -158,7 +183,7 @@ def test_annotation_drag_with_snap_enabled_snaps_pixel_position(tmp_path, monkey
     ax = window.all_axes[0]
     window.annotation_mode_enabled = True
 
-    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("", True)))
+    _patch_arrow_dialog(monkeypatch)
 
     start_x, start_y = 1.0, 2.0
     end_x, end_y = 5.3, 8.7  # わざとグリッドに乗っていない任意の位置
@@ -413,16 +438,35 @@ def test_click_without_drag_cancelled_dialog_adds_nothing(tmp_path, monkeypatch)
 
 
 def test_drag_cancelled_arrow_dialog_adds_nothing(tmp_path, monkeypatch):
-    """十分に動いた(ドラッグ)場合でも、ラベル入力ダイアログをキャンセルすれば何も追加されない"""
+    """十分に動いた(ドラッグ)場合でも、矢印注釈ダイアログ(項目C-703)を
+    キャンセルすれば何も追加されない"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.annotation_mode_enabled = True
     ax = window.all_axes[0]
-    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("", False)))
+    _patch_arrow_dialog(monkeypatch, accepted=False)
 
     window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
     window._on_annotation_release(_FakeMplEvent(ax, 5.0, 8.0))
 
     assert window.project.all_plot_settings[0]['annotations'] == []
+
+
+def test_drag_confirmed_arrow_dialog_style_and_curvature_reflected(tmp_path, monkeypatch):
+    """項目C-703: ダイアログで選んだ形状('double')・曲率が注釈辞書に反映されること"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    _patch_arrow_dialog(monkeypatch, text="label", style="double", curvature=0.3)
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
+    window._on_annotation_release(_FakeMplEvent(ax, 5.0, 8.0))
+
+    annotations = window.project.all_plot_settings[0]['annotations']
+    assert len(annotations) == 1
+    ann = annotations[0]
+    assert ann['text'] == 'label'
+    assert ann['arrow_style'] == 'double'
+    assert ann['arrow_curvature'] == pytest.approx(0.3)
 
 
 # --------------------------------------------------------------------

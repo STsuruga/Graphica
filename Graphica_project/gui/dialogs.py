@@ -842,6 +842,20 @@ class FitDialog(QDialog):
         )
         layout.addWidget(self.weighted_checkbox)
 
+        # --- ロバストフィット(項目C-407) ---
+        loss_form = QFormLayout()
+        self.loss_combo = QComboBox()
+        self.loss_combo.addItem("通常の最小二乗(既定)", "linear")
+        self.loss_combo.addItem("ロバスト(Soft L1)", "soft_l1")
+        self.loss_combo.addItem("ロバスト(Huber)", "huber")
+        self.loss_combo.setToolTip(
+            "外れ値に引きずられにくい損失関数に切り替える(scipy.optimize.least_squares)。\n"
+            "Soft L1/Huberはいずれも外れ値の寄与を線形二乗より抑える点で似ているが、\n"
+            "Huberの方が正常値付近では通常の最小二乗に近い挙動になる。"
+        )
+        loss_form.addRow("損失関数", self.loss_combo)
+        layout.addLayout(loss_form)
+
         # --- フィット範囲の指定(項目C-404) ---
         self.range_checkbox = QCheckBox("フィット範囲を指定する")
         layout.addWidget(self.range_checkbox)
@@ -1054,6 +1068,14 @@ class FitDialog(QDialog):
         """Y誤差列を重みとして使うかどうか"""
         return self.weighted_checkbox.isChecked()
 
+    def get_loss(self):
+        """
+        項目C-407(ロバストフィット)。
+        Returns:
+            str: 'linear'(既定、通常の最小二乗) / 'soft_l1' / 'huber'。
+        """
+        return self.loss_combo.currentData()
+
     def get_x_range(self):
         """
         Returns:
@@ -1070,12 +1092,13 @@ class FitDialog(QDialog):
         【スタティックメソッド】
         ダイアログをモーダルで表示し、OKが押された場合は
         (フィットタイプ名, カスタム数式またはNone, 重み付けを使うか, フィット範囲
-        またはNone, p0_overrides, fixed_params, bounds, band_type) のタプルを、
-        Cancelが押された場合は (None, None, False, None, {}, {}, {}, None) を
+        またはNone, p0_overrides, fixed_params, bounds, band_type, loss) のタプルを、
+        Cancelが押された場合は (None, None, False, None, {}, {}, {}, None, 'linear') を
         返します。p0_overrides/fixed_params/boundsは、何もカスタマイズしなかった
         場合も(Noneではなく)空dictになります — calculate_curve_fit()にそのまま
         キーワード引数として渡せる形です。band_type(項目C-405)は
-        "confidence"/"prediction"/(表示しない場合)None。
+        "confidence"/"prediction"/(表示しない場合)None。loss(項目C-407)は
+        'linear'(既定)/'soft_l1'/'huber'。
 
         Args:
             parent (QWidget, optional): 親ウィジェット。
@@ -1085,9 +1108,9 @@ class FitDialog(QDialog):
         Returns:
             tuple (str|None, str|None, bool, tuple(float,float)|None,
                    dict[str,float], dict[str,float], dict[str,tuple[float,float]],
-                   str|None):
+                   str|None, str):
             (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲,
-             p0_overrides, fixed_params, bounds, band_type)
+             p0_overrides, fixed_params, bounds, band_type, loss)
         """
         dialog = FitDialog(parent, x_min=x_min, x_max=x_max)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -1095,8 +1118,8 @@ class FitDialog(QDialog):
             custom_formula = dialog.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
             p0_overrides, fixed_params, bounds = dialog.get_param_settings()
             return (fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range(),
-                    p0_overrides, fixed_params, bounds, dialog.get_band_type())
-        return None, None, False, None, {}, {}, {}, None
+                    p0_overrides, fixed_params, bounds, dialog.get_band_type(), dialog.get_loss())
+        return None, None, False, None, {}, {}, {}, None, 'linear'
 
 
 #==============================================================================
@@ -3029,6 +3052,62 @@ class IntervalIntegralDialog(QDialog):
         return method, x_range, self.subtract_baseline_checkbox.isChecked()
 
 
+class CumulativeIntegralDialog(QDialog):
+    """
+    累積積分(項目C-303)の設定を入力させるダイアログ。IntervalIntegralDialogと
+    積分方法の選択肢は共有するが、こちらは範囲指定・ベースライン差し引きは
+    持たず(常にデータ全体を対象に、Xの各点までの積分値を求める)、代わりに
+    SavGolDialog等と同じ「出力データセット名」欄を持つ(結果はスカラーではなく
+    新しいデータセットとして追加されるため)。
+    """
+
+    METHOD_TRAPEZOID = "台形則(Trapezoidal)"
+    METHOD_SIMPSON = "Simpson則"
+    METHODS = [METHOD_TRAPEZOID, METHOD_SIMPSON]
+    _METHOD_KEY_BY_LABEL = {METHOD_TRAPEZOID: "trapezoid", METHOD_SIMPSON: "simpson"}
+
+    def __init__(self, name, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("累積積分")
+        self.resize(380, 200)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        form = QFormLayout()
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(self.METHODS)
+        form.addRow("積分方法", self.method_combo)
+
+        self.output_name_edit = QLineEdit(f"{name}_cumsum")
+        form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(form)
+
+        info_label = QLabel(
+            "Xの各点までの積分値 ∫[x_min, x_i] y dx を新しいデータセットとして追加します。\n"
+            "範囲を絞りたい場合は「区間積分」を使ってください。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, str): (積分方法("trapezoid"|"simpson"), 出力データセット名)
+        """
+        method_text = self.method_combo.currentText()
+        method = self._METHOD_KEY_BY_LABEL[method_text]
+        return method, self.output_name_edit.text().strip()
+
+
 class ResampleDatasetDialog(QDialog):
     """
     共通X格子へのリサンプリング/補間(項目C-305)の設定を入力させるダイアログ。
@@ -4428,3 +4507,66 @@ class NewDatasetDialog(QDialog):
 
     def get_row_count(self):
         return self.rows_spinbox.value()
+
+
+#==============================================================================
+# カスタムダイアログクラス: 矢印注釈の追加(項目C-703)
+#==============================================================================
+class ArrowAnnotationDialog(QDialog):
+    """
+    矢印注釈の追加(gui/mixins/annotation_mixin.pyのドラッグ操作から呼ばれる)。
+    ラベルテキストに加え、矢印の形状(通常/両矢印/ブラケット)と曲率を選べる
+    (項目C-703: 矢印のバリエーション拡張)。既定は形状'single'・曲率0.0で、
+    追加前の唯一の挙動(直線の片矢印、QInputDialog.getTextでラベルだけ聞く形)
+    と同じ結果になる。
+    """
+
+    STYLE_SINGLE = "通常(片矢印)"
+    STYLE_DOUBLE = "両矢印"
+    STYLE_BRACKET = "ブラケット(有意差表示等)"
+    STYLES = [STYLE_SINGLE, STYLE_DOUBLE, STYLE_BRACKET]
+    _STYLE_KEY_BY_LABEL = {STYLE_SINGLE: "single", STYLE_DOUBLE: "double", STYLE_BRACKET: "bracket"}
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("矢印注釈の追加")
+        self.resize(360, 200)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("ラベル(空欄可):"))
+        self.text_edit = QLineEdit()
+        layout.addWidget(self.text_edit)
+
+        form = QFormLayout()
+        self.style_combo = QComboBox()
+        self.style_combo.addItems(self.STYLES)
+        form.addRow("矢印の形状", self.style_combo)
+
+        self.curvature_spinbox = QDoubleSpinBox()
+        self.curvature_spinbox.setRange(-1.0, 1.0)
+        self.curvature_spinbox.setSingleStep(0.05)
+        self.curvature_spinbox.setDecimals(2)
+        self.curvature_spinbox.setValue(0.0)
+        self.curvature_spinbox.setToolTip(
+            "0で直線。正/負で曲がる向きが変わります(matplotlibのarc3 rad相当)。"
+        )
+        form.addRow("曲率", self.curvature_spinbox)
+        layout.addLayout(form)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, str, float): (ラベルテキスト, 矢印の形状
+                ("single"|"double"|"bracket")、曲率)
+        """
+        style_text = self.style_combo.currentText()
+        style = self._STYLE_KEY_BY_LABEL[style_text]
+        return self.text_edit.text().strip(), style, self.curvature_spinbox.value()

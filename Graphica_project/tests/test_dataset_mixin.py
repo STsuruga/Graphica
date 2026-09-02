@@ -28,7 +28,8 @@ from gui.main_window import PlotterApp
 from gui.dialogs import (
     NormalizeDatasetDialog, PluginParamDialog, FitDialog, PeakSettingsDialog,
     DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
-    NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, ResampleDatasetDialog,
+    NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
+    ResampleDatasetDialog,
 )
 from core.dataset import Dataset
 from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
@@ -157,16 +158,17 @@ def _patch_new_dataset_dialog(monkeypatch, name, column_names, row_count, accept
 
 
 def _patch_fit_dialog(monkeypatch, fit_type, custom_formula=None, use_weighted=False, x_range=None,
-                       p0_overrides=None, fixed_params=None, bounds=None, band_type=None):
+                       p0_overrides=None, fixed_params=None, bounds=None, band_type=None, loss='linear'):
     """
     FitDialog.get_fit_type (staticmethod) をモーダル表示なしのフェイクに差し替える。
     p0_overrides/fixed_params/bounds(項目C-403)は省略時、実際のFitDialog.get_fit_type
     のキャンセル/未カスタマイズ時と同じ「空dict」を返す(Noneではない)。
     band_type(項目C-405)は省略時None("表示しない"相当)。
+    loss(項目C-407)は省略時'linear'(通常の最小二乗)。
     """
     result = (
         fit_type, custom_formula, use_weighted, x_range,
-        p0_overrides or {}, fixed_params or {}, bounds or {}, band_type,
+        p0_overrides or {}, fixed_params or {}, bounds or {}, band_type, loss,
     )
     monkeypatch.setattr(
         dataset_mixin_module.FitDialog, "get_fit_type",
@@ -2873,6 +2875,81 @@ def test_nan_policy_combo_batch_applies_to_all_selected_datasets(tmp_path, monke
 
 
 # =============================================================================
+# 平滑化の手法 (smoothing_method_combo, 項目C-304)
+# =============================================================================
+
+def test_property_changed_smoothing_method_combo(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    index = window.smoothing_method_combo.findData("gaussian")
+    window.smoothing_method_combo.setCurrentIndex(index)
+
+    assert ds.smoothing_method == "gaussian"
+
+
+def test_selecting_dataset_loads_smoothing_method_into_combo(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1], 'y': [1.0, 2.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y', smoothing_method='median')
+    _add_and_select_dataset(window, ds)
+
+    assert window.smoothing_method_combo.currentData() == 'median'
+
+
+def test_smoothing_method_combo_enabled_only_when_smoothing_checkbox_checked(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    window.ui.smoothing_checkbox.setChecked(False)
+    assert window.smoothing_method_combo.isEnabled() is False
+
+    window.ui.smoothing_checkbox.setChecked(True)
+    assert window.smoothing_method_combo.isEnabled() is True
+
+
+def test_smoothing_method_combo_hidden_for_bar_plot_type(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    index = window.ui.plot_type_combo.findText('Bar')
+    window.ui.plot_type_combo.setCurrentIndex(index)
+
+    assert window.smoothing_method_combo.isVisible() is False
+
+
+def test_smoothing_method_combo_batch_applies_to_all_selected_datasets(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [_make_simple_dataset(f"d{i}") for i in range(2)]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets)
+
+    window.smoothing_method_combo.setCurrentIndex(window.smoothing_method_combo.findData("moving_average"))
+
+    assert all(ds.smoothing_method == "moving_average" for ds in datasets)
+
+
+def test_smoothing_method_included_in_style_copy_paste(tmp_path, monkeypatch):
+    """項目C-902(スタイルのコピー&ペースト)がsmoothing_methodも含めて複製すること"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    source = _make_simple_dataset("source")
+    source.smoothing_method = 'gaussian'
+    target = _make_simple_dataset("target")
+    window._add_dataset(source, None, select=True)
+    window._add_dataset(target, None, select=False)
+
+    window._on_copy_dataset_style()
+    _add_and_select_dataset(window, target)
+    window._on_paste_dataset_style()
+
+    assert target.smoothing_method == 'gaussian'
+
+
+# =============================================================================
 # 色変更 (_on_dataset_color_changed / _on_gradient_color2_changed)
 # =============================================================================
 
@@ -3588,6 +3665,97 @@ def test_fit_curve_without_band_type_adds_no_band_columns(tmp_path, monkeypatch)
     assert 'y_upper' not in new_ds.df.columns
 
 
+# --- ロバストフィット(項目C-407) ---
+
+def test_fit_curve_with_robust_loss_recorded_in_fit_result_and_text(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", n=20)
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='soft_l1')
+
+    window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.fit_result['loss'] == 'soft_l1'
+    assert "ロバストフィット" in new_ds.fit_info
+    assert "soft_l1" in new_ds.fit_info
+
+
+def test_fit_curve_default_loss_omits_robust_fit_line_from_result_text(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", n=20)
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+
+    window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.fit_result['loss'] == 'linear'
+    assert "ロバストフィット" not in new_ds.fit_info
+
+
+def test_fit_curve_robust_fit_less_affected_by_outlier_end_to_end(tmp_path, monkeypatch):
+    """_on_fit_curve()経由でも、外れ値のある実データでロバストフィットの方が
+    通常の最小二乗より真の傾きに近い結果になること(core/analysis.pyの単体
+    テストのend-to-end版)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", slope=2.0, intercept=1.0, n=50)
+    ds.df.loc[5, 'y'] = 500.0  # 外れ値
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
+
+    window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
+    linear_slope = window.project.datasets[-1].fit_result['params'][0]
+
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='soft_l1')
+    window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
+    robust_slope = window.project.datasets[-1].fit_result['params'][0]
+
+    assert abs(robust_slope - 2.0) < abs(linear_slope - 2.0)
+
+
+def test_batch_curve_fit_applies_robust_loss_to_all_datasets(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    datasets = [
+        _make_linear_dataset("d0", slope=2.0, intercept=1.3, n=20),
+        _make_linear_dataset("d1", slope=5.0, intercept=1.3, n=20),
+    ]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    _select_items(window, datasets)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='huber')
+    _patch_info_capture(monkeypatch)
+
+    window._on_batch_curve_fit()
+    _pump_events_until_batch_fit_task_done(window)
+
+    fit_datasets = window.project.datasets[len(datasets):]
+    assert len(fit_datasets) == 2
+    assert all(fd.fit_result['loss'] == 'huber' for fd in fit_datasets)
+
+
+def test_batch_curve_fit_format_fit_result_text_includes_loss_after_reload(tmp_path, monkeypatch):
+    """_format_fit_result_text()はfit_result辞書だけから表示文字列を再構成できる
+    (エクスポート時の再表示等)ため、lossが'linear'以外なら反映されること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_linear_dataset("d0", n=20)
+    _add_and_select_dataset(window, ds)
+    _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='huber')
+
+    window._on_fit_curve()
+    _pump_events_until_fit_task_done(window)
+
+    fit_result = window.project.datasets[-1].fit_result
+    text = window._format_fit_result_text(fit_result)
+    assert "ロバストフィット" in text
+    assert "huber" in text
+
+
 def test_batch_curve_fit_applies_fixed_params_to_all_datasets(tmp_path, monkeypatch):
     """バッチカーブフィットでも、1回だけ選んだfixed_params設定が選択中の
     全データセットに同じ条件で適用されること。"""
@@ -4289,6 +4457,137 @@ def test_interval_integral_replaces_previous_result_dialog(tmp_path, monkeypatch
 
     assert second is not first
     second.close()
+
+
+# =============================================================================
+# 累積積分 (_on_cumulative_integral_dataset, 項目C-303)
+# =============================================================================
+
+def test_cumulative_integral_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    before_count = len(window.project.datasets)
+    window._on_cumulative_integral_dataset()
+    assert len(window.project.datasets) == before_count
+
+
+def test_cumulative_integral_insufficient_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [1.0], 'y': [1.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_cumulative_integral_dataset()
+
+    assert len(warnings) == 1
+
+
+def test_cumulative_integral_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "CumulativeIntegralDialog", CumulativeIntegralDialog, "get_settings",
+        ("trapezoid", "d0_cumsum"), accepted=False
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_cumulative_integral_dataset()
+
+    assert len(window.project.datasets) == before_count
+
+
+def test_cumulative_integral_empty_output_name_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "CumulativeIntegralDialog", CumulativeIntegralDialog, "get_settings",
+        ("trapezoid", "")
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_cumulative_integral_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_cumulative_integral_calculation_error_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "CumulativeIntegralDialog", CumulativeIntegralDialog, "get_settings",
+        ("trapezoid", "d0_cumsum")
+    )
+
+    def raiser(*a, **k):
+        raise ValueError("未知の積分方法です")
+
+    monkeypatch.setattr(dataset_mixin_module, "calculate_cumulative_integral", raiser)
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_cumulative_integral_dataset()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_cumulative_integral_trapezoid_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()  # y = x, 0〜10
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "CumulativeIntegralDialog", CumulativeIntegralDialog, "get_settings",
+        ("trapezoid", "d0_cumsum")
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_cumulative_integral_dataset()
+
+    assert len(window.project.datasets) == before_count + 1
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == "d0_cumsum"
+    assert new_ds.y_data[0] == pytest.approx(0.0, abs=1e-9)
+    # y=xの累積積分はx^2/2、終点(x=10)では50に近いはず
+    assert new_ds.y_data[-1] == pytest.approx(50.0, abs=1.0)
+    # 元のデータセットは変更されない(非破壊)
+    assert len(ds.y_data) == 50
+
+
+def test_cumulative_integral_simpson_success_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "CumulativeIntegralDialog", CumulativeIntegralDialog, "get_settings",
+        ("simpson", "d0_cumsum")
+    )
+
+    window._on_cumulative_integral_dataset()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.provenance['params']['method'] == 'simpson'
+
+
+def test_cumulative_integral_records_provenance(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_integral_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "CumulativeIntegralDialog", CumulativeIntegralDialog, "get_settings",
+        ("trapezoid", "d0_cumsum")
+    )
+
+    window._on_cumulative_integral_dataset()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.provenance['operation'] == 'cumulative_integral'
+    assert new_ds.provenance['params']['method'] == 'trapezoid'
+    assert new_ds.provenance['source_dataset_names'] == ['line']
 
 
 # =============================================================================
@@ -5173,6 +5472,86 @@ def test_apply_settings_to_ui_controls_defaults_colorbar_keys_when_missing(tmp_p
     assert window.colorbar_position_combo.currentData() == 'right'
     assert window.colorbar_width_spinbox.value() == pytest.approx(0.05)
     assert window.colorbar_label_edit.text() == ''
+
+
+# --- 対数軸の補助目盛り高度制御(項目C-604) ---
+
+def test_gather_settings_from_ui_includes_log_minor_tick_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.x_log_minor_subs_combo.setCurrentIndex(window.x_log_minor_subs_combo.findData('few'))
+    window.x_log_minor_labels_checkbox.setChecked(True)
+    window.y_log_minor_subs_combo.setCurrentIndex(window.y_log_minor_subs_combo.findData('all'))
+    window.y_log_minor_labels_checkbox.setChecked(False)
+
+    settings = window._gather_settings_from_ui()
+
+    assert settings['x_log_minor_subs'] == 'few'
+    assert settings['x_log_minor_labels'] is True
+    assert settings['y_log_minor_subs'] == 'all'
+    assert settings['y_log_minor_labels'] is False
+
+
+def test_apply_settings_to_ui_controls_restores_log_minor_tick_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    settings.update({
+        'x_log_minor_subs': 'one', 'x_log_minor_labels': True,
+        'y_log_minor_subs': 'few', 'y_log_minor_labels': True,
+    })
+
+    window._apply_settings_to_ui_controls(settings)
+
+    assert window.x_log_minor_subs_combo.currentData() == 'one'
+    assert window.x_log_minor_labels_checkbox.isChecked() is True
+    assert window.y_log_minor_subs_combo.currentData() == 'few'
+    assert window.y_log_minor_labels_checkbox.isChecked() is True
+
+
+def test_apply_settings_to_ui_controls_defaults_log_minor_tick_keys_when_missing(tmp_path, monkeypatch):
+    """項目C-604導入前の旧プロジェクト(これらのキーを持たない)を読み込んでも
+    既定値('auto'/False)で補われ、例外にならないこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    for key in ('x_log_minor_subs', 'x_log_minor_labels', 'y_log_minor_subs', 'y_log_minor_labels'):
+        settings.pop(key, None)
+
+    window._apply_settings_to_ui_controls(settings)  # 例外を投げないこと
+
+    assert window.x_log_minor_subs_combo.currentData() == 'auto'
+    assert window.x_log_minor_labels_checkbox.isChecked() is False
+    assert window.y_log_minor_subs_combo.currentData() == 'auto'
+    assert window.y_log_minor_labels_checkbox.isChecked() is False
+
+
+def test_log_minor_tick_controls_hidden_when_x_log_unchecked(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.ui.x_log_checkbox.setChecked(False)
+    assert window.x_log_minor_subs_combo.isEnabled() is False
+
+
+def test_log_minor_tick_controls_enabled_when_x_log_and_minor_ticks_both_checked(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.ui.x_log_checkbox.setChecked(True)
+    window.ui.x_minor_ticks_visible_checkbox.setChecked(True)
+    assert window.x_log_minor_subs_combo.isEnabled() is True
+    assert window.x_log_minor_labels_checkbox.isEnabled() is True
+
+
+def test_log_minor_tick_controls_disabled_when_log_checked_but_minor_ticks_unchecked(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.ui.x_log_checkbox.setChecked(True)
+    window.ui.x_minor_ticks_visible_checkbox.setChecked(False)
+    assert window.x_log_minor_subs_combo.isEnabled() is False
+
+
+def test_minor_tick_interval_spinbox_disabled_on_log_axis_even_if_minor_ticks_checked(tmp_path, monkeypatch):
+    """対数軸ではMultipleLocator用の間隔スピンボックスではなくLogLocatorを使うため、
+    補助目盛表示がONでも対数軸の間は間隔スピンボックスは無効のままであること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.ui.x_minor_ticks_visible_checkbox.setChecked(True)
+    assert window.ui.x_minor_tick_interval_spinbox.isEnabled() is True
+    window.ui.x_log_checkbox.setChecked(True)
+    assert window.ui.x_minor_tick_interval_spinbox.isEnabled() is False
 
 
 # --- 軸設定側の目盛(目盛線本体)・目盛数値の表示/非表示(実機フィードバック、

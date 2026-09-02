@@ -1717,6 +1717,88 @@ def test_draw_annotations_exception_during_draw_is_logged_and_skipped(canvas, ca
     assert canvas._annotation_artists[0] == []
 
 
+# --- _draw_annotations(): 矢印のバリエーション拡張(項目C-703) ---
+
+def _arrow_annotation(arrow_style=None, arrow_curvature=None, extra=None):
+    ann = {'type': 'arrow', 'text': 'a', 'xy': (1.0, 1.0), 'xytext': (2.0, 2.0), 'color': '#000000'}
+    if arrow_style is not None:
+        ann['arrow_style'] = arrow_style
+    if arrow_curvature is not None:
+        ann['arrow_curvature'] = arrow_curvature
+    if extra:
+        ann.update(extra)
+    return ann
+
+
+def test_draw_annotations_arrow_default_style_is_single_arrowstyle(canvas):
+    """arrow_styleキーの無い(追加前からの)既存の保存済み注釈は、追加前と
+    同じ片矢印('->') になる後方互換の回帰テスト。"""
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [_arrow_annotation()]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    artist = canvas._annotation_artists[0][0]
+    from matplotlib.patches import ArrowStyle
+    assert isinstance(artist.arrow_patch.get_arrowstyle(), ArrowStyle.CurveB)
+
+
+def test_draw_annotations_arrow_double_style_uses_double_headed_arrowstyle(canvas):
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [_arrow_annotation(arrow_style='double')]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    artist = canvas._annotation_artists[0][0]
+    from matplotlib.patches import ArrowStyle
+    assert isinstance(artist.arrow_patch.get_arrowstyle(), ArrowStyle.CurveAB)
+
+
+def test_draw_annotations_arrow_bracket_style_uses_bracket_arrowstyle(canvas):
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [_arrow_annotation(arrow_style='bracket')]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    artist = canvas._annotation_artists[0][0]
+    from matplotlib.patches import ArrowStyle
+    assert isinstance(artist.arrow_patch.get_arrowstyle(), ArrowStyle.BracketAB)
+
+
+def test_draw_annotations_arrow_unknown_style_falls_back_to_single(canvas):
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [_arrow_annotation(arrow_style='bogus')]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    artist = canvas._annotation_artists[0][0]
+    from matplotlib.patches import ArrowStyle
+    assert isinstance(artist.arrow_patch.get_arrowstyle(), ArrowStyle.CurveB)
+
+
+def test_draw_annotations_arrow_curvature_zero_uses_no_connectionstyle(canvas):
+    """曲率0.0(既定)は直線のまま(connectionstyle未指定=matplotlib既定のarc3,rad=0)。"""
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [_arrow_annotation(arrow_curvature=0.0)]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    # 例外なく描画できることの確認(connectionstyleオブジェクトの内部構造の
+    # 直接比較はmatplotlibのバージョン間で不安定なため避ける)。
+    assert len(canvas._annotation_artists[0]) == 1
+
+
+def test_draw_annotations_arrow_nonzero_curvature_sets_connectionstyle(canvas):
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [_arrow_annotation(arrow_curvature=0.3)]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    artist = canvas._annotation_artists[0][0]
+    from matplotlib.patches import ConnectionStyle
+    assert isinstance(artist.arrow_patch.get_connectionstyle(), ConnectionStyle.Arc3)
+
+
+def test_draw_annotations_arrow_removed_and_redrawn_on_redraw(canvas):
+    """再描画のたびに前回分を削除してから描き直す(vspan/hspanと同じパターン)。"""
+    ds = _make_dataset(2, show_point_labels=False)
+    settings = {'annotations': [_arrow_annotation(arrow_style='double')]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    first_artist = canvas._annotation_artists[0][0]
+    canvas.redraw_all([ds], 1, 1, [settings])
+    second_artist = canvas._annotation_artists[0][0]
+    assert first_artist is not second_artist
+    assert len(canvas._annotation_artists[0]) == 1
+
+
 # --- _draw_annotations(): 領域ハイライト(vspan/hspan、項目C-701) ---
 
 def test_draw_annotations_vspan_creates_axvspan_patch(canvas):
@@ -1906,10 +1988,11 @@ def test_waterfall_occlusion_toggle_is_per_dataset(canvas):
 # --- 平滑化 (CubicSpline): 成功時/失敗時のフォールバック経路 ---
 
 def _make_smoothing_dataset(x, y, smoothing=True, gradient_enabled=False,
-                             gradient_target='line', plot_type='Line'):
+                             gradient_target='line', plot_type='Line', smoothing_method='cubic_spline'):
     df = pd.DataFrame({"x": x, "y": y})
     return Dataset(name="smooth_ds", df=df, x_col_name="x", y_col_name="y", plot_type=plot_type,
                     color='#112233', gradient_color2='#ffffff', smoothing=smoothing,
+                    smoothing_method=smoothing_method,
                     gradient_enabled=gradient_enabled, gradient_target=gradient_target)
 
 
@@ -2043,6 +2126,58 @@ def test_line_plus_scatter_gradient_non_smoothed_overlays_scatter_on_gradient_li
     assert len(ax.lines) == 0  # 通常のLine2Dは使わない
     from matplotlib.collections import PathCollection
     assert any(isinstance(c, PathCollection) for c in ax.collections)  # マーカーのscatter
+
+
+# --- 平滑化の手法(項目C-304): moving_average/median/gaussian ---
+
+def test_smoothing_method_default_is_cubic_spline_and_unchanged_behavior():
+    """smoothing_methodを省略した既存コードパスは従来通りCubicSpline(200点補間)になる"""
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0])
+    assert ds.smoothing_method == 'cubic_spline'
+
+
+def test_smoothing_method_moving_average_keeps_original_point_count(canvas):
+    """移動平均/中央値/ガウシアンはCubicSplineと異なり200点へ補間せず、実データ点数のまま描画する"""
+    x = list(np.linspace(0, 10, 30))
+    y = list(np.sin(np.linspace(0, 10, 30)))
+    ds = _make_smoothing_dataset(x, y, smoothing_method='moving_average')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert isinstance(ds.artist, Line2D)
+    assert len(ds.artist.get_xdata()) == 30
+
+
+def test_smoothing_method_median_keeps_original_point_count(canvas):
+    x = list(np.linspace(0, 10, 30))
+    y = list(np.sin(np.linspace(0, 10, 30)))
+    ds = _make_smoothing_dataset(x, y, smoothing_method='median')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert len(ds.artist.get_xdata()) == 30
+
+
+def test_smoothing_method_gaussian_keeps_original_point_count(canvas):
+    x = list(np.linspace(0, 10, 30))
+    y = list(np.sin(np.linspace(0, 10, 30)))
+    ds = _make_smoothing_dataset(x, y, smoothing_method='gaussian')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert len(ds.artist.get_xdata()) == 30
+
+
+def test_smoothing_method_moving_average_disables_picking_like_cubic_spline(canvas):
+    """平滑化された曲線はどの手法でも、元データと1:1対応しない/しても
+    ソート順が入れ替わりうるため、クリック選択は一律で無効化する(cubic_splineと
+    同じ扱い)。"""
+    x = list(np.linspace(0, 10, 30))
+    y = list(np.sin(np.linspace(0, 10, 30)))
+    ds = _make_smoothing_dataset(x, y, smoothing_method='moving_average')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert ds.artist.get_picker() is None
+
+
+def test_smoothing_method_unknown_falls_back_to_cubic_spline(canvas):
+    """未知のsmoothing_method(将来の非互換値等)はcubic_splineにフォールバックする"""
+    ds = _make_smoothing_dataset([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0], smoothing_method='bogus')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert len(ds.artist.get_xdata()) == 200
 
 
 def test_area_gradient_target_line_only_uses_plain_fill_between_not_gradient_fill(canvas):
@@ -2208,6 +2343,79 @@ def test_apply_appearance_manual_major_tick_interval_for_x_and_y(canvas):
     assert x_locator._edge.step == pytest.approx(2)
     assert isinstance(y_locator, ticker.MultipleLocator)
     assert y_locator._edge.step == pytest.approx(3)
+
+
+# --- _apply_appearance(): 対数軸の補助目盛り高度制御(項目C-604) ---
+
+def _make_positive_dataset(n_points):
+    """対数軸のテスト用に、X/Yとも0を含まない正の値のデータセットを作る"""
+    df = pd.DataFrame({"x": range(1, n_points + 1), "y": range(1, n_points + 1)})
+    return Dataset(name="d", df=df, x_col_name="x", y_col_name="y", show_point_labels=False)
+
+
+def test_apply_appearance_log_axis_minor_ticks_default_uses_auto_subs(canvas):
+    ds = _make_positive_dataset(5)
+    settings = {'x_log': True, 'x_minor_ticks_visible': True}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    x_minor_locator = ax.xaxis.get_minor_locator()
+    assert isinstance(x_minor_locator, ticker.LogLocator)
+    # subs='auto'は既定のLogLocatorの初期化パラメータのまま(明示的な数列に置き換えない)
+    assert x_minor_locator._subs == 'auto'
+    # ラベルは既定で非表示(NullFormatter)
+    assert isinstance(ax.xaxis.get_minor_formatter(), ticker.NullFormatter)
+
+
+def test_apply_appearance_log_axis_minor_ticks_all_subs_shows_2_to_9(canvas):
+    ds = _make_positive_dataset(5)
+    settings = {'x_log': True, 'x_minor_ticks_visible': True, 'x_log_minor_subs': 'all'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    x_minor_locator = ax.xaxis.get_minor_locator()
+    assert isinstance(x_minor_locator, ticker.LogLocator)
+    assert tuple(x_minor_locator._subs) == (2, 3, 4, 5, 6, 7, 8, 9)
+
+
+def test_apply_appearance_log_axis_minor_ticks_few_subs(canvas):
+    ds = _make_positive_dataset(5)
+    settings = {'y_log': True, 'y_minor_ticks_visible': True, 'y_log_minor_subs': 'few'}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    y_minor_locator = ax.yaxis.get_minor_locator()
+    assert isinstance(y_minor_locator, ticker.LogLocator)
+    assert tuple(y_minor_locator._subs) == (2, 5)
+
+
+def test_apply_appearance_log_axis_minor_tick_labels_enabled_uses_sci_notation_formatter(canvas):
+    ds = _make_positive_dataset(5)
+    settings = {
+        'x_log': True, 'x_minor_ticks_visible': True, 'x_log_minor_labels': True,
+    }
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert isinstance(ax.xaxis.get_minor_formatter(), ticker.LogFormatterSciNotation)
+
+
+def test_apply_appearance_log_axis_minor_ticks_disabled_uses_null_locator(canvas):
+    """補助目盛表示チェックがOFFなら、対数軸であってもNullLocatorのまま(既存の挙動)"""
+    ds = _make_positive_dataset(5)
+    settings = {'x_log': True, 'x_minor_ticks_visible': False}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert isinstance(ax.xaxis.get_minor_locator(), ticker.NullLocator)
+
+
+def test_apply_appearance_linear_axis_minor_ticks_unaffected_by_log_minor_settings(canvas):
+    """回帰テスト: x_logがFalse(通常の線形軸)なら、x_log_minor_subs等の値に
+    関わらず従来通りMultipleLocatorが使われる(対数軸専用の分岐に入らない)。"""
+    ds = _make_dataset(5, show_point_labels=False)
+    settings = {
+        'x_minor_ticks_visible': True, 'x_minor_tick_interval': 0.5,
+        'x_log_minor_subs': 'all', 'x_log_minor_labels': True,
+    }
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    assert isinstance(ax.xaxis.get_minor_locator(), ticker.MultipleLocator)
 
 
 # --- _apply_appearance(): 目盛(目盛線本体)・目盛数値の表示/非表示切り替え ---

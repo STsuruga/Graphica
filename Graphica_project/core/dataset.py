@@ -153,7 +153,14 @@ class Dataset:
     linewidth: float = 1.5
     marker: str = 'o'             # マーカーの種類 (円)
     markersize: float = 6.0
-    smoothing: bool = False       # CubicSpline で平滑化するかどうか
+    smoothing: bool = False       # 平滑化するかどうか(手法はsmoothing_method)
+    # 平滑化の手法(項目C-304): 'cubic_spline'(既定、従来からのCubicSpline
+    # 補間、200点へ補間して滑らかな曲線にする) / 'moving_average' / 'median' /
+    # 'gaussian'(いずれもノイズ低減目的、実データ点数のまま平滑化)。
+    # 既定を'cubic_spline'にすることで、smoothing_methodを持たない既存の
+    # 保存済みプロジェクトを読み込んでも見た目が変わらない(smoothing自体の
+    # on/offはこのフィールドと独立、従来どおり)。
+    smoothing_method: str = 'cubic_spline'
     alpha: float = 1.0            # 透明度 (0.0=完全に透明 ～ 1.0=不透明)
 
     # プロットへのグラデーション適用(項目79): 線の色を開始色(color)から終端色

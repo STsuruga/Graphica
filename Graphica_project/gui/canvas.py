@@ -13,7 +13,8 @@ import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
 from gui.theme import LIGHT_TOKENS, DARK_TOKENS
-from core.analysis import calculate_lttb_downsample
+from core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
+                           calculate_median_smooth, calculate_gaussian_smooth)
 from core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,28 @@ MAX_TICKS_PER_AXIS = 500
 # トレース数によらず軸の枠線・目盛より確実に下に描画されるようにする。
 WATERFALL_ZORDER_BASE = 0.1
 WATERFALL_ZORDER_TOP = 1.9
+
+# 対数軸の補助目盛りの本数制御(項目C-604): x/y_log_minor_subs設定値 ->
+# ticker.LogLocator(subs=...)に渡す値。'auto'はLogLocatorが軸の表示範囲
+# (何桁分表示されているか)に応じて自動的に間引く既定動作、それ以外は
+# 明示的なsubs集合(表示する仮数の桁、例えば'few'の(2,5)なら2,5の位置にのみ
+# 補助目盛りを打つ)。
+_LOG_MINOR_SUBS_PRESETS = {
+    'auto': 'auto',
+    'all': (2, 3, 4, 5, 6, 7, 8, 9),
+    'few': (2, 5),
+    'one': (5,),
+}
+
+# 矢印注釈の形状バリエーション(項目C-703): annotation['arrow_style'] ->
+# matplotlibのarrowstyle文字列。既定'single'は追加前からの唯一の挙動('->')
+# そのものなので、arrow_styleキーを持たない既存の保存済み注釈でも見た目は
+# 変わらない。'bracket'は将来のP-402(有意差表示)の描画基盤を意識した選択。
+_ARROW_STYLE_MAP = {
+    'single': '->',
+    'double': '<->',
+    'bracket': ']-[',
+}
 
 # データ点ラベル表示(各点の脇にテキストを描画)は、点数が多いと
 # ax.annotate() の呼び出し回数がそのまま増えてアプリがフリーズする原因になるため、
@@ -757,10 +780,19 @@ class _CanvasDrawingMixin:
             text = ann.get('text', '')
             try:
                 if ann_type == 'arrow':
+                    # 矢印のバリエーション拡張(項目C-703): 通常(片矢印)/両矢印/
+                    # ブラケットの3種類。arrow_style/arrow_curvatureを持たない
+                    # 既存の保存済み注釈は既定値(直線の片矢印)にフォールバックし、
+                    # 追加前と全く同じ見た目になる。
                     color = self._effective_text_color(ann.get('color', '#000000'))
+                    arrowstyle = _ARROW_STYLE_MAP.get(ann.get('arrow_style', 'single'), '->')
+                    curvature = ann.get('arrow_curvature', 0.0)
+                    arrow_props = dict(arrowstyle=arrowstyle, color=color)
+                    if curvature:
+                        arrow_props['connectionstyle'] = f'arc3,rad={curvature}'
                     artist = ax.annotate(
                         text, xy=ann['xy'], xytext=ann['xytext'],
-                        arrowprops=dict(arrowstyle='->', color=color),
+                        arrowprops=arrow_props,
                         color=color, fontsize=9
                     )
                 elif ann_type in ('vspan', 'hspan'):
@@ -1170,10 +1202,22 @@ class _CanvasDrawingMixin:
                 # ★ グラデーション(項目79)は平滑化された曲線にも適用できるよう、
                 # 平滑化後のx_smooth/y_smoothに対してLineCollectionを作る。
                 use_line_gradient = ds.gradient_enabled and ds.gradient_target in ('line', 'both')
+                # 平滑化の手法(項目C-304): 既定'cubic_spline'は元の唯一の
+                # 挙動(200点への補間で滑らかな曲線を作る)のまま無変更。
+                # moving_average/median/gaussianはノイズ低減が目的のため、
+                # 実データ点数のまま(x_sorted上で)平滑化する。
+                smoothing_method = getattr(ds, 'smoothing_method', 'cubic_spline')
                 try:
-                    f = CubicSpline(x_sorted, y_sorted)
-                    x_smooth = np.linspace(x_sorted.min(), x_sorted.max(), 200)
-                    y_smooth = f(x_smooth)
+                    if smoothing_method == 'moving_average':
+                        x_smooth, y_smooth = calculate_moving_average_smooth(x_sorted, y_sorted)
+                    elif smoothing_method == 'median':
+                        x_smooth, y_smooth = calculate_median_smooth(x_sorted, y_sorted)
+                    elif smoothing_method == 'gaussian':
+                        x_smooth, y_smooth = calculate_gaussian_smooth(x_sorted, y_sorted)
+                    else:  # 'cubic_spline'(既定)
+                        f = CubicSpline(x_sorted, y_sorted)
+                        x_smooth = np.linspace(x_sorted.min(), x_sorted.max(), 200)
+                        y_smooth = f(x_smooth)
                     if use_line_gradient:
                         ds.artist = self._add_gradient_line(
                             target_ax, x_smooth, y_smooth, ds.color, ds.gradient_color2,
@@ -1531,13 +1575,34 @@ class _CanvasDrawingMixin:
             # 日付軸/カテゴリ軸では数値の補助目盛り間隔は意味を持たないため表示しない
             ax.xaxis.set_minor_locator(ticker.NullLocator())
         elif settings.get('x_minor_ticks_visible', False):
-            interval = settings.get('x_minor_tick_interval', 0.5)
-            if interval > 0: ax.xaxis.set_minor_locator(_safe_multiple_locator(interval, x_min_lim, x_max_lim))
+            if settings.get('x_log', False):
+                # 対数軸の補助目盛り高度制御(項目C-604)。set_xscale('log')の
+                # 既定Locator/Formatterをそのまま使わず明示的に設定し直す
+                # (このAxesでは既にset_minor_locatorを必ず呼ぶ設計のため、
+                # x_log分岐を追加しないと従来のMultipleLocatorが対数軸にも
+                # 誤って適用されてしまう)。
+                subs = _LOG_MINOR_SUBS_PRESETS.get(settings.get('x_log_minor_subs', 'auto'), 'auto')
+                ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=subs))
+                ax.xaxis.set_minor_formatter(
+                    ticker.LogFormatterSciNotation(base=10.0, labelOnlyBase=False)
+                    if settings.get('x_log_minor_labels', False) else ticker.NullFormatter()
+                )
+            else:
+                interval = settings.get('x_minor_tick_interval', 0.5)
+                if interval > 0: ax.xaxis.set_minor_locator(_safe_multiple_locator(interval, x_min_lim, x_max_lim))
         else: ax.xaxis.set_minor_locator(ticker.NullLocator())
 
         if settings.get('y_minor_ticks_visible', False):
-            interval = settings.get('y_minor_tick_interval', 0.5)
-            if interval > 0: ax.yaxis.set_minor_locator(_safe_multiple_locator(interval, y_min_lim, y_max_lim))
+            if settings.get('y_log', False):
+                subs = _LOG_MINOR_SUBS_PRESETS.get(settings.get('y_log_minor_subs', 'auto'), 'auto')
+                ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=subs))
+                ax.yaxis.set_minor_formatter(
+                    ticker.LogFormatterSciNotation(base=10.0, labelOnlyBase=False)
+                    if settings.get('y_log_minor_labels', False) else ticker.NullFormatter()
+                )
+            else:
+                interval = settings.get('y_minor_tick_interval', 0.5)
+                if interval > 0: ax.yaxis.set_minor_locator(_safe_multiple_locator(interval, y_min_lim, y_max_lim))
         else: ax.yaxis.set_minor_locator(ticker.NullLocator())
 
         # 目盛りの指数表記フォーマット切り替え(項目62)。日付軸/カテゴリ軸は

@@ -41,6 +41,11 @@ def describe_operation(provenance):
         return f"データセット間演算({params.get('operation_symbol')})"
     if operation == 'mean_sd':
         return f"複数データセットの平均±SD生成({params.get('n_source')}件、手法: {params.get('method')})"
+    if operation == 'cumulative_integral':
+        method_label = {'trapezoid': '台形則', 'simpson': 'Simpson則'}.get(
+            params.get('method'), params.get('method')
+        )
+        return f"累積積分({method_label})"
     if operation in ('curve_fit', 'batch_curve_fit'):
         fit_type = params.get('fit_type', '不明')
         r_squared = params.get('r_squared')

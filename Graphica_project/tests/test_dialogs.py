@@ -19,7 +19,8 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          ExcelMultiSheetDialog, DatasetArithmeticDialog, NormalizeDatasetDialog,
                          CommandPaletteDialog, QuickAccessManagerDialog, ShortcutsDialog,
                          LegendOrderDialog, MultiPeakFitDialog, ColumnStringOpsDialog,
-                         ColumnVisibilityDialog, FindReplaceDialog)
+                         ColumnVisibilityDialog, FindReplaceDialog,
+                         CumulativeIntegralDialog, ArrowAnnotationDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -453,6 +454,57 @@ def test_savgol_dialog_window_and_polyorder_reflect_spinboxes():
 def test_savgol_dialog_window_max_capped_by_data_length():
     dlg = SavGolDialog("D1", max_window=7)
     assert dlg.window_spinbox.maximum() == 7
+
+
+# --- CumulativeIntegralDialog (項目C-303: 累積積分) ---
+
+def test_cumulative_integral_dialog_defaults_to_trapezoid_and_suffixed_name():
+    dlg = CumulativeIntegralDialog("D1")
+    method, output_name = dlg.get_settings()
+    assert method == "trapezoid"
+    assert output_name == "D1_cumsum"
+
+
+def test_cumulative_integral_dialog_method_selection_reflected():
+    dlg = CumulativeIntegralDialog("D1")
+    dlg.method_combo.setCurrentText(CumulativeIntegralDialog.METHOD_SIMPSON)
+    method, _ = dlg.get_settings()
+    assert method == "simpson"
+
+
+def test_cumulative_integral_dialog_output_name_reflects_line_edit():
+    dlg = CumulativeIntegralDialog("D1")
+    dlg.output_name_edit.setText("custom_name")
+    _, output_name = dlg.get_settings()
+    assert output_name == "custom_name"
+
+
+# --- ArrowAnnotationDialog (項目C-703: 矢印のバリエーション拡張) ---
+
+def test_arrow_annotation_dialog_defaults_to_single_style_zero_curvature():
+    dlg = ArrowAnnotationDialog()
+    text, style, curvature = dlg.get_settings()
+    assert text == ""
+    assert style == "single"
+    assert curvature == 0.0
+
+
+def test_arrow_annotation_dialog_reflects_text_and_style_and_curvature():
+    dlg = ArrowAnnotationDialog()
+    dlg.text_edit.setText("  label  ")
+    dlg.style_combo.setCurrentText(ArrowAnnotationDialog.STYLE_DOUBLE)
+    dlg.curvature_spinbox.setValue(0.3)
+    text, style, curvature = dlg.get_settings()
+    assert text == "label"  # 前後の空白は除去される
+    assert style == "double"
+    assert curvature == pytest.approx(0.3)
+
+
+def test_arrow_annotation_dialog_bracket_style_selection():
+    dlg = ArrowAnnotationDialog()
+    dlg.style_combo.setCurrentText(ArrowAnnotationDialog.STYLE_BRACKET)
+    _, style, _ = dlg.get_settings()
+    assert style == "bracket"
 
 
 # --- PreferencesDialog (項目: オートセーブ保存先の指定) ---
@@ -1335,7 +1387,7 @@ def test_fit_dialog_custom_formula_fields_shown_when_custom_selected(qapp):
 def test_fit_dialog_get_fit_type_accepted_builtin(monkeypatch):
     monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Accepted)
     (fit_type, custom_formula, weighted, x_range,
-     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
+     p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(parent=None)
     assert fit_type == "線形 (y = ax + b)"
     assert custom_formula is None
     assert weighted is False
@@ -1346,6 +1398,8 @@ def test_fit_dialog_get_fit_type_accepted_builtin(monkeypatch):
     assert bounds == {}
     # 項目C-405: 既定は「表示しない」= None
     assert band_type is None
+    # 項目C-407: 既定は通常の最小二乗('linear')
+    assert loss == 'linear'
 
 
 def test_fit_dialog_get_fit_type_accepted_custom_formula(monkeypatch):
@@ -1356,7 +1410,7 @@ def test_fit_dialog_get_fit_type_accepted_custom_formula(monkeypatch):
 
     monkeypatch.setattr(FitDialog, "exec", fake_exec)
     (fit_type, custom_formula, weighted, x_range,
-     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
+     p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(parent=None)
     assert "カスタム数式" in fit_type
     assert custom_formula == "a*x+b"
 
@@ -1381,7 +1435,7 @@ def test_fit_dialog_get_fit_type_accepted_with_param_customization(monkeypatch):
 
     monkeypatch.setattr(FitDialog, "exec", fake_exec)
     (fit_type, custom_formula, weighted, x_range,
-     p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(parent=None)
+     p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(parent=None)
     assert fixed_params == {'b': 0.5}
     assert bounds == {'a': (-1.0, 9.0)}
     assert p0_overrides == {}
@@ -1395,13 +1449,30 @@ def test_fit_dialog_get_fit_type_accepted_with_band_type(monkeypatch):
 
     monkeypatch.setattr(FitDialog, "exec", fake_exec)
     result = FitDialog.get_fit_type(parent=None)
-    assert result[-1] == "prediction"
+    assert result[-2] == "prediction"
+
+
+def test_fit_dialog_get_fit_type_accepted_with_loss(monkeypatch):
+    """項目C-407: 損失関数コンボの選択がget_fit_type()の戻り値に反映されること。"""
+    def fake_exec(self):
+        idx = self.loss_combo.findData("soft_l1")
+        self.loss_combo.setCurrentIndex(idx)
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(FitDialog, "exec", fake_exec)
+    result = FitDialog.get_fit_type(parent=None)
+    assert result[-1] == "soft_l1"
+
+
+def test_fit_dialog_get_loss_defaults_to_linear():
+    dlg = FitDialog()
+    assert dlg.get_loss() == 'linear'
 
 
 def test_fit_dialog_get_fit_type_rejected_returns_none_tuple(monkeypatch):
     monkeypatch.setattr(FitDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
     result = FitDialog.get_fit_type(parent=None)
-    assert result == (None, None, False, None, {}, {}, {}, None)
+    assert result == (None, None, False, None, {}, {}, {}, None, 'linear')
 
 
 # --- MultiPeakFitDialog (項目C-409/C-410: 多峰分離フィット設定ダイアログ) ---

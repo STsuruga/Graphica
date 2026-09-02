@@ -357,16 +357,35 @@ class SettingsMixin:
         self._update_plot_appearance()
 
     def _on_x_minor_tick_visibility_changed(self):
-        """X軸 補助目盛表示 チェックボックスが変更された"""
+        """
+        X軸 補助目盛表示 チェックボックス、または対数表示チェックボックスが
+        変更された(項目C-604: 対数軸の補助目盛り制御は、この2つの状態の
+        両方に依存するため同じスロットにまとめている)。
+        """
         is_visible = self.ui.x_minor_ticks_visible_checkbox.isChecked()
+        is_log = self.ui.x_log_checkbox.isChecked()
         # チェックが ON の場合のみ、間隔入力スピンボックスを有効化
-        self.ui.x_minor_tick_interval_spinbox.setEnabled(is_visible)
+        # (対数軸の場合はMultipleLocatorではなくLogLocatorを使うため無効化する)
+        self.ui.x_minor_tick_interval_spinbox.setEnabled(is_visible and not is_log)
+        # 対数軸の補助目盛り制御(本数プリセット/ラベル表示)は対数軸のときのみ
+        # 意味を持つため、対数軸でない間は隠す。
+        self.x_log_minor_subs_label.setVisible(is_log)
+        self.x_log_minor_subs_combo.setVisible(is_log)
+        self.x_log_minor_labels_checkbox.setVisible(is_log)
+        self.x_log_minor_subs_combo.setEnabled(is_log and is_visible)
+        self.x_log_minor_labels_checkbox.setEnabled(is_log and is_visible)
         self._update_plot_appearance()
 
     def _on_y_minor_tick_visibility_changed(self):
-        """Y軸 補助目盛表示 チェックボックスが変更された"""
+        """Y軸版の_on_x_minor_tick_visibility_changed。"""
         is_visible = self.ui.y_minor_ticks_visible_checkbox.isChecked()
-        self.ui.y_minor_tick_interval_spinbox.setEnabled(is_visible)
+        is_log = self.ui.y_log_checkbox.isChecked()
+        self.ui.y_minor_tick_interval_spinbox.setEnabled(is_visible and not is_log)
+        self.y_log_minor_subs_label.setVisible(is_log)
+        self.y_log_minor_subs_combo.setVisible(is_log)
+        self.y_log_minor_labels_checkbox.setVisible(is_log)
+        self.y_log_minor_subs_combo.setEnabled(is_log and is_visible)
+        self.y_log_minor_labels_checkbox.setEnabled(is_log and is_visible)
         self._update_plot_appearance()
 
     def _on_legend_visibility_changed(self):
@@ -695,6 +714,9 @@ class SettingsMixin:
             'x_major_tick_interval': self.ui.x_major_tick_interval_spinbox.value(),
             'x_minor_ticks_visible': self.ui.x_minor_ticks_visible_checkbox.isChecked(),
             'x_minor_tick_interval': self.ui.x_minor_tick_interval_spinbox.value(),
+            # 対数軸の補助目盛り高度制御(項目C-604): x_logがTrueのときのみ意味を持つ
+            'x_log_minor_subs': self.x_log_minor_subs_combo.currentData(),
+            'x_log_minor_labels': self.x_log_minor_labels_checkbox.isChecked(),
             'x_tick_format_mode': self.x_tick_format_combo.currentIndex(),
             'x_tick_decimals': self.x_tick_decimals_spinbox.value(),
             'x_secondary_axis_source_unit':
@@ -712,6 +734,8 @@ class SettingsMixin:
             'y_major_tick_interval': self.ui.y_major_tick_interval_spinbox.value(),
             'y_minor_ticks_visible': self.ui.y_minor_ticks_visible_checkbox.isChecked(),
             'y_minor_tick_interval': self.ui.y_minor_tick_interval_spinbox.value(),
+            'y_log_minor_subs': self.y_log_minor_subs_combo.currentData(),
+            'y_log_minor_labels': self.y_log_minor_labels_checkbox.isChecked(),
             'y_tick_format_mode': self.y_tick_format_combo.currentIndex(),
             'y_tick_decimals': self.y_tick_decimals_spinbox.value(),
 
@@ -814,6 +838,9 @@ class SettingsMixin:
             self.ui.x_major_tick_interval_spinbox.setValue(settings.get('x_major_tick_interval', 1))
             self.ui.x_minor_ticks_visible_checkbox.setChecked(settings.get('x_minor_ticks_visible', False))
             self.ui.x_minor_tick_interval_spinbox.setValue(settings.get('x_minor_tick_interval', 0.5))
+            _x_log_minor_subs_idx = self.x_log_minor_subs_combo.findData(settings.get('x_log_minor_subs', 'auto'))
+            self.x_log_minor_subs_combo.setCurrentIndex(_x_log_minor_subs_idx if _x_log_minor_subs_idx != -1 else 0)
+            self.x_log_minor_labels_checkbox.setChecked(settings.get('x_log_minor_labels', False))
             self.x_tick_format_combo.setCurrentIndex(settings.get('x_tick_format_mode', 0))
             self.x_tick_decimals_spinbox.setValue(settings.get('x_tick_decimals', -1))
             _source_unit = settings.get('x_secondary_axis_source_unit', X_AXIS_UNIT_NONE)
@@ -833,6 +860,9 @@ class SettingsMixin:
             self.ui.y_major_tick_interval_spinbox.setValue(settings.get('y_major_tick_interval', 1))
             self.ui.y_minor_ticks_visible_checkbox.setChecked(settings.get('y_minor_ticks_visible', False))
             self.ui.y_minor_tick_interval_spinbox.setValue(settings.get('y_minor_tick_interval', 0.5))
+            _y_log_minor_subs_idx = self.y_log_minor_subs_combo.findData(settings.get('y_log_minor_subs', 'auto'))
+            self.y_log_minor_subs_combo.setCurrentIndex(_y_log_minor_subs_idx if _y_log_minor_subs_idx != -1 else 0)
+            self.y_log_minor_labels_checkbox.setChecked(settings.get('y_log_minor_labels', False))
             self.y_tick_format_combo.setCurrentIndex(settings.get('y_tick_format_mode', 0))
             self.y_tick_decimals_spinbox.setValue(settings.get('y_tick_decimals', -1))
 
@@ -954,6 +984,8 @@ class SettingsMixin:
         self.ui.x_major_tick_interval_spinbox.blockSignals(block)
         self.ui.x_minor_ticks_visible_checkbox.blockSignals(block)
         self.ui.x_minor_tick_interval_spinbox.blockSignals(block)
+        self.x_log_minor_subs_combo.blockSignals(block)
+        self.x_log_minor_labels_checkbox.blockSignals(block)
         self.x_tick_format_combo.blockSignals(block)
         self.x_tick_decimals_spinbox.blockSignals(block)
         self.x_ticks_visible_checkbox.blockSignals(block)
@@ -971,6 +1003,8 @@ class SettingsMixin:
         self.ui.y_major_tick_interval_spinbox.blockSignals(block)
         self.ui.y_minor_ticks_visible_checkbox.blockSignals(block)
         self.ui.y_minor_tick_interval_spinbox.blockSignals(block)
+        self.y_log_minor_subs_combo.blockSignals(block)
+        self.y_log_minor_labels_checkbox.blockSignals(block)
         self.y_tick_format_combo.blockSignals(block)
         self.y_tick_decimals_spinbox.blockSignals(block)
         self.y_ticks_visible_checkbox.blockSignals(block)

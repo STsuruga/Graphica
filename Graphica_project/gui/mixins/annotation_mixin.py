@@ -4,6 +4,10 @@
 
 注釈は project.all_plot_settings[軸インデックス]['annotations'] に
 {'id','type'('text'/'arrow'),'text','xy','xytext','color'} の辞書として保持される。
+矢印注釈('arrow')は追加で'arrow_style'('single'(既定)/'double'/'bracket'、
+項目C-703)・'arrow_curvature'(float、既定0.0で直線)を持つ(gui/canvas.pyの
+_draw_annotationsが参照。両キーとも省略時は既定値にフォールバックするため、
+これらのキーを持たない既存の保存済み注釈も同じ見た目のまま読み込める)。
 all_plot_settings は既にプロジェクト保存(pickle)の対象になっているため、
 注釈も自動的にプロジェクトファイルに保存/復元される(追加の永続化コードは不要)。
 
@@ -13,9 +17,10 @@ all_plot_settings は既にプロジェクト保存(pickle)の対象になって
 import uuid
 import logging
 
-from PySide6.QtWidgets import QInputDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
 
 from core.commands import SetAnnotationsCommand
+from gui.dialogs import ArrowAnnotationDialog
 
 logger = logging.getLogger(__name__)
 
@@ -150,15 +155,19 @@ class AnnotationMixin:
             })
         else:
             # 一定以上動いた = 「ドラッグ」とみなし、矢印注釈を追加する
-            text, ok = QInputDialog.getText(self, "矢印注釈の追加", "ラベル(空欄可):")
-            if not ok:
+            # (項目C-703: ラベルに加え、矢印の形状・曲率も選ばせる)
+            dialog = ArrowAnnotationDialog(self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
+            text, arrow_style, arrow_curvature = dialog.get_settings()
             snapped_end_x, snapped_end_y = self._snap_point_to_grid(start_ax, end_x, end_y)
             snapped_start_x, snapped_start_y = self._snap_point_to_grid(start_ax, start_x, start_y)
             self._add_annotation(axis_index, {
-                'type': 'arrow', 'text': text.strip(),
+                'type': 'arrow', 'text': text,
                 'xy': (snapped_end_x, snapped_end_y), 'xytext': (snapped_start_x, snapped_start_y),
                 'color': '#000000',
+                'arrow_style': arrow_style,
+                'arrow_curvature': arrow_curvature,
             })
 
     def _add_annotation(self, axis_index, annotation, description="注釈の追加"):

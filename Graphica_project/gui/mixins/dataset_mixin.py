@@ -31,7 +31,8 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_savgol,
                            calculate_baseline_als, calculate_baseline_polynomial,
                            calculate_baseline_rubberband, calculate_baseline_manual,
-                           calculate_interval_integral, calculate_confidence_band,
+                           calculate_interval_integral, calculate_cumulative_integral,
+                           calculate_confidence_band,
                            calculate_resample_to_grid, multi_peak_fit_task)
 from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand
 from core.dataset import Dataset
@@ -44,8 +45,8 @@ from gui.data_editor import DataEditorDialog
 from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
-                         BaselineCorrectionDialog, IntervalIntegralDialog, ResampleDatasetDialog,
-                         MultiPeakFitDialog)
+                         BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
+                         ResampleDatasetDialog, MultiPeakFitDialog)
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -67,7 +68,8 @@ NO_ERROR_COLUMN_LABEL = "(なし)"
 # 属性のため含めるが、data_kind/z_col_nameはX/Y列と同様に「どの列を使うか」という
 # 構造の選択であり、他のデータセットへ無条件にコピーすると意図しない相手を
 # 2Dグリッド扱いにしてしまうため、意図的に含めない。
-STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing', 'alpha',
+STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing',
+               'smoothing_method', 'alpha',
                'error_display', 'colormap', 'vmin', 'vmax', 'grid_interp_method')
 
 # カラーマップからの自動配色(項目C-805)で選ばせる候補。連続データの系列を
@@ -273,6 +275,13 @@ class DatasetMixin:
             # ベースライン補正と異なる(ピーク検出のResultDialog表示に近い)。
             integral_action = menu.addAction("区間積分(台形則/Simpson則)...")
             integral_action.triggered.connect(self._on_interval_integral_dataset)
+
+            # 累積積分(項目C-303): 区間積分と同じ台形則/Simpson則だが、こちらは
+            # スカラー1個ではなく、Xの各点までの積分値を新しいデータセットとして
+            # 追加する(Savitzky-Golay/ベースライン補正と同じ「カレント1件から
+            # 新しいデータセットを1つ作る」パターン)。
+            cumulative_integral_action = menu.addAction("累積積分(台形則/Simpson則)...")
+            cumulative_integral_action.triggered.connect(self._on_cumulative_integral_dataset)
 
             # フィット結果のエクスポート(項目C-413): カレントデータセットが
             # 曲線フィットの結果(dataset.fit_result、項目C-401で永続化)を
@@ -1032,6 +1041,52 @@ class DatasetMixin:
         )
         self.integral_result_dialog.show()
 
+    def _on_cumulative_integral_dataset(self):
+        """
+        「累積積分(台形則/Simpson則)...」メニューの処理(項目C-303)。
+        カレントの1つのデータセットについて、Xの各点までの積分値
+        (calculate_cumulative_integral)を計算し、新しいデータセットとして
+        追加する。_on_savgol_dataset/_on_baseline_correction_datasetと同じ
+        「カレント1件から新しいデータセットを1つ作る」パターン(区間積分
+        _on_interval_integral_datasetとは異なり、結果はスカラーではなく系列)。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        x_data = np.asarray(original_dataset.x_data, dtype=float)
+        y_data = np.asarray(original_dataset.y_data, dtype=float)
+        valid = ~(np.isnan(x_data) | np.isnan(y_data))
+        x_data, y_data = x_data[valid], y_data[valid]
+
+        if len(x_data) < 2:
+            QMessageBox.warning(self, "累積積分", "有効なデータ点が不足しています(最低2点必要)。")
+            return
+
+        dialog = CumulativeIntegralDialog(original_dataset.name, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        method, output_name = dialog.get_settings()
+        if not output_name:
+            QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+            return
+
+        try:
+            result = calculate_cumulative_integral(x_data, y_data, method=method)
+        except ValueError as e:
+            QMessageBox.warning(self, "累積積分", str(e))
+            return
+
+        result_df = pd.DataFrame({'x': result['x_used'], 'y': result['y_cumulative']})
+        new_dataset = Dataset(
+            name=output_name, df=result_df, x_col_name='x', y_col_name='y',
+            provenance=self._build_provenance(
+                'cumulative_integral', {'method': method}, [original_dataset],
+            ),
+        )
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
     def _on_resample_dataset(self):
         """
         「共通X格子へのリサンプリング/補間...」メニューの処理(項目C-305)。
@@ -1339,7 +1394,7 @@ class DatasetMixin:
         # 範囲拘束)/C-405(信頼帯・予測帯)は選択中の全データセットに共通の設定
         # として1回だけ選ばせ、各データセットに同じ条件で適用する。
         (fit_type, custom_formula, use_weighted, x_range,
-         p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(self)
+         p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(self)
         if fit_type is None:
             return
 
@@ -1352,7 +1407,7 @@ class DatasetMixin:
 
         runner = TaskRunner(
             self._batch_fit_worker, selected, fit_type, custom_formula, use_weighted, x_range,
-            p0_overrides, fixed_params, bounds, band_type,
+            p0_overrides, fixed_params, bounds, band_type, loss,
         )
         runner.progress.connect(lambda done, total, message: progress_dialog.setValue(done))
         progress_dialog.canceled.connect(runner.requestInterruption)
@@ -1403,7 +1458,7 @@ class DatasetMixin:
         QMessageBox.information(self, "バッチカーブフィット", message)
 
     def _batch_fit_worker(self, datasets, fit_type, custom_formula, use_weighted, x_range,
-                           p0_overrides, fixed_params, bounds, band_type,
+                           p0_overrides, fixed_params, bounds, band_type, loss='linear',
                            report_progress=None, is_cancelled=None):
         """
         TaskRunnerからバックグラウンドスレッドで呼ばれる、バッチフィットの実計算部分。
@@ -1427,7 +1482,7 @@ class DatasetMixin:
                 fit = calculate_curve_fit(
                     x_data, y_data, fit_type, custom_formula=custom_formula,
                     sigma=sigma, x_range=x_range,
-                    p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+                    p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
                 )
             except Exception as e:
                 results.append({'source_name': dataset.name, 'fit_dataset': None, 'error': str(e)})
@@ -1450,12 +1505,14 @@ class DatasetMixin:
                 result_text += f"  (固定: {fixed_params})\n"
             if bounds:
                 result_text += f"  (範囲拘束: {bounds})\n"
+            if loss != 'linear':
+                result_text += f"  (ロバストフィット: {loss})\n"
 
             fit_result = self._build_fit_result_dict(
                 fit_type=fit_type, custom_formula=custom_formula, fit=fit,
                 weighted=sigma is not None, x_range=x_range,
                 source_dataset=dataset,
-                p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+                p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
             )
 
             fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
@@ -1830,6 +1887,7 @@ class DatasetMixin:
             self.ui.marker_combo: ('marker', None if marker_text == 'None' else marker_text),
             self.ui.markersize_spinbox: ('markersize', self.ui.markersize_spinbox.value()),
             self.ui.smoothing_checkbox: ('smoothing', self.ui.smoothing_checkbox.isChecked()),
+            self.smoothing_method_combo: ('smoothing_method', self.smoothing_method_combo.currentData()),
             self.alpha_spinbox: ('alpha', self.alpha_spinbox.value()),
             self.point_labels_checkbox: ('show_point_labels', self.point_labels_checkbox.isChecked()),
             self.point_label_col_combo: (
@@ -1965,7 +2023,15 @@ class DatasetMixin:
         """
         dataset = self._get_current_dataset()
         plot_type = dataset.plot_type if dataset is not None else self.ui.plot_type_combo.currentText()
-        self.ui.smoothing_checkbox.setVisible(plot_type in ('Line', 'Line+Scatter'))
+        is_smoothable_type = plot_type in ('Line', 'Line+Scatter')
+        self.ui.smoothing_checkbox.setVisible(is_smoothable_type)
+        # 平滑化の手法コンボ(項目C-304)は、平滑化チェックボックス自体が
+        # 隠れる場合は当然隠す。表示対象のplot_typeでも、チェックがOFFの間は
+        # 手法を選ぶ意味がないため無効化はするが非表示にはしない
+        # (見えなくなったり出てきたりでレイアウトが揺れるのを避けるため)。
+        self.smoothing_method_label.setVisible(is_smoothable_type)
+        self.smoothing_method_combo.setVisible(is_smoothable_type)
+        self.smoothing_method_combo.setEnabled(self.ui.smoothing_checkbox.isChecked())
 
     def _update_error_display_control_items(self):
         """
@@ -2168,6 +2234,7 @@ class DatasetMixin:
             self.ui.marker_combo.blockSignals(True)
             self.ui.markersize_spinbox.blockSignals(True)
             self.ui.smoothing_checkbox.blockSignals(True)
+            self.smoothing_method_combo.blockSignals(True)
             self.alpha_spinbox.blockSignals(True)
             self.point_labels_checkbox.blockSignals(True)
             self.point_label_col_combo.blockSignals(True)
@@ -2200,6 +2267,8 @@ class DatasetMixin:
             self.ui.markersize_spinbox.setValue(dataset.markersize)
             self.color_picker_widget.set_color(dataset.color)
             self.ui.smoothing_checkbox.setChecked(dataset.smoothing)
+            smoothing_method_index = self.smoothing_method_combo.findData(dataset.smoothing_method)
+            self.smoothing_method_combo.setCurrentIndex(smoothing_method_index if smoothing_method_index != -1 else 0)
             self.alpha_spinbox.setValue(dataset.alpha)
             self.gradient_checkbox.setChecked(dataset.gradient_enabled)
             self.gradient_color2_picker.set_color(dataset.gradient_color2)
@@ -2243,6 +2312,7 @@ class DatasetMixin:
             self.ui.marker_combo.blockSignals(False)
             self.ui.markersize_spinbox.blockSignals(False)
             self.ui.smoothing_checkbox.blockSignals(False)
+            self.smoothing_method_combo.blockSignals(False)
             self.alpha_spinbox.blockSignals(False)
             self.point_labels_checkbox.blockSignals(False)
             self.point_label_col_combo.blockSignals(False)
@@ -2658,7 +2728,7 @@ class DatasetMixin:
         x_min = float(np.min(x_data)) if len(x_data) else None
         x_max = float(np.max(x_data)) if len(x_data) else None
         (fit_type, custom_formula, use_weighted, x_range,
-         p0_overrides, fixed_params, bounds, band_type) = FitDialog.get_fit_type(
+         p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(
             self, x_min=x_min, x_max=x_max
         )
         if fit_type is None:
@@ -2669,12 +2739,12 @@ class DatasetMixin:
         runner = TaskRunner(
             fit_curve_task, x_data, y_data, fit_type, custom_formula=custom_formula,
             sigma=sigma, x_range=x_range,
-            p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+            p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
         )
         runner.succeeded.connect(
             lambda fit: self._on_fit_curve_succeeded(
                 original_dataset, fit_type, custom_formula, sigma, x_range,
-                p0_overrides, fixed_params, bounds, band_type, fit,
+                p0_overrides, fixed_params, bounds, band_type, loss, fit,
             )
         )
         runner.failed.connect(self._on_fit_curve_failed)
@@ -2699,7 +2769,7 @@ class DatasetMixin:
         QMessageBox.warning(self, "フィットエラー", f"フィッティングに失敗しました:\n{error_message}")
 
     def _on_fit_curve_succeeded(self, original_dataset, fit_type, custom_formula, sigma, x_range,
-                                 p0_overrides, fixed_params, bounds, band_type, fit):
+                                 p0_overrides, fixed_params, bounds, band_type, loss, fit):
         """
         バックグラウンドで完了したフィット計算(fit dict、calculate_curve_fitの
         戻り値と同じ形)をメインスレッド側で適用する。以前は_on_fit_curve()の
@@ -2728,6 +2798,8 @@ class DatasetMixin:
             result_text += f"  (固定: {fixed_params})\n"
         if bounds:
             result_text += f"  (範囲拘束: {bounds})\n"
+        if loss != 'linear':
+            result_text += f"  (ロバストフィット: {loss})\n"
 
         # 項目C-401: 後続の機能(信頼帯・残差プロット・結果出力・provenance記録)が
         # 再計算なしで再利用できるよう、構造化した形でも結果を保持する。
@@ -2735,7 +2807,7 @@ class DatasetMixin:
             fit_type=fit_type, custom_formula=custom_formula, fit=fit,
             weighted=sigma is not None, x_range=x_range,
             source_dataset=original_dataset,
-            p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+            p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
         )
 
         # UI/Modelへの反映 (Datasetの追加。元のデータセットと同じフォルダに追加する)
@@ -2932,7 +3004,7 @@ class DatasetMixin:
 
     @staticmethod
     def _build_fit_result_dict(fit_type, custom_formula, fit, weighted, x_range, source_dataset,
-                                p0_overrides=None, fixed_params=None, bounds=None):
+                                p0_overrides=None, fixed_params=None, bounds=None, loss='linear'):
         """
         calculate_curve_fit() の戻り値(numpy配列を含む)から、Dataset.fit_result
         (項目C-401)に保持する、pickle/JSON双方でそのまま往復できるプレーンな
@@ -2965,6 +3037,8 @@ class DatasetMixin:
             'p0_overrides': dict(p0_overrides) if p0_overrides else {},
             'fixed_params': dict(fixed_params) if fixed_params else {},
             'bounds': {k: [float(v[0]), float(v[1])] for k, v in bounds.items()} if bounds else {},
+            # 項目C-407: ロバストフィットの損失関数('linear'なら通常の最小二乗)
+            'loss': loss,
         }
 
     @staticmethod
@@ -3028,6 +3102,8 @@ class DatasetMixin:
             result_text += f"  (固定: {fit_result['fixed_params']})\n"
         if fit_result.get('bounds'):
             result_text += f"  (範囲拘束: {fit_result['bounds']})\n"
+        if fit_result.get('loss', 'linear') != 'linear':
+            result_text += f"  (ロバストフィット: {fit_result['loss']})\n"
         return result_text
 
     def _on_copy_methods_text(self):

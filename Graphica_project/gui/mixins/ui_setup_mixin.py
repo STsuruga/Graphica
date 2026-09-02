@@ -67,16 +67,26 @@ class UISetupMixin:
             self.ui.y_minor_ticks_visible_checkbox.stateChanged.connect(self._on_y_minor_tick_visibility_changed)
 
             self.ui.x_log_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            # ★ 対数軸の補助目盛り制御(項目C-604)の表示/有効状態は対数表示の
+            # ON/OFFにも依存するため、_on_x/y_minor_tick_visibility_changed
+            # (元々は補助目盛表示チェックボックス用)を対数表示チェックボックス
+            # にもつなぐ。
+            self.ui.x_log_checkbox.stateChanged.connect(self._on_x_minor_tick_visibility_changed)
             self.ui.x_invert_checkbox.stateChanged.connect(self._on_axis_setting_changed)
             self.ui.x_min_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.x_max_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.y_log_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.ui.y_log_checkbox.stateChanged.connect(self._on_y_minor_tick_visibility_changed)
             self.ui.y_invert_checkbox.stateChanged.connect(self._on_axis_setting_changed)
             self.ui.y_min_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.y_max_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.x_major_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.y_major_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
             self.ui.x_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
+            self.x_log_minor_subs_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
+            self.x_log_minor_labels_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.y_log_minor_subs_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
+            self.y_log_minor_labels_checkbox.stateChanged.connect(self._on_axis_setting_changed)
             self.x_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
             self.y_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
             # 目盛りの小数点以下桁数(実機フィードバック): X軸/Y軸それぞれ独立
@@ -191,6 +201,12 @@ class UISetupMixin:
             self.ui.marker_combo.currentTextChanged.connect(self._on_property_changed)
             self.ui.markersize_spinbox.valueChanged.connect(self._on_property_changed)
             self.ui.smoothing_checkbox.stateChanged.connect(self._on_property_changed)
+            # ★ 平滑化チェックボックスのON/OFFで、手法コンボ(項目C-304)の
+            # 有効/無効も切り替える(_update_smoothing_control_visibility経由、
+            # plot_type変更時と同じ更新ロジックを再利用する)。
+            self.ui.smoothing_checkbox.stateChanged.connect(self._update_smoothing_control_visibility)
+            # 平滑化の手法(項目C-304)
+            self.smoothing_method_combo.currentIndexChanged.connect(self._on_property_changed)
             self.alpha_spinbox.valueChanged.connect(self._on_property_changed)
             # プロットへのグラデーション適用(項目79)
             self.gradient_checkbox.toggled.connect(self._on_property_changed)

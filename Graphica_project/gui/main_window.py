@@ -1172,6 +1172,21 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.nan_policy_combo.addItem(tr("無視してつなぐ"), "drop")
         self.ui.formLayout_4.addRow(self.nan_policy_label, self.nan_policy_combo)
 
+        # 2h. 平滑化の手法(項目C-304): 既存の「平滑化」チェックボックス
+        # (smoothing_checkbox、Designer生成)は on/off のみを制御し、こちらの
+        # コンボで手法を選ぶ(smoothing_method)。既定'cubic_spline'は
+        # smoothing_methodフィールド追加前からの唯一の挙動そのものなので、
+        # 既存プロジェクトを読み込んでも見た目は変わらない。表示/有効state
+        # は_update_smoothing_control_visibility側でsmoothing_checkboxと
+        # 連動して切り替える。
+        self.smoothing_method_label = QLabel(tr("平滑化の手法"))
+        self.smoothing_method_combo = QComboBox()
+        self.smoothing_method_combo.addItem(tr("CubicSpline(既定)"), "cubic_spline")
+        self.smoothing_method_combo.addItem(tr("移動平均"), "moving_average")
+        self.smoothing_method_combo.addItem(tr("中央値フィルタ"), "median")
+        self.smoothing_method_combo.addItem(tr("ガウシアンフィルタ"), "gaussian")
+        self.ui.formLayout_4.addRow(self.smoothing_method_label, self.smoothing_method_combo)
+
         # 3. 凡例の位置を選択するUIをコードで作成
         self.legend_loc_label = QLabel("凡例の位置")
         self.legend_loc_combo = QComboBox()
@@ -1426,6 +1441,24 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
         self.ui.formLayout.addRow(QLabel(tr("小数桁数")), self.x_tick_decimals_spinbox)
 
+        # 対数軸の補助目盛り高度制御(項目C-604): x_log_checkbox(対数表示)と
+        # x_minor_ticks_visible_checkbox(補助目盛を表示)の両方がONのときのみ
+        # 意味を持つため、既定では非表示(gui/mixins/settings_mixin.pyの
+        # _on_x_minor_tick_visibility_changedが表示/有効状態を切り替える)。
+        # gui/canvas.pyの_apply_appearanceがticker.LogLocator(subs=...)へ渡す。
+        self.x_log_minor_subs_label = QLabel(tr("対数軸の補助目盛り"))
+        self.x_log_minor_subs_combo = QComboBox()
+        self.x_log_minor_subs_combo.addItem(tr("自動(既定)"), "auto")
+        self.x_log_minor_subs_combo.addItem(tr("全て(2〜9)"), "all")
+        self.x_log_minor_subs_combo.addItem(tr("少なめ(2, 5)"), "few")
+        self.x_log_minor_subs_combo.addItem(tr("最小限(5)"), "one")
+        self.ui.formLayout.addRow(self.x_log_minor_subs_label, self.x_log_minor_subs_combo)
+        self.x_log_minor_labels_checkbox = QCheckBox(tr("補助目盛りに数値ラベルを表示"))
+        self.ui.formLayout.addRow(self.x_log_minor_labels_checkbox)
+        self.x_log_minor_subs_label.setVisible(False)
+        self.x_log_minor_subs_combo.setVisible(False)
+        self.x_log_minor_labels_checkbox.setVisible(False)
+
         # 単位変換の第2X軸(項目C-602): X軸データの単位(source)と第2X軸に
         # 表示したい単位(target)を選び、双方が「なし」以外かつ異なる場合のみ
         # 上部にnm<->eV<->cm^-1<->Hz変換済みの第2X軸を表示する
@@ -1469,6 +1502,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_tick_decimals_spinbox.setToolTip(
             tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
         self.ui.formLayout_2.addRow(QLabel(tr("小数桁数")), self.y_tick_decimals_spinbox)
+
+        # 対数軸の補助目盛り高度制御(項目C-604)、Y軸版
+        self.y_log_minor_subs_label = QLabel(tr("対数軸の補助目盛り"))
+        self.y_log_minor_subs_combo = QComboBox()
+        self.y_log_minor_subs_combo.addItem(tr("自動(既定)"), "auto")
+        self.y_log_minor_subs_combo.addItem(tr("全て(2〜9)"), "all")
+        self.y_log_minor_subs_combo.addItem(tr("少なめ(2, 5)"), "few")
+        self.y_log_minor_subs_combo.addItem(tr("最小限(5)"), "one")
+        self.ui.formLayout_2.addRow(self.y_log_minor_subs_label, self.y_log_minor_subs_combo)
+        self.y_log_minor_labels_checkbox = QCheckBox(tr("補助目盛りに数値ラベルを表示"))
+        self.ui.formLayout_2.addRow(self.y_log_minor_labels_checkbox)
+        self.y_log_minor_subs_label.setVisible(False)
+        self.y_log_minor_subs_combo.setVisible(False)
+        self.y_log_minor_labels_checkbox.setVisible(False)
 
         # 9. タイトル/軸ラベル入力欄を、クリックで編集ダイアログを開く
         #    mathtextプレビューラベルに差し替える(項目61/H-2-4追加分)。

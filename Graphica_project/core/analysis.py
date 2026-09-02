@@ -3,8 +3,9 @@ import re
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
-from scipy.integrate import simpson
+from scipy.integrate import simpson, cumulative_trapezoid, cumulative_simpson
 from scipy.interpolate import CubicSpline
+from scipy.ndimage import uniform_filter1d, median_filter, gaussian_filter1d
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, peak_widths, savgol_filter
 from scipy.special import wofz
@@ -155,8 +156,11 @@ def get_fit_param_names(fit_type, custom_formula=None):
         raise ValueError(f"不明なフィットタイプ: {fit_type}")
 
 
+_ROBUST_LOSS_FUNCTIONS = ('linear', 'soft_l1', 'huber')
+
+
 def _run_curve_fit_with_overrides(fit_func, params_info, p0, x_data, y_data, sigma,
-                                   p0_overrides, fixed_params, bounds, fit_type_label):
+                                   p0_overrides, fixed_params, bounds, fit_type_label, loss='linear'):
     """
     calculate_curve_fit()/calculate_multi_peak_fit()(項目C-409)の両方で共通の、
     p0上書き・パラメータ固定・範囲拘束(項目C-403)を適用してscipy.optimize.
@@ -164,11 +168,20 @@ def _run_curve_fit_with_overrides(fit_func, params_info, p0, x_data, y_data, sig
     直接書かれていたロジックをそのまま抽出、挙動は無変更)。fit_type_labelは
     収束失敗時のエラーメッセージにのみ使う表示用文字列。
 
+    loss (項目C-407、ロバストフィット): 'linear'(既定、通常の最小二乗)/
+    'soft_l1'/'huber'。外れ値の影響を抑えたい場合に使う。scipy.optimize.
+    curve_fitはbounds未指定時は既定でLevenberg-Marquardt法(method='lm')を
+    使うが、'lm'はloss引数(線形以外の損失関数)を受け付けないため、
+    loss!='linear'のときはmethod='trf'を明示的に指定する(bounds指定時は
+    curve_fitが自動的にtrfを選ぶため、この場合は既にtrfが使われている)。
+
     Returns:
         (popt, pcov): params_infoと同じフルサイズ(固定パラメータは指定値
             そのまま、pcovの対応する行/列は「最適化されていない=不確かさ
             不明」を表す0で復元済み)。
     """
+    if loss not in _ROBUST_LOSS_FUNCTIONS:
+        raise ValueError(f"未知の損失関数です(loss): '{loss}' (使用可能: {_ROBUST_LOSS_FUNCTIONS})")
     if len(x_data) < len(params_info):
         raise ValueError(
             f"データ点数 ({len(x_data)}) がフィットに必要なパラメータ数 "
@@ -253,6 +266,16 @@ def _run_curve_fit_with_overrides(fit_func, params_info, p0, x_data, y_data, sig
     else:
         curve_fit_kwargs["maxfev"] = CURVE_FIT_MAX_ITERATIONS
 
+    if loss != 'linear':
+        # ★ 'lm'(既定、bounds未指定時)はloss引数を受け付けないため、trfに
+        # 切り替える。maxfev(leastsq専用のキーワード)が残っていればmax_nfev
+        # (trf/dogbox用のキーワード)に付け替える(残したままだと
+        # "leastsq() got an unexpected keyword argument"になる)。
+        curve_fit_kwargs["loss"] = loss
+        curve_fit_kwargs.setdefault("method", "trf")
+        if "maxfev" in curve_fit_kwargs:
+            curve_fit_kwargs["max_nfev"] = curve_fit_kwargs.pop("maxfev")
+
     # 最適化の実行 (収束しないケースに備え、初期値と最大反復回数を指定)
     try:
         popt_free, pcov_free = curve_fit(fit_func_for_curve_fit, x_data, y_data, **curve_fit_kwargs)
@@ -283,11 +306,14 @@ def _run_curve_fit_with_overrides(fit_func, params_info, p0, x_data, y_data, sig
 
 
 def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_range=None,
-                         p0_overrides=None, fixed_params=None, bounds=None):
+                         p0_overrides=None, fixed_params=None, bounds=None, loss='linear'):
     """
     曲線フィットの計算を行い、パラメータとフィット曲線のデータを返す。
 
     Args:
+        loss (str): 項目C-407(ロバストフィット)。'linear'(既定、通常の最小二乗)/
+            'soft_l1'/'huber'。外れ値に引きずられにくいscipy.optimize.least_squares
+            の損失関数へ切り替える(_run_curve_fit_with_overrides参照)。
         sigma (array-like | None): 各点の重み付けに使う誤差(項目C-402)。
             scipy.optimize.curve_fitにabsolute_sigma=Trueとともにそのまま渡す
             (値が大きい=不確かさが大きい点ほどフィットへの影響が小さくなる)。
@@ -555,7 +581,7 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
 
     popt, pcov = _run_curve_fit_with_overrides(
         fit_func, params_info, p0, x_data, y_data, sigma,
-        p0_overrides, fixed_params, bounds, fit_type,
+        p0_overrides, fixed_params, bounds, fit_type, loss=loss,
     )
 
     # パラメータの標準誤差(項目C-401、後続のC-403初期値表示・C-405信頼帯の土台)。
@@ -594,6 +620,9 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
         # (項目C-401: フィット結果を後から再利用するための構造化保持)。
         'x_data_used': x_data,
         'y_data_used': y_data,
+        # 項目C-407: どの損失関数でフィットしたか(呼び出し側のprovenance/
+        # 結果表示用。'linear'なら通常の最小二乗、それ以外はロバストフィット)。
+        'loss': loss,
     }
 
 
@@ -819,7 +848,7 @@ def calculate_multi_peak_fit(x_data, y_data, component_type, initial_guesses, ba
 
 
 def fit_curve_task(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_range=None,
-                    p0_overrides=None, fixed_params=None, bounds=None,
+                    p0_overrides=None, fixed_params=None, bounds=None, loss='linear',
                     report_progress=None, is_cancelled=None):
     """
     calculate_curve_fit() を gui/task_runner.py の TaskRunner から呼び出すための
@@ -831,7 +860,7 @@ def fit_curve_task(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_
     """
     return calculate_curve_fit(
         x_data, y_data, fit_type, custom_formula=custom_formula, sigma=sigma, x_range=x_range,
-        p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds,
+        p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
     )
 
 
@@ -967,6 +996,55 @@ def calculate_interval_integral(x_data, y_data, x_range, method="trapezoid", sub
         'y_raw_used': y_in,
         'baseline_used': baseline_used,
         'n_points': len(x_in),
+    }
+
+
+def calculate_cumulative_integral(x_data, y_data, method="trapezoid"):
+    """
+    累積積分(項目C-303)。区間積分(calculate_interval_integral、項目C-311)が
+    「指定範囲1つ分の積分値(スカラー)」を返すのに対し、こちらはXの各点までの
+    積分値 ∫[x_min, x_i] y dx を新しい系列として返す(新しいデータセットとして
+    追加する想定、gui/mixins/dataset_mixin.pyの_on_cumulative_integral_dataset)。
+    積分方法(台形則/Simpson則)の選択肢はcalculate_interval_integralと揃えてある
+    (_INTEGRAL_METHODSを共有)。
+
+    Args:
+        x_data, y_data (array-like): 元データ(NaN行はcalculate_interval_integralと
+            同じ理由で自動的に除外する)。
+        method (str): "trapezoid"(台形則、scipy.integrate.cumulative_trapezoid)
+            または "simpson"(Simpson則、scipy.integrate.cumulative_simpson)。
+
+    Returns:
+        dict: x_used(積分に使った、Xの昇順にソート済みのX)/
+            y_cumulative(x_usedの各点までの累積積分値、x_usedと同じ長さ。
+            先頭は積分区間の幅が0のため常に0.0)/ method / n_points。
+    """
+    if method not in _INTEGRAL_METHODS:
+        raise ValueError(f"未知の積分方法です: {method}")
+
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+
+    nan_mask = np.isnan(x_data) | np.isnan(y_data)
+    if nan_mask.any():
+        x_data, y_data = x_data[~nan_mask], y_data[~nan_mask]
+
+    if len(x_data) < 2:
+        raise ValueError("有効なデータ点が不足しています(最低2点必要です)。")
+
+    order = np.argsort(x_data)
+    x_sorted, y_sorted = x_data[order], y_data[order]
+
+    if method == "trapezoid":
+        y_cumulative = cumulative_trapezoid(y_sorted, x_sorted, initial=0.0)
+    else:
+        y_cumulative = cumulative_simpson(y_sorted, x=x_sorted, initial=0.0)
+
+    return {
+        'x_used': x_sorted,
+        'y_cumulative': y_cumulative,
+        'method': method,
+        'n_points': len(x_sorted),
     }
 
 
@@ -1171,6 +1249,69 @@ def calculate_savgol(x_data, y_data, window_length, polyorder, deriv=0):
 
     y_result = savgol_filter(y_sorted, window_length, polyorder, deriv=deriv, delta=dx)
     return x_sorted, y_result
+
+
+# ==============================================================================
+# ライン表示の平滑化手法(項目C-304): Dataset.smoothing_method が選ぶ手法。
+# 既存のCubicSpline平滑化(ds.smoothing、常時この手法だった)に加えて、
+# ノイズ低減用途の移動平均/中央値/ガウシアンフィルタを選べるようにする。
+# いずれもcalculate_savgolと同じ「Xの昇順にソートしてから計算し、ソート済みの
+# (x, y)を返す」規約に揃えてある。CubicSplineと異なり200点への補間はせず、
+# 実データ点数のまま平滑化後のYを返す(ノイズ低減が目的で、疎なデータ点を
+# なめらかな曲線でつなぐことが目的ではないため)。gui/canvas.pyの_draw_data
+# (描画直前の表示専用の変形、元データ自体は変更しない)から呼ばれる想定。
+# ==============================================================================
+
+def calculate_moving_average_smooth(x_data, y_data, window=5):
+    """
+    移動平均によるライン平滑化(項目C-304)。windowは点数指定で、データ点数を
+    超える場合は自動的にクリップする(1点になる場合は元データをそのまま返す)。
+    端の効果はscipy.ndimage.uniform_filter1dのmode='nearest'(端の値を延長)で
+    処理する。
+    """
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+    order = np.argsort(x_data)
+    x_sorted, y_sorted = x_data[order], y_data[order]
+
+    n = len(y_sorted)
+    w = max(1, min(int(window), n)) if n > 0 else 1
+    if w <= 1:
+        return x_sorted, y_sorted.copy()
+    return x_sorted, uniform_filter1d(y_sorted, size=w, mode='nearest')
+
+
+def calculate_median_smooth(x_data, y_data, window=5):
+    """
+    中央値フィルタによるライン平滑化(項目C-304)。移動平均より単発のスパイク
+    ノイズに強い。windowの扱いはcalculate_moving_average_smoothと同じ。
+    """
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+    order = np.argsort(x_data)
+    x_sorted, y_sorted = x_data[order], y_data[order]
+
+    n = len(y_sorted)
+    w = max(1, min(int(window), n)) if n > 0 else 1
+    if w <= 1:
+        return x_sorted, y_sorted.copy()
+    return x_sorted, median_filter(y_sorted, size=w, mode='nearest')
+
+
+def calculate_gaussian_smooth(x_data, y_data, sigma=2.0):
+    """
+    ガウシアンフィルタによるライン平滑化(項目C-304)。sigmaは点数単位の標準偏差
+    (Xの間隔ではなく、データ点のインデックス間隔基準。scipy.ndimage.
+    gaussian_filter1dの仕様どおり)。
+    """
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+    order = np.argsort(x_data)
+    x_sorted, y_sorted = x_data[order], y_data[order]
+
+    if len(y_sorted) < 2 or sigma <= 0:
+        return x_sorted, y_sorted.copy()
+    return x_sorted, gaussian_filter1d(y_sorted, sigma=float(sigma), mode='nearest')
 
 
 # ==============================================================================
