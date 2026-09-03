@@ -20,7 +20,9 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          CommandPaletteDialog, QuickAccessManagerDialog, ShortcutsDialog,
                          LegendOrderDialog, MultiPeakFitDialog, ColumnStringOpsDialog,
                          ColumnVisibilityDialog, FindReplaceDialog,
-                         CumulativeIntegralDialog, ArrowAnnotationDialog)
+                         CumulativeIntegralDialog, ArrowAnnotationDialog,
+                         RowFilterDialog, DuplicateXDialog, OutlierDetectionDialog,
+                         FolderImportDialog, AutosaveHistoryDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -2571,3 +2573,140 @@ def test_new_dataset_dialog_accept_with_valid_input_accepts(qapp, monkeypatch):
 
     assert calls["warning"] == []
     assert dlg.result() == QDialog.DialogCode.Accepted
+
+
+# --- RowFilterDialog (項目C-204: 行フィルタ) ---
+
+def test_row_filter_dialog_defaults_to_empty_formula():
+    dlg = RowFilterDialog(['x', 'y'])
+    assert dlg.get_formula() == ""
+
+
+def test_row_filter_dialog_reflects_typed_formula_and_strips_whitespace():
+    dlg = RowFilterDialog(['x', 'y'])
+    dlg.formula_edit.setText("  y > 0.5  ")
+    assert dlg.get_formula() == "y > 0.5"
+
+
+def test_row_filter_dialog_handles_empty_column_list():
+    dlg = RowFilterDialog([])  # 例外を投げないこと
+    assert dlg.get_formula() == ""
+
+
+# --- DuplicateXDialog (項目C-203: 重複X値の検出) ---
+
+def test_duplicate_x_dialog_defaults_to_average_mode_with_suffixed_name():
+    dlg = DuplicateXDialog("D1", 4)
+    mode, output_name = dlg.get_settings()
+    assert mode == "average"
+    assert output_name == "D1_averaged"
+
+
+def test_duplicate_x_dialog_remove_mode_selection():
+    dlg = DuplicateXDialog("D1", 4)
+    dlg.mode_combo.setCurrentText(DuplicateXDialog.MODE_REMOVE)
+    mode, _output_name = dlg.get_settings()
+    assert mode == "remove"
+
+
+def test_duplicate_x_dialog_output_name_reflects_line_edit():
+    dlg = DuplicateXDialog("D1", 4)
+    dlg.output_name_edit.setText("custom_name")
+    _mode, output_name = dlg.get_settings()
+    assert output_name == "custom_name"
+
+
+# --- OutlierDetectionDialog (項目C-306: 外れ値検出) ---
+
+def test_outlier_detection_dialog_defaults_to_zscore_threshold_3_no_mask():
+    dlg = OutlierDetectionDialog("D1")
+    method, value, apply_to_mask = dlg.get_settings()
+    assert method == "zscore"
+    assert value == pytest.approx(3.0)
+    assert apply_to_mask is False
+
+
+def test_outlier_detection_dialog_iqr_mode_uses_multiplier():
+    dlg = OutlierDetectionDialog("D1")
+    dlg.method_combo.setCurrentText(OutlierDetectionDialog.METHOD_IQR)
+    dlg.multiplier_spinbox.setValue(2.0)
+    method, value, _apply = dlg.get_settings()
+    assert method == "iqr"
+    assert value == pytest.approx(2.0)
+
+
+def test_outlier_detection_dialog_apply_mask_checkbox_reflected():
+    dlg = OutlierDetectionDialog("D1")
+    dlg.apply_mask_checkbox.setChecked(True)
+    _method, _value, apply_to_mask = dlg.get_settings()
+    assert apply_to_mask is True
+
+
+# --- FolderImportDialog (項目C-104: フォルダから一括インポート) ---
+
+def test_folder_import_dialog_defaults_to_no_pattern():
+    dlg = FolderImportDialog(r"C:\data", ["a_25C.csv", "b_30C.csv"])
+    assert dlg.get_regex_pattern() is None
+
+
+def test_folder_import_dialog_returns_stripped_pattern():
+    dlg = FolderImportDialog(r"C:\data", ["a_25C.csv"])
+    dlg.regex_edit.setText(r"  (?P<temp>\d+)C  ")
+    assert dlg.get_regex_pattern() == r"(?P<temp>\d+)C"
+
+
+def test_folder_import_dialog_preview_shows_extracted_groups():
+    dlg = FolderImportDialog(r"C:\data", ["a_25C.csv"])
+    dlg.regex_edit.setText(r"(?P<temp>\d+)C")
+    assert "temp=25" in dlg.preview_label.text()
+
+
+def test_folder_import_dialog_preview_reports_no_match():
+    dlg = FolderImportDialog(r"C:\data", ["a_25C.csv"])
+    dlg.regex_edit.setText(r"(?P<temp>\d+)K")
+    assert "マッチしません" in dlg.preview_label.text()
+
+
+def test_folder_import_dialog_preview_reports_invalid_regex():
+    dlg = FolderImportDialog(r"C:\data", ["a_25C.csv"])
+    dlg.regex_edit.setText(r"(?P<bad>[")
+    assert "エラー" in dlg.preview_label.text()
+
+
+def test_folder_import_dialog_handles_empty_file_list():
+    dlg = FolderImportDialog(r"C:\data", [])  # 例外を投げないこと
+    assert dlg.get_regex_pattern() is None
+
+
+# --- AutosaveHistoryDialog (項目C-107: 自動バックアップ履歴) ---
+
+def test_autosave_history_dialog_lists_generations_and_stores_path_in_userrole():
+    generations = [
+        ("/path/autosave.graphica", "現在(最新)", "2026-01-01 10:00:00"),
+        ("/path/autosave.1.graphica", "1世代前", "2026-01-01 09:55:00"),
+    ]
+    dlg = AutosaveHistoryDialog(generations)
+    assert dlg.history_list.count() == 2
+    assert dlg.history_list.item(0).data(Qt.ItemDataRole.UserRole) == "/path/autosave.graphica"
+    assert "現在(最新)" in dlg.history_list.item(0).text()
+
+
+def test_autosave_history_dialog_no_selection_returns_none():
+    dlg = AutosaveHistoryDialog([("/path/autosave.graphica", "現在(最新)", "2026-01-01")])
+    dlg.history_list.setCurrentRow(-1)
+    assert dlg.get_selected_path() is None
+
+
+def test_autosave_history_dialog_ok_button_disabled_until_selection(qapp):
+    dlg = AutosaveHistoryDialog([("/path/autosave.graphica", "現在(最新)", "2026-01-01")])
+    assert dlg.ok_button.isEnabled() is False
+    dlg.history_list.setCurrentRow(0)
+    assert dlg.ok_button.isEnabled() is True
+
+
+def test_autosave_history_dialog_double_click_accepts(qapp):
+    dlg = AutosaveHistoryDialog([("/path/autosave.graphica", "現在(最新)", "2026-01-01")])
+    item = dlg.history_list.item(0)
+    dlg._on_double_clicked(item)
+    assert dlg.result() == QDialog.DialogCode.Accepted
+    assert dlg.get_selected_path() == "/path/autosave.graphica"

@@ -313,6 +313,11 @@ class UISetupMixin:
             paste_data_action = file_menu.addAction(tr("クリップボードから貼り付け(&V)..."))
             paste_data_action.triggered.connect(self._on_paste_data_from_clipboard)
 
+            # フォルダから一括インポート(項目C-104): 既存のドラッグ&ドロップ
+            # 複数ファイル取込み機構(_queue_data_files)をそのまま再利用する。
+            import_folder_action = file_menu.addAction(tr("フォルダから一括インポート(&F)..."))
+            import_folder_action.triggered.connect(self._on_import_folder)
+
             # 最近使ったファイル (プロジェクト/データファイル共通の履歴)
             self.recent_files_menu = file_menu.addMenu(tr("最近使ったファイル"))
             self._update_recent_files_menu()
@@ -364,6 +369,22 @@ class UISetupMixin:
             self.autosave_interval_action = file_menu.addAction(tr("オートセーブ間隔を設定(&I)..."))
             self.autosave_interval_action.triggered.connect(self._on_configure_autosave_interval)
             self._update_autosave_menu_text()
+
+            # 自動バックアップ履歴からの復元(項目C-107): 既存のオートセーブ
+            # 世代ローテーション(autosave.graphica/.1./.2.…)から選んで復元する。
+            autosave_history_action = file_menu.addAction(tr("自動バックアップ履歴から復元(&H)..."))
+            autosave_history_action.triggered.connect(self._on_show_autosave_history)
+
+            file_menu.addSeparator() # --- 区切り線 ---
+
+            # 設定・スタイルのエクスポート/インポート(項目C-109): 別PCへの
+            # 移行や研究室内での設定共有を想定(自動保存先ディレクトリ・
+            # 最近使ったファイルのような環境固有の項目は対象外)。
+            export_settings_action = file_menu.addAction(tr("設定・スタイルをエクスポート(&X)..."))
+            export_settings_action.triggered.connect(self._on_export_settings)
+
+            import_settings_action = file_menu.addAction(tr("設定・スタイルをインポート(&M)..."))
+            import_settings_action.triggered.connect(self._on_import_settings)
 
             # --- 2. 「編集」メニュー ---
             # データセットのプロパティ変更 (色・線種・凡例名など) の Undo/Redo

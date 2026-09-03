@@ -29,7 +29,7 @@ from gui.dialogs import (
     NormalizeDatasetDialog, PluginParamDialog, FitDialog, PeakSettingsDialog,
     DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
     NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
-    ResampleDatasetDialog,
+    ResampleDatasetDialog, DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
 )
 from core.dataset import Dataset
 from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
@@ -4588,6 +4588,379 @@ def test_cumulative_integral_records_provenance(tmp_path, monkeypatch):
     assert new_ds.provenance['operation'] == 'cumulative_integral'
     assert new_ds.provenance['params']['method'] == 'trapezoid'
     assert new_ds.provenance['source_dataset_names'] == ['line']
+
+
+# =============================================================================
+# 重複X値の検出 (_on_detect_duplicate_x, 項目C-203)
+# =============================================================================
+
+def _make_duplicate_x_dataset():
+    df = pd.DataFrame({'x': [1.0, 2.0, 2.0, 3.0, 1.0], 'y': [10.0, 20.0, 22.0, 30.0, 12.0]})
+    return Dataset(name="dup", df=df, x_col_name='x', y_col_name='y')
+
+
+def test_detect_duplicate_x_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    before_count = len(window.project.datasets)
+    window._on_detect_duplicate_x()
+    assert len(window.project.datasets) == before_count
+
+
+def test_detect_duplicate_x_no_duplicates_shows_info(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    info_calls = []
+    monkeypatch.setattr(
+        dataset_mixin_module.QMessageBox, "information",
+        staticmethod(lambda *a, **k: info_calls.append(a)),
+    )
+
+    window._on_detect_duplicate_x()
+
+    assert len(info_calls) == 1
+
+
+def test_detect_duplicate_x_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_duplicate_x_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "DuplicateXDialog", DuplicateXDialog, "get_settings",
+        ("average", "dup_avg"), accepted=False
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_detect_duplicate_x()
+
+    assert len(window.project.datasets) == before_count
+    assert ds.masked_row_indices == []
+
+
+def test_detect_duplicate_x_average_mode_adds_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_duplicate_x_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "DuplicateXDialog", DuplicateXDialog, "get_settings",
+        ("average", "dup_avg")
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_detect_duplicate_x()
+
+    assert len(window.project.datasets) == before_count + 1
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == "dup_avg"
+    np.testing.assert_allclose(sorted(new_ds.x_data.tolist()), [1.0, 2.0, 3.0])
+    np.testing.assert_allclose(sorted(new_ds.y_data.tolist()), [11.0, 21.0, 30.0])
+    assert new_ds.provenance['operation'] == 'average_duplicate_x'
+
+
+def test_detect_duplicate_x_average_mode_empty_output_name_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_duplicate_x_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "DuplicateXDialog", DuplicateXDialog, "get_settings",
+        ("average", "")
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_detect_duplicate_x()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_detect_duplicate_x_remove_mode_masks_non_first_duplicates(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_duplicate_x_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "DuplicateXDialog", DuplicateXDialog, "get_settings",
+        ("remove", "")
+    )
+
+    window._on_detect_duplicate_x()
+
+    # df.index: 0(x=1), 1(x=2), 2(x=2), 3(x=3), 4(x=1) のうち、各X値グループの
+    # 2件目以降(index 2, 4)がマスクされるはず
+    assert set(ds.masked_row_indices) == {2, 4}
+
+
+def test_detect_duplicate_x_remove_mode_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_duplicate_x_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "DuplicateXDialog", DuplicateXDialog, "get_settings",
+        ("remove", "")
+    )
+
+    window._on_detect_duplicate_x()
+    assert ds.masked_row_indices != []
+    window.undo_stack.undo()
+    assert ds.masked_row_indices == []
+
+
+def test_detect_duplicate_x_remove_mode_already_masked_shows_info(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_duplicate_x_dataset()
+    ds.masked_row_indices = [2, 4]
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "DuplicateXDialog", DuplicateXDialog, "get_settings",
+        ("remove", "")
+    )
+    info_calls = []
+    monkeypatch.setattr(
+        dataset_mixin_module.QMessageBox, "information",
+        staticmethod(lambda *a, **k: info_calls.append(a)),
+    )
+
+    window._on_detect_duplicate_x()
+
+    assert len(info_calls) == 1
+
+
+# =============================================================================
+# 行フィルタ (_on_filter_rows, 項目C-204)
+# =============================================================================
+
+def _make_row_filter_dataset():
+    df = pd.DataFrame({'x': [0, 1, 2, 3, 4], 'y': [0.1, 0.6, 0.9, 0.2, 0.7]})
+    return Dataset(name="filter_ds", df=df, x_col_name='x', y_col_name='y')
+
+
+def test_filter_rows_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_filter_rows()  # 例外にならないこと
+
+
+def test_filter_rows_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_row_filter_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula",
+        "y > 0.5", accepted=False
+    )
+
+    window._on_filter_rows()
+
+    assert ds.masked_row_indices == []
+
+
+def test_filter_rows_empty_formula_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_row_filter_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "")
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_filter_rows()
+
+    assert len(warnings) == 1
+    assert ds.masked_row_indices == []
+
+
+def test_filter_rows_masks_non_matching_rows(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_row_filter_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
+
+    window._on_filter_rows()
+
+    # y=0.1(index 0)とy=0.2(index 3)がy>0.5を満たさずマスクされるはず
+    assert set(ds.masked_row_indices) == {0, 3}
+    np.testing.assert_allclose(sorted(ds.y_data.tolist()), [0.6, 0.7, 0.9])
+
+
+def test_filter_rows_invalid_formula_warns_without_crashing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_row_filter_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y >")
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_filter_rows()
+
+    assert len(warnings) == 1
+    assert ds.masked_row_indices == []
+
+
+def test_filter_rows_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_row_filter_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
+
+    window._on_filter_rows()
+    assert ds.masked_row_indices != []
+    window.undo_stack.undo()
+    assert ds.masked_row_indices == []
+
+
+def test_filter_rows_union_with_existing_mask(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_row_filter_dataset()
+    ds.masked_row_indices = [2]  # 手動で1行マスク済み
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
+
+    window._on_filter_rows()
+
+    assert set(ds.masked_row_indices) == {0, 2, 3}
+
+
+def test_filter_rows_no_new_matches_shows_info(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_row_filter_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > -1")
+    info_calls = []
+    monkeypatch.setattr(
+        dataset_mixin_module.QMessageBox, "information",
+        staticmethod(lambda *a, **k: info_calls.append(a)),
+    )
+
+    window._on_filter_rows()
+
+    assert len(info_calls) == 1
+    assert ds.masked_row_indices == []
+
+
+# =============================================================================
+# 外れ値検出 (_on_detect_outliers, 項目C-306)
+# =============================================================================
+
+def _make_outlier_dataset():
+    y = np.concatenate([np.zeros(20), [100.0]])
+    x = np.arange(len(y), dtype=float)
+    df = pd.DataFrame({'x': x, 'y': y})
+    return Dataset(name="outlier_ds", df=df, x_col_name='x', y_col_name='y')
+
+
+def test_detect_outliers_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_detect_outliers()  # 例外にならないこと
+    assert window.outlier_result_dialog is None
+
+
+def test_detect_outliers_insufficient_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [1.0], 'y': [1.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_detect_outliers()
+
+    assert len(warnings) == 1
+
+
+def test_detect_outliers_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_outlier_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "OutlierDetectionDialog", OutlierDetectionDialog, "get_settings",
+        ("zscore", 3.0, True), accepted=False
+    )
+
+    window._on_detect_outliers()
+
+    assert ds.masked_row_indices == []
+    assert window.outlier_result_dialog is None
+
+
+def test_detect_outliers_preview_only_does_not_mask(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_outlier_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "OutlierDetectionDialog", OutlierDetectionDialog, "get_settings",
+        ("zscore", 3.0, False)
+    )
+
+    window._on_detect_outliers()
+
+    assert ds.masked_row_indices == []
+    assert window.outlier_result_dialog is not None
+    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    assert "プレビューのみ" in result_text
+    window.outlier_result_dialog.close()
+
+
+def test_detect_outliers_apply_to_mask_masks_detected_rows(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_outlier_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "OutlierDetectionDialog", OutlierDetectionDialog, "get_settings",
+        ("zscore", 3.0, True)
+    )
+
+    window._on_detect_outliers()
+
+    assert 20 in ds.masked_row_indices  # 100.0の外れ値(index 20)
+    assert window.outlier_result_dialog is not None
+    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    assert "マスクに追加しました" in result_text
+    window.outlier_result_dialog.close()
+
+
+def test_detect_outliers_apply_to_mask_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_outlier_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "OutlierDetectionDialog", OutlierDetectionDialog, "get_settings",
+        ("zscore", 3.0, True)
+    )
+
+    window._on_detect_outliers()
+    assert ds.masked_row_indices != []
+    window.undo_stack.undo()
+    assert ds.masked_row_indices == []
+    window.outlier_result_dialog.close()
+
+
+def test_detect_outliers_iqr_method_used_when_selected(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_outlier_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "OutlierDetectionDialog", OutlierDetectionDialog, "get_settings",
+        ("iqr", 1.5, False)
+    )
+
+    window._on_detect_outliers()
+
+    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    assert "IQR" in result_text
+    window.outlier_result_dialog.close()
+
+
+def test_detect_outliers_replaces_previous_result_dialog(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_outlier_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "OutlierDetectionDialog", OutlierDetectionDialog, "get_settings",
+        ("zscore", 3.0, False)
+    )
+
+    window._on_detect_outliers()
+    first = window.outlier_result_dialog
+    window._on_detect_outliers()
+    second = window.outlier_result_dialog
+
+    assert second is not first
+    second.close()
 
 
 # =============================================================================

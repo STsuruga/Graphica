@@ -24,6 +24,24 @@ AUTOSAVE_INTERVAL_MIN_BOUNDS = (0, 180)
 # 項目C-806: フィギュアテンプレートの現在のスキーマバージョン。
 TEMPLATE_FORMAT_VERSION = 1
 
+# 項目C-109: 設定・スタイルのエクスポート/インポート対象のQSettingsキー。
+# (キー名, 型, 既定値) のタプル。ウィンドウ状態・最近使ったファイル・
+# オートセーブ保存先ディレクトリのような「その環境固有」の項目は対象外
+# (別PCに持ち込んでも意味がない、またはむしろ害になるため)。
+SETTINGS_EXPORT_FORMAT_VERSION = 1
+SETTINGS_EXPORT_SPEC = (
+    ("language", str, ""),
+    ("dark_mode", bool, False),
+    ("autosave_interval_min", int, 5),
+    ("point_label_max_points", int, DEFAULT_POINT_LABEL_MAX_POINTS),
+    ("snap_to_grid_enabled", bool, DEFAULT_SNAP_TO_GRID_ENABLED),
+    ("snap_grid_interval_px", int, DEFAULT_SNAP_GRID_INTERVAL_PX),
+    ("custom_color_palettes_json", str, ""),
+    ("active_color_palette", str, ""),
+    ("quick_access_pinned_actions", list, []),
+    ("disabled_plugins", list, []),
+)
+
 # all_plot_settings[index]のうち、注釈・凡例の並び順・自由配置の位置は
 # サブプロットごとの「内容」寄りで、別のデータセット/プロジェクトへ持ち込む
 # 「見た目のスタイル」としては不適切なため、テンプレートの保存/適用対象から除外する
@@ -281,3 +299,94 @@ class ProjectIOMixin:
         except Exception as e:
             QMessageBox.warning(self, "読込エラー", f"テンプレートの読み込み中にエラーが発生しました:\n{e}")
             logger.exception("テンプレートの読み込み中にエラー")
+
+    def _on_export_settings(self):
+        """
+        「設定・スタイルをエクスポート...」メニューの処理(項目C-109)。
+        SETTINGS_EXPORT_SPECに列挙したQSettingsキーだけをJSONへ書き出す
+        (書式テンプレート機能=_on_save_plot_templateと同じJSON+format_version
+        の形式)。別PCでの利用や研究室内での設定共有を想定している。
+        """
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "設定・スタイルをエクスポート", "graphica_settings.json", "JSON Files (*.json)"
+        )
+        if not file_path:
+            return
+        if not file_path.endswith('.json'):
+            file_path += '.json'
+
+        exported = {}
+        for key, value_type, default in SETTINGS_EXPORT_SPEC:
+            if value_type is list:
+                value = self.settings.value(key, default)
+                # QSettingsは要素数1のリストを単一の文字列として返すことがある
+                # (quick_access_mixin.py/disabled_plugin_namesと同じ既知の癖)。
+                if isinstance(value, str):
+                    value = [value] if value else []
+            else:
+                value = self.settings.value(key, default, type=value_type)
+            exported[key] = value
+
+        payload = {'format_version': SETTINGS_EXPORT_FORMAT_VERSION, 'settings': exported}
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, indent=4, ensure_ascii=False)
+            QMessageBox.information(self, "設定・スタイルをエクスポート", f"エクスポートしました:\n{file_path}")
+        except Exception as e:
+            QMessageBox.warning(self, "保存エラー", f"設定のエクスポート中にエラーが発生しました:\n{e}")
+            logger.exception("設定のエクスポート中にエラー")
+
+    def _on_import_settings(self):
+        """
+        「設定・スタイルをインポート...」メニューの処理(項目C-109)。
+        _on_export_settingsが書き出したJSONを読み込み、SETTINGS_EXPORT_SPECに
+        含まれるキーのみをQSettingsへ反映する(未知のキーは無視、部分的な
+        ファイルでも安全に適用できる)。
+
+        既知の制約: 表示言語(core/i18n.pyのset_language()と同じ理由で
+        次回起動時にのみ反映)・ダークモード・カスタムパレット等は、この場で
+        即座にUIへ反映するにはそれぞれ個別の再適用処理が必要(テーマ再適用・
+        パレットコンボの再構築等)になり、影響範囲が広いため今回のスコープでは
+        行わない。QSettingsへの書き込みのみ行い、次回起動時に反映される旨を
+        メッセージで案内する。
+        """
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "設定・スタイルをインポート", "", "JSON Files (*.json)"
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                payload = json.load(f)
+        except Exception as e:
+            QMessageBox.warning(self, "設定・スタイルをインポート", f"ファイルの読み込みに失敗しました:\n{e}")
+            logger.exception("設定のインポート中にエラー")
+            return
+
+        data = payload.get('settings') if isinstance(payload, dict) else None
+        if not isinstance(data, dict):
+            # format_versionを持たない素朴なdictも許容する(手作業で書いた
+            # 設定ファイルにも対応できるよう、settingsキー必須にはしない)。
+            data = payload if isinstance(payload, dict) else None
+        if not isinstance(data, dict):
+            QMessageBox.warning(self, "設定・スタイルをインポート", "対応していないファイル形式です。")
+            return
+
+        valid_keys = {key for key, _value_type, _default in SETTINGS_EXPORT_SPEC}
+        imported_count = 0
+        for key, value in data.items():
+            if key not in valid_keys:
+                continue
+            self.settings.setValue(key, value)
+            imported_count += 1
+
+        if imported_count == 0:
+            QMessageBox.information(self, "設定・スタイルをインポート", "インポート対象の設定が見つかりませんでした。")
+            return
+
+        QMessageBox.information(
+            self, "設定・スタイルをインポート",
+            f"{imported_count}件の設定を反映しました。\n"
+            "表示言語など一部の設定は、次回起動時に反映されます。"
+        )

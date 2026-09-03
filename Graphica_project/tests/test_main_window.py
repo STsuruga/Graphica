@@ -258,6 +258,165 @@ def test_drop_event_skips_unsupported_extension_but_loads_the_rest(tmp_path, mon
     assert "notes.txt" in warning_calls[0][2]
 
 
+# =============================================================================
+# フォルダから一括インポート (_on_import_folder, 項目C-104)
+# =============================================================================
+
+def test_apply_filename_regex_columns_adds_named_groups_as_columns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [1, 2], 'y': [3, 4]})
+    result = window._apply_filename_regex_columns(
+        df, "sample_25C_run3.csv", r"(?P<temp>\d+)C_run(?P<run>\d+)"
+    )
+    assert result['temp'].tolist() == [25.0, 25.0]
+    assert result['run'].tolist() == [3.0, 3.0]
+    # 元のdfは変更されない(非破壊)
+    assert 'temp' not in df.columns
+
+
+def test_apply_filename_regex_columns_no_match_returns_unchanged(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [1, 2], 'y': [3, 4]})
+    result = window._apply_filename_regex_columns(df, "unrelated.csv", r"(?P<temp>\d+)C")
+    assert 'temp' not in result.columns
+
+
+def test_apply_filename_regex_columns_invalid_regex_does_not_raise(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [1, 2], 'y': [3, 4]})
+    result = window._apply_filename_regex_columns(df, "sample.csv", r"(?P<bad>[")
+    pd.testing.assert_frame_equal(result, df)
+
+
+def test_apply_filename_regex_columns_string_value_when_not_numeric(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [1, 2], 'y': [3, 4]})
+    result = window._apply_filename_regex_columns(df, "sample_red.csv", r"sample_(?P<color>\w+)")
+    assert result['color'].tolist() == ["red", "red"]
+
+
+def test_import_folder_no_directory_selected_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getExistingDirectory",
+        staticmethod(lambda *a, **k: "")
+    )
+    before_count = len(window._flatten_dataset_tree())
+
+    window._on_import_folder()
+
+    assert len(window._flatten_dataset_tree()) == before_count
+
+
+def test_import_folder_no_matching_files_shows_info(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    empty_dir = tmp_path / "empty_folder"
+    empty_dir.mkdir()
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getExistingDirectory",
+        staticmethod(lambda *a, **k: str(empty_dir))
+    )
+    info_calls = []
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "information",
+        staticmethod(lambda *a, **k: info_calls.append(a))
+    )
+
+    window._on_import_folder()
+
+    assert len(info_calls) == 1
+
+
+def test_import_folder_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder = tmp_path / "data_folder"
+    folder.mkdir()
+    (folder / "a.csv").write_text("x,y\n1,2\n", encoding="utf-8")
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getExistingDirectory",
+        staticmethod(lambda *a, **k: str(folder))
+    )
+
+    class _FakeFolderImportDialogCancelled:
+        def __init__(self, *a, **k): pass
+        def exec(self): return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(main_window_module, "FolderImportDialog", _FakeFolderImportDialogCancelled)
+    before_count = len(window._flatten_dataset_tree())
+
+    window._on_import_folder()
+
+    assert len(window._flatten_dataset_tree()) == before_count
+
+
+def test_import_folder_queues_all_matching_files_non_recursive(tmp_path, monkeypatch):
+    """
+    フォルダ直下の対応拡張子ファイルのみを対象にする(サブフォルダは対象外)。
+    既存のドラッグ&ドロップ一括取込み機構(_queue_data_files)をそのまま
+    再利用するため、ファイルごとにColumnPreviewDialogが表示される。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+
+    folder = tmp_path / "data_folder"
+    folder.mkdir()
+    (folder / "a.csv").write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
+    (folder / "b.csv").write_text("x,y\n5,6\n7,8\n", encoding="utf-8")
+    (folder / "ignored.txt").write_text("not data", encoding="utf-8")
+    sub = folder / "subfolder"
+    sub.mkdir()
+    (sub / "c.csv").write_text("x,y\n9,10\n", encoding="utf-8")  # サブフォルダは対象外
+
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getExistingDirectory",
+        staticmethod(lambda *a, **k: str(folder))
+    )
+
+    class _FakeFolderImportDialogAccepted:
+        def __init__(self, folder_path, file_names, parent=None):
+            self.file_names = file_names
+        def exec(self): return QDialog.DialogCode.Accepted
+        def get_regex_pattern(self): return None
+
+    monkeypatch.setattr(main_window_module, "FolderImportDialog", _FakeFolderImportDialogAccepted)
+    initial_count = len(window._flatten_dataset_tree())
+
+    window._on_import_folder()
+    _pump_events_until_queue_drained(window)
+
+    assert len(window._flatten_dataset_tree()) == initial_count + 2  # a.csv/b.csvのみ
+
+
+def test_import_folder_applies_regex_columns_to_each_imported_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+
+    folder = tmp_path / "data_folder"
+    folder.mkdir()
+    (folder / "sample_25C.csv").write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getExistingDirectory",
+        staticmethod(lambda *a, **k: str(folder))
+    )
+
+    class _FakeFolderImportDialogWithRegex:
+        def __init__(self, folder_path, file_names, parent=None): pass
+        def exec(self): return QDialog.DialogCode.Accepted
+        def get_regex_pattern(self): return r"(?P<temp>\d+)C"
+
+    monkeypatch.setattr(main_window_module, "FolderImportDialog", _FakeFolderImportDialogWithRegex)
+
+    window._on_import_folder()
+    _pump_events_until_queue_drained(window)
+
+    new_ds = window.project.datasets[-1]
+    assert 'temp' in new_ds.df.columns
+    assert new_ds.df['temp'].iloc[0] == 25.0
+    # フォルダ一括インポートのバッチ完了後は正規表現がリセットされる
+    assert window._batch_import_filename_regex is None
+
+
 # --- register_importer()由来の拡張子(項目B-1) ---
 
 # --- 個別のプラグイン無効化(項目F-2) ---
@@ -1373,6 +1532,121 @@ def test_check_autosave_recovery_reply_no_does_not_load(tmp_path, monkeypatch):
 
     monkeypatch.setattr(window, "_load_project_from_path", _fail_if_called)
     window._check_autosave_recovery()
+
+
+# --- 自動バックアップ履歴からの復元 (_on_show_autosave_history, 項目C-107) ---
+
+def _write_minimal_project(window, path):
+    """有効なプロジェクトファイルとして読み込めるよう、実際にproject.save_projectで書き出す"""
+    window.project.save_project(path)
+
+
+def test_show_autosave_history_no_generations_shows_info(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._autosave_filename = str(tmp_path / "autosave.graphica")  # 存在しない
+    info_calls = []
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "information",
+        staticmethod(lambda *a, **k: info_calls.append(a))
+    )
+
+    window._on_show_autosave_history()
+
+    assert len(info_calls) == 1
+
+
+def test_show_autosave_history_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    autosave_path = str(tmp_path / "autosave.graphica")
+    _write_minimal_project(window, autosave_path)
+    window._autosave_filename = autosave_path
+
+    class _FakeDialogCancelled:
+        def __init__(self, *a, **k): pass
+        def exec(self): return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(main_window_module, "AutosaveHistoryDialog", _FakeDialogCancelled)
+
+    def _fail_if_called(*a, **k):
+        raise AssertionError("キャンセルしたのに読み込みが行われた")
+
+    monkeypatch.setattr(window, "_load_project_from_path", _fail_if_called)
+    window._on_show_autosave_history()
+
+
+def test_show_autosave_history_confirmed_loads_selected_generation(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    autosave_path = str(tmp_path / "autosave.graphica")
+    _write_minimal_project(window, autosave_path)
+    window._autosave_filename = autosave_path
+
+    class _FakeDialogAccepted:
+        def __init__(self, generations, parent=None):
+            self.generations = generations
+        def exec(self): return QDialog.DialogCode.Accepted
+        def get_selected_path(self): return self.generations[0][0]
+
+    monkeypatch.setattr(main_window_module, "AutosaveHistoryDialog", _FakeDialogAccepted)
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "question",
+        staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.Yes)
+    )
+    loaded = []
+    monkeypatch.setattr(
+        window, "_load_project_from_path",
+        lambda path, add_to_recent=True: loaded.append((path, add_to_recent))
+    )
+
+    window._on_show_autosave_history()
+
+    assert loaded == [(autosave_path, False)]  # 最近使ったファイルには追加しない
+
+
+def test_show_autosave_history_declined_confirmation_does_not_load(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    autosave_path = str(tmp_path / "autosave.graphica")
+    _write_minimal_project(window, autosave_path)
+    window._autosave_filename = autosave_path
+
+    class _FakeDialogAccepted:
+        def __init__(self, generations, parent=None):
+            self.generations = generations
+        def exec(self): return QDialog.DialogCode.Accepted
+        def get_selected_path(self): return self.generations[0][0]
+
+    monkeypatch.setattr(main_window_module, "AutosaveHistoryDialog", _FakeDialogAccepted)
+    monkeypatch.setattr(
+        main_window_module.QMessageBox, "question",
+        staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.No)
+    )
+
+    def _fail_if_called(*a, **k):
+        raise AssertionError("復元確認でNoと答えたのに読み込みが行われた")
+
+    monkeypatch.setattr(window, "_load_project_from_path", _fail_if_called)
+    window._on_show_autosave_history()
+
+
+def test_show_autosave_history_lists_multiple_generations_newest_first(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    autosave_path = str(tmp_path / "autosave.graphica")
+    gen1_path = str(tmp_path / "autosave.1.graphica")
+    _write_minimal_project(window, autosave_path)
+    _write_minimal_project(window, gen1_path)
+    window._autosave_filename = autosave_path
+
+    captured = {}
+
+    class _FakeDialogCaptures:
+        def __init__(self, generations, parent=None):
+            captured['generations'] = generations
+        def exec(self): return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(main_window_module, "AutosaveHistoryDialog", _FakeDialogCaptures)
+    window._on_show_autosave_history()
+
+    paths = [g[0] for g in captured['generations']]
+    assert paths == [autosave_path, gen1_path]  # 現在(最新)が先頭
 
 
 # --- _check_first_launch() / _load_sample_data() ---

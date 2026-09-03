@@ -4,6 +4,8 @@ import re
 import types
 import sys
 import logging
+from datetime import datetime
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
@@ -162,7 +164,8 @@ from gui import theme
 from gui.theme import apply_form_spacing
 from gui.workers import load_data_file_task
 from gui.task_runner import TaskRunner
-from gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog
+from gui.dialogs import (ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog,
+                         FolderImportDialog, AutosaveHistoryDialog)
 from gui.color_picker_widget import ColorPickerWidget
 from gui.icon_utils import load_svg_icon, ICONS_DIR, icon as icon_utils_icon
 
@@ -562,6 +565,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
         self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
         self.integral_result_dialog = None  # 区間積分結果(項目C-311、非モーダル)のインスタンス保持用
+        self.outlier_result_dialog = None  # 外れ値検出結果(項目C-306、非モーダル)のインスタンス保持用
         self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
         self._fit_task_runner = None   # 曲線フィット用バックグラウンドタスク(項目C-004)の保持用
@@ -571,6 +575,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
         self._data_load_queue_done = 0   # 現在処理中のバッチで読み込みを開始した件数 (進捗表示用)
+        # フォルダから一括インポート(項目C-104)でユーザーが指定した、ファイル名
+        # から列を抽出する正規表現(未使用時はNone)。_import_loaded_dataframe
+        # が各ファイルのDataset構築前に適用し、_process_next_queued_fileが
+        # キューを使い切った時点でNoneに戻す(通常のドラッグ&ドロップ取込みには
+        # 影響しない)。
+        self._batch_import_filename_regex = None
         self._copied_dataset_style = None  # 「スタイルをコピー」でコピーした属性値の辞書
         # 上書き保存(実機フィードバック)用: 現在開いている/直前に保存した
         # プロジェクトファイルのパス。未保存(一度もsave/loadしていない)なら
@@ -2191,6 +2201,54 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         elif dialog.load_template_requested:
             self._on_load_plot_template()
 
+    def _on_show_autosave_history(self):
+        """
+        「自動バックアップ履歴から復元...」メニューの処理(項目C-107)。
+        既存のオートセーブ世代ローテーション(_rotate_autosave_generations、
+        autosave.graphica / .1. / .2. …)が実際に残している世代ファイルを
+        新しい順に列挙してAutosaveHistoryDialogで見せ、選択された世代を
+        _load_project_from_path(add_to_recent=False)で読み込む
+        (自動復元確認ダイアログ_check_autosave_recoveryと同じadd_to_recent=False
+        の理由: 「最近使ったファイル」を汚さず、次回の上書き保存先にも
+        しないため)。
+        """
+        base, ext = os.path.splitext(self._autosave_filename)
+        candidates = [(self._autosave_filename, "現在(最新)")]
+        for gen in range(1, AUTOSAVE_GENERATIONS):
+            candidates.append((f"{base}.{gen}{ext}", f"{gen}世代前"))
+
+        generations = []
+        for path, label in candidates:
+            if not os.path.exists(path):
+                continue
+            try:
+                mtime_text = datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M:%S")
+            except OSError:
+                mtime_text = "(更新日時不明)"
+            generations.append((path, label, mtime_text))
+
+        if not generations:
+            QMessageBox.information(self, "自動バックアップ履歴", "自動バックアップファイルが見つかりませんでした。")
+            return
+
+        dialog = AutosaveHistoryDialog(generations, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        selected_path = dialog.get_selected_path()
+        if not selected_path:
+            return
+
+        reply = QMessageBox.question(
+            self, "自動バックアップ履歴",
+            "選択した世代の内容で復元します。現在の未保存の変更は失われます。よろしいですか?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        self._load_project_from_path(selected_path, add_to_recent=False)
+
     def _load_sample_data(self):
         """ウェルカムダイアログの「サンプルデータを開く」ボタンから呼ばれる"""
         sample_path = resource_path(os.path.join("sample_data", "cooling_curve_sample.csv"))
@@ -3074,6 +3132,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         if not self._data_load_queue:
             self._data_load_queue_total = 0
             self._data_load_queue_done = 0
+            # 項目C-104: フォルダ一括インポートのファイル名正規表現は、その
+            # バッチが完全に処理し終わったタイミングでリセットする(以降の
+            # 通常のドラッグ&ドロップ取込みに引き継がれないようにするため)。
+            self._batch_import_filename_regex = None
             return
 
         next_path = self._data_load_queue.pop(0)
@@ -3218,6 +3280,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 preview_dialog.sheet_combo.currentText()
                 if (is_excel and preview_dialog.sheet_combo is not None) else None
             )
+            # フォルダ一括インポート(項目C-104)でファイル名正規表現が指定されて
+            # いれば、ファイル名から抽出した値を新しい列として追加する。
+            if self._batch_import_filename_regex:
+                final_df = self._apply_filename_regex_columns(
+                    final_df, file_path, self._batch_import_filename_regex
+                )
             new_dataset = Dataset(
                 name=preview_name, df=final_df, x_col_name=x_col, y_col_name=y_col,
                 source_file=os.path.abspath(file_path), source_sheet=source_sheet,
@@ -3230,6 +3298,81 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._add_recent_file(file_path)
         else:
             self.statusBar().showMessage("読み込みをキャンセルしました", 3000)
+
+    @staticmethod
+    def _apply_filename_regex_columns(df, file_path, pattern):
+        """
+        フォルダ一括インポート(項目C-104)で指定した正規表現の名前付きグループ
+        (?P<name>...)を、ファイル名(拡張子込みのbasename)から抽出して新しい列
+        として追加する(各行に同じ値をブロードキャスト)。数値に変換できる値は
+        float列として、できなければ文字列列として追加する。パターンが不正/
+        マッチしない/名前付きグループが無い場合は、インポート自体は継続したい
+        ため例外を投げず元のdfをそのまま返す(呼び出し側のFolderImportDialog
+        でも同じロジックのライブプレビューを見せているため、通常はここで
+        マッチしない事態にはならない想定だが、フォルダ内のファイル名が
+        統一されていないケースへの保険)。
+        """
+        try:
+            match = re.search(pattern, os.path.basename(file_path))
+        except re.error as e:
+            logger.warning("正規表現が不正なため、ファイル名からの列抽出をスキップしました: %s", e)
+            return df
+        if match is None:
+            return df
+        groups = match.groupdict()
+        if not groups:
+            return df
+
+        df = df.copy()
+        for name, value in groups.items():
+            if value is None:
+                continue
+            try:
+                df[name] = float(value)
+            except (TypeError, ValueError):
+                df[name] = value
+        return df
+
+    def _on_import_folder(self):
+        """
+        「フォルダから一括インポート...」メニューの処理(項目C-104)。
+
+        フォルダ内の対応拡張子ファイル(サブフォルダは対象外、_all_supported_
+        data_file_extensions()で判定)を集め、FolderImportDialogで対象一覧と
+        任意のファイル名正規表現(測定条件をファイル名から抜き出して新しい
+        列にする)を確認させた上で、既存のドラッグ&ドロップ一括取込み機構
+        (_queue_data_files)にそのまま渡す。列選択・シート選択等のダイアログは
+        ファイルごとに引き続き表示される(複数ファイルドラッグ&ドロップと
+        同じ挙動、フォルダ一括インポート固有の省略はしない)。
+        """
+        dir_path = QFileDialog.getExistingDirectory(self, "フォルダから一括インポート", "")
+        if not dir_path:
+            return
+
+        allowed_extensions = self._all_supported_data_file_extensions()
+        try:
+            file_paths = sorted(
+                str(p) for p in Path(dir_path).iterdir()
+                if p.is_file() and p.suffix.lower() in allowed_extensions
+            )
+        except OSError as e:
+            QMessageBox.warning(self, "フォルダから一括インポート", f"フォルダの読み取りに失敗しました:\n{e}")
+            return
+
+        if not file_paths:
+            QMessageBox.information(
+                self, "フォルダから一括インポート",
+                "対応する形式のファイルがフォルダ内に見つかりませんでした。"
+            )
+            return
+
+        file_names = [os.path.basename(p) for p in file_paths]
+        dialog = FolderImportDialog(dir_path, file_names, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        self._batch_import_filename_regex = dialog.get_regex_pattern()
+        self._queue_data_files(file_paths)
 
     def _on_paste_data_from_clipboard(self):
         """

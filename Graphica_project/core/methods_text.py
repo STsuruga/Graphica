@@ -46,6 +46,11 @@ def describe_operation(provenance):
             params.get('method'), params.get('method')
         )
         return f"累積積分({method_label})"
+    if operation == 'average_duplicate_x':
+        return (
+            f"重複X値の平均化({params.get('n_duplicate_groups')}グループ、"
+            f"{params.get('n_points_in')}点 → {params.get('n_points_out')}点)"
+        )
     if operation in ('curve_fit', 'batch_curve_fit'):
         fit_type = params.get('fit_type', '不明')
         r_squared = params.get('r_squared')

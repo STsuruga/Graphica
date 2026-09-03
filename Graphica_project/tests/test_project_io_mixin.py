@@ -534,3 +534,181 @@ def test_on_load_plot_template_malformed_json_shows_warning(tmp_path, monkeypatc
     window._on_load_plot_template()
 
     assert len(warn_calls) == 1
+
+
+# --- 設定・スタイルのエクスポート/インポート (項目C-109) ---
+
+def test_on_export_settings_cancelled_writes_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+
+    window._on_export_settings()
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_on_export_settings_writes_expected_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("dark_mode", True)
+    window.settings.setValue("point_label_max_points", 777)
+    window.settings.setValue("language", "en")
+    out_path = tmp_path / "settings.json"
+    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(out_path), ""))
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: None))
+
+    window._on_export_settings()
+
+    assert out_path.exists()
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["format_version"] == 1
+    assert data["settings"]["dark_mode"] is True
+    assert data["settings"]["point_label_max_points"] == 777
+    assert data["settings"]["language"] == "en"
+
+
+def test_on_export_settings_excludes_machine_specific_keys(tmp_path, monkeypatch):
+    """autosave_dir/recent_files等のマシン固有の項目はエクスポート対象に含まれない"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("autosave_dir", r"C:\some\machine\specific\path")
+    window.settings.setValue("recent_files", ["a.graphica", "b.graphica"])
+    out_path = tmp_path / "settings.json"
+    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(out_path), ""))
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: None))
+
+    window._on_export_settings()
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert "autosave_dir" not in data["settings"]
+    assert "recent_files" not in data["settings"]
+
+
+def test_on_export_settings_appends_json_extension_if_missing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    out_path_no_ext = tmp_path / "settings"
+    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(out_path_no_ext), ""))
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: None))
+
+    window._on_export_settings()
+
+    assert (tmp_path / "settings.json").exists()
+
+
+def test_on_import_settings_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName", lambda *a, **k: ("", ""))
+
+    window._on_import_settings()  # 例外にならないこと
+
+
+def test_on_import_settings_roundtrip_applies_values(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    payload = {
+        "format_version": 1,
+        "settings": {
+            "dark_mode": True,
+            "point_label_max_points": 999,
+            "quick_access_pinned_actions": ["a", "b"],
+        },
+    }
+    in_path = tmp_path / "settings.json"
+    in_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(in_path), ""))
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: None))
+
+    window._on_import_settings()
+
+    assert window.settings.value("dark_mode", type=bool) is True
+    assert window.settings.value("point_label_max_points", type=int) == 999
+    assert window.settings.value("quick_access_pinned_actions") == ["a", "b"]
+
+
+def test_on_import_settings_ignores_unknown_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    payload = {"format_version": 1, "settings": {"some_unknown_key": "value", "dark_mode": True}}
+    in_path = tmp_path / "settings.json"
+    in_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(in_path), ""))
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: None))
+
+    window._on_import_settings()
+
+    assert window.settings.value("some_unknown_key") is None
+    assert window.settings.value("dark_mode", type=bool) is True
+
+
+def test_on_import_settings_accepts_plain_dict_without_settings_wrapper(tmp_path, monkeypatch):
+    """format_version/settingsラッパーを持たない素朴なdictも許容する"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    in_path = tmp_path / "settings.json"
+    in_path.write_text(json.dumps({"dark_mode": True}), encoding="utf-8")
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(in_path), ""))
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: None))
+
+    window._on_import_settings()
+
+    assert window.settings.value("dark_mode", type=bool) is True
+
+
+def test_on_import_settings_malformed_json_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    in_path = tmp_path / "broken.json"
+    in_path.write_text("{ not valid json", encoding="utf-8")
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(in_path), ""))
+    warn_calls = []
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_import_settings()
+
+    assert len(warn_calls) == 1
+
+
+def test_on_import_settings_no_matching_keys_shows_info(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    in_path = tmp_path / "settings.json"
+    in_path.write_text(json.dumps({"format_version": 1, "settings": {"unknown_only": 1}}), encoding="utf-8")
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(in_path), ""))
+    info_calls = []
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    window._on_import_settings()
+
+    assert len(info_calls) == 1
+
+
+def test_export_then_import_settings_full_roundtrip(tmp_path, monkeypatch):
+    """エクスポート→(値を変更)→インポートで元の値に戻ることを確認する結合テスト"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue("dark_mode", True)
+    window.settings.setValue("point_label_max_points", 555)
+    out_path = tmp_path / "roundtrip.json"
+    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+                         lambda *a, **k: (str(out_path), ""))
+    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: None))
+    window._on_export_settings()
+
+    window.settings.setValue("dark_mode", False)
+    window.settings.setValue("point_label_max_points", 100)
+
+    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+                         lambda *a, **k: (str(out_path), ""))
+    window._on_import_settings()
+
+    assert window.settings.value("dark_mode", type=bool) is True
+    assert window.settings.value("point_label_max_points", type=int) == 555

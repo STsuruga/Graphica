@@ -4570,3 +4570,338 @@ class ArrowAnnotationDialog(QDialog):
         style_text = self.style_combo.currentText()
         style = self._STYLE_KEY_BY_LABEL[style_text]
         return self.text_edit.text().strip(), style, self.curvature_spinbox.value()
+
+
+#==============================================================================
+# カスタムダイアログクラス: 行フィルタ(項目C-204)
+#==============================================================================
+class RowFilterDialog(QDialog):
+    """
+    条件式(例: "y > 0.5")を満たさない行をマスク(項目36、非破壊)する
+    ダイアログ。ColumnCalculatorDialogと同じ`core/safe_eval.py`の
+    safe_eval_column_formula()をそのまま使う(列名を裸の識別子として
+    参照する、比較/論理演算子が使える、という同じ規約)。
+    """
+
+    def __init__(self, column_names, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("行フィルタ")
+        self.resize(440, 240)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("条件式を満たさない行をマスク(除外)します(非破壊、いつでも解除できます)。"))
+
+        self.formula_edit = QLineEdit()
+        self.formula_edit.setPlaceholderText("例: y > 0.5 や (x > 0) and (y < 100)")
+        layout.addWidget(self.formula_edit)
+
+        help_text = QLabel(
+            "列名はそのまま使えます(例: y)。比較演算子(>, <, ==, != 等)や\n"
+            "and / or / not が使えます(core/safe_eval.pyの安全な数式評価器)。"
+        )
+        help_text.setStyleSheet("font-size: 9pt; color: gray;")
+        help_text.setWordWrap(True)
+        layout.addWidget(help_text)
+
+        if column_names:
+            columns_label = QLabel("利用可能な列: " + ", ".join(str(c) for c in column_names))
+            columns_label.setWordWrap(True)
+            columns_label.setStyleSheet("font-size: 9pt; color: gray;")
+            layout.addWidget(columns_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_formula(self):
+        return self.formula_edit.text().strip()
+
+
+#==============================================================================
+# カスタムダイアログクラス: 重複X値の検出(項目C-203)
+#==============================================================================
+class DuplicateXDialog(QDialog):
+    """
+    同じX値を持つ行の処理方法(平均化/除去)を選ばせるダイアログ。
+    「平均化」は新しいデータセットを作る(_on_cumulative_integral_dataset等と
+    同じ「カレント1件から新しいデータセットを1つ作る」パターン)、「除去」は
+    先頭以外をマスク(項目36、非破壊)する。ResampleDatasetDialogと同じく
+    モードごとの入力欄をQStackedWidgetで切り替える。
+    """
+
+    MODE_AVERAGE = "平均化(新しいデータセットを作成)"
+    MODE_REMOVE = "除去(先頭以外をマスク)"
+    MODES = [MODE_AVERAGE, MODE_REMOVE]
+
+    def __init__(self, name, n_duplicate_rows, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("重複X値の検出")
+        self.resize(420, 240)
+        self._name = name
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+        layout.addWidget(QLabel(f"重複するX値を持つ行: {n_duplicate_rows}件"))
+
+        form = QFormLayout()
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(self.MODES)
+        form.addRow("処理方法", self.mode_combo)
+        layout.addLayout(form)
+
+        self.stack = QStackedWidget()
+
+        average_page = QWidget()
+        average_form = QFormLayout(average_page)
+        self.output_name_edit = QLineEdit(f"{name}_averaged")
+        average_form.addRow("出力データセット名", self.output_name_edit)
+        self.stack.addWidget(average_page)
+
+        remove_page = QWidget()
+        remove_form = QFormLayout(remove_page)
+        remove_note = QLabel("同じX値のうち最初に出現した行だけを残し、残りをマスク(除外)します。")
+        remove_note.setWordWrap(True)
+        remove_form.addRow(remove_note)
+        self.stack.addWidget(remove_page)
+
+        layout.addWidget(self.stack)
+        self.mode_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, str): (処理方法("average"|"remove"), 出力データセット名
+                ("remove"モードでは無視される))
+        """
+        mode = "average" if self.mode_combo.currentText() == self.MODE_AVERAGE else "remove"
+        return mode, self.output_name_edit.text().strip()
+
+
+#==============================================================================
+# カスタムダイアログクラス: 統計的外れ値検出(項目C-306)
+#==============================================================================
+class OutlierDetectionDialog(QDialog):
+    """
+    Z-score/IQRによる外れ値検出(Y値基準)の設定ダイアログ。
+
+    検出そのものと「検出結果をマスクに適用するか」を分離しており、後者は
+    既定でOFFのチェックボックスとしてユーザーに明示的に選ばせる(検出だけ
+    行って結果を確認し、必要ならマスクする、という2段階の運用を想定)。
+    OK後は必ず検出結果をResultDialogで表示し(_on_detect_outliers参照)、
+    チェックボックスがONの場合のみSetMaskedRowsCommandで実際にマスクする。
+    """
+
+    METHOD_ZSCORE = "Z-score"
+    METHOD_IQR = "IQR(四分位範囲)"
+    METHODS = [METHOD_ZSCORE, METHOD_IQR]
+    _METHOD_KEY_BY_LABEL = {METHOD_ZSCORE: "zscore", METHOD_IQR: "iqr"}
+
+    def __init__(self, name, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("外れ値検出")
+        self.resize(420, 280)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}(Y値をもとに検出します)"))
+
+        form = QFormLayout()
+        self.method_combo = QComboBox()
+        self.method_combo.addItems(self.METHODS)
+        form.addRow("検出方法", self.method_combo)
+        layout.addLayout(form)
+
+        self.stack = QStackedWidget()
+
+        zscore_page = QWidget()
+        zscore_form = QFormLayout(zscore_page)
+        self.threshold_spinbox = QDoubleSpinBox()
+        self.threshold_spinbox.setRange(0.1, 100.0)
+        self.threshold_spinbox.setDecimals(2)
+        self.threshold_spinbox.setValue(3.0)
+        zscore_form.addRow("しきい値(|Z| >)", self.threshold_spinbox)
+        self.stack.addWidget(zscore_page)
+
+        iqr_page = QWidget()
+        iqr_form = QFormLayout(iqr_page)
+        self.multiplier_spinbox = QDoubleSpinBox()
+        self.multiplier_spinbox.setRange(0.1, 100.0)
+        self.multiplier_spinbox.setDecimals(2)
+        self.multiplier_spinbox.setValue(1.5)
+        iqr_form.addRow("係数(IQR ×)", self.multiplier_spinbox)
+        self.stack.addWidget(iqr_page)
+
+        layout.addWidget(self.stack)
+        self.method_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+
+        self.apply_mask_checkbox = QCheckBox("検出した外れ値をマスク(除外)に適用する")
+        self.apply_mask_checkbox.setToolTip(
+            "チェックを外すと検出結果を表示するだけでマスクは変更しません。\n"
+            "マスクは非破壊(項目36と同じ仕組み)で、いつでも解除できます。"
+        )
+        layout.addWidget(self.apply_mask_checkbox)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            tuple (str, float, bool): (検出方法("zscore"|"iqr"),
+                しきい値/係数(検出方法に応じてどちらか一方の意味),
+                検出結果をマスクに適用するか)
+        """
+        method = self._METHOD_KEY_BY_LABEL[self.method_combo.currentText()]
+        value = self.threshold_spinbox.value() if method == "zscore" else self.multiplier_spinbox.value()
+        return method, value, self.apply_mask_checkbox.isChecked()
+
+
+#==============================================================================
+# カスタムダイアログクラス: フォルダから一括インポート(項目C-104)
+#==============================================================================
+class FolderImportDialog(QDialog):
+    """
+    フォルダ一括インポートの対象ファイル一覧を表示し、任意でファイル名から
+    測定条件(温度・濃度等)を抜き出す正規表現を入力させるダイアログ。
+    実際の読み込み自体は既存のドラッグ&ドロップ一括取込み機構
+    (gui/main_window.pyの_queue_data_files)をそのまま再利用するため、
+    このダイアログはファイルパスの収集と正規表現の入力だけを担当する。
+    """
+
+    def __init__(self, folder_path, file_names, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("フォルダから一括インポート")
+        self.resize(480, 340)
+
+        layout = QVBoxLayout(self)
+        folder_label = QLabel(f"フォルダ: {folder_path}")
+        folder_label.setWordWrap(True)
+        layout.addWidget(folder_label)
+        layout.addWidget(QLabel(f"対象ファイル: {len(file_names)}件"))
+
+        self.file_list = QListWidget()
+        self.file_list.addItems(file_names)
+        self.file_list.setMaximumHeight(130)
+        layout.addWidget(self.file_list)
+
+        layout.addWidget(QLabel(
+            "ファイル名から抽出する正規表現(任意、名前付きグループが新しい列になります):"
+        ))
+        self.regex_edit = QLineEdit()
+        self.regex_edit.setPlaceholderText(r"例: (?P<temp>\d+)C_(?P<run>\d+)\.csv")
+        layout.addWidget(self.regex_edit)
+
+        self.preview_label = QLabel("")
+        self.preview_label.setWordWrap(True)
+        self.preview_label.setStyleSheet("font-size: 9pt; color: gray;")
+        layout.addWidget(self.preview_label)
+
+        self._first_file_name = file_names[0] if file_names else ""
+        self.regex_edit.textChanged.connect(self._update_preview)
+        self._update_preview()
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def _update_preview(self):
+        """正規表現入力欄の変更のたびに、先頭ファイル名での抽出結果をライブプレビューする"""
+        pattern = self.regex_edit.text().strip()
+        if not pattern:
+            self.preview_label.setText("(正規表現が未入力のため、列は追加されません)")
+            return
+        try:
+            match = re.search(pattern, self._first_file_name)
+        except re.error as e:
+            self.preview_label.setText(f"正規表現エラー: {e}")
+            return
+        if match is None:
+            self.preview_label.setText(f"「{self._first_file_name}」にマッチしません")
+            return
+        groups = match.groupdict()
+        if not groups:
+            self.preview_label.setText("名前付きグループ (?P<name>...) がありません(列は追加されません)")
+            return
+        preview = ", ".join(f"{k}={v}" for k, v in groups.items())
+        self.preview_label.setText(f"「{self._first_file_name}」からの抽出例: {preview}")
+
+    def get_regex_pattern(self):
+        """Returns: str | None (未入力ならNone)"""
+        pattern = self.regex_edit.text().strip()
+        return pattern if pattern else None
+
+
+#==============================================================================
+# カスタムダイアログクラス: 自動バックアップ履歴(項目C-107)
+#==============================================================================
+class AutosaveHistoryDialog(QDialog):
+    """
+    既存のオートセーブ世代ローテーション(main_window.pyの
+    _rotate_autosave_generations、autosave.graphica/.1./.2.…)の各世代を
+    一覧表示し、選んだ世代のパスを返すダイアログ。実際の復元処理
+    (_load_project_from_path)は呼び出し側が行う。
+    """
+
+    def __init__(self, generations, parent=None):
+        """
+        Args:
+            generations (list[tuple[str, str, str]]): (ファイルパス, 世代ラベル,
+                更新日時の文字列)のリスト、新しい順。
+        """
+        super().__init__(parent)
+        self.setWindowTitle("自動バックアップ履歴")
+        self.resize(480, 320)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("復元する世代を選んでください(現在の未保存の変更は失われます):"))
+
+        self.history_list = QListWidget()
+        for path, label, mtime_text in generations:
+            item = QListWidgetItem(f"{label} — {mtime_text}")
+            item.setData(Qt.ItemDataRole.UserRole, path)
+            item.setToolTip(path)
+            self.history_list.addItem(item)
+        self.history_list.itemDoubleClicked.connect(self._on_double_clicked)
+        layout.addWidget(self.history_list)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        self.ok_button = button_box.button(QDialogButtonBox.StandardButton.Ok)
+        self.ok_button.setEnabled(False)
+        self.history_list.currentItemChanged.connect(
+            lambda current, _previous: self.ok_button.setEnabled(current is not None)
+        )
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def _on_double_clicked(self, item):
+        self.history_list.setCurrentItem(item)
+        self.accept()
+
+    def get_selected_path(self):
+        """Returns: str | None (選択されていなければNone)"""
+        item = self.history_list.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item is not None else None

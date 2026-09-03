@@ -13,6 +13,8 @@ from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgo
                             calculate_cumulative_integral,
                             calculate_moving_average_smooth, calculate_median_smooth,
                             calculate_gaussian_smooth,
+                            calculate_average_duplicate_x, calculate_zscore_outliers,
+                            calculate_iqr_outliers,
                             calculate_confidence_band, calculate_resample_to_grid,
                             calculate_lttb_downsample,
                             calculate_multi_peak_fit, get_multi_peak_param_names,
@@ -1377,6 +1379,97 @@ def test_robust_fit_works_with_bounds_and_fixed_params():
     )
     assert result['loss'] == 'huber'
     assert 0.0 <= result['popt'][0] <= 10.0
+
+
+# --- 重複X値の平均化(C-203) ---
+
+def test_average_duplicate_x_groups_and_averages():
+    x = [1.0, 2.0, 2.0, 3.0, 1.0]
+    y = [10.0, 20.0, 22.0, 30.0, 12.0]
+    result = calculate_average_duplicate_x(x, y)
+    np.testing.assert_allclose(result['x_used'], [1.0, 2.0, 3.0])
+    np.testing.assert_allclose(result['y_averaged'], [11.0, 21.0, 30.0])
+    np.testing.assert_array_equal(result['group_sizes'], [2, 2, 1])
+    assert result['n_duplicate_groups'] == 2
+    assert result['n_points_in'] == 5
+    assert result['n_points_out'] == 3
+
+
+def test_average_duplicate_x_no_duplicates_returns_unchanged_sorted():
+    x = [3.0, 1.0, 2.0]
+    y = [30.0, 10.0, 20.0]
+    result = calculate_average_duplicate_x(x, y)
+    np.testing.assert_allclose(result['x_used'], [1.0, 2.0, 3.0])
+    np.testing.assert_allclose(result['y_averaged'], [10.0, 20.0, 30.0])
+    assert result['n_duplicate_groups'] == 0
+
+
+def test_average_duplicate_x_ignores_nan_rows():
+    x = [1.0, 1.0, np.nan, 2.0]
+    y = [10.0, 12.0, 5.0, 20.0]
+    result = calculate_average_duplicate_x(x, y)
+    assert result['n_points_in'] == 3
+    np.testing.assert_allclose(result['x_used'], [1.0, 2.0])
+
+
+def test_average_duplicate_x_rejects_all_nan_data():
+    with pytest.raises(ValueError, match="欠損値"):
+        calculate_average_duplicate_x([np.nan, np.nan], [1.0, 2.0])
+
+
+# --- 統計的外れ値検出(C-306): Z-score / IQR ---
+
+def test_zscore_outliers_detects_clear_outlier():
+    rng = np.random.default_rng(0)
+    y = np.concatenate([rng.normal(0, 1, 50), [100.0]])
+    result = calculate_zscore_outliers(y, threshold=3.0)
+    assert result['is_outlier'][-1] == True  # noqa: E712 (numpy.bool_との比較を明示)
+    assert result['n_outliers'] >= 1
+    assert len(result['is_outlier']) == len(y)
+    assert result['threshold'] == 3.0
+
+
+def test_zscore_outliers_no_outliers_in_uniform_data():
+    y = np.full(20, 5.0)  # 標準偏差0
+    result = calculate_zscore_outliers(y, threshold=3.0)
+    assert result['n_outliers'] == 0
+    assert not result['is_outlier'].any()
+
+
+def test_zscore_outliers_nan_rows_never_flagged_and_preserve_length():
+    y = np.array([1.0, 2.0, np.nan, 3.0, 100.0])
+    result = calculate_zscore_outliers(y, threshold=1.0)
+    assert len(result['is_outlier']) == 5
+    assert result['is_outlier'][2] == False  # noqa: E712
+    assert np.isnan(result['z_scores'][2])
+
+
+def test_zscore_outliers_rejects_non_positive_threshold():
+    with pytest.raises(ValueError):
+        calculate_zscore_outliers([1.0, 2.0, 3.0], threshold=0)
+
+
+def test_iqr_outliers_detects_clear_outlier():
+    rng = np.random.default_rng(1)
+    y = np.concatenate([rng.normal(0, 1, 50), [100.0]])
+    result = calculate_iqr_outliers(y, multiplier=1.5)
+    assert result['is_outlier'][-1] == True  # noqa: E712
+    assert result['n_outliers'] >= 1
+    assert result['lower_bound'] is not None
+    assert result['upper_bound'] is not None
+
+
+def test_iqr_outliers_insufficient_points_returns_no_outliers_and_none_bounds():
+    y = np.array([1.0, 2.0, 3.0])  # 4点未満
+    result = calculate_iqr_outliers(y, multiplier=1.5)
+    assert result['n_outliers'] == 0
+    assert result['lower_bound'] is None
+    assert result['upper_bound'] is None
+
+
+def test_iqr_outliers_rejects_non_positive_multiplier():
+    with pytest.raises(ValueError):
+        calculate_iqr_outliers([1.0, 2.0, 3.0, 4.0], multiplier=0)
 
 
 # --- 信頼帯・予測帯(C-405) ---

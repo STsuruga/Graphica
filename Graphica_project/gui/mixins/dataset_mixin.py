@@ -32,9 +32,11 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_baseline_als, calculate_baseline_polynomial,
                            calculate_baseline_rubberband, calculate_baseline_manual,
                            calculate_interval_integral, calculate_cumulative_integral,
-                           calculate_confidence_band,
+                           calculate_confidence_band, calculate_average_duplicate_x,
+                           calculate_zscore_outliers, calculate_iqr_outliers,
                            calculate_resample_to_grid, multi_peak_fit_task)
-from core.commands import SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand
+from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
+                           SetMaskedRowsCommand)
 from core.dataset import Dataset
 from core.methods_text import generate_methods_text
 from core.plugin_api import get_registered_importer_extensions
@@ -46,7 +48,8 @@ from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPalet
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
                          BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
-                         ResampleDatasetDialog, MultiPeakFitDialog)
+                         ResampleDatasetDialog, MultiPeakFitDialog,
+                         DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog)
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -298,6 +301,20 @@ class DatasetMixin:
             # ベースライン補正と同じく「カレント1件から新しいデータセットを1つ作る」操作。
             resample_action = menu.addAction("共通X格子へのリサンプリング/補間...")
             resample_action.triggered.connect(self._on_resample_dataset)
+
+            # 重複X値の検出(項目C-203): 平均化(新規データセット)または
+            # 除去(先頭以外をマスク)を選ばせる。
+            duplicate_x_action = menu.addAction("重複X値の検出...")
+            duplicate_x_action.triggered.connect(self._on_detect_duplicate_x)
+
+            # 行フィルタ(項目C-204): 条件式を満たさない行をマスク(項目36、非破壊)する。
+            row_filter_action = menu.addAction("行フィルタ...")
+            row_filter_action.triggered.connect(self._on_filter_rows)
+
+            # 統計的外れ値検出(項目C-306): 検出のみ/マスクへの適用はユーザーが
+            # ダイアログのチェックボックスで明示的に選ぶ(自動では適用しない)。
+            outlier_action = menu.addAction("外れ値検出(Z-score/IQR)...")
+            outlier_action.triggered.connect(self._on_detect_outliers)
 
             # 統計値アンカーラベル(項目C-708): カレントデータセットのR²/Y平均/
             # Y標準偏差/Y最大値/Y最小値のいずれかを、データ座標ではなくAxes相対
@@ -1184,6 +1201,197 @@ class DatasetMixin:
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    def _on_detect_duplicate_x(self):
+        """
+        「重複X値の検出...」メニューの処理(項目C-203)。カレントの1つの
+        データセットについて、同じX値を持つ行を検出し、「平均化」(重複を
+        集約した新しいデータセットを追加)または「除去」(先頭以外をマスク、
+        項目36の非破壊マスク機構をそのまま使う)のどちらかを行う。
+
+        重複検出自体はdataset.dfの全行(既にマスク済みの行も含む)を対象に
+        行う(_on_filter_rows/_on_detect_outliersと違い「平均化」は
+        dataset.x_data/y_data、つまり現在有効な=マスク済みを除いたデータを
+        入力に使うが、「除去」でどの行をマスクするかの判定はdataset.df全体を
+        対象にする、既存のrange_select_mixin.pyのマスク操作と同じ「df.index
+        ラベルに対する集合演算」の考え方)。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        x_col = original_dataset.x_col_name
+        duplicated_mask = original_dataset.df[x_col].duplicated(keep=False)
+        n_duplicate_rows = int(duplicated_mask.sum())
+        if n_duplicate_rows == 0:
+            QMessageBox.information(self, "重複X値の検出", "重複するX値を持つ行は見つかりませんでした。")
+            return
+
+        dialog = DuplicateXDialog(original_dataset.name, n_duplicate_rows, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        mode, output_name = dialog.get_settings()
+
+        if mode == "average":
+            if not output_name:
+                QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+                return
+            x_data = np.asarray(original_dataset.x_data, dtype=float)
+            y_data = np.asarray(original_dataset.y_data, dtype=float)
+            try:
+                result = calculate_average_duplicate_x(x_data, y_data)
+            except ValueError as e:
+                QMessageBox.warning(self, "重複X値の検出", str(e))
+                return
+            result_df = pd.DataFrame({'x': result['x_used'], 'y': result['y_averaged']})
+            new_dataset = Dataset(
+                name=output_name, df=result_df, x_col_name='x', y_col_name='y',
+                provenance=self._build_provenance(
+                    'average_duplicate_x',
+                    {'n_duplicate_groups': result['n_duplicate_groups'],
+                     'n_points_in': result['n_points_in'], 'n_points_out': result['n_points_out']},
+                    [original_dataset],
+                ),
+            )
+            self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+            self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+        else:  # "remove"
+            # keep='first': 各X値グループのうち最初に出現した行だけを残し、
+            # 残りをマスクする(非破壊、いつでもDataEditorDialogから解除できる)。
+            to_mask_indices = original_dataset.df.index[original_dataset.df[x_col].duplicated(keep='first')].tolist()
+            old_masked = list(original_dataset.masked_row_indices)
+            new_masked = sorted(set(old_masked) | set(to_mask_indices))
+            if new_masked == old_masked:
+                QMessageBox.information(self, "重複X値の検出", "既にすべてマスク済みです。")
+                return
+            command = SetMaskedRowsCommand(
+                original_dataset, old_masked, new_masked,
+                description=f"重複X値の除去({len(to_mask_indices)}件をマスク)",
+            )
+            self.undo_stack.push(command)
+            self._update_plot()
+            self.statusBar().showMessage(f"{len(to_mask_indices)}件をマスクしました", 3000)
+
+    def _on_filter_rows(self):
+        """
+        「行フィルタ...」メニューの処理(項目C-204)。条件式(例: "y > 0.5")を
+        core/safe_eval.pyのsafe_eval_column_formula()で評価し、条件を
+        満たさない行をマスクする(項目36、非破壊)。既存のマスクとは
+        union(和集合)で合成する(range_select_mixin.py等、他のマスク操作と
+        同じ規約)。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        dialog = RowFilterDialog(original_dataset.df.columns.tolist(), parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        formula = dialog.get_formula()
+        if not formula:
+            QMessageBox.warning(self, "入力エラー", "条件式が空です。")
+            return
+
+        try:
+            match_result = safe_eval_column_formula(original_dataset.df, formula)
+        except Exception as e:
+            QMessageBox.warning(self, "行フィルタ", f"条件式の評価に失敗しました:\n{e}")
+            return
+
+        # 条件式が真偽値以外(数値計算式など)を返した場合、boolへのキャストで
+        # 0/NaN以外を真として扱う(pandasのbool変換規約に委ねる)。NaNはFalse
+        # 扱いになるようfillna(False)しておく(比較演算でNaNが混入した場合に
+        # 「マスクしない」側へ誤って倒れるのを防ぐ)。
+        try:
+            match_bool = match_result.astype(bool)
+        except (TypeError, ValueError):
+            QMessageBox.warning(self, "行フィルタ", "条件式の結果を真偽値に変換できませんでした。")
+            return
+        match_bool = match_bool.fillna(False) if hasattr(match_bool, 'fillna') else match_bool
+
+        to_mask_indices = original_dataset.df.index[~match_bool].tolist()
+        old_masked = list(original_dataset.masked_row_indices)
+        new_masked = sorted(set(old_masked) | set(to_mask_indices))
+        if new_masked == old_masked:
+            QMessageBox.information(self, "行フィルタ", "条件を満たさない(新たにマスクされる)行はありませんでした。")
+            return
+
+        command = SetMaskedRowsCommand(
+            original_dataset, old_masked, new_masked,
+            description=f"行フィルタ({formula})",
+        )
+        self.undo_stack.push(command)
+        self._update_plot()
+        self.statusBar().showMessage(f"{len(new_masked) - len(old_masked)}件をマスクしました", 3000)
+
+    def _on_detect_outliers(self):
+        """
+        「外れ値検出(Z-score/IQR)...」メニューの処理(項目C-306)。Y値を
+        基準にcore.analysis.calculate_zscore_outliers/calculate_iqr_outliersで
+        外れ値候補を検出する。検出結果は常にResultDialogで表示し、ダイアログの
+        「検出した外れ値をマスクに適用する」チェックボックスがONの場合のみ
+        SetMaskedRowsCommandで実際にマスクする(自動では適用しない — ユーザー
+        からの明示的な要望による設計)。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        y_data = np.asarray(original_dataset.y_data, dtype=float)
+        if len(y_data) < 2:
+            QMessageBox.warning(self, "外れ値検出", "有効なデータ点が不足しています(最低2点必要)。")
+            return
+
+        dialog = OutlierDetectionDialog(original_dataset.name, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        method, value, apply_to_mask = dialog.get_settings()
+
+        try:
+            if method == "zscore":
+                result = calculate_zscore_outliers(y_data, threshold=value)
+                method_label = f"Z-score(しきい値 |Z| > {value:g})"
+            else:
+                result = calculate_iqr_outliers(y_data, multiplier=value)
+                method_label = f"IQR(係数 {value:g})"
+        except ValueError as e:
+            QMessageBox.warning(self, "外れ値検出", str(e))
+            return
+
+        is_outlier = result['is_outlier']
+        x_data = np.asarray(original_dataset.x_data, dtype=float)
+        visible_index = original_dataset.visible_df.index
+
+        result_text = f"[{original_dataset.name}] の外れ値検出結果:\n"
+        result_text += f"  検出方法: {method_label}\n"
+        result_text += f"  検出件数: {int(np.sum(is_outlier))}件 / 全{len(y_data)}件\n"
+
+        if apply_to_mask and is_outlier.any():
+            to_mask_indices = visible_index[is_outlier].tolist()
+            old_masked = list(original_dataset.masked_row_indices)
+            new_masked = sorted(set(old_masked) | set(to_mask_indices))
+            command = SetMaskedRowsCommand(
+                original_dataset, old_masked, new_masked,
+                description=f"外れ値の自動マスク({method_label})",
+            )
+            self.undo_stack.push(command)
+            self._update_plot()
+            result_text += f"  → {len(to_mask_indices)}件をマスクに追加しました。\n"
+        elif apply_to_mask:
+            result_text += "  (マスク対象の行はありませんでした)\n"
+        else:
+            result_text += "  (プレビューのみ、マスクは適用していません)\n"
+
+        outlier_csv_data = pd.DataFrame({
+            'X': x_data[is_outlier],
+            'Y': y_data[is_outlier],
+        })
+        if self.outlier_result_dialog is not None:
+            self.outlier_result_dialog.close()
+        self.outlier_result_dialog = ResultDialog(
+            "外れ値検出完了", result_text, self, csv_data=outlier_csv_data
+        )
+        self.outlier_result_dialog.show()
 
     # 統計値アンカーラベル(項目C-708)の選択肢: 表示名 -> gui/canvas.pyの
     # _compute_stat_label_text/STAT_LABEL_TITLESが解釈する内部キー。
