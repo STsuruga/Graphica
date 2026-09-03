@@ -1702,6 +1702,148 @@ def calculate_resample_to_grid(x_data, y_data, target_x, method="linear", extrap
     return result
 
 
+# ==============================================================================
+# 重複X値の平均化(項目C-203): 同じX値を持つ行をグループ化しYを平均する。
+# 「除去」側(先頭以外をマスクする)はgui/mixins/dataset_mixin.py側でpandasの
+# duplicated()を直接使う(マスク対象のdf.indexラベルが必要なため、この
+# モジュールの他のcalculate_*関数と同じくnumpy配列だけを扱う設計とは相性が
+# 悪い。数値計算そのものはここに置くほどではないシンプルな話のため)。
+# ==============================================================================
+
+def calculate_average_duplicate_x(x_data, y_data):
+    """
+    同じX値を持つ行をグループ化し、Yの平均値に集約した新しい系列を返す
+    (項目C-203「平均化」側)。他のcalculate_*関数と同様、NaN行は計算前に
+    除外し、Xの昇順で返す。
+
+    Args:
+        x_data, y_data (array-like): 元データ(順不同で可)。
+
+    Returns:
+        dict: x_used(重複を集約した後の、昇順・一意なX)/
+            y_averaged(各Xグループの平均Y、x_usedと同じ長さ)/
+            group_sizes(各グループの元の点数、x_usedと同じ長さ)/
+            n_duplicate_groups(2点以上を含むグループの数)/
+            n_points_in(集約前の有効点数)/ n_points_out(集約後の点数)。
+    """
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+
+    nan_mask = np.isnan(x_data) | np.isnan(y_data)
+    if nan_mask.any():
+        x_data, y_data = x_data[~nan_mask], y_data[~nan_mask]
+
+    if len(x_data) == 0:
+        raise ValueError("有効なデータ点がありません(すべて欠損値です)。")
+
+    order = np.argsort(x_data, kind='stable')
+    x_sorted, y_sorted = x_data[order], y_data[order]
+
+    unique_x, inverse, counts = np.unique(x_sorted, return_inverse=True, return_counts=True)
+    # np.unique(..., return_inverse=True)はSciPy/NumPyのバージョンによって
+    # inverseの形状が(N,)と(N,1)のどちらかになることがあるため、平坦化しておく。
+    inverse = np.asarray(inverse).reshape(-1)
+    sums = np.zeros(len(unique_x))
+    np.add.at(sums, inverse, y_sorted)
+    y_averaged = sums / counts
+
+    return {
+        'x_used': unique_x,
+        'y_averaged': y_averaged,
+        'group_sizes': counts,
+        'n_duplicate_groups': int(np.sum(counts > 1)),
+        'n_points_in': len(x_sorted),
+        'n_points_out': len(unique_x),
+    }
+
+
+# ==============================================================================
+# 統計的外れ値検出(項目C-306): Z-score / IQR。検出のみを行い、実際に
+# マスク(項目36、非破壊的な除外機構)へ適用するかどうかはUI側
+# (gui/mixins/dataset_mixin.pyの_on_detect_outliers)がユーザーに選ばせる
+# ため、ここではマスク操作は一切行わない。
+#
+# is_outlierは入力(y_data)と同じ長さ・同じ並び順のbool配列を返す(他の
+# calculate_*関数のようにNaN行を除外して短くすることはしない)。これは
+# 呼び出し側がdataset.visible_df.index[is_outlier]のように位置とdf.indexの
+# 対応をそのまま使えるようにするための意図的な設計(NaN行はis_outlier=False
+# として扱う)。
+# ==============================================================================
+
+def calculate_zscore_outliers(y_data, threshold=3.0):
+    """
+    Y値のZ-score(標準化スコア)による外れ値検出。|z| > threshold の点を
+    外れ値候補とする。
+
+    Args:
+        y_data (array-like): 検出対象のY値。
+        threshold (float): 外れ値とみなすZ-scoreの絶対値のしきい値(既定3.0)。
+
+    Returns:
+        dict: is_outlier(y_dataと同じ長さのbool配列)/ z_scores(同じ長さ、
+            NaN行はnan)/ threshold / n_outliers。
+    """
+    if threshold <= 0:
+        raise ValueError("しきい値は正の値である必要があります。")
+
+    y = np.asarray(y_data, dtype=float)
+    is_outlier = np.zeros(len(y), dtype=bool)
+    z_scores = np.full(len(y), np.nan)
+    valid = ~np.isnan(y)
+
+    if valid.sum() >= 2:
+        mean = np.mean(y[valid])
+        std = np.std(y[valid], ddof=0)
+        if std > 0:
+            z_scores[valid] = (y[valid] - mean) / std
+            is_outlier[valid] = np.abs(z_scores[valid]) > threshold
+
+    return {
+        'is_outlier': is_outlier,
+        'z_scores': z_scores,
+        'threshold': threshold,
+        'n_outliers': int(np.sum(is_outlier)),
+    }
+
+
+def calculate_iqr_outliers(y_data, multiplier=1.5):
+    """
+    Y値の四分位範囲(IQR)による外れ値検出。[Q1 - multiplier*IQR,
+    Q3 + multiplier*IQR] の範囲外の点を外れ値候補とする(箱ひげ図の
+    「ひげ」の範囲外、という一般的な定義)。
+
+    Args:
+        y_data (array-like): 検出対象のY値。
+        multiplier (float): IQRに掛ける係数(既定1.5、箱ひげ図の慣例値)。
+
+    Returns:
+        dict: is_outlier(y_dataと同じ長さのbool配列)/ lower_bound / upper_bound
+            (計算できなかった場合はNone)/ multiplier / n_outliers。
+    """
+    if multiplier <= 0:
+        raise ValueError("係数は正の値である必要があります。")
+
+    y = np.asarray(y_data, dtype=float)
+    is_outlier = np.zeros(len(y), dtype=bool)
+    valid = ~np.isnan(y)
+    lower_bound = upper_bound = None
+
+    if valid.sum() >= 4:
+        q1, q3 = np.percentile(y[valid], [25, 75])
+        iqr = q3 - q1
+        lower_bound = float(q1 - multiplier * iqr)
+        upper_bound = float(q3 + multiplier * iqr)
+        is_outlier[valid] = (y[valid] < lower_bound) | (y[valid] > upper_bound)
+
+    return {
+        'is_outlier': is_outlier,
+        'lower_bound': lower_bound,
+        'upper_bound': upper_bound,
+        'multiplier': multiplier,
+        'n_outliers': int(np.sum(is_outlier)),
+    }
+
+
 def calculate_lttb_downsample(x_data, y_data, n_out):
     """
     Largest-Triangle-Three-Buckets (LTTB, Sveinn Steinarsson 2013) による
