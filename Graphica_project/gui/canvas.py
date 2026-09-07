@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
 from scipy.stats import gaussian_kde
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -55,6 +56,16 @@ _ARROW_STYLE_MAP = {
     'single': '->',
     'double': '<->',
     'bracket': ']-[',
+}
+
+# インセット(拡大図、項目138、C-711)の配置コーナー -> Axes相対座標(左下原点)
+# のオフセット。サイズ(幅・高さ)はダイアログ側で選ぶ別パラメータのため、
+# ここでは原点位置のみを定義する。
+_INSET_CORNER_ORIGINS = {
+    '右上': (0.55, 0.55),
+    '左上': (0.05, 0.55),
+    '右下': (0.55, 0.05),
+    '左下': (0.05, 0.05),
 }
 
 # データ点ラベル表示(各点の脇にテキストを描画)は、点数が多いと
@@ -807,6 +818,35 @@ class _CanvasDrawingMixin:
                         artist = ax.axvspan(lo, hi, color=color, alpha=alpha, zorder=0.5)
                     else:
                         artist = ax.axhspan(lo, hi, color=color, alpha=alpha, zorder=0.5)
+                elif ann_type == 'inset':
+                    # インセット(拡大図)+拡大範囲の指示線(項目138、C-711)。
+                    # #37自由配置のドラッグ基盤の流用は見送り(既存5モードの
+                    # マウス排他機構に7つ目を組み込むリスクに見合わないと判断)、
+                    # コーナー位置+サイズのプリセット選択で位置を決める簡略版。
+                    # インセット内の描画は、フル機能の_draw_data()を再利用せず、
+                    # 対象軸の各データセットのx/yを指定X範囲でそのまま単純な
+                    # 折れ線として描く(plot_type/グラデーション等は再現しない、
+                    # 「ズームした概観」を見せる用途と割り切った意図的な簡略化)。
+                    x0, y0 = _INSET_CORNER_ORIGINS.get(ann.get('corner', '右上'), (0.55, 0.55))
+                    size = ann.get('size', 0.4)
+                    x_min, x_max = ann.get('zoom_x_range', (0, 1))
+                    color = self._effective_text_color(ann.get('color', '#000000'))
+                    inset_ax = ax.inset_axes((x0, y0, size, size))
+                    for target_ds in (datasets or ()):
+                        if target_ds.subplot_target != axis_index or not target_ds.visible:
+                            continue
+                        tx = np.asarray(target_ds.x_data, dtype=float)
+                        ty = np.asarray(target_ds.y_data, dtype=float)
+                        in_range = (tx >= x_min) & (tx <= x_max)
+                        if in_range.any():
+                            inset_ax.plot(tx[in_range], ty[in_range], color=target_ds.color,
+                                          linewidth=target_ds.linewidth, alpha=target_ds.alpha)
+                    inset_ax.set_xlim(x_min, x_max)
+                    inset_ax.tick_params(labelsize=7)
+                    pp, p1, p2 = mark_inset(ax, inset_ax, loc1=ann.get('loc1', 2), loc2=ann.get('loc2', 4),
+                                            fc="none", ec=color)
+                    new_artists.extend([inset_ax, pp, p1, p2])
+                    artist = None
                 elif ann_type == 'stat':
                     # 統計値アンカーラベル(項目C-708)。Axes相対座標(0〜1、
                     # ax.transAxes)を使うため、データのズーム/パンに関わらず
@@ -823,7 +863,8 @@ class _CanvasDrawingMixin:
                     color = self._effective_text_color(ann.get('color', '#000000'))
                     xy = ann.get('xy', (0, 0))
                     artist = ax.text(xy[0], xy[1], text, color=color, fontsize=9)
-                new_artists.append(artist)
+                if artist is not None:
+                    new_artists.append(artist)
             except Exception:
                 logger.exception("注釈の描画に失敗しました: %s", ann)
         self._annotation_artists[axis_index] = new_artists

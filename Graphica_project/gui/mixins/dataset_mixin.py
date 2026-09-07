@@ -54,7 +54,7 @@ from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPalet
                          BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
                          ResampleDatasetDialog, MultiPeakFitDialog,
                          DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
-                         HistogramKDEDialog, XAxisAlignmentDialog)
+                         HistogramKDEDialog, XAxisAlignmentDialog, InsetDialog)
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -366,6 +366,10 @@ class DatasetMixin:
             # データやフィットを更新すると値が自動的に追従する。
             add_stat_label_action = menu.addAction("統計値アンカーラベルを追加...")
             add_stat_label_action.triggered.connect(self._on_add_stat_anchor_label)
+
+            # インセット(拡大図)+拡大範囲の指示線(項目138、C-711)
+            add_inset_action = menu.addAction("インセット(拡大図)を追加...")
+            add_inset_action.triggered.connect(self._on_add_inset)
 
             # ヒストグラム / カーネル密度推定(項目115、C-505): カレント1件の
             # 任意の数値列を集計し、新しいデータセットを1つ作る(上記の
@@ -1615,6 +1619,39 @@ class DatasetMixin:
             'type': 'stat', 'dataset_id': dataset.dataset_id, 'stat': stat,
             'xy': xy, 'color': '#000000',
         }, description="統計値アンカーラベルの追加")
+
+    def _on_add_inset(self):
+        """
+        「インセット(拡大図)を追加...」メニューの処理(項目138、C-711)。
+        カレントデータセットのX範囲を初期値として、拡大するX範囲・表示位置
+        (コーナー+サイズ)をInsetDialogで選ばせ、そのデータセットが描画されて
+        いる軸に注釈(type='inset')として追加する(gui/canvas.pyの
+        _draw_annotationsが実際の描画とmark_insetによる指示線を担当)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            return
+
+        x_data = np.asarray(dataset.x_data, dtype=float)
+        x_data = x_data[~np.isnan(x_data)]
+        if len(x_data) < 2:
+            QMessageBox.warning(self, "インセット(拡大図)", "有効なデータ点が不足しています(最低2点必要)。")
+            return
+        x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
+        span = x_max - x_min
+        default_zoom_min = x_min + span * 0.4
+        default_zoom_max = x_min + span * 0.6
+
+        dialog = InsetDialog(x_min, x_max, default_zoom_min, default_zoom_max, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        settings = dialog.get_settings()
+
+        axis_index = dataset.subplot_target
+        self._add_annotation(axis_index, {
+            'type': 'inset', 'corner': settings['corner'], 'size': settings['size'],
+            'zoom_x_range': settings['zoom_x_range'], 'color': '#000000',
+        }, description="インセット(拡大図)の追加")
 
     def _on_run_plugin_processor(self, processor):
         """

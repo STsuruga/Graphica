@@ -217,12 +217,22 @@ class AnnotationMixin:
                 # 領域ハイライト(項目C-701)は 'xy'/'xytext' を持たず、削除は
                 # 領域ハイライトモード側(_try_delete_region_near)が担当するため対象外。
                 continue
-            pos = ann.get('xytext') or ann.get('xy')
-            if pos is None:
-                continue
-            # 統計値アンカーラベル(項目C-708)はAxes相対座標(0〜1)で位置を持つため、
-            # データ座標変換(transData)ではなくtransAxesでピクセル位置を求める。
-            transform = ax.transAxes if ann_type == 'stat' else ax.transData
+            if ann_type == 'inset':
+                # インセット(拡大図、項目138、C-711)は'xy'/'xytext'を持たず、
+                # コーナー位置+サイズ(Axes相対座標)から中心点を逆算してヒット
+                # テストの代表点にする(統計値アンカーラベルと同じtransAxes系)。
+                from gui.canvas import _INSET_CORNER_ORIGINS
+                x0, y0 = _INSET_CORNER_ORIGINS.get(ann.get('corner', '右上'), (0.55, 0.55))
+                size = ann.get('size', 0.4)
+                pos = (x0 + size / 2, y0 + size / 2)
+                transform = ax.transAxes
+            else:
+                pos = ann.get('xytext') or ann.get('xy')
+                if pos is None:
+                    continue
+                # 統計値アンカーラベル(項目C-708)はAxes相対座標(0〜1)で位置を持つため、
+                # データ座標変換(transData)ではなくtransAxesでピクセル位置を求める。
+                transform = ax.transAxes if ann_type == 'stat' else ax.transData
             pos_px = transform.transform(pos)
             distance = ((pos_px[0] - click_px[0]) ** 2 + (pos_px[1] - click_px[1]) ** 2) ** 0.5
             if best_distance is None or distance < best_distance:
@@ -234,6 +244,8 @@ class AnnotationMixin:
         target = annotations[best_index]
         if target.get('type') == 'stat':
             label = "統計値アンカーラベル"
+        elif target.get('type') == 'inset':
+            label = "インセット(拡大図)"
         else:
             label = target.get('text') or ("矢印注釈" if target.get('type') == 'arrow' else "テキスト注釈")
         reply = QMessageBox.question(

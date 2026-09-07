@@ -5256,3 +5256,76 @@ class CVDSimulationDialog(QDialog):
             Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation,
         )
         self.preview_label.setPixmap(scaled)
+
+
+#==============================================================================
+# カスタムダイアログクラス: インセット(拡大図、項目138、C-711)
+#==============================================================================
+class InsetDialog(QDialog):
+    """
+    インセット(拡大図)+拡大範囲の指示線の設定ダイアログ。
+    #37自由配置のドラッグ基盤の流用は見送り(既存5モードのマウス排他機構に
+    7つ目を組み込むリスクに見合わないと判断)、コーナー位置+サイズの
+    プリセット選択で位置を決める簡略版。拡大するX範囲は数値で直接指定する。
+    """
+
+    CORNERS = ["右上", "左上", "右下", "左下"]
+
+    def __init__(self, x_min, x_max, default_zoom_min, default_zoom_max, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("インセット(拡大図)を追加")
+        self.resize(380, 260)
+
+        layout = QVBoxLayout(self)
+        info_label = QLabel(
+            f"データのX範囲: {x_min:.4g} 〜 {x_max:.4g}\n"
+            "拡大表示したいX範囲と、インセットを表示する位置を選んでください。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        form = QFormLayout()
+        self.zoom_min_spinbox = QDoubleSpinBox()
+        self.zoom_min_spinbox.setRange(-1e12, 1e12)
+        self.zoom_min_spinbox.setDecimals(4)
+        self.zoom_min_spinbox.setValue(default_zoom_min)
+        form.addRow("拡大範囲(最小)", self.zoom_min_spinbox)
+
+        self.zoom_max_spinbox = QDoubleSpinBox()
+        self.zoom_max_spinbox.setRange(-1e12, 1e12)
+        self.zoom_max_spinbox.setDecimals(4)
+        self.zoom_max_spinbox.setValue(default_zoom_max)
+        form.addRow("拡大範囲(最大)", self.zoom_max_spinbox)
+
+        self.corner_combo = QComboBox()
+        self.corner_combo.addItems(self.CORNERS)
+        form.addRow("表示位置", self.corner_combo)
+
+        self.size_spinbox = QDoubleSpinBox()
+        self.size_spinbox.setRange(0.15, 0.6)
+        self.size_spinbox.setSingleStep(0.05)
+        self.size_spinbox.setValue(0.35)
+        form.addRow("大きさ(軸に対する比率)", self.size_spinbox)
+        layout.addLayout(form)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """
+        Returns:
+            dict: {'corner': str, 'size': float, 'zoom_x_range': (float, float)}
+                (zoom_x_rangeは常に昇順(min, max)で返す)
+        """
+        lo = self.zoom_min_spinbox.value()
+        hi = self.zoom_max_spinbox.value()
+        return {
+            'corner': self.corner_combo.currentText(),
+            'size': self.size_spinbox.value(),
+            'zoom_x_range': (min(lo, hi), max(lo, hi)),
+        }

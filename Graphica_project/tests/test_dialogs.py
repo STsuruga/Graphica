@@ -24,7 +24,7 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          RowFilterDialog, DuplicateXDialog, OutlierDetectionDialog,
                          FolderImportDialog, AutosaveHistoryDialog,
                          HistogramKDEDialog, XAxisAlignmentDialog, CaptionGeneratorDialog,
-                         CVDSimulationDialog)
+                         CVDSimulationDialog, InsetDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -2905,3 +2905,38 @@ def test_cvd_simulation_dialog_switching_mode_updates_preview(qapp):
 
     simulated_pixmap = dlg.preview_label.pixmap().toImage()
     assert normal_pixmap != simulated_pixmap
+
+
+# --- InsetDialog(項目138、C-711) ---
+
+def test_inset_dialog_prefills_default_zoom_range(qapp):
+    dlg = InsetDialog(x_min=0, x_max=100, default_zoom_min=40, default_zoom_max=60)
+    assert dlg.zoom_min_spinbox.value() == pytest.approx(40)
+    assert dlg.zoom_max_spinbox.value() == pytest.approx(60)
+
+
+def test_inset_dialog_default_corner_and_size(qapp):
+    dlg = InsetDialog(x_min=0, x_max=100, default_zoom_min=40, default_zoom_max=60)
+    settings = dlg.get_settings()
+    assert settings['corner'] in InsetDialog.CORNERS
+    assert 0.15 <= settings['size'] <= 0.6
+
+
+def test_inset_dialog_get_settings_returns_ascending_zoom_range_even_if_swapped(qapp):
+    """最小/最大を逆に入力しても、常に昇順のタプルで返す。"""
+    dlg = InsetDialog(x_min=0, x_max=100, default_zoom_min=40, default_zoom_max=60)
+    dlg.zoom_min_spinbox.setValue(80)
+    dlg.zoom_max_spinbox.setValue(20)
+
+    settings = dlg.get_settings()
+
+    assert settings['zoom_x_range'] == (20, 80)
+
+
+def test_inset_dialog_get_settings_reflects_corner_selection(qapp):
+    dlg = InsetDialog(x_min=0, x_max=100, default_zoom_min=40, default_zoom_max=60)
+    dlg.corner_combo.setCurrentText("左下")
+
+    settings = dlg.get_settings()
+
+    assert settings['corner'] == "左下"

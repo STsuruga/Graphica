@@ -1889,6 +1889,80 @@ def test_draw_annotations_region_highlight_removed_on_redraw(canvas):
     assert sum(1 for p in ax.patches if p is canvas._annotation_artists[0][0]) == 1
 
 
+# --- _draw_annotations(): インセット(拡大図、項目138、C-711) ---
+
+def _make_inset_dataset(n_points=20):
+    df = pd.DataFrame({"x": list(range(n_points)), "y": [i * i for i in range(n_points)]})
+    return Dataset(name="d", df=df, x_col_name="x", y_col_name="y", color="#112233")
+
+
+def test_draw_annotations_inset_creates_child_axes(canvas):
+    ds = _make_inset_dataset()
+    settings = {'annotations': [{'type': 'inset', 'corner': '右上', 'size': 0.4,
+                                  'zoom_x_range': (5, 10), 'color': '#000000'}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    ax = canvas.all_axes[0]
+    assert len(ax.child_axes) == 1
+    assert len(canvas._annotation_artists[0]) == 4  # inset_ax + mark_insetの3要素
+
+
+def test_draw_annotations_inset_sets_zoomed_xlim(canvas):
+    ds = _make_inset_dataset()
+    settings = {'annotations': [{'type': 'inset', 'corner': '右上', 'size': 0.4,
+                                  'zoom_x_range': (5, 10), 'color': '#000000'}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert inset_ax.get_xlim() == pytest.approx((5, 10))
+
+
+def test_draw_annotations_inset_plots_only_data_within_zoom_range(canvas):
+    ds = _make_inset_dataset()
+    settings = {'annotations': [{'type': 'inset', 'corner': '右上', 'size': 0.4,
+                                  'zoom_x_range': (5, 10), 'color': '#000000'}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert len(inset_ax.lines) == 1
+    xdata = inset_ax.lines[0].get_xdata()
+    assert xdata.min() >= 5 and xdata.max() <= 10
+
+
+def test_draw_annotations_inset_removed_on_redraw(canvas):
+    """再描画のたびに前回分(inset_ax含む)を削除してから描き直す(重複しない)。"""
+    ds = _make_inset_dataset()
+    settings = {'annotations': [{'type': 'inset', 'corner': '右上', 'size': 0.4,
+                                  'zoom_x_range': (5, 10), 'color': '#000000'}]}
+    canvas.redraw_all([ds], 1, 1, [settings])
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    ax = canvas.all_axes[0]
+    assert len(ax.child_axes) == 1
+
+
+def test_draw_annotations_inset_ignores_datasets_from_other_subplots(canvas):
+    ds0 = _make_inset_dataset()
+    ds1 = Dataset(name="other", df=pd.DataFrame({"x": [100, 200], "y": [1, 2]}),
+                  x_col_name="x", y_col_name="y", subplot_target=1)
+    settings0 = {'annotations': [{'type': 'inset', 'corner': '右上', 'size': 0.4,
+                                   'zoom_x_range': (5, 10), 'color': '#000000'}]}
+    canvas.redraw_all([ds0, ds1], 1, 2, [settings0, {}])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert len(inset_ax.lines) == 1  # ds1(別サブプロット)は含まれない
+
+
+def test_draw_annotations_inset_handles_no_points_in_range_without_crashing(canvas):
+    ds = _make_inset_dataset()
+    settings = {'annotations': [{'type': 'inset', 'corner': '右上', 'size': 0.4,
+                                  'zoom_x_range': (1000, 2000), 'color': '#000000'}]}
+    canvas.redraw_all([ds], 1, 1, [settings])  # 例外にならないこと
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert len(inset_ax.lines) == 0
+
+
 # --- _enable_element_picking(): BarContainerのpatches個別ピッカー設定 ---
 
 def test_bar_plot_type_enables_picking_on_each_patch(canvas):

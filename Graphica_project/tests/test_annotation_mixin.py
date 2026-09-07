@@ -571,6 +571,47 @@ def _seed_stat_annotation(window, axis_index=0, xy=(0.05, 0.95), dataset_id='ds-
     }]
 
 
+def _seed_inset_annotation(window, axis_index=0, corner='右上', size=0.4):
+    window.project.all_plot_settings[axis_index]['annotations'] = [{
+        'id': 'inset-id', 'type': 'inset', 'corner': corner, 'size': size,
+        'zoom_x_range': (0, 1), 'color': '#000000',
+    }]
+
+
+def test_delete_annotation_near_matches_inset_via_center_point(tmp_path, monkeypatch):
+    """インセット(拡大図、項目138、C-711)は'xy'/'xytext'を持たないため、
+    コーナー+サイズから逆算した中心点(Axes相対座標)でヒットテストされること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    _seed_inset_annotation(window, corner='右上', size=0.4)  # 中心=(0.75, 0.75)
+    monkeypatch.setattr(QMessageBox, "question",
+                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 75.0, 75.0))
+
+    assert window.project.all_plot_settings[0]['annotations'] == []
+
+
+def test_delete_annotation_near_inset_confirmation_message(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ax = window.all_axes[0]
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    _seed_inset_annotation(window, corner='右上', size=0.4)
+    calls = []
+    monkeypatch.setattr(
+        QMessageBox, "question",
+        staticmethod(lambda *a, **k: calls.append(a) or QMessageBox.StandardButton.No),
+    )
+
+    window._try_delete_annotation_near(_FakeMplEvent(ax, 75.0, 75.0))
+
+    assert len(calls) == 1
+    assert "インセット" in calls[0][2]
+
+
 def test_delete_annotation_near_matches_stat_label_via_axes_transform(tmp_path, monkeypatch):
     """統計値アンカーラベル(項目C-708)はAxes相対座標を持つため、クリック位置との
     距離判定にtransAxes(transDataではなく)を使うこと。"""

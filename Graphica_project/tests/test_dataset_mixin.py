@@ -30,7 +30,7 @@ from gui.dialogs import (
     DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
     NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
     ResampleDatasetDialog, DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
-    HistogramKDEDialog, XAxisAlignmentDialog,
+    HistogramKDEDialog, XAxisAlignmentDialog, InsetDialog,
 )
 from core.color_palettes import BUILTIN_PALETTES
 from core.dataset import Dataset
@@ -7156,6 +7156,78 @@ def test_add_stat_anchor_label_is_undoable(tmp_path, monkeypatch):
     )
 
     window._on_add_stat_anchor_label()
+    assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) == 1
+
+    window.undo_stack.undo()
+    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
+
+
+# =============================================================================
+# インセット(拡大図)の追加 (_on_add_inset, 項目138、C-711)
+# =============================================================================
+
+def test_add_inset_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_add_inset()  # 例外にならないこと
+    assert window.undo_stack.count() == 0
+
+
+def test_add_inset_insufficient_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [1.0], 'y': [1.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_add_inset()
+
+    assert len(warnings) == 1
+
+
+def test_add_inset_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "InsetDialog", InsetDialog, "get_settings",
+        {'corner': '右上', 'size': 0.4, 'zoom_x_range': (0, 1)}, accepted=False
+    )
+
+    window._on_add_inset()
+
+    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
+
+
+def test_add_inset_adds_annotation_with_selected_settings(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "InsetDialog", InsetDialog, "get_settings",
+        {'corner': '左下', 'size': 0.3, 'zoom_x_range': (0.5, 1.5)}
+    )
+
+    window._on_add_inset()
+
+    annotations = window.project.all_plot_settings[ds.subplot_target]['annotations']
+    assert len(annotations) == 1
+    ann = annotations[0]
+    assert ann['type'] == 'inset'
+    assert ann['corner'] == '左下'
+    assert ann['size'] == pytest.approx(0.3)
+    assert ann['zoom_x_range'] == (0.5, 1.5)
+
+
+def test_add_inset_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "InsetDialog", InsetDialog, "get_settings",
+        {'corner': '右上', 'size': 0.4, 'zoom_x_range': (0, 1)}
+    )
+
+    window._on_add_inset()
     assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) == 1
 
     window.undo_stack.undo()
