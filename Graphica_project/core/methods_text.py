@@ -38,7 +38,8 @@ def describe_operation(provenance):
     if operation == 'resample':
         return f"共通X格子へのリサンプリング/補間(手法: {params.get('method')})"
     if operation == 'arithmetic':
-        return f"データセット間演算({params.get('operation_symbol')})"
+        error_note = "、誤差を伝播" if params.get('error_propagated') else ""
+        return f"データセット間演算({params.get('operation_symbol')}{error_note})"
     if operation == 'mean_sd':
         return f"複数データセットの平均±SD生成({params.get('n_source')}件、手法: {params.get('method')})"
     if operation == 'cumulative_integral':
@@ -51,6 +52,11 @@ def describe_operation(provenance):
             f"重複X値の平均化({params.get('n_duplicate_groups')}グループ、"
             f"{params.get('n_points_in')}点 → {params.get('n_points_out')}点)"
         )
+    if operation == 'histogram':
+        density_text = "確率密度" if params.get('density') else "度数"
+        return f"ヒストグラム(列: {params.get('column')}、{density_text}、ビン: {params.get('bins')})"
+    if operation == 'kde':
+        return f"カーネル密度推定(列: {params.get('column')}、評価点数: {params.get('n_points')})"
     if operation in ('curve_fit', 'batch_curve_fit'):
         fit_type = params.get('fit_type', '不明')
         r_squared = params.get('r_squared')

@@ -9,6 +9,7 @@ from scipy.ndimage import uniform_filter1d, median_filter, gaussian_filter1d
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, peak_widths, savgol_filter
 from scipy.special import wofz
+from scipy.stats import gaussian_kde
 
 from core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
 
@@ -1911,3 +1912,101 @@ def calculate_lttb_downsample(x_data, y_data, n_out):
         a = chosen
 
     return selected
+
+
+def calculate_histogram(data, bins='auto', density=False):
+    """
+    ヒストグラム(項目115、C-505)。1次元データを区間(ビン)ごとに集計し、
+    ビン中心のX、度数(またはdensity=Trueなら確率密度)のYからなる新しい
+    系列を返す。呼び出し側(_on_generate_histogram_or_kde)は、このX/Yを
+    そのままDatasetのx_data/y_dataとして新規データセットを作る
+    (plot_type='Bar'での表示を想定)。
+
+    Args:
+        data (array-like): 集計対象の1次元データ(NaNは自動的に除外)。
+        bins: np.histogram()にそのまま渡すビン指定(整数、エッジ配列、
+            'auto'/'sturges'等の文字列アルゴリズム名)。
+        density (bool): Trueなら合計面積が1になる確率密度、Falseなら度数(カウント)。
+
+    Returns:
+        dict: {'bin_centers', 'bin_edges', 'counts', 'n_points_used'}
+
+    Raises:
+        ValueError: 有効なデータ点が1つもない場合。
+    """
+    data = np.asarray(data, dtype=float)
+    data = data[~np.isnan(data)]
+    if len(data) == 0:
+        raise ValueError("有効なデータ点がありません(すべて欠損値です)。")
+    counts, bin_edges = np.histogram(data, bins=bins, density=density)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    return {
+        'bin_centers': bin_centers,
+        'bin_edges': bin_edges,
+        'counts': counts,
+        'n_points_used': len(data),
+    }
+
+
+def calculate_kde(data, n_points=200, bw_method=None):
+    """
+    カーネル密度推定(項目115、C-505)。scipy.stats.gaussian_kdeで、値の
+    最小〜最大区間を等間隔に評価した確率密度曲線(X=評価点、Y=密度)を返す。
+
+    Args:
+        data (array-like): 対象の1次元データ(NaNは自動的に除外)。
+        n_points (int): 密度を評価する点数(等間隔グリッド)。
+        bw_method: scipy.stats.gaussian_kdeのbw_method引数をそのまま渡す
+            (Noneなら既定のScottのルール)。
+
+    Returns:
+        dict: {'x_grid', 'density', 'n_points_used'}
+
+    Raises:
+        ValueError: 有効なデータ点が2点未満、またはデータに全くばらつきが
+            ない(全て同じ値で共分散行列が特異になる)場合。
+    """
+    data = np.asarray(data, dtype=float)
+    data = data[~np.isnan(data)]
+    if len(data) < 2:
+        raise ValueError("カーネル密度推定には少なくとも2点の有効なデータが必要です。")
+    try:
+        kde = gaussian_kde(data, bw_method=bw_method)
+        x_grid = np.linspace(data.min(), data.max(), n_points)
+        density = kde(x_grid)
+    except np.linalg.LinAlgError:
+        raise ValueError("データにばらつきが無いため、カーネル密度推定を計算できません。")
+    return {'x_grid': x_grid, 'density': density, 'n_points_used': len(data)}
+
+
+def calculate_error_propagation(operation, value_a, error_a, value_b, error_b):
+    """
+    誤差伝播(項目109、C-313)。データセット間演算(gui/mixins/dataset_mixin.py の
+    _on_dataset_arithmetic)で、両方のデータセットにY誤差列がある場合にだけ、
+    演算結果の誤差列を自動計算する。独立な誤差を仮定した標準的な誤差伝播則
+    (二乗和の平方根)を使う。除算は、分子側がゼロのときに不必要にNaNへ
+    落ちないよう、比(σ/値)ではなく分母側だけで割る形の式を使う。
+
+    Args:
+        operation (str): "A - B" | "B - A" | "A + B" | "A × B" | "A ÷ B" | "B ÷ A"
+            (DatasetArithmeticDialog.get_settings()が返す表記そのもの)。
+        value_a, error_a, value_b, error_b (array-like): 演算に使った(Bは
+            補間済みの)値と誤差。要素ごとに対応する同じ長さの配列。
+
+    Returns:
+        np.ndarray: 演算結果に対応する伝播後の誤差(常に非負)。
+    """
+    a = np.asarray(value_a, dtype=float)
+    ea = np.asarray(error_a, dtype=float)
+    b = np.asarray(value_b, dtype=float)
+    eb = np.asarray(error_b, dtype=float)
+
+    if operation in ("A - B", "B - A", "A + B"):
+        return np.sqrt(ea ** 2 + eb ** 2)
+    if operation == "A × B":
+        return np.sqrt((ea * b) ** 2 + (eb * a) ** 2)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        if operation == "A ÷ B":
+            return np.sqrt((ea / b) ** 2 + (a * eb / b ** 2) ** 2)
+        else:  # "B ÷ A"
+            return np.sqrt((eb / a) ** 2 + (b * ea / a ** 2) ** 2)

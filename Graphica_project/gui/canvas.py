@@ -1294,6 +1294,12 @@ class _CanvasDrawingMixin:
                     # 棒グラフ: 文字列カテゴリ軸(項目31)との組み合わせを主な用途として想定。
                     artist = target_ax.bar(plot_x_data, plot_y_data, color=ds.color, alpha=ds.alpha, label=ds.name, **plot_kwargs)
                     ds.artist = artist
+                elif ds.plot_type == 'Step':
+                    # 階段プロット(項目113、C-503)。既存の'Line'描画をax.plot(drawstyle=...)に
+                    # 変えるだけの最小実装(バックログの想定通り)。区間の左端の値を右端まで
+                    # 保持する'steps-post'を既定に選ぶ(サンプリング/イベントデータの慣習に合わせる)。
+                    (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, drawstyle='steps-post', **plot_kwargs)
+                    ds.artist = artist
                 else:
                     # 項目D-2: register_plot_type()でプラグインが追加した未知のplot_type。
                     # 既存5種類の分岐は変更しない増分実装(ウォーターフォール等の追加

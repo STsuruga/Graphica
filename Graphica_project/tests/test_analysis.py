@@ -18,7 +18,8 @@ from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgo
                             calculate_confidence_band, calculate_resample_to_grid,
                             calculate_lttb_downsample,
                             calculate_multi_peak_fit, get_multi_peak_param_names,
-                            multi_peak_fit_task)
+                            multi_peak_fit_task, calculate_histogram, calculate_kde,
+                            calculate_error_propagation)
 
 
 def test_linear_fit_recovers_known_parameters():
@@ -1470,6 +1471,113 @@ def test_iqr_outliers_insufficient_points_returns_no_outliers_and_none_bounds():
 def test_iqr_outliers_rejects_non_positive_multiplier():
     with pytest.raises(ValueError):
         calculate_iqr_outliers([1.0, 2.0, 3.0, 4.0], multiplier=0)
+
+
+# --- ヒストグラム / カーネル密度推定(項目115、C-505) ---
+
+def test_histogram_counts_sum_to_input_length():
+    data = [1.0, 2.0, 2.5, 3.0, 3.5, 4.0]
+    result = calculate_histogram(data, bins=3)
+    assert result['counts'].sum() == len(data)
+    assert len(result['bin_centers']) == 3
+    assert len(result['bin_edges']) == 4
+    assert result['n_points_used'] == len(data)
+
+
+def test_histogram_bin_centers_are_midpoints_of_edges():
+    result = calculate_histogram([0.0, 1.0, 2.0, 3.0], bins=2)
+    edges = result['bin_edges']
+    expected_centers = (edges[:-1] + edges[1:]) / 2
+    assert np.allclose(result['bin_centers'], expected_centers)
+
+
+def test_histogram_density_normalizes_to_unit_area():
+    data = np.random.default_rng(0).normal(0, 1, 500)
+    result = calculate_histogram(data, bins=20, density=True)
+    bin_width = result['bin_edges'][1] - result['bin_edges'][0]
+    assert np.isclose(np.sum(result['counts']) * bin_width, 1.0, atol=1e-9)
+
+
+def test_histogram_ignores_nan_values():
+    result = calculate_histogram([1.0, 2.0, np.nan, 3.0], bins=3)
+    assert result['n_points_used'] == 3
+
+
+def test_histogram_rejects_all_nan_data():
+    with pytest.raises(ValueError):
+        calculate_histogram([np.nan, np.nan])
+
+
+def test_kde_returns_requested_number_of_points():
+    data = np.random.default_rng(0).normal(0, 1, 100)
+    result = calculate_kde(data, n_points=50)
+    assert len(result['x_grid']) == 50
+    assert len(result['density']) == 50
+    assert result['n_points_used'] == 100
+
+
+def test_kde_x_grid_spans_data_range():
+    data = [0.0, 5.0, 10.0]
+    result = calculate_kde(data, n_points=20)
+    assert np.isclose(result['x_grid'][0], 0.0)
+    assert np.isclose(result['x_grid'][-1], 10.0)
+
+
+def test_kde_ignores_nan_values():
+    result = calculate_kde([1.0, 2.0, 3.0, np.nan], n_points=10)
+    assert result['n_points_used'] == 3
+
+
+def test_kde_rejects_fewer_than_two_points():
+    with pytest.raises(ValueError):
+        calculate_kde([1.0], n_points=10)
+
+
+def test_kde_rejects_constant_data():
+    """全て同じ値だと共分散行列が特異になり計算できないため、分かりやすいエラーにする。"""
+    with pytest.raises(ValueError):
+        calculate_kde([2.0, 2.0, 2.0], n_points=10)
+
+
+# --- 誤差伝播(項目109、C-313) ---
+
+def test_error_propagation_add_and_subtract_use_same_formula():
+    result_add = calculate_error_propagation("A + B", [10.0], [1.0], [2.0], [0.2])
+    result_sub_ab = calculate_error_propagation("A - B", [10.0], [1.0], [2.0], [0.2])
+    result_sub_ba = calculate_error_propagation("B - A", [10.0], [1.0], [2.0], [0.2])
+    expected = np.sqrt(1.0 ** 2 + 0.2 ** 2)
+    assert np.isclose(result_add[0], expected)
+    assert np.isclose(result_sub_ab[0], expected)
+    assert np.isclose(result_sub_ba[0], expected)
+
+
+def test_error_propagation_multiply_matches_manual_formula():
+    result = calculate_error_propagation("A × B", [10.0], [1.0], [2.0], [0.2])
+    expected = np.sqrt((1.0 * 2.0) ** 2 + (0.2 * 10.0) ** 2)
+    assert np.isclose(result[0], expected)
+
+
+def test_error_propagation_divide_a_over_b_matches_manual_formula():
+    result = calculate_error_propagation("A ÷ B", [10.0], [1.0], [2.0], [0.2])
+    expected = np.sqrt((1.0 / 2.0) ** 2 + (10.0 * 0.2 / 2.0 ** 2) ** 2)
+    assert np.isclose(result[0], expected)
+
+
+def test_error_propagation_divide_b_over_a_matches_manual_formula():
+    result = calculate_error_propagation("B ÷ A", [10.0], [1.0], [2.0], [0.2])
+    expected = np.sqrt((0.2 / 10.0) ** 2 + (2.0 * 1.0 / 10.0 ** 2) ** 2)
+    assert np.isclose(result[0], expected)
+
+
+def test_error_propagation_never_negative():
+    result = calculate_error_propagation("A + B", [-5.0, 5.0], [1.0, 1.0], [-2.0, 2.0], [0.5, 0.5])
+    assert np.all(result >= 0)
+
+
+def test_error_propagation_division_does_not_nan_when_numerator_is_zero():
+    """A÷Bでa=0でも、値ではなく分母(b)側で割る式のため誤差はNaNにならない。"""
+    result = calculate_error_propagation("A ÷ B", [0.0], [1.0], [2.0], [0.2])
+    assert not np.isnan(result[0])
 
 
 # --- 信頼帯・予測帯(C-405) ---

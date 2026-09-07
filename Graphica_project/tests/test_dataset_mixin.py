@@ -30,6 +30,7 @@ from gui.dialogs import (
     DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
     NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
     ResampleDatasetDialog, DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
+    HistogramKDEDialog,
 )
 from core.dataset import Dataset
 from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
@@ -1626,6 +1627,73 @@ def test_arithmetic_non_overlapping_ranges_warns(tmp_path, monkeypatch):
     window._on_dataset_arithmetic()
 
     assert len(warnings) == 1
+
+
+# --- 誤差伝播(項目109、C-313) ---
+
+def _make_arith_pair_with_errors():
+    df_a = pd.DataFrame({'x': [0, 1, 2, 3], 'y': [0.0, 10.0, 20.0, 30.0], 'y_err': [1.0, 1.0, 1.0, 1.0]})
+    df_b = pd.DataFrame({'x': [0, 1, 2, 3], 'y': [5.0, 5.0, 5.0, 5.0], 'y_err': [0.5, 0.5, 0.5, 0.5]})
+    ds_a = Dataset(name="A", df=df_a, x_col_name='x', y_col_name='y', y_err_col_name='y_err')
+    ds_b = Dataset(name="B", df=df_b, x_col_name='x', y_col_name='y', y_err_col_name='y_err')
+    return ds_a, ds_b
+
+
+def test_arithmetic_propagates_error_when_both_datasets_have_error_columns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_arith_pair_with_errors()
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "DatasetArithmeticDialog", DatasetArithmeticDialog,
+        "get_settings", ("A - B", "diff")
+    )
+
+    window._on_dataset_arithmetic()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.y_err_col_name == 'y_err'
+    expected = np.sqrt(1.0 ** 2 + 0.5 ** 2)
+    np.testing.assert_allclose(new_ds.y_err_data, [expected] * 4)
+
+
+def test_arithmetic_no_error_column_when_only_one_dataset_has_errors(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_arith_pair()  # 誤差列なし
+    df_a_err = pd.DataFrame({'x': [0, 1, 2, 3], 'y': [0.0, 10.0, 20.0, 30.0], 'y_err': [1.0] * 4})
+    ds_a_with_err = Dataset(name="A", df=df_a_err, x_col_name='x', y_col_name='y', y_err_col_name='y_err')
+    window._add_dataset(ds_a_with_err, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a_with_err, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "DatasetArithmeticDialog", DatasetArithmeticDialog,
+        "get_settings", ("A - B", "diff")
+    )
+
+    window._on_dataset_arithmetic()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.y_err_col_name is None
+
+
+def test_arithmetic_no_error_columns_unaffected(tmp_path, monkeypatch):
+    """従来どおり、誤差列が無い場合の挙動(結果に誤差列を付けない)は変わらない。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_arith_pair()
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "DatasetArithmeticDialog", DatasetArithmeticDialog,
+        "get_settings", ("A - B", "diff")
+    )
+
+    window._on_dataset_arithmetic()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.y_err_col_name is None
+    np.testing.assert_allclose(new_ds.y_data, [-5.0, 5.0, 15.0, 25.0])  # 従来の計算結果と一致
 
 
 # =============================================================================
@@ -3399,6 +3467,65 @@ def test_plot_column_changed_both_at_once_single_command(tmp_path, monkeypatch):
 
 
 # =============================================================================
+# 列の単位メタデータ→軸ラベル自動生成 (_maybe_autofill_axis_label, 項目127、C-608)
+# =============================================================================
+
+def test_plot_column_changed_autofills_empty_x_label_from_unit_column(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1, 2], 'y': [1.0, 2.0, 3.0], 'wavelength_nm': [400.0, 500.0, 600.0]})
+    df = df.rename(columns={'wavelength_nm': 'Wavelength (nm)'})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    assert window.ui.x_label_text_edit.text() == ''
+
+    window.x_col_combo.setCurrentText('Wavelength (nm)')
+
+    assert window.ui.x_label_text_edit.text() == 'Wavelength (nm)'
+
+
+def test_plot_column_changed_does_not_overwrite_existing_x_label(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1, 2], 'y': [1.0, 2.0, 3.0], 'Wavelength (nm)': [400.0, 500.0, 600.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    window.ui.x_label_text_edit.setText('カスタムラベル')
+
+    window.x_col_combo.setCurrentText('Wavelength (nm)')
+
+    assert window.ui.x_label_text_edit.text() == 'カスタムラベル'
+
+
+def test_plot_column_changed_no_autofill_when_column_has_no_unit(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1, 2], 'y': [1.0, 2.0, 3.0], 'z': [4.0, 5.0, 6.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+
+    window.x_col_combo.setCurrentText('z')
+
+    assert window.ui.x_label_text_edit.text() == ''
+
+
+def test_plot_column_changed_autofills_non_active_subplot_settings_dict(tmp_path, monkeypatch):
+    """
+    描画先(subplot_target)が「現在UIに表示中の軸」(active_axis_index)と
+    異なる場合は、表示中の軸のテキスト欄を誤って書き換えず、
+    all_plot_settings側を直接更新する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.subplot_cols_spinbox.setValue(2)  # 2分割 -> all_plot_settingsが2件になる
+    df = pd.DataFrame({'x': [0, 1, 2], 'y': [1.0, 2.0, 3.0], 'Wavelength (nm)': [400.0, 500.0, 600.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y', subplot_target=1)
+    _add_and_select_dataset(window, ds)
+    assert window.project.active_axis_index == 0  # 表示中は「プロット1」のまま
+
+    window.x_col_combo.setCurrentText('Wavelength (nm)')
+
+    assert window.ui.x_label_text_edit.text() == ''  # 表示中(プロット1)は変わらない
+    assert window.project.all_plot_settings[1]['x_label'] == 'Wavelength (nm)'  # プロット2側に反映
+
+
+# =============================================================================
 # 誤差列変更 (_on_error_column_changed)
 # =============================================================================
 
@@ -4964,6 +5091,108 @@ def test_detect_outliers_replaces_previous_result_dialog(tmp_path, monkeypatch):
 
 
 # =============================================================================
+# ヒストグラム / KDE (_on_generate_histogram_or_kde, 項目115、C-505)
+# =============================================================================
+
+def _make_histogram_dataset():
+    rng = np.random.default_rng(0)
+    y = rng.normal(0, 1, 100)
+    x = np.arange(len(y), dtype=float)
+    df = pd.DataFrame({'x': x, 'y': y})
+    return Dataset(name="hist_ds", df=df, x_col_name='x', y_col_name='y')
+
+
+def test_generate_histogram_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_generate_histogram_or_kde()  # 例外にならないこと
+    assert len(window.project.datasets) == 0
+
+
+def test_generate_histogram_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_histogram_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "HistogramKDEDialog", HistogramKDEDialog, "get_settings",
+        {'mode': 'histogram', 'column': 'y', 'output_name': 'hist_ds_hist', 'bins': 'auto', 'density': False},
+        accepted=False,
+    )
+
+    window._on_generate_histogram_or_kde()
+
+    assert len(window.project.datasets) == 1  # 元のデータセットのみ
+
+
+def test_generate_histogram_creates_bar_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_histogram_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "HistogramKDEDialog", HistogramKDEDialog, "get_settings",
+        {'mode': 'histogram', 'column': 'y', 'output_name': 'hist_ds_hist', 'bins': 10, 'density': False},
+    )
+
+    window._on_generate_histogram_or_kde()
+
+    assert len(window.project.datasets) == 2
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == 'hist_ds_hist'
+    assert new_ds.plot_type == 'Bar'
+    assert len(new_ds.df) == 10
+    assert new_ds.df['y'].sum() == 100  # 全点が必ずどこかのビンに入る
+
+
+def test_generate_kde_creates_line_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_histogram_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "HistogramKDEDialog", HistogramKDEDialog, "get_settings",
+        {'mode': 'kde', 'column': 'y', 'output_name': 'hist_ds_kde', 'n_points': 50},
+    )
+
+    window._on_generate_histogram_or_kde()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == 'hist_ds_kde'
+    assert new_ds.plot_type == 'Line'
+    assert len(new_ds.df) == 50
+
+
+def test_generate_histogram_empty_output_name_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_histogram_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "HistogramKDEDialog", HistogramKDEDialog, "get_settings",
+        {'mode': 'histogram', 'column': 'y', 'output_name': '', 'bins': 'auto', 'density': False},
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_generate_histogram_or_kde()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == 1
+
+
+def test_generate_kde_respects_mask_excludes_masked_rows(tmp_path, monkeypatch):
+    """マスクされた行はvisible_dfの慣例どおり集計対象から除く。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_histogram_dataset()
+    ds.masked_row_indices = list(ds.df.index[:50])  # 前半50件をマスク
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "HistogramKDEDialog", HistogramKDEDialog, "get_settings",
+        {'mode': 'histogram', 'column': 'y', 'output_name': 'hist_ds_hist', 'bins': 10, 'density': False},
+    )
+
+    window._on_generate_histogram_or_kde()
+
+    new_ds = window.project.datasets[-1]
+    assert new_ds.df['y'].sum() == 50  # マスクされた前半50件を除いた残り
+
+
+# =============================================================================
 # 共通X格子へのリサンプリング/補間 (_on_resample_dataset, 項目C-305)
 # =============================================================================
 
@@ -5171,7 +5400,7 @@ def test_arithmetic_records_provenance_with_both_source_datasets(tmp_path, monke
     assert prov['operation'] == 'arithmetic'
     assert set(prov['source_dataset_ids']) == {ds_a.dataset_id, ds_b.dataset_id}
     assert set(prov['source_dataset_names']) == {ds_a.name, ds_b.name}
-    assert prov['params'] == {'operation_symbol': 'A - B'}
+    assert prov['params'] == {'operation_symbol': 'A - B', 'error_propagated': False}
     assert prov['timestamp']
 
 

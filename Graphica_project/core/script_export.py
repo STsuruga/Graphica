@@ -51,7 +51,7 @@ def _format_array_literal(values):
 
 # plot_type(core/dataset.py の Dataset.plot_type)のうち、プラグインを介さず
 # 組み込みでサポートしている値の一覧(未知の値=プラグイン提供として扱う)。
-_BUILTIN_PLOT_TYPES = ('Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar')
+_BUILTIN_PLOT_TYPES = ('Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step')
 
 
 def _emit_dataset_plot_call(lines, ax_var, ds):
@@ -78,6 +78,8 @@ def _emit_dataset_plot_call(lines, ax_var, ds):
         lines.append(f"{ax_var}.plot(x, y, linestyle={ds.linestyle!r}, linewidth={ds.linewidth!r}, color={ds.color!r}, alpha={ds.alpha!r})")
     elif plot_type == 'Bar':
         lines.append(f"{ax_var}.bar(x, y, {kwargs})")
+    elif plot_type == 'Step':
+        lines.append(f"{ax_var}.plot(x, y, drawstyle='steps-post', linestyle={ds.linestyle!r}, linewidth={ds.linewidth!r}, {kwargs})")
 
 
 _VALID_MAP_DISPLAY_MODES = ('heatmap', 'contour', 'contour_filled', 'heatmap_contour')

@@ -63,7 +63,7 @@ def test_generated_script_executes_without_error_for_simple_line_plot():
     _exec_script(script)  # 例外が出なければOK
 
 
-@pytest.mark.parametrize("plot_type", ["Line", "Scatter", "Line+Scatter", "Area", "Bar"])
+@pytest.mark.parametrize("plot_type", ["Line", "Scatter", "Line+Scatter", "Area", "Bar", "Step"])
 def test_generated_script_executes_for_each_builtin_plot_type(plot_type):
     ds = _make_dataset(plot_type=plot_type)
     project = _make_project(datasets=[ds])

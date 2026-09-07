@@ -34,10 +34,12 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_interval_integral, calculate_cumulative_integral,
                            calculate_confidence_band, calculate_average_duplicate_x,
                            calculate_zscore_outliers, calculate_iqr_outliers,
-                           calculate_resample_to_grid, multi_peak_fit_task)
+                           calculate_resample_to_grid, multi_peak_fit_task,
+                           calculate_histogram, calculate_kde, calculate_error_propagation)
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
 from core.dataset import Dataset
+from core.label_utils import infer_axis_label_from_column_name
 from core.methods_text import generate_methods_text
 from core.plugin_api import get_registered_importer_extensions
 from core.plugin_types import AnalysisResult, PluginExecutionError
@@ -49,7 +51,8 @@ from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPalet
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
                          BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
                          ResampleDatasetDialog, MultiPeakFitDialog,
-                         DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog)
+                         DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
+                         HistogramKDEDialog)
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -323,6 +326,13 @@ class DatasetMixin:
             # データやフィットを更新すると値が自動的に追従する。
             add_stat_label_action = menu.addAction("統計値アンカーラベルを追加...")
             add_stat_label_action.triggered.connect(self._on_add_stat_anchor_label)
+
+            # ヒストグラム / カーネル密度推定(項目115、C-505): カレント1件の
+            # 任意の数値列を集計し、新しいデータセットを1つ作る(上記の
+            # Savitzky-Golay/ベースライン補正/累積積分と同じ「カレント1件から
+            # 新しいデータセットを1つ作る」パターン)。
+            histogram_action = menu.addAction("ヒストグラム / KDE...")
+            histogram_action.triggered.connect(self._on_generate_histogram_or_kde)
 
             # 「方法」文の自動生成(項目C-1102): カレントデータセットが処理履歴
             # (dataset.provenance、項目C-1101)を持っている場合のみ有効にする
@@ -701,10 +711,25 @@ class DatasetMixin:
         xb = np.asarray(ds_b.x_data, dtype=float)
         yb = np.asarray(ds_b.y_data, dtype=float)
 
+        # 誤差伝播(項目109、C-313): A・B両方にY誤差列がある場合のみ計算する
+        # (片方だけしか無い場合は不完全な伝播になり誤解を招くため、従来どおり
+        # 誤差列なしの結果にする)。err_a_full/err_b_fullはx_data/y_dataと同じ
+        # visible_df由来で行が対応しているため、この後のxa/xbと同じ
+        # valid_a/valid_b・mask・order_bでそのまま追従させられる。
+        err_a_full = ds_a.y_err_data
+        err_b_full = ds_b.y_err_data
+        propagate_errors = err_a_full is not None and err_b_full is not None
+        if propagate_errors:
+            err_a_full = np.asarray(err_a_full, dtype=float)
+            err_b_full = np.asarray(err_b_full, dtype=float)
+
         valid_a = ~(np.isnan(xa) | np.isnan(ya))
         valid_b = ~(np.isnan(xb) | np.isnan(yb))
         xa, ya = xa[valid_a], ya[valid_a]
         xb, yb = xb[valid_b], yb[valid_b]
+        if propagate_errors:
+            err_a_full = err_a_full[valid_a]
+            err_b_full = err_b_full[valid_b]
 
         if len(xa) == 0 or len(xb) == 0:
             QMessageBox.warning(self, "データセット間演算", "有効なデータ点がありません。")
@@ -717,12 +742,16 @@ class DatasetMixin:
 
         mask = (xa >= lo) & (xa <= hi)
         xa_sub, ya_sub = xa[mask], ya[mask]
+        if propagate_errors:
+            err_a_sub = err_a_full[mask]
         if len(xa_sub) == 0:
             QMessageBox.warning(self, "データセット間演算", "重なる範囲にA側のデータ点がありません。")
             return
 
         order_b = np.argsort(xb)
         yb_interp = np.interp(xa_sub, xb[order_b], yb[order_b])
+        if propagate_errors:
+            err_b_interp = np.interp(xa_sub, xb[order_b], err_b_full[order_b])
 
         if operation == "A - B":
             result = ya_sub - yb_interp
@@ -739,10 +768,16 @@ class DatasetMixin:
             with np.errstate(divide='ignore', invalid='ignore'):
                 result = yb_interp / ya_sub
 
-        result_df = pd.DataFrame({'x': xa_sub, 'y': result})
+        result_data = {'x': xa_sub, 'y': result}
+        if propagate_errors:
+            result_data['y_err'] = calculate_error_propagation(operation, ya_sub, err_a_sub, yb_interp, err_b_interp)
+        result_df = pd.DataFrame(result_data)
         new_dataset = Dataset(
             name=output_name, df=result_df, x_col_name='x', y_col_name='y',
-            provenance=self._build_provenance('arithmetic', {'operation_symbol': operation}, [ds_a, ds_b]),
+            y_err_col_name='y_err' if propagate_errors else None,
+            provenance=self._build_provenance(
+                'arithmetic', {'operation_symbol': operation, 'error_propagated': propagate_errors}, [ds_a, ds_b],
+            ),
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
@@ -1201,6 +1236,60 @@ class DatasetMixin:
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    def _on_generate_histogram_or_kde(self):
+        """
+        「ヒストグラム / KDE...」メニューの処理(項目115、C-505)。カレントの
+        1つのデータセットについて、任意の数値列を集計し(マスクされた行は
+        visible_dfの慣例どおり除く)、ヒストグラム(区間ごとの度数/確率密度)
+        またはカーネル密度推定(KDE)のどちらかを新しいデータセットとして
+        追加する。_on_cumulative_integral_dataset等と同じ「カレント1件から
+        新しいデータセットを1つ作る」パターン。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        numeric_columns = original_dataset.df.select_dtypes(include=[np.number]).columns.tolist()
+        if not numeric_columns:
+            QMessageBox.warning(self, "ヒストグラム / KDE", "数値列がありません。")
+            return
+        default_column = original_dataset.y_col_name if original_dataset.y_col_name in numeric_columns else numeric_columns[0]
+
+        dialog = HistogramKDEDialog(original_dataset.name, numeric_columns, default_column=default_column, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        settings = dialog.get_settings()
+        if not settings['output_name']:
+            QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+            return
+
+        # マスクされた行はvisible_dfの慣例(core/dataset.pyのvisible_df参照)どおり
+        # 集計対象から除く。
+        column_data = original_dataset.visible_df[settings['column']]
+
+        try:
+            if settings['mode'] == 'histogram':
+                result = calculate_histogram(column_data, bins=settings['bins'], density=settings['density'])
+                result_df = pd.DataFrame({'x': result['bin_centers'], 'y': result['counts']})
+                params = {'column': settings['column'], 'bins': settings['bins'], 'density': settings['density']}
+                plot_type = 'Bar'
+            else:
+                result = calculate_kde(column_data, n_points=settings['n_points'])
+                result_df = pd.DataFrame({'x': result['x_grid'], 'y': result['density']})
+                params = {'column': settings['column'], 'n_points': settings['n_points']}
+                plot_type = 'Line'
+        except ValueError as e:
+            QMessageBox.warning(self, "ヒストグラム / KDE", str(e))
+            return
+
+        new_dataset = Dataset(
+            name=settings['output_name'], df=result_df, x_col_name='x', y_col_name='y',
+            plot_type=plot_type,
+            provenance=self._build_provenance(settings['mode'], params, [original_dataset]),
+        )
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self.statusBar().showMessage(f"「{settings['output_name']}」を追加しました", 3000)
 
     def _on_detect_duplicate_x(self):
         """
@@ -2777,6 +2866,44 @@ class DatasetMixin:
 
         # Undo/Redo可能なコマンドとして発行 (X/Yが同時に変わった場合は1つの操作としてまとめる)
         self._push_dataset_property_command(dataset, old_values, new_values, description="プロット列の変更")
+
+        # 列の単位メタデータ → 軸ラベル自動生成(項目127、C-608): 選んだ列名が
+        # 「ラベル (単位)」形式に見える場合、このデータセットの描画先(subplot_target)
+        # の軸ラベルが「まだ空」であれば自動的に埋める(ユーザーが既に手で入力した
+        # ラベルは上書きしない)。ラベル自体はUndo対象に含めない(軸設定のUndoは
+        # 別の仕組み(all_plot_settingsのスナップショット)で扱っており、ここに
+        # 巻き込むと既存の挙動を変えてしまうため)。
+        if 'x_col_name' in new_values:
+            self._maybe_autofill_axis_label(dataset.subplot_target, 'x_label', new_values['x_col_name'])
+        if 'y_col_name' in new_values:
+            self._maybe_autofill_axis_label(dataset.subplot_target, 'y_label', new_values['y_col_name'])
+
+    def _maybe_autofill_axis_label(self, subplot_index, label_key, column_name):
+        """
+        _on_plot_column_changedのヘルパー(項目127、C-608)。指定した軸の
+        指定ラベル(x_label/y_label)が空の場合のみ、列名から推測したラベルで
+        埋める。編集対象として現在UIに表示中の軸(project.active_axis_index)と
+        一致する場合はテキスト欄経由で(既存の_on_axis_setting_changedの保存
+        経路にそのまま乗せて)反映し、一致しない場合はall_plot_settingsを
+        直接更新してから再描画する(UIに表示されていない軸の設定を、表示中の
+        軸のテキスト欄に書き込んでしまう誤動作を避けるため)。
+        """
+        if subplot_index is None or not (0 <= subplot_index < len(self.project.all_plot_settings)):
+            return
+        inferred = infer_axis_label_from_column_name(column_name)
+        if not inferred:
+            return
+        current_settings = self.project.all_plot_settings[subplot_index]
+        if current_settings.get(label_key):
+            return  # 既存のラベルは上書きしない
+
+        if subplot_index == self.project.active_axis_index:
+            label_edit = self.ui.x_label_text_edit if label_key == 'x_label' else self.ui.y_label_text_edit
+            if not label_edit.text():
+                label_edit.setText(inferred)  # textChanged経由で_on_axis_setting_changedが保存・再描画する
+        else:
+            current_settings[label_key] = inferred
+            self._update_plot()
 
     def _on_data_2d_toggled(self, checked):
         """

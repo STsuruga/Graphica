@@ -1872,6 +1872,25 @@ def test_bar_plot_type_enables_picking_on_each_patch(canvas):
         assert patch.get_picker() == 5
 
 
+# --- 階段プロット(項目113、C-503) ---
+
+def test_step_plot_type_uses_steps_post_drawstyle(canvas):
+    df = pd.DataFrame({"x": [0.0, 1.0, 2.0, 3.0], "y": [0.0, 1.0, 4.0, 9.0]})
+    ds = Dataset(name="step_ds", df=df, x_col_name="x", y_col_name="y", plot_type='Step', color='#112233')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.lines) == 1
+    assert ax.lines[0].get_drawstyle() == 'steps-post'
+
+
+def test_step_plot_type_icon_shows_line_preview():
+    from gui.dataset_style_icon import make_dataset_style_icon
+    df = pd.DataFrame({"x": [0.0, 1.0], "y": [0.0, 1.0]})
+    ds = Dataset(name="step_ds", df=df, x_col_name="x", y_col_name="y", plot_type='Step', color='#112233')
+    icon = make_dataset_style_icon(ds)  # 例外が出なければOK(Line同様プレビューに線を描く)
+    assert icon is not None
+
+
 # --- _add_gradient_fill(): X/Y範囲が潰れるケースの補正 ---
 
 def test_add_gradient_fill_handles_all_x_equal(canvas):

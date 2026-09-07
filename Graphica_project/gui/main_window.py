@@ -518,6 +518,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # ui_main_window.py 自体は編集しない)
         self.ui.plot_type_combo.addItem("Area")
         self.ui.plot_type_combo.addItem("Bar")
+        self.ui.plot_type_combo.addItem("Step")  # 階段プロット(項目113、C-503)
 
         # ★ データセットリストを QListWidget から QTreeWidget に置き換える。
         #   フォルダによるグループ分けに対応するため (Designerが生成する

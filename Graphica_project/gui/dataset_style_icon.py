@@ -50,7 +50,7 @@ def make_dataset_style_icon(dataset):
 
     # ウォーターフォール(項目80/109)はplot_typeとは独立したフラグになったため、
     # ここでは特別扱いせず通常通りplot_typeだけでプレビュー内容を決める。
-    show_line = dataset.plot_type in ('Line', 'Line+Scatter')
+    show_line = dataset.plot_type in ('Line', 'Line+Scatter', 'Step')
     show_marker = dataset.plot_type in ('Scatter', 'Line+Scatter')
     y = height // 2
 

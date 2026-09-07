@@ -4905,3 +4905,112 @@ class AutosaveHistoryDialog(QDialog):
         """Returns: str | None (選択されていなければNone)"""
         item = self.history_list.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
+
+
+#==============================================================================
+# カスタムダイアログクラス: ヒストグラム / カーネル密度推定(項目115、C-505)
+#==============================================================================
+class HistogramKDEDialog(QDialog):
+    """
+    ヒストグラム(区間集計)またはカーネル密度推定(KDE)を、対象列・モードごとの
+    設定で1つの新しいデータセットとして生成するためのダイアログ。
+    ResampleDatasetDialog/DuplicateXDialogと同じく、モードごとの入力欄を
+    QStackedWidgetで切り替える。対象列はY列に限らず、データセットの任意の
+    数値列から選べる(分布を見たいのはY値とは限らないため)。
+    """
+
+    MODE_HISTOGRAM = "ヒストグラム"
+    MODE_KDE = "カーネル密度推定(KDE)"
+    MODES = [MODE_HISTOGRAM, MODE_KDE]
+
+    def __init__(self, name, column_names, default_column=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("ヒストグラム / KDE")
+        self.resize(420, 320)
+        self._name = name
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"対象: {name}"))
+
+        form = QFormLayout()
+        self.column_combo = QComboBox()
+        self.column_combo.addItems(column_names)
+        if default_column and default_column in column_names:
+            self.column_combo.setCurrentText(default_column)
+        form.addRow("対象列", self.column_combo)
+
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(self.MODES)
+        form.addRow("モード", self.mode_combo)
+        layout.addLayout(form)
+
+        self.stack = QStackedWidget()
+
+        hist_page = QWidget()
+        hist_form = QFormLayout(hist_page)
+        self.auto_bins_checkbox = QCheckBox("ビン数を自動決定")
+        self.auto_bins_checkbox.setChecked(True)
+        hist_form.addRow(self.auto_bins_checkbox)
+        self.bins_spinbox = QSpinBox()
+        self.bins_spinbox.setRange(2, 500)
+        self.bins_spinbox.setValue(10)
+        self.bins_spinbox.setEnabled(False)
+        hist_form.addRow("ビン数", self.bins_spinbox)
+        self.auto_bins_checkbox.toggled.connect(lambda checked: self.bins_spinbox.setEnabled(not checked))
+        self.density_checkbox = QCheckBox("確率密度で正規化する(合計面積 = 1)")
+        hist_form.addRow(self.density_checkbox)
+        self.stack.addWidget(hist_page)
+
+        kde_page = QWidget()
+        kde_form = QFormLayout(kde_page)
+        self.kde_points_spinbox = QSpinBox()
+        self.kde_points_spinbox.setRange(10, 2000)
+        self.kde_points_spinbox.setValue(200)
+        kde_form.addRow("評価点数", self.kde_points_spinbox)
+        self.stack.addWidget(kde_page)
+
+        layout.addWidget(self.stack)
+        self.mode_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
+
+        output_form = QFormLayout()
+        self.output_name_edit = QLineEdit(f"{name}_hist")
+        output_form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(output_form)
+        self.mode_combo.currentTextChanged.connect(self._update_default_output_name)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def _update_default_output_name(self, mode_text):
+        # ユーザーが手で書き換えていそうな場合(既定のどちらの接尾辞パターンとも
+        # 一致しない)は上書きしない。
+        current = self.output_name_edit.text()
+        if current not in (f"{self._name}_hist", f"{self._name}_kde"):
+            return
+        suffix = "_hist" if mode_text == self.MODE_HISTOGRAM else "_kde"
+        self.output_name_edit.setText(f"{self._name}{suffix}")
+
+    def get_settings(self):
+        """
+        Returns:
+            dict: {'mode': "histogram"|"kde", 'column': str, 'output_name': str,
+                'bins': int|'auto' (histogramのみ), 'density': bool (histogramのみ),
+                'n_points': int (kdeのみ)}
+        """
+        mode = "histogram" if self.mode_combo.currentText() == self.MODE_HISTOGRAM else "kde"
+        settings = {
+            'mode': mode,
+            'column': self.column_combo.currentText(),
+            'output_name': self.output_name_edit.text().strip(),
+        }
+        if mode == "histogram":
+            settings['bins'] = 'auto' if self.auto_bins_checkbox.isChecked() else self.bins_spinbox.value()
+            settings['density'] = self.density_checkbox.isChecked()
+        else:
+            settings['n_points'] = self.kde_points_spinbox.value()
+        return settings
