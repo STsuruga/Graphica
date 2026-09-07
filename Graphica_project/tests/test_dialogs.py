@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QInputDialog, QColorDialog
+from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QInputDialog, QColorDialog, QApplication
 
 from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
                          FitDialog, SavGolDialog, PluginParamDialog, LabelEditDialog,
@@ -23,7 +23,7 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          CumulativeIntegralDialog, ArrowAnnotationDialog,
                          RowFilterDialog, DuplicateXDialog, OutlierDetectionDialog,
                          FolderImportDialog, AutosaveHistoryDialog,
-                         HistogramKDEDialog, XAxisAlignmentDialog)
+                         HistogramKDEDialog, XAxisAlignmentDialog, CaptionGeneratorDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -973,6 +973,55 @@ def test_color_palette_dialog_default_palette_uses_matplotlib_cycle(qapp):
     dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
     expected_count = len(mpl.rcParams['axes.prop_cycle'].by_key()['color'])
     assert dlg.color_list.count() == expected_count
+
+
+# --- ColorPaletteDialog: 組み込みの論文向けパレット(項目141、C-804) ---
+
+def test_color_palette_dialog_combo_includes_builtin_palettes(qapp):
+    from core.color_palettes import BUILTIN_PALETTES
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+    items = [dlg.palette_combo.itemText(i) for i in range(dlg.palette_combo.count())]
+    for name in BUILTIN_PALETTES:
+        assert name in items
+
+
+def test_color_palette_dialog_builtin_palette_shows_its_own_colors(qapp):
+    from core.color_palettes import BUILTIN_PALETTES
+    dlg = ColorPaletteDialog({}, "Tableau 10")
+    assert dlg.color_list.count() == len(BUILTIN_PALETTES["Tableau 10"])
+
+
+def test_color_palette_dialog_builtin_palette_is_readonly(qapp):
+    dlg = ColorPaletteDialog({}, "Tableau 10")
+    assert dlg._is_default_selected() is True
+    assert dlg.rename_palette_button.isEnabled() is False
+    assert dlg.delete_palette_button.isEnabled() is False
+    assert dlg.add_color_button.isEnabled() is False
+    assert dlg.remove_color_button.isEnabled() is False
+
+
+def test_color_palette_dialog_cannot_rename_to_builtin_palette_name(qapp, monkeypatch):
+    dlg = ColorPaletteDialog({"カスタム": ["#fff"]}, "カスタム")
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("Tableau 10", True)))
+    warn_calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    dlg._on_rename_palette()
+
+    assert len(warn_calls) == 1
+    assert "カスタム" in dlg.palettes  # 名前は変わっていない
+
+
+def test_color_palette_dialog_new_palette_cannot_use_builtin_name(qapp, monkeypatch):
+    dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("ColorBrewer Set2", True)))
+    warn_calls = []
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    dlg._on_new_palette()
+
+    assert len(warn_calls) == 1
+    assert "ColorBrewer Set2" not in dlg.palettes
 
 
 # --- HelpDialog/CalcHelpDialog(項目H-2-6、実機での目視確認で発覚したバグの
@@ -2752,3 +2801,38 @@ def test_autosave_history_dialog_double_click_accepts(qapp):
     dlg._on_double_clicked(item)
     assert dlg.result() == QDialog.DialogCode.Accepted
     assert dlg.get_selected_path() == "/path/autosave.graphica"
+
+
+# --- CaptionGeneratorDialog(項目142、C-807) ---
+
+def test_caption_generator_dialog_prefills_caption_and_label(qapp):
+    dlg = CaptionGeneratorDialog("My Title", "fig:my-title")
+    assert dlg.caption_edit.text() == "My Title"
+    assert dlg.label_edit.text() == "fig:my-title"
+
+
+def test_caption_generator_dialog_preview_updates_live(qapp):
+    dlg = CaptionGeneratorDialog("", "")
+    dlg.caption_edit.setText("New Caption")
+    assert "New Caption" in dlg.latex_preview.toPlainText()
+
+
+def test_caption_generator_dialog_preview_reflects_image_name_and_width(qapp):
+    dlg = CaptionGeneratorDialog("Caption", "fig:x")
+    dlg.image_name_edit.setText("plot.svg")
+    dlg.width_combo.setCurrentText(r"0.5\linewidth")
+    preview = dlg.latex_preview.toPlainText()
+    assert "{plot.svg}" in preview
+    assert r"width=0.5\linewidth" in preview
+
+
+def test_caption_generator_dialog_copy_latex_sets_clipboard(qapp):
+    dlg = CaptionGeneratorDialog("Caption", "fig:x")
+    dlg._on_copy_latex()
+    assert dlg.latex_preview.toPlainText() == QApplication.clipboard().text()
+
+
+def test_caption_generator_dialog_copy_caption_sets_clipboard(qapp):
+    dlg = CaptionGeneratorDialog("Plain Caption Text", "fig:x")
+    dlg._on_copy_caption()
+    assert QApplication.clipboard().text() == "Plain Caption Text"

@@ -960,3 +960,46 @@ def test_export_python_script_write_failure_shows_warning(tmp_path, monkeypatch)
     window._on_export_python_script()
 
     assert len(warn_calls) == 1
+
+
+# --- _on_generate_caption (項目142、C-807) ---
+
+def test_generate_caption_prefills_from_current_plot_title(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.project.all_plot_settings[0]['title'] = "My Figure"
+
+    captured = []
+
+    class FakeCaptionDialog:
+        def __init__(self, default_caption, default_label, parent=None):
+            captured.append((default_caption, default_label))
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(export_mixin_module, "CaptionGeneratorDialog", FakeCaptionDialog)
+
+    window._on_generate_caption()
+
+    assert len(captured) == 1
+    assert captured[0][0] == "My Figure"
+    assert captured[0][1] == "fig:My-Figure"
+
+
+def test_generate_caption_handles_empty_title(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    captured = []
+
+    class FakeCaptionDialog:
+        def __init__(self, default_caption, default_label, parent=None):
+            captured.append((default_caption, default_label))
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(export_mixin_module, "CaptionGeneratorDialog", FakeCaptionDialog)
+
+    window._on_generate_caption()  # 例外にならないこと
+
+    assert captured == [("", "fig:plot")]

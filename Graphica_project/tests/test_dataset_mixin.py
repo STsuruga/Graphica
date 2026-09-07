@@ -32,6 +32,7 @@ from gui.dialogs import (
     ResampleDatasetDialog, DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
     HistogramKDEDialog, XAxisAlignmentDialog,
 )
+from core.color_palettes import BUILTIN_PALETTES
 from core.dataset import Dataset
 from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
 from gui.dataset_style_icon import DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN
@@ -3296,6 +3297,14 @@ def test_get_active_color_cycle_uses_custom_active_palette(tmp_path, monkeypatch
     window.settings.setValue(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY, "custom")
 
     assert window._get_active_color_cycle() == ["#aaaaaa", "#bbbbbb"]
+
+
+def test_get_active_color_cycle_uses_builtin_palette(tmp_path, monkeypatch):
+    """項目141(C-804): 組み込みの論文向けパレットもアクティブ名で解決できる。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.settings.setValue(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY, "Tableau 10")
+
+    assert window._get_active_color_cycle() == BUILTIN_PALETTES["Tableau 10"]
 
 
 def test_get_active_color_cycle_falls_back_when_active_palette_missing(tmp_path, monkeypatch):

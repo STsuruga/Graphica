@@ -365,6 +365,10 @@ class UISetupMixin:
             export_script_action = file_menu.addAction(tr("Pythonスクリプトとしてエクスポート..."))
             export_script_action.triggered.connect(self._on_export_python_script)
 
+            # LaTeX/Word用キャプション自動生成(項目142、C-807)
+            generate_caption_action = file_menu.addAction(tr("LaTeX/Word用キャプションを生成..."))
+            generate_caption_action.triggered.connect(self._on_generate_caption)
+
             file_menu.addSeparator() # --- 区切り線 ---
 
             # (オートセーブ設定: テキストには現在の状態(有効/無効・間隔)を表示する)

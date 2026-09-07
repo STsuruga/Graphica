@@ -14,13 +14,14 @@ from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox, Q
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 
-from gui.dialogs import ExportDialog, BatchExportDialog
+from gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog
 from gui.canvas import _HeadlessRenderCanvas
 from gui.task_runner import TaskRunner
 from models.project import ProjectModel
 from core.plugin_api import get_plugin_api, get_registered_exporters
 from core.plugin_types import PluginExecutionError
 from core.script_export import generate_python_script
+from core.caption_export import sanitize_label
 
 logger = logging.getLogger(__name__)
 
@@ -358,6 +359,23 @@ class ExportMixin:
             return
 
         self.statusBar().showMessage(f"Pythonスクリプトを書き出しました: {file_path}", 3000)
+
+    def _on_generate_caption(self):
+        """
+        「LaTeX/Word用キャプションを生成...」メニューの処理(項目142、C-807)。
+        現在編集中の軸(project.active_axis_index)のタイトルをキャプションの
+        初期値として、CaptionGeneratorDialogを表示するだけの薄い処理
+        (実際のLaTeXコード生成はcore/caption_export.pyに委譲し、コピー操作も
+        ダイアログ自身が行う)。
+        """
+        settings = {}
+        if 0 <= self.project.active_axis_index < len(self.project.all_plot_settings):
+            settings = self.project.all_plot_settings[self.project.active_axis_index]
+        default_caption = settings.get('title', '') or ''
+        default_label = sanitize_label(default_caption)
+
+        dialog = CaptionGeneratorDialog(default_caption, default_label, self)
+        dialog.exec()
 
     def _on_export_plot(self):
             """

@@ -39,6 +39,7 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_cross_correlation_alignment)
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
+from core.color_palettes import BUILTIN_PALETTES
 from core.dataset import Dataset
 from core.label_utils import infer_axis_label_from_column_name
 from core.methods_text import generate_methods_text
@@ -2506,8 +2507,12 @@ class DatasetMixin:
         """
         現在アクティブなパレットの色リストを返す。
         パレットが未設定、または空の場合はmatplotlibの既定カラーサイクルにフォールバックする。
+        組み込みの論文向けパレット(項目141、C-804、BUILTIN_PALETTES)も
+        ユーザーのカスタムパレットと同じ扱いで名前解決する。
         """
         active_name = self.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+        if active_name in BUILTIN_PALETTES:
+            return BUILTIN_PALETTES[active_name]
         palettes = self._load_color_palettes()
         if active_name != ColorPaletteDialog.DEFAULT_PALETTE_NAME and palettes.get(active_name):
             return palettes[active_name]

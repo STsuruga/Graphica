@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import numpy as np
 import pandas as pd
@@ -18,6 +19,7 @@ from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices
 from gui import icon_utils
 from gui.theme import apply_form_spacing
 from gui.mathtext_preview import FitWidthPixmapLabel
+from core.color_palettes import BUILTIN_PALETTES
 
 logger = logging.getLogger(__name__)
 
@@ -1988,7 +1990,8 @@ class ColorPaletteDialog(QDialog):
     """
     「自動配色」ボタンで使うカラーサイクル(パレット)を、ユーザーが複数
     定義・保存・切り替えできるようにするダイアログ。
-    「Matplotlib既定」は常に選べる読み取り専用のパレットとして扱う。
+    「Matplotlib既定」と、組み込みの論文向けパレット(項目141、C-804、
+    core/color_palettes.BUILTIN_PALETTES)は常に選べる読み取り専用として扱う。
     """
 
     DEFAULT_PALETTE_NAME = "Matplotlib既定"
@@ -2013,6 +2016,7 @@ class ColorPaletteDialog(QDialog):
         combo_layout.addWidget(QLabel("パレット"))
         self.palette_combo = QComboBox()
         self.palette_combo.addItem(self.DEFAULT_PALETTE_NAME)
+        self.palette_combo.addItems(sorted(BUILTIN_PALETTES.keys()))
         self.palette_combo.addItems(sorted(self.palettes.keys()))
         combo_layout.addWidget(self.palette_combo, stretch=1)
         layout.addLayout(combo_layout)
@@ -2062,7 +2066,12 @@ class ColorPaletteDialog(QDialog):
         self._update_button_states()
 
     def _is_default_selected(self):
-        return self.palette_combo.currentText() == self.DEFAULT_PALETTE_NAME
+        return self._is_readonly_palette(self.palette_combo.currentText())
+
+    def _is_readonly_palette(self, name):
+        """「Matplotlib既定」または組み込みパレット(BUILTIN_PALETTES)かどうか。
+        いずれもユーザーによる編集(名前変更・削除・色の追加/削除)の対象外。"""
+        return name == self.DEFAULT_PALETTE_NAME or name in BUILTIN_PALETTES
 
     def _update_button_states(self):
         # 既定パレットは読み取り専用 (名前変更・削除・色の追加/削除は不可)
@@ -2095,6 +2104,8 @@ class ColorPaletteDialog(QDialog):
         name = self.palette_combo.currentText()
         if name == self.DEFAULT_PALETTE_NAME:
             colors = list(mpl.rcParams['axes.prop_cycle'].by_key()['color'])
+        elif name in BUILTIN_PALETTES:
+            colors = BUILTIN_PALETTES[name]
         else:
             colors = self.palettes.get(name, [])
         from gui import theme
@@ -2128,7 +2139,7 @@ class ColorPaletteDialog(QDialog):
         name, ok = QInputDialog.getText(self, "新規パレット", "パレット名")
         if not ok or not name:
             return
-        if name == self.DEFAULT_PALETTE_NAME or name in self.palettes:
+        if self._is_readonly_palette(name) or name in self.palettes:
             QMessageBox.warning(self, "エラー", f"パレット名 '{name}' は既に使われています。")
             return
         self.palettes[name] = []
@@ -2137,12 +2148,12 @@ class ColorPaletteDialog(QDialog):
 
     def _on_rename_palette(self):
         old_name = self.palette_combo.currentText()
-        if old_name == self.DEFAULT_PALETTE_NAME:
+        if self._is_readonly_palette(old_name):
             return
         new_name, ok = QInputDialog.getText(self, "名前を変更", "新しいパレット名", text=old_name)
         if not ok or not new_name or new_name == old_name:
             return
-        if new_name == self.DEFAULT_PALETTE_NAME or new_name in self.palettes:
+        if self._is_readonly_palette(new_name) or new_name in self.palettes:
             QMessageBox.warning(self, "エラー", f"パレット名 '{new_name}' は既に使われています。")
             return
         self.palettes[new_name] = self.palettes.pop(old_name)
@@ -2150,7 +2161,7 @@ class ColorPaletteDialog(QDialog):
 
     def _on_delete_palette(self):
         name = self.palette_combo.currentText()
-        if name == self.DEFAULT_PALETTE_NAME:
+        if self._is_readonly_palette(name):
             return
         reply = QMessageBox.question(
             self, "パレットを削除", f"パレット '{name}' を削除しますか?",
@@ -2163,7 +2174,7 @@ class ColorPaletteDialog(QDialog):
 
     def _on_add_color(self):
         name = self.palette_combo.currentText()
-        if name == self.DEFAULT_PALETTE_NAME:
+        if self._is_readonly_palette(name):
             return
         color = QColorDialog.getColor()
         if not color.isValid():
@@ -2173,7 +2184,7 @@ class ColorPaletteDialog(QDialog):
 
     def _on_remove_color(self):
         name = self.palette_combo.currentText()
-        if name == self.DEFAULT_PALETTE_NAME:
+        if self._is_readonly_palette(name):
             return
         row = self.color_list.currentRow()
         if row < 0:
@@ -5060,3 +5071,95 @@ class HistogramKDEDialog(QDialog):
         else:
             settings['n_points'] = self.kde_points_spinbox.value()
         return settings
+
+
+#==============================================================================
+# カスタムダイアログクラス: LaTeX/Word用キャプション自動生成(項目142、C-807)
+#==============================================================================
+class CaptionGeneratorDialog(QDialog):
+    """
+    グラフを論文に貼り込む際の定型作業(LaTeXの\\includegraphics一式、
+    Word用のキャプション文)を自動生成し、クリップボードにコピーできるように
+    するダイアログ。入力欄を変更するたびにLaTeXプレビューをライブ更新する。
+    実際のファイル書き出しは行わない(画像ファイル名は自由入力のプレースホルダ
+    として扱う、既にエクスポート済みの画像に後から差し替える運用を想定)。
+    """
+
+    WIDTH_OPTIONS = [r'\linewidth', r'0.8\linewidth', r'0.5\linewidth', r'\textwidth']
+
+    def __init__(self, default_caption="", default_label="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("LaTeX/Word用キャプションを生成")
+        self.resize(480, 420)
+
+        layout = QVBoxLayout(self)
+
+        form = QFormLayout()
+        self.caption_edit = QLineEdit(default_caption)
+        form.addRow("キャプション", self.caption_edit)
+
+        image_layout = QHBoxLayout()
+        self.image_name_edit = QLineEdit()
+        self.image_name_edit.setPlaceholderText("例: figure1.pdf(空欄可、後から書き換えてください)")
+        browse_button = QPushButton("参照...")
+        browse_button.clicked.connect(self._on_browse_image)
+        image_layout.addWidget(self.image_name_edit, 1)
+        image_layout.addWidget(browse_button)
+        form.addRow("画像ファイル名", image_layout)
+
+        self.label_edit = QLineEdit(default_label)
+        form.addRow("LaTeXラベル", self.label_edit)
+
+        self.width_combo = QComboBox()
+        self.width_combo.addItems(self.WIDTH_OPTIONS)
+        form.addRow("幅(\\includegraphics)", self.width_combo)
+        layout.addLayout(form)
+
+        layout.addWidget(QLabel("LaTeXプレビュー"))
+        self.latex_preview = QPlainTextEdit()
+        self.latex_preview.setReadOnly(True)
+        self.latex_preview.setFont(QFont("Consolas", 9))
+        layout.addWidget(self.latex_preview, 1)
+
+        button_layout = QHBoxLayout()
+        copy_latex_button = QPushButton("LaTeXをコピー")
+        copy_latex_button.clicked.connect(self._on_copy_latex)
+        copy_caption_button = QPushButton("キャプション文をコピー(Word用)")
+        copy_caption_button.clicked.connect(self._on_copy_caption)
+        button_layout.addWidget(copy_latex_button)
+        button_layout.addWidget(copy_caption_button)
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
+
+        close_button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        close_button_box.rejected.connect(self.reject)
+        close_button_box.button(QDialogButtonBox.StandardButton.Close).clicked.connect(self.reject)
+        layout.addWidget(close_button_box)
+
+        for widget in (self.caption_edit, self.image_name_edit, self.label_edit):
+            widget.textChanged.connect(self._update_preview)
+        self.width_combo.currentTextChanged.connect(self._update_preview)
+        self._update_preview()
+
+        apply_form_spacing(self)
+
+    def _on_browse_image(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "画像ファイルを選択", "", "画像ファイル (*.pdf *.svg *.png *.eps)"
+        )
+        if file_path:
+            self.image_name_edit.setText(os.path.basename(file_path))
+
+    def _update_preview(self):
+        from core.caption_export import generate_latex_figure
+        latex_code = generate_latex_figure(
+            self.image_name_edit.text().strip(), self.caption_edit.text(),
+            self.label_edit.text().strip(), self.width_combo.currentText(),
+        )
+        self.latex_preview.setPlainText(latex_code)
+
+    def _on_copy_latex(self):
+        QApplication.clipboard().setText(self.latex_preview.toPlainText())
+
+    def _on_copy_caption(self):
+        QApplication.clipboard().setText(self.caption_edit.text())
