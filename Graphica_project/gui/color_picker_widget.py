@@ -45,6 +45,7 @@ class ColorPickerWidget(QWidget):
         self.hex_edit.setPlaceholderText("#RRGGBB")
         self.hex_edit.setMaxLength(7)
         self.hex_edit.editingFinished.connect(self._on_hex_edited)
+        self.hex_edit.textChanged.connect(self._on_hex_text_changed)
 
         layout.addWidget(self.swatch_button)
         layout.addWidget(self.hex_edit, 1)
@@ -82,15 +83,18 @@ class ColorPickerWidget(QWidget):
         self.hex_edit.blockSignals(block)
         return super().blockSignals(block)
 
-    def _update_swatch(self):
+    def _update_swatch(self, preview_color=None):
         # ★ 項目H-2-6(H-0調査で判明): 以前はborder色をrgba(128,128,128,110)で
         #   ハードコードしており、gui/theme.pyのトークンと無関係な固定グレーだった
         #   (ライト/ダーク双方で同じ見た目になり、他のUI要素との統一感が無かった)。
         #   現在テーマのborder_strongトークンを参照するよう変更。
+        # preview_color: カラーコード欄への入力中(未確定)のライブプレビュー用。
+        #   Noneなら確定済みの self._color を使う(通常の再描画)。
         from gui import theme
         border_color = theme.current_tokens()["border_strong"]
+        color_name = (preview_color or self._color).name()
         self.swatch_button.setStyleSheet(
-            f"background-color: {self._color.name()};"
+            f"background-color: {color_name};"
             f"border: 1px solid {border_color};"
             f"border-radius: 4px;"
         )
@@ -111,6 +115,21 @@ class ColorPickerWidget(QWidget):
             return
         self.set_color(color)
         self.colorChanged.emit(self._color.name())
+
+    def _on_hex_text_changed(self, text):
+        """
+        カラーコード欄をキー入力するたびに呼ばれ、まだ確定(editingFinished)
+        していなくても、有効な色になった時点でスウォッチにライブプレビュー
+        表示する。確定処理(Dataset側への反映・Undoコマンド発行・colorChanged
+        発火)は_on_hex_edited側のみが行う — キー入力のたびにUndo履歴を
+        積んでしまわないよう、ここではあくまで見た目の先行表示に留める。
+        """
+        candidate = QColor(text.strip())
+        if candidate.isValid():
+            self._update_swatch(preview_color=candidate)
+        else:
+            # 入力途中で無効な状態(未入力・不完全な桁数など)は確定色の表示に戻す
+            self._update_swatch()
 
     def _on_hex_edited(self):
         text = self.hex_edit.text().strip()

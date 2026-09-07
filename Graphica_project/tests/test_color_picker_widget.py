@@ -57,6 +57,28 @@ def test_hex_edit_invalid_input_reverts_to_current_color():
     assert received == []
 
 
+def test_hex_text_changed_previews_swatch_before_editing_finished():
+    """editingFinished(Enter/フォーカスアウト)より前に、キー入力の時点で
+    スウォッチの見た目だけがライブプレビューされる(確定色・シグナルはまだ変わらない)。"""
+    widget = ColorPickerWidget(settings=None, initial_color="#000000")
+    received = []
+    widget.colorChanged.connect(lambda c: received.append(c))
+
+    widget.hex_edit.setText("#00ff00")  # editingFinished()はまだ呼ばない
+
+    assert "#00ff00" in widget.swatch_button.styleSheet()
+    assert widget.color_name() == "#000000"  # 確定色はまだ変わらない
+    assert received == []  # Undo履歴を汚さないよう、確定前はシグナルも発火しない
+
+
+def test_hex_text_changed_reverts_preview_on_invalid_input():
+    widget = ColorPickerWidget(settings=None, initial_color="#123456")
+
+    widget.hex_edit.setText("#zz")  # 無効な入力
+
+    assert "#123456" in widget.swatch_button.styleSheet()
+
+
 def test_hex_edit_same_color_does_not_emit_signal():
     widget = ColorPickerWidget(settings=None, initial_color="#123456")
     received = []
