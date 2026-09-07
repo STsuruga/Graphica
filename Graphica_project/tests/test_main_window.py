@@ -1408,6 +1408,102 @@ def test_restore_dock_layout_swallows_resizedocks_exception(tmp_path, monkeypatc
     window._restore_dock_layout()
 
 
+# --- ドックレイアウトの保存/復元/リセット(項目152、C-911) ---
+
+def test_load_dock_layout_presets_empty_by_default(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window._load_dock_layout_presets() == {}
+
+
+def test_save_dock_layout_preset_persists_current_state(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module.QInputDialog, "getText",
+                         staticmethod(lambda *a, **k: ("My Layout", True)))
+
+    window._on_save_dock_layout_preset()
+
+    presets = window._load_dock_layout_presets()
+    assert "My Layout" in presets
+    assert isinstance(presets["My Layout"], str)
+    assert len(presets["My Layout"]) > 0
+
+
+def test_save_dock_layout_preset_cancelled_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module.QInputDialog, "getText",
+                         staticmethod(lambda *a, **k: ("", False)))
+
+    window._on_save_dock_layout_preset()
+
+    assert window._load_dock_layout_presets() == {}
+
+
+def test_save_dock_layout_preset_empty_name_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(main_window_module.QInputDialog, "getText",
+                         staticmethod(lambda *a, **k: ("   ", True)))
+
+    window._on_save_dock_layout_preset()
+
+    assert window._load_dock_layout_presets() == {}
+
+
+def test_populate_load_layout_menu_shows_placeholder_when_empty(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    window._populate_load_layout_menu()
+
+    actions = window.load_layout_menu.actions()
+    assert len(actions) == 1
+    assert actions[0].isEnabled() is False
+
+
+def test_populate_load_layout_menu_lists_saved_presets_sorted(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._save_dock_layout_presets({"Zebra": "abc", "Alpha": "def"})
+
+    window._populate_load_layout_menu()
+
+    texts = [a.text() for a in window.load_layout_menu.actions()]
+    assert texts == ["Alpha", "Zebra"]
+
+
+def test_load_dock_layout_preset_restores_saved_state(tmp_path, monkeypatch):
+    import base64
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    state_b64 = base64.b64encode(bytes(window.saveState())).decode('ascii')
+    window._save_dock_layout_presets({"Saved": state_b64})
+
+    window._on_load_dock_layout_preset("Saved")  # 例外にならないこと(復元成功パス)
+
+
+def test_load_dock_layout_preset_unknown_name_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_load_dock_layout_preset("does not exist")  # 例外にならないこと
+
+
+def test_load_dock_layout_preset_corrupted_data_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._save_dock_layout_presets({"Broken": "not-valid-base64!!!"})
+    warn_calls = []
+    monkeypatch.setattr(main_window_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_load_dock_layout_preset("Broken")
+
+    assert len(warn_calls) == 1
+
+
+def test_reset_dock_layout_restores_pristine_state(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window, "restoreState", lambda state: calls.append(state) or True)
+
+    window._on_reset_dock_layout()
+
+    assert calls == [window._pristine_dock_state]
+
+
 # --- closeEvent() ---
 
 def test_close_event_swallows_signal_disconnect_error(tmp_path, monkeypatch):

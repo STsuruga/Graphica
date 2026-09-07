@@ -4,6 +4,8 @@ import re
 import types
 import sys
 import logging
+import json
+import base64
 from datetime import datetime
 from pathlib import Path
 import numpy as np
@@ -103,6 +105,11 @@ DEFAULT_DETACHED_CANVAS_HEIGHT = 700
 # デフォルトのドック配置を変えても既存ユーザーには反映されない)。
 DOCK_LAYOUT_VERSION = 4  # v4: 「プロットのプロパティ」「データセットのプロパティ」を1つのドックに統合
 
+# ドックレイアウトの名前付きプリセット(項目152、C-911)。上のwindow_state
+# (起動時に自動保存/復元される「直近の」1つの状態)とは別の、ユーザーが
+# 明示的に名前を付けて保存する複数のプリセットを保持するQSettingsキー。
+DOCK_LAYOUT_PRESETS_SETTINGS_KEY = "dock_layout_presets"
+
 # 2Dマップ(ヒートマップ、項目C-508)のカラーマップ選択肢。matplotlib組み込みの
 # 連続カラーマップから、科学データの可視化でよく使われるものを厳選(全カラーマップを
 # 網羅すると選択肢が多すぎて選びにくくなるため)。'viridis'を既定にしているのは
@@ -139,7 +146,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDial
                                QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction,
                                QStyledItemDelegate, QStyleOptionViewItem, QStyle, QHeaderView)
 from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack, QPainter, QPainterPath
-from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal, QRectF
+from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal, QRectF, QByteArray
 from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
@@ -1976,6 +1983,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #   手動リサイズでは正しい最終サイズで再レイアウトされるため発生しない)。
         #   イベントループが一巡してウィンドウが実際の最終サイズで表示された
         #   後に復元することで解消する。
+        # ドックレイアウトの手動リセット(項目152、C-911)用に、まだ何も
+        # restoreState()していない、Designer/コード構築直後の「素の」レイアウトを
+        # スナップショットしておく。_restore_dock_layout(下のQTimer経由)より
+        # 前にここで取ることが重要(先にrestoreStateされてしまうと、保存済みの
+        # 状態が「素の」状態として記録されてしまう)。
+        self._pristine_dock_state = self.saveState()
+
         QTimer.singleShot(0, self._restore_dock_layout)
 
         # 項目86: 前回終了時にキャンバスを別ウィンドウへ切り離した状態のまま
@@ -2042,6 +2056,69 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 )
             except Exception as e:
                 logger.warning("resizeDocks に失敗しました: %s", e)
+
+    # --- ドックレイアウトの保存/復元/リセット(項目152、C-911) ---
+    # 「最初のタブ・初回起動のみ復元」という既存の制約(起動シーケンス自体は
+    # ドキュメントで「壊れやすい」と明記されているため変更しない)とは別に、
+    # いつでも手動で名前付きレイアウトを保存・復元・既定にリセットできる経路を
+    # 追加する(全てのタブで利用可能、_run_startup_checksに関わらず動作する)。
+
+    def _load_dock_layout_presets(self):
+        """保存済みのドックレイアウトプリセット一式を{名前: base64文字列}で返す。"""
+        raw = self.settings.value(DOCK_LAYOUT_PRESETS_SETTINGS_KEY, "{}")
+        if not isinstance(raw, str):
+            raw = "{}"
+        try:
+            presets = json.loads(raw)
+        except (TypeError, ValueError):
+            logger.warning("ドックレイアウトプリセットの読み込みに失敗しました。空として扱います。")
+            return {}
+        return presets if isinstance(presets, dict) else {}
+
+    def _save_dock_layout_presets(self, presets: dict):
+        self.settings.setValue(DOCK_LAYOUT_PRESETS_SETTINGS_KEY, json.dumps(presets))
+
+    def _on_save_dock_layout_preset(self):
+        """「現在のレイアウトを保存...」メニューの処理。"""
+        name, ok = QInputDialog.getText(self, "レイアウトを保存", "プリセット名:")
+        name = name.strip()
+        if not ok or not name:
+            return
+        presets = self._load_dock_layout_presets()
+        presets[name] = base64.b64encode(bytes(self.saveState())).decode('ascii')
+        self._save_dock_layout_presets(presets)
+        self.statusBar().showMessage(f"レイアウト「{name}」を保存しました", 3000)
+
+    def _populate_load_layout_menu(self):
+        """「レイアウトを読み込み」サブメニューを、表示される直前に毎回作り直す
+        (aboutToShow経由、保存/削除のたびにここを個別更新する必要が無いようにするため)。"""
+        self.load_layout_menu.clear()
+        presets = self._load_dock_layout_presets()
+        if not presets:
+            empty_action = self.load_layout_menu.addAction("(保存済みレイアウトはありません)")
+            empty_action.setEnabled(False)
+            return
+        for name in sorted(presets.keys()):
+            action = self.load_layout_menu.addAction(name)
+            action.triggered.connect(lambda checked=False, n=name: self._on_load_dock_layout_preset(n))
+
+    def _on_load_dock_layout_preset(self, name):
+        presets = self._load_dock_layout_presets()
+        state_b64 = presets.get(name)
+        if state_b64 is None:
+            return
+        try:
+            state_bytes = base64.b64decode(state_b64)
+        except (ValueError, TypeError):
+            QMessageBox.warning(self, "レイアウトの復元", "保存されたレイアウトデータが壊れています。")
+            return
+        if not self.restoreState(QByteArray(state_bytes)):
+            QMessageBox.warning(self, "レイアウトの復元", "レイアウトの復元に失敗しました。")
+
+    def _on_reset_dock_layout(self):
+        """「既定のレイアウトにリセット」メニューの処理。__init__末尾で保存しておいた
+        「素の」状態(_pristine_dock_state)に戻す。"""
+        self.restoreState(self._pristine_dock_state)
 
     def closeEvent(self, event):
         """ウィンドウが閉じられる(正常終了する)ときに呼ばれる。"""

@@ -487,6 +487,20 @@ class UISetupMixin:
             self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
             self.panel_labels_action.toggled.connect(self._on_toggle_panel_labels)
 
+            # ドックレイアウトの保存/復元/リセット(項目152、C-911)。既存の
+            # 「最初のタブ・初回起動のみ復元」という制約(起動シーケンス自体は
+            # 変更しない)とは別に、いつでも手動で操作できる経路を追加する。
+            dock_layout_menu = view_menu.addMenu(tr("ドックレイアウト"))
+            save_layout_action = dock_layout_menu.addAction(tr("現在のレイアウトを保存..."))
+            save_layout_action.triggered.connect(self._on_save_dock_layout_preset)
+
+            self.load_layout_menu = dock_layout_menu.addMenu(tr("レイアウトを読み込み"))
+            self.load_layout_menu.aboutToShow.connect(self._populate_load_layout_menu)
+
+            dock_layout_menu.addSeparator()
+            reset_layout_action = dock_layout_menu.addAction(tr("既定のレイアウトにリセット"))
+            reset_layout_action.triggered.connect(self._on_reset_dock_layout)
+
             # 項目87: クイックアクセスのカスタムツールバー。ツールバー本体の作成と
             # 表示/非表示を切り替える表示メニュー項目の追加はここで行う。
             # ★ ピン留め済みアクションの実際の復元 (_restore_quick_access_actions) と
