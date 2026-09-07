@@ -573,6 +573,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._batch_fit_task_runner = None  # バッチカーブフィット用バックグラウンドタスク(項目C-004フェーズ2)の保持用
         self._multi_peak_fit_task_runner = None  # 多峰分離フィット用バックグラウンドタスク(項目C-409)の保持用
         self._batch_export_task_runner = None  # バッチエクスポート用バックグラウンドタスク(項目C-004フェーズ5b)の保持用
+        self._update_check_task_runner = None  # アップデート確認用バックグラウンドタスク(項目161、C-1203)の保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
         self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
         self._data_load_queue_done = 0   # 現在処理中のバッチで読み込みを開始した件数 (進捗表示用)
@@ -2000,6 +2001,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             # オートセーブ復元の確認より後に登録することで、万一両方表示される場合でも
             # データの安全性に関わる確認(復元)を先に済ませてから案内できるようにする。
             QTimer.singleShot(0, self._check_first_launch)
+            # アップデート通知(項目161、C-1203)。上記2つの確認ダイアログの
+            # 邪魔にならないよう少し遅らせて起動する。「取得のみ・送信なし」
+            # (公開のGitHub REST APIへの匿名GET1回のみ)、新版がある場合のみ
+            # 通知し、失敗時は静かに諦める(_on_startup_update_check_succeeded
+            # 参照、手動確認の_on_check_for_updateとは異なりエラーダイアログを
+            # 出さない)。
+            QTimer.singleShot(1500, self._start_startup_update_check)
 
         # 設定項目間の余白を広げる(ユーザーフィードバックを受けて)。
         # この時点までに Designer 生成/動的生成の QFormLayout はすべて構築済みのため、
@@ -2112,6 +2120,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._batch_export_task_runner.wait()
             self._batch_export_task_runner.deleteLater()
             self._batch_export_task_runner = None
+
+        # 項目161(C-1203): アップデート確認用のTaskRunnerも同じ理由で同型のクリーンアップを行う。
+        if self._update_check_task_runner is not None:
+            try:
+                self._update_check_task_runner.succeeded.disconnect()
+                self._update_check_task_runner.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._update_check_task_runner.requestInterruption()
+            self._update_check_task_runner.wait()
+            self._update_check_task_runner.deleteLater()
+            self._update_check_task_runner = None
 
         if self._run_startup_checks:
             self.settings.setValue("clean_exit", True)

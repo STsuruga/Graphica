@@ -20,6 +20,7 @@ import gui.main_window as main_window_module
 import gui.mixins.help_mixin as help_mixin_module
 from gui.main_window import PlotterApp
 from gui.dialogs import AboutDialog, ShortcutsDialog, HelpDialog, CalcHelpDialog
+from core.version import __version__
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -205,4 +206,154 @@ def test_on_export_diagnostic_bundle_reports_error_on_failure(tmp_path, monkeypa
     window._on_export_diagnostic_bundle()
 
     assert len(warn_calls) == 1
+    assert info_calls == []
+
+
+# =============================================================================
+# アップデート通知(_on_check_for_update / _start_startup_update_check, 項目161、C-1203)
+# =============================================================================
+
+def _run_update_check_and_wait(window):
+    """TaskRunnerは実スレッドで動くため、start()後にwait()+processEvents()で
+    シグナル配送を待つ(tests/test_task_runner.pyと同じ同期パターン)。"""
+    app = QApplication.instance()
+    for _ in range(50):
+        app.processEvents()
+        if window._update_check_task_runner is None:
+            break
+        window._update_check_task_runner.wait(200)
+        app.processEvents()
+
+
+def test_manual_update_check_shows_info_when_already_latest(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(help_mixin_module, "check_for_update", lambda version, **k: None)
+    info_calls = []
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    window._on_check_for_update()
+    _run_update_check_and_wait(window)
+
+    assert len(info_calls) == 1
+    assert __version__ in info_calls[0][2]
+
+
+def test_manual_update_check_shows_update_dialog_when_newer_available(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    update_info = {'tag_name': 'v9.9.9', 'html_url': 'https://example.com/releases/v9.9.9', 'name': 'v9.9.9'}
+    monkeypatch.setattr(help_mixin_module, "check_for_update", lambda version, **k: update_info)
+    info_calls = []
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: info_calls.append(a) or QMessageBox.StandardButton.No))
+    browser_calls = []
+    monkeypatch.setattr(help_mixin_module.webbrowser, "open", lambda url: browser_calls.append(url))
+
+    window._on_check_for_update()
+    _run_update_check_and_wait(window)
+
+    assert len(info_calls) == 1
+    assert 'v9.9.9' in info_calls[0][2]
+    assert browser_calls == []  # Noを選んだのでブラウザは開かない
+
+
+def test_manual_update_check_opens_browser_when_user_accepts(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    update_info = {'tag_name': 'v9.9.9', 'html_url': 'https://example.com/releases/v9.9.9', 'name': 'v9.9.9'}
+    monkeypatch.setattr(help_mixin_module, "check_for_update", lambda version, **k: update_info)
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    browser_calls = []
+    monkeypatch.setattr(help_mixin_module.webbrowser, "open", lambda url: browser_calls.append(url))
+
+    window._on_check_for_update()
+    _run_update_check_and_wait(window)
+
+    assert browser_calls == ['https://example.com/releases/v9.9.9']
+
+
+def test_manual_update_check_shows_warning_on_failure(tmp_path, monkeypatch):
+    def _raise(*a, **k):
+        raise OSError("network down")
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(help_mixin_module, "check_for_update", _raise)
+    warn_calls = []
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_check_for_update()
+    _run_update_check_and_wait(window)
+
+    assert len(warn_calls) == 1
+
+
+def test_manual_update_check_ignores_concurrent_second_call(tmp_path, monkeypatch):
+    """確認中に再度メニューを選んでも、二重にTaskRunnerを起動しない。"""
+    import time
+
+    def _slow_check(version, **k):
+        time.sleep(0.2)
+        return None
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(help_mixin_module, "check_for_update", _slow_check)
+    info_calls = []
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    window._on_check_for_update()
+    first_runner = window._update_check_task_runner
+    window._on_check_for_update()  # 実行中の2回目呼び出し
+
+    assert window._update_check_task_runner is first_runner  # 新しいrunnerには差し替わらない
+    _run_update_check_and_wait(window)
+    assert len(info_calls) == 2  # 「確認中です」+ 完了時の「最新です」
+
+
+def test_startup_update_check_shows_nothing_when_already_latest(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(help_mixin_module, "check_for_update", lambda version, **k: None)
+    info_calls = []
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    window._start_startup_update_check()
+    _run_update_check_and_wait(window)
+
+    assert info_calls == []
+
+
+def test_startup_update_check_shows_dialog_when_newer_available(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    update_info = {'tag_name': 'v9.9.9', 'html_url': 'https://example.com', 'name': 'v9.9.9'}
+    monkeypatch.setattr(help_mixin_module, "check_for_update", lambda version, **k: update_info)
+    info_calls = []
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: info_calls.append(a) or QMessageBox.StandardButton.No))
+
+    window._start_startup_update_check()
+    _run_update_check_and_wait(window)
+
+    assert len(info_calls) == 1
+
+
+def test_startup_update_check_silently_ignores_failure(tmp_path, monkeypatch):
+    """起動時の自動確認は失敗してもエラーダイアログを出さない(オフライン等を想定)。"""
+    def _raise(*a, **k):
+        raise OSError("offline")
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(help_mixin_module, "check_for_update", _raise)
+    warn_calls = []
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+    info_calls = []
+    monkeypatch.setattr(help_mixin_module.QMessageBox, "information",
+                         staticmethod(lambda *a, **k: info_calls.append(a)))
+
+    window._start_startup_update_check()
+    _run_update_check_and_wait(window)
+
+    assert warn_calls == []
     assert info_calls == []

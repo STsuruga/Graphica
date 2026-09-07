@@ -24,6 +24,19 @@ from core.script_export import generate_python_script
 
 logger = logging.getLogger(__name__)
 
+def _project_has_raster_gradient_fill(project):
+    """
+    ベクター出力時のラスタ要素警告(項目145、C-810)のヘルパー。
+    gui/canvas.pyの_draw_data()が_add_gradient_fill()(ax.imshow()ベース)を
+    呼ぶのと全く同じ条件('Area'プロットタイプ + gradient_enabled +
+    gradient_targetが'fill'か'both')を持つデータセットが1つでもあるかを返す。
+    """
+    return any(
+        ds.plot_type == 'Area' and ds.gradient_enabled and ds.gradient_target in ('fill', 'both')
+        for ds in project.datasets
+    )
+
+
 # クリップボードにコピーする画像の解像度 (現在の表示サイズのまま、荒くならない程度のDPI)
 CLIPBOARD_COPY_DPI = 150
 
@@ -377,6 +390,22 @@ class ExportMixin:
                 )
                 if not file_path:
                     return # キャンセルされた
+
+                # 5.5. ベクター出力時のラスタ要素警告(項目145、C-810)。
+                # グラデーション塗り(項目79)はax.imshow()で描いた画像をクリップ
+                # して見せる実装(_add_gradient_fill)のため、SVG/PDFに出力しても
+                # ベクターのままにならず、その部分だけラスタ画像として埋め込まれる
+                # (拡大するとぼやける・ファイルサイズが増える)。エクスポートは
+                # 続行しつつ、事前に気づけるよう注意喚起だけ行う。
+                export_ext = os.path.splitext(file_path)[1].lower()
+                if export_ext in ('.svg', '.pdf') and _project_has_raster_gradient_fill(self.project):
+                    QMessageBox.warning(
+                        self, "ベクター出力時の注意",
+                        "グラデーション塗り(項目79)が有効なデータセットが含まれています。\n"
+                        "この部分は画像(ラスタ)として埋め込まれるため、拡大すると"
+                        "他の要素のようにはくっきり表示されません。\n\n"
+                        "エクスポートは続行します。"
+                    )
 
                 # 6. ヘルパーメソッドで、設定 (px, cm) をインチ (in) に変換
                 width_in, height_in = self._calculate_size_in_inches(options)

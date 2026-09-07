@@ -580,6 +580,11 @@ class UISetupMixin:
             diagnostic_bundle_action = help_menu.addAction(tr("診断情報をエクスポート..."))
             diagnostic_bundle_action.triggered.connect(self._on_export_diagnostic_bundle)
 
+            # アップデート通知(項目161、C-1203): 起動時の自動確認とは別に、
+            # いつでも手動で確認できるようにする(取得のみ・送信なし)。
+            check_update_action = help_menu.addAction(tr("アップデートを確認..."))
+            check_update_action.triggered.connect(self._on_check_for_update)
+
             help_menu.addSeparator()
 
             about_action = help_menu.addAction(tr("{app} について...").format(app=APP_NAME))

@@ -20,6 +20,7 @@ import core.plugin_api as plugin_api_module
 import gui.main_window as main_window_module
 import gui.mixins.export_mixin as export_mixin_module
 from core.dataset import Dataset
+from models.project import ProjectModel
 from core.plugin_api import GraphicaPluginAPI
 from core.plugin_types import PluginExecutionError
 from gui.main_window import PlotterApp
@@ -655,6 +656,100 @@ def test_export_plot_writes_svg_with_text_as_path_option(tmp_path, monkeypatch):
     window._on_export_plot()
 
     assert out_path.exists()
+
+
+# --- ベクター出力時のラスタ要素警告(項目145、C-810) ---
+
+def _add_gradient_fill_area_dataset(window):
+    ds = Dataset(
+        name="area_ds", df=pd.DataFrame({"x": [1, 2, 3], "y": [1.0, 4.0, 9.0]}), x_col_name="x", y_col_name="y",
+        plot_type='Area', gradient_enabled=True, gradient_target='fill',
+    )
+    window._add_dataset(ds, None, select=True)
+    window._update_plot()
+    return ds
+
+
+def test_project_has_raster_gradient_fill_true_for_area_fill_gradient():
+    ds = Dataset(
+        name="d", df=pd.DataFrame({"x": [1, 2], "y": [1.0, 2.0]}), x_col_name="x", y_col_name="y",
+        plot_type='Area', gradient_enabled=True, gradient_target='both',
+    )
+    project = ProjectModel()
+    project.datasets.append(ds)
+    assert export_mixin_module._project_has_raster_gradient_fill(project) is True
+
+
+def test_project_has_raster_gradient_fill_false_for_line_gradient_only():
+    """gradient_targetが'line'のみ(imshowを使わないLineCollection)なら対象外"""
+    ds = Dataset(
+        name="d", df=pd.DataFrame({"x": [1, 2], "y": [1.0, 2.0]}), x_col_name="x", y_col_name="y",
+        plot_type='Area', gradient_enabled=True, gradient_target='line',
+    )
+    project = ProjectModel()
+    project.datasets.append(ds)
+    assert export_mixin_module._project_has_raster_gradient_fill(project) is False
+
+
+def test_project_has_raster_gradient_fill_false_for_non_area_plot_type():
+    ds = Dataset(
+        name="d", df=pd.DataFrame({"x": [1, 2], "y": [1.0, 2.0]}), x_col_name="x", y_col_name="y",
+        plot_type='Line', gradient_enabled=True, gradient_target='fill',
+    )
+    project = ProjectModel()
+    project.datasets.append(ds)
+    assert export_mixin_module._project_has_raster_gradient_fill(project) is False
+
+
+def test_export_plot_warns_on_svg_with_gradient_fill_area_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_gradient_fill_area_dataset(window)
+    out_path = tmp_path / "out.svg"
+    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)")
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path), "SVG (*.svg)")))
+    warn_calls = []
+    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_export_plot()
+
+    assert len(warn_calls) == 1
+    assert out_path.exists()  # 警告してもエクスポート自体は続行される
+
+
+def test_export_plot_no_warning_on_png_even_with_gradient_fill(tmp_path, monkeypatch):
+    """PNG(ラスタ形式)はそもそも全体がラスタのため、この警告の対象外"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_gradient_fill_area_dataset(window)
+    out_path = tmp_path / "out.png"
+    _patch_export_dialog(monkeypatch, accepted=True, width=400, height=300, unit="ピクセル (px)", dpi=100)
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
+    warn_calls = []
+    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_export_plot()
+
+    assert warn_calls == []
+    assert out_path.exists()
+
+
+def test_export_plot_no_warning_on_svg_without_gradient_fill(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)  # 通常のLineデータセット
+    out_path = tmp_path / "out.svg"
+    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)")
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path), "SVG (*.svg)")))
+    warn_calls = []
+    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_export_plot()
+
+    assert warn_calls == []
 
 
 def test_export_plot_full_resolution_option_redraws_full_and_restores_display(tmp_path, monkeypatch):
