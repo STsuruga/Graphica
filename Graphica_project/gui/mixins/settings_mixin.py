@@ -702,6 +702,10 @@ class SettingsMixin:
             'title': self.ui.title_text_edit.text(),
             'x_label': self.ui.x_label_text_edit.text(),
             'y_label': self.ui.y_label_text_edit.text(),
+            # 軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分):
+            # テキスト自体とは独立に、表示するかどうかだけを切り替えられる。
+            'x_label_visible': self.x_label_visible_checkbox.isChecked(),
+            'y_label_visible': self.y_label_visible_checkbox.isChecked(),
             'y2_label': self.y2_label_text_edit.text(),
 
             # X軸タブ
@@ -826,6 +830,8 @@ class SettingsMixin:
             self.ui.title_text_edit.setText(settings.get('title', ''))
             self.ui.x_label_text_edit.setText(settings.get('x_label', ''))
             self.ui.y_label_text_edit.setText(settings.get('y_label', ''))
+            self.x_label_visible_checkbox.setChecked(settings.get('x_label_visible', True))
+            self.y_label_visible_checkbox.setChecked(settings.get('y_label_visible', True))
             self.y2_label_text_edit.setText(settings.get('y2_label', ''))
 
             # X軸
@@ -1014,6 +1020,8 @@ class SettingsMixin:
         self.ui.title_text_edit.blockSignals(block)
         self.ui.x_label_text_edit.blockSignals(block)
         self.ui.y_label_text_edit.blockSignals(block)
+        self.x_label_visible_checkbox.blockSignals(block)
+        self.y_label_visible_checkbox.blockSignals(block)
         self.y2_label_text_edit.blockSignals(block)
         self.ui.tick_font_button.blockSignals(block)
         self.ui.tick_color_button.blockSignals(block)

@@ -892,6 +892,19 @@ def test_label_preview_widgets_registered_for_title_and_both_axis_labels(tmp_pat
     }
 
 
+def test_axis_label_visible_checkboxes_exist_and_default_checked(tmp_path, monkeypatch):
+    """
+    軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分)。
+    タイトルには付かず、X/Y軸ラベルにだけ付く。既定はチェック済み(表示)、
+    つまり後方互換(このチェックボックスを知らない旧プロジェクトでも
+    従来どおりラベルが表示される)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    assert window.x_label_visible_checkbox.isChecked() is True
+    assert window.y_label_visible_checkbox.isChecked() is True
+    assert not hasattr(window, 'title_visible_checkbox')
+
+
 def test_label_preview_widget_visible_while_backing_line_edit_is_hidden(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     preview, line_edit, _placeholder = window._label_preview_widgets[0]

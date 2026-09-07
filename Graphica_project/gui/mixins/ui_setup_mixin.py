@@ -104,6 +104,8 @@ class UISetupMixin:
             self.ui.title_text_edit.textChanged.connect(self._on_axis_setting_changed)
             self.ui.x_label_text_edit.textChanged.connect(self._on_axis_setting_changed)
             self.ui.y_label_text_edit.textChanged.connect(self._on_axis_setting_changed)
+            self.x_label_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
+            self.y_label_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
             self.y2_label_text_edit.textChanged.connect(self._on_axis_setting_changed) # 第2Y軸ラベル
 
             # (フォントと色はダイアログを開くため、専用のスロットを呼ぶ)

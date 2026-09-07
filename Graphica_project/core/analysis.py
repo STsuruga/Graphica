@@ -7,7 +7,7 @@ from scipy.integrate import simpson, cumulative_trapezoid, cumulative_simpson
 from scipy.interpolate import CubicSpline
 from scipy.ndimage import uniform_filter1d, median_filter, gaussian_filter1d
 from scipy.optimize import curve_fit
-from scipy.signal import find_peaks, peak_widths, savgol_filter
+from scipy.signal import find_peaks, peak_widths, savgol_filter, correlate, correlation_lags
 from scipy.special import wofz
 from scipy.stats import gaussian_kde
 
@@ -2010,3 +2010,79 @@ def calculate_error_propagation(operation, value_a, error_a, value_b, error_b):
             return np.sqrt((ea / b) ** 2 + (a * eb / b ** 2) ** 2)
         else:  # "B ÷ A"
             return np.sqrt((eb / a) ** 2 + (b * ea / a ** 2) ** 2)
+
+
+# フリーズ防止(項目1と同じ方針): 相互相関アライメントの共通グリッドの最大点数。
+_XCORR_MAX_GRID_POINTS = 20000
+
+
+def calculate_cross_correlation_alignment(x_a, y_a, x_b, y_b):
+    """
+    相互相関によるX軸アライメント(項目105、C-307)。データセットB(位置合わせ対象、
+    移動させる側)を、データセットA(基準、移動しない側)に重なるようX方向へ
+    シフトすべき量を、相互相関のピークから推定する。複数測定を重ね合わせる際の
+    ピーク位置/起点合わせを想定(呼び出し側がx_b + shiftで新しいデータセットを作る)。
+
+    A・Bを、両者のXのUNION範囲を覆う共通の等間隔グリッド(刻み幅は両者のうち
+    細かい方の中央値間隔)へ線形補間する(範囲外は0埋め)。それぞれ平均を
+    差し引いてから scipy.signal.correlate で相互相関を取り、最大値を与える
+    ラグをXのシフト量に変換して返す。
+
+    Args:
+        x_a, y_a, x_b, y_b (array-like): 基準(A)・位置合わせ対象(B)のデータ。
+            NaNの行は自動的に除外する。
+
+    Returns:
+        dict: {'shift': float (x_b_aligned = x_b + shift で使うシフト量),
+               'grid_step': float (アライメントに使った共通グリッドの刻み幅),
+               'correlation_peak': float (最大相関値、参考値)}
+
+    Raises:
+        ValueError: 有効なデータ点がどちらかで2点未満、またはX間隔を推定できない場合。
+    """
+    x_a = np.asarray(x_a, dtype=float)
+    y_a = np.asarray(y_a, dtype=float)
+    x_b = np.asarray(x_b, dtype=float)
+    y_b = np.asarray(y_b, dtype=float)
+
+    valid_a = ~(np.isnan(x_a) | np.isnan(y_a))
+    valid_b = ~(np.isnan(x_b) | np.isnan(y_b))
+    x_a, y_a = x_a[valid_a], y_a[valid_a]
+    x_b, y_b = x_b[valid_b], y_b[valid_b]
+    if len(x_a) < 2 or len(x_b) < 2:
+        raise ValueError("有効なデータ点が不足しています(それぞれ最低2点必要です)。")
+
+    order_a = np.argsort(x_a)
+    x_a, y_a = x_a[order_a], y_a[order_a]
+    order_b = np.argsort(x_b)
+    x_b, y_b = x_b[order_b], y_b[order_b]
+
+    step_a = np.median(np.diff(x_a))
+    step_b = np.median(np.diff(x_b))
+    candidates = [s for s in (step_a, step_b) if s and s > 0]
+    if not candidates:
+        raise ValueError("X間隔を推定できません(Xの値が一定、または重複しています)。")
+    step = min(candidates)
+
+    lo = min(x_a.min(), x_b.min())
+    hi = max(x_a.max(), x_b.max())
+    n_points = int(np.ceil((hi - lo) / step)) + 1
+    if n_points > _XCORR_MAX_GRID_POINTS:
+        step = (hi - lo) / _XCORR_MAX_GRID_POINTS
+        n_points = _XCORR_MAX_GRID_POINTS + 1
+    grid = np.linspace(lo, hi, n_points)
+
+    # 範囲外は0埋め(平均中心化後は「寄与なし」を意味する)。データが存在しない
+    # 区間を含めた全区間で平均を取るため、大きくシフトしたデータではDC成分の
+    # 中心化が厳密ではなくなるが、ピーク位置の検出という用途には実用上十分。
+    sig_a = np.interp(grid, x_a, y_a, left=0.0, right=0.0)
+    sig_b = np.interp(grid, x_b, y_b, left=0.0, right=0.0)
+    sig_a = sig_a - sig_a.mean()
+    sig_b = sig_b - sig_b.mean()
+
+    corr = correlate(sig_a, sig_b, mode='full')
+    lags = correlation_lags(len(sig_a), len(sig_b), mode='full')
+    best_idx = int(np.argmax(corr))
+    shift = float(lags[best_idx] * step)
+
+    return {'shift': shift, 'grid_step': float(step), 'correlation_peak': float(corr[best_idx])}

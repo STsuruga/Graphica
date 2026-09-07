@@ -19,7 +19,7 @@ from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgo
                             calculate_lttb_downsample,
                             calculate_multi_peak_fit, get_multi_peak_param_names,
                             multi_peak_fit_task, calculate_histogram, calculate_kde,
-                            calculate_error_propagation)
+                            calculate_error_propagation, calculate_cross_correlation_alignment)
 
 
 def test_linear_fit_recovers_known_parameters():
@@ -1578,6 +1578,72 @@ def test_error_propagation_division_does_not_nan_when_numerator_is_zero():
     """A÷Bでa=0でも、値ではなく分母(b)側で割る式のため誤差はNaNにならない。"""
     result = calculate_error_propagation("A ÷ B", [0.0], [1.0], [2.0], [0.2])
     assert not np.isnan(result[0])
+
+
+# --- X軸アライメント(相互相関、項目105、C-307) ---
+
+def _gaussian(x, mu, sigma=0.5):
+    return np.exp(-(x - mu) ** 2 / (2 * sigma ** 2))
+
+
+def test_cross_correlation_alignment_recovers_known_shift():
+    x = np.linspace(0, 20, 400)
+    a = _gaussian(x, 5.0)
+    b = _gaussian(x, 7.0)  # Aよりも2.0右にずれたピーク
+
+    result = calculate_cross_correlation_alignment(x, a, x, b)
+
+    aligned_peak_x = x[np.argmax(b)] + result['shift']
+    assert aligned_peak_x == pytest.approx(5.0, abs=0.2)
+
+
+def test_cross_correlation_alignment_zero_shift_for_identical_signals():
+    x = np.linspace(0, 20, 400)
+    a = _gaussian(x, 10.0)
+
+    result = calculate_cross_correlation_alignment(x, a, x, a.copy())
+
+    assert result['shift'] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_cross_correlation_alignment_negative_shift_direction():
+    x = np.linspace(0, 20, 400)
+    a = _gaussian(x, 10.0)
+    b = _gaussian(x, 8.0)  # Aより2.0左にずれたピーク
+
+    result = calculate_cross_correlation_alignment(x, a, x, b)
+
+    aligned_peak_x = x[np.argmax(b)] + result['shift']
+    assert aligned_peak_x == pytest.approx(10.0, abs=0.2)
+
+
+def test_cross_correlation_alignment_rejects_insufficient_points():
+    with pytest.raises(ValueError):
+        calculate_cross_correlation_alignment([1.0], [1.0], [1.0, 2.0], [1.0, 2.0])
+
+
+def test_cross_correlation_alignment_ignores_nan_rows():
+    x = np.linspace(0, 20, 400)
+    a = _gaussian(x, 5.0)
+    b = _gaussian(x, 7.0)
+    a_with_nan = a.copy()
+    a_with_nan[0] = np.nan
+
+    result = calculate_cross_correlation_alignment(x, a_with_nan, x, b)
+
+    aligned_peak_x = x[np.argmax(b)] + result['shift']
+    assert aligned_peak_x == pytest.approx(5.0, abs=0.2)
+
+
+def test_cross_correlation_alignment_returns_grid_step_and_correlation_peak():
+    x = np.linspace(0, 20, 400)
+    a = _gaussian(x, 5.0)
+    b = _gaussian(x, 7.0)
+
+    result = calculate_cross_correlation_alignment(x, a, x, b)
+
+    assert result['grid_step'] > 0
+    assert result['correlation_peak'] > 0
 
 
 # --- 信頼帯・予測帯(C-405) ---

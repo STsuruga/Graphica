@@ -63,6 +63,29 @@ def test_generated_script_executes_without_error_for_simple_line_plot():
     _exec_script(script)  # 例外が出なければOK
 
 
+def test_generated_script_omits_axis_label_when_visibility_toggled_off():
+    """軸ラベルの表示/非表示トグル(項目127追加分): テキストがあってもFalseなら出力しない。"""
+    ds = _make_dataset(plot_type="Line", color="#ff0000")
+    project = _make_project(datasets=[ds], all_plot_settings=[
+        {"x_label": "X", "x_label_visible": False, "y_label": "Y", "y_label_visible": False}
+    ])
+    script = generate_python_script(project)
+
+    assert "set_xlabel" not in script
+    assert "set_ylabel" not in script
+    _exec_script(script)
+
+
+def test_generated_script_includes_axis_label_when_visibility_key_missing():
+    """後方互換: x_label_visible/y_label_visibleキーの無い旧プロジェクトでは従来通り出力する。"""
+    ds = _make_dataset(plot_type="Line", color="#ff0000")
+    project = _make_project(datasets=[ds], all_plot_settings=[{"x_label": "X", "y_label": "Y"}])
+    script = generate_python_script(project)
+
+    assert "set_xlabel" in script
+    assert "set_ylabel" in script
+
+
 @pytest.mark.parametrize("plot_type", ["Line", "Scatter", "Line+Scatter", "Area", "Bar", "Step"])
 def test_generated_script_executes_for_each_builtin_plot_type(plot_type):
     ds = _make_dataset(plot_type=plot_type)

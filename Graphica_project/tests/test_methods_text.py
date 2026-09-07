@@ -67,6 +67,17 @@ def test_describe_operation_arithmetic_includes_symbol():
     assert "A - B" in text
 
 
+def test_describe_operation_xaxis_alignment_includes_shift():
+    text = describe_operation({'operation': 'xaxis_alignment', 'params': {'shift': -2.0050125}})
+    assert "X軸アライメント" in text
+    assert "-2.005" in text
+
+
+def test_describe_operation_xaxis_alignment_handles_missing_shift():
+    text = describe_operation({'operation': 'xaxis_alignment', 'params': {}})
+    assert "不明" in text
+
+
 def test_describe_operation_mean_sd_includes_count_and_method():
     text = describe_operation({'operation': 'mean_sd', 'params': {'method': 'linear', 'n_source': 3}})
     assert "平均±SD" in text

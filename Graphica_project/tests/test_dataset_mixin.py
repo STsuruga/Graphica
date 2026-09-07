@@ -30,7 +30,7 @@ from gui.dialogs import (
     DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
     NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
     ResampleDatasetDialog, DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
-    HistogramKDEDialog,
+    HistogramKDEDialog, XAxisAlignmentDialog,
 )
 from core.dataset import Dataset
 from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
@@ -1694,6 +1694,150 @@ def test_arithmetic_no_error_columns_unaffected(tmp_path, monkeypatch):
     new_ds = window.project.datasets[-1]
     assert new_ds.y_err_col_name is None
     np.testing.assert_allclose(new_ds.y_data, [-5.0, 5.0, 15.0, 25.0])  # 従来の計算結果と一致
+
+
+# =============================================================================
+# X軸アライメント (_on_align_datasets, 項目105、C-307)
+# =============================================================================
+
+def _gaussian(x, mu, sigma=0.5):
+    return np.exp(-(x - mu) ** 2 / (2 * sigma ** 2))
+
+
+def _make_align_pair():
+    x = np.linspace(0, 20, 400)
+    df_a = pd.DataFrame({'x': x, 'y': _gaussian(x, 5.0)})
+    df_b = pd.DataFrame({'x': x, 'y': _gaussian(x, 7.0)})  # Aより2.0右にずれている
+    ds_a = Dataset(name="A", df=df_a, x_col_name='x', y_col_name='y')
+    ds_b = Dataset(name="B", df=df_b, x_col_name='x', y_col_name='y')
+    return ds_a, ds_b
+
+
+def test_align_datasets_requires_exactly_two_selected(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    before_count = len(window.project.datasets)
+    info_calls = _patch_info_capture(monkeypatch)
+
+    window._on_align_datasets()
+
+    assert len(info_calls) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_align_datasets_shifts_b_to_match_a(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_align_pair()
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "XAxisAlignmentDialog", XAxisAlignmentDialog,
+        "get_settings", "B_aligned"
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_align_datasets()
+
+    assert len(window.project.datasets) == before_count + 1
+    new_ds = window.project.datasets[-1]
+    assert new_ds.name == "B_aligned"
+    aligned_peak_x = new_ds.x_data[np.argmax(new_ds.y_data)]
+    assert aligned_peak_x == pytest.approx(5.0, abs=0.2)  # Aのピーク位置に合う
+
+
+def test_align_datasets_does_not_modify_originals(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_align_pair()
+    original_b_x = ds_b.x_data.copy()
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "XAxisAlignmentDialog", XAxisAlignmentDialog,
+        "get_settings", "B_aligned"
+    )
+
+    window._on_align_datasets()
+
+    np.testing.assert_array_equal(ds_b.x_data, original_b_x)  # 元のBは非破壊
+
+
+def test_align_datasets_cancelled_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_align_pair()
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "XAxisAlignmentDialog", XAxisAlignmentDialog,
+        "get_settings", "B_aligned", accepted=False
+    )
+    before_count = len(window.project.datasets)
+
+    window._on_align_datasets()
+
+    assert len(window.project.datasets) == before_count
+
+
+def test_align_datasets_empty_output_name_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_align_pair()
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "XAxisAlignmentDialog", XAxisAlignmentDialog,
+        "get_settings", ""
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+    before_count = len(window.project.datasets)
+
+    window._on_align_datasets()
+
+    assert len(warnings) == 1
+    assert len(window.project.datasets) == before_count
+
+
+def test_align_datasets_insufficient_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df_a = pd.DataFrame({'x': [1.0], 'y': [1.0]})
+    df_b = pd.DataFrame({'x': [1.0, 2.0], 'y': [1.0, 2.0]})
+    ds_a = Dataset(name="A", df=df_a, x_col_name='x', y_col_name='y')
+    ds_b = Dataset(name="B", df=df_b, x_col_name='x', y_col_name='y')
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "XAxisAlignmentDialog", XAxisAlignmentDialog,
+        "get_settings", "B_aligned"
+    )
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_align_datasets()
+
+    assert len(warnings) == 1
+
+
+def test_align_datasets_records_provenance_with_both_source_datasets(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_a, ds_b = _make_align_pair()
+    window._add_dataset(ds_a, None, select=False)
+    window._add_dataset(ds_b, None, select=False)
+    _select_items(window, [ds_a, ds_b])
+    _patch_dialog_result(
+        monkeypatch, "XAxisAlignmentDialog", XAxisAlignmentDialog,
+        "get_settings", "B_aligned"
+    )
+
+    window._on_align_datasets()
+
+    prov = window.project.datasets[-1].provenance
+    assert prov is not None
+    assert prov['operation'] == 'xaxis_alignment'
+    assert set(prov['source_dataset_ids']) == {ds_a.dataset_id, ds_b.dataset_id}
+    assert prov['params']['shift'] == pytest.approx(-2.0, abs=0.2)
 
 
 # =============================================================================
@@ -6269,6 +6413,63 @@ def test_tick_decimals_spinbox_special_value_text_is_auto(tmp_path, monkeypatch)
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.x_tick_decimals_spinbox.setValue(-1)
     assert window.x_tick_decimals_spinbox.text() == "自動"
+
+
+# --- 軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分:
+#     「軸ラベルは入力の有無だけじゃなくて表示のオンオフの切り替えを追加して」) ---
+
+def test_gather_settings_from_ui_includes_axis_label_visible_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.x_label_visible_checkbox.setChecked(False)
+    window.y_label_visible_checkbox.setChecked(True)
+
+    settings = window._gather_settings_from_ui()
+
+    assert settings['x_label_visible'] is False
+    assert settings['y_label_visible'] is True
+
+
+def test_apply_settings_to_ui_controls_restores_axis_label_visible_keys(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    settings.update({'x_label_visible': False, 'y_label_visible': False})
+
+    window._apply_settings_to_ui_controls(settings)
+
+    assert window.x_label_visible_checkbox.isChecked() is False
+    assert window.y_label_visible_checkbox.isChecked() is False
+
+
+def test_apply_settings_to_ui_controls_defaults_axis_label_visible_to_true_for_legacy_projects(tmp_path, monkeypatch):
+    """項目20(グローバルCLAUDE.md方針): 新フィールドは旧プロジェクトの設定辞書に
+    存在しなくても既定値(True=従来通り表示)で補われ、既存の見た目を変えないこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    settings = window._gather_settings_from_ui()
+    settings.pop('x_label_visible', None)
+    settings.pop('y_label_visible', None)
+
+    window._apply_settings_to_ui_controls(settings)  # 例外を投げないこと
+
+    assert window.x_label_visible_checkbox.isChecked() is True
+    assert window.y_label_visible_checkbox.isChecked() is True
+
+
+def test_axis_label_visible_checkbox_toggle_updates_plot_appearance(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    window.ui.x_label_text_edit.setText("X軸ラベル")
+    ax = window.canvas.all_axes[0]
+    assert ax.get_xlabel() == "X軸ラベル"
+
+    window.x_label_visible_checkbox.setChecked(False)
+
+    assert ax.get_xlabel() == ""  # テキストを消さずに非表示にできる
+    assert window.ui.x_label_text_edit.text() == "X軸ラベル"  # テキスト自体は保持される
+
+    window.x_label_visible_checkbox.setChecked(True)
+
+    assert ax.get_xlabel() == "X軸ラベル"  # 再表示すると元のテキストに戻る
 
 
 # =============================================================================

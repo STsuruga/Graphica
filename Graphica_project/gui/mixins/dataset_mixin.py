@@ -35,7 +35,8 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_confidence_band, calculate_average_duplicate_x,
                            calculate_zscore_outliers, calculate_iqr_outliers,
                            calculate_resample_to_grid, multi_peak_fit_task,
-                           calculate_histogram, calculate_kde, calculate_error_propagation)
+                           calculate_histogram, calculate_kde, calculate_error_propagation,
+                           calculate_cross_correlation_alignment)
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
 from core.dataset import Dataset
@@ -52,7 +53,7 @@ from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPalet
                          BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
                          ResampleDatasetDialog, MultiPeakFitDialog,
                          DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
-                         HistogramKDEDialog)
+                         HistogramKDEDialog, XAxisAlignmentDialog)
 from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -349,6 +350,11 @@ class DatasetMixin:
             if selected_count == 2:
                 arithmetic_action = menu.addAction("データセット間演算...")
                 arithmetic_action.triggered.connect(self._on_dataset_arithmetic)
+
+                # X軸アライメント(項目105、C-307): データセット間演算と同じ
+                # 「ちょうど2件」限定の操作(A=基準、B=位置合わせ対象は選択順)。
+                align_action = menu.addAction("X軸アライメント(相互相関)...")
+                align_action.triggered.connect(self._on_align_datasets)
 
             # 複数データセットの平均±SD生成(項目C-312): 2件以上を対象にする
             # (「ちょうど2件」限定のデータセット間演算とは異なる)。
@@ -781,6 +787,53 @@ class DatasetMixin:
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    def _on_align_datasets(self):
+        """
+        「X軸アライメント(相互相関)...」メニューの処理(項目105、C-307)。
+        選択中のちょうど2つのデータセット(A=基準/移動しない、B=位置合わせ
+        対象/移動する、選択順)について、相互相関(calculate_cross_correlation_
+        alignment)でBに加えるべきXシフト量を推定し、Bのxをシフトした新しい
+        データセットを追加する(A自体・元のB自体は変更しない、非破壊。
+        _on_dataset_arithmeticと同じ「ちょうど2件」パターン)。複数測定を
+        重ね合わせる際のピーク位置/起点合わせを想定。
+        """
+        selected = self._get_selected_datasets()
+        if len(selected) != 2:
+            QMessageBox.information(self, "X軸アライメント", "位置合わせ対象として、データセットをちょうど2つ選択してください。")
+            return
+        ds_a, ds_b = selected[0], selected[1]
+
+        dialog = XAxisAlignmentDialog(ds_a.name, ds_b.name, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        output_name = dialog.get_settings()
+        if not output_name:
+            QMessageBox.warning(self, "入力エラー", "出力データセット名が空です。")
+            return
+
+        xa = np.asarray(ds_a.x_data, dtype=float)
+        ya = np.asarray(ds_a.y_data, dtype=float)
+        xb = np.asarray(ds_b.x_data, dtype=float)
+        yb = np.asarray(ds_b.y_data, dtype=float)
+
+        try:
+            result = calculate_cross_correlation_alignment(xa, ya, xb, yb)
+        except ValueError as e:
+            QMessageBox.warning(self, "X軸アライメント", str(e))
+            return
+
+        shift = result['shift']
+        valid_b = ~(np.isnan(xb) | np.isnan(yb))
+        result_df = pd.DataFrame({'x': xb[valid_b] + shift, 'y': yb[valid_b]})
+        new_dataset = Dataset(
+            name=output_name, df=result_df, x_col_name='x', y_col_name='y',
+            provenance=self._build_provenance(
+                'xaxis_alignment', {'shift': shift, 'grid_step': result['grid_step']}, [ds_a, ds_b],
+            ),
+        )
+        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self.statusBar().showMessage(f"「{output_name}」を追加しました(シフト量: {shift:+.4g})", 4000)
 
     def _on_generate_mean_sd(self):
         """

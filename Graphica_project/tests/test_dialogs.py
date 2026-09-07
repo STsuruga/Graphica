@@ -22,7 +22,8 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          ColumnVisibilityDialog, FindReplaceDialog,
                          CumulativeIntegralDialog, ArrowAnnotationDialog,
                          RowFilterDialog, DuplicateXDialog, OutlierDetectionDialog,
-                         FolderImportDialog, AutosaveHistoryDialog)
+                         FolderImportDialog, AutosaveHistoryDialog,
+                         HistogramKDEDialog, XAxisAlignmentDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -2161,6 +2162,47 @@ def test_dataset_arithmetic_dialog_custom_operation_and_name():
     dlg.operation_combo.setCurrentText("A × B")
     dlg.output_name_edit.setText("  Product  ")
     assert dlg.get_settings() == ("A × B", "Product")
+
+
+# --- HistogramKDEDialog(項目115、C-505) ---
+
+def test_histogram_kde_dialog_defaults_to_histogram_mode():
+    dlg = HistogramKDEDialog("D1", ["x", "y", "z"], default_column="y")
+    assert dlg.column_combo.currentText() == "y"
+    settings = dlg.get_settings()
+    assert settings == {'mode': 'histogram', 'column': 'y', 'output_name': 'D1_hist', 'bins': 'auto', 'density': False}
+
+
+def test_histogram_kde_dialog_kde_mode_updates_default_output_name():
+    dlg = HistogramKDEDialog("D1", ["x", "y"], default_column="y")
+    dlg.mode_combo.setCurrentText(HistogramKDEDialog.MODE_KDE)
+    settings = dlg.get_settings()
+    assert settings['mode'] == 'kde'
+    assert settings['output_name'] == 'D1_kde'
+    assert settings['n_points'] == 200
+
+
+def test_histogram_kde_dialog_manual_bins():
+    dlg = HistogramKDEDialog("D1", ["y"], default_column="y")
+    dlg.auto_bins_checkbox.setChecked(False)
+    dlg.bins_spinbox.setValue(20)
+    dlg.density_checkbox.setChecked(True)
+    settings = dlg.get_settings()
+    assert settings['bins'] == 20
+    assert settings['density'] is True
+
+
+# --- XAxisAlignmentDialog(項目105、C-307) ---
+
+def test_xaxis_alignment_dialog_defaults():
+    dlg = XAxisAlignmentDialog("Alpha", "Beta")
+    assert dlg.get_settings() == "Beta_aligned"
+
+
+def test_xaxis_alignment_dialog_custom_output_name():
+    dlg = XAxisAlignmentDialog("Alpha", "Beta")
+    dlg.output_name_edit.setText("  Beta_shifted  ")
+    assert dlg.get_settings() == "Beta_shifted"
 
 
 # --- NormalizeDatasetDialog ---

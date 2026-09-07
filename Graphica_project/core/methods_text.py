@@ -52,6 +52,10 @@ def describe_operation(provenance):
             f"重複X値の平均化({params.get('n_duplicate_groups')}グループ、"
             f"{params.get('n_points_in')}点 → {params.get('n_points_out')}点)"
         )
+    if operation == 'xaxis_alignment':
+        shift = params.get('shift')
+        shift_text = f"{shift:+.4g}" if isinstance(shift, (int, float)) else "不明"
+        return f"X軸アライメント(相互相関、シフト量: {shift_text})"
     if operation == 'histogram':
         density_text = "確率密度" if params.get('density') else "度数"
         return f"ヒストグラム(列: {params.get('column')}、{density_text}、ビン: {params.get('bins')})"

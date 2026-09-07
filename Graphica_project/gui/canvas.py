@@ -1630,8 +1630,15 @@ class _CanvasDrawingMixin:
         label_color = self._effective_text_color(settings.get('axis_label_color', '#000000'))
 
         ax.set_title(settings.get('title', ''), **label_font_dict, color=label_color)
-        ax.set_xlabel(settings.get('x_label', ''), **label_font_dict, color=label_color)
-        ax.set_ylabel(settings.get('y_label', ''), **label_font_dict, color=label_color)
+        # 軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分):
+        # settings['x_label']/['y_label']自体は(非表示にしても)消さずに保持し、
+        # 描画時にx_label_visible/y_label_visible(既定True、後方互換)が
+        # Falseの場合だけ空文字で描画する。テキスト入力欄を空にする実装だと
+        # 再表示のたびに再入力が必要になってしまうため、別のフラグにしている。
+        x_label_text = settings.get('x_label', '') if settings.get('x_label_visible', True) else ''
+        y_label_text = settings.get('y_label', '') if settings.get('y_label_visible', True) else ''
+        ax.set_xlabel(x_label_text, **label_font_dict, color=label_color)
+        ax.set_ylabel(y_label_text, **label_font_dict, color=label_color)
         # ★ グラフ要素の直接クリック選択(項目35): タイトルをクリックすると、
         # そのサブプロットを「編集対象のプロット」に切り替えられるようにする。
         ax.title.set_picker(5)

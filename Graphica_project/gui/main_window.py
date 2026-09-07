@@ -1577,6 +1577,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             )
             self._refresh_label_preview(preview_label, line_edit.text(), placeholder)
 
+            # 軸ラベルの表示/非表示トグル(項目127追加分の実機フィードバック:
+            # 「軸ラベルは入力の有無だけじゃなくて表示のオンオフの切り替えを
+            # 追加して」)。タイトルには適用しない(タイトルは元々「入力の有無」
+            # だけで十分という要望は無かったため、既存の挙動のまま)。
+            # テキスト自体は消さずに保持したまま非表示にできるようにすることで、
+            # 一時的にラベルだけ隠して図を出力する、といった使い方ができる。
+            if field_key in ('x_label', 'y_label'):
+                visible_checkbox = QCheckBox()
+                visible_checkbox.setChecked(True)
+                visible_checkbox.setToolTip(tr("ラベルの表示/非表示(テキスト自体は保持されます)"))
+                wrapper_layout.addWidget(visible_checkbox)
+                setattr(self, f'{field_key}_visible_checkbox', visible_checkbox)
+
             format_button = QToolButton()
             format_button.setText("Aa")
             format_button.setToolTip(tr("タイトル/ラベルを編集(書式・記号入力)"))

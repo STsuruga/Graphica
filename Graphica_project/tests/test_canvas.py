@@ -447,6 +447,35 @@ def test_svg_export_with_fonttype_path_outlines_text_elements(canvas):
     assert "<text" not in svg_text
 
 
+# --- 軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分) ---
+
+def test_axis_label_shown_by_default(canvas):
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{'x_label': 'X軸', 'y_label': 'Y軸'}])
+    ax = canvas.all_axes[0]
+    assert ax.get_xlabel() == 'X軸'
+    assert ax.get_ylabel() == 'Y軸'
+
+
+def test_axis_label_hidden_when_visible_flag_false(canvas):
+    """テキスト(x_label)自体はそのままでも、x_label_visible=Falseなら描画されない。"""
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{'x_label': 'X軸', 'x_label_visible': False, 'y_label': 'Y軸', 'y_label_visible': False}])
+    ax = canvas.all_axes[0]
+    assert ax.get_xlabel() == ''
+    assert ax.get_ylabel() == ''
+
+
+def test_axis_label_visible_defaults_to_true_for_legacy_settings(canvas):
+    """x_label_visible/y_label_visibleキーの無い(この機能追加前の)設定でも、
+    従来通りテキストがあればそのまま表示される。"""
+    ds = _make_dataset(3, show_point_labels=False)
+    canvas.redraw_all([ds], 1, 1, [{'x_label': 'X軸', 'y_label': 'Y軸'}])
+    ax = canvas.all_axes[0]
+    assert ax.get_xlabel() == 'X軸'
+    assert ax.get_ylabel() == 'Y軸'
+
+
 # --- グリッド線の詳細カスタマイズ(項目82) ---
 # X軸/Y軸・主目盛/補助目盛それぞれに独立した線種・太さ・透過度を設定できることと、
 # 設定キーが無い(この機能追加前に保存された)プロジェクトを読み込んでも、

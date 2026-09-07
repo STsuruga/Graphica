@@ -2661,6 +2661,52 @@ class DatasetArithmeticDialog(QDialog):
 
 
 #==============================================================================
+# カスタムダイアログクラス: X軸アライメント(相互相関、項目105、C-307)
+#==============================================================================
+class XAxisAlignmentDialog(QDialog):
+    """
+    相互相関によるX軸アライメント(項目105、C-307)の設定を入力させるダイアログ。
+    2つのデータセット(A=基準/移動しない、B=位置合わせ対象/移動する)を対象とし、
+    シフト量自体は自動推定(ユーザー入力不要)のため、出力データセット名の
+    入力のみを求める最小限の構成(DatasetArithmeticDialogと同じ「A/B表示 +
+    出力名」の構成)。
+    """
+
+    def __init__(self, name_a, name_b, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("X軸アライメント(相互相関)")
+        self.resize(380, 200)
+
+        layout = QVBoxLayout(self)
+        label = QLabel(f"基準(移動しない): {name_a}\n位置合わせ対象(移動する): {name_b}")
+        layout.addWidget(label)
+
+        form = QFormLayout()
+        self.output_name_edit = QLineEdit(f"{name_b}_aligned")
+        form.addRow("出力データセット名", self.output_name_edit)
+        layout.addLayout(form)
+
+        info_label = QLabel(
+            "2つのデータセットの相互相関が最大になるよう、位置合わせ対象のX値を"
+            "シフトした新しいデータセットを作成します(元のデータセットは変更しません)。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                    QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_settings(self):
+        """Returns: str (出力データセット名)"""
+        return self.output_name_edit.text().strip()
+
+
+#==============================================================================
 # カスタムダイアログクラス: 規格化(ノーマライズ)
 #==============================================================================
 class NormalizeDatasetDialog(QDialog):

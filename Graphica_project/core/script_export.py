@@ -144,9 +144,11 @@ def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
 def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):
     if settings.get('title'):
         lines.append(f"{ax_var}.set_title({settings['title']!r})")
-    if settings.get('x_label'):
+    # 軸ラベルの表示/非表示トグル(項目127追加分): 非表示(False)の場合は
+    # テキストがあっても出力しない(既定Trueで後方互換)。
+    if settings.get('x_label') and settings.get('x_label_visible', True):
         lines.append(f"{ax_var}.set_xlabel({settings['x_label']!r})")
-    if settings.get('y_label'):
+    if settings.get('y_label') and settings.get('y_label_visible', True):
         lines.append(f"{ax_var}.set_ylabel({settings['y_label']!r})")
     if settings.get('x_log'):
         lines.append(f"{ax_var}.set_xscale('log')")

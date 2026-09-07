@@ -13,7 +13,35 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 次にやること(2026-09-03時点、TODO)
+## 次にやること(2026-09-08時点、TODO)
+
+- **2026-09-08、roadmap #105(C-307 X軸アライメント)・#109(C-313 誤差伝播)・
+  #113(C-503 階段プロット)・#115(C-505 ヒストグラム/KDE)・#127(C-608 列の
+  単位メタデータ→軸ラベル自動生成)を実装完了**(詳細は
+  `docs/CORE_FEATURES_PROGRESS.md`末尾の該当行)。roadmap.htmlは更新済み
+  (republish未実施、次のセッション開始時にpublish状態を確認すること)。
+  あわせて実機フィードバック3件を修正: (1)`ColorPickerWidget`のカラー
+  コード欄が`editingFinished`(Enter/フォーカスアウト)まで見た目に反映
+  されなかった問題を、`textChanged`でのライブプレビュー追加により解消
+  (確定・Undo履歴への記録は従来通り`editingFinished`のみ)。(2)マスク
+  解除で軸範囲外の点が再表示された際、データ点ラベル(`ax.annotate`は
+  既定`clip_on=False`)だけが枠外にはみ出てSVG/PDF等の出力に残る問題を、
+  `clip_on=True`を明示指定して解消(マーカー自体は元々`clip_on=True`の
+  既定で問題なかった)。(3)軸ラベルの表示/非表示を、テキストの有無とは
+  独立したトグル(`x_label_visible`/`y_label_visible`、既定True)として
+  追加(`main_window.py`のラベルプレビューwrapperにチェックボックスを
+  新設、`settings_mixin.py`の`_gather_settings_from_ui`/
+  `_apply_settings_to_ui_controls`/`_block_all_signals`・`canvas.py`の
+  `_apply_appearance`・`core/script_export.py`の`_emit_appearance_calls`
+  まで一貫して配線)。テキスト自体は保持したまま非表示にできる設計
+  (再表示時に再入力不要)。
+  commit `8d80044`(色ピッカー)・`14df5c7`(ラベルclip)・`93604f2`
+  (Step/Histogram-KDE/軸ラベル自動生成/誤差伝播)まではpush済み。
+  軸ラベル表示トグル・X軸アライメントの2件も、フルスイート(チャンク方式、
+  0失敗・既知のtest_export_preview_panel.pyセグフォルトのみWARN)+
+  test_dataset_mixin.py単体フル実行(410 passed)を確認の上でコミット・
+  push済み。roadmap.htmlはrepublish済み(Artifact
+  https://claude.ai/code/artifact/3305056d-6417-4056-8899-b5e2bca0c553)。
 
 - **2026-09-03、roadmap #85(C-104)・#88(C-107)・#90(C-109)・#93(C-203)・
   #94(C-204)・#104(C-306)を実装完了**(詳細は`docs/CORE_FEATURES_PROGRESS.md`
