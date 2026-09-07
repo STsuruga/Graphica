@@ -1920,6 +1920,53 @@ def test_step_plot_type_icon_shows_line_preview():
     assert icon is not None
 
 
+# --- 2D密度散布図(項目117、C-507) ---
+
+def test_density_scatter_colors_points_by_local_density(canvas):
+    rng = np.random.default_rng(0)
+    x = np.concatenate([rng.normal(0, 0.2, 30), rng.normal(5, 0.2, 5)])
+    y = np.concatenate([rng.normal(0, 0.2, 30), rng.normal(5, 0.2, 5)])
+    ds = Dataset(name="density_ds", df=pd.DataFrame({"x": x, "y": y}), x_col_name="x", y_col_name="y",
+                 plot_type='Density Scatter', color='#112233')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    ax = canvas.all_axes[0]
+    assert len(ax.collections) >= 1
+    array = ds.artist.get_array()
+    assert array is not None
+    assert len(array) == len(x)
+    # 密集しているクラスタの点の方が、離れた少数の点より密度が高いはず
+    assert array[:30].mean() > array[30:].mean()
+
+
+def test_density_scatter_falls_back_to_plain_scatter_for_too_few_points(canvas):
+    df = pd.DataFrame({"x": [0.0, 1.0], "y": [0.0, 1.0]})
+    ds = Dataset(name="density_ds", df=df, x_col_name="x", y_col_name="y",
+                 plot_type='Density Scatter', color='#112233')
+    canvas.redraw_all([ds], 1, 1, [{}])  # 例外にならないこと
+    ax = canvas.all_axes[0]
+    assert len(ax.collections) >= 1
+
+
+def test_density_scatter_falls_back_to_plain_scatter_for_singular_covariance(canvas):
+    """全点が同一座標だと共分散行列が特異になりgaussian_kdeが失敗するため、
+    通常のScatter(単色)にフォールバックしてクラッシュしないこと。"""
+    df = pd.DataFrame({"x": [1.0, 1.0, 1.0], "y": [2.0, 2.0, 2.0]})
+    ds = Dataset(name="density_ds", df=df, x_col_name="x", y_col_name="y",
+                 plot_type='Density Scatter', color='#112233')
+    canvas.redraw_all([ds], 1, 1, [{}])  # 例外にならないこと
+    ax = canvas.all_axes[0]
+    assert len(ax.collections) >= 1
+
+
+def test_density_scatter_icon_shows_marker_preview():
+    from gui.dataset_style_icon import make_dataset_style_icon
+    df = pd.DataFrame({"x": [0.0, 1.0], "y": [0.0, 1.0]})
+    ds = Dataset(name="density_ds", df=df, x_col_name="x", y_col_name="y",
+                 plot_type='Density Scatter', color='#112233')
+    icon = make_dataset_style_icon(ds)  # 例外が出なければOK
+    assert icon is not None
+
+
 # --- _add_gradient_fill(): X/Y範囲が潰れるケースの補正 ---
 
 def test_add_gradient_fill_handles_all_x_equal(canvas):

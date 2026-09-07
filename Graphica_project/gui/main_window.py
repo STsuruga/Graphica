@@ -519,6 +519,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.plot_type_combo.addItem("Area")
         self.ui.plot_type_combo.addItem("Bar")
         self.ui.plot_type_combo.addItem("Step")  # 階段プロット(項目113、C-503)
+        self.ui.plot_type_combo.addItem("Density Scatter")  # 2D密度散布図(項目117、C-507)
 
         # ★ データセットリストを QListWidget から QTreeWidget に置き換える。
         #   フォルダによるグループ分けに対応するため (Designerが生成する

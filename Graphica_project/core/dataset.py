@@ -147,7 +147,7 @@ class Dataset:
         return None
 
     # --- スタイルと状態に関する情報 (デフォルト値付き) ---
-    plot_type: str = 'Line'       # 'Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step'
+    plot_type: str = 'Line'       # 'Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step', 'Density Scatter'
     color: str = '#1f77b4'        # 16進数カラーコード (Matplotlib のデフォルト色)
     linestyle: str = '-'          # 実線 (Solid)
     linewidth: float = 1.5

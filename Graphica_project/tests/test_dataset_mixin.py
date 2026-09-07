@@ -1032,6 +1032,90 @@ def test_show_all_in_folder_does_nothing_when_folder_empty(tmp_path, monkeypatch
 
 
 # =============================================================================
+# プロジェクト全体の一括表示切替 (_on_show_all_datasets/_on_hide_all_datasets、
+# 項目150、C-907)
+# =============================================================================
+
+def test_show_all_datasets_affects_datasets_across_multiple_folders(tmp_path, monkeypatch):
+    """フォルダ限定版と異なり、フォルダ構造・現在の選択に関わらず全件が対象になる。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    folder_a = window._add_dataset_folder_item("A")
+    folder_b = window._add_dataset_folder_item("B")
+    ds_in_a = _make_simple_dataset("in_a")
+    ds_in_b = _make_simple_dataset("in_b")
+    ds_root = _make_simple_dataset("root")
+    for ds in (ds_in_a, ds_in_b, ds_root):
+        ds.visible = False
+    window.project.datasets.extend([ds_in_a, ds_in_b, ds_root])
+    window._add_dataset_list_item(ds_in_a, folder_a)
+    window._add_dataset_list_item(ds_in_b, folder_b)
+    window._add_dataset_list_item(ds_root, None)
+    window.ui.dataset_list_widget.setCurrentItem(None)  # 何も選択していない状態でも効く
+
+    window._on_show_all_datasets()
+
+    assert ds_in_a.visible is True
+    assert ds_in_b.visible is True
+    assert ds_root.visible is True
+
+
+def test_hide_all_datasets_affects_all_datasets(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds1 = _make_simple_dataset("d1")
+    ds2 = _make_simple_dataset("d2")
+    window._add_dataset(ds1, None, select=False)
+    window._add_dataset(ds2, None, select=False)
+
+    window._on_hide_all_datasets()
+
+    assert ds1.visible is False
+    assert ds2.visible is False
+
+
+def test_hide_all_datasets_is_undoable_as_single_macro(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds1 = _make_simple_dataset("d1")
+    ds2 = _make_simple_dataset("d2")
+    window._add_dataset(ds1, None, select=False)
+    window._add_dataset(ds2, None, select=False)
+    before_count = window.undo_stack.count()
+
+    window._on_hide_all_datasets()
+
+    assert window.undo_stack.count() == before_count + 1  # 1回のUndo単位にまとまる
+    window.undo_stack.undo()
+    assert ds1.visible is True
+    assert ds2.visible is True
+
+
+def test_show_all_datasets_does_nothing_when_project_empty(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    window._on_show_all_datasets()  # 例外を投げないこと
+
+    assert window.undo_stack.count() == 0
+
+
+def test_dataset_tree_context_menu_includes_global_visibility_actions_when_datasets_exist(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    texts = _RecordingMenu.last_instance.added_texts
+    assert "すべて表示" in texts
+    assert "すべて非表示" in texts
+
+
+def test_dataset_tree_context_menu_omits_global_visibility_actions_when_project_empty(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _patch_recording_menu(monkeypatch)
+
+    window._on_dataset_tree_context_menu(QPoint(0, 0))
+
+    assert _RecordingMenu.last_instance.added_texts == ["新しいフォルダ"]
 # データセットツリーの右クリックメニュー (_on_dataset_tree_context_menu)
 # =============================================================================
 

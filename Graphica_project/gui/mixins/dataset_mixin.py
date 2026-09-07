@@ -207,6 +207,35 @@ class DatasetMixin:
         if is_batch:
             self.undo_stack.endMacro()
 
+    def _set_all_datasets_visibility(self, visible):
+        """
+        プロジェクト全体の全データセットの表示/非表示をまとめて切り替える
+        (項目150、C-907の一括表示切替)。フォルダ限定の
+        _set_folder_datasets_visibility とは異なり、フォルダ構造に関わらず
+        プロジェクト内の全データセットを対象にする。
+        """
+        datasets = list(self.project.datasets)
+        if not datasets:
+            return
+        is_batch = len(datasets) > 1
+        if is_batch:
+            self.undo_stack.beginMacro(f"全データセットの表示/非表示切替 ({len(datasets)}件)")
+        for ds in datasets:
+            self._push_dataset_property_command(
+                ds, {'visible': ds.visible}, {'visible': visible},
+                description="データセットの表示/非表示切替"
+            )
+        if is_batch:
+            self.undo_stack.endMacro()
+
+    def _on_show_all_datasets(self):
+        """「すべて表示」メニューの処理(項目150、C-907)。"""
+        self._set_all_datasets_visibility(True)
+
+    def _on_hide_all_datasets(self):
+        """「すべて非表示」メニューの処理(項目150、C-907)。"""
+        self._set_all_datasets_visibility(False)
+
     def _on_show_all_in_folder(self):
         """実機フィードバック(「フォルダの表示非表示追加」)。選択中のフォルダ内の
         全データセットを表示状態にする。"""
@@ -227,6 +256,15 @@ class DatasetMixin:
         menu = QMenu(self)
         new_folder_action = menu.addAction("新しいフォルダ")
         new_folder_action.triggered.connect(self._on_new_folder)
+
+        # 一括表示切替(項目150、C-907): フォルダ内限定の下記アクション群とは別に、
+        # プロジェクト全体を対象にした版を常に(フォルダ選択の有無に関わらず)出す。
+        if self.project.datasets:
+            show_all_datasets_action = menu.addAction("すべて表示")
+            show_all_datasets_action.triggered.connect(self._on_show_all_datasets)
+
+            hide_all_datasets_action = menu.addAction("すべて非表示")
+            hide_all_datasets_action.triggered.connect(self._on_hide_all_datasets)
 
         current_item = self.ui.dataset_list_widget.currentItem()
         is_folder_selected = (

@@ -138,4 +138,4 @@ def test_plot_type_combo_unaffected_when_no_plot_types_registered(tmp_path, monk
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
     items = [window.ui.plot_type_combo.itemText(i) for i in range(window.ui.plot_type_combo.count())]
-    assert items == ["Line", "Scatter", "Line+Scatter", "Area", "Bar", "Step"]
+    assert items == ["Line", "Scatter", "Line+Scatter", "Area", "Bar", "Step", "Density Scatter"]

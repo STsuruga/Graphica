@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
+from scipy.stats import gaussian_kde
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -1299,6 +1300,29 @@ class _CanvasDrawingMixin:
                     # 変えるだけの最小実装(バックログの想定通り)。区間の左端の値を右端まで
                     # 保持する'steps-post'を既定に選ぶ(サンプリング/イベントデータの慣習に合わせる)。
                     (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, drawstyle='steps-post', **plot_kwargs)
+                    ds.artist = artist
+                elif ds.plot_type == 'Density Scatter':
+                    # 2D密度散布図(項目117、C-507): 点が重なる大量データ向けに、
+                    # 各点自身の位置での2次元カーネル密度推定(scipy.stats.
+                    # gaussian_kde)を色にマッピングする(定番のレシピ)。
+                    # ds.colormap は2Dグリッド(ヒートマップ等)と共用のフィールド。
+                    # 点数が少なすぎる/全点が同一座標(共分散行列が特異)だと
+                    # gaussian_kdeが失敗するため、その場合は通常のScatter(単色)に
+                    # フォールバックする(クラッシュさせない)。
+                    try:
+                        if len(plot_x_data) < 3:
+                            raise ValueError("点数不足")
+                        xy = np.vstack([plot_x_data, plot_y_data])
+                        density = gaussian_kde(xy)(xy)
+                        artist = target_ax.scatter(
+                            plot_x_data, plot_y_data, c=density, cmap=ds.colormap,
+                            marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs
+                        )
+                    except (np.linalg.LinAlgError, ValueError):
+                        artist = target_ax.scatter(
+                            plot_x_data, plot_y_data, color=ds.color, marker=ds.marker,
+                            s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs
+                        )
                     ds.artist = artist
                 else:
                     # 項目D-2: register_plot_type()でプラグインが追加した未知のplot_type。
