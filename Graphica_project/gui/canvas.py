@@ -1512,7 +1512,12 @@ class _CanvasDrawingMixin:
                 continue
             ax.annotate(
                 text, (x, y), textcoords="offset points", xytext=(5, 5),
-                fontsize=8, color=ds.color, alpha=ds.alpha
+                fontsize=8, color=ds.color, alpha=ds.alpha,
+                clip_on=True,  # ★ Text/Annotationは既定でclip_on=False。マスク解除で
+                # 軸範囲外の点が再表示された際、ラベルだけが枠外にはみ出て
+                # SVG/PDF等の出力に残ってしまうのを防ぐため明示的にTrueにする。
+                # (マーカー自体はLine2D/PathCollectionの既定clip_on=Trueで元々
+                # 軸範囲外なら描画されない — 挙動を揃える)
             )
 
     def _apply_appearance(self, ax, axis_index, settings):

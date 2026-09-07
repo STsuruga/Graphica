@@ -385,6 +385,19 @@ def test_point_labels_default_limit_matches_module_constant(canvas):
     assert canvas.point_label_max_points == DEFAULT_POINT_LABEL_MAX_POINTS
 
 
+def test_point_labels_are_clipped_to_axes(canvas):
+    """Text/Annotationは既定でclip_on=False。マスク解除で軸範囲外の点が
+    再表示された際、ラベルだけが枠外にはみ出て画像/SVG出力に残るのを防ぐため、
+    データ点ラベルは明示的にclip_on=Trueで描画する(マーカー自体は
+    Line2D/PathCollectionの既定clip_on=Trueと挙動を揃える)。"""
+    canvas.point_label_max_points = 100
+    ds = _make_dataset(10)
+    canvas.redraw_all([ds], 1, 1, [{}])
+    texts = canvas.all_axes[0].texts
+    assert len(texts) == 10
+    assert all(t.get_clip_on() for t in texts)
+
+
 # --- SVGエクスポートでのテキスト保持(項目108) ---
 # エクスポート/コピー機能は matplotlib.rc_context({'svg.fonttype': 'none'}) を
 # 一時的に適用してからSVGを書き出すことで、目盛りの数字や凡例の文字を
