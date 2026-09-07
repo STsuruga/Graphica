@@ -373,6 +373,11 @@ class UISetupMixin:
             generate_caption_action = file_menu.addAction(tr("LaTeX/Word用キャプションを生成..."))
             generate_caption_action.triggered.connect(self._on_generate_caption)
 
+            # PDF/HTML実験レポート自動ビルド(項目157、C-1104): 既存の
+            # provenance記録(C-1101)・「方法」文自動生成(C-1102)の出力先。
+            generate_report_action = file_menu.addAction(tr("実験レポートを生成 (HTML/PDF)..."))
+            generate_report_action.triggered.connect(self._on_generate_report)
+
             file_menu.addSeparator() # --- 区切り線 ---
 
             # (オートセーブ設定: テキストには現在の状態(有効/無効・間隔)を表示する)

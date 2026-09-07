@@ -3,6 +3,7 @@
 プロットを画像/PDF/SVGとしてエクスポートする処理、およびエクスポート
 ダイアログのプレビュー生成をまとめた Mixin。
 """
+import datetime
 import io
 import os
 import dataclasses
@@ -13,6 +14,7 @@ from PySide6.QtGui import QPixmap, QPainter, QImage
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox, QProgressDialog
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
+from matplotlib.backends.backend_pdf import PdfPages
 
 from gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
 from gui.canvas import _HeadlessRenderCanvas
@@ -22,6 +24,7 @@ from core.plugin_api import get_plugin_api, get_registered_exporters
 from core.plugin_types import PluginExecutionError
 from core.script_export import generate_python_script
 from core.caption_export import sanitize_label
+from core.report_export import collect_methods_sections, generate_html_report
 
 logger = logging.getLogger(__name__)
 
@@ -398,6 +401,72 @@ class ExportMixin:
 
         dialog = CaptionGeneratorDialog(default_caption, default_label, self)
         dialog.exec()
+
+    def _on_generate_report(self):
+        """
+        「実験レポートを生成 (HTML/PDF)...」メニューの処理(項目157、C-1104)。
+        既存のprovenance記録(C-1101)・「方法」文の自動生成(C-1102)の出力先
+        として、現在のグラフ画像+処理履歴を持つ全データセットの方法文を
+        1つのレポートにまとめる。形式はファイル保存ダイアログで選んだ拡張子
+        (.html/.pdf)で決まる。
+        """
+        settings = {}
+        if 0 <= self.project.active_axis_index < len(self.project.all_plot_settings):
+            settings = self.project.all_plot_settings[self.project.active_axis_index]
+        title = settings.get('title', '') or "実験レポート"
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "実験レポートを生成", "", "HTML Files (*.html);;PDF Files (*.pdf)"
+        )
+        if not file_path:
+            return
+        file_ext = os.path.splitext(file_path)[1].lower()
+        if file_ext not in ('.html', '.pdf'):
+            file_ext = '.html'
+            file_path += file_ext
+
+        methods_sections = collect_methods_sections(self.project)
+
+        try:
+            if file_ext == '.pdf':
+                self._write_pdf_report(file_path, title, methods_sections)
+            else:
+                buf = io.BytesIO()
+                self.canvas.fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+                html_text = generate_html_report(buf.getvalue(), methods_sections, title=title)
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(html_text)
+        except Exception as e:
+            logger.exception("実験レポートの生成中にエラーが発生しました。")
+            QMessageBox.warning(self, "保存エラー", f"実験レポートの生成中にエラーが発生しました:\n{e}")
+            return
+
+        self.statusBar().showMessage(f"実験レポートを書き出しました: {file_path}", 3000)
+
+    def _write_pdf_report(self, file_path, title, methods_sections):
+        """
+        _on_generate_reportのPDF出力部分。1ページ目に現在のグラフ、2ページ目に
+        タイトル+方法文をテキストページとして描画したPDFを2ページ構成で書き出す
+        (matplotlib.backends.backend_pdf.PdfPages、追加依存なし)。
+        """
+        from gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
+
+        # フォントをTrueTypeとして埋め込む(項目C-801、_on_export_plotのPDF分岐と同じ理由)。
+        with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}), PdfPages(file_path) as pdf:
+            pdf.savefig(self.canvas.fig, bbox_inches='tight')
+
+            text_fig = Figure(figsize=(8.27, 11.69))  # A4縦
+            text_fig.text(0.08, 0.95, title, fontsize=16, fontweight='bold', va='top',
+                          family=JP_CAPABLE_FONT_FAMILIES)
+            body_lines = [f"生成日時: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", "", "方法:"]
+            if methods_sections:
+                for name, text in methods_sections:
+                    body_lines.append(f"・{name}: {text}")
+            else:
+                body_lines.append("(処理履歴を持つデータセットはありません)")
+            text_fig.text(0.08, 0.88, "\n".join(body_lines), fontsize=10, va='top', wrap=True,
+                          family=JP_CAPABLE_FONT_FAMILIES)
+            pdf.savefig(text_fig)
 
     def _on_export_plot(self):
             """

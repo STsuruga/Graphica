@@ -953,6 +953,102 @@ def test_show_cvd_simulation_shows_warning_on_render_failure(tmp_path, monkeypat
     assert len(warn_calls) == 1
 
 
+# --- _on_generate_report (項目157、C-1104) ---
+
+def test_generate_report_cancelled_dialog_writes_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: ("", "")))
+
+    window._on_generate_report()
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_generate_report_writes_self_contained_html(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.project.all_plot_settings[0]['title'] = "My Experiment"
+    _add_dataset(window)
+    out_path = tmp_path / "report.html"
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path), "HTML Files (*.html)")))
+
+    window._on_generate_report()
+
+    assert out_path.exists()
+    content = out_path.read_text(encoding="utf-8")
+    assert "My Experiment" in content
+    assert "data:image/png;base64," in content
+
+
+def test_generate_report_appends_html_extension_for_unknown_extension(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    out_path_no_ext = tmp_path / "report"
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path_no_ext), "")))
+
+    window._on_generate_report()
+
+    assert (tmp_path / "report.html").exists()
+
+
+def test_generate_report_writes_pdf_with_two_pages(tmp_path, monkeypatch):
+    """pypdf等の追加依存を避けるため、生のPDFバイト列内のページオブジェクト数を
+    正規表現で数える(/Type/Pages(ツリーのルート)ではなく/Type/Page単体を数える)。"""
+    import re
+
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    out_path = tmp_path / "report.pdf"
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path), "PDF Files (*.pdf)")))
+
+    window._on_generate_report()
+
+    assert out_path.exists()
+    data = out_path.read_bytes()
+    assert data.startswith(b"%PDF-")
+    page_count = len(re.findall(rb'/Type\s*/Page[^s]', data))
+    assert page_count == 2
+
+
+def test_generate_report_write_failure_shows_warning(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    bad_path = tmp_path / "a_directory.html"
+    bad_path.mkdir()
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(bad_path), "")))
+    warn_calls = []
+    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_generate_report()
+
+    assert len(warn_calls) == 1
+
+
+def test_generate_report_includes_methods_text_for_processed_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds_source = _add_dataset(window)
+    ds_processed = Dataset(
+        name="processed", df=pd.DataFrame({"x": [1, 2], "y": [1.0, 2.0]}), x_col_name="x", y_col_name="y",
+        provenance=window._build_provenance('cumulative_integral', {'method': 'trapezoid'}, [ds_source]),
+    )
+    window._add_dataset(ds_processed, None, select=False)
+    out_path = tmp_path / "report.html"
+    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+                         staticmethod(lambda *a, **k: (str(out_path), "HTML Files (*.html)")))
+
+    window._on_generate_report()
+
+    content = out_path.read_text(encoding="utf-8")
+    assert "processed" in content
+    assert "累積積分" in content
+
+
 # --- _on_export_python_script (項目C-1103) ---
 
 def test_export_python_script_cancelled_dialog_writes_nothing(tmp_path, monkeypatch):
