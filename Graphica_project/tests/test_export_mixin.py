@@ -914,6 +914,45 @@ def test_calculate_size_in_inches_unknown_unit_falls_back_to_default():
     assert result == (8, 6)
 
 
+# --- _on_show_cvd_simulation (項目140、C-803) ---
+
+def test_show_cvd_simulation_opens_dialog_with_rendered_snapshot(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    captured = []
+
+    class FakeCVDDialog:
+        def __init__(self, image, parent=None):
+            captured.append(image)
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(export_mixin_module, "CVDSimulationDialog", FakeCVDDialog)
+
+    window._on_show_cvd_simulation()
+
+    assert len(captured) == 1
+    assert not captured[0].isNull()
+
+
+def test_show_cvd_simulation_shows_warning_on_render_failure(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+
+    def broken_savefig(*a, **k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(window.canvas.fig, "savefig", broken_savefig)
+    warn_calls = []
+    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+                         staticmethod(lambda *a, **k: warn_calls.append(a)))
+
+    window._on_show_cvd_simulation()
+
+    assert len(warn_calls) == 1
+
+
 # --- _on_export_python_script (項目C-1103) ---
 
 def test_export_python_script_cancelled_dialog_writes_nothing(tmp_path, monkeypatch):

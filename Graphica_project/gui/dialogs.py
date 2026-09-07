@@ -14,12 +14,14 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser,
                                QCheckBox, QStackedWidget, QWidget, QTabWidget,
                                QToolButton, QGridLayout, QMenu, QWidgetAction)
 from PySide6.QtCore import Qt, QTimer, QEvent, QUrl
-from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices
+from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices, QImage
 
 from gui import icon_utils
 from gui.theme import apply_form_spacing
 from gui.mathtext_preview import FitWidthPixmapLabel
 from core.color_palettes import BUILTIN_PALETTES
+from core.cvd_simulation import CVD_TYPE_LABELS
+from gui.cvd_preview import simulate_qimage
 
 logger = logging.getLogger(__name__)
 
@@ -5190,3 +5192,67 @@ class CaptionGeneratorDialog(QDialog):
 
     def _on_copy_caption(self):
         QApplication.clipboard().setText(self.caption_edit.text())
+
+
+#==============================================================================
+# カスタムダイアログクラス: 色覚シミュレーションプレビュー(項目140、C-803)
+#==============================================================================
+class CVDSimulationDialog(QDialog):
+    """
+    現在のグラフのスナップショット画像に、色覚多様性(色覚異常)のシミュレーション
+    変換(core/cvd_simulation.py)を適用して表示するプレビューダイアログ。
+    元画像は呼び出し側(gui/mixins/export_mixin.pyの_on_show_cvd_simulation)が
+    1回だけキャプチャして渡し、ここではモード切替のたびにそのコピーへ変換を
+    適用するだけで、実際のグラフの再描画は一切行わない。
+    """
+
+    MODE_NORMAL = "通常(変換なし)"
+
+    def __init__(self, source_image, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("色覚シミュレーションプレビュー")
+        self.resize(700, 560)
+        self._source_image = source_image
+
+        layout = QVBoxLayout(self)
+
+        form = QFormLayout()
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem(self.MODE_NORMAL, None)
+        for key, label in CVD_TYPE_LABELS.items():
+            self.mode_combo.addItem(label, key)
+        self.mode_combo.currentIndexChanged.connect(self._update_preview)
+        form.addRow("表示モード", self.mode_combo)
+        layout.addLayout(form)
+
+        self.preview_label = QLabel()
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setMinimumSize(400, 300)
+        self.preview_label.setFrameShape(QLabel.Shape.StyledPanel)
+        layout.addWidget(self.preview_label, 1)
+
+        info_label = QLabel(
+            "sRGB値への直接変換による簡易的な近似シミュレーションです。"
+            "実際の見え方を完全に再現するものではありません。"
+        )
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        button_box.rejected.connect(self.reject)
+        button_box.button(QDialogButtonBox.StandardButton.Close).clicked.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self._update_preview()
+
+    def _update_preview(self):
+        cvd_type = self.mode_combo.currentData()
+        image = self._source_image if cvd_type is None else simulate_qimage(self._source_image, cvd_type)
+        pixmap = QPixmap.fromImage(image)
+        target_width = max(self.preview_label.width(), 400)
+        target_height = max(self.preview_label.height(), 300)
+        scaled = pixmap.scaled(
+            target_width, target_height,
+            Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation,
+        )
+        self.preview_label.setPixmap(scaled)

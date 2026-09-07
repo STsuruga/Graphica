@@ -9,12 +9,12 @@ import dataclasses
 import logging
 import matplotlib as mpl
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap, QPainter
+from PySide6.QtGui import QPixmap, QPainter, QImage
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox, QProgressDialog
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 
-from gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog
+from gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
 from gui.canvas import _HeadlessRenderCanvas
 from gui.task_runner import TaskRunner
 from models.project import ProjectModel
@@ -69,6 +69,28 @@ class ExportMixin:
         buf.close()
 
         QApplication.clipboard().setPixmap(pixmap)
+
+    def _on_show_cvd_simulation(self):
+        """
+        「色覚シミュレーションプレビュー...」メニューの処理(項目140、C-803)。
+        現在表示中のグラフを1回だけPNGとしてレンダリングし(クリップボード
+        コピーと同じ経路)、CVDSimulationDialogに渡す(グラフ自体の再描画は
+        行わない、ダイアログ側でモード切替のたびに画像変換だけを行う)。
+        """
+        buf = io.BytesIO()
+        try:
+            self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
+        except Exception as e:
+            logger.exception("色覚シミュレーションプレビュー用の画像生成に失敗しました。")
+            QMessageBox.warning(self, "プレビューエラー", f"プレビュー画像の生成中にエラーが発生しました:\n{e}")
+            return
+        buf.seek(0)
+        image = QImage()
+        image.loadFromData(buf.read())
+        buf.close()
+
+        dialog = CVDSimulationDialog(image, self)
+        dialog.exec()
 
     def _on_print_plot(self):
         """

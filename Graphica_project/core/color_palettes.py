@@ -11,8 +11,15 @@ COLOR_PALETTES_SETTINGS_KEY)に相乗りする形で、ユーザーが自分で�
 
 # 出典: Tableau 10(Tableauの既定カテゴリカルパレット)、
 # ColorBrewer(https://colorbrewer2.org/)の定性(qualitative)パレット3種
-# (Set2/Dark2/Paired、いずれもパブリックドメインとして配布)。
+# (Set2/Dark2/Paired、いずれもパブリックドメインとして配布)、
+# Okabe-Ito(色覚多様性対応、項目140、C-803。Okabe & Ito, 2008
+# 「Color Universal Design (CUD)」で提案された8色、1型/2型色覚でも
+# 判別しやすいことが実証されているパレット)。
 BUILTIN_PALETTES = {
+    'Okabe-Ito(色覚多様性対応)': [
+        '#000000', '#e69f00', '#56b4e9', '#009e73',
+        '#f0e442', '#0072b2', '#d55e00', '#cc79a7',
+    ],
     'Tableau 10': [
         '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
         '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab',

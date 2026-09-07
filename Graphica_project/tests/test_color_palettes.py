@@ -25,3 +25,10 @@ def test_every_builtin_palette_has_at_least_two_valid_hex_colors():
 def test_every_builtin_palette_has_no_duplicate_colors():
     for name, colors in BUILTIN_PALETTES.items():
         assert len(colors) == len(set(colors)), f"{name} has duplicate colors"
+
+
+def test_includes_okabe_ito_cud_safe_palette():
+    """項目140(C-803): 色覚多様性対応(CUD)パレットが組み込みで選べること。"""
+    matching = [name for name in BUILTIN_PALETTES if "Okabe-Ito" in name]
+    assert len(matching) == 1
+    assert len(BUILTIN_PALETTES[matching[0]]) == 8

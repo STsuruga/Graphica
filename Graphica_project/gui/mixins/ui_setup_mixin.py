@@ -351,6 +351,10 @@ class UISetupMixin:
             copy_plot_action = file_menu.addAction(tr("グラフをコピー(&C)"))
             copy_plot_action.triggered.connect(self._on_copy_plot_to_clipboard)
 
+            # 色覚シミュレーションプレビュー(項目140、C-803)
+            cvd_simulation_action = file_menu.addAction(tr("色覚シミュレーションプレビュー..."))
+            cvd_simulation_action.triggered.connect(self._on_show_cvd_simulation)
+
             # (印刷: ファイル保存を経由せず直接プリンターに出力)
             self.print_action = file_menu.addAction(tr("印刷(&R)..."))
             self.print_action.setShortcut(QKeySequence.StandardKey.Print)

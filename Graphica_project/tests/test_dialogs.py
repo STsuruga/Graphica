@@ -23,7 +23,8 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          CumulativeIntegralDialog, ArrowAnnotationDialog,
                          RowFilterDialog, DuplicateXDialog, OutlierDetectionDialog,
                          FolderImportDialog, AutosaveHistoryDialog,
-                         HistogramKDEDialog, XAxisAlignmentDialog, CaptionGeneratorDialog)
+                         HistogramKDEDialog, XAxisAlignmentDialog, CaptionGeneratorDialog,
+                         CVDSimulationDialog)
 import core.plugin_install as plugin_install_module
 from core.plugin_install import PluginInstallError
 from core.plugin_types import PluginHookKind, PluginRegistrationError
@@ -2869,3 +2870,38 @@ def test_caption_generator_dialog_copy_caption_sets_clipboard(qapp):
     dlg = CaptionGeneratorDialog("Plain Caption Text", "fig:x")
     dlg._on_copy_caption()
     assert QApplication.clipboard().text() == "Plain Caption Text"
+
+
+# --- CVDSimulationDialog(項目140、C-803) ---
+
+def _make_solid_image(color_hex="#ff0000", width=8, height=8):
+    from PySide6.QtGui import QImage, QColor
+    image = QImage(width, height, QImage.Format.Format_RGB32)
+    image.fill(QColor(color_hex))
+    return image
+
+
+def test_cvd_simulation_dialog_defaults_to_normal_mode(qapp):
+    dlg = CVDSimulationDialog(_make_solid_image())
+    assert dlg.mode_combo.currentText() == dlg.MODE_NORMAL
+    assert dlg.mode_combo.currentData() is None
+    assert dlg.preview_label.pixmap() is not None
+    assert not dlg.preview_label.pixmap().isNull()
+
+
+def test_cvd_simulation_dialog_lists_all_three_cvd_types(qapp):
+    from core.cvd_simulation import CVD_TYPE_LABELS
+    dlg = CVDSimulationDialog(_make_solid_image())
+    items = [dlg.mode_combo.itemText(i) for i in range(dlg.mode_combo.count())]
+    for label in CVD_TYPE_LABELS.values():
+        assert label in items
+
+
+def test_cvd_simulation_dialog_switching_mode_updates_preview(qapp):
+    dlg = CVDSimulationDialog(_make_solid_image())
+    normal_pixmap = dlg.preview_label.pixmap().toImage()
+
+    dlg.mode_combo.setCurrentIndex(1)  # 最初のCVDタイプへ切替
+
+    simulated_pixmap = dlg.preview_label.pixmap().toImage()
+    assert normal_pixmap != simulated_pixmap
