@@ -1462,6 +1462,21 @@ class ExportDialog(QDialog):
 
         # --- UIコンポーネントの作成 ---
 
+        # 図面サイズプリセット(項目139、C-802): 学術誌でよく使われる段組幅
+        # (単段85mm/1.5段114mm/2段170mm)を選ぶと、幅を自動的にミリメートル
+        # 単位で埋める(高さはアスペクト比が図ごとに異なるため自動設定しない、
+        # ユーザーが別途指定する)。
+        self.JOURNAL_PRESET_CUSTOM = "カスタム"
+        self.JOURNAL_PRESETS = {
+            "学術誌 単段 (85mm)": 85.0,
+            "学術誌 1.5段 (114mm)": 114.0,
+            "学術誌 2段 (170mm)": 170.0,
+        }
+        self.journal_preset_combo = QComboBox()
+        self.journal_preset_combo.addItem(self.JOURNAL_PRESET_CUSTOM)
+        self.journal_preset_combo.addItems(self.JOURNAL_PRESETS.keys())
+        self.journal_preset_combo.currentTextChanged.connect(self._on_journal_preset_changed)
+
         # 幅 (Width)
         self.width_spinbox = QDoubleSpinBox()
         self.width_spinbox.setRange(1, 10000) # 1から10000の範囲
@@ -1474,9 +1489,10 @@ class ExportDialog(QDialog):
         self.height_spinbox.setValue(600)
         self.height_spinbox.setDecimals(1)     # ★ 小数点以下1桁まで許可
 
-        # 単位 (Unit)
+        # 単位 (Unit)。ミリメートル(項目139、C-802)は上記の学術誌プリセット選択時に
+        # 自動的に切り替わる(mm指定は学術誌の投稿規定でよく使われる単位のため)。
         self.unit_combo = QComboBox()
-        self.unit_combo.addItems(["ピクセル (px)", "インチ (in)", "センチメートル (cm)"])
+        self.unit_combo.addItems(["ピクセル (px)", "インチ (in)", "センチメートル (cm)", "ミリメートル (mm)"])
 
         # 解像度 (DPI)
         self.dpi_spinbox = QSpinBox() # DPIは整数値なので QSpinBox
@@ -1533,6 +1549,7 @@ class ExportDialog(QDialog):
         
         # 1. 入力欄用のフォームレイアウト (ラベル: [入力欄])
         form_layout = QFormLayout()
+        form_layout.addRow("サイズプリセット", self.journal_preset_combo)
         form_layout.addRow("幅", self.width_spinbox)
         form_layout.addRow("高さ", self.height_spinbox)
         form_layout.addRow("単位", self.unit_combo)
@@ -1552,10 +1569,20 @@ class ExportDialog(QDialog):
 
         apply_form_spacing(self)
 
+    def _on_journal_preset_changed(self, preset_name):
+        """
+        図面サイズプリセット(項目139、C-802)が選ばれたときの処理。
+        「カスタム」ではユーザーが自由に入力した値をそのまま残す(何もしない)。
+        """
+        if preset_name == self.JOURNAL_PRESET_CUSTOM:
+            return
+        self.unit_combo.setCurrentText("ミリメートル (mm)")
+        self.width_spinbox.setValue(self.JOURNAL_PRESETS[preset_name])
+
     def get_options(self):
         """
         ダイアログで入力された設定値を辞書として返します。
-        
+
         Returns:
             dict: ユーザーが入力したエクスポート設定。
         """

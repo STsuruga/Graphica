@@ -581,6 +581,9 @@ class ExportMixin:
             if "インチ" in unit:
                 # 単位がインチなら、そのまま返す
                 return width, height
+            elif "ミリメートル" in unit:
+                # 項目139(C-802): 学術誌の投稿規定でよく使われる単位。1インチ = 25.4mm
+                return width / 25.4, height / 25.4
             elif "センチメートル" in unit:
                 # 1 インチ = 2.54 cm
                 return width / 2.54, height / 2.54

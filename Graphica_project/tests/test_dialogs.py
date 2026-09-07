@@ -677,6 +677,39 @@ def test_batch_export_dialog_svg_text_as_path_defaults_false_and_reflected_in_op
     assert dlg.get_common_options()["svg_text_as_path"] is True
 
 
+# --- 図面サイズプリセット(項目139、C-802) ---
+
+def test_export_dialog_defaults_to_custom_preset():
+    dlg = ExportDialog()
+    assert dlg.journal_preset_combo.currentText() == dlg.JOURNAL_PRESET_CUSTOM
+
+
+def test_export_dialog_journal_preset_sets_width_and_mm_unit():
+    dlg = ExportDialog()
+    dlg.journal_preset_combo.setCurrentText("学術誌 単段 (85mm)")
+
+    assert dlg.unit_combo.currentText() == "ミリメートル (mm)"
+    assert dlg.width_spinbox.value() == pytest.approx(85.0)
+    assert dlg.get_options()["width"] == pytest.approx(85.0)
+    assert dlg.get_options()["unit"] == "ミリメートル (mm)"
+
+
+def test_export_dialog_journal_preset_two_column_width():
+    dlg = ExportDialog()
+    dlg.journal_preset_combo.setCurrentText("学術誌 2段 (170mm)")
+    assert dlg.width_spinbox.value() == pytest.approx(170.0)
+
+
+def test_export_dialog_custom_preset_does_not_override_manual_width():
+    dlg = ExportDialog()
+    dlg.journal_preset_combo.setCurrentText("学術誌 単段 (85mm)")
+    dlg.width_spinbox.setValue(500)
+
+    dlg.journal_preset_combo.setCurrentText(dlg.JOURNAL_PRESET_CUSTOM)
+
+    assert dlg.width_spinbox.value() == pytest.approx(500)  # 「カスタム」に戻しても値は変わらない
+
+
 # --- register_exporter()由来の追加形式(項目B-2) ---
 
 def test_batch_export_dialog_default_formats_without_extra_formats():

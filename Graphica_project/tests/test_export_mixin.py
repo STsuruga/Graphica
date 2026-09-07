@@ -892,6 +892,14 @@ def test_calculate_size_in_inches_cm_unit_converts_to_inches():
     assert result == pytest.approx((1.0, 2.0))
 
 
+def test_calculate_size_in_inches_mm_unit_converts_to_inches():
+    """項目139(C-802): 学術誌プリセットで使うミリメートル単位の変換。"""
+    result = ExportMixin._calculate_size_in_inches(object(), {
+        "width": 25.4, "height": 50.8, "unit": "ミリメートル (mm)", "dpi": 300,
+    })
+    assert result == pytest.approx((1.0, 2.0))
+
+
 def test_calculate_size_in_inches_px_unit_divides_by_dpi():
     result = ExportMixin._calculate_size_in_inches(object(), {
         "width": 800, "height": 400, "unit": "ピクセル (px)", "dpi": 200,
