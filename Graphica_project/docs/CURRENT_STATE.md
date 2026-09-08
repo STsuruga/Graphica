@@ -23,8 +23,21 @@
   進捗はArtifactのdb機能に保存されるため、別セッションからも
   `read_db`(collection `status`、doc idが項目ID、body `{state: todo|doing|done}`)で
   確認できる。**未着手の重要項目**:
-  - **E-1**: インセット内の描画がLTTB間引きを通っていない(#138実装時の抜け)。
   **完了済み(2026-09-08)**:
+  - **E-1**: インセット(拡大図)内の描画を、本体と同じLTTB間引き
+    (項目C-1001)に通すようにした。`MplCanvas._downsample_for_inset()`を新設し、
+    `_draw_annotations()`のinset分岐から、拡大範囲でフィルタした**後**の点数で
+    判定して呼ぶ。実測で20万点+インセット1つの再描画が **0.349s → 0.199s**。
+    - 本体の`_draw_data`と違い、**plot_typeによる出し分けは行わない**。
+      インセット内はplot_typeに関わらず常に単純な折れ線として描く仕様のため、
+      「マーカーの疎密自体が情報だからScatterは対象外」という本体側の理由が
+      そもそも当てはまらない。Xが昇順という前提だけは本体と同じく守る。
+    - あわせて`full_resolution`(エクスポートの「フル解像度」オプション)を
+      `_draw_annotations()`へ通した。通さないと、フル解像度指定のエクスポートでも
+      インセットだけ黙って間引かれるという新しい不整合が生まれるため
+      (`redraw_all`と`_redraw_single_axis_no_draw`の2経路が渡す。
+      `update_appearance_only`と`add_free_axis`はそもそも引数を持たない)。
+    - テスト: `tests/test_inset_downsampling.py`を新設(13件)。
   - **A-3**: `core/commands.py`に`RemoveDatasetCommand`を新設(`AddDatasetCommand`と
     同じ「削除/復元のコールバックを受け取る薄いラッパー」形式)。実際の処理は
     `main_window._remove_dataset_items_with_undo()`に集約し、`_on_remove_dataset`

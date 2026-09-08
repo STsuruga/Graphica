@@ -568,7 +568,7 @@ class _CanvasDrawingMixin:
             if not is_free_layout:
                 self._apply_shared_axis_tick_visibility(index, rows, cols, share_x_axis, share_y_axis)
             # 自由なテキスト注釈・矢印・領域ハイライト・統計値アンカーラベルの描画
-            self._draw_annotations(ax, index, settings, datasets=datasets)
+            self._draw_annotations(ax, index, settings, datasets=datasets, full_resolution=full_resolution)
             # パネルラベルの自動採番(項目C-712): (a)(b)(c)...をサブプロットの
             # 並び順(index)から機械的に計算する(文字自体は保存しない)。
             if panel_labels_enabled:
@@ -677,7 +677,7 @@ class _CanvasDrawingMixin:
         # visible フィルタは _draw_data() の内部で行う(改善ボード A-4、redraw_all参照)
         self._draw_data(ax, axis_index, datasets, full_resolution=full_resolution)
         self._apply_appearance(ax, axis_index, settings)
-        self._draw_annotations(ax, axis_index, settings, datasets=datasets)
+        self._draw_annotations(ax, axis_index, settings, datasets=datasets, full_resolution=full_resolution)
         if panel_labels_enabled:
             self._draw_panel_label(ax, axis_index)
 
@@ -849,7 +849,41 @@ class _CanvasDrawingMixin:
             n -= 1
         return ''.join(reversed(letters))
 
-    def _draw_annotations(self, ax, axis_index, settings, datasets=None):
+    def _downsample_for_inset(self, x_data, y_data, full_resolution=False):
+        """
+        インセット(拡大図、項目138/C-711)の中に描く点列へ、本体の描画と同じ
+        LTTB表示用ダウンサンプリング(項目C-1001)を適用する(改善ボード E-1)。
+
+        インセットは注釈として実装されており、注釈は再描画のたびに全削除→
+        全再生成される。そのため間引きを通さないと、大きなデータでインセットを
+        1つ置いただけで、再描画のたびに数万〜数十万点を描き直すことになる
+        (#138実装時の抜け)。
+
+        本体の_draw_data側と違い、plot_typeによる出し分けは行わない。
+        インセット内はplot_typeに関わらず常に単純な折れ線として描く仕様
+        (「ズームした概観」を見せる用途と割り切った意図的な簡略化)であり、
+        「マーカーの疎密自体が情報だからScatterは対象外」という本体側の理由が
+        そもそも当てはまらないため。
+
+        LTTBはXが昇順であることを前提とするアルゴリズムなので、本体側と同じく
+        昇順のデータにのみ適用する(降順/非単調なXは全点描画のまま)。
+
+        Args:
+            x_data, y_data (np.ndarray): 拡大範囲でフィルタ済みの点列。
+            full_resolution (bool): エクスポートの「フル解像度」オプション。
+                Trueなら点数によらず全点をそのまま返す。
+
+        Returns:
+            (np.ndarray, np.ndarray): 描画に使うx/y(間引き不要ならそのまま)。
+        """
+        if full_resolution or len(x_data) <= LTTB_DOWNSAMPLE_THRESHOLD:
+            return x_data, y_data
+        if not np.all(np.diff(x_data) >= 0):
+            return x_data, y_data
+        indices = calculate_lttb_downsample(x_data, y_data, LTTB_DOWNSAMPLE_TARGET_POINTS)
+        return x_data[indices], y_data[indices]
+
+    def _draw_annotations(self, ax, axis_index, settings, datasets=None, full_resolution=False):
         """
         settings['annotations'] (テキスト注釈・矢印注釈・領域ハイライト・統計値
         アンカーラベルのリスト) を描画する。再描画のたびに、まず前回このAxesに
@@ -859,6 +893,10 @@ class _CanvasDrawingMixin:
         datasets は統計値アンカーラベル(項目C-708、type='stat')が参照先の
         Datasetを解決するために使う。省略時(None)は全て「データセットなし」
         表示にフォールバックする(既存呼び出し元・テストとの後方互換のため)。
+
+        full_resolution=True の場合、インセット(拡大図)内の描画でも
+        LTTB表示用ダウンサンプリング(項目C-1001)を行わず全点描画する
+        (_draw_data と同じく、エクスポートの「フル解像度」オプション用)。
         """
         for artist in self._annotation_artists.get(axis_index, []):
             try:
@@ -921,7 +959,10 @@ class _CanvasDrawingMixin:
                         ty = np.asarray(target_ds.y_data, dtype=float)
                         in_range = (tx >= x_min) & (tx <= x_max)
                         if in_range.any():
-                            inset_ax.plot(tx[in_range], ty[in_range], color=target_ds.color,
+                            inset_x, inset_y = self._downsample_for_inset(
+                                tx[in_range], ty[in_range], full_resolution=full_resolution
+                            )
+                            inset_ax.plot(inset_x, inset_y, color=target_ds.color,
                                           linewidth=target_ds.linewidth, alpha=target_ds.alpha)
                     inset_ax.set_xlim(x_min, x_max)
                     inset_ax.tick_params(labelsize=7)
