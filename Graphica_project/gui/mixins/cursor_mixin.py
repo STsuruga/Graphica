@@ -294,6 +294,22 @@ class CursorMixin:
         # --- 座標が特定できたら、注釈 (Annotation) を表示 ---
         if x is not None and y is not None:
 
+            # ★ 改善ボード A-1: ここで得られる x, y は Artist 上の座標、つまり
+            # ウォーターフォール(積み重ね)のオフセット・奥行き縮小が既に
+            # 掛かった「表示座標」である。そのまま読み取り値として注釈に出すと、
+            # 積み重ね2本目以降で実測値と違う数値を表示してしまう。注釈を出す
+            # 位置(矢印の指す先)は表示座標のままでよいので、表示する数値だけを
+            # データ座標へ逆変換する(ウォーターフォール無効時は恒等変換)。
+            # (ds.artist は _draw_data が描画のたびに設定する、そのデータセットの
+            #  最新のArtistへの参照。identityで一致するものを探す)
+            owning_dataset = next(
+                (ds for ds in self.project.datasets if ds.artist is artist), None
+            )
+            if owning_dataset is not None:
+                data_x, data_y = self.canvas.display_to_data(owning_dataset, x, y)
+            else:
+                data_x, data_y = x, y
+
             # 3. 以前の注釈があれば削除
             if self.cursor_annotation:
                 self.cursor_annotation.remove()
@@ -301,7 +317,7 @@ class CursorMixin:
 
             # 4. 新しい注釈を作成
             ax = artist.axes # 注釈を表示する Axes を取得
-            text = f"X: {x:.4g}\nY: {y:.4g}" # 2行で表示
+            text = f"X: {data_x:.4g}\nY: {data_y:.4g}"  # 2行で表示(値はデータ座標)
 
             self.cursor_annotation = ax.annotate(text,
                 xy=(x, y),                      # 矢印が指す座標 (データ点)
@@ -320,9 +336,7 @@ class CursorMixin:
             #    (ds.artist は _draw_data で描画のたびに設定される、そのデータセットの
             #     最新のArtistへの参照。identityで一致するものを探す)
             if ind is not None and self.data_editor_dialog is not None:
-                owning_dataset = next(
-                    (ds for ds in self.project.datasets if ds.artist is artist), None
-                )
+                # owning_dataset は上(逆変換のため)で既に特定済み。
                 if owning_dataset is not None and self.data_editor_dialog.dataset is owning_dataset:
                     try:
                         # ★ artistはvisible_df(マスクされた行を除いたもの)基準で描画されて

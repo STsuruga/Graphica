@@ -374,6 +374,65 @@ class _CanvasDrawingMixin:
         # 一時的に受け渡す必要がある)。1軸に2Dデータセットが複数あっても
         # 最後に描画したものだけを保持する(カラーバーは1軸につき最大1つ)。
         self._axis_2d_mappables = {}
+        # ウォーターフォール(積み重ね)表示の「データ座標 → 表示座標」変換
+        # パラメータを dataset.dataset_id ごとに保持する(改善ボード A-1)。
+        # ウォーターフォール有効時、トレースは
+        #     表示X = データX + index * offset_x
+        #     表示Y = データY * depth_scale + index * offset_y
+        # の位置に描かれるため、マウス位置(表示座標)をデータ行に対応づける
+        # 側は必ずこの逆変換を通す必要がある。値は
+        # {'index': int, 'offset_x': float, 'offset_y': float, 'depth_scale': float}。
+        # ウォーターフォール無効のデータセットはこの辞書に一切現れない
+        # (= data_to_display/display_to_data が恒等変換になる)。
+        self._waterfall_transforms = {}
+
+    # --- ウォーターフォール表示座標 ⇔ データ座標 (改善ボード A-1) ---
+
+    def get_waterfall_transform(self, dataset_or_id):
+        """
+        指定データセットの現在の積み重ね変換パラメータを返す。
+        ウォーターフォールが無効、または未描画の場合は None。
+
+        Args:
+            dataset_or_id: Dataset オブジェクト、または dataset_id。
+        """
+        dataset_id = getattr(dataset_or_id, 'dataset_id', dataset_or_id)
+        return self._waterfall_transforms.get(dataset_id)
+
+    def data_to_display(self, dataset_or_id, x, y):
+        """
+        データ座標(dataset.x_data/y_data と同じ空間)を、実際に描画されている
+        表示座標へ変換する。スカラーでも numpy 配列でも同じように使える。
+
+        ウォーターフォールが無効なデータセット、および未描画のデータセットに
+        対しては入力をそのまま返す(恒等変換)。
+        """
+        transform = self.get_waterfall_transform(dataset_or_id)
+        if transform is None:
+            return x, y
+        index = transform['index']
+        display_x = x if transform['offset_x'] == 0 else x + index * transform['offset_x']
+        display_y = y * transform['depth_scale'] + index * transform['offset_y']
+        return display_x, display_y
+
+    def display_to_data(self, dataset_or_id, x, y):
+        """
+        data_to_display() の逆変換。マウス位置(表示座標)を、データ列と
+        突き合わせられるデータ座標へ戻す。
+
+        マウス操作をデータ行へ対応づける処理(範囲選択マスク・データカーソル・
+        データエディタ連動ハイライト・ピーク配置)は、必ずこのメソッドを
+        経由すること。経由しないと、積み重ね2本目以降で操作が全てずれる。
+        """
+        transform = self.get_waterfall_transform(dataset_or_id)
+        if transform is None:
+            return x, y
+        index = transform['index']
+        data_x = x if transform['offset_x'] == 0 else x - index * transform['offset_x']
+        # depth_scale は WATERFALL_DEPTH_SHRINK_MIN_SCALE (0.2) で下限クランプ
+        # されているため 0 除算にはならない。
+        data_y = (y - index * transform['offset_y']) / transform['depth_scale']
+        return data_x, data_y
 
     def _effective_text_color(self, configured_color):
         """
@@ -441,11 +500,13 @@ class _CanvasDrawingMixin:
         # 削除せず保持したまま、描画対象から除外する。redraw_all()はメイン画面の
         # 再描画・エクスポート(gui/mixins/export_mixin.pyの単発/バッチ書き出しは
         # いずれもこのメソッド、または本メソッドが最後に描いたself.figを経由する)の
-        # 唯一の入口であるため、ここ1箇所でのフィルタが両方に自動的に効く。
-        # getattr既定値Trueは、この機能追加前に保存された.pklファイル由来の
-        # Datasetオブジェクト(pickleの__setstate__で補われるはずだが、念のための保険)
-        # でも安全に動くようにするため。
-        datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
+        # 唯一の入口であるため、1箇所でのフィルタが両方に自動的に効く。
+        # ★ 改善ボード A-4: そのフィルタ自体は _draw_data() の内部へ移した
+        # (このメソッドは非表示のものも含めた全リストをそのまま渡す)。
+        # ウォーターフォールの積み重ねインデックスを「非表示のトレースも数に
+        # 含めて」採番するには、_draw_data() が非表示のデータセットも受け取る
+        # 必要があるため。呼び出し側で先にフィルタすると、その経路でだけ
+        # 採番が繰り上がってしまうので絶対にしないこと。
         self.fig.clf()
         self.all_axes.clear()
         self.all_secondary_axes.clear()
@@ -458,6 +519,7 @@ class _CanvasDrawingMixin:
         self.downsample_index_map.clear()
         self._non_pickable_dataset_ids.clear()
         self._axis_2d_mappables.clear()
+        self._waterfall_transforms.clear()
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
 
         is_free_layout = layout_mode == 'free'
@@ -612,8 +674,8 @@ class _CanvasDrawingMixin:
             self.downsample_index_map.pop(dataset_id, None)
             self._non_pickable_dataset_ids.discard(dataset_id)
 
-        visible_datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
-        self._draw_data(ax, axis_index, visible_datasets, full_resolution=full_resolution)
+        # visible フィルタは _draw_data() の内部で行う(改善ボード A-4、redraw_all参照)
+        self._draw_data(ax, axis_index, datasets, full_resolution=full_resolution)
         self._apply_appearance(ax, axis_index, settings)
         self._draw_annotations(ax, axis_index, settings, datasets=datasets)
         if panel_labels_enabled:
@@ -662,8 +724,8 @@ class _CanvasDrawingMixin:
         self.axis_is_category_x.append(False)
 
         axis_index = len(self.all_axes) - 1
-        visible_datasets = [ds for ds in datasets if getattr(ds, 'visible', True)]
-        self._draw_data(ax, axis_index, visible_datasets)
+        # visible フィルタは _draw_data() の内部で行う(改善ボード A-4、redraw_all参照)
+        self._draw_data(ax, axis_index, datasets)
         self._apply_appearance(ax, axis_index, settings)
         self._draw_annotations(ax, axis_index, settings, datasets=datasets)
         if panel_labels_enabled:
@@ -1088,9 +1150,30 @@ class _CanvasDrawingMixin:
         # 一切経由しない別経路で描画する(x_data/y_dataは長形式の生の列であり、
         # 1D描画にそのまま使うと無意味なため)。ヒートマップは背景として先に描き、
         # 同じ軸に1Dデータ(例: 将来のC-511スライス線)が重なっても見えるようにする。
-        datasets_2d = [ds for ds in all_datasets_for_this_axis if ds.data_kind == '2d_grid']
-        datasets_for_this_axis = [ds for ds in all_datasets_for_this_axis if ds.data_kind != '2d_grid']
+        # ★ データセットの表示/非表示トグル(項目C-907)のフィルタはここで行う。
+        # 呼び出し側(redraw_all / _redraw_single_axis_no_draw / add_free_axis)は
+        # 非表示のものも含めた全リストを渡してくる。改善ボード A-4 のため、
+        # ウォーターフォールの積み重ねインデックスだけは「非表示のトレースも
+        # 数に含めて」採番する必要があり、そのために非表示のデータセットも
+        # このメソッドまで届ける必要があるため。
+        # getattr既定値Trueは、この機能追加前に保存された.pklファイル由来の
+        # Datasetオブジェクトでも安全に動くようにするための保険。
+        datasets_2d = [
+            ds for ds in all_datasets_for_this_axis
+            if ds.data_kind == '2d_grid' and getattr(ds, 'visible', True)
+        ]
+        # 1D側は「非表示も含めた全件」と「表示中のみ」の2本を持つ。前者は
+        # ウォーターフォールの採番専用、後者がそれ以外の全処理(軸種別の判定・
+        # 実際の描画ループ)で使う従来どおりのリスト。
+        datasets_1d_all = [ds for ds in all_datasets_for_this_axis if ds.data_kind != '2d_grid']
+        datasets_for_this_axis = [ds for ds in datasets_1d_all if getattr(ds, 'visible', True)]
         self._draw_2d_data(ax, axis_index, datasets_2d, full_resolution=full_resolution)
+
+        # この軸のデータセットについて、前回の描画で記録した積み重ね変換
+        # (改善ボード A-1)を破棄する。ウォーターフォールが有効なものだけが
+        # このあとの描画ループで改めて登録される。
+        for ds in all_datasets_for_this_axis:
+            self._waterfall_transforms.pop(ds.dataset_id, None)
 
         needs_secondary = any(ds.use_secondary_y for ds in datasets_for_this_axis)
 
@@ -1128,7 +1211,14 @@ class _CanvasDrawingMixin:
         # のどの見た目とも組み合わせられる。背景色の塗りつぶしで奥のトレースを隠す
         # (occlusion)ためのベースライン(全ウォーターフォールトレースのY最小値から
         # わずかに余白を取った値)も、ここでまとめて計算しておく。
-        waterfall_datasets = [ds for ds in datasets_for_this_axis if ds.waterfall_enabled]
+        # ★ 改善ボード A-4(ユーザー判断により「非表示でも位置を保持する」で確定):
+        # 採番は datasets_for_this_axis(表示中のみ)ではなく datasets_1d_all
+        # (非表示も含む)で行う。10本中3本目を一時的に隠したときに4〜10本目が
+        # 1段ずつ繰り上がって図全体の見た目が変わるのを防ぐため、隠したトレースの
+        # 段は空けたままにする。オクルージョン用のベースラインと zorder の刻み幅も
+        # 同じリストから求めるので、表示/非表示の切り替えで奥行きの見え方が
+        # 変わることはない。
+        waterfall_datasets = [ds for ds in datasets_1d_all if ds.waterfall_enabled]
         waterfall_index = {ds.dataset_id: i for i, ds in enumerate(waterfall_datasets)}
         waterfall_count = len(waterfall_datasets)
         waterfall_baseline = 0.0
@@ -1169,6 +1259,15 @@ class _CanvasDrawingMixin:
                 # (従来通り)。
                 depth_scale = _waterfall_depth_scale(
                     w_idx, ds.waterfall_depth_shrink_enabled, ds.waterfall_depth_shrink_ratio)
+                # ★ 文字列カテゴリX軸ではXオフセットを適用しない(上のコメント参照)
+                # ため、逆変換側(display_to_data)にも 0 として記録する。
+                effective_offset_x = 0.0 if is_category_x else ds.waterfall_offset_x
+                self._waterfall_transforms[ds.dataset_id] = {
+                    'index': w_idx,
+                    'offset_x': effective_offset_x,
+                    'offset_y': ds.waterfall_offset_y,
+                    'depth_scale': depth_scale,
+                }
                 plot_x_data = ds.x_data if is_category_x else ds.x_data + w_idx * ds.waterfall_offset_x
                 plot_y_data = ds.y_data * depth_scale + w_idx * ds.waterfall_offset_y
                 # 手前(インデックスが小さい)ほど大きいzorderにし、後ろのトレースの
@@ -1563,6 +1662,11 @@ class _CanvasDrawingMixin:
 
         x_vals = dataset.x_data[positions]
         y_vals = dataset.y_data[positions]
+        # ★ 改善ボード A-1: x_data/y_data はデータ座標なので、ウォーターフォール
+        # (積み重ね)有効時にそのまま描くと、トレース本体とは違う位置(積み重ね
+        # のずれが掛かっていない位置)に丸が出てしまう。実際にトレースが描かれて
+        # いる表示座標へ変換してからハイライトを打つ。無効時は恒等変換。
+        x_vals, y_vals = self.data_to_display(dataset, x_vals, y_vals)
         artist = ax.scatter(
             x_vals, y_vals, s=160, facecolors='none', edgecolors='#e6194b',
             linewidths=2.0, zorder=15

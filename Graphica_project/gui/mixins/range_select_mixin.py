@@ -183,9 +183,18 @@ class RangeSelectMixin:
             )
             return
 
+        # ★ 改善ボード A-1: ウォーターフォール(積み重ね)有効時、トレースは
+        # 表示X = データX + index * offset_x の位置に描かれている。ドラッグで
+        # 得られる x_min/x_max は「表示座標」なので、生の dataset.x_data と
+        # 直接比較すると積み重ね2本目以降で意図と違う行がマスクされる
+        # (あるいは1件もマスクされない)。データ座標へ逆変換してから比較する。
+        # Xオフセットは平行移動なので x_min <= x_max の大小関係は保たれる。
+        data_x_min, _ = self.canvas.display_to_data(dataset, x_min, 0.0)
+        data_x_max, _ = self.canvas.display_to_data(dataset, x_max, 0.0)
+
         x_data = dataset.x_data
         visible_index = dataset.visible_df.index
-        in_range_mask = (x_data >= x_min) & (x_data <= x_max)
+        in_range_mask = (x_data >= data_x_min) & (x_data <= data_x_max)
         newly_masked = [int(idx) for idx, flag in zip(visible_index, in_range_mask) if flag]
         if not newly_masked:
             return

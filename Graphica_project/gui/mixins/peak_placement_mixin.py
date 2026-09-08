@@ -73,20 +73,40 @@ class PeakPlacementMixin:
 
         ax = event.inaxes
         x_min, x_max = ax.get_xlim()
+        # Xオフセットは平行移動なので、表示座標での幅とデータ座標での幅は等しい
+        # (奥行き縮小が掛かるのはY方向のみ)。
         width = abs(x_max - x_min) * PEAK_PLACEMENT_DEFAULT_WIDTH_FRACTION or 1.0
 
-        guess = {'center': float(event.xdata), 'height': float(event.ydata), 'width': float(width)}
+        # ★ 改善ボード A-1: クリック位置(event.xdata/ydata)は表示座標。
+        # 初期値は MultiPeakFitDialog を経由してフィット計算へ渡され、そこでは
+        # dataset.x_data/y_data(データ座標)と突き合わされるため、ウォーター
+        # フォール(積み重ね)有効時にそのまま使うと積み重ね2本目以降で
+        # フィットが収束しない/明後日の値に収束する。データ座標へ逆変換する。
+        # 仮マーカーはユーザーがクリックした場所(表示座標)に出す必要があるので、
+        # 描画にはクリック位置をそのまま使う。
+        dataset = self._get_current_dataset()
+        data_x, data_y = self.canvas.display_to_data(
+            dataset, float(event.xdata), float(event.ydata)
+        ) if dataset is not None else (float(event.xdata), float(event.ydata))
+
+        guess = {'center': float(data_x), 'height': float(data_y), 'width': float(width)}
         self._pending_peak_guesses.append(guess)
-        self._draw_pending_peak_marker(ax, guess)
+        self._draw_pending_peak_marker(ax, guess, float(event.xdata), float(event.ydata))
         self.statusBar().showMessage(
             f"ピーク初期値を追加しました({len(self._pending_peak_guesses)}件、"
             f"X={guess['center']:.4g}, Y={guess['height']:.4g})", 3000
         )
 
-    def _draw_pending_peak_marker(self, ax, guess):
-        line = ax.axvline(guess['center'], color='#E4572E', linestyle=':', linewidth=1, zorder=100)
+    def _draw_pending_peak_marker(self, ax, guess, display_x, display_y):
+        """仮マーカーを「表示座標」に描く(改善ボード A-1)。
+
+        guess は常にデータ座標で保持するが、マーカーはユーザーがクリックした
+        位置、つまりトレースが実際に描かれている表示座標に出す必要がある
+        (ウォーターフォール無効時は両者が一致する)。
+        """
+        line = ax.axvline(display_x, color='#E4572E', linestyle=':', linewidth=1, zorder=100)
         point, = ax.plot(
-            [guess['center']], [guess['height']],
+            [display_x], [display_y],
             marker='x', color='#E4572E', markersize=8, zorder=101, linestyle='None',
         )
         self._pending_peak_markers.append((guess, line, point))
@@ -100,8 +120,14 @@ class PeakPlacementMixin:
         click_px = ax.transData.transform((event.xdata, event.ydata))
 
         best_i, best_distance = None, None
-        for i, (guess, _line, _point) in enumerate(self._pending_peak_markers):
-            pos_px = ax.transData.transform((guess['center'], guess['height']))
+        for i, (guess, _line, point) in enumerate(self._pending_peak_markers):
+            # ★ 改善ボード A-1: guess はデータ座標で保持しているため、クリック
+            # 位置(表示座標)との距離比較には使えない。マーカーが実際に描かれて
+            # いる位置を Artist から読み取って比較する(表示座標どうしの比較に
+            # なり、ウォーターフォールの有無に関わらず正しく動く)。
+            marker_x = point.get_xdata()[0]
+            marker_y = point.get_ydata()[0]
+            pos_px = ax.transData.transform((marker_x, marker_y))
             distance = ((pos_px[0] - click_px[0]) ** 2 + (pos_px[1] - click_px[1]) ** 2) ** 0.5
             if best_distance is None or distance < best_distance:
                 best_distance, best_i = distance, i
