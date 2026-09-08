@@ -40,27 +40,15 @@ class AnnotationMixin:
     def _toggle_annotation_mode(self, checked):
         """
         「注釈」ツールバーボタンが押されたときの処理。
-        データカーソルモードと同時に有効にすると、同じクリック操作が両方の
-        機能に反応してしまい紛らわしいため、排他的にする。
+        他のマウスモードと同時に有効にすると、同じクリック/ドラッグ操作が
+        両方の機能に反応してしまうため、排他的にする。
         """
         self.annotation_mode_enabled = checked
 
         if checked:
-            if getattr(self, 'cursor_mode_enabled', False):
-                self.cursor_action.setChecked(False)
-                self._toggle_cursor_mode(False)
-            if getattr(self, 'range_select_mode_enabled', False):
-                self.range_select_action.setChecked(False)
-                self._toggle_range_select_mode(False)
-            if getattr(self, 'peak_placement_mode_enabled', False):
-                self.peak_placement_action.setChecked(False)
-                self._toggle_peak_placement_mode(False)
-            if getattr(self, 'slice_extraction_mode_enabled', False):
-                self.slice_extraction_action.setChecked(False)
-                self._toggle_slice_extraction_mode(False)
-            if getattr(self, 'region_highlight_mode_enabled', False):
-                self.region_highlight_action.setChecked(False)
-                self._toggle_region_highlight_mode(False)
+            # 排他制御は登録簿(gui/mixins/mouse_mode_mixin.py の MOUSE_MODES)に
+            # 集約している。8つ目のモードを足すときもここは変更不要。
+            self._deactivate_other_mouse_modes('annotation')
 
             self._annotation_press_cid = self.canvas.mpl_connect(
                 'button_press_event', self._on_annotation_press

@@ -34,7 +34,7 @@ There is no configured linter/formatter in this repo (no `.flake8`, `pyproject.t
 
 ### `PlotterApp` mixin composition
 
-`gui/main_window.py`'s `PlotterApp(QMainWindow, ...)` composes its behavior from **14 mixins** under `gui/mixins/`, each owning one concern:
+`gui/main_window.py`'s `PlotterApp(QMainWindow, ...)` composes its behavior from **15 mixins** under `gui/mixins/`, each owning one concern:
 
 - `UISetupMixin` — one-time signal wiring (`_connect_signals`), menu bar construction, and `_collect_menu_actions()` (backs the command palette / quick access / shortcuts list)
 - `SettingsMixin` — collecting/applying the UI ↔ per-axis settings dict, font/color pickers, axis behavior
@@ -43,9 +43,10 @@ There is no configured linter/formatter in this repo (no `.flake8`, `pyproject.t
 - `ProjectIOMixin` — project save/load menu actions and format templates
 - `HelpMixin` — help dialogs and the update check
 - `QuickAccessMixin` — the pinnable quick-access toolbar
+- `MouseModeMixin` — the registry (`MOUSE_MODES`) and `_deactivate_other_mouse_modes()` that keep the seven mouse modes below mutually exclusive
 - Seven **mutually exclusive mouse-interaction modes**, one mixin each: `CursorMixin` (data cursor), `AnnotationMixin` (text/arrow annotations), `LayoutEditMixin` (free-form subplot drag), `RangeSelectMixin` (drag to mask an X range), `PeakPlacementMixin` (click to seed multi-peak fit guesses), `SliceExtractionMixin` (drag a 1D slice out of a 2D map), `RegionHighlightMixin` (drag to add a vspan/hspan)
 
-**The seven mouse modes are kept exclusive by hand.** Each mode's `_toggle_*_mode(checked)` contains an if-chain that unchecks and disables the other six — 42 hand-written branches spread across seven files. Adding an eighth mode means editing all seven; forgetting one entry silently allows two modes to be active at once (this has already happened once: `AnnotationMixin` does not disable `LayoutEditMixin`). Before adding a new mode, prefer centralizing this into a single registry over extending the chains.
+**The seven mouse modes are kept exclusive through a single registry** (`gui/mixins/mouse_mode_mixin.py`). Each mode's `_toggle_*_mode(checked)` calls `self._deactivate_other_mouse_modes('<name>')` on the `checked=True` branch and nothing else; the registry's `MOUSE_MODES` tuple maps each mode name to its flag attribute, its `QAction` attribute, and its toggle method. **Adding an eighth mode means adding one `MouseMode(...)` row to that tuple** — do not reintroduce per-mixin if-chains. Note that the `QAction`s are connected to `triggered`, not `toggled`, so `setChecked(False)` alone does not fire the slot; deactivation must both uncheck the action and call `_toggle_*_mode(False)` (the registry does both). This replaced 42 hand-written branches spread across seven files, in which two modes (`AnnotationMixin` and `CursorMixin`) had silently omitted `LayoutEditMixin` and could therefore be active simultaneously with it; `tests/test_mouse_modes.py` now asserts all 42 ordered pairs.
 
 `PlotterApp.__init__` itself is long and split into numbered sections (UI file load → dynamic widget construction → dynamic layout surgery → signal connection → menu bar → initial state) — when adding a new always-visible control, follow the existing section it belongs to rather than appending at the end, since later sections depend on earlier ones (e.g. `_connect_signals()` must run after all dynamically-created widgets exist).
 

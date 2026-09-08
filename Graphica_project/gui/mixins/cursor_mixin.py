@@ -108,22 +108,9 @@ class CursorMixin:
         self.cursor_mode_enabled = checked
 
         if checked:
-            # 注釈モード/範囲選択モードと同時に有効だと同じクリックが競合するため排他にする
-            if getattr(self, 'annotation_mode_enabled', False):
-                self.annotation_action.setChecked(False)
-                self._toggle_annotation_mode(False)
-            if getattr(self, 'range_select_mode_enabled', False):
-                self.range_select_action.setChecked(False)
-                self._toggle_range_select_mode(False)
-            if getattr(self, 'peak_placement_mode_enabled', False):
-                self.peak_placement_action.setChecked(False)
-                self._toggle_peak_placement_mode(False)
-            if getattr(self, 'slice_extraction_mode_enabled', False):
-                self.slice_extraction_action.setChecked(False)
-                self._toggle_slice_extraction_mode(False)
-            if getattr(self, 'region_highlight_mode_enabled', False):
-                self.region_highlight_action.setChecked(False)
-                self._toggle_region_highlight_mode(False)
+            # 排他制御は登録簿(gui/mixins/mouse_mode_mixin.py の MOUSE_MODES)に
+            # 集約している。8つ目のモードを足すときもここは変更不要。
+            self._deactivate_other_mouse_modes('cursor')
 
             # --- モード ON ---
             logger.debug("データカーソルモード ON")

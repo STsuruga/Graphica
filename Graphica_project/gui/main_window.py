@@ -288,6 +288,7 @@ def _make_default_plot_font():
 from gui.mixins.ui_setup_mixin import UISetupMixin
 from gui.mixins.settings_mixin import SettingsMixin
 from gui.mixins.dataset_mixin import DatasetMixin
+from gui.mixins.mouse_mode_mixin import MouseModeMixin
 from gui.mixins.cursor_mixin import CursorMixin
 from gui.mixins.annotation_mixin import (
     AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
@@ -475,6 +476,7 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
 # PlotterApp 本体には、初期化・ファイルI/Oの中核・プロット更新など、
 # 上記どれにも属さない「アプリのエントリーポイント」的な処理のみを残す。
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
+                  MouseModeMixin,
                   CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
                   PeakPlacementMixin, SliceExtractionMixin, RegionHighlightMixin,
                   ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
