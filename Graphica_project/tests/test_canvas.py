@@ -18,7 +18,7 @@ from gui.canvas import (
     MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
     LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
     GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS,
-    WATERFALL_DEPTH_SHRINK_PER_STEP, WATERFALL_DEPTH_SHRINK_MIN_SCALE,
+    WATERFALL_DEPTH_SHRINK_MIN_SCALE,
 )
 from core.dataset import Dataset
 
@@ -2186,33 +2186,55 @@ def test_waterfall_depth_shrink_disabled_by_default_keeps_full_amplitude(canvas)
 def test_waterfall_depth_shrink_enabled_reduces_amplitude_of_deeper_traces(canvas):
     """waterfall_depth_shrink_enabled=Trueでは、積み重ねインデックスが大きい
     (奥にある)トレースほどY振幅が縮小される。手前(インデックス0)は縮小率1.0
-    (従来通り)のまま、以降は canvas.WATERFALL_DEPTH_SHRINK_PER_STEP に従って
-    段階的に縮小される。"""
+    (従来通り)のまま、以降はwaterfall_depth_shrink_ratio(1ステップあたりの
+    縮小率)に従って段階的に縮小される。"""
     x, y = [0.0, 1.0, 2.0], [2.0, 4.0, 6.0]
+    ratio = 0.03
     ds0 = _make_waterfall_dataset(
-        "wf0", x, y, offset_x=0.0, offset_y=10.0, waterfall_depth_shrink_enabled=True)
+        "wf0", x, y, offset_x=0.0, offset_y=10.0,
+        waterfall_depth_shrink_enabled=True, waterfall_depth_shrink_ratio=ratio)
     ds1 = _make_waterfall_dataset(
-        "wf1", x, y, offset_x=0.0, offset_y=10.0, waterfall_depth_shrink_enabled=True)
+        "wf1", x, y, offset_x=0.0, offset_y=10.0,
+        waterfall_depth_shrink_enabled=True, waterfall_depth_shrink_ratio=ratio)
 
     canvas.redraw_all([ds0, ds1], 1, 1, [{}])
 
     # インデックス0(手前)は縮小されない
     assert list(ds0.artist.get_ydata()) == pytest.approx(y)
-    # インデックス1(奥)は WATERFALL_DEPTH_SHRINK_PER_STEP 分だけ振幅が縮み、
+    # インデックス1(奥)はwaterfall_depth_shrink_ratio分だけ振幅が縮み、
     # その上でオフセットが足される
-    expected_scale = 1.0 - WATERFALL_DEPTH_SHRINK_PER_STEP
+    expected_scale = 1.0 - ratio
     expected_y1 = [v * expected_scale + 10.0 for v in y]
     assert list(ds1.artist.get_ydata()) == pytest.approx(expected_y1)
 
 
+def test_waterfall_depth_shrink_ratio_is_configurable_per_dataset(canvas):
+    """項目120フォローアップ: waterfall_offset_x/yと同様、縮小率自体も
+    ユーザーがスピンボックスで直接指定できる数値であること
+    (固定の縮小率ではなく、waterfall_depth_shrink_ratioの値が反映される)。"""
+    x, y = [0.0, 1.0, 2.0], [2.0, 4.0, 6.0]
+    ds0 = _make_waterfall_dataset(
+        "wf0", x, y, offset_x=0.0, offset_y=10.0,
+        waterfall_depth_shrink_enabled=True, waterfall_depth_shrink_ratio=0.2)
+    ds1 = _make_waterfall_dataset(
+        "wf1", x, y, offset_x=0.0, offset_y=10.0,
+        waterfall_depth_shrink_enabled=True, waterfall_depth_shrink_ratio=0.2)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    expected_y1 = [v * (1.0 - 0.2) + 10.0 for v in y]
+    assert list(ds1.artist.get_ydata()) == pytest.approx(expected_y1)
+
+
 def test_waterfall_depth_shrink_scale_clamped_to_minimum(canvas):
-    """トレース数が多い場合でも、縮小率がWATERFALL_DEPTH_SHRINK_MIN_SCALE未満
-    (振幅が潰れて見えなくなる/反転する)にはならないこと。"""
+    """縮小率が大きい/トレース数が多い場合でも、縮小率がWATERFALL_DEPTH_SHRINK_MIN_SCALE
+    未満(振幅が潰れて見えなくなる/反転する)にはならないこと。"""
     x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
-    n = 50  # WATERFALL_DEPTH_SHRINK_PER_STEP(3%/step)換算で通常なら負になる件数
+    n = 50  # ratio=0.03換算で通常なら負になる件数
     datasets = [
         _make_waterfall_dataset(f"wf{i}", x, y, offset_x=0.0, offset_y=0.0,
-                                 waterfall_depth_shrink_enabled=True)
+                                 waterfall_depth_shrink_enabled=True,
+                                 waterfall_depth_shrink_ratio=0.03)
         for i in range(n)
     ]
 

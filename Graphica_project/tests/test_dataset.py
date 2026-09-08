@@ -525,6 +525,41 @@ def test_from_dict_missing_waterfall_depth_shrink_key_falls_back_to_default():
     assert restored.waterfall_depth_shrink_enabled is False
 
 
+def test_defaults_include_waterfall_depth_shrink_ratio_field():
+    """項目120フォローアップ: 縮小率もwaterfall_offset_x/yと同様、
+    ユーザーが数値で直接指定できるフィールド。既定は0.03(3%/段)。"""
+    ds = make_dataset()
+    assert ds.waterfall_depth_shrink_ratio == 0.03
+
+
+def test_to_dict_from_dict_roundtrip_preserves_waterfall_depth_shrink_ratio_field():
+    """項目120フォローアップ: to_dict()/from_dict()の往復で
+    waterfall_depth_shrink_ratioが保持されること。"""
+    ds = make_dataset(
+        waterfall_enabled=True, waterfall_depth_shrink_enabled=True,
+        waterfall_depth_shrink_ratio=0.15,
+    )
+
+    data = ds.to_dict()
+    assert data['waterfall_depth_shrink_ratio'] == 0.15
+
+    restored = Dataset.from_dict(data)
+    assert restored.waterfall_depth_shrink_ratio == 0.15
+
+
+def test_from_dict_missing_waterfall_depth_shrink_ratio_key_falls_back_to_default():
+    """項目120フォローアップ: このフィールド追加前に保存されたdict(キーが無い)
+    を読み込んでもクラッシュせず、デフォルト値(0.03)で補われること。"""
+    ds = make_dataset(name="Legacy")
+    data = ds.to_dict()
+    data.pop('waterfall_depth_shrink_ratio', None)
+
+    restored = Dataset.from_dict(data)
+
+    assert restored.name == "Legacy"
+    assert restored.waterfall_depth_shrink_ratio == 0.03
+
+
 def test_to_dict_from_dict_roundtrip_preserves_waterfall_fields():
     """Dataset.to_dict()/from_dict() の往復で、ウォーターフォール関連フィールドが
     そのまま保持されることを確認する(項目80/109)。plot_typeとは独立したフラグ

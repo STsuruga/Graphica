@@ -1113,11 +1113,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # ウォーターフォールの斜向/立体風トグル(項目120、C-514)。奥の
         # トレースほどY振幅をわずかに縮小して描画し、疑似的な奥行きを出す
-        # (縮小率自体はgui/canvas.pyのWATERFALL_DEPTH_SHRINK_PER_STEPで固定、
-        # 既定はFalse=従来通り等倍描画)。
+        # (既定はFalse=従来通り等倍描画)。縮小率自体はwaterfall_offset_x/y
+        # と同じくスピンボックスで直接指定できる。
         self.waterfall_depth_checkbox = QCheckBox(tr("奥行き効果(奥のトレースをわずかに縮小)"))
         self.waterfall_depth_checkbox.setChecked(False)
         self.ui.formLayout_4.addRow(self.waterfall_depth_checkbox)
+
+        self.waterfall_depth_ratio_label = QLabel(tr("奥行き縮小率(1段あたり)"))
+        self.waterfall_depth_ratio_spinbox = QDoubleSpinBox()
+        self.waterfall_depth_ratio_spinbox.setRange(0.0, 0.9)
+        self.waterfall_depth_ratio_spinbox.setSingleStep(0.01)
+        self.waterfall_depth_ratio_spinbox.setDecimals(3)
+        self.waterfall_depth_ratio_spinbox.setValue(0.03)
+        self.ui.formLayout_4.addRow(self.waterfall_depth_ratio_label, self.waterfall_depth_ratio_spinbox)
 
         # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")

@@ -192,8 +192,12 @@ class Dataset:
     # 積み重ねインデックスが大きい(=奥にある)トレースほどY方向の振幅を
     # わずかに縮小して描画し、疑似的な奥行き(遠近感)を出す。既定はFalse
     # (従来通り全トレースを等倍で描画する挙動を維持、後方互換のため)。
-    # 実際の縮小率はgui/canvas.pyのWATERFALL_DEPTH_SHRINK_PER_STEPが担う。
     waterfall_depth_shrink_enabled: bool = False
+    # 積み重ねインデックス1つあたりのY振幅縮小率(0.03 = 1ステップごとに3%縮小)。
+    # waterfall_offset_x/waterfall_offset_yと同じく、ユーザーがスピンボックスで
+    # 直接指定できる数値パラメータ。gui/canvas.pyの_waterfall_depth_scale()が
+    # 下限WATERFALL_DEPTH_SHRINK_MIN_SCALEでクランプしつつ適用する。
+    waterfall_depth_shrink_ratio: float = 0.03
 
     # データポイントラベル表示 (各点の脇に値を表示するかどうか、および表示する列)
     show_point_labels: bool = False

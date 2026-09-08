@@ -226,6 +226,9 @@ class UISetupMixin:
             self.waterfall_occlusion_checkbox.toggled.connect(self._on_property_changed)
             # 斜向/立体風トグル(項目120、C-514): 奥のトレースをわずかに縮小
             self.waterfall_depth_checkbox.toggled.connect(self._on_property_changed)
+            # チェックのON/OFFで縮小率スピンボックスの表示・非表示も切り替える
+            self.waterfall_depth_checkbox.toggled.connect(self._update_waterfall_controls_visibility)
+            self.waterfall_depth_ratio_spinbox.valueChanged.connect(self._on_property_changed)
             # 項目105: ラベル有効化時、データ点が多いと確認ポップアップを挟むための
             # 専用ハンドラ経由にする(_on_property_changedへは内部で委譲される)
             self.point_labels_checkbox.toggled.connect(self._on_point_labels_toggled)

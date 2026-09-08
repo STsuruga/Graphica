@@ -3161,6 +3161,58 @@ def test_waterfall_depth_checkbox_reflects_selected_dataset(tmp_path, monkeypatc
     assert window.waterfall_depth_checkbox.isChecked() is True
 
 
+def test_property_changed_waterfall_depth_ratio_spinbox(tmp_path, monkeypatch):
+    """項目120フォローアップ: 奥行き縮小率も、waterfall_offset_x/yと同じく
+    スピンボックスで直接数値指定できること。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    assert ds.waterfall_depth_shrink_ratio == 0.03  # 既定値
+
+    window.waterfall_depth_ratio_spinbox.setValue(0.2)
+
+    assert ds.waterfall_depth_shrink_ratio == 0.2
+
+
+def test_waterfall_depth_ratio_spinbox_visibility_follows_depth_checkbox(tmp_path, monkeypatch):
+    """縮小率スピンボックスは、「ウォーターフォール表示」に加えて奥行き効果
+    トグル自体もONの時だけ表示する(_update_gradient_controls_visibilityと
+    同じ2段階の表示条件)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    window.waterfall_checkbox.setChecked(True)
+    window.waterfall_depth_checkbox.setChecked(False)
+    assert window.waterfall_depth_ratio_spinbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden) is True
+
+    window.waterfall_depth_checkbox.setChecked(True)
+    assert window.waterfall_depth_ratio_spinbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden) is False
+
+    # ウォーターフォール自体をOFFにすると、奥行き効果がONのままでも隠れる
+    window.waterfall_checkbox.setChecked(False)
+    assert window.waterfall_depth_ratio_spinbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden) is True
+
+
+def test_waterfall_depth_ratio_spinbox_reflects_selected_dataset(tmp_path, monkeypatch):
+    """データセットを切り替えると、縮小率スピンボックスがそのデータセット
+    自身のwaterfall_depth_shrink_ratio値に更新される(populate/restoreの配線)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1, 2], 'y': [1.0, 2.0, 3.0]})
+    ds0 = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y',
+                  waterfall_depth_shrink_ratio=0.5)
+    ds1 = Dataset(name="d1", df=df, x_col_name='x', y_col_name='y',
+                  waterfall_depth_shrink_ratio=0.03)
+    window._add_dataset(ds0, None, select=False)
+    window._add_dataset(ds1, None, select=False)
+
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(ds1))
+    assert window.waterfall_depth_ratio_spinbox.value() == pytest.approx(0.03)
+
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(ds0))
+    assert window.waterfall_depth_ratio_spinbox.value() == pytest.approx(0.5)
+
+
 def test_property_changed_error_display_combo(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
