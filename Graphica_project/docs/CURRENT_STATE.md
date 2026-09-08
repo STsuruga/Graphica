@@ -50,12 +50,20 @@
   参照から辿る」というshiboken既知の癖の、一段深いレベルでの再発)。
   `self._dock_layout_menu_action`/`self._load_layout_menu_action`を追加して
   修正、回帰テストを`tests/test_main_window.py`に追加(コミット`8607665`)。
-  **同時に、非クラッシュ性の別の潜在バグ
+  **同時に発見した非クラッシュ性の別の潜在バグ
   (`recent_files_menu`の除外チェックが繰り返し呼び出しで時々失効し、
-  コマンドパレット候補に「(履歴なし)」等がリークすることがある)を発見し、
-  スコープを絞るため今回は修正せず別タスクとしてフラグ済み**
-  (`task_9aeb6e2f`、着手する場合はこの`dock_layout_menu`修正と同じ
-  `menuAction()`キャッシュのパターンを踏襲すること)。
+  コマンドパレット候補に「(履歴なし)」等がリークすることがある)は、
+  当初スコープを絞るため別タスク(`task_9aeb6e2f`)としてフラグしていたが、
+  2026-09-08に対応済み**: `dock_layout_menu`と同じ`menuAction()`キャッシュの
+  パターンを踏襲し、`_create_menu_bar()`で
+  `self._recent_files_menu_action = self.recent_files_menu.menuAction()`を
+  永続参照として保持。`_collect_menu_actions()`の除外判定を、`action.menu()`が
+  返すQMenuのidentity比較だけでなく、この永続アクションのidentity比較でも
+  行うよう変更(identity失効を模擬する回帰テストを`tests/test_main_window.py`の
+  `test_collect_menu_actions_never_leaks_recent_files`として追加)。
+  `tests/test_main_window.py`(165 passed)・`tests/test_dialogs.py`(280 passed)・
+  `tests/test_quick_access_mixin.py`+`tests/test_help_mixin.py`(38 passed)で
+  リグレッションなしを確認。
   **修正後、フルスイート(チャンク方式、133チャンク)を再実行し、既知の
   `test_export_preview_panel.py`セグフォルト(WARN扱い)以外は0失敗で
   完走を確認済み**。roadmap.html/backlog_detail.htmlの両Artifactを
