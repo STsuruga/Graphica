@@ -19,7 +19,8 @@ from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgo
                             calculate_lttb_downsample,
                             calculate_multi_peak_fit, get_multi_peak_param_names,
                             multi_peak_fit_task, calculate_histogram, calculate_kde,
-                            calculate_error_propagation, calculate_cross_correlation_alignment)
+                            calculate_error_propagation, calculate_cross_correlation_alignment,
+                            assign_peak_label_levels)
 
 
 def test_linear_fit_recovers_known_parameters():
@@ -1578,6 +1579,42 @@ def test_error_propagation_division_does_not_nan_when_numerator_is_zero():
     """A÷Bでa=0でも、値ではなく分母(b)側で割る式のため誤差はNaNにならない。"""
     result = calculate_error_propagation("A ÷ B", [0.0], [1.0], [2.0], [0.2])
     assert not np.isnan(result[0])
+
+
+# --- ピーク位置へのスマート自動ラベル(衝突回避、項目134、C-707) ---
+
+def test_assign_peak_label_levels_isolated_peaks_all_level_zero():
+    assert assign_peak_label_levels([1, 20, 40], x_axis_span=100) == [0, 0, 0]
+
+
+def test_assign_peak_label_levels_close_peaks_alternate_levels():
+    levels = assign_peak_label_levels([1, 2, 3], x_axis_span=100, proximity_ratio=0.05)
+    assert levels == [0, 1, 2]
+
+
+def test_assign_peak_label_levels_resets_after_far_peak():
+    levels = assign_peak_label_levels([1, 2, 50], x_axis_span=100, proximity_ratio=0.05)
+    assert levels == [0, 1, 0]
+
+
+def test_assign_peak_label_levels_cycles_at_max_levels():
+    levels = assign_peak_label_levels([1, 1.5, 2, 2.5, 3], x_axis_span=100, proximity_ratio=0.05, max_levels=3)
+    assert levels == [0, 1, 2, 0, 1]
+
+
+def test_assign_peak_label_levels_returns_all_zero_for_empty_input():
+    assert assign_peak_label_levels([], x_axis_span=100) == []
+
+
+def test_assign_peak_label_levels_returns_all_zero_for_non_positive_span():
+    assert assign_peak_label_levels([1, 2, 3], x_axis_span=0) == [0, 0, 0]
+    assert assign_peak_label_levels([1, 2, 3], x_axis_span=-5) == [0, 0, 0]
+
+
+def test_assign_peak_label_levels_preserves_length_and_order():
+    peaks = [5, 5.1, 5.2, 50, 51]
+    levels = assign_peak_label_levels(peaks, x_axis_span=100)
+    assert len(levels) == len(peaks)
 
 
 # --- X軸アライメント(相互相関、項目105、C-307) ---

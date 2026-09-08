@@ -2086,3 +2086,39 @@ def calculate_cross_correlation_alignment(x_a, y_a, x_b, y_b):
     shift = float(lags[best_idx] * step)
 
     return {'shift': shift, 'grid_step': float(step), 'correlation_peak': float(corr[best_idx])}
+
+
+def assign_peak_label_levels(peak_x_values, x_axis_span, proximity_ratio=0.05, max_levels=4):
+    """
+    ピーク位置へのスマート自動ラベル(項目134、C-707)のための、簡易な衝突回避
+    アルゴリズム。近接するピーク(X座標が軸の全幅に対してproximity_ratio未満
+    しか離れていない)には、直前のピークと段違いの「段」番号を割り当てる
+    ことで、ラベルを縦にずらして重ならないようにする(実際にラベルを縦へ
+    ずらす量への変換は呼び出し側が行う、ここでは段番号だけを返す)。
+
+    Args:
+        peak_x_values (array-like): X昇順にソート済みのピークX座標。
+        x_axis_span (float): 軸の全体の幅(hi - lo)。0以下の場合は常に段0を返す
+            (幅が定義できない=近接判定ができないため)。
+        proximity_ratio (float): 「近い」とみなすX距離の閾値(軸幅に対する比率)。
+        max_levels (int): 段番号が巡回する最大数(4段目まで来たら0に戻る)。
+
+    Returns:
+        list[int]: 各ピークに割り当てる段番号(0始まり)。peak_x_valuesと同じ長さ・同じ順序。
+    """
+    peak_x_values = list(peak_x_values)
+    if x_axis_span <= 0 or not peak_x_values:
+        return [0] * len(peak_x_values)
+
+    threshold = x_axis_span * proximity_ratio
+    levels = []
+    prev_x = None
+    current_level = 0
+    for x in peak_x_values:
+        if prev_x is not None and abs(x - prev_x) < threshold:
+            current_level = (current_level + 1) % max_levels
+        else:
+            current_level = 0
+        levels.append(current_level)
+        prev_x = x
+    return levels

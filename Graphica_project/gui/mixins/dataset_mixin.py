@@ -36,7 +36,8 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_zscore_outliers, calculate_iqr_outliers,
                            calculate_resample_to_grid, multi_peak_fit_task,
                            calculate_histogram, calculate_kde, calculate_error_propagation,
-                           calculate_cross_correlation_alignment)
+                           calculate_cross_correlation_alignment, calculate_peaks,
+                           assign_peak_label_levels)
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
 from core.color_palettes import BUILTIN_PALETTES
@@ -370,6 +371,10 @@ class DatasetMixin:
             # インセット(拡大図)+拡大範囲の指示線(項目138、C-711)
             add_inset_action = menu.addAction("インセット(拡大図)を追加...")
             add_inset_action.triggered.connect(self._on_add_inset)
+
+            # ピーク位置へのスマート自動ラベル(項目134、C-707)
+            add_peak_labels_action = menu.addAction("ピーク位置に自動ラベルを追加...")
+            add_peak_labels_action.triggered.connect(self._on_add_smart_peak_labels)
 
             # ヒストグラム / カーネル密度推定(項目115、C-505): カレント1件の
             # 任意の数値列を集計し、新しいデータセットを1つ作る(上記の
@@ -1652,6 +1657,63 @@ class DatasetMixin:
             'type': 'inset', 'corner': settings['corner'], 'size': settings['size'],
             'zoom_x_range': settings['zoom_x_range'], 'color': '#000000',
         }, description="インセット(拡大図)の追加")
+
+    def _on_add_smart_peak_labels(self):
+        """
+        「ピーク位置に自動ラベルを追加...」メニューの処理(項目134、C-707)。
+        既存のピーク検出(PeakSettingsDialog + core.analysis.calculate_peaks、
+        _on_find_peaksと同じ設定UI・検出ロジック)で見つけた各ピークの位置に、
+        X値を表示するテキスト注釈を追加する。近接するピーク同士は
+        assign_peak_label_levels()で「段」を割り当て、段ごとに縦にずらして
+        ラベルが重ならないようにする(衝突回避、バックログが「地味に難しい」と
+        明記していた部分)。段の高さは、現在表示中の軸のYレンジに対する
+        比率で決める(スケールが違うデータセットでも見た目のずれ幅が揃う)。
+        """
+        dataset = self._get_current_dataset()
+        if dataset is None:
+            return
+
+        x_data, y_data = dataset.x_data, dataset.y_data
+        if len(x_data) < 3:
+            QMessageBox.warning(self, "ピーク位置への自動ラベル", "データ点数が少なすぎます (最低3点必要)。")
+            return
+
+        settings = PeakSettingsDialog.get_peak_settings(self)
+        if settings is None:
+            return
+        peak_type = settings.get("peak_type", "上に凸 (Peaks)")
+
+        try:
+            peak_x, peak_y = calculate_peaks(x_data, y_data, peak_type, settings)
+        except Exception as e:
+            QMessageBox.warning(self, "ピーク検出エラー", f"エラーが発生しました:\n{e}")
+            return
+
+        if len(peak_x) == 0:
+            QMessageBox.information(self, "ピーク位置への自動ラベル", f"指定された条件で {peak_type} は見つかりませんでした。")
+            return
+
+        order = np.argsort(peak_x)
+        peak_x, peak_y = peak_x[order], peak_y[order]
+
+        axis_index = dataset.subplot_target
+        y_span = 1.0
+        if 0 <= axis_index < len(self.canvas.all_axes):
+            y_lo, y_hi = self.canvas.all_axes[axis_index].get_ylim()
+            y_span = y_hi - y_lo
+        x_span = float(np.max(peak_x) - np.min(peak_x)) if len(peak_x) > 1 else 0.0
+        levels = assign_peak_label_levels(peak_x, x_span)
+
+        is_batch = len(peak_x) > 1
+        if is_batch:
+            self.undo_stack.beginMacro(f"ピーク位置への自動ラベル追加 ({len(peak_x)}件)")
+        for x, y, level in zip(peak_x, peak_y, levels):
+            label_y = y + y_span * (0.06 + 0.05 * level)
+            self._add_annotation(axis_index, {
+                'type': 'text', 'text': f"{x:.4g}", 'xy': (float(x), float(label_y)), 'color': '#000000',
+            }, description="ピーク位置への自動ラベル追加")
+        if is_batch:
+            self.undo_stack.endMacro()
 
     def _on_run_plugin_processor(self, processor):
         """

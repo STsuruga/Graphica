@@ -4648,6 +4648,113 @@ def test_find_peaks_replaces_previous_result_dialog(tmp_path, monkeypatch):
 
 
 # =============================================================================
+# ピーク位置へのスマート自動ラベル (_on_add_smart_peak_labels, 項目134、C-707)
+# =============================================================================
+
+def test_add_smart_peak_labels_no_current_dataset_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._on_add_smart_peak_labels()  # 例外にならないこと
+    assert window.undo_stack.count() == 0
+
+
+def test_add_smart_peak_labels_too_few_points_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1], 'y': [0.0, 1.0]})
+    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_add_smart_peak_labels()
+
+    assert len(warnings) == 1
+
+
+def test_add_smart_peak_labels_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_peaky_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_peak_dialog(monkeypatch, None)
+
+    window._on_add_smart_peak_labels()
+
+    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
+
+
+def test_add_smart_peak_labels_calculation_error_warns(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_peaky_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_peak_dialog(
+        monkeypatch,
+        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
+    )
+
+    def raiser(*a, **k):
+        raise ValueError("bad settings")
+
+    monkeypatch.setattr(dataset_mixin_module, "calculate_peaks", raiser)
+    warnings = _patch_warning_capture(monkeypatch)
+
+    window._on_add_smart_peak_labels()
+
+    assert len(warnings) == 1
+
+
+def test_add_smart_peak_labels_no_peaks_found_shows_info(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_peaky_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_peak_dialog(
+        monkeypatch,
+        {"peak_type": "上に凸 (Peaks)", "height": 1000.0, "distance_x": 1.0, "prominence": None}
+    )
+    info_calls = _patch_info_capture(monkeypatch)
+
+    window._on_add_smart_peak_labels()
+
+    assert len(info_calls) == 1
+    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
+
+
+def test_add_smart_peak_labels_adds_one_annotation_per_peak(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_peaky_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_peak_dialog(
+        monkeypatch,
+        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
+    )
+
+    window._on_add_smart_peak_labels()
+
+    annotations = window.project.all_plot_settings[ds.subplot_target]['annotations']
+    assert len(annotations) > 0
+    assert all(a['type'] == 'text' for a in annotations)
+    # sin(x)*10のピークはX昇順に単調増加するはずで、テキストはX値の文字列表現
+    x_values = [float(a['text']) for a in annotations]
+    assert x_values == sorted(x_values)
+
+
+def test_add_smart_peak_labels_is_undoable_as_single_macro(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_peaky_dataset()
+    _add_and_select_dataset(window, ds)
+    _patch_peak_dialog(
+        monkeypatch,
+        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
+    )
+    before_count = window.undo_stack.count()
+
+    window._on_add_smart_peak_labels()
+
+    assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) > 1
+    assert window.undo_stack.count() == before_count + 1  # 1回のUndo単位にまとまる
+
+    window.undo_stack.undo()
+    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
+
+
+# =============================================================================
 # 区間積分 (_on_interval_integral_dataset, 項目C-311)
 # =============================================================================
 
