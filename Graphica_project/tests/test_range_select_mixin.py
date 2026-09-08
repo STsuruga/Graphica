@@ -218,6 +218,80 @@ def test_motion_ignored_when_not_dragging(tmp_path, monkeypatch):
     assert window._range_select_preview_artist is None
 
 
+# --- ブリッティング(項目154、C-1002) ---
+
+def test_press_captures_background_for_blitting(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    window.range_select_mode_enabled = True
+    ax = window.all_axes[0]
+
+    window._on_range_select_press(_FakeMplEvent(ax, 1.0, 1.0))
+
+    assert window._range_select_background is not None
+
+
+def test_motion_reuses_same_artist_across_multiple_moves(tmp_path, monkeypatch):
+    """全体再描画(draw_idle)に頼らないブリッティングでは、動かすたびに矩形を
+    削除・再作成せず、同じ矩形の座標だけを更新する。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    window.range_select_mode_enabled = True
+    ax = window.all_axes[0]
+    window._on_range_select_press(_FakeMplEvent(ax, 1.0, 1.0))
+
+    window._on_range_select_motion(_FakeMplEvent(ax, 2.0, 1.0))
+    first_rect = window._range_select_preview_artist
+    window._on_range_select_motion(_FakeMplEvent(ax, 3.0, 1.0))
+    second_rect = window._range_select_preview_artist
+
+    assert first_rect is second_rect
+
+
+def test_motion_updates_rectangle_geometry_to_latest_position(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    window.range_select_mode_enabled = True
+    ax = window.all_axes[0]
+    window._on_range_select_press(_FakeMplEvent(ax, 1.0, 1.0))
+
+    window._on_range_select_motion(_FakeMplEvent(ax, 2.0, 1.0))
+    window._on_range_select_motion(_FakeMplEvent(ax, 4.0, 1.0))
+
+    rect = window._range_select_preview_artist
+    assert rect.get_x() == 1.0
+    assert rect.get_width() == 3.0  # 4.0 - 1.0
+
+
+def test_motion_falls_back_to_full_redraw_when_background_missing(tmp_path, monkeypatch):
+    """何らかの理由で背景キャプチャが無い場合でも、安全側(従来のdraw_idle)に
+    フォールバックしてクラッシュしないこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    window.range_select_mode_enabled = True
+    ax = window.all_axes[0]
+    window._on_range_select_press(_FakeMplEvent(ax, 1.0, 1.0))
+    window._range_select_background = None  # 意図的に消す
+
+    window._on_range_select_motion(_FakeMplEvent(ax, 3.0, 1.0))  # 例外にならないこと
+
+    assert window._range_select_preview_artist is not None
+
+
+def test_release_clears_captured_background(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _add_dataset(window, select=True)
+    window.range_select_mode_enabled = True
+    ax = window.all_axes[0]
+    window._on_range_select_press(_FakeMplEvent(ax, 1.0, 1.0))
+    window._on_range_select_motion(_FakeMplEvent(ax, 3.0, 1.0))
+    assert window._range_select_background is not None
+
+    window._on_range_select_release(_FakeMplEvent(ax, 3.0, 1.0))
+
+    assert window._range_select_background is None
+
+
 # --- release / マスク適用 ---
 
 def test_release_without_current_dataset_shows_info_and_masks_nothing(tmp_path, monkeypatch):

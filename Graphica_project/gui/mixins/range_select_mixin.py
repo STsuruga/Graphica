@@ -87,7 +87,8 @@ class RangeSelectMixin:
         """ドラッグ中のプレビュー矩形を取り除く。fig.clf()で既に破棄されて
         いる場合(再描画がドラッグ中に割り込んだ場合)に備えてValueError/
         NotImplementedErrorは無視する(gui/canvas.pyのset_highlighted_points
-        と同じ防御)。"""
+        と同じ防御)。ブリッティング用にキャプチャしていた背景(_range_select_
+        background)もここで一緒に破棄する。"""
         artist = getattr(self, '_range_select_preview_artist', None)
         if artist is not None:
             try:
@@ -96,6 +97,7 @@ class RangeSelectMixin:
                 pass
             self._range_select_preview_artist = None
             self.canvas.draw_idle()
+        self._range_select_background = None
 
     def _on_range_select_press(self, event):
         if not getattr(self, 'range_select_mode_enabled', False):
@@ -104,23 +106,49 @@ class RangeSelectMixin:
             return
         self._range_select_axes = event.inaxes
         self._range_select_start_x = event.xdata
+        # ブリッティング(項目154、C-1002)によるドラッグ追従の高速化: ドラッグ
+        # 開始時点の見た目(データセット等、選択矩形以外の全て)を1回だけ
+        # ビットマップとしてキャプチャしておく。以降のmotionイベントでは
+        # 図全体を再描画(draw_idle、データセット数が多いほど重い)せず、
+        # このキャプチャを復元してから選択矩形だけを描き直す(blit)。
+        self.canvas.draw()
+        self._range_select_background = self.canvas.copy_from_bbox(event.inaxes.bbox)
 
     def _on_range_select_motion(self, event):
         axes = getattr(self, '_range_select_axes', None)
         if axes is None or event.inaxes is not axes or event.xdata is None:
             return
 
-        self._clear_range_select_preview()
         x0, x1 = sorted((self._range_select_start_x, event.xdata))
         ymin, ymax = axes.get_ylim()
-        rect = Rectangle(
-            (x0, ymin), x1 - x0, ymax - ymin,
-            facecolor='#3948B3', alpha=0.15, edgecolor='#3948B3',
-            linewidth=1, zorder=100,
-        )
-        axes.add_patch(rect)
-        self._range_select_preview_artist = rect
-        self.canvas.draw_idle()
+
+        rect = getattr(self, '_range_select_preview_artist', None)
+        if rect is None:
+            # ★ animated=True: 通常のdraw()/draw_idle()の描画対象から外れ、
+            #   下のblit()を通じてのみ画面に反映される(matplotlibのブリッティング
+            #   の基本パターン)。既存矩形が無い最初のmotionイベントでのみ作成し、
+            #   以降は同じ矩形の座標だけを更新する(_clear_range_select_previewとは
+            #   異なり、motionのたびに削除・再作成はしない)。
+            rect = Rectangle(
+                (x0, ymin), x1 - x0, ymax - ymin,
+                facecolor='#3948B3', alpha=0.15, edgecolor='#3948B3',
+                linewidth=1, zorder=100, animated=True,
+            )
+            axes.add_patch(rect)
+            self._range_select_preview_artist = rect
+        else:
+            rect.set_bounds(x0, ymin, x1 - x0, ymax - ymin)
+
+        background = getattr(self, '_range_select_background', None)
+        if background is None:
+            # 背景キャプチャに失敗していた場合(例: 何らかの理由でpress直後に
+            # Axesが再生成された等)は、安全側として従来通りの全体再描画にフォールバックする。
+            self.canvas.draw_idle()
+            return
+
+        self.canvas.restore_region(background)
+        axes.draw_artist(rect)
+        self.canvas.blit(axes.bbox)
 
     def _on_range_select_release(self, event):
         axes = getattr(self, '_range_select_axes', None)
