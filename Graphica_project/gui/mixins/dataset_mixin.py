@@ -550,36 +550,25 @@ class DatasetMixin:
             if top.tab_widget.widget(i) is not self
         ]
 
-    def _remove_datasets_without_confirmation(self, datasets):
+    def _remove_datasets_without_confirmation(self, datasets, description=None):
         """
         指定したDatasetのリストを、確認ダイアログなしでこのタブから削除する
         (項目C-905の「別のタブへ移動」専用ヘルパー)。_on_remove_dataset
         (右クリック「削除」)と削除ロジック自体は同じだが、ツリーの選択状態では
         なく呼び出し元が渡した具体的なDatasetのリストを対象にする点が異なる。
+
+        ★ 改善ボード A-3: こちらも RemoveDatasetCommand 経由でUndo可能にした。
+        ただし「別のタブへ移動」から呼ばれた場合、Undoで元に戻るのは*このタブ側の
+        削除だけ*である(タブ=独立したPlotterAppインスタンスで undo_stack も別、
+        移動先タブへの追加は取り消されない)。そのため移動をUndoすると、
+        両方のタブに1件ずつ存在する状態になる。復元手段が全く無い従来よりは
+        マシだが、この非対称性は仕様として認識しておくこと。
         """
-        self.ui.dataset_list_widget.blockSignals(True)
-        rows_to_remove = sorted(
-            {row for ds in datasets if (row := self._find_dataset_row(ds)) != -1},
-            reverse=True
-        )
-        for row in rows_to_remove:
-            del self.project.datasets[row]
-
-        for ds in datasets:
-            item = self._get_dataset_tree_item(ds)
-            if item is None:
-                continue
-            parent = item.parent()
-            if parent is not None:
-                parent.removeChild(item)
-            else:
-                idx = self.ui.dataset_list_widget.indexOfTopLevelItem(item)
-                if idx != -1:
-                    self.ui.dataset_list_widget.takeTopLevelItem(idx)
-        self.ui.dataset_list_widget.blockSignals(False)
-
-        self._update_ui_state()
-        self._update_plot()
+        items = [
+            item for ds in datasets
+            if (item := self._get_dataset_tree_item(ds)) is not None
+        ]
+        self._remove_dataset_items_with_undo(items, description=description)
 
     def _on_copy_or_move_dataset_to_tab(self, move):
         """
@@ -592,8 +581,10 @@ class DatasetMixin:
         確立済みの安全なDataset複製方法)。dataset_idだけは、コピー先タブで
         元と衝突しないよう新しく振り直す。
         移動の場合は、対象タブへの追加が成功した後に元タブから削除する。
-        データセットの追加/削除どちらも、このコードベースの他の同種の構造的
-        操作(規格化・複製・削除など)と同様にUndo非対応。
+        移動先タブへの追加はUndo非対応のまま(タブごとにundo_stackが独立して
+        いるため、このタブのUndoから相手タブを巻き戻すことはできない)。
+        元タブからの削除だけは改善ボード A-3 でUndo可能になっている
+        (_remove_datasets_without_confirmation のdocstring参照)。
         """
         selected = self._get_selected_datasets()
         if not selected:
@@ -619,7 +610,9 @@ class DatasetMixin:
             target_window._add_dataset(new_dataset, target_window._get_target_folder_for_new_dataset())
 
         if move:
-            self._remove_datasets_without_confirmation(selected)
+            self._remove_datasets_without_confirmation(
+                selected, description=f"別のタブへ移動({len(selected)}件)"
+            )
 
         self.statusBar().showMessage(
             f"{len(selected)}件のデータセットを「{choice}」へ{action_label}しました", 3000
@@ -2048,56 +2041,20 @@ class DatasetMixin:
         「データセット削除」ボタンが押されたときの処理。
         選択中の(複数可)データセット・フォルダをリストとUIから削除する。
         フォルダを削除すると、その中のデータセットもまとめて削除される。
+
+        ★ 改善ボード A-3: 以前はここで project.datasets を直接書き換えており
+        Undo できなかった(誤削除するとデータ・スタイル・フィット結果・マスク・
+        注釈がまとめて復旧不能になっていた)。実際の削除・復元処理は
+        main_window._remove_dataset_items_with_undo() に集約し、
+        RemoveDatasetCommand 経由で undo_stack に載せる。
         """
         selected_items = self.ui.dataset_list_widget.selectedItems()
         if not selected_items:
             return # 何も選択されていない
 
-        # フォルダの中身も含め、削除対象のデータセットをすべて収集する
-        datasets_to_remove = []
-
-        def collect(item):
-            dataset = item.data(0, Qt.ItemDataRole.UserRole)
-            if dataset is not None:
-                datasets_to_remove.append(dataset)
-            else:
-                for i in range(item.childCount()):
-                    collect(item.child(i))
-
-        for item in selected_items:
-            collect(item)
-
-        # 【★ 重要 ★】
-        # これからUIツリーを操作する。操作中に currentItemChanged が
-        # 意図せず発行されるのを防ぐため、シグナルを一時的にブロックする。
-        self.ui.dataset_list_widget.blockSignals(True)
-
-        # project.datasets から削除 (インデックスがずれないよう降順で処理)
-        rows_to_remove = sorted(
-            {row for ds in datasets_to_remove if (row := self._find_dataset_row(ds)) != -1},
-            reverse=True
-        )
-        for row in rows_to_remove:
-            del self.project.datasets[row]
-
-        # UIツリーから、選択された最上位アイテムだけを削除する
+        # 選択された最上位アイテムだけを対象にする
         # (子アイテムも同時に選択されていても、親を消せば一緒に消えるため二重削除は避ける)
-        for item in self._top_level_selected_items(selected_items):
-            parent = item.parent()
-            if parent is not None:
-                parent.removeChild(item)
-            else:
-                idx = self.ui.dataset_list_widget.indexOfTopLevelItem(item)
-                if idx != -1:
-                    self.ui.dataset_list_widget.takeTopLevelItem(idx)
-
-        self.ui.dataset_list_widget.blockSignals(False)
-
-        # UIの状態を更新 (プロパティ欄などを無効化)
-        self._update_ui_state()
-
-        # グラフを再描画
-        self._update_plot()
+        self._remove_dataset_items_with_undo(self._top_level_selected_items(selected_items))
 
     def _find_dataset_row(self, dataset):
         """
@@ -2123,8 +2080,9 @@ class DatasetMixin:
         - 同じ親 (フォルダ) 内での並べ替えの場合のみ、Undo/Redo 可能な
           ReorderDatasetsCommand として発行する。
         - フォルダをまたぐ移動 (フォルダ構造そのものの変更) は、データセットの
-          追加/削除/複製と同様、現状 Undo 非対応の単純な操作として扱う
-          (フォルダ構造ごとのUndoは対象外)。
+          複製などと同様、現状 Undo 非対応の単純な操作として扱う
+          (フォルダ構造ごとのUndoは対象外)。削除は改善ボード A-3 で
+          RemoveDatasetCommand によりUndo可能になっている。
         """
         reordered = [item.data(0, Qt.ItemDataRole.UserRole) for item in self._flatten_dataset_tree()]
 

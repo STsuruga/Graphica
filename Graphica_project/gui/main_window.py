@@ -163,7 +163,7 @@ from ui_main_window import Ui_MainWindow
 # --- 自分で分割したモジュール ---
 from core.dataset import Dataset
 from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
-from core.commands import AddDatasetCommand
+from core.commands import AddDatasetCommand, RemoveDatasetCommand
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
 from gui.minimap_widget import MinimapWidget
 from gui.detached_canvas_window import DetachedCanvasWindow
@@ -2561,6 +2561,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     self.project.all_plot_settings[self.project.active_axis_index]
                 )
 
+            # ★ 別のプロジェクトを読み込んだ時点で、それ以前のUndo履歴は
+            # 「別の文書に対する操作」になり意味を持たない。放置すると、
+            # 読み込み後にUndoしただけで読み込んだ内容が壊れる:
+            # RemoveDatasetCommand(改善ボード A-3)と ReorderDatasetsCommand は
+            # どちらも project.datasets をリストごと差し戻すため、読み込んだ
+            # データセット群が丸ごと以前のものへ置き換わってしまう
+            # (ProjectModelのインスタンス自体はload_project()で使い回され、
+            # 中身だけが入れ替わるので、コマンド側からは見分けが付かない)。
+            # 文書を開き直したら履歴も切る、というのが素直な挙動でもある。
+            self.undo_stack.clear()
+
             # 画面状態とプロットの最終更新
             self._update_ui_state()
             self._update_plot()
@@ -3038,7 +3049,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         _add_dataset() をUndo/Redo可能にしたバージョン(項目C-1、プラグインの
         register_processor/register_analyzerが生成したDatasetの追加専用)。
         AddDatasetCommand参照: 既存の他の追加経路(規格化・Savitzky-Golay等)は
-        意図的にUndo非対応のまま据え置いている。
+        意図的にUndo非対応のまま据え置いている(削除側は改善ボード A-3 で
+        _remove_dataset_items_with_undo() としてUndo対応済み)。
         """
         def do_add():
             self._add_dataset(dataset, parent_folder, select=True)
@@ -3061,6 +3073,105 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         command = AddDatasetCommand(do_add, do_remove, description=description)
         self.undo_stack.push(command)
+
+    def _remove_dataset_items_with_undo(self, top_level_items, description=None):
+        """
+        ツリー上のアイテム(データセットの葉、またはフォルダ)をUndo/Redo可能に
+        削除する共通ヘルパー(改善ボード A-3、RemoveDatasetCommand参照)。
+
+        `top_level_items` には「最上位の削除対象」だけを渡すこと
+        (フォルダとその中身が両方選択されていた場合、フォルダだけを渡す。
+        dataset_mixin._top_level_selected_items がこの絞り込みを行う)。
+        フォルダを渡すと、その中のデータセットもまとめて削除・復元される。
+
+        復元時に元の見た目へ正確に戻すため、削除の前に次の2つを控えておく:
+
+        - `project.datasets` のリスト全体(=描画順/重なり順)。削除で
+          インデックスがずれるため、行単位ではなくリストごと差し戻す。
+        - 各アイテムのツリー上の位置(親アイテムと、その親の中でのインデックス)。
+          フォルダの中の何番目だったかまで復元する。
+
+        取り外したQTreeWidgetItemはクロージャが参照を保持し続けるため破棄されず、
+        そのまま同じオブジェクトを差し戻せる(子アイテム=フォルダの中身も
+        ぶら下がったまま維持される)。
+        """
+        tree = self.ui.dataset_list_widget
+
+        # --- 削除前のスナップショット ---
+        snapshots = []  # [(item, parent_item_or_None, index_in_parent), ...]
+        for item in top_level_items:
+            parent = item.parent()
+            index = parent.indexOfChild(item) if parent is not None else tree.indexOfTopLevelItem(item)
+            if index == -1:
+                continue  # 既にツリーから外れている(想定外だが安全側に倒す)
+            snapshots.append((item, parent, index))
+        if not snapshots:
+            return
+
+        def collect_datasets(item, out):
+            dataset = item.data(0, Qt.ItemDataRole.UserRole)
+            if dataset is not None:
+                out.append(dataset)
+            else:  # フォルダ: 中身を再帰的に集める
+                for i in range(item.childCount()):
+                    collect_datasets(item.child(i), out)
+
+        removed_datasets = []
+        for item, _parent, _index in snapshots:
+            collect_datasets(item, removed_datasets)
+
+        datasets_before = list(self.project.datasets)
+
+        if description is None:
+            if len(removed_datasets) == 1:
+                description = f"「{removed_datasets[0].name}」の削除"
+            else:
+                description = f"{len(removed_datasets)}件のデータセットの削除"
+
+        def do_remove():
+            # 【★ 重要 ★】ツリー操作中に currentItemChanged が意図せず発行されるのを防ぐ
+            tree.blockSignals(True)
+            try:
+                rows_to_remove = sorted(
+                    {row for ds in removed_datasets if (row := self._find_dataset_row(ds)) != -1},
+                    reverse=True
+                )
+                for row in rows_to_remove:
+                    del self.project.datasets[row]
+
+                # 同じ親を持つアイテムが複数ある場合にインデックスがずれないよう降順で外す
+                for item, parent, _index in sorted(snapshots, key=lambda s: s[2], reverse=True):
+                    if parent is not None:
+                        parent.removeChild(item)
+                    else:
+                        idx = tree.indexOfTopLevelItem(item)
+                        if idx != -1:
+                            tree.takeTopLevelItem(idx)
+            finally:
+                tree.blockSignals(False)
+            self._update_ui_state()
+            self._update_plot()
+
+        def do_restore():
+            tree.blockSignals(True)
+            try:
+                # 控えておいた元のインデックスへ昇順に差し戻す(降順で外した逆順)
+                for item, parent, index in sorted(snapshots, key=lambda s: s[2]):
+                    if parent is not None:
+                        parent.insertChild(min(index, parent.childCount()), item)
+                    else:
+                        tree.insertTopLevelItem(min(index, tree.topLevelItemCount()), item)
+                # 行単位ではなくリストごと差し戻して、描画順もまとめて元に戻す
+                # (リストオブジェクト自体は入れ替えず中身だけ差し替える)
+                self.project.datasets[:] = datasets_before
+            finally:
+                tree.blockSignals(False)
+            self._update_ui_state()
+            self._update_plot()
+
+        self.undo_stack.push(
+            RemoveDatasetCommand(do_remove, do_restore, description=description)
+        )
 
     def _add_dataset_folder_item(self, name, parent_item=None):
         """dataset_list_widget にフォルダ(内部ノード)を追加する共通ヘルパー"""

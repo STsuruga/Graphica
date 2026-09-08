@@ -23,9 +23,31 @@
   進捗はArtifactのdb機能に保存されるため、別セッションからも
   `read_db`(collection `status`、doc idが項目ID、body `{state: todo|doing|done}`)で
   確認できる。**未着手の重要項目**:
-  - **A-3(中)**: データセット削除がUndo不可(`del self.project.datasets[row]`直接)。
   - **E-1**: インセット内の描画がLTTB間引きを通っていない(#138実装時の抜け)。
   **完了済み(2026-09-08)**:
+  - **A-3**: `core/commands.py`に`RemoveDatasetCommand`を新設(`AddDatasetCommand`と
+    同じ「削除/復元のコールバックを受け取る薄いラッパー」形式)。実際の処理は
+    `main_window._remove_dataset_items_with_undo()`に集約し、`_on_remove_dataset`
+    (右クリック削除)と`_remove_datasets_without_confirmation`(C-905の別タブへ移動)の
+    両方をここに通した。復元対象は3つ: `project.datasets`のリスト全体(=描画順、
+    行単位ではなくリストごと差し戻す)、ツリー上の**親フォルダとその中での
+    インデックス**、Datasetオブジェクトそのもの(同一インスタンスなのでスタイル・
+    マスク・フィット結果もまとめて戻る)。取り外した`QTreeWidgetItem`はクロージャが
+    参照を保持するため破棄されず、フォルダごと同じオブジェクトを差し戻せる。
+    - **既知の非対称性**: 「別のタブへ移動」をUndoすると、このタブ側の削除だけが
+      戻り移動先タブへの追加は戻らない(タブ=独立した`PlotterApp`で`undo_stack`も
+      別のため)。結果として両タブに1件ずつ存在する状態になる。復元手段が全く
+      無い従来よりはマシという判断で、仕様として受け入れた。
+    - **着手中に別の危険を発見し、併せて修正**: `_load_project_from_path()`が
+      **Undoスタックをクリアしていなかった**。`ProjectModel`のインスタンスは
+      `load_project()`で使い回され中身だけが入れ替わるため、コマンド側から
+      文書の入れ替わりを検出できず、**プロジェクトを読み込んだ直後にUndoすると
+      読み込んだデータセット群が以前のものへ丸ごと置き換わる**。新設した
+      `RemoveDatasetCommand`と既存の`ReorderDatasetsCommand`が、どちらも
+      `project.datasets`をリストごと差し戻すため。読み込み成功時に
+      `self.undo_stack.clear()`を追加して解消(文書を開き直したら履歴も切る、
+      という素直な挙動でもある)。回帰テスト付き。
+    - テスト: `tests/test_remove_dataset_undo.py`を新設(13件)。
   - **A-1 + A-4(同時実施)**: `MplCanvas`に積み重ね変換の記録
     (`_waterfall_transforms`、dataset_idごとに
     `{index, offset_x, offset_y, depth_scale}`)と、公開API

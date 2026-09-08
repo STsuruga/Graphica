@@ -247,11 +247,12 @@ class AddDatasetCommand(QUndoCommand):
     から受け取り、そのまま呼び出すだけの薄いラッパーにする
     (コマンド自身はQt/project/Datasetの内部構造を一切知らない)。
 
-    ★ 既存の「データセット追加/削除/複製」操作(規格化・Savitzky-Golay等)は
+    ★ 既存の「データセット追加/複製」操作(規格化・Savitzky-Golay等)は
     現状Undo非対応のまま(dataset_mixin.pyの_on_dataset_rows_movedのdocstring
     参照、意図的な既存の設計境界)。このコマンドはプラグイン処理結果についてのみ、
     ロードマップの完了条件に従って新たにUndo対応させるためのものであり、
     既存の他の追加経路をUndo対応させるものではない。
+    なお「削除」は改善ボード A-3 で RemoveDatasetCommand として別途Undo対応済み。
     """
     def __init__(self, add_callback, remove_callback, description="データセットの追加"):
         """
@@ -270,6 +271,41 @@ class AddDatasetCommand(QUndoCommand):
 
     def undo(self):
         self.remove_callback()
+
+
+class RemoveDatasetCommand(QUndoCommand):
+    """
+    データセット/フォルダの削除をUndo/Redo可能にするコマンド(改善ボード A-3)。
+
+    以前は右クリック「削除」が `del self.project.datasets[row]` でモデルを直接
+    書き換えており、誤って削除するとデータ・スタイル・フィット結果・マスク・
+    注釈がまとめて復旧不能になっていた(オートセーブからの復元しか手段がなかった)。
+
+    AddDatasetCommand と同じく、実際の削除/復元処理そのものをコールバックとして
+    GUI側(main_window._remove_dataset_items_with_undo)から受け取る薄いラッパーに
+    する。データセットの削除はツリーウィジェットからのアイテム取り外し(フォルダ
+    ごと消える場合を含む)を伴い、復元時には「元の親フォルダの、元のインデックス」
+    へ戻す必要があるため、コマンド側でモデルだけを触る形にはできないため
+    (コマンド自身はQt/project/Datasetの内部構造を一切知らない)。
+    """
+    def __init__(self, remove_callback, restore_callback, description="データセットの削除"):
+        """
+        Args:
+            remove_callback (callable): 引数無しで呼ばれ、対象を削除する。
+            restore_callback (callable): 引数無しで呼ばれ、remove_callbackで
+                削除した対象を元の位置(project.datasets上の順序と、ツリー上の
+                親フォルダ・インデックスの両方)へ復元する。
+            description (str): Undo/Redoメニューに表示されるテキスト。
+        """
+        super().__init__(description)
+        self.remove_callback = remove_callback
+        self.restore_callback = restore_callback
+
+    def redo(self):
+        self.remove_callback()
+
+    def undo(self):
+        self.restore_callback()
 
 
 class ReorderDatasetsCommand(QUndoCommand):
