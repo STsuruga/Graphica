@@ -1538,6 +1538,56 @@ def test_dock_layout_menu_survives_collect_menu_actions(tmp_path, monkeypatch):
     assert not window._save_layout_action.isSeparator()
 
 
+def test_collect_menu_actions_never_leaks_recent_files(tmp_path, monkeypatch):
+    """
+    回帰テスト: _collect_menu_actions() は「最近使ったファイル」サブメニューの
+    子(「(履歴なし)」「履歴をクリア」や個々のファイルパス)をコマンドパレット
+    候補に含めてはならない。
+
+    以前は除外判定が action.menu() の identity 比較
+    (submenu is not self.recent_files_menu)だけに依存しており、_dock_layout_menu
+    と同じ shiboken/PySide6 の癖で、繰り返し走査するうちにこの identity が
+    失効して2回目以降の呼び出しで子アクションがリークすることがあった。
+    開閉用アクション self._recent_files_menu_action を永続参照として保持し、
+    その identity でも判定するよう修正した。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    leaked_labels = {"(履歴なし)", "履歴をクリア"}
+
+    def _collect_leaks(results):
+        return [
+            " > ".join(path)
+            for path, _ in results
+            if path and (path[-1] in leaked_labels or "最近使ったファイル" in path)
+        ]
+
+    results1 = window._collect_menu_actions()
+    results2 = window._collect_menu_actions()
+
+    # 1回目・2回目とも「最近使ったファイル」配下は一切含まれないこと
+    assert _collect_leaks(results1) == []
+    assert _collect_leaks(results2) == []
+
+    # 繰り返し呼んでも結果セット(表示パス)が完全に一致すること
+    labels1 = sorted(" > ".join(path) for path, _ in results1)
+    labels2 = sorted(" > ".join(path) for path, _ in results2)
+    assert labels1 == labels2
+
+    # shiboken の identity 失効を模擬しても除外され続けること:
+    # キャッシュ済み self.recent_files_menu を別オブジェクトへ差し替えると
+    # submenu identity 比較は当てにならなくなるが、menuAction() の identity
+    # 判定で引き続き除外できる。
+    real_recent_menu = window.recent_files_menu
+    monkeypatch.setattr(window, "recent_files_menu", object())
+    try:
+        results3 = window._collect_menu_actions()
+    finally:
+        monkeypatch.setattr(window, "recent_files_menu", real_recent_menu)
+    assert _collect_leaks(results3) == []
+    assert sorted(" > ".join(path) for path, _ in results3) == labels1
+
+
 # --- closeEvent() ---
 
 def test_close_event_swallows_signal_disconnect_error(tmp_path, monkeypatch):

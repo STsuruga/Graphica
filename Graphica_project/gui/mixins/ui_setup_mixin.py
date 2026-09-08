@@ -327,6 +327,17 @@ class UISetupMixin:
 
             # 最近使ったファイル (プロジェクト/データファイル共通の履歴)
             self.recent_files_menu = file_menu.addMenu(tr("最近使ったファイル"))
+            # ★ 重要 ★ 「ドックレイアウト」サブメニュー(下記 self._dock_layout_menu_action
+            # のコメント参照)と同じ shiboken/PySide6 の癖への対策。この
+            # サブメニューを開くための QAction (= recent_files_menu.menuAction()) を
+            # 永続参照として保持しておかないと、_collect_menu_actions() が
+            # file_menu.actions() を繰り返し辿るうちに、action.menu() が返す QMenu が
+            # キャッシュ済みの self.recent_files_menu と identity 比較で一致しなく
+            # なることがある(実測確認済み)。その結果、本来コマンドパレット候補から
+            # 除外しているはずの「(履歴なし)」「履歴をクリア」等の子アクションが
+            # 2回目以降の呼び出しでリークすることがあった。menuAction() を明示的に
+            # 保持し、identity 判定もこのアクション基準で行うことで防ぐ。
+            self._recent_files_menu_action = self.recent_files_menu.menuAction()
             self._update_recent_files_menu()
 
             # スタートアップ画面(項目C-912): 初回起動時にのみ表示される
@@ -652,12 +663,22 @@ class UISetupMixin:
         表すaction) を経由して action.menu() でメニュー本体を辿るやり方だと、このメソッドを
         抜けて一時的な参照が失われた際に、なぜかメニュー本体ごとPySide6側に破棄されてしまう
         (子のQActionもろとも "already deleted" になる) という実測済みの癖があるため。
+
+        ★ 同様の理由で「最近使ったファイル」サブメニューの除外判定は、
+        action.menu() が返す QMenu の identity 比較(submenu is not
+        self.recent_files_menu)だけに頼らない。繰り返し走査するうちにこの
+        identity が失効し、除外しているはずの子アクション(「(履歴なし)」等)が
+        リークすることが実測で確認されたため、永続参照として保持している
+        開閉用アクション self._recent_files_menu_action の identity でも判定する。
         """
         results = []
+        recent_files_action = getattr(self, '_recent_files_menu_action', None)
 
         def walk(menu, path):
             for action in menu.actions():
                 if action.isSeparator() or menu is self.recent_files_menu:
+                    continue
+                if action is recent_files_action:
                     continue
                 submenu = action.menu()
                 if submenu is not None:
