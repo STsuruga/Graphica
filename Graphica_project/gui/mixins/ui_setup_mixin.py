@@ -491,15 +491,33 @@ class UISetupMixin:
             # 「最初のタブ・初回起動のみ復元」という制約(起動シーケンス自体は
             # 変更しない)とは別に、いつでも手動で操作できる経路を追加する。
             dock_layout_menu = view_menu.addMenu(tr("ドックレイアウト"))
-            save_layout_action = dock_layout_menu.addAction(tr("現在のレイアウトを保存..."))
-            save_layout_action.triggered.connect(self._on_save_dock_layout_preset)
+            self._dock_layout_menu = dock_layout_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
+            # ★ 重要 ★ 上のself._dock_layout_menuでQMenu本体を保持するだけでは
+            # 不十分だった(実測): addMenu()がview_menuに追加する「このサブメニューを
+            # 開くための」QAction (= dock_layout_menu.menuAction()と同一) は、
+            # _collect_menu_actions()のようにview_menu.actions()を辿って一時的な
+            # リストとして取得されるたびに、その一時参照が失われた時点でPySide6側が
+            # QAction自体をなぜか破棄してしまうことがある(実測確認済み)。QMenuの
+            # 「開閉用アクション」はQMenu自身と1対1で強く結びついているため、この
+            # アクションが破棄されると紐づくQMenu本体(子のQActionもろとも)も
+            # 道連れで破棄される。self._dock_layout_menuを保持するのとは別に、
+            # menuAction()自体もここで明示的に永続参照として保持しておくことで
+            # この破棄を防ぐ(「最近使ったファイル」等の既存サブメニューは
+            # _collect_menu_actions()から除外されているため、この問題を今まで
+            # 誰も踏んでいなかった)。
+            self._dock_layout_menu_action = dock_layout_menu.menuAction()
+            self._save_layout_action = dock_layout_menu.addAction(tr("現在のレイアウトを保存..."))
+            self._save_layout_action.triggered.connect(self._on_save_dock_layout_preset)
 
             self.load_layout_menu = dock_layout_menu.addMenu(tr("レイアウトを読み込み"))
+            # 上のdock_layout_menuと同じ理由で、この入れ子サブメニューの
+            # 開閉用アクションも明示的に保持しておく。
+            self._load_layout_menu_action = self.load_layout_menu.menuAction()
             self.load_layout_menu.aboutToShow.connect(self._populate_load_layout_menu)
 
             dock_layout_menu.addSeparator()
-            reset_layout_action = dock_layout_menu.addAction(tr("既定のレイアウトにリセット"))
-            reset_layout_action.triggered.connect(self._on_reset_dock_layout)
+            self._reset_layout_action = dock_layout_menu.addAction(tr("既定のレイアウトにリセット"))
+            self._reset_layout_action.triggered.connect(self._on_reset_dock_layout)
 
             # 項目87: クイックアクセスのカスタムツールバー。ツールバー本体の作成と
             # 表示/非表示を切り替える表示メニュー項目の追加はここで行う。

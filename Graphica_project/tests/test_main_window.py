@@ -1504,6 +1504,40 @@ def test_reset_dock_layout_restores_pristine_state(tmp_path, monkeypatch):
     assert calls == [window._pristine_dock_state]
 
 
+def test_dock_layout_menu_survives_collect_menu_actions(tmp_path, monkeypatch):
+    """
+    回帰テスト: 「ドックレイアウト」サブメニュー追加(項目152、C-911)により、
+    _collect_menu_actions()(コマンドパレット・クイックアクセス管理ダイアログ・
+    ショートカット一覧が使う)を一度でも呼ぶと、view_menu.actions()を辿って
+    このサブメニューの「開くためのQAction」(dock_layout_menu.menuAction())への
+    一時参照が失われた際にPySide6側でQMenu本体ごと破棄されてしまう不具合が
+    実際に発生していた(RuntimeError: Internal C++ object already deleted)。
+    menuAction()自体も self._dock_layout_menu_action 等として明示的に永続参照を
+    保持することで防いでいる。_collect_menu_actions()を呼んだ後も、ドック
+    レイアウト関連のメニュー/アクションが生きていることを確認する。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+
+    results = window._collect_menu_actions()
+    assert len(results) > 0
+
+    # 呼び出し後も壊れていないこと(壊れているとRuntimeErrorが飛ぶ)
+    assert window._dock_layout_menu.title()  # QMenu本体
+    assert not window._save_layout_action.isSeparator()
+    assert not window._reset_layout_action.isSeparator()
+    assert window.load_layout_menu.title()
+
+    # 「ドックレイアウト」配下の項目がコマンドパレット候補にも含まれていること
+    labels = [" > ".join(path) for path, _ in results]
+    assert any("現在のレイアウトを保存" in label for label in labels)
+    assert any("既定のレイアウトにリセット" in label for label in labels)
+
+    # 2回目の呼び出しも壊れずに成功すること(一度で壊れる不具合だったため)
+    results2 = window._collect_menu_actions()
+    assert len(results2) > 0
+    assert not window._save_layout_action.isSeparator()
+
+
 # --- closeEvent() ---
 
 def test_close_event_swallows_signal_disconnect_error(tmp_path, monkeypatch):
