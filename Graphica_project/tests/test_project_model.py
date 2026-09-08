@@ -147,3 +147,41 @@ def test_allowed_classes_still_load_correctly(tmp_path):
     project.load_project(str(path))  # 例外を出さずに読み込めることを確認
     assert project.datasets[0].name == "D"
     np.testing.assert_array_equal(project.datasets[0].df['x'].values, [1, 2, 3])
+
+
+# --- ProjectModelのシグナル化(項目80、C-005、最小スコープ版) ---
+
+def test_project_model_is_qobject():
+    """QObjectを継承しており、シグナル/スロット機構が使えること。"""
+    from PySide6.QtCore import QObject
+    project = ProjectModel()
+    assert isinstance(project, QObject)
+
+
+def test_notify_changed_emits_changed_signal():
+    project = ProjectModel()
+    received = []
+    project.changed.connect(lambda: received.append(True))
+
+    project.notify_changed()
+
+    assert received == [True]
+
+
+def test_changed_signal_can_be_connected_directly():
+    """notify_changed()を経由せず、changedシグナルへ直接connect/emitできること
+    (将来、切り離しCanvas/ミニマップ等の独立した同期先が使う想定の経路)。"""
+    project = ProjectModel()
+    received = []
+    project.changed.connect(lambda: received.append(True))
+
+    project.changed.emit()
+
+    assert received == [True]
+
+
+def test_notify_changed_without_any_connection_does_not_raise():
+    """何も接続されていない状態でnotify_changed()を呼んでも例外にならないこと
+    (既存の約38箇所の直接呼び出しには一切影響しない、というスコープを裏付ける)。"""
+    project = ProjectModel()
+    project.notify_changed()  # 例外にならないこと

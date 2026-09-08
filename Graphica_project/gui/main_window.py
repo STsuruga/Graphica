@@ -534,6 +534,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._replace_dataset_list_with_tree()
 
         self.project = ProjectModel()
+        # ProjectModelのシグナル化(項目80、C-005、最小スコープ版)。既存の
+        # 「ミューテーション箇所ごとに self._update_plot() を明示的に呼ぶ」規約
+        # (約38箇所)はそのまま維持しつつ、`project.notify_changed()`を呼ぶだけで
+        # 再描画に繋がる経路をここで一度だけ配線しておく(詳細はProjectModelの
+        # クラスdocstring参照)。
+        self.project.changed.connect(self._update_plot)
         # アプリの設定 (オートセーブ間隔、最近使ったファイル一覧) を永続化するためのストレージ
         self.settings = QSettings("Graphica", "Graphica")
         # オートセーブの保存先(環境設定で指定可能): 未設定なら従来どおりアプリのフォルダ

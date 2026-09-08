@@ -4,6 +4,8 @@ import json
 import os
 import logging
 
+from PySide6.QtCore import QObject, Signal
+
 from core.dataset import Dataset
 from core.json_utils import GraphicaJSONEncoder
 
@@ -88,8 +90,35 @@ def _migrate_project_data(data):
     return data
 
 
-class ProjectModel:
+class ProjectModel(QObject):
+    """
+    アプリケーションのコア状態(データセット・外観設定・レイアウト)を
+    一元管理するモデル。
+
+    ★ シグナル化(項目80、C-005)についての設計メモ:
+    このクラスへの変更は現状、GUI側の約38箇所が`PlotterApp._update_plot()`を
+    ミューテーション後に明示的に呼び出す規約で再描画をトリガーしている(規約は
+    一貫して守られており、このセッション時点で実際の「呼び忘れ」バグは
+    確認されていない)。それら既存38箇所を全てシグナル配線に置き換える
+    「フルrefactor」は、コア機構(models/project.py)への広範囲な変更となり
+    コスト・リスクに見合わないと判断し、意図的にスコープ外とした(詳細は
+    docs/CORE_FEATURES_PROGRESS.mdのC-005エントリ参照)。
+
+    代わりに、今後追加される新しいミューテーション経路(プラグインAPI経由の
+    変更や、切り離しCanvas/ミニマップのように「誰が呼ぶか」が自明でない
+    同期先など)が、`PlotterApp`の内部メソッド名(`_update_plot`)を知らなくても
+    `changed`シグナルさえ発行すれば再描画に繋がる、という最小限の基盤だけを
+    用意する。既存の直接呼び出し箇所は一切変更していない(このシグナルは
+    現状どこからも発行されない=既存動作への影響ゼロ)。
+    """
+
+    # プロジェクトの内容(データセット/外観設定/レイアウト等)が変更されたことを
+    # 通知する汎用シグナル。既存の`_update_plot()`直接呼び出し規約を置き換える
+    # ものではなく、それを呼ばなくても済む新しい経路のための追加の選択肢。
+    changed = Signal()
+
     def __init__(self):
+        super().__init__()
         # 現在のファイルパス
         self.current_filepath = ""
 
@@ -126,6 +155,19 @@ class ProjectModel:
         # 内側の目盛りラベル(同じ行のX軸ラベル、同じ列のY軸ラベル)を隠す。
         self.share_x_axis = False
         self.share_y_axis = False
+
+    def notify_changed(self):
+        """
+        プロジェクトの内容が変更されたことを`changed`シグナルで通知する。
+
+        既存の`self._update_plot()`直接呼び出し規約(gui/mixins配下・
+        gui/main_window.py、計約38箇所)を置き換えるものではなく、それらは
+        今まで通り変更不要。呼び出し元が`PlotterApp`のインスタンスや
+        `_update_plot`というメソッド名を知らなくても再描画に繋げたい新しい
+        経路(例: プラグインAPI、切り離しCanvas/ミニマップなど)のための
+        最小限の追加の選択肢として用意している。
+        """
+        self.changed.emit()
 
     def save_project(self, filepath):
         """

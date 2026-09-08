@@ -2788,3 +2788,29 @@ def test_on_clear_recent_files_empties_settings_list(tmp_path, monkeypatch):
     window._add_recent_file(str(tmp_path / "a.csv"))
     window._on_clear_recent_files()
     assert window._get_recent_files() == []
+
+
+# --- ProjectModelのシグナル化(項目80、C-005、最小スコープ版) ---
+
+def test_project_changed_signal_triggers_update_plot(tmp_path, monkeypatch):
+    """__init__でproject.changedがself._update_plotに配線されていること。
+    既存の約38箇所のself._update_plot()直接呼び出しは変更していないので、
+    このシグナル自体は今のところどこからも発行されない
+    (notify_changed()を新たに呼ぶ経路が今後追加された時のための基盤)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window, '_update_plot', lambda *a, **k: calls.append((a, k)))
+
+    window.project.changed.emit()
+
+    assert len(calls) == 1
+
+
+def test_project_notify_changed_triggers_update_plot(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    calls = []
+    monkeypatch.setattr(window, '_update_plot', lambda *a, **k: calls.append((a, k)))
+
+    window.project.notify_changed()
+
+    assert len(calls) == 1
