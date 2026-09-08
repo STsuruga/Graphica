@@ -18,6 +18,7 @@ from gui.canvas import (
     MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
     LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
     GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS,
+    WATERFALL_DEPTH_SHRINK_PER_STEP, WATERFALL_DEPTH_SHRINK_MIN_SCALE,
 )
 from core.dataset import Dataset
 
@@ -2165,6 +2166,78 @@ def test_waterfall_occlusion_toggle_is_per_dataset(canvas):
 
     ax = canvas.all_axes[0]
     assert len(ax.collections) == 1  # ds0の分だけfill_betweenが描かれる
+
+
+# --- ウォーターフォールの斜向/立体風トグル(項目120、C-514) ---
+
+def test_waterfall_depth_shrink_disabled_by_default_keeps_full_amplitude(canvas):
+    """既定(waterfall_depth_shrink_enabled=False)では、積み重ねインデックスに
+    関わらずY振幅は等倍のまま(従来通り)であること。"""
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    ds0 = _make_waterfall_dataset("wf0", x, y, offset_x=0.0, offset_y=2.0)
+    ds1 = _make_waterfall_dataset("wf1", x, y, offset_x=0.0, offset_y=2.0)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    assert list(ds0.artist.get_ydata()) == pytest.approx(y)
+    assert list(ds1.artist.get_ydata()) == pytest.approx([v + 2.0 for v in y])
+
+
+def test_waterfall_depth_shrink_enabled_reduces_amplitude_of_deeper_traces(canvas):
+    """waterfall_depth_shrink_enabled=Trueでは、積み重ねインデックスが大きい
+    (奥にある)トレースほどY振幅が縮小される。手前(インデックス0)は縮小率1.0
+    (従来通り)のまま、以降は canvas.WATERFALL_DEPTH_SHRINK_PER_STEP に従って
+    段階的に縮小される。"""
+    x, y = [0.0, 1.0, 2.0], [2.0, 4.0, 6.0]
+    ds0 = _make_waterfall_dataset(
+        "wf0", x, y, offset_x=0.0, offset_y=10.0, waterfall_depth_shrink_enabled=True)
+    ds1 = _make_waterfall_dataset(
+        "wf1", x, y, offset_x=0.0, offset_y=10.0, waterfall_depth_shrink_enabled=True)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    # インデックス0(手前)は縮小されない
+    assert list(ds0.artist.get_ydata()) == pytest.approx(y)
+    # インデックス1(奥)は WATERFALL_DEPTH_SHRINK_PER_STEP 分だけ振幅が縮み、
+    # その上でオフセットが足される
+    expected_scale = 1.0 - WATERFALL_DEPTH_SHRINK_PER_STEP
+    expected_y1 = [v * expected_scale + 10.0 for v in y]
+    assert list(ds1.artist.get_ydata()) == pytest.approx(expected_y1)
+
+
+def test_waterfall_depth_shrink_scale_clamped_to_minimum(canvas):
+    """トレース数が多い場合でも、縮小率がWATERFALL_DEPTH_SHRINK_MIN_SCALE未満
+    (振幅が潰れて見えなくなる/反転する)にはならないこと。"""
+    x, y = [0.0, 1.0, 2.0], [1.0, 2.0, 3.0]
+    n = 50  # WATERFALL_DEPTH_SHRINK_PER_STEP(3%/step)換算で通常なら負になる件数
+    datasets = [
+        _make_waterfall_dataset(f"wf{i}", x, y, offset_x=0.0, offset_y=0.0,
+                                 waterfall_depth_shrink_enabled=True)
+        for i in range(n)
+    ]
+
+    canvas.redraw_all(datasets, 1, 1, [{}])
+
+    last_ds = datasets[-1]
+    expected_y = [v * WATERFALL_DEPTH_SHRINK_MIN_SCALE for v in y]
+    assert list(last_ds.artist.get_ydata()) == pytest.approx(expected_y)
+
+
+def test_waterfall_depth_shrink_toggle_is_per_dataset(canvas):
+    """奥行き効果のON/OFFも他の設定と同じくデータセット単位のため、
+    同じ軸内で混在させた場合も個別に反映される。"""
+    x, y = [0.0, 1.0, 2.0], [2.0, 4.0, 6.0]
+    ds0 = _make_waterfall_dataset(
+        "wf0", x, y, offset_x=0.0, offset_y=10.0, waterfall_depth_shrink_enabled=True)
+    ds1 = _make_waterfall_dataset(
+        "wf1", x, y, offset_x=0.0, offset_y=10.0, waterfall_depth_shrink_enabled=False)
+
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    # ds0(インデックス0)はどちらにせよ縮小なし
+    assert list(ds0.artist.get_ydata()) == pytest.approx(y)
+    # ds1(インデックス1、waterfall_depth_shrink_enabled=False)は縮小されない
+    assert list(ds1.artist.get_ydata()) == pytest.approx([v + 10.0 for v in y])
 
 
 # --- 平滑化 (CubicSpline): 成功時/失敗時のフォールバック経路 ---

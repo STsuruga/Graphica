@@ -3115,6 +3115,52 @@ def test_waterfall_occlusion_checkbox_visibility_follows_waterfall_checkbox(tmp_
     assert window.waterfall_occlusion_checkbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden) is False
 
 
+def test_property_changed_waterfall_depth_checkbox(tmp_path, monkeypatch):
+    """斜向/立体風トグル(項目120、C-514): 「奥のトレースをわずかに縮小」の
+    on/off切り替え。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    assert ds.waterfall_depth_shrink_enabled is False  # 既定値(後方互換)
+
+    window.waterfall_depth_checkbox.setChecked(True)
+
+    assert ds.waterfall_depth_shrink_enabled is True
+
+
+def test_waterfall_depth_checkbox_visibility_follows_waterfall_checkbox(tmp_path, monkeypatch):
+    """奥行き効果トグルも、オフセット量スピンボックスやオクルージョン
+    トグルと同じく「ウォーターフォール表示」有効時だけ表示する。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    window.waterfall_checkbox.setChecked(False)
+    assert window.waterfall_depth_checkbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden) is True
+
+    window.waterfall_checkbox.setChecked(True)
+    assert window.waterfall_depth_checkbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden) is False
+
+
+def test_waterfall_depth_checkbox_reflects_selected_dataset(tmp_path, monkeypatch):
+    """データセットを切り替えると、奥行き効果チェックボックスがそのデータセット
+    自身のwaterfall_depth_shrink_enabled値に更新される(populate/restoreの配線)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': [0, 1, 2], 'y': [1.0, 2.0, 3.0]})
+    ds0 = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y',
+                  waterfall_depth_shrink_enabled=True)
+    ds1 = Dataset(name="d1", df=df, x_col_name='x', y_col_name='y',
+                  waterfall_depth_shrink_enabled=False)
+    window._add_dataset(ds0, None, select=False)
+    window._add_dataset(ds1, None, select=False)
+
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(ds1))
+    assert window.waterfall_depth_checkbox.isChecked() is False
+
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(ds0))
+    assert window.waterfall_depth_checkbox.isChecked() is True
+
+
 def test_property_changed_error_display_combo(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")

@@ -188,6 +188,13 @@ class Dataset:
     # 既定はTrue(従来通りの挙動、後方互換のため)。
     waterfall_occlusion_enabled: bool = True
 
+    # ウォーターフォールの斜向/立体風トグル(項目120、C-514)。有効にすると、
+    # 積み重ねインデックスが大きい(=奥にある)トレースほどY方向の振幅を
+    # わずかに縮小して描画し、疑似的な奥行き(遠近感)を出す。既定はFalse
+    # (従来通り全トレースを等倍で描画する挙動を維持、後方互換のため)。
+    # 実際の縮小率はgui/canvas.pyのWATERFALL_DEPTH_SHRINK_PER_STEPが担う。
+    waterfall_depth_shrink_enabled: bool = False
+
     # データポイントラベル表示 (各点の脇に値を表示するかどうか、および表示する列)
     show_point_labels: bool = False
     # None なら Y値そのものをラベルにする。列名を指定するとその列の値を表示する。

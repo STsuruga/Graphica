@@ -1111,6 +1111,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_occlusion_checkbox.setChecked(True)
         self.ui.formLayout_4.addRow(self.waterfall_occlusion_checkbox)
 
+        # ウォーターフォールの斜向/立体風トグル(項目120、C-514)。奥の
+        # トレースほどY振幅をわずかに縮小して描画し、疑似的な奥行きを出す
+        # (縮小率自体はgui/canvas.pyのWATERFALL_DEPTH_SHRINK_PER_STEPで固定、
+        # 既定はFalse=従来通り等倍描画)。
+        self.waterfall_depth_checkbox = QCheckBox(tr("奥行き効果(奥のトレースをわずかに縮小)"))
+        self.waterfall_depth_checkbox.setChecked(False)
+        self.ui.formLayout_4.addRow(self.waterfall_depth_checkbox)
+
         # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")
         self.ui.formLayout_4.addRow(self.point_labels_checkbox)

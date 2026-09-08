@@ -2393,6 +2393,10 @@ class DatasetMixin:
             self.waterfall_occlusion_checkbox: (
                 'waterfall_occlusion_enabled', self.waterfall_occlusion_checkbox.isChecked()
             ),
+            # 斜向/立体風トグル(項目120、C-514)
+            self.waterfall_depth_checkbox: (
+                'waterfall_depth_shrink_enabled', self.waterfall_depth_checkbox.isChecked()
+            ),
             # 誤差の表示形式(項目C-502)
             self.error_display_combo: ('error_display', self.error_display_combo.currentData()),
             # 欠損値(NaN)の方針設定(項目C-201)
@@ -2558,8 +2562,10 @@ class DatasetMixin:
         self.waterfall_offset_x_spinbox.setVisible(show_offsets)
         self.waterfall_offset_y_label.setVisible(show_offsets)
         self.waterfall_offset_y_spinbox.setVisible(show_offsets)
-        # オクルージョンON/OFFも、有効時だけ意味を持つ設定のため同じ条件で表示する
+        # オクルージョンON/OFF・斜向/立体風トグル(項目120)も、有効時だけ意味を
+        # 持つ設定のため同じ条件で表示する
         self.waterfall_occlusion_checkbox.setVisible(show_offsets)
+        self.waterfall_depth_checkbox.setVisible(show_offsets)
 
     def _on_auto_assign_colors(self):
         """
@@ -2739,6 +2745,7 @@ class DatasetMixin:
             self.waterfall_offset_x_spinbox.blockSignals(True)
             self.waterfall_offset_y_spinbox.blockSignals(True)
             self.waterfall_occlusion_checkbox.blockSignals(True)
+            self.waterfall_depth_checkbox.blockSignals(True)
             self.error_display_combo.blockSignals(True)
             self.nan_policy_combo.blockSignals(True)
             self.data_2d_checkbox.blockSignals(True)
@@ -2770,6 +2777,7 @@ class DatasetMixin:
             self.waterfall_offset_x_spinbox.setValue(dataset.waterfall_offset_x)
             self.waterfall_offset_y_spinbox.setValue(dataset.waterfall_offset_y)
             self.waterfall_occlusion_checkbox.setChecked(dataset.waterfall_occlusion_enabled)
+            self.waterfall_depth_checkbox.setChecked(dataset.waterfall_depth_shrink_enabled)
             self.point_labels_checkbox.setChecked(dataset.show_point_labels)
             self.point_label_col_combo.clear()
             self.point_label_col_combo.addItems([POINT_LABEL_Y_VALUE_LABEL] + dataset.df.columns.tolist())
@@ -2817,6 +2825,7 @@ class DatasetMixin:
             self.waterfall_offset_x_spinbox.blockSignals(False)
             self.waterfall_offset_y_spinbox.blockSignals(False)
             self.waterfall_occlusion_checkbox.blockSignals(False)
+            self.waterfall_depth_checkbox.blockSignals(False)
             self.error_display_combo.blockSignals(False)
             self.nan_policy_combo.blockSignals(False)
             self.data_2d_checkbox.blockSignals(False)
@@ -2920,6 +2929,7 @@ class DatasetMixin:
             self.waterfall_offset_y_label.setVisible(False)
             self.waterfall_offset_y_spinbox.setVisible(False)
             self.waterfall_occlusion_checkbox.setVisible(False)
+            self.waterfall_depth_checkbox.setVisible(False)
 
             self.stats_summary_label.setText("-")
             self.dataset_mini_stats_label.setText("-")

@@ -224,6 +224,8 @@ class UISetupMixin:
             self.waterfall_offset_y_spinbox.valueChanged.connect(self._on_property_changed)
             # オクルージョン(実機フィードバック): on/off切り替え可能にする
             self.waterfall_occlusion_checkbox.toggled.connect(self._on_property_changed)
+            # 斜向/立体風トグル(項目120、C-514): 奥のトレースをわずかに縮小
+            self.waterfall_depth_checkbox.toggled.connect(self._on_property_changed)
             # 項目105: ラベル有効化時、データ点が多いと確認ポップアップを挟むための
             # 専用ハンドラ経由にする(_on_property_changedへは内部で委譲される)
             self.point_labels_checkbox.toggled.connect(self._on_point_labels_toggled)

@@ -36,6 +36,24 @@ MAX_TICKS_PER_AXIS = 500
 WATERFALL_ZORDER_BASE = 0.1
 WATERFALL_ZORDER_TOP = 1.9
 
+# ウォーターフォールの斜向/立体風トグル(項目120、C-514)。積み重ねインデックス
+# 1つあたりのY振幅の縮小率(3%)。奥(インデックスが大きい)ほど累積的に
+# 縮小することで疑似的な遠近感を出す。縮小率が大きすぎるとトレース数が
+# 多い場合に振幅が潰れて見づらくなるため、下限0.2倍(80%縮小)でクランプする。
+WATERFALL_DEPTH_SHRINK_PER_STEP = 0.03
+WATERFALL_DEPTH_SHRINK_MIN_SCALE = 0.2
+
+
+def _waterfall_depth_scale(w_idx, enabled):
+    """
+    ウォーターフォールの斜向/立体風トグル(項目120、C-514)。積み重ね
+    インデックスw_idx番目のトレースに掛けるY振幅の倍率を返す。
+    無効時(enabled=False、既定)は1.0を返し、従来通り何も変形しない。
+    """
+    if not enabled:
+        return 1.0
+    return max(WATERFALL_DEPTH_SHRINK_MIN_SCALE, 1.0 - WATERFALL_DEPTH_SHRINK_PER_STEP * w_idx)
+
 # 対数軸の補助目盛りの本数制御(項目C-604): x/y_log_minor_subs設定値 ->
 # ticker.LogLocator(subs=...)に渡す値。'auto'はLogLocatorが軸の表示範囲
 # (何桁分表示されているか)に応じて自動的に間引く既定動作、それ以外は
@@ -1117,9 +1135,10 @@ class _CanvasDrawingMixin:
             for i, wds in enumerate(waterfall_datasets):
                 if len(wds.y_data) == 0:
                     continue
+                depth_scale = _waterfall_depth_scale(i, wds.waterfall_depth_shrink_enabled)
                 y_shift = i * wds.waterfall_offset_y
-                shifted_mins.append(float(np.nanmin(wds.y_data)) + y_shift)
-                shifted_maxs.append(float(np.nanmax(wds.y_data)) + y_shift)
+                shifted_mins.append(float(np.nanmin(wds.y_data)) * depth_scale + y_shift)
+                shifted_maxs.append(float(np.nanmax(wds.y_data)) * depth_scale + y_shift)
             if shifted_mins:
                 y_min_all, y_max_all = min(shifted_mins), max(shifted_maxs)
                 margin = (y_max_all - y_min_all) * 0.05 if y_max_all > y_min_all else 1.0
@@ -1142,8 +1161,12 @@ class _CanvasDrawingMixin:
             plot_kwargs = {}
             if ds.waterfall_enabled:
                 w_idx = waterfall_index.get(ds.dataset_id, 0)
+                # 斜向/立体風トグル(項目120、C-514): 奥(w_idxが大きい)ほど
+                # Y振幅をわずかに縮小し、疑似的な奥行きを出す。無効時は1.0倍
+                # (従来通り)。
+                depth_scale = _waterfall_depth_scale(w_idx, ds.waterfall_depth_shrink_enabled)
                 plot_x_data = ds.x_data if is_category_x else ds.x_data + w_idx * ds.waterfall_offset_x
-                plot_y_data = ds.y_data + w_idx * ds.waterfall_offset_y
+                plot_y_data = ds.y_data * depth_scale + w_idx * ds.waterfall_offset_y
                 # 手前(インデックスが小さい)ほど大きいzorderにし、後ろのトレースの
                 # 上に重なって描画されるようにする。
                 # ★ 実機フィードバック(バグ報告): 「ウォーターフォール適用すると

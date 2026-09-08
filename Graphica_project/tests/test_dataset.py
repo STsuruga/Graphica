@@ -493,6 +493,38 @@ def test_defaults_include_waterfall_fields():
     assert ds.waterfall_offset_y == 1.0
 
 
+def test_defaults_include_waterfall_depth_shrink_field():
+    """ウォーターフォールの斜向/立体風トグル(項目120、C-514)。既定はFalse
+    (従来通り全トレースを等倍で描画する、後方互換のため)。"""
+    ds = make_dataset()
+    assert ds.waterfall_depth_shrink_enabled is False
+
+
+def test_to_dict_from_dict_roundtrip_preserves_waterfall_depth_shrink_field():
+    """項目120: to_dict()/from_dict()の往復でwaterfall_depth_shrink_enabledが
+    保持されること。"""
+    ds = make_dataset(waterfall_enabled=True, waterfall_depth_shrink_enabled=True)
+
+    data = ds.to_dict()
+    assert data['waterfall_depth_shrink_enabled'] is True
+
+    restored = Dataset.from_dict(data)
+    assert restored.waterfall_depth_shrink_enabled is True
+
+
+def test_from_dict_missing_waterfall_depth_shrink_key_falls_back_to_default():
+    """項目120: このフィールド追加前に保存されたdict(キーが無い)を読み込んでも
+    クラッシュせず、デフォルト値(False)で補われること。"""
+    ds = make_dataset(name="Legacy")
+    data = ds.to_dict()
+    data.pop('waterfall_depth_shrink_enabled', None)
+
+    restored = Dataset.from_dict(data)
+
+    assert restored.name == "Legacy"
+    assert restored.waterfall_depth_shrink_enabled is False
+
+
 def test_to_dict_from_dict_roundtrip_preserves_waterfall_fields():
     """Dataset.to_dict()/from_dict() の往復で、ウォーターフォール関連フィールドが
     そのまま保持されることを確認する(項目80/109)。plot_typeとは独立したフラグ
