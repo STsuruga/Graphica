@@ -24,6 +24,23 @@
   `read_db`(collection `status`、doc idが項目ID、body `{state: todo|doing|done}`)で
   確認できる。**未着手の重要項目**:
   **完了済み(2026-09-08)**:
+  - **A-6**: 別セッション(worktree `.claude/worktrees/admiring-morse-96bbcf`、
+    ブランチ`claude/admiring-morse-96bbcf`、コミット`a9809e7`)で実装・コミット
+    済みだったが**masterへ未マージのまま停止していた**ため、ユーザーの指示により
+    2026-09-09にmasterへマージした(`--no-ff`、競合なし。分岐後にmasterが
+    `ui_setup_mixin.py`へ入れた変更は#120の+5行のみで無関係だった)。
+    内容は`recent_files_menu`の`menuAction()`永続参照化(上記の
+    `dock_layout_menu`修正と同じパターン)。マージ後、
+    `test_main_window.py`(165 passed)・`test_quick_access_mixin.py`(21)・
+    `test_help_mixin.py`(17)・`test_mouse_modes.py`(49)とフルスイートで
+    リグレッションが無いことを確認済み。
+    - **重複マージ防止のため、当該セッションへ`send_message`で通知済み**
+      (そのセッションは`isRunning: false`で停止中だった)。
+    - **残務**: マージ済みのworktree/ブランチ
+      (`.claude/worktrees/admiring-morse-96bbcf`)は未削除。あわせて
+      `Graphica_project/.claude/worktrees/dazzling-lichterman-b7b28b`が
+      放置されている(masterに対し0 ahead/120 behind、独自コミットも
+      未コミット変更も無し)。どちらもユーザー確認の上で片付けること。
   - **E-1**: インセット(拡大図)内の描画を、本体と同じLTTB間引き
     (項目C-1001)に通すようにした。`MplCanvas._downsample_for_inset()`を新設し、
     `_draw_annotations()`のinset分岐から、拡大範囲でフィルタした**後**の点数で
