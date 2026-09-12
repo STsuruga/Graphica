@@ -8,6 +8,7 @@ main_window.py (アイテム新規作成時) と dataset_mixin.py (プロパテ�
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPainter, QPen, QColor, QBrush, QIcon
 
+from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from gui.icon_utils import icon as _icon_from_svg
 
 # アイコンのサイズ (幅, 高さ)
@@ -51,7 +52,8 @@ def make_dataset_style_icon(dataset):
     # ウォーターフォール(項目80/109)はplot_typeとは独立したフラグになったため、
     # ここでは特別扱いせず通常通りplot_typeだけでプレビュー内容を決める。
     show_line = dataset.plot_type in ('Line', 'Line+Scatter', 'Step')
-    show_marker = dataset.plot_type in ('Scatter', 'Line+Scatter', 'Density Scatter')
+    show_marker = dataset.plot_type in (
+        'Scatter', 'Line+Scatter', 'Density Scatter', COLOR_BY_COLUMN_PLOT_TYPE)
     y = height // 2
 
     if show_line:

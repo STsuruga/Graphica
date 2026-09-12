@@ -7,7 +7,8 @@
 将来のC-1105バッチ/CLIモードとも設計を共有できるようにするための意図的な分離)。
 
 ★ スコープ(意図的な簡略化、既知の制限として生成スクリプトの先頭コメントにも
-明記する): データ・基本的なプロット種別(Line/Scatter/Line+Scatter/Area/Bar)・
+明記する): データ・基本的なプロット種別(Line/Scatter/Line+Scatter/Area/Bar/
+Step/Z-Color Scatter)・
 2Dグリッドデータ(ヒートマップ、項目C-508、pcolormesh+カラーバー)・
 色/線種/線幅/マーカー/透明度・タイトル/軸ラベル/軸範囲/対数軸/凡例表示/
 グリッド表示/第2Y軸(twinx)の主要な見た目は再現するが、グラデーション・
@@ -16,6 +17,8 @@
 専用フォーマットは対象外。プラグイン提供のplot_type(register_plot_type)は
 スクリプト側にプラグインを持ち出せないため、コメント付きでLineとして代替出力する。
 """
+
+from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 
 
 def _to_native(value):
@@ -51,10 +54,19 @@ def _format_array_literal(values):
 
 # plot_type(core/dataset.py の Dataset.plot_type)のうち、プラグインを介さず
 # 組み込みでサポートしている値の一覧(未知の値=プラグイン提供として扱う)。
-_BUILTIN_PLOT_TYPES = ('Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step')
+_BUILTIN_PLOT_TYPES = ('Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step',
+                       COLOR_BY_COLUMN_PLOT_TYPE)
 
 
-def _emit_dataset_plot_call(lines, ax_var, ds):
+def _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=None):
+    """
+    1次元データセット1件分の描画呼び出しを出力する。
+
+    Returns:
+        bool: カラーバーの対象になるmappableを ``mappable_var`` へ代入したか
+        (改善ボード D-2 の 'Z-Color Scatter' でZ列が有効な場合のみTrue)。
+        呼び出し側はこれがTrueの軸にだけカラーバーを出力する。
+    """
     kwargs = f"color={ds.color!r}, alpha={ds.alpha!r}, label={ds.name!r}"
     plot_type = ds.plot_type if ds.plot_type in _BUILTIN_PLOT_TYPES else None
 
@@ -63,6 +75,29 @@ def _emit_dataset_plot_call(lines, ax_var, ds):
             f"# plot_type {ds.plot_type!r} はプラグイン依存のため、Lineとして代替出力しています"
         )
         plot_type = 'Line'
+
+    if plot_type == COLOR_BY_COLUMN_PLOT_TYPE:
+        # 3列目の値による点の色分け(改善ボード D-2)。scipyを使わない
+        # 純粋なmatplotlib呼び出しなので、Density Scatter(gaussian_kde依存の
+        # ためLineへ代替出力)と違ってそのまま再現できる。
+        # zはgenerate_python_script側が visible_df 経由で出力済み。
+        z_values = ds.z_data
+        if z_values is None or len(z_values) != len(ds.x_data):
+            lines.append(
+                f"# Z列が未設定/長さ不一致のため、単色のScatterとして出力しています"
+            )
+            lines.append(
+                f"{ax_var}.scatter(x, y, marker={ds.marker!r}, s={ds.markersize!r} ** 2, {kwargs})"
+            )
+            return False
+        assign = f"{mappable_var} = " if mappable_var else ""
+        lines.append(
+            f"{assign}{ax_var}.scatter(x, y, c=z, cmap={ds.colormap!r}, "
+            f"vmin={_to_native(ds.vmin)!r}, vmax={_to_native(ds.vmax)!r}, "
+            f"marker={ds.marker!r}, s={ds.markersize!r} ** 2, "
+            f"alpha={ds.alpha!r}, label={ds.name!r})"
+        )
+        return bool(mappable_var)
 
     if plot_type == 'Line':
         lines.append(f"{ax_var}.plot(x, y, linestyle={ds.linestyle!r}, linewidth={ds.linewidth!r}, {kwargs})")
@@ -80,6 +115,7 @@ def _emit_dataset_plot_call(lines, ax_var, ds):
         lines.append(f"{ax_var}.bar(x, y, {kwargs})")
     elif plot_type == 'Step':
         lines.append(f"{ax_var}.plot(x, y, drawstyle='steps-post', linestyle={ds.linestyle!r}, linewidth={ds.linewidth!r}, {kwargs})")
+    return False
 
 
 _VALID_MAP_DISPLAY_MODES = ('heatmap', 'contour', 'contour_filled', 'heatmap_contour')
@@ -231,6 +267,14 @@ def generate_python_script(project) -> str:
         lines.append('')
 
     mesh_var_by_axis = {}
+    # 改善ボード D-2: 同じ軸に2Dマップと色分け散布図が両方あるとき、カラーバーは
+    # 1軸に最大1つなので2Dマップ側を優先する(gui/canvas.pyの_draw_dataが
+    # 「2Dの登録済みmappableを上書きしない」のと同じ挙動に揃える。スクリプト側は
+    # データセットの並び順に出力するため、先にこの集合を作らないと順序次第で
+    # 画面と食い違う)。
+    axes_with_2d = {
+        d.subplot_target for d in visible_datasets if d.data_kind == '2d_grid'
+    }
     for ds in visible_datasets:
         if ds.subplot_target >= subplot_count:
             continue
@@ -247,7 +291,19 @@ def generate_python_script(project) -> str:
         else:
             lines.append(f'x = np.array({_format_array_literal(list(ds.x_data))})')
             lines.append(f'y = np.array({_format_array_literal(list(ds.y_data))})')
-            _emit_dataset_plot_call(lines, ax_var, ds)
+            # 3列目の値による点の色分け(改善ボード D-2)はz列も必要になる。
+            # x_data/y_dataと同じく visible_df 経由(ds.z_data)なので、
+            # マスクした行があっても点と色の対応がずれない。
+            if ds.plot_type == COLOR_BY_COLUMN_PLOT_TYPE:
+                z_values = ds.z_data
+                if z_values is not None and len(z_values) == len(ds.x_data):
+                    lines.append(f'z = np.array({_format_array_literal(list(z_values))})')
+            # 2Dマップが同じ軸にある場合はカラーバーを譲る(変数名も別にして、
+            # 生成スクリプト上で mesh{N} を上書きしないようにする)。
+            wants_colorbar = ds.subplot_target not in axes_with_2d
+            mesh_var = f'scatter_mesh{ds.subplot_target}' if wants_colorbar else None
+            if _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=mesh_var):
+                mesh_var_by_axis[ds.subplot_target] = mesh_var
         lines.append('')
 
     for i, settings in enumerate(all_plot_settings[:subplot_count]):

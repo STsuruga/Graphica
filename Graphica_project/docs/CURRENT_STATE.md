@@ -24,6 +24,45 @@
   `read_db`(collection `status`、doc idが項目ID、body `{state: todo|doing|done}`)で
   確認できる。**未着手の重要項目**:
   **完了済み(2026-09-08)**:
+  - **D-2(3列目の値による点の色分け)**: `plot_type` に
+    `'Z-Color Scatter'`(定数 `core/dataset.COLOR_BY_COLUMN_PLOT_TYPE`)を追加。
+    `z_col_combo` で選んだ列の値を `ax.scatter(c=...)` に渡し、`colormap`/`vmin`/`vmax`と
+    カラーバーは2Dマップ(C-508/C-501)用の実装をそのまま流用する。
+    - `Dataset.z_data` プロパティを新設(`x_data`/`y_data`と同じく**`visible_df`経由**)。
+      `df`から直接取ると、1行でもマスクした時点で点と色の対応が1つずつずれる。
+    - **plot_type値は保存ファイルにそのまま書き出される**ため、定数のコメントに
+      「変更するな」と明記した(変更すると既存プロジェクトが未知の値になりLineへ
+      フォールバックする)。
+    - プロパティパネルは、Z列・カラーマップ・値域の3つを2Dマップと共用にし、
+      グリッド固有(表示モード・等高線レベル・補間方法)は2Dのときだけ表示する
+      よう `_update_2d_controls_visibility` を2系統に分けた。
+    - Z列未設定/列が消えた/欠損値の方針`drop`で長さが食い違う場合は、単色の
+      Scatterへフォールバック(Density Scatterのgaussian_kde失敗時と同じ方針)。
+      長さ不一致だけは分かりにくい症状なのでログに理由を残す。
+    - **カラーバーは1軸に最大1つ**なので、同じ軸に2Dマップがある場合は2Dマップ側を
+      優先する(`gui/canvas.py`・`core/script_export.py`の両方で揃えた。スクリプト側は
+      データセットの並び順に出力するため、先に「2Dがある軸」の集合を作ってから
+      判定しないと画面と食い違う)。
+    - **スタンドアロンスクリプト書き出し(C-1103)にも対応**。Density Scatterは
+      gaussian_kde依存のためLineへ代替出力されるが、こちらは純粋なmatplotlib
+      呼び出しなのでそのまま再現できる(生成スクリプトが実際に実行できることを
+      テストで確認)。
+    - **plot_type名の「長さ」にも制約があることを実地で踏んだ**: 当初
+      `'Scatter (Color by Column)'`(25文字)にしたところ、`plot_type_combo`の幅が
+      最長項目に合わせて広がり、それが属する`QFormLayout`の列幅を通じてフォーム
+      全体に波及して、プロパティドックに**横スクロールバーが39px分出た**
+      (CLAUDE.mdの「Designer-generated UI vs. runtime-constructed UI」節の警告
+      そのもの)。フルスイートで
+      `test_properties_dock_has_no_horizontal_scrollbar` と
+      ダークモードのベースライン画像比較(差分2.003%、閾値2%)の2件が落ちて発覚。
+      既存の最長項目`'Density Scatter'`と同じ15文字の`'Z-Color Scatter'`に
+      改名して解消(レイアウトは一切変わらない)。定数のコメントにこの制約を明記した。
+    - **未修正の潜在問題としてフラグ**: `register_plot_type()`でプラグインが
+      登録する名前は任意長なので、長い名前を登録されると同じ横はみ出しが起きる。
+      コンボ幅の上限設定(`setSizeAdjustPolicy`等)で根本対処できるが、見た目が
+      変わりベースライン画像の取り直しが要るため今回のスコープからは外した。
+    - テスト: `tests/test_color_by_column_scatter.py` を新設(24件)。
+      `tests/test_plugin_panel_plot_type_gui.py` のコンボ項目一覧の期待値も更新。
   - **A-6**: 別セッション(worktree `.claude/worktrees/admiring-morse-96bbcf`、
     ブランチ`claude/admiring-morse-96bbcf`、コミット`a9809e7`)で実装・コミット
     済みだったが**masterへ未マージのまま停止していた**ため、ユーザーの指示により

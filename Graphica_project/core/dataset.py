@@ -3,6 +3,21 @@ import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field, fields, MISSING
 
+# 3列目(z_col_name)の値で点を配色する散布図(改善ボード D-2)の plot_type 値。
+# ★ この文字列はプロジェクトファイルにそのまま保存されるため、変更すると既存の
+#   保存済みプロジェクトの plot_type が未知の値になり、Lineへフォールバックして
+#   見た目が変わってしまう。値そのものは変更しないこと。
+# ★ 長さにも制約がある: plot_type_combo の幅は最長の項目に合わせて決まり、
+#   コンボが属する QFormLayout の列幅がフォーム全体に波及するため、長い名前を
+#   入れるとプロパティドックに横スクロールバーが出る(CLAUDE.md の
+#   「Designer-generated UI vs. runtime-constructed UI」節の警告そのもの。
+#   実際に 'Scatter (Color by Column)' という25文字の案で39pxはみ出し、
+#   tests/test_main_window.py::test_properties_dock_has_no_horizontal_scrollbar と
+#   ダークモードのベースライン画像比較の2件が落ちた)。既存の最長項目
+#   'Density Scatter' と同じ15文字に収めてある。
+COLOR_BY_COLUMN_PLOT_TYPE = 'Z-Color Scatter'
+
+
 @dataclass
 class Dataset:
     """
@@ -140,6 +155,22 @@ class Dataset:
         return None
 
     @property
+    def z_data(self):
+        """
+        Z列 (z_col_name) が設定されていて実在すれば、そのデータを NumPy 配列として
+        返す。未設定/存在しない場合は None。
+
+        2Dグリッド(data_kind='2d_grid')のZ値と、1Dの
+        'Z-Color Scatter'(改善ボード D-2)で点の色に使う列値の
+        両方がこれを使う。x_data/y_data と同じく visible_df 経由なので、
+        マスクした行があっても点と色の対応がずれない(df から直接取ると
+        1行でもマスクした時点で色が1つずつずれる)。
+        """
+        if self.z_col_name and self.z_col_name in self.df.columns:
+            return self.visible_df[self.z_col_name].values
+        return None
+
+    @property
     def y_err_data(self):
         """Y軸の誤差列 (y_err_col_name) について x_err_data と同様。"""
         if self.y_err_col_name and self.y_err_col_name in self.df.columns:
@@ -147,7 +178,9 @@ class Dataset:
         return None
 
     # --- スタイルと状態に関する情報 (デフォルト値付き) ---
-    plot_type: str = 'Line'       # 'Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step', 'Density Scatter'
+    # 'Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step', 'Density Scatter',
+    # 'Z-Color Scatter'(改善ボード D-2: z_col_name の値で点を配色する)
+    plot_type: str = 'Line'
     color: str = '#1f77b4'        # 16進数カラーコード (Matplotlib のデフォルト色)
     linestyle: str = '-'          # 実線 (Solid)
     linewidth: float = 1.5

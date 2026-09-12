@@ -15,6 +15,7 @@ import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
 from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
                            calculate_median_smooth, calculate_gaussian_smooth)
 from core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
@@ -1527,6 +1528,48 @@ class _CanvasDrawingMixin:
                             marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs
                         )
                     except (np.linalg.LinAlgError, ValueError):
+                        artist = target_ax.scatter(
+                            plot_x_data, plot_y_data, color=ds.color, marker=ds.marker,
+                            s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs
+                        )
+                    ds.artist = artist
+                elif ds.plot_type == COLOR_BY_COLUMN_PLOT_TYPE:
+                    # 3列目の値による点の色分け(改善ボード D-2)。Density Scatterが
+                    # 「点の密度」を色にするのに対し、こちらは z_col_name で選んだ
+                    # 任意の列の値をそのまま色にマッピングする(温度・時間・濃度・
+                    # 深さ等の測定条件を1枚の散布図に載せる定番の表現)。
+                    # colormap/vmin/vmaxは2Dマップ(項目C-508)と共用のフィールドで、
+                    # カラーバーも同じ_axis_2d_mappables経由の既存経路に載せる。
+                    # ★ z値はds.z_data(visible_df経由)から取る。df から直接取ると、
+                    #   1行でもマスクした時点で点と色の対応が1つずつずれる。
+                    z_values = ds.z_data
+                    if z_values is not None and len(z_values) == len(plot_x_data):
+                        artist = target_ax.scatter(
+                            plot_x_data, plot_y_data, c=z_values, cmap=ds.colormap,
+                            vmin=ds.vmin, vmax=ds.vmax,
+                            marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha,
+                            label=ds.name, **plot_kwargs
+                        )
+                        # カラーバー(項目C-501)は_apply_appearance()がこの辞書を
+                        # 見て付ける。同じ軸に2Dマップが既に登録済みの場合は
+                        # 上書きしない(カラーバーは1軸に最大1つで、既存の
+                        # ヒートマップ側の挙動を変えないことを優先する)。
+                        if axis_index not in self._axis_2d_mappables:
+                            self._axis_2d_mappables[axis_index] = artist
+                    else:
+                        # Z列が未選択/列が消えている/欠損値の方針'drop'で配列が
+                        # 短くなった場合は、クラッシュさせず通常のScatter(単色)へ
+                        # フォールバックする(Density Scatterがgaussian_kde失敗時に
+                        # そうするのと同じ方針)。長さの食い違いだけは「Z列は選んで
+                        # あるのに色が付かない」という分かりにくい症状になるため、
+                        # 理由をログに残す。
+                        if z_values is not None:
+                            logger.warning(
+                                "'%s' のZ列の長さ(%d)がプロット点数(%d)と一致しないため、"
+                                "単色のScatterとして描画します(欠損値の方針'drop'等で"
+                                "配列が短くなっている可能性があります)。",
+                                ds.name, len(z_values), len(plot_x_data),
+                            )
                         artist = target_ax.scatter(
                             plot_x_data, plot_y_data, color=ds.color, marker=ds.marker,
                             s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs

@@ -161,7 +161,7 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Navigation
 from ui_main_window import Ui_MainWindow
 
 # --- 自分で分割したモジュール ---
-from core.dataset import Dataset
+from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from core.commands import AddDatasetCommand, RemoveDatasetCommand
 from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
@@ -529,6 +529,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.plot_type_combo.addItem("Bar")
         self.ui.plot_type_combo.addItem("Step")  # 階段プロット(項目113、C-503)
         self.ui.plot_type_combo.addItem("Density Scatter")  # 2D密度散布図(項目117、C-507)
+        # 3列目の値で点を配色する散布図(改善ボード D-2)。Density Scatterが「点の密度」で
+        # 色を付けるのに対し、こちらは z_col_combo で選んだ任意の列の値で色を付ける
+        # (温度・時間・濃度・深さ等の測定条件を1枚の散布図に載せる定番の表現)。
+        self.ui.plot_type_combo.addItem(COLOR_BY_COLUMN_PLOT_TYPE)
 
         # ★ データセットリストを QListWidget から QTreeWidget に置き換える。
         #   フォルダによるグループ分けに対応するため (Designerが生成する

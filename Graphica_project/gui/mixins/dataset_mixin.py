@@ -41,7 +41,7 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
 from core.color_palettes import BUILTIN_PALETTES
-from core.dataset import Dataset
+from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from core.label_utils import infer_axis_label_from_column_name
 from core.methods_text import generate_methods_text
 from core.plugin_api import get_registered_importer_extensions
@@ -3158,22 +3158,39 @@ class DatasetMixin:
         2Dグリッドデータ関連のコントロール(Z列・カラーマップ・補間方法・値域)の
         表示/非表示を、現在選択中データセットのdata_kindに応じて更新する
         (_update_gradient_controls_visibilityと同じパターン)。
+
+        ★ 改善ボード D-2: Z列・カラーマップ・値域の3つは、1Dの
+        'Z-Color Scatter'(3列目の値で点を配色する散布図)でも使う
+        ため、data_kind='2d_grid' でなくてもこのplot_typeなら表示する。
+        残り(表示モード・等高線レベル・グリッド補間方法)はグリッド固有なので
+        2Dのときだけ表示する。
         """
         dataset = self._get_current_dataset()
         # ★ 選択なし(None)の場合は常に非表示にする(data_2d_checkboxのチェック状態は
         # 直前に選択していたデータセットの値が残ったままなので、それにフォール
         # バックすると選択解除後も2D系コントロールが表示されたままになるバグになる)。
         is_2d = dataset is not None and dataset.data_kind == '2d_grid'
-
+        is_color_by_column = (
+            dataset is not None
+            and dataset.data_kind != '2d_grid'
+            and dataset.plot_type == COLOR_BY_COLUMN_PLOT_TYPE
+        )
+        # Z列・カラーマップ・値域: 2Dグリッド と 色分け散布図 の共用
+        shared_with_color_scatter = is_2d or is_color_by_column
         for widget in (
             self.z_col_label, self.z_col_combo,
             self.colormap_label, self.colormap_combo,
-            self.map_display_mode_label, self.map_display_mode_combo,
-            self.contour_levels_label, self.contour_levels_spinbox,
-            self.grid_interp_method_label, self.grid_interp_method_combo,
             self.color_range_auto_checkbox,
             self.vmin_label, self.vmin_spinbox,
             self.vmax_label, self.vmax_spinbox,
+        ):
+            widget.setVisible(shared_with_color_scatter)
+
+        # グリッド固有の設定は2Dのときだけ
+        for widget in (
+            self.map_display_mode_label, self.map_display_mode_combo,
+            self.contour_levels_label, self.contour_levels_spinbox,
+            self.grid_interp_method_label, self.grid_interp_method_combo,
         ):
             widget.setVisible(is_2d)
 
