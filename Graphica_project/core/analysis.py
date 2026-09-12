@@ -1,6 +1,7 @@
 # core/analysis.py
 import re
 import numpy as np
+import pandas as pd
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from scipy.integrate import simpson, cumulative_trapezoid, cumulative_simpson
@@ -2122,3 +2123,68 @@ def assign_peak_label_levels(peak_x_values, x_axis_span, proximity_ratio=0.05, m
         levels.append(current_level)
         prev_x = x
     return levels
+
+
+# ==============================================================================
+# カテゴリ列による系列の自動分割(改善ボード D-1)
+# ==============================================================================
+
+def split_dataframe_by_column(df, split_col):
+    """
+    「試料名」「条件」「測定日」のような区分列の値ごとにDataFrameを分割する
+    (いわゆるlong形式データの取り込み)。1つのファイルに複数条件の測定結果が
+    縦に積まれている、実測データでは頻出の形に対応するための関数。
+
+    グループの順序は**ファイル中での初出順**にする(pandasのgroupbyの既定で
+    ある値のソート順ではない)。測定順や濃度順のように、ファイルの並び自体に
+    意味があることが多く、そのまま保たれるほうが予測しやすいため。
+
+    分割列が欠損(NaN)している行はどのグループにも属さないため取り除き、
+    その件数を返り値に含める(黙って減らすと「点が足りない」と気づきにくい)。
+
+    Args:
+        df (pd.DataFrame): 元データ。
+        split_col (str): 分割に使う列名。
+
+    Returns:
+        dict:
+            groups (list[tuple[str, pd.DataFrame]]): (表示用のラベル, 部分DataFrame)
+                の初出順リスト。部分DataFrameのindexは0始まりに振り直してある
+                (元のindexラベルを引きずると、新しいデータセットのマスク
+                (Dataset.masked_row_indices)や行番号表示が分かりにくくなるため)。
+            n_dropped (int): split_colがNaNで除外された行数。
+            n_groups (int): グループ数。
+
+    Raises:
+        ValueError: split_colがdfに存在しない場合。
+    """
+    if split_col not in df.columns:
+        raise ValueError(f"列 '{split_col}' がデータに存在しません。")
+
+    values = df[split_col]
+    keep = values.notna()
+    n_dropped = int((~keep).sum())
+    filtered = df[keep]
+
+    groups = []
+    for label, sub_df in filtered.groupby(split_col, sort=False, observed=True):
+        groups.append((_format_group_label(label), sub_df.reset_index(drop=True)))
+
+    return {'groups': groups, 'n_dropped': n_dropped, 'n_groups': len(groups)}
+
+
+def _format_group_label(value):
+    """
+    グループの値を、データセット名に使う短い文字列にする。
+    numpyのスカラ型はそのままstr()すると 'np.float64(1.5)' のような表記に
+    なりうる(numpy>=2.0)ため、素のPython型に落としてから文字列化する。
+    浮動小数点は末尾の余分な0を落として読みやすくする(1.50 -> 1.5)。
+    """
+    if hasattr(value, 'item'):
+        try:
+            value = value.item()
+        except (ValueError, TypeError):
+            pass
+    if isinstance(value, float):
+        return f"{value:g}"
+    return str(value)

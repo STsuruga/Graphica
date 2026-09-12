@@ -37,7 +37,7 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_resample_to_grid, multi_peak_fit_task,
                            calculate_histogram, calculate_kde, calculate_error_propagation,
                            calculate_cross_correlation_alignment, calculate_peaks,
-                           assign_peak_label_levels)
+                           assign_peak_label_levels, split_dataframe_by_column)
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
 from core.color_palettes import BUILTIN_PALETTES
@@ -383,6 +383,12 @@ class DatasetMixin:
             # 行フィルタ(項目C-204): 条件式を満たさない行をマスク(項目36、非破壊)する。
             row_filter_action = data_proc_menu.addAction("行フィルタ...")
             row_filter_action.triggered.connect(self._on_filter_rows)
+
+            # カテゴリ列による系列の自動分割(改善ボード D-1): long形式データの
+            # 取り込み。行フィルタを条件の数だけ手作業で繰り返す代わりになる
+            # 操作なので、その隣に置く。
+            split_by_column_action = data_proc_menu.addAction("列の値で系列に分割...")
+            split_by_column_action.triggered.connect(self._on_split_dataset_by_column)
 
             # 統計的外れ値検出(項目C-306): 検出のみ/マスクへの適用はユーザーが
             # ダイアログのチェックボックスで明示的に選ぶ(自動では適用しない)。
@@ -1271,6 +1277,105 @@ class DatasetMixin:
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{output_name}」を追加しました", 3000)
+
+    # 分割で一度に作るデータセット数の目安。これを超える場合は、連続値の列を
+    # 誤って選んだ等の取り違えが疑われるため、作る前に確認を挟む。
+    SPLIT_BY_COLUMN_CONFIRM_THRESHOLD = 30
+
+    def _on_split_dataset_by_column(self):
+        """
+        「列の値で系列に分割...」メニューの処理(改善ボード D-1)。
+
+        1つのファイルに「試料名」「条件」「測定日」のような区分列があり、
+        その値ごとに系列を分けたい(long形式データの取り込み)ケースに対応する。
+        従来は「行フィルタ」を条件の数だけ手作業で繰り返すしかなかった。
+
+        分割列を選ぶと groupby で分け、各グループを新しいデータセットとして
+        一括追加する。名前は「元の名前 (値)」。X/Y列の選択は元のデータセットを
+        引き継ぐ。
+
+        - 元のデータセットは**残す**(非破壊)。不要なら削除すればよく、
+          削除も改善ボード A-3 でUndo可能になっている。
+        - 色はアクティブなパレットから順に割り当てる。Dataset.colorの既定値は
+          固定の'#1f77b4'なので、そのままだと全系列が同じ色になり分割した意味が
+          ほとんど無くなるため(グラデーションにしたい場合は追加後に
+          「カラーマップから自動配色」(項目C-805)を掛ければよい)。
+        - 追加は AddDatasetCommand 経由で、全体を1つのマクロにまとめる。
+          N件の追加が Undo 1回で元に戻る。
+        """
+        original_dataset = self._get_current_dataset()
+        if original_dataset is None:
+            return
+
+        columns = list(original_dataset.df.columns)
+        if not columns:
+            QMessageBox.warning(self, "系列に分割", "分割に使える列がありません。")
+            return
+
+        split_col, ok = QInputDialog.getItem(
+            self, "列の値で系列に分割",
+            "分割に使う列(この列の値ごとに別々の系列になります):",
+            columns, 0, False,
+        )
+        if not ok or not split_col:
+            return
+
+        try:
+            result = split_dataframe_by_column(original_dataset.df, split_col)
+        except ValueError as e:
+            QMessageBox.warning(self, "系列に分割", str(e))
+            return
+
+        groups = result['groups']
+        if len(groups) < 2:
+            QMessageBox.information(
+                self, "系列に分割",
+                f"列「{split_col}」の値は{len(groups)}種類しかないため、"
+                "分割しても系列は増えません。",
+            )
+            return
+
+        if len(groups) > self.SPLIT_BY_COLUMN_CONFIRM_THRESHOLD:
+            answer = QMessageBox.question(
+                self, "系列に分割",
+                f"列「{split_col}」の値は{len(groups)}種類あります。\n"
+                f"同じ数({len(groups)}件)のデータセットを追加しますが、よろしいですか?\n\n"
+                "(連続値の列を選んでいる場合は、意図しない大量の系列になります)",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+
+        color_cycle = self._get_active_color_cycle()
+        target_folder = self._get_target_folder_for_new_dataset()
+
+        self.undo_stack.beginMacro(f"列「{split_col}」で系列に分割 ({len(groups)}件)")
+        try:
+            for i, (label, sub_df) in enumerate(groups):
+                new_dataset = Dataset(
+                    name=f"{original_dataset.name} ({label})",
+                    df=sub_df,
+                    x_col_name=original_dataset.x_col_name,
+                    y_col_name=original_dataset.y_col_name,
+                    color=color_cycle[i % len(color_cycle)],
+                    provenance=self._build_provenance(
+                        'split_by_column',
+                        {'split_column': split_col, 'group_value': label},
+                        [original_dataset],
+                    ),
+                )
+                self._add_dataset_with_undo(
+                    new_dataset, target_folder,
+                    description=f"「{new_dataset.name}」の追加",
+                )
+        finally:
+            self.undo_stack.endMacro()
+
+        message = f"列「{split_col}」の値で{len(groups)}件の系列に分割しました"
+        if result['n_dropped']:
+            message += f"(「{split_col}」が空の{result['n_dropped']}行は除外)"
+        self.statusBar().showMessage(message, 5000)
 
     def _on_resample_dataset(self):
         """
