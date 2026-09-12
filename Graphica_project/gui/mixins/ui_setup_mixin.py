@@ -299,6 +299,19 @@ class UISetupMixin:
             # PySide6側のPythonラッパーが後からGCで無効化されることがある
             # (コマンドパレット/ショートカット一覧のような「後から再収集して使う」
             # 機能で "already deleted" になる既知の癖)。self.xxx で参照を保持することで防ぐ。
+            # ★ 改善ボード C-4: データの読み込み導線が中央の「データ追加」ボタン
+            # だけで、ファイルメニューには「プロジェクトを開く」「フォルダから一括
+            # インポート」「最近使ったファイル」があるのに単一のCSV/Excelを開く項目
+            # だけが無かった(初見のユーザーがファイルメニューを探して見つけられない)。
+            # 「最近使ったファイル」がこのメニューにある以上、その仲間として先頭に置く。
+            # ショートカットは割り当てない: Ctrl+O (QKeySequence.StandardKey.Open) は
+            # 直下の「プロジェクトを開く」が既に使っており、そちらを動かすと
+            # 既存ユーザーの手癖を壊すため。
+            self.open_data_file_action = file_menu.addAction(tr("データファイルを開く(&D)..."))
+            self.open_data_file_action.triggered.connect(self._on_add_dataset)
+
+            file_menu.addSeparator()
+
             self.open_project_action = file_menu.addAction(tr("プロジェクトを開く(&O)..."))
             self.open_project_action.setShortcut(QKeySequence.StandardKey.Open)
             self.open_project_action.triggered.connect(self._on_load_project)
@@ -357,41 +370,50 @@ class UISetupMixin:
 
             file_menu.addSeparator() # --- 区切り線 ---
 
-            # (エクスポート機能)
-            self.save_action = file_menu.addAction(tr("名前を付けてエクスポート(&S)..."))
+            # --- エクスポート(改善ボード C-3) ---
+            # 以前はエクスポート系7項目が区切りなしで連続しており、22項目あった
+            # ファイルメニューの見通しを悪くしていた。サブメニューにまとめる。
+            # ★ 重要 ★ サブメニューは QMenu と menuAction() の *両方* を永続参照
+            # として保持する。QMenu だけを保持しても、_collect_menu_actions() が
+            # file_menu.actions() を辿ったあとに menuAction() 側がGCされると
+            # メニュー本体ごと道連れで破棄される(「ドックレイアウト」で実際に
+            # 起きた不具合 8607665、「最近使ったファイル」で起きた識別子リーク
+            # a9809e7 と同じ shiboken/PySide6 の癖)。
+            export_menu = file_menu.addMenu(tr("エクスポート"))
+            self._export_menu = export_menu
+            self._export_menu_action = export_menu.menuAction()
+
+            self.save_action = export_menu.addAction(tr("名前を付けてエクスポート(&S)..."))
             self.save_action.setShortcut(QKeySequence.StandardKey.SaveAs)
             self.save_action.triggered.connect(self._on_export_plot)
 
             # (クリップボードコピー: Ctrl+C は既存のテキスト編集のコピー操作と
             #  衝突しうるため、あえてショートカットは割り当てずメニューのみにする)
-            copy_plot_action = file_menu.addAction(tr("グラフをコピー(&C)"))
+            copy_plot_action = export_menu.addAction(tr("グラフをコピー(&C)"))
             copy_plot_action.triggered.connect(self._on_copy_plot_to_clipboard)
 
-            # 色覚シミュレーションプレビュー(項目140、C-803)
-            cvd_simulation_action = file_menu.addAction(tr("色覚シミュレーションプレビュー..."))
-            cvd_simulation_action.triggered.connect(self._on_show_cvd_simulation)
-
             # (印刷: ファイル保存を経由せず直接プリンターに出力)
-            self.print_action = file_menu.addAction(tr("印刷(&R)..."))
+            # ショートカット(Ctrl+P)はサブメニューに入れても従来どおり効く。
+            self.print_action = export_menu.addAction(tr("印刷(&R)..."))
             self.print_action.setShortcut(QKeySequence.StandardKey.Print)
             self.print_action.triggered.connect(self._on_print_plot)
 
             # (バッチエクスポート: 複数サブプロット/複数プロジェクトファイルを一括書き出し)
-            batch_export_action = file_menu.addAction(tr("バッチエクスポート(&B)..."))
+            batch_export_action = export_menu.addAction(tr("バッチエクスポート(&B)..."))
             batch_export_action.triggered.connect(self._on_batch_export)
 
             # (Pythonスクリプトとしてエクスポート、項目C-1103: Graphica本体への
             #  囲い込みを解消し、matplotlib単体で図を再現できるようにする)
-            export_script_action = file_menu.addAction(tr("Pythonスクリプトとしてエクスポート..."))
+            export_script_action = export_menu.addAction(tr("Pythonスクリプトとしてエクスポート..."))
             export_script_action.triggered.connect(self._on_export_python_script)
 
             # LaTeX/Word用キャプション自動生成(項目142、C-807)
-            generate_caption_action = file_menu.addAction(tr("LaTeX/Word用キャプションを生成..."))
+            generate_caption_action = export_menu.addAction(tr("LaTeX/Word用キャプションを生成..."))
             generate_caption_action.triggered.connect(self._on_generate_caption)
 
             # PDF/HTML実験レポート自動ビルド(項目157、C-1104): 既存の
             # provenance記録(C-1101)・「方法」文自動生成(C-1102)の出力先。
-            generate_report_action = file_menu.addAction(tr("実験レポートを生成 (HTML/PDF)..."))
+            generate_report_action = export_menu.addAction(tr("実験レポートを生成 (HTML/PDF)..."))
             generate_report_action.triggered.connect(self._on_generate_report)
 
             file_menu.addSeparator() # --- 区切り線 ---
@@ -502,6 +524,13 @@ class UISetupMixin:
             self.panel_labels_action.setCheckable(True)
             self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
             self.panel_labels_action.toggled.connect(self._on_toggle_panel_labels)
+
+            # 色覚シミュレーションプレビュー(項目140、C-803)
+            # ★ 改善ボード C-3: 以前はファイルメニューのエクスポート系に並んでいたが、
+            # これは図を出力する機能ではなく「今の配色がどう見えるかを*確認*する」
+            # 機能なので、表示メニューに置くほうが自然。
+            self.cvd_simulation_action = view_menu.addAction(tr("色覚シミュレーションプレビュー..."))
+            self.cvd_simulation_action.triggered.connect(self._on_show_cvd_simulation)
 
             # ドックレイアウトの保存/復元/リセット(項目152、C-911)。既存の
             # 「最初のタブ・初回起動のみ復元」という制約(起動シーケンス自体は

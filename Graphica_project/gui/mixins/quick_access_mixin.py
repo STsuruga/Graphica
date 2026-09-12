@@ -34,6 +34,8 @@
   そのタブ自身のメニューから同じ識別子に一致するアクションを探して
   復元する。
 """
+import logging
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QToolBar, QMenu
@@ -41,12 +43,20 @@ from PySide6.QtWidgets import QToolBar, QMenu
 from core.i18n import tr
 from gui.dialogs import QuickAccessManagerDialog
 
+logger = logging.getLogger(__name__)
+
 QUICK_ACCESS_SETTINGS_KEY = "quick_access_pinned_actions"
+
+
+# 識別子(永続化されるピン留めのキー)でメニュー階層を区切る文字列。
+# _migrate_pinned_quick_access_ids() が末尾の項目名を取り出すのにも使うため、
+# 両者が必ず同じものを見るよう定数にしてある。
+SEPARATOR = " > "
 
 
 def quick_access_action_identifier(path):
     """_collect_menu_actions() が返すパスのリストから、永続化用の識別子文字列を作る"""
-    return " > ".join(path)
+    return SEPARATOR.join(path)
 
 
 class QuickAccessMixin:
@@ -165,12 +175,56 @@ class QuickAccessMixin:
     def _set_pinned_quick_access_ids(self, ids):
         self.settings.setValue(QUICK_ACCESS_SETTINGS_KEY, ids)
 
+    def _migrate_pinned_quick_access_ids(self, ids, available):
+        """
+        メニューの再編でパスが変わったピン留めを、新しい識別子へ読み替える
+        (改善ボード C-3 のサブメニュー化への対応)。
+
+        識別子は「メニューのパス全体」("ファイル(F) > 名前を付けてエクスポート(S)..."
+        のような文字列)なので、項目をサブメニューへ移したり別のメニューへ移したり
+        すると、保存済みのピンがどれにも一致しなくなる。_restore_quick_access_actions
+        は一致しない識別子を黙ってスキップする設計なので、放っておくと
+        **エラーも警告も出ないままツールバーからピンが消える**。
+
+        読み替えは「末尾の項目名が一致する候補が現在のメニューにちょうど1つだけ
+        あるか」で判定する。同名の項目が複数あるときは誤爆を避けて読み替えない
+        (その場合は従来どおり黙ってスキップされる)。項目名自体が変わった場合も
+        対象外で、これは意図的な割り切り。
+
+        Returns:
+            (list, bool): 読み替え後の識別子リストと、変更があったかどうか。
+        """
+        by_leaf = {}
+        for ident in available:
+            leaf = ident.rsplit(SEPARATOR, 1)[-1]
+            by_leaf.setdefault(leaf, []).append(ident)
+
+        migrated, changed = [], False
+        for ident in ids:
+            if ident in available:
+                migrated.append(ident)
+                continue
+            candidates = by_leaf.get(ident.rsplit(SEPARATOR, 1)[-1], [])
+            if len(candidates) == 1:
+                logger.info(
+                    "クイックアクセスのピン留めを移動先へ読み替えました: %r -> %r",
+                    ident, candidates[0],
+                )
+                migrated.append(candidates[0])
+                changed = True
+            else:
+                migrated.append(ident)  # 判断できないものは触らずそのまま残す
+        return migrated, changed
+
     def _restore_quick_access_actions(self):
         """
         起動時に一度呼ばれる。QSettingsに保存された識別子のリストから、
         現在のメニューに存在するアクションだけをツールバーへ復元する。
         該当するアクションが見つからない識別子(プラグインが削除された等)は
         黙ってスキップする(エラーにしない、ベストエフォート)。
+
+        ★ メニュー再編でパスが変わった識別子は、復元の前に
+        _migrate_pinned_quick_access_ids() で読み替える(改善ボード C-3)。
         """
         ids = self._get_pinned_quick_access_ids()
         if not ids:
@@ -179,6 +233,10 @@ class QuickAccessMixin:
             quick_access_action_identifier(path): action
             for path, action in self._collect_menu_actions()
         }
+        ids, changed = self._migrate_pinned_quick_access_ids(ids, available)
+        if changed:
+            # 読み替え結果を書き戻して、次回以降は読み替え不要にする
+            self._set_pinned_quick_access_ids(ids)
         for ident in ids:
             action = available.get(ident)
             if action is not None:

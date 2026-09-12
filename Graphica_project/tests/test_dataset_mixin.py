@@ -1120,19 +1120,56 @@ def test_dataset_tree_context_menu_omits_global_visibility_actions_when_project_
 # =============================================================================
 
 class _RecordingMenu(QMenu):
-    """実際にモーダル表示せず、addAction()で追加されたテキスト/アクションだけを記録するQMenu"""
+    """実際にモーダル表示せず、addAction()で追加されたテキスト/アクションだけを記録するQMenu。
+
+    ★ 改善ボード C-2 でコンテキストメニューがサブメニュー構成になったため、
+    added_texts / actions_by_text は「自分 + 配下のサブメニュー」を平坦化して返す。
+    こうしておくと「その操作がメニューから辿れるか」を見ている既存のテストは、
+    項目がどの階層に移っても書き換えずに通る(逆に階層そのものを検証したい
+    テストは _own_texts / submenus を直接見る)。
+
+    last_instance は *ルートの* メニューを指す必要がある。サブメニューは
+    QMenu(title, parent) の形で作られ第1引数が文字列になるため、それで
+    ルート(QMenu(parent) の形)と見分ける。
+    """
     last_instance = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.added_texts = []
-        self.actions_by_text = {}
-        _RecordingMenu.last_instance = self
+        self._own_texts = []
+        self._own_actions_by_text = {}
+        self.submenus = []
+        is_submenu = bool(args) and isinstance(args[0], str)
+        if is_submenu:
+            parent_menu = args[1] if len(args) > 1 else None
+            if isinstance(parent_menu, _RecordingMenu):
+                parent_menu.submenus.append(self)
+        else:
+            _RecordingMenu.last_instance = self
+
+    @property
+    def added_texts(self):
+        """自分 + 配下のサブメニューに追加された項目テキストを、追加順に平坦化したもの"""
+        texts = list(self._own_texts)
+        for sub in self.submenus:
+            texts.extend(sub.added_texts)
+        return texts
+
+    @property
+    def actions_by_text(self):
+        merged = dict(self._own_actions_by_text)
+        for sub in self.submenus:
+            merged.update(sub.actions_by_text)
+        return merged
+
+    def submenu_titles(self):
+        """実際に menu へ繋がれた(=1項目以上ある)サブメニューのタイトル一覧"""
+        return [a.text() for a in self.actions() if a.menu() is not None]
 
     def addAction(self, text):
         action = super().addAction(text)
-        self.added_texts.append(text)
-        self.actions_by_text[text] = action
+        self._own_texts.append(text)
+        self._own_actions_by_text[text] = action
         return action
 
     def exec(self, *args, **kwargs):

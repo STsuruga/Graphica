@@ -253,8 +253,37 @@ class DatasetMixin:
         self._set_folder_datasets_visibility(current_item, False)
 
     def _on_dataset_tree_context_menu(self, pos):
-        """データセットツリーを右クリックしたときのコンテキストメニュー"""
+        """
+        データセットツリーを右クリックしたときのコンテキストメニュー。
+
+        ★ 改善ボード C-2: 以前は約30項目がほぼフラットに並んでおり(区切り線は4本)、
+        特にデータ処理系9項目が他と同列にずらりと続いて目的の操作を探しにくかった。
+        内容が自然に分かれる5つのサブメニューにまとめる:
+        「データ処理 ▶」「解析・注釈 ▶」「複数データセット ▶」
+        「エクスポート ▶」「タブ操作 ▶」。
+        フォルダ操作・スタイルのコピー/貼り付け・再読み込み・削除といった
+        「1クリックで終わる頻出操作」はトップレベルに残す。
+
+        ★ このメニューは右クリックのたびに作り直され exec() で同期的に閉じる
+        使い捨てなので、メニューバー側のサブメニューのように self.xxx への永続
+        参照は要らない。ただしPython側の参照が途中で消えないよう、作った
+        サブメニューは submenus リストに握っておく(ローカル変数 menu が
+        exec() の間ずっと生きているのと同じ保険)。
+        """
         menu = QMenu(self)
+        submenus = []
+
+        def add_submenu(title):
+            """空のまま残さないよう、実際に項目を足したものだけ後で menu へ繋ぐ。"""
+            sub = QMenu(title, menu)
+            submenus.append(sub)
+            return sub
+
+        data_proc_menu = add_submenu("データ処理")
+        analysis_menu = add_submenu("解析・注釈")
+        multi_menu = add_submenu("複数データセット")
+        export_menu = add_submenu("エクスポート")
+        tab_menu = add_submenu("タブ操作")
         new_folder_action = menu.addAction("新しいフォルダ")
         new_folder_action.triggered.connect(self._on_new_folder)
 
@@ -303,31 +332,31 @@ class DatasetMixin:
             # データセット(フォーカス中のカレントアイテム)に対する操作なので、
             # 複数選択かどうかに関わらずこのブロック(カレントデータセットが
             # 存在する場合)に置く。データセット間演算(2件選択が必須)とは異なる。
-            normalize_action = menu.addAction("規格化(ノーマライズ)...")
+            normalize_action = data_proc_menu.addAction("規格化(ノーマライズ)...")
             normalize_action.triggered.connect(self._on_normalize_dataset)
 
             # Savitzky-Golayフィルタ(平滑化/微分、項目C-301/C-302): 規格化と同じく
             # カレント1件のデータセットから新しいデータセットを1つ作る操作。
-            savgol_action = menu.addAction("Savitzky-Golayフィルタ(平滑化/微分)...")
+            savgol_action = data_proc_menu.addAction("Savitzky-Golayフィルタ(平滑化/微分)...")
             savgol_action.triggered.connect(self._on_savgol_dataset)
 
             # ベースライン補正(ALS/多項式/ラバーバンド/手動点、項目C-308):
             # 上記と同じく「カレント1件から新しいデータセットを1つ作る」操作。
-            baseline_action = menu.addAction("ベースライン補正...")
+            baseline_action = data_proc_menu.addAction("ベースライン補正...")
             baseline_action.triggered.connect(self._on_baseline_correction_dataset)
 
             # 区間積分(台形則/Simpson則、任意でベースライン差し引き、項目C-311):
             # 上記と同じく「カレント1件」を対象にするが、新しいデータセットではなく
             # 積分値(スカラー)をResultDialogで表示する点がSavitzky-Golay/
             # ベースライン補正と異なる(ピーク検出のResultDialog表示に近い)。
-            integral_action = menu.addAction("区間積分(台形則/Simpson則)...")
+            integral_action = data_proc_menu.addAction("区間積分(台形則/Simpson則)...")
             integral_action.triggered.connect(self._on_interval_integral_dataset)
 
             # 累積積分(項目C-303): 区間積分と同じ台形則/Simpson則だが、こちらは
             # スカラー1個ではなく、Xの各点までの積分値を新しいデータセットとして
             # 追加する(Savitzky-Golay/ベースライン補正と同じ「カレント1件から
             # 新しいデータセットを1つ作る」パターン)。
-            cumulative_integral_action = menu.addAction("累積積分(台形則/Simpson則)...")
+            cumulative_integral_action = data_proc_menu.addAction("累積積分(台形則/Simpson則)...")
             cumulative_integral_action.triggered.connect(self._on_cumulative_integral_dataset)
 
             # フィット結果のエクスポート(項目C-413): カレントデータセットが
@@ -337,27 +366,27 @@ class DatasetMixin:
             # 対象外の状態ではグレーアウトするパターンに合わせる。
             # ハンドラ自身も fit_result が無い場合に備えて防御的にチェックする
             # (万一 setEnabled が効かない呼び出し経路があっても親切な警告を出す)。
-            export_fit_action = menu.addAction("フィット結果のエクスポート...")
+            export_fit_action = export_menu.addAction("フィット結果のエクスポート...")
             export_fit_action.setEnabled(self._get_current_dataset().fit_result is not None)
             export_fit_action.triggered.connect(self._on_export_fit_result)
 
             # 共通X格子へのリサンプリング/補間(項目C-305): 上記のSavitzky-Golay/
             # ベースライン補正と同じく「カレント1件から新しいデータセットを1つ作る」操作。
-            resample_action = menu.addAction("共通X格子へのリサンプリング/補間...")
+            resample_action = data_proc_menu.addAction("共通X格子へのリサンプリング/補間...")
             resample_action.triggered.connect(self._on_resample_dataset)
 
             # 重複X値の検出(項目C-203): 平均化(新規データセット)または
             # 除去(先頭以外をマスク)を選ばせる。
-            duplicate_x_action = menu.addAction("重複X値の検出...")
+            duplicate_x_action = data_proc_menu.addAction("重複X値の検出...")
             duplicate_x_action.triggered.connect(self._on_detect_duplicate_x)
 
             # 行フィルタ(項目C-204): 条件式を満たさない行をマスク(項目36、非破壊)する。
-            row_filter_action = menu.addAction("行フィルタ...")
+            row_filter_action = data_proc_menu.addAction("行フィルタ...")
             row_filter_action.triggered.connect(self._on_filter_rows)
 
             # 統計的外れ値検出(項目C-306): 検出のみ/マスクへの適用はユーザーが
             # ダイアログのチェックボックスで明示的に選ぶ(自動では適用しない)。
-            outlier_action = menu.addAction("外れ値検出(Z-score/IQR)...")
+            outlier_action = data_proc_menu.addAction("外れ値検出(Z-score/IQR)...")
             outlier_action.triggered.connect(self._on_detect_outliers)
 
             # 統計値アンカーラベル(項目C-708): カレントデータセットのR²/Y平均/
@@ -365,22 +394,22 @@ class DatasetMixin:
             # 座標(左上起点に縦積み)に追加する。固定テキストではなく描画のたびに
             # 再計算される(gui/canvas.pyの_compute_stat_label_text)ため、
             # データやフィットを更新すると値が自動的に追従する。
-            add_stat_label_action = menu.addAction("統計値アンカーラベルを追加...")
+            add_stat_label_action = analysis_menu.addAction("統計値アンカーラベルを追加...")
             add_stat_label_action.triggered.connect(self._on_add_stat_anchor_label)
 
             # インセット(拡大図)+拡大範囲の指示線(項目138、C-711)
-            add_inset_action = menu.addAction("インセット(拡大図)を追加...")
+            add_inset_action = analysis_menu.addAction("インセット(拡大図)を追加...")
             add_inset_action.triggered.connect(self._on_add_inset)
 
             # ピーク位置へのスマート自動ラベル(項目134、C-707)
-            add_peak_labels_action = menu.addAction("ピーク位置に自動ラベルを追加...")
+            add_peak_labels_action = analysis_menu.addAction("ピーク位置に自動ラベルを追加...")
             add_peak_labels_action.triggered.connect(self._on_add_smart_peak_labels)
 
             # ヒストグラム / カーネル密度推定(項目115、C-505): カレント1件の
             # 任意の数値列を集計し、新しいデータセットを1つ作る(上記の
             # Savitzky-Golay/ベースライン補正/累積積分と同じ「カレント1件から
             # 新しいデータセットを1つ作る」パターン)。
-            histogram_action = menu.addAction("ヒストグラム / KDE...")
+            histogram_action = analysis_menu.addAction("ヒストグラム / KDE...")
             histogram_action.triggered.connect(self._on_generate_histogram_or_kde)
 
             # 「方法」文の自動生成(項目C-1102): カレントデータセットが処理履歴
@@ -388,47 +417,57 @@ class DatasetMixin:
             # (export_fit_actionと同じ、常時メニューには出すが対象外の状態では
             # グレーアウトするパターン)。元データ(provenance無し)には
             # 生成する意味のある「方法」が無いため対象外。
-            copy_methods_text_action = menu.addAction("「方法」文をコピー...")
+            copy_methods_text_action = export_menu.addAction("「方法」文をコピー...")
             copy_methods_text_action.setEnabled(self._get_current_dataset().provenance is not None)
             copy_methods_text_action.triggered.connect(self._on_copy_methods_text)
 
         selected_count = len(self._get_selected_datasets())
         if selected_count >= 2:
-            menu.addSeparator()
             if selected_count == 2:
-                arithmetic_action = menu.addAction("データセット間演算...")
+                arithmetic_action = multi_menu.addAction("データセット間演算...")
                 arithmetic_action.triggered.connect(self._on_dataset_arithmetic)
 
                 # X軸アライメント(項目105、C-307): データセット間演算と同じ
                 # 「ちょうど2件」限定の操作(A=基準、B=位置合わせ対象は選択順)。
-                align_action = menu.addAction("X軸アライメント(相互相関)...")
+                align_action = multi_menu.addAction("X軸アライメント(相互相関)...")
                 align_action.triggered.connect(self._on_align_datasets)
 
             # 複数データセットの平均±SD生成(項目C-312): 2件以上を対象にする
             # (「ちょうど2件」限定のデータセット間演算とは異なる)。
-            mean_sd_action = menu.addAction("平均±SD生成...")
+            mean_sd_action = multi_menu.addAction("平均±SD生成...")
             mean_sd_action.triggered.connect(self._on_generate_mean_sd)
 
-            batch_calc_action = menu.addAction("バッチ列計算...")
+            batch_calc_action = multi_menu.addAction("バッチ列計算...")
             batch_calc_action.triggered.connect(self._on_batch_column_calculate)
 
-            batch_fit_action = menu.addAction("バッチカーブフィット...")
+            batch_fit_action = multi_menu.addAction("バッチカーブフィット...")
             batch_fit_action.triggered.connect(self._on_batch_curve_fit)
 
         if self._get_selected_datasets():
-            menu.addSeparator()
-            export_data_action = menu.addAction("データ表をファイルに書き出す...")
+            export_data_action = export_menu.addAction("データ表をファイルに書き出す...")
             export_data_action.triggered.connect(self._on_export_dataset_data)
 
             # タブ間のデータセットコピー/移動(項目C-905): タブ=完全に独立した
             # プロジェクトという設計上、他のタブが無ければ意味を成さないため
             # 常に表示しつつハンドラ側で案内する(setEnabledで隠すより、
             # 「タブが無いから使えない」ことに気づける方が親切なため)。
-            copy_to_tab_action = menu.addAction("別のタブへコピー...")
+            copy_to_tab_action = tab_menu.addAction("別のタブへコピー...")
             copy_to_tab_action.triggered.connect(lambda: self._on_copy_or_move_dataset_to_tab(move=False))
 
-            move_to_tab_action = menu.addAction("別のタブへ移動...")
+            move_to_tab_action = tab_menu.addAction("別のタブへ移動...")
             move_to_tab_action.triggered.connect(lambda: self._on_copy_or_move_dataset_to_tab(move=True))
+
+        # ★ 改善ボード C-2: 上の各ブロックで中身を詰めたサブメニューを、ここで
+        # まとめて menu に繋ぐ。選択状態によっては1項目も入らないもの
+        # (例: 1件だけ選択しているときの「複数データセット」)があるため、
+        # 空のサブメニューは出さない(開いても何も無いメニューは邪魔なだけ)。
+        attached_any = False
+        for sub in submenus:
+            if sub.actions():
+                if not attached_any:
+                    menu.addSeparator()
+                    attached_any = True
+                menu.addMenu(sub)
 
         if self.ui.dataset_list_widget.selectedItems():
             menu.addSeparator()
@@ -2515,7 +2554,29 @@ class DatasetMixin:
         チェックボックス自体は常に表示し、オフセット量スピンボックスだけを
         チェック状態に応じて表示/非表示にする(_update_gradient_controls_visibility の
         「詳細設定はチェック後にだけ見せる」パターンと同じ)。
+
+        ★ 改善ボード A-5: 2Dマップ(data_kind='2d_grid')は gui/canvas.py の
+        _draw_data() が描画の手前で1D経路から分離する(_draw_2d_data へ振り分ける)
+        ため、ウォーターフォール設定は何の効果も持たない。それでもチェックボックスを
+        含む最大6行が表示され続けていたので、2Dのときは丸ごと隠す
+        (グラデーション設定を plot_type で出し分けている
+        _update_gradient_controls_visibility と挙動を揃える)。
         """
+        dataset = self._get_current_dataset()
+        # 2Dマップではウォーターフォールは効かないので、チェックボックスごと隠す。
+        # 選択なし(None)の場合は従来どおり表示する(他の 1D 系コントロールと同じ扱い)。
+        is_2d = dataset is not None and dataset.data_kind == '2d_grid'
+        if is_2d:
+            for widget in (
+                self.waterfall_checkbox,
+                self.waterfall_offset_x_label, self.waterfall_offset_x_spinbox,
+                self.waterfall_offset_y_label, self.waterfall_offset_y_spinbox,
+                self.waterfall_occlusion_checkbox, self.waterfall_depth_checkbox,
+                self.waterfall_depth_ratio_label, self.waterfall_depth_ratio_spinbox,
+            ):
+                widget.setVisible(False)
+            return
+
         self.waterfall_checkbox.setVisible(True)
         show_offsets = self.waterfall_checkbox.isChecked()
 
