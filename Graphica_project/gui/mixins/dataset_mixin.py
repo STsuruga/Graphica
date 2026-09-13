@@ -2606,6 +2606,8 @@ class DatasetMixin:
         show_target_combo = show_detail and plot_type == 'Area'
         self.gradient_target_label.setVisible(show_target_combo)
         self.gradient_target_combo.setVisible(show_target_combo)
+        # C-1: 中身が全部隠れたサブセクションは見出しごと畳む
+        self._update_property_section_visibility()
 
     def _update_smoothing_control_visibility(self):
         """
@@ -2629,6 +2631,7 @@ class DatasetMixin:
         self.smoothing_method_label.setVisible(is_smoothable_type)
         self.smoothing_method_combo.setVisible(is_smoothable_type)
         self.smoothing_method_combo.setEnabled(self.ui.smoothing_checkbox.isChecked())
+        self._update_property_section_visibility()
 
     def _update_error_display_control_items(self):
         """
@@ -2680,6 +2683,7 @@ class DatasetMixin:
                 self.waterfall_depth_ratio_label, self.waterfall_depth_ratio_spinbox,
             ):
                 widget.setVisible(False)
+            self._update_property_section_visibility()
             return
 
         self.waterfall_checkbox.setVisible(True)
@@ -2700,6 +2704,7 @@ class DatasetMixin:
         show_depth_ratio = show_offsets and self.waterfall_depth_checkbox.isChecked()
         self.waterfall_depth_ratio_label.setVisible(show_depth_ratio)
         self.waterfall_depth_ratio_spinbox.setVisible(show_depth_ratio)
+        self._update_property_section_visibility()
 
     def _on_auto_assign_colors(self):
         """
@@ -3359,6 +3364,8 @@ class DatasetMixin:
             self.grid_interp_method_label, self.grid_interp_method_combo,
         ):
             widget.setVisible(is_2d)
+
+        self._update_property_section_visibility()
 
     def _on_error_column_changed(self):
         """

@@ -110,6 +110,39 @@ DOCK_LAYOUT_VERSION = 4  # v4: 「プロットのプロパティ」「データ�
 # 明示的に名前を付けて保存する複数のプリセットを保持するQSettingsキー。
 DOCK_LAYOUT_PRESETS_SETTINGS_KEY = "dock_layout_presets"
 
+# 「データセットのプロパティ」パネルのサブセクション(改善ボード C-1)。
+# Designer生成分+実行時追加で39行が1本のQFormLayoutに縦積みになっており、
+# プロット種別や2Dマップのトグルひとつでパネル高さが763px〜1134pxまで
+# 伸縮していた(実測)。7つの折りたたみ可能なセクションに分け、伸縮する
+# ブロック(グラデーション/ウォーターフォール/2Dマップ)がそれぞれ自分の
+# 見出しの中で開閉するようにする。
+#
+# ★ このタプルが唯一の定義元。新しい行を足すときは、対応するセクションの
+#   キーを _prop_form() に渡すだけでよく、番号指定の insertRow(N, ...) は
+#   もう存在しない(旧 formLayout_4 の「実行順に依存した番号指定挿入」という
+#   地雷は、この分割で丸ごと無くなっている)。
+DATASET_PROPERTY_SECTIONS = (
+    ('data',      'データ列'),
+    ('style',     '基本スタイル'),
+    ('gradient',  'グラデーション'),
+    ('waterfall', 'ウォーターフォール'),
+    ('map',       '2Dマップ・値による配色'),
+    ('extra',     '表示の追加要素'),
+    ('place',     '配置・情報'),
+)
+
+# 折りたたみ状態の永続化キー。既定は「全セクション展開」で、ユーザーが
+# 閉じたセクションのキーだけをJSON配列として保存する(=キーが無い/空なら
+# 従来と同じ全展開。新しいセクションを足しても既定は展開のまま)。
+DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY = "dataset_property_collapsed_sections"
+
+# プラグインが register_plot_type() で登録する種別名は任意長のため、
+# 何も対策しないと plot_type_combo の sizeHint が最長項目に合わせて広がり、
+# QFormLayout の列幅を通じてプロパティドックに横スクロールバーが出る
+# (D-2 で実際に踏んだ。当時は組み込み種別名を15文字に縮めて回避した)。
+# コンボ自身の希望幅をこの文字数ぶんに固定し、長い名前は省略表示させる。
+PLOT_TYPE_COMBO_MIN_CHARS = 16
+
 # 2Dマップ(ヒートマップ、項目C-508)のカラーマップ選択肢。matplotlib組み込みの
 # 連続カラーマップから、科学データの可視化でよく使われるものを厳選(全カラーマップを
 # 網羅すると選択肢が多すぎて選びにくくなるため)。'viridis'を既定にしているのは
@@ -1039,19 +1072,24 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.dataset_overflow_button.setMenu(overflow_menu)
         self.ui.horizontalLayout_3.addWidget(self.dataset_overflow_button)
 
+        # 1z. 「データセットのプロパティ」を7つの折りたたみサブセクションに分割する
+        #     (改善ボード C-1)。以降の行追加は全て self._prop_form(<キー>) 経由で、
+        #     追加した順にそのセクションの末尾へ並ぶ。Designer 生成の8行もここで
+        #     移設されるため、この呼び出しより前に formLayout_4 を触るコード
+        #     (色ピッカーの replaceWidget) との順序は変えないこと。
+        self._build_dataset_property_sections()
+
         # 2. X/Y軸 列選択コンボボックスをコードで作成
         self.x_col_combo = QComboBox()
         self.y_col_combo = QComboBox()
-        # Designer 上の既存のフォームレイアウト (formLayout_4) に挿入
-        # (insertRow(1,...) を2回呼ぶと、2つ目が1行目、1つ目が2行目になる)
-        self.ui.formLayout_4.insertRow(1, "Y軸の列", self.y_col_combo)
-        self.ui.formLayout_4.insertRow(1, "X軸の列", self.x_col_combo)
+        self._prop_form('data').addRow("X軸の列", self.x_col_combo)
+        self._prop_form('data').addRow("Y軸の列", self.y_col_combo)
 
         # 2b. エラーバー用の誤差列選択コンボボックス ("(なし)" を選ぶとエラーバー非表示)
         self.x_err_col_combo = QComboBox()
         self.y_err_col_combo = QComboBox()
-        self.ui.formLayout_4.insertRow(3, "Y誤差列", self.y_err_col_combo)
-        self.ui.formLayout_4.insertRow(3, "X誤差列", self.x_err_col_combo)
+        self._prop_form('data').addRow("X誤差列", self.x_err_col_combo)
+        self._prop_form('data').addRow("Y誤差列", self.y_err_col_combo)
 
         # 2c. 透明度(アルファ)スピンボックスを追加 (0.0=完全に透明 ～ 1.0=不透明)
         self.alpha_label = QLabel("透明度")
@@ -1060,7 +1098,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.alpha_spinbox.setSingleStep(0.05)
         self.alpha_spinbox.setDecimals(2)
         self.alpha_spinbox.setValue(1.0)
-        self.ui.formLayout_4.insertRow(5, self.alpha_label, self.alpha_spinbox)
+        self._prop_form('style').addRow(self.alpha_label, self.alpha_spinbox)
 
         # 2c-2. プロットへのグラデーション適用(項目79): 線ストロークグラデーション
         # (線の色を開始色→終端色へ連続的に変化させる)と、塗りグラデーション
@@ -1069,18 +1107,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # (項目65)を再利用し、対象(線/塗り/両方)はプロットタイプに応じて
         # 関連する選択肢だけを見せる(_update_gradient_controls_visibility で制御)。
         self.gradient_checkbox = QCheckBox(tr("グラデーションを適用"))
-        self.ui.formLayout_4.addRow(self.gradient_checkbox)
+        self._prop_form('gradient').addRow(self.gradient_checkbox)
 
         self.gradient_color2_label = QLabel(tr("グラデーション終端色"))
         self.gradient_color2_picker = ColorPickerWidget(self.settings, self, initial_color='#ffffff')
-        self.ui.formLayout_4.addRow(self.gradient_color2_label, self.gradient_color2_picker)
+        self._prop_form('gradient').addRow(self.gradient_color2_label, self.gradient_color2_picker)
 
         self.gradient_target_label = QLabel(tr("グラデーション対象"))
         self.gradient_target_combo = QComboBox()
         self.gradient_target_combo.addItem(tr("線"), "line")
         self.gradient_target_combo.addItem(tr("塗り"), "fill")
         self.gradient_target_combo.addItem(tr("両方"), "both")
-        self.ui.formLayout_4.addRow(self.gradient_target_label, self.gradient_target_combo)
+        self._prop_form('gradient').addRow(self.gradient_target_label, self.gradient_target_combo)
 
         # 2c-3. ウォーターフォールプロット(項目80、項目109で独立したプロット種別
         # から「積み重ねオプション」に変更): plot_typeとは独立したチェックボックス
@@ -1093,7 +1131,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 表示/非表示は _update_gradient_controls_visibility と同じパターンで
         # _update_waterfall_controls_visibility が行う(dataset_mixin.py)。
         self.waterfall_checkbox = QCheckBox(tr("ウォーターフォール表示(積み重ね)"))
-        self.ui.formLayout_4.addRow(self.waterfall_checkbox)
+        self._prop_form('waterfall').addRow(self.waterfall_checkbox)
 
         self.waterfall_offset_x_label = QLabel(tr("ウォーターフォールXオフセット"))
         self.waterfall_offset_x_spinbox = QDoubleSpinBox()
@@ -1101,7 +1139,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_offset_x_spinbox.setSingleStep(0.1)
         self.waterfall_offset_x_spinbox.setDecimals(4)
         self.waterfall_offset_x_spinbox.setValue(0.0)
-        self.ui.formLayout_4.addRow(self.waterfall_offset_x_label, self.waterfall_offset_x_spinbox)
+        self._prop_form('waterfall').addRow(self.waterfall_offset_x_label, self.waterfall_offset_x_spinbox)
 
         self.waterfall_offset_y_label = QLabel(tr("ウォーターフォールYオフセット"))
         self.waterfall_offset_y_spinbox = QDoubleSpinBox()
@@ -1109,13 +1147,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_offset_y_spinbox.setSingleStep(0.1)
         self.waterfall_offset_y_spinbox.setDecimals(4)
         self.waterfall_offset_y_spinbox.setValue(1.0)
-        self.ui.formLayout_4.addRow(self.waterfall_offset_y_label, self.waterfall_offset_y_spinbox)
+        self._prop_form('waterfall').addRow(self.waterfall_offset_y_label, self.waterfall_offset_y_spinbox)
 
         # ★ 実機フィードバック: 「手前が奥を隠す(オクルージョン)はon/off切り替え
         #   可能にして」。既定はTrue(従来通りの見た目)。
         self.waterfall_occlusion_checkbox = QCheckBox(tr("背面のトレースを隠す(オクルージョン)"))
         self.waterfall_occlusion_checkbox.setChecked(True)
-        self.ui.formLayout_4.addRow(self.waterfall_occlusion_checkbox)
+        self._prop_form('waterfall').addRow(self.waterfall_occlusion_checkbox)
 
         # ウォーターフォールの斜向/立体風トグル(項目120、C-514)。奥の
         # トレースほどY振幅をわずかに縮小して描画し、疑似的な奥行きを出す
@@ -1123,7 +1161,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # と同じくスピンボックスで直接指定できる。
         self.waterfall_depth_checkbox = QCheckBox(tr("奥行き効果(奥のトレースをわずかに縮小)"))
         self.waterfall_depth_checkbox.setChecked(False)
-        self.ui.formLayout_4.addRow(self.waterfall_depth_checkbox)
+        self._prop_form('waterfall').addRow(self.waterfall_depth_checkbox)
 
         self.waterfall_depth_ratio_label = QLabel(tr("奥行き縮小率(1段あたり)"))
         self.waterfall_depth_ratio_spinbox = QDoubleSpinBox()
@@ -1131,14 +1169,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_depth_ratio_spinbox.setSingleStep(0.01)
         self.waterfall_depth_ratio_spinbox.setDecimals(3)
         self.waterfall_depth_ratio_spinbox.setValue(0.03)
-        self.ui.formLayout_4.addRow(self.waterfall_depth_ratio_label, self.waterfall_depth_ratio_spinbox)
+        self._prop_form('waterfall').addRow(self.waterfall_depth_ratio_label, self.waterfall_depth_ratio_spinbox)
 
         # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")
-        self.ui.formLayout_4.addRow(self.point_labels_checkbox)
+        self._prop_form('extra').addRow(self.point_labels_checkbox)
         self.point_label_col_label = QLabel("ラベルの内容")
         self.point_label_col_combo = QComboBox()
-        self.ui.formLayout_4.addRow(self.point_label_col_label, self.point_label_col_combo)
+        self._prop_form('extra').addRow(self.point_label_col_label, self.point_label_col_combo)
 
         # 2e. 誤差の表示形式(項目C-502): エラーバー('bar')・誤差バンド('band',
         # fill_between)・両方('both')から選択する。X/Y誤差列が未設定なら
@@ -1148,7 +1186,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.error_display_combo.addItem(tr("エラーバー"), "bar")
         self.error_display_combo.addItem(tr("誤差バンド"), "band")
         self.error_display_combo.addItem(tr("両方"), "both")
-        self.ui.formLayout_4.addRow(self.error_display_label, self.error_display_combo)
+        self._prop_form('extra').addRow(self.error_display_label, self.error_display_combo)
 
         # 2f. 2Dグリッドデータ(ヒートマップ、項目C-508): 有効にすると、通常の
         # 点列描画(plot_type)ではなく、X/Y/Z列を持つ長形式のdfをヒートマップ
@@ -1157,16 +1195,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # data_2d_checkboxがONの時だけ表示する(_update_2d_controls_visibility、
         # gui/mixins/dataset_mixin.py)。
         self.data_2d_checkbox = QCheckBox(tr("2Dグリッドデータとして扱う(ヒートマップ)"))
-        self.ui.formLayout_4.addRow(self.data_2d_checkbox)
+        self._prop_form('map').addRow(self.data_2d_checkbox)
 
         self.z_col_label = QLabel(tr("Z軸の列"))
         self.z_col_combo = QComboBox()
-        self.ui.formLayout_4.addRow(self.z_col_label, self.z_col_combo)
+        self._prop_form('map').addRow(self.z_col_label, self.z_col_combo)
 
         self.colormap_label = QLabel(tr("カラーマップ"))
         self.colormap_combo = QComboBox()
         self.colormap_combo.addItems(COLORMAP_CHOICES)
-        self.ui.formLayout_4.addRow(self.colormap_label, self.colormap_combo)
+        self._prop_form('map').addRow(self.colormap_label, self.colormap_combo)
 
         # 2Dマップの描画方式(項目C-509)。'heatmap'(既定)/'contour'(線のみ)/
         # 'contour_filled'(塗りつぶし等高線)/'heatmap_contour'(重ね描き)。
@@ -1176,29 +1214,29 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.map_display_mode_combo.addItem(tr("等高線(線)"), "contour")
         self.map_display_mode_combo.addItem(tr("等高線(塗りつぶし)"), "contour_filled")
         self.map_display_mode_combo.addItem(tr("ヒートマップ+等高線"), "heatmap_contour")
-        self.ui.formLayout_4.addRow(self.map_display_mode_label, self.map_display_mode_combo)
+        self._prop_form('map').addRow(self.map_display_mode_label, self.map_display_mode_combo)
 
         self.contour_levels_label = QLabel(tr("等高線のレベル数"))
         self.contour_levels_spinbox = QSpinBox()
         self.contour_levels_spinbox.setRange(2, 100)
         self.contour_levels_spinbox.setValue(10)
-        self.ui.formLayout_4.addRow(self.contour_levels_label, self.contour_levels_spinbox)
+        self._prop_form('map').addRow(self.contour_levels_label, self.contour_levels_spinbox)
 
         self.grid_interp_method_label = QLabel(tr("散在データの補間方法"))
         self.grid_interp_method_combo = QComboBox()
         self.grid_interp_method_combo.addItems(['linear', 'cubic', 'nearest'])
-        self.ui.formLayout_4.addRow(self.grid_interp_method_label, self.grid_interp_method_combo)
+        self._prop_form('map').addRow(self.grid_interp_method_label, self.grid_interp_method_combo)
 
         self.color_range_auto_checkbox = QCheckBox(tr("値域を自動"))
         self.color_range_auto_checkbox.setChecked(True)
-        self.ui.formLayout_4.addRow(self.color_range_auto_checkbox)
+        self._prop_form('map').addRow(self.color_range_auto_checkbox)
 
         self.vmin_label = QLabel(tr("値域の最小"))
         self.vmin_spinbox = QDoubleSpinBox()
         self.vmin_spinbox.setRange(-1e12, 1e12)
         self.vmin_spinbox.setDecimals(4)
         self.vmin_spinbox.setEnabled(False)
-        self.ui.formLayout_4.addRow(self.vmin_label, self.vmin_spinbox)
+        self._prop_form('map').addRow(self.vmin_label, self.vmin_spinbox)
 
         self.vmax_label = QLabel(tr("値域の最大"))
         self.vmax_spinbox = QDoubleSpinBox()
@@ -1206,7 +1244,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.vmax_spinbox.setDecimals(4)
         self.vmax_spinbox.setValue(1.0)
         self.vmax_spinbox.setEnabled(False)
-        self.ui.formLayout_4.addRow(self.vmax_label, self.vmax_spinbox)
+        self._prop_form('map').addRow(self.vmax_label, self.vmax_spinbox)
 
         # 2g. 欠損値(NaN)の方針設定(項目C-201): プロット描画時のみに効く表示上の
         # 設定で、Dataset.x_data/y_data(フィット・エクスポート等の他の消費者が使う
@@ -1218,7 +1256,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.nan_policy_combo.addItem(tr("線を切る(既定)"), "gap")
         self.nan_policy_combo.addItem(tr("前の値で埋める"), "ffill")
         self.nan_policy_combo.addItem(tr("無視してつなぐ"), "drop")
-        self.ui.formLayout_4.addRow(self.nan_policy_label, self.nan_policy_combo)
+        self._prop_form('data').addRow(self.nan_policy_label, self.nan_policy_combo)
 
         # 2h. 平滑化の手法(項目C-304): 既存の「平滑化」チェックボックス
         # (smoothing_checkbox、Designer生成)は on/off のみを制御し、こちらの
@@ -1233,7 +1271,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.smoothing_method_combo.addItem(tr("移動平均"), "moving_average")
         self.smoothing_method_combo.addItem(tr("中央値フィルタ"), "median")
         self.smoothing_method_combo.addItem(tr("ガウシアンフィルタ"), "gaussian")
-        self.ui.formLayout_4.addRow(self.smoothing_method_label, self.smoothing_method_combo)
+        # ★ C-1: Designer生成の「平滑化」チェックボックスは、この手法コンボと
+        #   必ず一緒に出入りする対なので、_build_dataset_property_sections() では
+        #   移設を保留しておき、ここで手法コンボの直前に置く(そうしないと
+        #   「平滑化」と「平滑化の手法」の間に「透明度」が挟まる)。
+        self._prop_form('style').addRow(self.ui.smoothing_checkbox)
+        self._prop_form('style').addRow(self.smoothing_method_label, self.smoothing_method_combo)
 
         # 3. 凡例の位置を選択するUIをコードで作成
         self.legend_loc_label = QLabel("凡例の位置")
@@ -1277,7 +1320,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.fit_info_textedit = QTextEdit()
         self.fit_info_textedit.setReadOnly(True)
         self.fit_info_textedit.setFixedHeight(100) # 高さを固定
-        self.ui.formLayout_4.addRow(self.fit_info_label, self.fit_info_textedit)
+        # ★ C-1: レイアウトへの追加は「配置・情報」セクションの最後 (描画先プロットの
+        #   後ろ) で行う。フィットが無いときは隠れる100px高の読み取り専用欄なので、
+        #   セクションの先頭に置くと、フィットするたびに下の2項目が押し下げられる。
 
         # 4b. 統計サマリー表示用のUI (項目106: 以前は「データセットのプロパティ」に
         #     常時1行を占有していたが、常に使う情報ではないため、ツールバーの
@@ -1315,7 +1360,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # 5. 第2Y軸チェックボックスを追加
         self.use_secondary_y_checkbox = QCheckBox("第2Y軸 (右側) を使用")
-        self.ui.formLayout_4.addRow(self.use_secondary_y_checkbox)
+        self._prop_form('place').addRow(self.use_secondary_y_checkbox)
 
         # 6. 第2Y軸ラベル用のUI (非表示で) 追加
         self.y2_label_text_label = QLabel("第2Y軸ラベル")
@@ -1648,7 +1693,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 1. 「描画先」コンボボックスを "プロパティ" 欄に追加
         self.subplot_target_label = QLabel("描画先プロット")
         self.subplot_target_combo = QComboBox()
-        self.ui.formLayout_4.addRow(self.subplot_target_label, self.subplot_target_combo)
+        self._prop_form('place').addRow(self.subplot_target_label, self.subplot_target_combo)
+        # フィット情報欄 (上で構築済み) は、このセクションの最後に置く
+        self._prop_form('place').addRow(self.fit_info_label, self.fit_info_textedit)
 
         # 2. ★ GUI洗練: 「プロットのプロパティ」(control_dock_widget) と
         #    「データセットのプロパティ」(properties_groupbox) は、以前は別々の
@@ -1973,7 +2020,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         spacing_value = 6
         if self.ui.formLayout_3: self.ui.formLayout_3.setSpacing(spacing_value)
-        if self.ui.formLayout_4: self.ui.formLayout_4.setSpacing(spacing_value)
+        # C-1: formLayout_4 は空になったので、各サブセクションの QFormLayout に掛ける
+        for key, _title in DATASET_PROPERTY_SECTIONS:
+            self._prop_form(key).setSpacing(spacing_value)
 
 
         # X/Y軸の最小値・最大値: 負の値も含めて指数表記で入力できるようにする
@@ -2904,6 +2953,168 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         wrapper_layout.addWidget(toggle_button)
         wrapper_layout.addWidget(group_box)
         return wrapper
+
+    #==========================================================================
+    # データセットのプロパティパネルのサブセクション (改善ボード C-1)
+    #==========================================================================
+
+    def _build_dataset_property_sections(self):
+        """
+        「データセットのプロパティ」の中身を、DATASET_PROPERTY_SECTIONS で定義した
+        7つの折りたたみ可能なサブセクションに分割する(改善ボード C-1)。
+
+        Designer が作った formLayout_4 に全部を縦積みするのをやめ、セクションごとに
+        独立した QFormLayout を持たせる。これには2つの効果がある:
+
+        1. 番号指定の insertRow(N, ...) が不要になる。従来は行1〜5の挿入が
+           「この順に実行されること」に依存しており、間に1行足すと無関係な
+           フィールドが黙ってずれるという地雷だった(CLAUDE.md参照)。
+        2. QFormLayout の列幅は「そのレイアウト内の最長ウィジェット」で決まるため、
+           レイアウトを分ければ幅の波及もセクション内に閉じる。D-2 で踏んだ
+           「plot_type_combo が広がってフォーム全体が横にはみ出す」波及範囲が、
+           フォーム全体から「基本スタイル」1セクションへ縮む。
+
+        Designer 生成の8行(凡例名/種別/色/線の種類/線の太さ/マーカー/サイズ/平滑化)は
+        takeRow() で formLayout_4 から取り外して移設する。removeRow() はウィジェット
+        ごと破棄してしまうので使ってはいけない。平滑化チェックボックスだけは、
+        後から追加される「透明度」「平滑化の手法」との並び順を揃えるため、ここでは
+        移設せず保留し、_prop_form('style') への追加は呼び出し側が行う
+        (self._pending_smoothing_checkbox_row)。
+        """
+        self._prop_sections = {}
+
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+
+        collapsed = self._load_collapsed_property_sections()
+
+        for key, title in DATASET_PROPERTY_SECTIONS:
+            body = QWidget()
+            form = QFormLayout(body)
+            # 見出し7本ぶんの高さは純増になるので、本体側の余白は詰める
+            # (左の6pxだけは、見出しに対する従属関係を示すインデントとして残す)。
+            form.setContentsMargins(6, 0, 0, 4)
+            form.setSpacing(6)
+
+            toggle_button = QToolButton()
+            toggle_button.setText(tr(title))
+            toggle_button.setCheckable(True)
+            toggle_button.setIcon(_svg_icon("chevron-down", size=13))
+            toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            # ★ トップレベルの2セクション(項目102)とは別のobjectNameにする。
+            #   theme.py 側で一段控えめな見出しとしてスタイルでき、既存の
+            #   「トグルボタンはちょうど2つ」というテストも壊れない。
+            toggle_button.setObjectName("property_subsection_toggle")
+            toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            toggle_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            toggle_button.setChecked(key not in collapsed)
+
+            section = QWidget()
+            section_layout = QVBoxLayout(section)
+            section_layout.setContentsMargins(0, 0, 0, 0)
+            section_layout.setSpacing(0)
+            section_layout.addWidget(toggle_button)
+            section_layout.addWidget(body)
+            body.setVisible(toggle_button.isChecked())
+
+            toggle_button.toggled.connect(
+                lambda checked, k=key: self._on_property_section_toggled(k, checked))
+
+            container_layout.addWidget(section)
+            self._prop_sections[key] = {
+                'form': form, 'body': body, 'toggle': toggle_button, 'section': section,
+            }
+
+        # 空になった formLayout_4 は、Designer 生成物 (ui_main_window.py) 側の
+        # 構造なので取り除かずそのまま残す。余白だけ潰して高さ0にしておく。
+        for row in range(self.ui.formLayout_4.rowCount() - 1, -1, -1):
+            self.ui.formLayout_4.takeRow(row)
+        self.ui.formLayout_4.setContentsMargins(0, 0, 0, 0)
+        self.ui.formLayout_4.setSpacing(0)
+        self.ui.gridLayout_4.addWidget(container, 1, 0, 1, 1)
+        self._dataset_property_sections_container = container
+
+        style_form = self._prop_form('style')
+        style_form.addRow(self.ui.legend_name_label, self.ui.legend_name_edit)
+        style_form.addRow(self.ui.plot_type_label, self.ui.plot_type_combo)
+        style_form.addRow(self.ui.color_label, self.color_picker_widget)
+        style_form.addRow(self.ui.linestyle_label, self.ui.linestyle_combo)
+        style_form.addRow(self.ui.linewidth_label, self.ui.linewidth_spinbox)
+        style_form.addRow(self.ui.marker_label, self.ui.marker_combo)
+        style_form.addRow(self.ui.makersize_label, self.ui.markersize_spinbox)
+
+        # D-2 でフラグした横はみ出し対策: コンボ自身の希望幅を文字数で固定し、
+        # プラグインが長い種別名を登録しても列幅が引きずられないようにする。
+        self.ui.plot_type_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.ui.plot_type_combo.setMinimumContentsLength(PLOT_TYPE_COMBO_MIN_CHARS)
+
+    def _prop_form(self, section_key):
+        """サブセクション(DATASET_PROPERTY_SECTIONS のキー)の QFormLayout を返す。"""
+        return self._prop_sections[section_key]['form']
+
+    def _load_collapsed_property_sections(self):
+        """QSettings から「閉じている」セクションキーの集合を読む(既定は空=全展開)。"""
+        raw = self.settings.value(DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY, "[]")
+        try:
+            keys = json.loads(raw) if isinstance(raw, str) else list(raw)
+        except (ValueError, TypeError):
+            return set()
+        valid = {key for key, _ in DATASET_PROPERTY_SECTIONS}
+        return {k for k in keys if k in valid}
+
+    def _on_property_section_toggled(self, section_key, checked):
+        """
+        サブセクションの開閉。本体の表示を切り替え、シェブロンの向きを直し、
+        閉じているセクションの一覧を QSettings へ書き戻す(ユーザー決定:
+        既定は全展開だが、一度閉じたものは次の起動でも閉じたまま)。
+        """
+        entry = self._prop_sections.get(section_key)
+        if entry is None:
+            return
+        entry['body'].setVisible(checked)
+        entry['toggle'].setIcon(
+            _svg_icon("chevron-down" if checked else "chevron-right", size=13))
+
+        collapsed = sorted(
+            key for key, _ in DATASET_PROPERTY_SECTIONS
+            if not self._prop_sections[key]['toggle'].isChecked()
+        )
+        self.settings.setValue(
+            DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY, json.dumps(collapsed))
+
+    def _update_property_section_visibility(self):
+        """
+        中身の行が1つも表示されないセクションは、見出しごと隠す。
+
+        条件付き表示(_update_gradient_controls_visibility 等)で中身が全部消えた
+        セクションの見出しだけが残ると、折りたたみで減らしたぶんの場所を
+        見出しが食い返してしまう。C-2 で「選択状態によって空になるサブメニューは
+        出さない」としたのと同じ方針。
+        """
+        sections = getattr(self, '_prop_sections', None)
+        if not sections:
+            return
+        for key, _ in DATASET_PROPERTY_SECTIONS:
+            entry = sections.get(key)
+            if entry is None:
+                continue
+            form = entry['form']
+            has_visible = False
+            for row in range(form.rowCount()):
+                for role in (QFormLayout.ItemRole.LabelRole,
+                             QFormLayout.ItemRole.FieldRole,
+                             QFormLayout.ItemRole.SpanningRole):
+                    item = form.itemAt(row, role)
+                    if item is not None and item.widget() is not None \
+                            and not item.widget().isHidden():
+                        has_visible = True
+                        break
+                if has_visible:
+                    break
+            entry['section'].setVisible(has_visible)
 
     #==========================================================================
     # データセットリスト (QTreeWidget) 関連のヘルパー

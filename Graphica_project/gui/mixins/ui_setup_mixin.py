@@ -890,6 +890,12 @@ class UISetupMixin:
             toggle_button.setIcon(
                 _svg_icon("chevron-down" if toggle_button.isChecked() else "chevron-right", size=14)
             )
+        # C-1: プロパティパネル内のサブセクション見出しも同じシェブロンを使う
+        for entry in getattr(self, '_prop_sections', {}).values():
+            button = entry['toggle']
+            button.setIcon(
+                _svg_icon("chevron-down" if button.isChecked() else "chevron-right", size=13)
+            )
 
     def _set_initial_ui_state(self):
             """

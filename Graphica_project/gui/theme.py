@@ -427,6 +427,27 @@ QToolButton#collapsible_section_toggle:hover {{
 QToolButton#collapsible_section_toggle:pressed {{
     background: {accent_soft};
 }}
+
+/* --- プロパティパネル内のサブセクション見出し(改善ボード C-1) ---
+   上の collapsible_section_toggle の一段内側に入る見出しなので、
+   親と同じ強さで並ぶと階層が読めなくなる。小さめ・細字にして従属を示す。 */
+QToolButton#property_subsection_toggle {{
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 2px;
+    text-align: left;
+    font-weight: 500;
+    font-size: 11.5px;
+    color: {text_secondary};
+}}
+QToolButton#property_subsection_toggle:hover {{
+    background: {surface_2};
+    color: {text_primary};
+}}
+QToolButton#property_subsection_toggle:pressed {{
+    background: {accent_soft};
+}}
 QPushButton {{
     background: {surface};
     border: 1px solid {border_strong};
