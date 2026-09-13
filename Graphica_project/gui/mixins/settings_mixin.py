@@ -311,12 +311,36 @@ class SettingsMixin:
             return self.canvas.all_axes[axis_index]
         return None
 
-    def _on_x_autoscale_changed(self):
-        """X軸オートスケール チェックボックスが変更された"""
+    def _refresh_x_autoscale_enabled_state(self):
+        """
+        X軸のmin/maxスピンボックスの有効/無効だけを、オートスケールの
+        チェック状態に合わせて更新する。**値は一切書き換えない。**
+
+        ★ 保存済みの設定を復元する経路(_apply_settings_to_ui_controls)は
+        必ずこちらを使うこと。_on_x_autoscale_changed()の方は
+        「ユーザーがチェックを外した瞬間」向けに、現在表示中の軸範囲を
+        スピンボックスへシードする(_seed_min_max_spinboxes)ため、
+        復元経路で呼ぶと**保存されていた軸範囲が、いま画面に出ている範囲で
+        上書きされて失われる**(改善ボード B-4 のテスト整備中に発見)。
+
+        Returns:
+            bool: 現在のオートスケール状態。
+        """
         is_autoscale = self.ui.x_autoscale_checkbox.isChecked()
-        # オートスケールが ON なら、最小/最大スピンボックスを無効化
         self.ui.x_min_spinbox.setEnabled(not is_autoscale)
         self.ui.x_max_spinbox.setEnabled(not is_autoscale)
+        return is_autoscale
+
+    def _refresh_y_autoscale_enabled_state(self):
+        """Y軸版。_refresh_x_autoscale_enabled_state()のdocstring参照。"""
+        is_autoscale = self.ui.y_autoscale_checkbox.isChecked()
+        self.ui.y_min_spinbox.setEnabled(not is_autoscale)
+        self.ui.y_max_spinbox.setEnabled(not is_autoscale)
+        return is_autoscale
+
+    def _on_x_autoscale_changed(self):
+        """X軸オートスケール チェックボックスが**ユーザー操作で**変更された"""
+        is_autoscale = self._refresh_x_autoscale_enabled_state()
 
         if not is_autoscale:
             axis = self._current_active_axis()
@@ -329,11 +353,8 @@ class SettingsMixin:
         self._on_axis_setting_changed()
 
     def _on_y_autoscale_changed(self):
-        """Y軸オートスケール チェックボックスが変更された"""
-        is_autoscale = self.ui.y_autoscale_checkbox.isChecked()
-        # オートスケールが ON なら、最小/最大スピンボックスを無効化
-        self.ui.y_min_spinbox.setEnabled(not is_autoscale)
-        self.ui.y_max_spinbox.setEnabled(not is_autoscale)
+        """Y軸オートスケール チェックボックスが**ユーザー操作で**変更された"""
+        is_autoscale = self._refresh_y_autoscale_enabled_state()
 
         if not is_autoscale:
             axis = self._current_active_axis()
@@ -958,8 +979,18 @@ class SettingsMixin:
 
             # 4. UIの状態を更新 (スピンボックスの有効/無効など)
             #    (★ _connect_signals での接続修正が前提)
-            self._on_x_autoscale_changed()
-            self._on_y_autoscale_changed()
+            # ★ 改善ボード B-4: ここは「保存済みの設定を復元する」経路なので、
+            # _on_x_autoscale_changed()(ユーザーがチェックを外した瞬間用。
+            # 現在表示中の軸範囲をスピンボックスへシードする)ではなく、
+            # 有効/無効の更新だけを行う版を呼ぶ。以前はシードする方を呼んで
+            # いたため、**オートスケールOFFで保存した軸範囲が、復元のたびに
+            # いま画面に出ている範囲で上書きされて失われていた**
+            # (X側だけが壊れ、Y側は無事という順序依存の分かりにくい壊れ方:
+            # 先に走るX側のハンドラが再描画を起こし、その時点で軸には
+            # まだ復元前の範囲が入っているため。Y側はその再描画で既に
+            # 復元後の値が軸へ反映済みなのでシードしても値が変わらなかった)。
+            self._refresh_x_autoscale_enabled_state()
+            self._refresh_y_autoscale_enabled_state()
             self._on_x_tick_mode_changed()
             self._on_y_tick_mode_changed()
             self._on_x_minor_tick_visibility_changed()
