@@ -2832,8 +2832,10 @@ class DatasetMixin:
 
         # 3. 選択状態に基づいて、UIの有効/無効を一括設定
 
-        # 「データセットプロパティ」ドックウィジェット (中身の GroupBox)
-        self.ui.properties_groupbox.setEnabled(has_dataset_selection)
+        # 「データセットプロパティ」の入力欄。★ セクションの開閉トグルは
+        # 選択の有無に関わらず常に押せるよう、ここでは無効化しない
+        # (詳細は main_window._set_dataset_property_fields_enabled)。
+        self._set_dataset_property_fields_enabled(has_dataset_selection)
 
         # データセットリストタブのボタン
         self.ui.remove_dataset_button.setEnabled(has_any_selection) # フォルダの削除も許可

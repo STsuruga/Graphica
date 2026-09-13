@@ -2921,6 +2921,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         トグルボタン側にだけ表示する。
         """
         group_box.setTitle("")
+        # theme.py の QDockWidget QGroupBox は「自身のタイトルを置く場所」として
+        # margin-top/padding-top を確保する。ここではタイトルを空にして見出しを
+        # 外のトグルボタンへ移しているので、その確保分は見出しと中身の間の
+        # 死んだ隙間にしかならない。プロパティで見分けて0にする。
+        group_box.setProperty("collapsibleBody", True)
 
         wrapper = QWidget()
         wrapper_layout = QVBoxLayout(wrapper)
@@ -2993,9 +2998,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         for key, title in DATASET_PROPERTY_SECTIONS:
             body = QWidget()
             form = QFormLayout(body)
-            # 見出し7本ぶんの高さは純増になるので、本体側の余白は詰める
-            # (左の6pxだけは、見出しに対する従属関係を示すインデントとして残す)。
-            form.setContentsMargins(6, 0, 0, 4)
+            # 見出し7本ぶんの高さは純増になるので、本体側の余白は詰める。
+            # ★ 実機フィードバック:「見出しと項目の区別がつきにくい」。
+            #   見出しは左端(0)に置き、項目側をこのぶん字下げして見出しを
+            #   ぶら下げる形にする(サイズ・太さ・色の差と合わせて4つの手がかり)。
+            form.setContentsMargins(12, 2, 0, 6)
             form.setSpacing(6)
 
             toggle_button = QToolButton()
@@ -3009,7 +3016,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             toggle_button.setObjectName("property_subsection_toggle")
             toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
             toggle_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            # QToolButton の既定は「文字幅ぴったり」なので、区切りの罫線
+            # (theme.py の border-top) が見出しの文字の下までしか引かれない。
+            # 横いっぱいに広げて、罫線がセクションの区切りとして機能するようにする。
+            toggle_button.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             toggle_button.setChecked(key not in collapsed)
+            # 1本目だけは上の罫線を引かない(親の見出しのすぐ下なので二重線に見える)。
+            if key == DATASET_PROPERTY_SECTIONS[0][0]:
+                toggle_button.setProperty("firstSection", True)
 
             section = QWidget()
             section_layout = QVBoxLayout(section)
@@ -3033,8 +3048,22 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.ui.formLayout_4.takeRow(row)
         self.ui.formLayout_4.setContentsMargins(0, 0, 0, 0)
         self.ui.formLayout_4.setSpacing(0)
+        # Designer の既定余白(9px)は、見出しと最初のセクションの間の隙間に
+        # なるだけなので落とす(左右のインデントは各セクションの body 側が持つ)。
+        self.ui.gridLayout_4.setContentsMargins(0, 0, 0, 0)
         self.ui.gridLayout_4.addWidget(container, 1, 0, 1, 1)
         self._dataset_property_sections_container = container
+
+        # ★ 実機フィードバック:「データ追加するまで(セクションを)動かせない」。
+        #   Designer は properties_groupbox 自体を setEnabled(False) にしており、
+        #   Qt では無効な親の下のウィジェットは個別に有効化できないため、
+        #   中に入れたセクション見出しまで道連れで押せなくなっていた。
+        #   開閉は「選択中のデータセットを編集する操作」ではなく「パネルの
+        #   見せ方を変える操作」なので、選択の有無とは無関係に常に押せるべき。
+        #   グループボックスは常に有効にしておき、無効化はセクションの中身
+        #   (body)だけに掛ける。
+        self.ui.properties_groupbox.setEnabled(True)
+        self._set_dataset_property_fields_enabled(False)
 
         style_form = self._prop_form('style')
         style_form.addRow(self.ui.legend_name_label, self.ui.legend_name_edit)
@@ -3054,6 +3083,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     def _prop_form(self, section_key):
         """サブセクション(DATASET_PROPERTY_SECTIONS のキー)の QFormLayout を返す。"""
         return self._prop_sections[section_key]['form']
+
+    def _set_dataset_property_fields_enabled(self, enabled):
+        """
+        データセットのプロパティ「欄」の有効/無効を切り替える(選択が無いときは無効)。
+
+        ★ 無効化するのは各セクションの中身(body)だけで、見出しのトグルボタンと
+        properties_groupbox 自体は常に有効なままにする。以前は
+        properties_groupbox を丸ごと無効化していたが、Qt は無効な親の下の子を
+        個別に有効化できないため、データセットを1つも追加していない状態では
+        セクションの開閉すらできなかった(実機フィードバック)。
+        """
+        for entry in getattr(self, '_prop_sections', {}).values():
+            entry['body'].setEnabled(enabled)
 
     def _load_collapsed_property_sections(self):
         """QSettings から「閉じている」セクションキーの集合を読む(既定は空=全展開)。"""

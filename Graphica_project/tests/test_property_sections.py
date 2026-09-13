@@ -265,6 +265,59 @@ def test_collapsing_a_section_hides_its_body_but_keeps_the_header(window):
     assert entry['section'].isHidden() is False
 
 
+def test_sections_can_be_toggled_before_any_dataset_exists(window):
+    """
+    ★ 実機フィードバックの回帰テスト:「データ追加するまで動かせない」。
+    Designer は properties_groupbox 自体を setEnabled(False) にしており、
+    Qt は無効な親の下の子を個別に有効化できないため、セクションをその中に
+    入れた時点で「データセットを1つも追加していないと開閉すらできない」
+    状態になっていた。開閉はパネルの見せ方の操作であって、選択中の
+    データセットを編集する操作ではない。
+    """
+    assert window._get_current_dataset() is None
+
+    for key, _title in DATASET_PROPERTY_SECTIONS:
+        entry = window._prop_sections[key]
+        assert entry['toggle'].isEnabled() is True, f"{key} の見出しが押せない"
+
+    entry = window._prop_sections['map']
+    entry['toggle'].setChecked(False)
+    _pump()
+    assert entry['body'].isHidden() is True
+
+
+def test_property_fields_are_disabled_until_a_dataset_is_selected(window):
+    """見出しは常に押せる一方で、入力欄そのものは従来どおり無効であること。"""
+    for key, _title in DATASET_PROPERTY_SECTIONS:
+        assert window._prop_sections[key]['body'].isEnabled() is False
+    assert window.ui.plot_type_combo.isEnabled() is False
+
+    _make_dataset(window)
+
+    for key, _title in DATASET_PROPERTY_SECTIONS:
+        assert window._prop_sections[key]['body'].isEnabled() is True
+    assert window.ui.plot_type_combo.isEnabled() is True
+
+
+def test_no_dead_gap_above_the_first_subsection(window):
+    """
+    ★ 実機フィードバック(画像提示)の回帰テスト: 「データセットのプロパティ」の
+    見出しと最初のサブセクション「データ列」の間に、24px+9px の使われない
+    隙間が空いていた。24pxは theme.py の QDockWidget QGroupBox が
+    「自身のタイトルを置く場所」として確保する margin-top/padding-top だが、
+    このグループボックスはタイトルを空にして見出しを外へ出しているので
+    丸ごと無駄になっていた。9px は gridLayout_4 の既定余白。
+    """
+    container = window._dataset_property_sections_container
+    top_offset = container.mapTo(window.ui.properties_groupbox, container.rect().topLeft()).y()
+    assert top_offset <= 4, f"見出し直下に {top_offset}px の隙間が残っている"
+
+
+def test_collapsible_group_boxes_are_flagged_for_the_stylesheet(window):
+    """theme.py の QGroupBox[collapsibleBody="true"] が効く前提の目印。"""
+    assert window.ui.properties_groupbox.property("collapsibleBody") is True
+
+
 def test_collapsing_shortens_the_panel(window):
     _make_dataset(window)
     before = window.ui.properties_groupbox.sizeHint().height()

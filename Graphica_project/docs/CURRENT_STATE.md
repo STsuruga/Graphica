@@ -71,7 +71,35 @@
       (トップレベルの2つは従来どおり `collapsible_section_toggle`)。
       分けておくことで theme.py で一段控えめにスタイルでき、
       「トグルボタンはちょうど2つ」を前提にした既存テストも壊れない。
-    - テスト: `tests/test_property_sections.py` を新設(49件)。
+    - **★ 実機フィードバックで3件追加修正(いずれも同日)**:
+      1. **「データ追加するまで(セクションを)動かせない」**。Designer が
+         `properties_groupbox` 自体を `setEnabled(False)` にしており、**Qtは
+         無効な親の下の子を個別に有効化できない**ため、中に入れた見出しまで
+         道連れで押せなくなっていた。開閉は「選択中のデータセットを編集する
+         操作」ではなく「パネルの見せ方を変える操作」なので、グループボックスは
+         常に有効にし、無効化は各セクションの**中身(body)だけ**に掛ける
+         (`_set_dataset_property_fields_enabled()`)。
+         `tests/test_dataset_mixin.py`の
+         `properties_groupbox.isEnabled() is False` を見ていたアサーションも
+         body側を見るよう更新した。
+      2. **見出し直下に33pxの死んだ隙間**。24pxは`theme.py`の
+         `QDockWidget QGroupBox`が「自身のタイトルを置く場所」として確保する
+         `margin-top:18px + padding-top:6px`だが、`_wrap_in_collapsible_section`は
+         タイトルを空にして見出しを外のトグルボタンへ出しているので丸ごと無駄。
+         `collapsibleBody`プロパティを立てて`QGroupBox[collapsibleBody="true"]`で
+         0にした(トップレベル2セクションの両方に効く)。残り9pxは
+         `gridLayout_4`の既定余白で、これも0に。
+      3. **見出しと項目の区別がつきにくい**。当初は「外側のアコーディオンより
+         控えめに」という意図で11.5px・細字・薄い色にしていたが、**このアプリは
+         フォントサイズをQSSで指定しておらず、フォームのラベルはOS既定
+         (約12〜13px)で描かれる**ため、見出しのほうが本文より小さく薄いという
+         階層の逆転になっていた。案を3つ提示して**案1(罫線+太字)を採用**:
+         見出しは12px/`font-weight:600`/`text_primary`/左端、区切りは上に
+         0.5pxの罫線(1本目だけは親見出しと二重線に見えるので引かない)、
+         項目側は12px字下げ。**`QToolButton`の既定は「文字幅ぴったり」**なので
+         `setSizePolicy(Expanding, Fixed)`を入れないと罫線が文字の下までしか
+         引かれない点に注意。
+    - テスト: `tests/test_property_sections.py` を新設(53件)。
       「どのセクションにも属さない迷子ウィジェットが無いこと」を直接見る
       テストを入れてある(takeRowしたまま足し忘れると、削除も警告もされず
       グループボックスの左上に重なって描画されるため)。

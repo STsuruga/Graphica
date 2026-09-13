@@ -2583,7 +2583,11 @@ def test_remove_single_dataset(tmp_path, monkeypatch):
 
     assert len(window.project.datasets) == before_count - 1
     assert ds not in window.project.datasets
-    assert window.ui.properties_groupbox.isEnabled() is False
+    # 選択が無くなったらプロパティの入力欄は無効になる(C-1 以降、無効化の
+    # 対象は properties_groupbox 全体ではなく各サブセクションの中身。
+    # 見出しのトグルは常に押せる)。
+    assert all(entry['body'].isEnabled() is False
+               for entry in window._prop_sections.values())
 
 
 def test_remove_folder_removes_contained_datasets(tmp_path, monkeypatch):

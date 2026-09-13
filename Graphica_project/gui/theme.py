@@ -391,6 +391,16 @@ QDockWidget QGroupBox {{
     margin-top: 18px;
     padding-top: 6px;
 }}
+/* ★ 折りたたみセクションの中身になるQGroupBox(_wrap_in_collapsible_section が
+   collapsibleBody プロパティを立てる)は、タイトルを空にして見出しを外側の
+   トグルボタンへ移している。上のルールの margin-top:18px + padding-top:6px は
+   「そのQGroupBox自身のタイトルを置く場所」を空けるためのものなので、
+   タイトルが無いこちらでは見出しと中身の間に24pxの死んだ隙間になるだけ。
+   実機フィードバック(画像提示)を受けて0にする。 */
+QDockWidget QGroupBox[collapsibleBody="true"] {{
+    margin-top: 0px;
+    padding-top: 0px;
+}}
 QDockWidget QGroupBox::title {{
     left: 0;
     /* ★ 実機フィードバック(画像提示、「グラフ全体レイアウト」「編集対象の
@@ -429,21 +439,32 @@ QToolButton#collapsible_section_toggle:pressed {{
 }}
 
 /* --- プロパティパネル内のサブセクション見出し(改善ボード C-1) ---
-   上の collapsible_section_toggle の一段内側に入る見出しなので、
-   親と同じ強さで並ぶと階層が読めなくなる。小さめ・細字にして従属を示す。 */
+   ★ 実機フィードバック(画像提示):「見出しと項目の区別がつきにくい」。
+   当初は「外側のアコーディオン2本より控えめに」という意図で 11.5px・細字・
+   薄い色にしていたが、このアプリはフォントサイズをQSSで指定しておらず
+   フォームのラベルはOS既定(約12〜13px)で描かれるため、見出しのほうが
+   本文より小さく薄いという階層の逆転になっていた。
+   見出し側を「少し大きい・太い・濃い」に、項目側を字下げする形に直し、
+   区切りは0.5pxの罫線1本で示す(色は増やさないので7本並んでも静か)。
+   1本目の罫線だけは、直上の親見出しと二重線に見えるため引かない。 */
 QToolButton#property_subsection_toggle {{
     background: transparent;
     border: none;
-    border-radius: 4px;
-    padding: 3px 2px;
+    border-top: 1px solid {border};
+    border-radius: 0;
+    padding: 6px 2px 4px 0;
     text-align: left;
-    font-weight: 500;
-    font-size: 11.5px;
-    color: {text_secondary};
+    font-weight: 600;
+    font-size: 12px;
+    color: {text_primary};
+}}
+QToolButton#property_subsection_toggle[firstSection="true"] {{
+    border-top: none;
+    padding-top: 2px;
 }}
 QToolButton#property_subsection_toggle:hover {{
     background: {surface_2};
-    color: {text_primary};
+    color: {accent_text};
 }}
 QToolButton#property_subsection_toggle:pressed {{
     background: {accent_soft};
