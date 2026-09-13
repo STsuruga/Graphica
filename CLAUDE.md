@@ -24,7 +24,7 @@ bash scripts/run_tests_chunked.sh            # the ONLY supported way to run the
 
 `tests/conftest.py` sets `QT_QPA_PLATFORM=offscreen` and provides a session-scoped, autouse `QApplication` fixture, so the suite runs headless with no display and no manual env var needed — this matters because several `core/`/`models/` classes (`core/commands.py`'s `QUndoCommand` subclasses, `models/project.py`'s `ProjectModel`) are `QObject`s and cannot be instantiated without a live `QApplication`.
 
-There is no configured linter/formatter in this repo (no `.flake8`, `pyproject.toml`, or `.pylintrc`) — match the surrounding code's style rather than introducing a new tool.
+There is no configured linter/formatter in this repo (no `.flake8`, `.pylintrc`, and `pyproject.toml` carries packaging metadata only, no lint config) — match the surrounding code's style rather than introducing a new tool. That `pyproject.toml` does make the app pip-installable (`pip install -e Graphica_project`), which is how out-of-repo plugin repositories get `core.plugin_testing` for their tests.
 
 ## Architecture
 
@@ -149,7 +149,16 @@ Six further planning documents live under `Graphica_project/docs/` and describe 
 
 **Before starting any task from this roadmap**: read `docs/CURRENT_STATE.md` first, then `docs/Graphica_MASTER_SCHEDULE.md`, and identify the current track and phase — do not assume which one is active from memory or from a prior session.
 
-**Track status**: Tracks 0 / 0' / 1 (plugin API) / 2 (GUI modernization) / 3 (core features) are all complete and merged to `master`; the original "Track 0 gate" that guarded them no longer applies. **Track 4 (plugin development) is the only track with work left.** It was paused early on because plugin distribution was undecided — that blocker has since been resolved (zip install + `%LOCALAPPDATA%` plugins dir, see the Plugin API section), but one finished plugin (P-805) is still sitting unmerged on the `feature/plugin-track4` branch, and `master` has moved ~80 commits past its branch point. Resolve that branch before starting new plugin work.
+**Track status**: Tracks 0 / 0' / 1 (plugin API) / 2 (GUI modernization) / 3 (core features) are all complete and merged to `master`; the original "Track 0 gate" that guarded them no longer applies. **Track 4 (plugin development) is the only track with work left, and it is active again.**
+
+**Plugins are developed in their own repositories, one per plugin** (user decision, 2026-09-13), named `graphica-plugin-<name>`; `STsuruga/graphica-plugin-element-constants` is the template. The only thing left in this repo's `plugins/` is `example_plugin`, the bundled sample that demonstrates the API — **do not add new plugins here.** `docs/PLUGIN_DEVELOPMENT_PROGRESS.md` ("開発の場所" section) holds the repo layout and the backlog progress table; the `P-xxx` backlog itself stays in `docs/Graphica_PLUGIN_BACKLOG.md`.
+
+Two consequences worth knowing before working on a plugin:
+
+- **A plugin repo tests against Graphica via `pip install -e <this repo>/Graphica_project`.** `pyproject.toml` exists and publishes `core` / `gui` / `gui.mixins` / `models` as top-level packages, so `from core.plugin_testing import FakeGraphicaPluginAPI` works from outside. Plugin repos keep a `requires_graphica` skip marker so their pure-logic tests still run without it.
+- **A zip is the only way a plugin reaches an end user.** `plugin_search_paths()` searches `resource_path("plugins")` only when `not is_frozen()`, so a plugin sitting in any repo directory is invisible to the packaged exe. Each plugin repo owns a `scripts/build_zip.py`; this repo keeps `scripts/build_plugin_zip.py` for `example_plugin`. Both emit the single-top-level-folder layout `core/plugin_install.py`'s `_find_plugin_root()` expects, and both are tested by installing the zip they produce.
+
+`feature/plugin-track4` still exists, holding only a WIP JCAMP-DX parser (P-101, parser only — no `plugin.json`/`__init__.py`, so the loader ignores it); do not delete that branch or its worktree.
 
 **Scope discipline**: work only the track/phase/item the user specifies. Do not autonomously expand into adjacent tracks or "while I'm here" fixes elsewhere in the roadmap — the master schedule explicitly calls this out as a failure mode to avoid.
 
