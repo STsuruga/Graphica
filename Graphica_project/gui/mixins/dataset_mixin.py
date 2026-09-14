@@ -41,7 +41,7 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
 from core.color_palettes import BUILTIN_PALETTES
-from core.named_colors import load_named_colors
+from core.named_colors import POPUP_LIMIT, load_named_colors
 from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from core.label_utils import infer_axis_label_from_column_name
 from core.methods_text import generate_methods_text
@@ -2771,13 +2771,27 @@ class DatasetMixin:
             empty_action = menu.addAction("(登録がありません)")
             empty_action.setEnabled(False)
             return
-        for entry in entries:
+        # 色欄のポップアップと同じく、並べるのは先頭 POPUP_LIMIT 件まで。
+        for entry in entries[:POPUP_LIMIT]:
             action = menu.addAction(
                 _named_color_menu_icon(entry["color"]),
                 f'{entry["name"]}	{entry["color"]}')
             action.triggered.connect(
                 lambda checked=False, c=entry["color"], n=entry["name"]:
                     self._apply_named_color_to_selection(c, n))
+        if len(entries) > POPUP_LIMIT:
+            more_action = menu.addAction(f"すべての登録色... ({len(entries)}件)")
+            more_action.triggered.connect(self._on_apply_named_color_from_list)
+
+    def _on_apply_named_color_from_list(self):
+        """登録が POPUP_LIMIT 件を超えたときに、検索欄付きの一覧から選んで適用する。"""
+        from gui.dialogs import NamedColorPickerDialog
+        dialog = NamedColorPickerDialog(self.settings, self, title="登録色を適用")
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        entry = dialog.selected_entry()
+        if entry:
+            self._apply_named_color_to_selection(entry["color"], entry["name"])
 
     def _apply_named_color_to_selection(self, color, name):
         """

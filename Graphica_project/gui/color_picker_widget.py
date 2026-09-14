@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QLineEdit,
 
 from core.i18n import tr
 from core.named_colors import (
-    NamedColorError, add_named_color, load_named_colors, save_named_colors,
+    POPUP_LIMIT, NamedColorError, add_named_color, load_named_colors,
+    save_named_colors,
 )
 from gui.color_history import get_color_with_history
 
@@ -128,12 +129,19 @@ class ColorPickerWidget(QWidget):
         menu = QMenu(self)
         entries = load_named_colors(self._settings)
 
-        for entry in entries:
+        # 登録は際限なく増やせるので、メニューに並べるのは先頭 POPUP_LIMIT 件まで。
+        # 溢れたぶんは検索欄付きの一覧から選ぶ(よく使う色は「色名の管理」の
+        # 「上へ」で上位に持って行けば、ここだけで済む)。
+        for entry in entries[:POPUP_LIMIT]:
             action = menu.addAction(_color_icon(entry["color"]),
                                     f'{entry["name"]}	{entry["color"]}')
             action.setData(entry["color"])
             action.triggered.connect(
                 lambda checked=False, c=entry["color"]: self._apply_color_name(c))
+        if len(entries) > POPUP_LIMIT:
+            more_action = menu.addAction(
+                tr("すべての登録色... (%d件)") % len(entries))
+            more_action.triggered.connect(self._on_choose_from_all_named_colors)
         if entries:
             menu.addSeparator()
 
@@ -157,6 +165,16 @@ class ColorPickerWidget(QWidget):
             return
         self.set_color(candidate)
         self.colorChanged.emit(self._color.name())
+
+    def _on_choose_from_all_named_colors(self):
+        """登録が POPUP_LIMIT 件を超えたときに開く、検索欄付きの一覧。"""
+        from gui.dialogs import NamedColorPickerDialog
+        dialog = NamedColorPickerDialog(self._settings, self)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        entry = dialog.selected_entry()
+        if entry:
+            self._apply_color_name(entry["color"])
 
     def _on_pick_other_color(self):
         """従来どおりの QColorDialog(最近使った色の履歴つき)。"""

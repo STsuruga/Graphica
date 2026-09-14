@@ -33,7 +33,7 @@ from PySide6.QtWidgets import QApplication, QColorDialog, QInputDialog
 import gui.main_window as main_window_module
 from core.dataset import Dataset
 from core.named_colors import (
-    MAX_NAME_LENGTH, NAMED_COLORS_SETTINGS_KEY, NamedColorError,
+    MAX_NAME_LENGTH, NAMED_COLORS_SETTINGS_KEY, POPUP_LIMIT, NamedColorError,
     add_named_color, find_index_by_name, load_named_colors, move_named_color,
     normalize_color, normalize_name, remove_named_color, save_named_colors,
     update_named_color,
@@ -488,3 +488,107 @@ def test_manager_dialog_delete(window):
         assert dialog.color_list.count() == 1
     finally:
         dialog.close()
+
+
+# =============================================================================
+# 4. 件数が増えたときの見せ方(ポップアップは上位 POPUP_LIMIT 件まで)
+# =============================================================================
+
+def _seed_many(window, count):
+    entries = []
+    for i in range(count):
+        entries = add_named_color(entries, f"色{i:02d}", "#%02x0000" % i)
+    save_named_colors(window.settings, entries)
+    return entries
+
+
+def test_apply_menu_shows_all_entries_when_within_the_limit(window):
+    _seed_many(window, POPUP_LIMIT)
+    window._populate_named_color_apply_menu()
+
+    actions = window._named_color_apply_menu.actions()
+    assert len(actions) == POPUP_LIMIT
+    assert not any("すべての登録色" in a.text() for a in actions)
+
+
+def test_apply_menu_caps_the_list_and_offers_the_rest(window):
+    """
+    ★ 登録は際限なく増やせるので、メニューに全件並べると縦に伸び続ける。
+    先頭 POPUP_LIMIT 件だけ並べ、残りは検索欄付きの一覧へ逃がす。
+    """
+    total = POPUP_LIMIT + 7
+    _seed_many(window, total)
+    window._populate_named_color_apply_menu()
+
+    actions = window._named_color_apply_menu.actions()
+    assert len(actions) == POPUP_LIMIT + 1
+    assert [a.text().split("\t")[0] for a in actions[:POPUP_LIMIT]] == \
+        [f"色{i:02d}" for i in range(POPUP_LIMIT)]
+    # 件数が分かるようにしておく(何件隠れているのか見えないと押す気にならない)
+    assert f"({total}件)" in actions[-1].text()
+
+
+def test_picker_dialog_lists_every_entry_regardless_of_the_popup_limit(window):
+    from gui.dialogs import NamedColorPickerDialog
+    total = POPUP_LIMIT + 4
+    _seed_many(window, total)
+
+    dialog = NamedColorPickerDialog(window.settings, window)
+    try:
+        assert dialog.color_list.count() == total
+    finally:
+        dialog.close()
+
+
+def test_picker_dialog_filters_by_name_and_by_hex(window):
+    from gui.dialogs import NamedColorPickerDialog
+    _seed(window, [("試料A", "#1f77b4"), ("試料B", "#d62728"), ("ブランク", "#7f7f7f")])
+
+    dialog = NamedColorPickerDialog(window.settings, window)
+    try:
+        dialog.filter_edit.setText("試料")
+        assert dialog.color_list.count() == 2
+
+        dialog.filter_edit.setText("7f7f")   # 色コードでも引ける
+        assert dialog.color_list.count() == 1
+        assert dialog.color_list.item(0).text().startswith("ブランク")
+
+        dialog.filter_edit.setText("")
+        assert dialog.color_list.count() == 3
+    finally:
+        dialog.close()
+
+
+def test_picker_dialog_returns_the_selected_entry(window):
+    from gui.dialogs import NamedColorPickerDialog
+    _seed(window, [("試料A", "#1f77b4"), ("試料B", "#d62728")])
+
+    dialog = NamedColorPickerDialog(window.settings, window)
+    try:
+        dialog.color_list.setCurrentRow(1)
+        dialog.accept()
+        assert dialog.selected_entry() == {"name": "試料B", "color": "#d62728"}
+    finally:
+        dialog.close()
+
+
+def test_picker_dialog_returns_nothing_when_the_filter_matches_nothing(window):
+    """絞り込みで0件になった状態でOKを押しても、選択が無いので何も返さない。"""
+    from gui.dialogs import NamedColorPickerDialog
+    _seed(window, [("試料A", "#1f77b4")])
+
+    dialog = NamedColorPickerDialog(window.settings, window)
+    try:
+        dialog.filter_edit.setText("該当なし")
+        dialog.accept()
+        assert dialog.selected_entry() is None
+    finally:
+        dialog.close()
+
+
+def test_swatch_popup_also_caps_at_the_limit(window):
+    """色欄のポップアップも同じ上限で揃っていること(片方だけ直す事故を防ぐ)。"""
+    import inspect
+    source = inspect.getsource(type(window.color_picker_widget)._on_swatch_clicked)
+    assert "POPUP_LIMIT" in source
+    assert "_on_choose_from_all_named_colors" in source

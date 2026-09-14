@@ -2020,6 +2020,70 @@ class ColumnPreviewDialog(QDialog):
 #==============================================================================
 # カスタムダイアログクラス (8)
 #==============================================================================
+class NamedColorPickerDialog(QDialog):
+    """
+    登録済みの色を、名前で絞り込みながら選ぶダイアログ。
+
+    色欄のポップアップメニューには先頭 POPUP_LIMIT 件しか並べない(登録は
+    際限なく増やせるので、全件並べるとメニューが縦に伸び続ける)。溢れたぶんは
+    ここから選ぶ。編集はしない — 追加/削除/並べ替えは NamedColorManagerDialog の
+    担当で、こちらは「選ぶ」だけに徹する。
+    """
+
+    def __init__(self, settings, parent=None, title=None):
+        super().__init__(parent)
+        self.setWindowTitle(title or tr("登録色を選択"))
+        self.resize(380, 420)
+        self.entries = load_named_colors(settings)
+        self._selected = None
+
+        layout = QVBoxLayout(self)
+
+        self.filter_edit = QLineEdit()
+        self.filter_edit.setPlaceholderText(tr("名前または色コードで絞り込み"))
+        self.filter_edit.setClearButtonEnabled(True)
+        layout.addWidget(self.filter_edit)
+
+        self.color_list = QListWidget()
+        self.color_list.setIconSize(QSize(16, 16))
+        layout.addWidget(self.color_list, stretch=1)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                      QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        self.filter_edit.textChanged.connect(self._reload_list)
+        self.color_list.itemDoubleClicked.connect(lambda _item: self.accept())
+
+        self._reload_list()
+
+    def _reload_list(self, _text=None):
+        """絞り込みを反映して一覧を作り直す。名前と色コードの両方を対象にする。"""
+        needle = self.filter_edit.text().strip().lower()
+        self.color_list.clear()
+        for entry in self.entries:
+            if needle and needle not in entry["name"].lower()                     and needle not in entry["color"].lower():
+                continue
+            item = QListWidgetItem(f'{entry["name"]}    {entry["color"]}')
+            item.setIcon(_named_color_icon(entry["color"]))
+            item.setData(Qt.ItemDataRole.UserRole, entry)
+            self.color_list.addItem(item)
+        if self.color_list.count():
+            self.color_list.setCurrentRow(0)
+
+    def accept(self):
+        item = self.color_list.currentItem()
+        # 絞り込みで0件になっている状態のOKは、選択が無いので何も返さず閉じる
+        self._selected = item.data(Qt.ItemDataRole.UserRole) if item else None
+        super().accept()
+
+    def selected_entry(self):
+        """選ばれた登録({'name','color'})。キャンセル/未選択なら None。"""
+        return self._selected
+
+
 class NamedColorManagerDialog(QDialog):
     """
     「よく使う色」を名前付きで登録・管理するダイアログ。
