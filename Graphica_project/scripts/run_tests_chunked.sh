@@ -20,18 +20,46 @@
 
 set -u
 
-CHUNK_SIZE=30
+# ★ 改善ボード E-3 で 30 -> 150 に引き上げた。
+# チャンクを細かく切っていたのは「1プロセスにQt/matplotlibのリソースが溜まり、
+# テストが進むほど1件あたりが遅くなる」ためだったが、その蓄積の主因
+# (テストが閉じないまま残すウィンドウ)を tests/conftest.py の
+# destroy_leftover_windows で断ったので、同じプロセスで多く流しても劣化しない。
+# 実測: tests/test_dataset_mixin.py(435件)は 30件×15チャンクで308秒、
+# 150件×3チャンクなら237秒。プロセス起動のぶんだけ速くなる。
+# ファイル単位の分離自体は残す — tests/test_export_preview_panel.py の
+# 「全件パス後に終了処理でセグフォルトする」既知問題があり、1プロセスに
+# まとめると以降のテストが道連れになるため。
+CHUNK_SIZE=150
 TMPDIR="$(pwd)/.ci_test_chunks"
 rm -rf "$TMPDIR"
 mkdir -p "$TMPDIR"
 
 fail=0
 
+# ★ 改善ボード E-3: テストIDの収集は「全体を1プロセスで1回」だけ行う。
+# 以前はファイルごとに pytest --collect-only を起動しており、92ファイル×約2.8秒＝
+# 約255秒を「テストを1件も実行しないまま」消費していた(1プロセスなら約5秒)。
+# 収集はテスト本体を実行しないため、チャンク分割の理由である
+# 「1プロセスへのQt/matplotlibリソース蓄積」はここでは起こらない。
+ALL_IDS="$TMPDIR/all_ids.txt"
+python -m pytest tests/ --collect-only -q 2>/dev/null | grep "::" > "$ALL_IDS" || true
+
 for f in tests/test_*.py; do
   name=$(basename "$f" .py)
   ids_file="$TMPDIR/${name}_ids.txt"
-  python -m pytest "$f" --collect-only -q 2>/dev/null | grep "::" > "$ids_file"
+  # "tests/foo.py::" で始まる行だけを抜く。末尾の ".py::" があるので
+  # test_dataset.py と test_dataset_mixin.py を取り違えることはない。
+  grep -F "$f::" "$ALL_IDS" > "$ids_file" || true
   n=$(wc -l < "$ids_file")
+
+  if [ "$n" -eq 0 ]; then
+    # まとめての収集がそのファイルを落とした可能性(import エラー等で
+    # 1ファイルだけ収集できなかった場合)があるので、単体で収集し直してから
+    # 「テスト0件」と判断する。ここに落ちるのは異常時だけなので遅くてよい。
+    python -m pytest "$f" --collect-only -q 2>/dev/null | grep "::" > "$ids_file" || true
+    n=$(wc -l < "$ids_file")
+  fi
 
   if [ "$n" -eq 0 ]; then
     continue

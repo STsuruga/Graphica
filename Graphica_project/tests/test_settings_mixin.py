@@ -14,6 +14,7 @@ gui/mixins/settings_mixin.py(1,058行)に対するテスト(改善ボード B-4)
 **オートスケールOFFで保存した軸範囲が復元のたびに失われていた**。
 `test_axis_range_survives_a_round_trip_with_autoscale_off`がその回帰テスト。
 """
+import contextlib
 import inspect
 
 import matplotlib
@@ -58,12 +59,43 @@ def window(tmp_path, monkeypatch):
 NON_UI_KEYS = {"annotations", "legend_order", "free_rect"}
 
 
+@contextlib.contextmanager
+def _without_live_redraw(window):
+    """
+    UIを一通り書き換える間だけ、再描画を止める(改善ボード E-3)。
+
+    軸設定のウィジェットはどれも `_on_axis_setting_changed` に繋がっており、
+    そのハンドラは「①UIから設定を収集 → ②プロジェクトへ保存 → ③
+    `_update_plot_appearance()`(tight_layout + draw)」を行う。下の
+    `_mutate_every_control` は約90個のコントロールを順に書き換えるため、
+    ③が90回走って **1テストあたり35〜42秒** かかっていた。このファイルだけで
+    234秒、フルスイート全体の約11%を占めていた(実測)。
+
+    ラウンドトリップのテストが見ているのは `_gather_settings_from_ui` と
+    `_apply_settings_to_ui_controls` であって、書き換え途中の再描画ではない。
+    ①②(プロジェクトへの保存)は従来どおり走らせ、③だけを止める。
+    """
+    window._update_plot_appearance = lambda *args, **kwargs: None
+    try:
+        yield
+    finally:
+        # クラス側のメソッドが再び見えるよう、インスタンス属性を外す
+        window.__dict__.pop("_update_plot_appearance", None)
+
+
 def _mutate_every_control(window):
     """
     既定値とは違う値を、UIコントロールへ一通り書き込む。
     ラウンドトリップのテストは「既定値のまま往復した」だけでは通ってしまう
     (何もしなくても一致する)ため、必ず既定から動かしてから往復させる。
+
+    書き換えの間は再描画を止める(`_without_live_redraw` の説明を参照)。
     """
+    with _without_live_redraw(window):
+        _write_every_control(window)
+
+
+def _write_every_control(window):
     ui = window.ui
     ui.title_text_edit.setText("タイトル")
     ui.x_label_text_edit.setText("X軸ラベル")
