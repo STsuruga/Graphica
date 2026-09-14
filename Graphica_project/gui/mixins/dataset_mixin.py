@@ -41,6 +41,7 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
 from core.color_palettes import BUILTIN_PALETTES
+from core.named_colors import load_named_colors
 from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from core.label_utils import infer_axis_label_from_column_name
 from core.methods_text import generate_methods_text
@@ -2752,6 +2753,64 @@ class DatasetMixin:
         if is_batch:
             self.undo_stack.endMacro()
 
+    def _populate_named_color_apply_menu(self):
+        """
+        オーバーフローメニューの「登録した色を適用 ▶」の中身を詰め直す。
+
+        登録内容は「色名の管理」でいつでも変わるので、開くたびに作り直す
+        (データセットメニューと同じ方式)。1件も登録が無いときは、無効化した
+        案内項目を1つだけ出す — 空のサブメニューを開いて何も無いより、
+        「どこで登録するのか」が分かる方が親切なため。
+        """
+        menu = getattr(self, '_named_color_apply_menu', None)
+        if menu is None:
+            return
+        menu.clear()
+        entries = load_named_colors(self.settings)
+        if not entries:
+            empty_action = menu.addAction("(登録がありません)")
+            empty_action.setEnabled(False)
+            return
+        for entry in entries:
+            action = menu.addAction(
+                _named_color_menu_icon(entry["color"]),
+                f'{entry["name"]}	{entry["color"]}')
+            action.triggered.connect(
+                lambda checked=False, c=entry["color"], n=entry["name"]:
+                    self._apply_named_color_to_selection(c, n))
+
+    def _apply_named_color_to_selection(self, color, name):
+        """
+        登録した色を、選択中の(複数可)データセットへまとめて適用する。
+        N件の変更が Undo 1回で戻るのは「自動配色」と同じ
+        (_on_auto_assign_colors と同じ beginMacro の型)。
+        """
+        selected_datasets = self._get_selected_datasets()
+        if not selected_datasets:
+            self.statusBar().showMessage("データセットを選択してください。", 4000)
+            return
+
+        # ★ 既にその色のものを先に除く。空のままbeginMacro/endMacroすると、
+        #   Qtは「中身ゼロのマクロ」をそのままスタックへ積むため、何も変わって
+        #   いないのにUndoが1回分増える(押しても何も起きないUndoができてしまう)。
+        targets = [ds for ds in selected_datasets if ds.color != color]
+        if not targets:
+            self.statusBar().showMessage(f"選択中のデータセットは既に「{name}」の色です。", 4000)
+            return
+
+        is_batch = len(targets) > 1
+        if is_batch:
+            self.undo_stack.beginMacro(f"「{name}」の色を適用 ({len(targets)}件)")
+        for dataset in targets:
+            self._push_dataset_property_command(
+                dataset,
+                {'color': dataset.color},
+                {'color': color},
+                description=f"「{name}」の色を適用",
+            )
+        if is_batch:
+            self.undo_stack.endMacro()
+
     def _on_auto_assign_colors_from_colormap(self):
         """
         「カラーマップから自動配色...」メニューの処理(項目C-805)。
@@ -4117,3 +4176,9 @@ class DatasetMixin:
         })
         self.peak_result_dialog = ResultDialog("ピーク検出完了", result_text, self, csv_data=peak_csv_data)
         self.peak_result_dialog.show()
+
+
+def _named_color_menu_icon(color_name, size=16):
+    """「登録した色を適用」メニューの色見本(色欄のポップアップと同じ描き方)。"""
+    from gui.color_picker_widget import _color_icon
+    return _color_icon(color_name, size=size)

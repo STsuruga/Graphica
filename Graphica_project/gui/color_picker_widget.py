@@ -6,12 +6,19 @@
 選択中の色をカラーコード(#RRGGBB)で直接確認・編集できるテキスト欄を
 組み合わせ、色を「見て」「数値でも」扱えるようにする。
 """
-from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLineEdit
+from PySide6.QtCore import Signal, Qt, QSize
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QLineEdit,
+                               QInputDialog, QMenu, QMessageBox)
 
 from core.i18n import tr
+from core.named_colors import (
+    NamedColorError, add_named_color, load_named_colors, save_named_colors,
+)
 from gui.color_history import get_color_with_history
+
+# ポップアップに並べる色見本の一辺(px)
+_SWATCH_ICON_SIZE = 14
 
 DEFAULT_COLOR = "#1f77b4"
 
@@ -108,6 +115,51 @@ class ColorPickerWidget(QWidget):
         self._update_swatch()
 
     def _on_swatch_clicked(self):
+        """
+        スウォッチを押したときのポップアップ。
+
+        以前は直接 QColorDialog を開いていたが、「よく使う色を名前付きで登録して
+        おき、複数の種類のデータで同じ物質に同じ色を使いたい」という要望を受けて、
+        登録済みの色(core/named_colors.py)を先に見せるメニューにした。
+        従来どおりの自由な色選択は「その他の色...」から辿れる
+        (ツールチップが元から「クリックしてパレットを開く」なので、挙動としても
+        こちらの方が素直)。
+        """
+        menu = QMenu(self)
+        entries = load_named_colors(self._settings)
+
+        for entry in entries:
+            action = menu.addAction(_color_icon(entry["color"]),
+                                    f'{entry["name"]}	{entry["color"]}')
+            action.setData(entry["color"])
+            action.triggered.connect(
+                lambda checked=False, c=entry["color"]: self._apply_color_name(c))
+        if entries:
+            menu.addSeparator()
+
+        register_action = menu.addAction(tr("この色を登録..."))
+        register_action.triggered.connect(self._on_register_current_color)
+        manage_action = menu.addAction(tr("色名の管理..."))
+        manage_action.triggered.connect(self._on_manage_named_colors)
+        menu.addSeparator()
+        other_action = menu.addAction(tr("その他の色..."))
+        other_action.triggered.connect(self._on_pick_other_color)
+
+        # サブメニューは無いが、ローカル変数 menu が exec() の間ずっと生きている
+        # ことに依存する点は、データセットの右クリックメニューと同じ。
+        menu.exec(self.swatch_button.mapToGlobal(
+            self.swatch_button.rect().bottomLeft()))
+
+    def _apply_color_name(self, color_name):
+        """登録済みの色を選んだときの反映(値が変わったときだけ通知する)。"""
+        candidate = QColor(color_name)
+        if not candidate.isValid() or candidate.name() == self._color.name():
+            return
+        self.set_color(candidate)
+        self.colorChanged.emit(self._color.name())
+
+    def _on_pick_other_color(self):
+        """従来どおりの QColorDialog(最近使った色の履歴つき)。"""
         color = get_color_with_history(self._settings, self, initial=self._color)
         if not color.isValid():
             return
@@ -115,6 +167,31 @@ class ColorPickerWidget(QWidget):
             return
         self.set_color(color)
         self.colorChanged.emit(self._color.name())
+
+    def _on_register_current_color(self):
+        """いま選んでいる色に名前を付けて登録する。"""
+        name, ok = QInputDialog.getText(
+            self, tr("色を登録"),
+            tr("この色の登録名 (%s)") % self._color.name())
+        if not ok:
+            return
+        entries = load_named_colors(self._settings)
+        try:
+            entries = add_named_color(entries, name, self._color.name())
+        except NamedColorError as e:
+            QMessageBox.warning(self, tr("色を登録"), str(e))
+            return
+        save_named_colors(self._settings, entries)
+
+    def _on_manage_named_colors(self):
+        """
+        色名の管理ダイアログを開く。
+        ★ gui/dialogs.py はこのモジュールを取り込む側なので、循環importを避ける
+        ため関数内で遅延importする。
+        """
+        from gui.dialogs import NamedColorManagerDialog
+        dialog = NamedColorManagerDialog(self._settings, self)
+        dialog.exec()
 
     def _on_hex_text_changed(self, text):
         """
@@ -142,3 +219,20 @@ class ColorPickerWidget(QWidget):
             return
         self.set_color(candidate)
         self.colorChanged.emit(self._color.name())
+
+
+def _color_icon(color_name, size=_SWATCH_ICON_SIZE):
+    """
+    メニュー項目の先頭に出す色見本。枠線を1px描くのは、白や淡い色が
+    メニューの背景に溶けて「何も無い」ように見えるのを防ぐため。
+    """
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    from gui import theme
+    painter.setPen(QPen(QColor(theme.current_tokens()["border_strong"]), 1))
+    painter.setBrush(QColor(color_name))
+    painter.drawRoundedRect(0, 0, size - 1, size - 1, 3, 3)
+    painter.end()
+    return QIcon(pixmap)

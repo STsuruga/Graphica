@@ -1069,6 +1069,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.colormap_assign_action = overflow_menu.addAction(
             _svg_icon("palette", size=16), tr("カラーマップから自動配色...")
         )
+        # 登録した色(core/named_colors.py)を選択中のデータセットへまとめて適用する。
+        # 「複数の種類のデータで、同じ物質に同じ色を使いたい」という用途そのもの。
+        # ★ 登録内容は「色名の管理」からいつでも変わるため、開くたびに詰め直す。
+        #   QMenu と menuAction() の両方を永続参照で持つ(CLAUDE.md、shibokenの癖)。
+        self._named_color_apply_menu = overflow_menu.addMenu(
+            _svg_icon("color-swatch", size=16), tr("登録した色を適用"))
+        self._named_color_apply_menu_action = self._named_color_apply_menu.menuAction()
+        self._named_color_apply_menu.aboutToShow.connect(
+            self._populate_named_color_apply_menu)
+        self._populate_named_color_apply_menu()
         self.dataset_overflow_button.setMenu(overflow_menu)
         self.ui.horizontalLayout_3.addWidget(self.dataset_overflow_button)
 

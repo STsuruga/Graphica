@@ -13,13 +13,18 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QTextBrowser,
                                QListWidgetItem, QColorDialog, QInputDialog,
                                QCheckBox, QStackedWidget, QWidget, QTabWidget,
                                QToolButton, QGridLayout, QMenu, QWidgetAction)
-from PySide6.QtCore import Qt, QTimer, QEvent, QUrl
+from PySide6.QtCore import Qt, QTimer, QEvent, QUrl, QSize
 from PySide6.QtGui import QPixmap, QFont, QColor, QKeySequence, QDesktopServices, QImage
 
 from gui import icon_utils
 from gui.theme import apply_form_spacing
 from gui.mathtext_preview import FitWidthPixmapLabel
+from core.i18n import tr
 from core.color_palettes import BUILTIN_PALETTES
+from core.named_colors import (
+    NamedColorError, add_named_color, load_named_colors, move_named_color,
+    remove_named_color, save_named_colors, update_named_color,
+)
 from core.cvd_simulation import CVD_TYPE_LABELS
 from gui.cvd_preview import simulate_qimage
 
@@ -2015,6 +2020,167 @@ class ColumnPreviewDialog(QDialog):
 #==============================================================================
 # カスタムダイアログクラス (8)
 #==============================================================================
+class NamedColorManagerDialog(QDialog):
+    """
+    「よく使う色」を名前付きで登録・管理するダイアログ。
+
+    ★ ColorPaletteDialog(配色パレット)とは目的が違う。あちらは「系列に順番に
+    割り当てるための色のサイクル」で、こちらは「1つの名前に1つの色」。
+    同じ物質・同じ試料を、別のプロジェクトや別の図でも同じ色で描くための登録簿
+    (詳細は core/named_colors.py の docstring)。
+
+    編集結果は OK を待たずその場で QSettings へ保存する。ここでの操作は
+    「登録簿を育てる」行為であって、プロットの見た目を変えるものではないため、
+    Cancel で巻き戻せる必要が薄い(パレット管理側は「どのパレットをアクティブに
+    するか」という選択を伴うため OK/Cancel を持つ、という違い)。
+    """
+
+    def __init__(self, settings, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(tr("色名の管理"))
+        self.resize(420, 400)
+        self._settings = settings
+        self.entries = load_named_colors(settings)
+
+        layout = QVBoxLayout(self)
+
+        description = QLabel(tr(
+            "よく使う色に名前を付けて登録します。データセットの色欄で"
+            "スウォッチを押すと、ここに登録した色を名前から選べます。"))
+        description.setWordWrap(True)
+        layout.addWidget(description)
+
+        self.color_list = QListWidget()
+        self.color_list.setIconSize(QSize(16, 16))
+        self.color_list.itemDoubleClicked.connect(lambda _item: self._on_edit())
+        layout.addWidget(self.color_list, stretch=1)
+
+        button_layout = QHBoxLayout()
+        self.add_button = QPushButton(tr("追加..."))
+        self.edit_button = QPushButton(tr("編集..."))
+        self.delete_button = QPushButton(tr("削除"))
+        self.up_button = QPushButton(tr("上へ"))
+        self.down_button = QPushButton(tr("下へ"))
+        for button in (self.add_button, self.edit_button, self.delete_button):
+            button_layout.addWidget(button)
+        button_layout.addStretch()
+        button_layout.addWidget(self.up_button)
+        button_layout.addWidget(self.down_button)
+        layout.addLayout(button_layout)
+
+        order_note = QLabel(tr("並び順は、色欄のポップアップにそのまま反映されます。"))
+        order_note.setWordWrap(True)
+        layout.addWidget(order_note)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        button_box.rejected.connect(self.reject)
+        button_box.accepted.connect(self.accept)
+        layout.addWidget(button_box)
+
+        self.add_button.clicked.connect(self._on_add)
+        self.edit_button.clicked.connect(self._on_edit)
+        self.delete_button.clicked.connect(self._on_delete)
+        self.up_button.clicked.connect(lambda: self._on_move(-1))
+        self.down_button.clicked.connect(lambda: self._on_move(1))
+
+        self._reload_list()
+
+    # --- 表示 ---
+
+    def _reload_list(self, select_index=None):
+        self.color_list.clear()
+        for entry in self.entries:
+            item = QListWidgetItem(f'{entry["name"]}    {entry["color"]}')
+            item.setIcon(_named_color_icon(entry["color"]))
+            self.color_list.addItem(item)
+        if select_index is not None and 0 <= select_index < self.color_list.count():
+            self.color_list.setCurrentRow(select_index)
+
+    def _commit(self, entries, select_index=None):
+        self.entries = entries
+        save_named_colors(self._settings, self.entries)
+        self._reload_list(select_index)
+
+    def _current_index(self):
+        return self.color_list.currentRow()
+
+    def _ask_name_and_color(self, title, name="", color="#1f77b4"):
+        """
+        名前と色をまとめて聞く小さなダイアログ。色は QColorDialog を使う
+        (このアプリの他の色選択と同じ入口に揃えるため)。
+        戻り値は (name, color) か、キャンセル時は None。
+        """
+        chosen = QColorDialog.getColor(QColor(color), self, tr("色を選択"))
+        if not chosen.isValid():
+            return None
+        text, ok = QInputDialog.getText(
+            self, title, tr("登録名"), text=name)
+        if not ok:
+            return None
+        return text, chosen.name()
+
+    # --- 操作 ---
+
+    def _on_add(self):
+        result = self._ask_name_and_color(tr("色を登録"))
+        if result is None:
+            return
+        name, color = result
+        try:
+            entries = add_named_color(self.entries, name, color)
+        except NamedColorError as e:
+            QMessageBox.warning(self, tr("色を登録"), str(e))
+            return
+        self._commit(entries, len(entries) - 1)
+
+    def _on_edit(self):
+        index = self._current_index()
+        if index < 0:
+            QMessageBox.information(self, tr("色名の管理"), tr("編集する登録を選んでください。"))
+            return
+        current = self.entries[index]
+        result = self._ask_name_and_color(
+            tr("登録を編集"), current["name"], current["color"])
+        if result is None:
+            return
+        name, color = result
+        try:
+            entries = update_named_color(self.entries, index, name, color)
+        except NamedColorError as e:
+            QMessageBox.warning(self, tr("登録を編集"), str(e))
+            return
+        self._commit(entries, index)
+
+    def _on_delete(self):
+        index = self._current_index()
+        if index < 0:
+            QMessageBox.information(self, tr("色名の管理"), tr("削除する登録を選んでください。"))
+            return
+        try:
+            entries = remove_named_color(self.entries, index)
+        except NamedColorError as e:
+            QMessageBox.warning(self, tr("色名の管理"), str(e))
+            return
+        self._commit(entries, min(index, len(entries) - 1))
+
+    def _on_move(self, offset):
+        index = self._current_index()
+        if index < 0:
+            return
+        try:
+            entries = move_named_color(self.entries, index, offset)
+        except NamedColorError:
+            return
+        new_index = max(0, min(index + offset, len(entries) - 1))
+        self._commit(entries, new_index)
+
+
+def _named_color_icon(color_name, size=16):
+    """リスト行の先頭に出す色見本(色欄のポップアップと同じ見た目に揃える)。"""
+    from gui.color_picker_widget import _color_icon
+    return _color_icon(color_name, size=size)
+
+
 class ColorPaletteDialog(QDialog):
     """
     「自動配色」ボタンで使うカラーサイクル(パレット)を、ユーザーが複数
