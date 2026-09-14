@@ -1,3 +1,4 @@
+import json
 import logging
 import numpy as np
 import pandas as pd
@@ -19,6 +20,10 @@ from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
                            calculate_median_smooth, calculate_gaussian_smooth)
 from core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
+
+# 注釈キャッシュの「まだ一度も描いていない」を表す番兵(改善ボード E-2)。
+# None を使うと、キーが None のときに誤って一致してしまう。
+_NO_KEY = object()
 
 logger = logging.getLogger(__name__)
 
@@ -344,6 +349,10 @@ class _CanvasDrawingMixin:
         # update_appearance_only では fig.clf() を行わないため、再描画のたびに
         # 前回分を明示的に削除してから描き直さないと注釈が重複してしまう。
         self._annotation_artists = {}
+        # 改善ボード E-2: 直近に描いた注釈の「内容キー」をAxesごとに保持する。
+        # update_appearance_only(Axesをclaしない唯一の経路)で、前回と同じ内容なら
+        # 全削除→全再生成を丸ごと省くために使う。詳細は _annotation_render_key()。
+        self._annotation_render_keys = {}
         # データエディタと連動する「行ハイライト」の描画済みArtistを
         # dataset.dataset_id ごとに保持する (データ⇔グラフの双方向ハイライト機能)
         self._highlight_artists = {}
@@ -516,6 +525,7 @@ class _CanvasDrawingMixin:
         # fig.clf() で古いAxes(とその子Artist)はすべて破棄されるため、
         # 個別にremove()するまでもなく古い注釈Artist/ハイライトArtistの参照も無効になる
         self._annotation_artists.clear()
+        self._annotation_render_keys.clear()
         self._highlight_artists.clear()
         self.downsample_index_map.clear()
         self._non_pickable_dataset_ids.clear()
@@ -619,7 +629,10 @@ class _CanvasDrawingMixin:
                 #   表示状態を設定するようになったため)。
                 if not is_free_layout:
                     self._apply_shared_axis_tick_visibility(index, rows, cols, share_x_axis, share_y_axis)
-                self._draw_annotations(ax, index, settings, datasets=datasets)
+                # E-2: この経路は Axes を cla() しないので、内容が変わって
+                # いなければ既存の注釈Artistをそのまま使い回せる。
+                self._draw_annotations(ax, index, settings, datasets=datasets,
+                                       allow_reuse=True)
         try:
             self.fig.tight_layout()
         except (ValueError, FileNotFoundError):
@@ -670,6 +683,7 @@ class _CanvasDrawingMixin:
 
         # cla()で古いArtistへの参照はすでに無効なので、remove()を試みず単に破棄する。
         self._annotation_artists.pop(axis_index, None)
+        self._annotation_render_keys.pop(axis_index, None)
         for dataset_id in [ds.dataset_id for ds in datasets if ds.subplot_target == axis_index]:
             self._highlight_artists.pop(dataset_id, None)
             self.downsample_index_map.pop(dataset_id, None)
@@ -767,6 +781,7 @@ class _CanvasDrawingMixin:
             self.axis_is_category_x.pop()
 
         self._annotation_artists.pop(removed_index, None)
+        self._annotation_render_keys.pop(removed_index, None)
         for dataset_id in [ds.dataset_id for ds in datasets if ds.subplot_target == removed_index]:
             self._highlight_artists.pop(dataset_id, None)
             self.downsample_index_map.pop(dataset_id, None)
@@ -884,12 +899,69 @@ class _CanvasDrawingMixin:
         indices = calculate_lttb_downsample(x_data, y_data, LTTB_DOWNSAMPLE_TARGET_POINTS)
         return x_data[indices], y_data[indices]
 
-    def _draw_annotations(self, ax, axis_index, settings, datasets=None, full_resolution=False):
+    def _annotation_render_key(self, axis_index, settings, datasets, full_resolution):
+        """
+        いま描こうとしている注釈の「結果を決める入力すべて」をまとめた文字列を返す
+        (改善ボード E-2 のキャッシュキー)。
+
+        ★ グローバル規約「キャッシュのキーには結果に影響する入力を全部含める」に
+        従って、注釈リストそのものだけでなく次も含めている:
+
+        - **ダークモード**: テキスト/矢印の色は `_effective_text_color()` を通すので、
+          注釈リストが同一でもモードが変われば描画結果が変わる。これを落とすと
+          「ダークモードにしたのに注釈の色だけ元のまま」という壊れ方をする。
+        - **統計値アンカーラベル(type='stat')の確定テキスト**: この経路は
+          `datasets` を「統計値の再計算のため」に受け取る設計で、値が変われば
+          表示も変わる。計算結果の文字列そのものをキーに入れることで、
+          値が変わったときだけ描き直す。
+        - **インセット(type='inset')が参照するデータセットの見た目**:
+          色・線幅・不透明度・表示/非表示。
+
+        インセットが描く「データそのもの」はキーに含めない。この関数を使うのは
+        `update_appearance_only()` だけで、その経路は `_draw_data()` を呼ばない
+        =「データは変わっていない」を前提に本体の描画も省いているため、
+        インセットだけ別の前提を置く必要がないから(データが変わる操作は
+        `ax.cla()` を伴う別の経路を通り、そこでは再利用しない)。
+        """
+        annotations = settings.get('annotations', [])
+        parts = [bool(self.dark_mode), bool(full_resolution), len(annotations)]
+        if not annotations:
+            return json.dumps(parts, default=str)
+
+        datasets_by_id = {ds.dataset_id: ds for ds in (datasets or ())}
+        for ann in annotations:
+            parts.append(json.dumps(ann, sort_keys=True, default=str))
+            ann_type = ann.get('type')
+            if ann_type == 'stat':
+                dataset = datasets_by_id.get(ann.get('dataset_id'))
+                parts.append(_compute_stat_label_text(dataset, ann.get('stat')))
+            elif ann_type == 'inset':
+                for target_ds in (datasets or ()):
+                    if target_ds.subplot_target != axis_index or not target_ds.visible:
+                        continue
+                    parts.append((target_ds.dataset_id, target_ds.color,
+                                  target_ds.linewidth, target_ds.alpha))
+        return json.dumps(parts, default=str)
+
+    def _draw_annotations(self, ax, axis_index, settings, datasets=None, full_resolution=False,
+                          allow_reuse=False):
         """
         settings['annotations'] (テキスト注釈・矢印注釈・領域ハイライト・統計値
         アンカーラベルのリスト) を描画する。再描画のたびに、まず前回このAxesに
         描画した注釈Artistを削除してから描き直すことで、update_appearance_only
         経由での重複描画を防ぐ。
+
+        allow_reuse=True(改善ボード E-2): 前回と内容が変わっていなければ、
+        全削除→全再生成を丸ごと省いて既存のArtistをそのまま残す。
+        **この指定ができるのは `update_appearance_only()` だけ**で、既定はFalse。
+        他の3経路(`redraw_all` は `fig.clf()`、`_redraw_single_axis_no_draw` は
+        `ax.cla()`、`add_free_axis` は新規Axes)では前回のArtistが既に破棄されて
+        いるため、再利用してしまうと注釈が消える。将来の呼び出し元が何も考えずに
+        安全側へ倒れるよう、既定をFalseにしてある。
+
+        効くのは主にインセット(拡大図)で、中でデータセットを再プロットするため
+        「注釈数×データ点数」のコストが軸の書式をいじるたびにかかっていた
+        (E-1 でインセットの間引きは入れたが、毎回作り直す構造自体は残っていた)。
 
         datasets は統計値アンカーラベル(項目C-708、type='stat')が参照先の
         Datasetを解決するために使う。省略時(None)は全て「データセットなし」
@@ -899,6 +971,10 @@ class _CanvasDrawingMixin:
         LTTB表示用ダウンサンプリング(項目C-1001)を行わず全点描画する
         (_draw_data と同じく、エクスポートの「フル解像度」オプション用)。
         """
+        render_key = self._annotation_render_key(axis_index, settings, datasets, full_resolution)
+        if allow_reuse and self._annotation_render_keys.get(axis_index, _NO_KEY) == render_key:
+            return
+
         for artist in self._annotation_artists.get(axis_index, []):
             try:
                 artist.remove()
@@ -992,6 +1068,9 @@ class _CanvasDrawingMixin:
             except Exception:
                 logger.exception("注釈の描画に失敗しました: %s", ann)
         self._annotation_artists[axis_index] = new_artists
+        # 再利用しない経路でもキーは更新しておく。そうしないと、直後の
+        # update_appearance_only が必ず1回ぶん無駄に描き直すことになる。
+        self._annotation_render_keys[axis_index] = render_key
 
     def _enable_element_picking(self, artist):
         """
