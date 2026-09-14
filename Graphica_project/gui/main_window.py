@@ -1109,11 +1109,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.gradient_checkbox = QCheckBox(tr("グラデーションを適用"))
         self._prop_form('gradient').addRow(self.gradient_checkbox)
 
-        self.gradient_color2_label = QLabel(tr("グラデーション終端色"))
+        self.gradient_color2_label = QLabel(tr("終端色"))
         self.gradient_color2_picker = ColorPickerWidget(self.settings, self, initial_color='#ffffff')
         self._prop_form('gradient').addRow(self.gradient_color2_label, self.gradient_color2_picker)
 
-        self.gradient_target_label = QLabel(tr("グラデーション対象"))
+        self.gradient_target_label = QLabel(tr("対象"))
         self.gradient_target_combo = QComboBox()
         self.gradient_target_combo.addItem(tr("線"), "line")
         self.gradient_target_combo.addItem(tr("塗り"), "fill")
@@ -1133,7 +1133,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_checkbox = QCheckBox(tr("ウォーターフォール表示(積み重ね)"))
         self._prop_form('waterfall').addRow(self.waterfall_checkbox)
 
-        self.waterfall_offset_x_label = QLabel(tr("ウォーターフォールXオフセット"))
+        self.waterfall_offset_x_label = QLabel(tr("Xオフセット"))
         self.waterfall_offset_x_spinbox = QDoubleSpinBox()
         self.waterfall_offset_x_spinbox.setRange(-1e6, 1e6)
         self.waterfall_offset_x_spinbox.setSingleStep(0.1)
@@ -1141,7 +1141,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_offset_x_spinbox.setValue(0.0)
         self._prop_form('waterfall').addRow(self.waterfall_offset_x_label, self.waterfall_offset_x_spinbox)
 
-        self.waterfall_offset_y_label = QLabel(tr("ウォーターフォールYオフセット"))
+        self.waterfall_offset_y_label = QLabel(tr("Yオフセット"))
         self.waterfall_offset_y_spinbox = QDoubleSpinBox()
         self.waterfall_offset_y_spinbox.setRange(-1e6, 1e6)
         self.waterfall_offset_y_spinbox.setSingleStep(0.1)
@@ -1163,7 +1163,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_depth_checkbox.setChecked(False)
         self._prop_form('waterfall').addRow(self.waterfall_depth_checkbox)
 
-        self.waterfall_depth_ratio_label = QLabel(tr("奥行き縮小率(1段あたり)"))
+        self.waterfall_depth_ratio_label = QLabel(tr("1段あたりの縮小率"))
         self.waterfall_depth_ratio_spinbox = QDoubleSpinBox()
         self.waterfall_depth_ratio_spinbox.setRange(0.0, 0.9)
         self.waterfall_depth_ratio_spinbox.setSingleStep(0.01)
@@ -1208,7 +1208,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # 2Dマップの描画方式(項目C-509)。'heatmap'(既定)/'contour'(線のみ)/
         # 'contour_filled'(塗りつぶし等高線)/'heatmap_contour'(重ね描き)。
-        self.map_display_mode_label = QLabel(tr("2Dマップの表示方式"))
+        self.map_display_mode_label = QLabel(tr("表示方式"))
         self.map_display_mode_combo = QComboBox()
         self.map_display_mode_combo.addItem(tr("ヒートマップ"), "heatmap")
         self.map_display_mode_combo.addItem(tr("等高線(線)"), "contour")
@@ -1216,13 +1216,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.map_display_mode_combo.addItem(tr("ヒートマップ+等高線"), "heatmap_contour")
         self._prop_form('map').addRow(self.map_display_mode_label, self.map_display_mode_combo)
 
-        self.contour_levels_label = QLabel(tr("等高線のレベル数"))
+        self.contour_levels_label = QLabel(tr("等高線レベル数"))
         self.contour_levels_spinbox = QSpinBox()
         self.contour_levels_spinbox.setRange(2, 100)
         self.contour_levels_spinbox.setValue(10)
         self._prop_form('map').addRow(self.contour_levels_label, self.contour_levels_spinbox)
 
-        self.grid_interp_method_label = QLabel(tr("散在データの補間方法"))
+        self.grid_interp_method_label = QLabel(tr("補間方法"))
         self.grid_interp_method_combo = QComboBox()
         self.grid_interp_method_combo.addItems(['linear', 'cubic', 'nearest'])
         self._prop_form('map').addRow(self.grid_interp_method_label, self.grid_interp_method_combo)
@@ -1251,7 +1251,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 生データ)自体は変更しない(gui/canvas.pyの_draw_dataが描画直前に適用)。
         # 既定'gap'は導入前からの挙動(matplotlibが自然にNaNで線を切る)そのものの
         # ため、既存プロジェクトファイルを読み込んでも見た目は変わらない。
-        self.nan_policy_label = QLabel(tr("欠損値(NaN)の扱い"))
+        # ★ ラベル列は全セクションで共有(_align_form_label_columns)するため、
+        #   ここが最長だとパネル全体の入力欄が狭まる。「(NaN)」はツールチップへ
+        #   逃がして、表示上は短くする。
+        self.nan_policy_label = QLabel(tr("欠損値の扱い"))
+        self.nan_policy_label.setToolTip(tr("欠損値(NaN)を含む点の描画方法"))
         self.nan_policy_combo = QComboBox()
         self.nan_policy_combo.addItem(tr("線を切る(既定)"), "gap")
         self.nan_policy_combo.addItem(tr("前の値で埋める"), "ffill")
@@ -1357,6 +1361,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.stats_toolbar_button.setMenu(stats_menu)
         toolbar.addSeparator()
         toolbar.addWidget(self.stats_toolbar_button)
+
 
         # 5. 第2Y軸チェックボックスを追加
         self.use_secondary_y_checkbox = QCheckBox("第2Y軸 (右側) を使用")
@@ -1539,7 +1544,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 意味を持つため、既定では非表示(gui/mixins/settings_mixin.pyの
         # _on_x_minor_tick_visibility_changedが表示/有効状態を切り替える)。
         # gui/canvas.pyの_apply_appearanceがticker.LogLocator(subs=...)へ渡す。
-        self.x_log_minor_subs_label = QLabel(tr("対数軸の補助目盛り"))
+        # ★ ラベル列はX軸/Y軸タブで共有(_align_form_label_columns)するため、
+        #   ここが最長だと両タブの入力欄が一斉に狭まる。対数表示がONの
+        #   ときしか出ない行なので「軸の」は省いて短くし、正式な説明は
+        #   ツールチップへ逃がす。
+        self.x_log_minor_subs_label = QLabel(tr("対数補助目盛"))
+        self.x_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛りをどこに打つか"))
         self.x_log_minor_subs_combo = QComboBox()
         self.x_log_minor_subs_combo.addItem(tr("自動(既定)"), "auto")
         self.x_log_minor_subs_combo.addItem(tr("全て(2〜9)"), "all")
@@ -1597,7 +1607,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.formLayout_2.addRow(QLabel(tr("小数桁数")), self.y_tick_decimals_spinbox)
 
         # 対数軸の補助目盛り高度制御(項目C-604)、Y軸版
-        self.y_log_minor_subs_label = QLabel(tr("対数軸の補助目盛り"))
+        # ★ ラベル列はX軸/Y軸タブで共有(_align_form_label_columns)するため、
+        #   ここが最長だと両タブの入力欄が一斉に狭まる。対数表示がONの
+        #   ときしか出ない行なので「軸の」は省いて短くし、正式な説明は
+        #   ツールチップへ逃がす。
+        self.y_log_minor_subs_label = QLabel(tr("対数補助目盛"))
+        self.y_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛りをどこに打つか"))
         self.y_log_minor_subs_combo = QComboBox()
         self.y_log_minor_subs_combo.addItem(tr("自動(既定)"), "auto")
         self.y_log_minor_subs_combo.addItem(tr("全て(2〜9)"), "all")
@@ -2023,6 +2038,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # C-1: formLayout_4 は空になったので、各サブセクションの QFormLayout に掛ける
         for key, _title in DATASET_PROPERTY_SECTIONS:
             self._prop_form(key).setSpacing(spacing_value)
+
+        # 入力欄の左端を揃える(実機フィードバック)。全ラベルが構築し終わった
+        # この時点で行う必要がある。プロパティパネルの7セクション同士、
+        # X軸タブとY軸タブ同士でそれぞれ列幅を共有させる
+        # (「ラベル/書式」タブは単独のフォームなので元から内部で揃っている)。
+        self._align_form_label_columns(
+            [self._prop_form(key) for key, _title in DATASET_PROPERTY_SECTIONS])
+        self._align_form_label_columns([self.ui.formLayout, self.ui.formLayout_2])
 
 
         # X/Y軸の最小値・最大値: 負の値も含めて指数表記で入力できるようにする
@@ -2998,11 +3021,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         for key, title in DATASET_PROPERTY_SECTIONS:
             body = QWidget()
             form = QFormLayout(body)
-            # 見出し7本ぶんの高さは純増になるので、本体側の余白は詰める。
-            # ★ 実機フィードバック:「見出しと項目の区別がつきにくい」。
-            #   見出しは左端(0)に置き、項目側をこのぶん字下げして見出しを
-            #   ぶら下げる形にする(サイズ・太さ・色の差と合わせて4つの手がかり)。
-            form.setContentsMargins(12, 2, 0, 6)
+            # 見出し7本ぶんの高さは純増になるので、上下の余白は詰める。
+            # ★ 実機フィードバック:「見出しと項目の区別がつきにくい」
+            #   →「インデントが逆転してるのなんかやだ」。実測すると、親の見出しは
+            #   padding-left:4px で描かれるのに対し子の見出しは0で、子のほうが
+            #   4px左に出ていた。親(4px) → 子(theme.pyで12px) → 中身(ここ)
+            #   の階段になるよう字下げする。
+            form.setContentsMargins(24, 2, 0, 6)
             form.setSpacing(6)
 
             toggle_button = QToolButton()
@@ -3083,6 +3108,40 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     def _prop_form(self, section_key):
         """サブセクション(DATASET_PROPERTY_SECTIONS のキー)の QFormLayout を返す。"""
         return self._prop_sections[section_key]['form']
+
+    def _align_form_label_columns(self, forms):
+        """
+        複数の QFormLayout でラベル列の幅を揃える(実機フィードバック:
+        「X軸タブとY軸タブで入力ボックスの大きさが微妙に違う」
+        「ここのタブでボックスの大きさばらばら」)。
+
+        QFormLayout のラベル列幅は「**そのレイアウト内**で最も widest なラベル」で
+        決まる。X軸/Y軸タブのように別々のレイアウトが縦に切り替わる場合や、
+        C-1 でプロパティパネルを7つのレイアウトに分けた場合、レイアウトごとに
+        列幅が変わるため、入力欄の左端が揃わずガタつく。全ラベルの最大幅を
+        求めて、全員にその最小幅を課すことで列幅を共有させる。
+
+        ★ 非表示のラベルも計算に含める。QFormLayout は非表示のウィジェットを
+        列幅の計算から外すため、含めないと「対数表示をONにした瞬間に
+        『対数軸の補助目盛り』が現れて列幅が広がり、入力欄が一斉にずれる」
+        という別のガタつきが残る。
+
+        戻り値は決定した列幅(px)。
+        """
+        labels = []
+        widest = 0
+        for form in forms:
+            for row in range(form.rowCount()):
+                item = form.itemAt(row, QFormLayout.ItemRole.LabelRole)
+                if item is None or not isinstance(item.widget(), QLabel):
+                    continue
+                label = item.widget()
+                labels.append(label)
+                widest = max(widest, label.sizeHint().width())
+
+        for label in labels:
+            label.setMinimumWidth(widest)
+        return widest
 
     def _set_dataset_property_fields_enabled(self, enabled):
         """

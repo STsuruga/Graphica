@@ -204,7 +204,7 @@ def test_data_section_row_order(window):
     addRow への機械的な置換ではここが逆転する。
     """
     assert _visible_row_labels(window, 'data') == [
-        "X軸の列", "Y軸の列", "X誤差列", "Y誤差列", "欠損値(NaN)の扱い",
+        "X軸の列", "Y軸の列", "X誤差列", "Y誤差列", "欠損値の扱い",
     ]
 
 
@@ -452,8 +452,8 @@ def test_map_section_shows_the_shared_rows_for_a_z_color_scatter(window):
     shown = _visible_row_labels(window, 'map')
     assert "Z軸の列" in shown
     assert "カラーマップ" in shown
-    assert "2Dマップの表示方式" not in shown
-    assert "等高線のレベル数" not in shown
+    assert "表示方式" not in shown
+    assert "等高線レベル数" not in shown
 
 
 def test_switching_plot_type_no_longer_moves_rows_across_sections(window):
@@ -507,3 +507,85 @@ def test_a_long_plugin_plot_type_name_does_not_widen_the_dock(tmp_path, monkeypa
         assert scroll_area.widget().minimumSizeHint().width() <= scroll_area.viewport().width()
     finally:
         window.close()
+
+
+# --- 見出しと項目の見分け(実機フィードバック) ---
+
+def _left_padding(qss, selector):
+    """生成済みQSSから、あるセレクタの padding の左値(px)を読む。"""
+    import re
+    block = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", qss)
+    assert block, f"{selector} の規則が見つからない"
+    decl = re.search(r"padding:\s*([^;]+);", block.group(1))
+    assert decl, f"{selector} に padding 指定が無い"
+    values = decl.group(1).split()
+    # CSSショートハンド: 1値=全辺, 2値=縦/横, 3値=上/横/下, 4値=上右下左
+    left = {1: 0, 2: 1, 3: 1, 4: 3}[len(values)]
+    return int(values[left].replace("px", ""))
+
+
+def _font_size(qss, selector):
+    import re
+    block = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", qss)
+    assert block, f"{selector} の規則が見つからない"
+    decl = re.search(r"font-size:\s*([0-9.]+)px", block.group(1))
+    assert decl, f"{selector} に font-size 指定が無い"
+    return float(decl.group(1))
+
+
+def test_indent_forms_a_ladder_from_parent_to_child_to_content(window):
+    """
+    ★ 実機フィードバックの回帰テスト:「インデントが逆転してるのなんかやだ」。
+    親の見出しは padding-left:4px で描かれるのに子は0で、子のほうが4px左に
+    出ていた。親 < 子 < 中身 の順に深くなること。
+    """
+    from gui import theme
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+
+    parent = _left_padding(qss, "QToolButton#collapsible_section_toggle")
+    child = _left_padding(qss, "QToolButton#property_subsection_toggle")
+    content = window._prop_form('data').contentsMargins().left()
+
+    assert parent < child < content, f"親={parent} 子={child} 中身={content}"
+
+
+def test_headings_are_larger_than_the_fields_they_contain(window):
+    """
+    ★ 実機フィードバックの回帰テスト:「見出し文字サイズが中の項目より
+    小さい気がする」。このアプリはQSSでフォントサイズを指定していないため、
+    フォームのラベルはOS既定(実測で実高さ12px)で描かれる。見出しを
+    それ以下にすると、見出しのほうが小さいという階層の逆転になる。
+    """
+    from PySide6.QtGui import QFontMetrics
+    from PySide6.QtWidgets import QFormLayout
+    from gui import theme
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+
+    parent_px = _font_size(qss, "QToolButton#collapsible_section_toggle")
+    child_px = _font_size(qss, "QToolButton#property_subsection_toggle")
+    assert parent_px > child_px, f"親={parent_px} 子={child_px}"
+
+    label = window._prop_form('data').itemAt(0, QFormLayout.ItemRole.LabelRole).widget()
+    field_px = QFontMetrics(label.font()).height()
+    assert child_px > field_px, f"サブ見出し={child_px} 項目ラベル={field_px}"
+
+
+def test_only_the_first_section_omits_its_separator_rule(window):
+    """区切りの罫線は各見出しの上に引くが、1本目だけは親見出しの直下なので
+    二重線に見える。そこだけ引かない。"""
+    first_key = DATASET_PROPERTY_SECTIONS[0][0]
+    for key, _title in DATASET_PROPERTY_SECTIONS:
+        toggle = window._prop_sections[key]['toggle']
+        expected = True if key == first_key else None
+        assert toggle.property("firstSection") == expected, key
+
+
+def test_section_header_spans_the_full_width(window):
+    """
+    ★ QToolButton の既定は「文字幅ぴったり」で、そのままだと区切りの罫線が
+    見出しの文字の下までしか引かれず、区切りとして機能しない。
+    """
+    from PySide6.QtWidgets import QSizePolicy
+    for key, _title in DATASET_PROPERTY_SECTIONS:
+        toggle = window._prop_sections[key]['toggle']
+        assert toggle.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding, key

@@ -144,8 +144,11 @@ QWidget {{
     /* ★ 実機フィードバック: テキスト選択やポップアップの選択色が(アプリ全体の
        ティール系アクセントのままだと)緑っぽく見えるとの指摘を受け、データ
        セットリスト(H-2-2)で使っている薄い青のselection_highlightに揃えた。
-       ボタンのhover/pressedやフォーカス枠など「選択」以外のアクセント表現は
-       従来通りaccent(ティール系)のまま変えていない。 */
+       その後の実機フィードバック(フォーカス枠 → タブの選択 → 押下)で
+       段階的に青へ寄せ、最終的に「どのタブも押したときの色が緑だから青で
+       統一して」を受けて hover/pressed も selection_highlight に揃えた。
+       ティール系accentが残るのは、操作フィードバックではない表現
+       (QProgressBar::chunk 等)だけ。 */
     selection-background-color: {selection_highlight};
     selection-color: {text_primary};
 }}
@@ -338,7 +341,7 @@ QSplitter::handle:vertical {{
     margin: 0 2px;
 }}
 QSplitter::handle:hover {{
-    background: {accent};
+    background: {selection_accent};
 }}
 
 /* --- グループボックス / ボタン --- */
@@ -427,7 +430,12 @@ QToolButton#collapsible_section_toggle {{
     padding: 6px 4px;
     text-align: left;
     font-weight: 600;
-    font-size: 12.5px;
+    /* ★ 実機フィードバック:「見出し文字サイズが中の項目より小さい気がする」。
+       このアプリはQSSでフォントサイズを指定していないため、フォームのラベルや
+       コンボは既定の9pt(実測で実高さ12px)で描かれる。12.5pxの見出しは
+       実質同じ大きさで、太さしか違わなかった。見出し14px > サブ見出し13px >
+       項目12px の階段にする。 */
+    font-size: 14px;
     color: {text_secondary};
 }}
 QToolButton#collapsible_section_toggle:hover {{
@@ -435,7 +443,8 @@ QToolButton#collapsible_section_toggle:hover {{
     color: {text_primary};
 }}
 QToolButton#collapsible_section_toggle:pressed {{
-    background: {accent_soft};
+    /* ★ 実機フィードバック:「どのタブも押したときの色が緑だから青で統一して」 */
+    background: {selection_highlight};
 }}
 
 /* --- プロパティパネル内のサブセクション見出し(改善ボード C-1) ---
@@ -452,10 +461,17 @@ QToolButton#property_subsection_toggle {{
     border: none;
     border-top: 1px solid {border};
     border-radius: 0;
-    padding: 6px 2px 4px 0;
+    /* ★ 実機フィードバック:「インデントが逆転してるのなんかやだ」。
+       親(collapsible_section_toggle)は padding-left:4px で描かれるのに対し
+       こちらは0だったため、子の見出しのほうが親より4px左に出ていた。
+       親より内側に入れて、親→子→中身の階段にする(中身の字下げは
+       main_window の form.setContentsMargins 側)。
+       罫線(border-top)はパディングを含むウィジェット全幅に引かれるので、
+       字下げしてもセクションの区切りとしては横いっぱいのまま。 */
+    padding: 6px 2px 4px 12px;
     text-align: left;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 13px;
     color: {text_primary};
 }}
 QToolButton#property_subsection_toggle[firstSection="true"] {{
@@ -464,10 +480,12 @@ QToolButton#property_subsection_toggle[firstSection="true"] {{
 }}
 QToolButton#property_subsection_toggle:hover {{
     background: {surface_2};
-    color: {accent_text};
+    /* accent_text はライトモードで #FFFFFF (アクセント背景に載せる文字色)なので、
+       薄い背景のこのホバーに使うと白文字で消える。強調は青の文字色で行う。 */
+    color: {selection_accent};
 }}
 QToolButton#property_subsection_toggle:pressed {{
-    background: {accent_soft};
+    background: {selection_highlight};
 }}
 QPushButton {{
     background: {surface};
@@ -607,7 +625,7 @@ QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
 }}
 QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
 QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
-    background: {accent_soft};
+    background: {selection_highlight};
 }}
 QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
     image: url({spin_up_arrow_url});
@@ -760,7 +778,7 @@ QToolButton#add_tab_button {{
     padding: 5px;
 }}
 QToolButton#add_tab_button:hover {{
-    background: {accent_soft};
+    background: {selection_highlight};
 }}
 
 /* --- チェックボックス / ラジオボタン ---
@@ -809,12 +827,17 @@ QScrollBar::handle:vertical {{
     min-height: 24px;
 }}
 QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed {{
-    /* ★ 実機フィードバック: 「スクロールバーを動かすときの色が緑のまま
-       だから他のとこの青で統一」。hover/focus/選択等の他の強調表現は
-       既にselection_accent(青)へ統一済みだったが、ここだけ取り残されて
-       いた(ブランドアクセントのaccentのまま)。ドラッグ中はQtの挙動上
-       :hoverスタイルが適用され続けるため、:pressedも明示して揃える。 */
-    background: {selection_accent};
+    /* ★ 実機フィードバックで2度変わっている箇所。最初は「スクロールバーを
+       動かすときの色が緑のままだから他のとこの青で統一」でaccent(緑)→
+       selection_accent(青)にしたが、実際に使ってみて「スクロールバーは青に
+       ハイライトよりも濃いグレーでハイライトがいいかも」となり、こちらへ
+       方針転換した。スクロールバーは「今どこを選んでいるか」を示す選択表現では
+       なく、掴める場所を示すだけの操作部品なので、青は主張が強すぎるという判断。
+       text_mutedは通常時のborder_strongに対して、ライトでは濃く・ダークでは
+       明るくなる(=どちらのモードでもコントラストが上がる)。
+       ドラッグ中はQtの挙動上:hoverスタイルが適用され続けるため、:pressedも
+       明示して揃える。 */
+    background: {text_muted};
 }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0;
@@ -830,7 +853,7 @@ QScrollBar::handle:horizontal {{
     min-width: 24px;
 }}
 QScrollBar::handle:horizontal:hover, QScrollBar::handle:horizontal:pressed {{
-    background: {selection_accent};
+    background: {text_muted};
 }}
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
     width: 0;

@@ -133,12 +133,17 @@ class TestFlatThemeProxyStyle:
             qss = theme.build_qss(theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS)
             assert not re.search(r"QTabBar::close-button\s*\{[^}]*\S[^}]*\}", qss)
 
-    def test_scrollbar_handle_hover_and_pressed_use_selection_accent_not_accent(self):
+    def test_scrollbar_handle_highlights_with_a_stronger_gray(self):
         """
-        実機フィードバック(「スクロールバーを動かすときの色が緑のまま
-        だから他のとこの青で統一」)。QScrollBar::handle:hover/:pressedは
-        selection_accent(青)を使い、ブランドアクセント(accent、緑寄り)を
-        使っていないことを確認する。
+        ★ 実機フィードバックで2度変わっている箇所。
+        1回目:「スクロールバーを動かすときの色が緑のままだから他のとこの青で
+        統一」で accent(緑)→ selection_accent(青)。
+        2回目:「スクロールバーは青にハイライトよりも濃いグレーでハイライトが
+        いいかも」で text_muted へ。スクロールバーは「今どこを選んでいるか」を
+        示す選択表現ではなく、掴める場所を示すだけの操作部品なので、青は主張が
+        強すぎるという判断。text_muted は通常時の border_strong に対して
+        ライトでは濃く・ダークでは明るくなる(どちらのモードでもコントラストが
+        上がる)。
         """
         for dark in (False, True):
             tokens = theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS
@@ -150,8 +155,9 @@ class TestFlatThemeProxyStyle:
                     qss,
                 )
                 assert m, f"QScrollBar::handle:{orientation}:hover/:pressedのルールが見つからない"
-                assert tokens["selection_accent"] in m.group(1)
+                assert tokens["text_muted"] in m.group(1)
                 assert tokens["accent"] not in m.group(1)
+                assert tokens["selection_accent"] not in m.group(1)
 
     def test_generated_qss_does_not_style_checkbox_indicator(self):
         # QCheckBox::indicator { ... } を指定するとチェックマークが描画され
@@ -823,3 +829,52 @@ def test_flat_theme_proxy_style_suppresses_tab_bar_base_frame(qapp):
     proxy.drawPrimitive(QStyle.PrimitiveElement.PE_FrameTabBarBase, option, painter, None)
 
     base_style.drawPrimitive.assert_not_called()
+
+
+# --- 操作フィードバックの色(実機フィードバック:「押したときの色が緑」) ---
+
+def _qss_block(qss, selector):
+    """セレクタの宣言ブロックを返す。QSSコメントは落とす(説明文に書いた
+    色名に反応して誤検出するのを避けるため)。"""
+    match = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", qss)
+    assert match, f"{selector} の規則が見つからない"
+    return re.sub(r"/\*.*?\*/", "", match.group(1), flags=re.S)
+
+
+def test_no_interaction_state_uses_the_teal_accent_anymore():
+    """
+    ★ 実機フィードバックの回帰テスト:「どのタブも押したときの色が緑だから
+    青で統一して」。hover/pressed/selected/checked/focus といった操作の
+    フィードバックは、全て青系(selection_highlight / selection_accent)を使う。
+    ティール系の accent / accent_soft が残ってよいのは、操作状態ではない表現
+    (QProgressBar::chunk など)だけ。
+
+    トークン名ではなく**展開後の実際の色**で見るので、将来トークンを
+    経由せず直接ティールを書いた場合も検出できる。
+    """
+    teal_values = {
+        theme.LIGHT_TOKENS["accent"].lower(),
+        theme.LIGHT_TOKENS["accent_soft"].lower(),
+    }
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+
+    offenders = []
+    for match in re.finditer(r"([^{}]+)\{([^}]*)\}", qss):
+        selector, body = match.group(1).strip(), match.group(2)
+        if not re.search(r":(hover|pressed|selected|checked|focus)\b", selector):
+            continue
+        for value in re.findall(r":\s*([^;]+);", body):
+            for teal in teal_values:
+                if teal in value.lower():
+                    offenders.append((selector.splitlines()[-1].strip(), value.strip()))
+    assert not offenders, f"操作状態にティール系が残っている: {offenders}"
+
+
+def test_subsection_hover_text_stays_readable():
+    """
+    ★ accent_text はライトモードで #FFFFFF(アクセント背景に載せる文字色)。
+    薄い背景のホバーに使うと白文字になって消える。実際に一度そう書いていた。
+    """
+    qss = theme.build_qss(theme.LIGHT_TOKENS)
+    body = _qss_block(qss, "QToolButton#property_subsection_toggle:hover")
+    assert theme.LIGHT_TOKENS["accent_text"] not in body

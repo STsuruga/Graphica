@@ -469,6 +469,20 @@ class UISetupMixin:
             self.addAction(self.command_palette_action)
             edit_menu.addAction(self.command_palette_action)
 
+            # --- 2b. 「データセット」メニュー ---
+            # ★ 実機フィードバック: C-2 で整理したデータセット右クリックメニューは
+            #   中身が豊富なのに、リストを右クリックしないと辿り着けず気づかれ
+            #   にくい。メニューバーからも同じものを開けるようにする。
+            #   中身の構築は dataset_mixin._populate_dataset_actions_menu() が
+            #   右クリック側と共有する(片方だけに項目を足す壊れ方を防ぐ)。
+            dataset_menu = menu_bar.addMenu(tr("データセット(&D)"))
+            self._dataset_menu = dataset_menu           # 破棄されないよう保持
+            self._dataset_menu_action = dataset_menu.menuAction()  # 開閉用アクションも(CLAUDE.md)
+            # 選択状態によって出し入れされる項目があるので、開くたびに詰め直す。
+            dataset_menu.aboutToShow.connect(
+                lambda: self._populate_dataset_actions_menu(dataset_menu))
+            self._populate_dataset_actions_menu(dataset_menu)
+
             # --- 3. 「表示」メニュー ---
             view_menu = menu_bar.addMenu(tr("表示(&V)"))
             self._view_menu = view_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
@@ -718,6 +732,14 @@ class UISetupMixin:
                     if text:
                         results.append((path + [text], action))
 
+        # ★ 「データセット」メニューは意図的に含めない。選択状態に応じて開くたびに
+        # 作り直される(clear() → 詰め直し)ため、(1) コマンドパレットの候補が
+        # 「そのとき何を選んでいたか」で変わってしまい、(2) クイックアクセスの
+        # ピン留め識別子(メニューのパス全体)が安定しない。さらに、作り直される
+        # サブメニューを action.menu() 経由で辿ると、このリポジトリで2度踏んでいる
+        # shiboken のメニュー破棄(CLAUDE.md参照)を誘発しやすい。
+        # 同じ操作は「データセットリストの右クリック」からも辿れるので、
+        # 「最近使ったファイル」と同様に収集対象から外す。
         top_menus = [self._file_menu, self._edit_menu, self._view_menu, self._help_menu]
         # ★ 「プラグイン」メニューは、プラグインが1つもメニューアクションを
         # 登録していない場合は _create_menu_bar() で作られず self._plugin_menu が

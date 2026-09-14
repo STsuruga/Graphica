@@ -494,3 +494,136 @@ def test_switching_from_2d_back_to_1d_restores_the_waterfall_checkbox(tmp_path, 
         assert window.waterfall_checkbox.isVisible()
     finally:
         window.close()
+
+
+# =============================================================================
+# メニューバーの「データセット」メニュー
+# (実機フィードバック: 右クリックでしか辿り着けず気づかれにくい)
+# =============================================================================
+
+def test_menu_bar_has_a_dataset_menu(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    try:
+        titles = [a.text() for a in window.menuBar().actions()]
+        assert "データセット(&D)" in titles
+        # ★ QMenu と menuAction() の両方を永続参照で持つこと(CLAUDE.md の
+        #   shiboken の癖。片方だけだとメニューごと破棄されることがある)。
+        assert window._dataset_menu is not None
+        assert window._dataset_menu_action is window._dataset_menu.menuAction()
+        # 開く前から空ではない(最低限「新しいフォルダ」がある)
+        assert _menu_item_texts(window._dataset_menu)
+    finally:
+        window.close()
+
+
+def test_dataset_menu_is_kept_out_of_the_command_palette(tmp_path, monkeypatch):
+    """
+    ★ このメニューは開くたびに作り直されるので、コマンドパレットの候補に
+    入れると「そのとき何を選んでいたか」で候補が変わり、クイックアクセスの
+    ピン留め識別子も安定しない。「最近使ったファイル」と同じ扱いで外す。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    try:
+        _add_datasets(window, 2)
+        window.ui.dataset_list_widget.selectAll()
+        window._dataset_menu.aboutToShow.emit()
+
+        paths = [" > ".join(path) for path, _action in window._collect_menu_actions()]
+        assert not [p for p in paths if p.startswith("データセット")]
+        # 収集自体は壊れていないこと(他のメニューは拾えている)
+        assert any(p.startswith("ファイル") for p in paths)
+    finally:
+        window.close()
+
+
+def test_collecting_menu_actions_does_not_break_the_dataset_menu(tmp_path, monkeypatch):
+    """
+    ★ 回帰テスト: コマンドパレットを開く(= _collect_menu_actions を呼ぶ)と
+    サブメニューが破棄される、という不具合をこのリポジトリでは2度踏んでいる。
+    収集後も「データセット」メニューが普通に開けること。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    try:
+        _add_datasets(window, 2)
+        window.ui.dataset_list_widget.selectAll()
+
+        window._collect_menu_actions()
+        window._collect_menu_actions()
+        window._dataset_menu.aboutToShow.emit()
+
+        assert _submenu(window._dataset_menu, "データ処理") is not None
+    finally:
+        window.close()
+
+
+def test_dataset_menu_matches_the_right_click_menu(tmp_path, monkeypatch):
+    """
+    ★ 2つの導線が別実装に分岐しないことの担保。片方だけに項目を足す、という
+    壊れ方を防ぐ(CLAUDE.md「表示と出力を同じ経路に統一する」と同じ理由)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    try:
+        _add_datasets(window, 2)
+        window.ui.dataset_list_widget.selectAll()
+
+        from PySide6.QtWidgets import QMenu
+        right_click = QMenu(window)
+        window._populate_dataset_actions_menu(right_click)
+
+        menu_bar_menu = window._dataset_menu
+        window._populate_dataset_actions_menu(menu_bar_menu)
+
+        assert _menu_item_texts(menu_bar_menu) == _menu_item_texts(right_click)
+    finally:
+        window.close()
+
+
+def test_dataset_menu_follows_the_current_selection(tmp_path, monkeypatch):
+    """
+    選択状態によって出し入れされる項目(1件選択時は「複数データセット」が
+    空になる等)が、開くたびに正しく作り直されること。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    try:
+        menu = window._dataset_menu
+
+        window._populate_dataset_actions_menu(menu)
+        assert _submenu(menu, "データ処理") is None  # 選択が無ければサブメニューは出ない
+
+        _add_datasets(window, 2)
+        window.ui.dataset_list_widget.selectAll()
+        window._populate_dataset_actions_menu(menu)
+        assert _submenu(menu, "複数データセット") is not None
+
+        window.ui.dataset_list_widget.clearSelection()
+        window.ui.dataset_list_widget.setCurrentItem(
+            window.ui.dataset_list_widget.topLevelItem(0))
+        window._populate_dataset_actions_menu(menu)
+        assert _submenu(menu, "データ処理") is not None
+        assert _submenu(menu, "複数データセット") is None
+    finally:
+        window.close()
+
+
+def test_dataset_menu_survives_being_opened_repeatedly(tmp_path, monkeypatch):
+    """
+    ★ 回帰テスト: 永続QMenuを clear() して詰め直す方式のため、PySide6が
+    サブメニューを回収してしまうと2回目以降に
+    「Internal C++ object already deleted」で落ちる(このリポジトリで実際に
+    2度踏んでいるshibokenの癖、CLAUDE.md参照)。
+    """
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    try:
+        _add_datasets(window, 2)
+        window.ui.dataset_list_widget.selectAll()
+        menu = window._dataset_menu
+
+        for _ in range(4):
+            menu.aboutToShow.emit()
+
+        submenu = _submenu(menu, "データ処理")
+        assert submenu is not None
+        assert len(submenu.actions()) > 0
+        assert "削除" in _menu_item_texts(menu)
+    finally:
+        window.close()

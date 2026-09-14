@@ -256,6 +256,20 @@ class DatasetMixin:
         """
         データセットツリーを右クリックしたときのコンテキストメニュー。
 
+        中身の構築は _populate_dataset_actions_menu() が持つ。同じメニューを
+        ツールバーの「データセット操作」ボタンからも開けるようにするため
+        (実機フィードバック: 右クリックでしか辿り着けないのが分かりにくい)、
+        「どこに出すか」だけをこちらが決める。
+        """
+        menu = QMenu(self)
+        self._populate_dataset_actions_menu(menu)
+        menu.exec(self.ui.dataset_list_widget.viewport().mapToGlobal(pos))
+
+    def _populate_dataset_actions_menu(self, menu):
+        """
+        データセット操作メニューの中身を menu に構築する(右クリック用と
+        ツールバー用で共有)。
+
         ★ 改善ボード C-2: 以前は約30項目がほぼフラットに並んでおり(区切り線は4本)、
         特にデータ処理系9項目が他と同列にずらりと続いて目的の操作を探しにくかった。
         内容が自然に分かれる5つのサブメニューにまとめる:
@@ -264,13 +278,14 @@ class DatasetMixin:
         フォルダ操作・スタイルのコピー/貼り付け・再読み込み・削除といった
         「1クリックで終わる頻出操作」はトップレベルに残す。
 
-        ★ このメニューは右クリックのたびに作り直され exec() で同期的に閉じる
-        使い捨てなので、メニューバー側のサブメニューのように self.xxx への永続
-        参照は要らない。ただしPython側の参照が途中で消えないよう、作った
-        サブメニューは submenus リストに握っておく(ローカル変数 menu が
-        exec() の間ずっと生きているのと同じ保険)。
+        ★ 開くたびに作り直す(選択状態で出し入れする項目があるため)。
+        右クリック側は毎回新しい QMenu を渡す使い捨て、ツールバー側は永続
+        QMenu を aboutToShow のたびに clear() して詰め直す。どちらも
+        メニューバー側のサブメニューのような self.xxx への永続参照は要らないが、
+        PySide6 が作ったサブメニューを途中で回収しないよう、Python側の参照は
+        メニュー自身に持たせておく(下の _graphica_submenus)。
         """
-        menu = QMenu(self)
+        menu.clear()
         submenus = []
 
         def add_submenu(title):
@@ -480,7 +495,10 @@ class DatasetMixin:
             remove_action = menu.addAction("削除")
             remove_action.triggered.connect(self._on_remove_dataset)
 
-        menu.exec(self.ui.dataset_list_widget.viewport().mapToGlobal(pos))
+        # サブメニューのPython参照をメニュー自身に持たせる(上のdocstring参照)。
+        # 次回の clear() で古い方はまとめて差し替わる。
+        menu._graphica_submenus = submenus
+        return menu
 
     def _on_export_dataset_data(self):
         """
