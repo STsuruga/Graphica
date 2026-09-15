@@ -29,7 +29,6 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from gui.theme import apply_form_spacing
-from core.i18n import tr
 
 logger = logging.getLogger(__name__)
 

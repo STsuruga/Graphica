@@ -26,6 +26,10 @@ Graphica_project_backup_*/
 # Claude Codeのローカル専用設定 (この環境固有のため共有しない)
 .claude/settings.local.json
 .coverage
+# カバレッジの計測中に各プロセスが書く一時ファイルと、HTMLレポート本体
+# (数千ファイルになるためコミットしない。要約は docs/COVERAGE.md に出す)
+.coverage.*
+htmlcov/
 
 # scripts/run_tests_chunked.sh が実行時に作る一時作業ディレクトリ
 Graphica_project/.ci_test_chunks/

@@ -6,7 +6,7 @@
 選択中の色をカラーコード(#RRGGBB)で直接確認・編集できるテキスト欄を
 組み合わせ、色を「見て」「数値でも」扱えるようにする。
 """
-from PySide6.QtCore import Signal, Qt, QSize
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QLineEdit,
                                QInputDialog, QMenu, QMessageBox)

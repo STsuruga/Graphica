@@ -7,7 +7,6 @@ gui/dialogs.py(5,560行・47ダイアログ)を機能群ごとに分割したも
 参照できる(gui/dialogs/__init__.py が再エクスポートしている)。
 """
 
-import os
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -36,7 +35,6 @@ from PySide6.QtCore import QEvent, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QKeySequence
 from gui import icon_utils
 from gui.theme import apply_form_spacing
-from core.i18n import tr
 
 
 
@@ -634,16 +632,23 @@ class AboutDialog(QDialog):
         credits_browser.setHtml(r"""
         <p>Graphica は、CSV/Excelファイルからデータを読み込み、グラフの作成・編集・
         エクスポートを行うためのデータ可視化ソフトウェアです。</p>
+        <h3>ライセンス</h3>
+        <p>Graphica 本体は <b>MIT License</b> で提供しています
+        (Copyright (c) 2026 STsuruga)。ソースコードは
+        <a href="https://github.com/STsuruga/Graphica">GitHub</a> で公開しています。</p>
         <h3>使用ライブラリ</h3>
         <ul>
-            <li>PySide6 (LGPLv3)</li>
+            <li>PySide6 / Qt (LGPL v3)</li>
             <li>Matplotlib (PSFベースのライセンス)</li>
             <li>NumPy (BSD 3-Clause)</li>
             <li>pandas (BSD 3-Clause)</li>
             <li>SciPy (BSD 3-Clause)</li>
             <li>openpyxl (MIT)</li>
+            <li>Tabler Icons (MIT) — アプリ内のアイコン</li>
         </ul>
-        <p>各ライブラリの詳細なライセンス条文は、それぞれの配布元をご確認ください。</p>
+        <p>このアプリに同梱している Qt / PySide6 は LGPL v3 です。同梱物の一覧と
+        再配布時の注意は、配布物に含まれる <code>THIRD_PARTY_LICENSES.md</code> を
+        参照してください。各ライブラリの詳細な条文は、それぞれの配布元をご確認ください。</p>
         """)
         layout.addWidget(credits_browser)
 

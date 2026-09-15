@@ -18,6 +18,14 @@ requires-python = ">=3.10"
 authors = [
     { name = "STsuruga" },
 ]
+# PEP 639 の SPDX 式で指定する。License:: 分類子との併用は setuptools 77+ で
+# エラーになるため classifiers 側には書かない。
+# license-files は指定しない — LICENSE はリポジトリルートにあり、setuptools は
+# プロジェクトルート (Graphica_project/) の外のファイルを取り込めないため
+# (README.md を複製しているのと同じ制約)。このパッケージは
+# "Private :: Do Not Upload" で配布物としては使わないので、メタデータ上の
+# ライセンス表明だけで足りる。
+license = "MIT"
 keywords = ["plotting", "matplotlib", "PySide6", "data-visualization", "curve-fitting"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -87,3 +95,33 @@ include-package-data = true
 # 配下 (例: assets/) に移し resource_path() 側の参照も合わせて更新する
 # 追加対応が別途必要(今回は main.py 以外の実行パスを変更しないスコープの
 # ため未対応)。
+
+# --- テストカバレッジ (scripts/run_coverage.sh) ---
+# チャンクごとに別プロセスで測るため parallel = true。各プロセスが
+# .coverage.<host>.<pid>.<乱数> を書き、あとから `coverage combine` で束ねる。
+[tool.coverage.run]
+parallel = true
+branch = true
+source = ["core", "gui", "models"]
+omit = [
+    # Qt Designer / pyside6-uic の生成物。手で編集しない方針なので、
+    # カバレッジの対象にしても改善のしようがない。
+    "ui_main_window.py",
+    "*/__pycache__/*",
+    "tests/*",
+]
+
+[tool.coverage.report]
+# 「測れないもの・測っても意味の薄いもの」を除外する。
+exclude_also = [
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    # 環境依存の分岐(PyInstallerで固めたときだけ通る等)はCIでもローカルでも
+    # 片側しか通らないため。
+    'if is_frozen\(\):',
+    "except ImportError:",
+]
+show_missing = true
+skip_covered = false
+precision = 1

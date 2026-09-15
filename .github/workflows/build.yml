@@ -72,6 +72,15 @@ jobs:
       - name: Build exe with PyInstaller
         run: pyinstaller graphica.spec --noconfirm
 
+      # 配布物にライセンス関連を同梱する。同梱している Qt/PySide6 は LGPL v3 で、
+      # 条文の提示と「利用者が Qt を差し替えられること」の案内が要るため、
+      # exe だけを配ると条件を満たせない (THIRD_PARTY_LICENSES.md 参照)。
+      - name: Bundle license files
+        shell: bash
+        run: |
+          cp ../LICENSE dist/Graphica/
+          cp ../THIRD_PARTY_LICENSES.md dist/Graphica/
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -123,12 +132,22 @@ jobs:
       - name: Build .app with PyInstaller
         run: pyinstaller graphica.spec --noconfirm
 
+      # Windows側と同じ理由 (LGPL v3 の条文同梱)。.app の中ではなく zip の
+      # 中身として並べたいので、.app と同じ dist/ 直下へ置いてからまとめる。
+      - name: Bundle license files
+        run: |
+          cp ../LICENSE dist/
+          cp ../THIRD_PARTY_LICENSES.md dist/
+
       - name: Zip .app bundle
         # .app はFrameworks配下にシンボリックリンクを含むため、
         # actions/upload-artifact に生フォルダとして渡すと展開後に
         # 壊れることがある。macOS純正の ditto で圧縮してから
         # 単一ファイルとしてアップロードする。
-        run: ditto -c -k --sequesterRsrc --keepParent dist/Graphica.app dist/Graphica-macos.zip
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent Graphica.app Graphica-app.zip
+          zip -j Graphica-macos.zip Graphica-app.zip LICENSE THIRD_PARTY_LICENSES.md
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

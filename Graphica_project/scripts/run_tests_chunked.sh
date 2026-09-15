@@ -37,6 +37,20 @@ mkdir -p "$TMPDIR"
 
 fail=0
 
+# ★ カバレッジ計測モード。`GRAPHICA_COVERAGE=1 bash scripts/run_tests_chunked.sh`
+# で有効になる(既定はオフ。計測すると2〜3割遅くなるので、普段の回帰確認では
+# 付けない — リリース前など必要なときだけ)。
+# チャンクごとに別プロセスなので、coverage の --parallel-mode で
+# `.coverage.<host>.<pid>.<乱数>` を各プロセスが個別に書き、あとから
+# `coverage combine` で1つにまとめる。設定(対象範囲・除外行)は
+# pyproject.toml の [tool.coverage.*]。
+# まとめて報告まで行うには scripts/run_coverage.sh を使うこと。
+if [ "${GRAPHICA_COVERAGE:-0}" = "1" ]; then
+  PYTEST_CMD=(python -m coverage run --parallel-mode -m pytest)
+else
+  PYTEST_CMD=(python -m pytest)
+fi
+
 # ★ 改善ボード E-3: テストIDの収集は「全体を1プロセスで1回」だけ行う。
 # 以前はファイルごとに pytest --collect-only を起動しており、92ファイル×約2.8秒＝
 # 約255秒を「テストを1件も実行しないまま」消費していた(1プロセスなら約5秒)。
@@ -75,7 +89,7 @@ for f in tests/test_*.py; do
   for c in "${chunks[@]}"; do
     echo "=== $name :: $c ==="
     if [ "$c" == "$f" ]; then
-      output=$(python -m pytest "$f" -q 2>&1)
+      output=$("${PYTEST_CMD[@]}" "$f" -q 2>&1)
     else
       # ★ バグ修正: 以前は target=$(cat "$c") で複数行のテストID一覧を1つの
       # シェル変数に読み込み、pytest呼び出し時にクォートせず渡していた
@@ -94,7 +108,7 @@ for f in tests/test_*.py; do
       while IFS= read -r line; do
         target_ids+=("$line")
       done < "$c"
-      output=$(python -m pytest "${target_ids[@]}" -q 2>&1)
+      output=$("${PYTEST_CMD[@]}" "${target_ids[@]}" -q 2>&1)
     fi
     rc=$?
     echo "$output"

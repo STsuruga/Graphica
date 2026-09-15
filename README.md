@@ -178,15 +178,74 @@ Graphica はプラグインによる機能拡張に対応しています。プ�
 
 ---
 
-## 7. 開発者向け: 自動テストの実行
+## 7. 入手とインストール
 
-`core/` (データ処理・曲線フィット・Undo/Redo・プロジェクトの保存/読込) を中心に、
-`tests/` ディレクトリに pytest ベースの自動テストを用意しています。
-機能を追加・変更したときに、既存のロジックが壊れていないかを自動で確認できます。
+### 7.1 ビルド済みの実行ファイルを使う
+
+[Releases](https://github.com/STsuruga/Graphica/releases) から、お使いのOSの
+ファイルをダウンロードしてください。インストール作業は不要です。
+
+* **Windows**: zip を展開し、中の `Graphica.exe` を実行します。
+* **macOS**: zip を展開し、`Graphica.app` を「アプリケーション」へ移動します。
+  **署名していないため、初回は右クリック(またはControlキーを押しながらクリック)して
+  「開く」を選んでください。** ダブルクリックだけでは Gatekeeper に阻まれます。
+  なお配布している `.app` は Apple Silicon (arm64) 向けです。
+
+### 7.2 ソースから実行する
+
+Python 3.10 以降が必要です。
+
+```
+git clone https://github.com/STsuruga/Graphica.git
+cd Graphica/Graphica_project
+pip install -r requirements.txt
+python main.py
+```
+
+`python main.py --safe-mode` で起動すると、プラグインを読み込まず、保存された
+ドックレイアウトも無視して起動します。表示がおかしくなったときの復旧用です。
+
+---
+
+## 8. 開発者向け: 自動テストの実行
+
+`tests/` ディレクトリに pytest ベースの自動テスト(約2,900件)を用意しています。
+`core/` のデータ処理・曲線フィット・Undo/Redo・プロジェクトの保存/読込から、
+GUI の配線や描画まで対象です。
 
 ```
 pip install -r requirements.txt   # pytest を含む依存パッケージをインストール
-pytest                            # Graphica_project ディレクトリで実行
+bash scripts/run_tests_chunked.sh # フルスイート (Graphica_project ディレクトリで実行、約18分)
 ```
+
+**フルスイートを `pytest` 一発で実行しないでください。** GUIテストが1プロセスに
+Qt/matplotlib のリソースを溜め込むため、進むほど遅くなります。また
+`tests/test_export_preview_panel.py` は全件パスした後の終了処理でクラッシュする
+既知の問題があり、1プロセスにまとめるとそれ以降のテストが失われます。
+上記のスクリプトはファイル単位でプロセスを分けて実行し、この2点を回避します。
+
+個別のファイルやテストだけなら、そのまま pytest を使って問題ありません。
+
+```
+pytest tests/test_dataset.py
+pytest tests/test_dataset.py::test_name -v
+pytest tests/test_dataset.py -k waterfall
+```
+
+カバレッジを測る場合:
+
+```
+bash scripts/run_coverage.sh       # htmlcov/index.html と docs/COVERAGE.md を生成
+```
+
+---
+
+## 9. ライセンス
+
+Graphica 本体は **MIT License** です(`LICENSE` を参照)。
+
+配布している実行ファイルには、Qt/PySide6 をはじめとする第三者のライブラリが
+同梱されています。**Qt/PySide6 は LGPL v3** です。同梱物の一覧と、再配布する
+場合に必要な条件は `THIRD_PARTY_LICENSES.md` にまとめてあります。
 
 ---
