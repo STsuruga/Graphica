@@ -12,7 +12,8 @@ import tempfile
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QPixmap
-from PySide6.QtWidgets import QAbstractSpinBox, QComboBox, QProxyStyle, QStyle, QStyleFactory
+from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QComboBox,
+                               QProxyStyle, QStyle, QStyleFactory)
 
 from gui.icon_utils import icon as _svg_icon
 
@@ -435,7 +436,7 @@ QToolButton#collapsible_section_toggle {{
        コンボは既定の9pt(実測で実高さ12px)で描かれる。12.5pxの見出しは
        実質同じ大きさで、太さしか違わなかった。見出し14px > サブ見出し13px >
        項目12px の階段にする。 */
-    font-size: 14px;
+    font-size: {heading_pt}pt;
     color: {text_secondary};
 }}
 QToolButton#collapsible_section_toggle:hover {{
@@ -471,7 +472,7 @@ QToolButton#property_subsection_toggle {{
     padding: 6px 2px 4px 12px;
     text-align: left;
     font-weight: 600;
-    font-size: 13px;
+    font-size: {subheading_pt}pt;
     color: {text_primary};
 }}
 QToolButton#property_subsection_toggle[firstSection="true"] {{
@@ -861,6 +862,33 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 """
 
 
+
+# 見出しの既定サイズを決めるときの基準(アプリ既定フォントからの相対)。
+# ★ px で固定してはいけない。このアプリはQSSでフォントサイズを指定しておらず、
+#   フォームのラベルやコンボはOS既定のフォントで描かれる。その既定は
+#   Windowsで9pt、macOSで13pt前後と差が大きいため、px固定にすると片方のOSで
+#   「見出しのほうが本文より小さい」という階層の逆転が起きる
+#   (実際にmacOSのCIで 見出し13px < 項目15px となって検出された)。
+HEADING_POINT_OFFSET = 2.0      # トップレベルのアコーディオン見出し
+SUBHEADING_POINT_OFFSET = 1.0   # プロパティパネル内のサブセクション見出し
+_FALLBACK_BASE_POINT_SIZE = 9.0
+
+
+def heading_point_sizes():
+    """
+    (トップレベル見出し, サブセクション見出し) の文字サイズをpt単位で返す。
+
+    アプリ既定フォントに対する相対で決めるので、OSが変わっても
+    「見出し > サブ見出し > 本文」の順序が保たれる。
+    """
+    app = QApplication.instance()
+    base = app.font().pointSizeF() if app is not None else _FALLBACK_BASE_POINT_SIZE
+    if base <= 0:
+        # pointSizeF() は、フォントがピクセル指定のとき -1 を返す
+        base = _FALLBACK_BASE_POINT_SIZE
+    return base + HEADING_POINT_OFFSET, base + SUBHEADING_POINT_OFFSET
+
+
 def build_qss(tokens: dict) -> str:
     """
     トークン辞書(LIGHT_TOKENS/DARK_TOKENS、または将来の任意のカスタムトークン)
@@ -871,6 +899,9 @@ def build_qss(tokens: dict) -> str:
     format_args = dict(tokens)
     format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_primary"])
     format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_primary"])
+    heading_pt, subheading_pt = heading_point_sizes()
+    format_args["heading_pt"] = f"{heading_pt:.1f}"
+    format_args["subheading_pt"] = f"{subheading_pt:.1f}"
     return _FLAT_QSS_TEMPLATE.format(**format_args)
 
 

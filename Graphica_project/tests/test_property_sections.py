@@ -524,13 +524,22 @@ def _left_padding(qss, selector):
     return int(values[left].replace("px", ""))
 
 
-def _font_size(qss, selector):
-    import re
-    block = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", qss)
-    assert block, f"{selector} の規則が見つからない"
-    decl = re.search(r"font-size:\s*([0-9.]+)px", block.group(1))
-    assert decl, f"{selector} に font-size 指定が無い"
-    return float(decl.group(1))
+def _rendered_height(widget):
+    """そのウィジェットが実際に描かれる文字の高さ(px)。
+
+    ★ QSSに書いた数値ではなく、**描画に使われるフォントの実寸**で比べること。
+    QSSの指定はptで、フォームのラベルはOS既定(Windows 9pt / macOS 13pt前後)
+    なので、単位も基準も違う値を突き合わせても意味がない。
+    """
+    from PySide6.QtGui import QFontMetrics
+    return QFontMetrics(widget.font()).height()
+
+
+def _top_level_toggle(window):
+    for button in window.ui.control_dock_widget.findChildren(QToolButton):
+        if button.objectName() == "collapsible_section_toggle":
+            return button
+    raise AssertionError("トップレベルのアコーディオン見出しが見つからない")
 
 
 def test_indent_forms_a_ladder_from_parent_to_child_to_content(window):
@@ -553,21 +562,45 @@ def test_headings_are_larger_than_the_fields_they_contain(window):
     """
     ★ 実機フィードバックの回帰テスト:「見出し文字サイズが中の項目より
     小さい気がする」。このアプリはQSSでフォントサイズを指定していないため、
-    フォームのラベルはOS既定(実測で実高さ12px)で描かれる。見出しを
-    それ以下にすると、見出しのほうが小さいという階層の逆転になる。
+    フォームのラベルはOS既定で描かれる。
+
+    ★★ その既定は **Windowsで9pt、macOSで13pt前後** と差が大きい。最初の修正では
+    見出しをpx固定にしたため、Windowsでは直ったのにmacOSでは
+    「見出し13px < 項目15px」と逆転したままになり、macOSのCIで検出された。
+    現在は `theme.heading_point_sizes()` がアプリ既定フォントからの相対で
+    決めている。ここでは**実際に描かれる文字の高さ**同士を比べる
+    (QSSに書いた数値と突き合わせても、単位も基準も違うので意味がない)。
     """
-    from PySide6.QtGui import QFontMetrics
     from PySide6.QtWidgets import QFormLayout
+
+    parent = _rendered_height(_top_level_toggle(window))
+    child = _rendered_height(window._prop_sections['data']['toggle'])
+    label_widget = window._prop_form('data').itemAt(0, QFormLayout.ItemRole.LabelRole).widget()
+    field = _rendered_height(label_widget)
+
+    assert parent > child > field,         f"親見出し={parent} サブ見出し={child} 項目ラベル={field}"
+
+
+def test_heading_sizes_follow_the_application_font(window):
+    """
+    ★ px 固定に戻さないための歯止め。OS既定フォントが変わっても
+    「親 > 子 > 本文」の順序が保たれるよう、相対で決めること。
+    """
     from gui import theme
+
+    heading_pt, subheading_pt = theme.heading_point_sizes()
+    base_pt = QApplication.instance().font().pointSizeF()
+
+    assert heading_pt > subheading_pt > base_pt,         f"親={heading_pt} 子={subheading_pt} 既定={base_pt}"
+
     qss = theme.build_qss(theme.LIGHT_TOKENS)
-
-    parent_px = _font_size(qss, "QToolButton#collapsible_section_toggle")
-    child_px = _font_size(qss, "QToolButton#property_subsection_toggle")
-    assert parent_px > child_px, f"親={parent_px} 子={child_px}"
-
-    label = window._prop_form('data').itemAt(0, QFormLayout.ItemRole.LabelRole).widget()
-    field_px = QFontMetrics(label.font()).height()
-    assert child_px > field_px, f"サブ見出し={child_px} 項目ラベル={field_px}"
+    # px 指定が残っていたら、OSごとの既定フォントの違いに追従できない
+    for selector in ("QToolButton#collapsible_section_toggle",
+                     "QToolButton#property_subsection_toggle"):
+        import re
+        block = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", qss).group(1)
+        decl = re.search(r"font-size:\s*([^;]+);", block).group(1).strip()
+        assert decl.endswith("pt"), f"{selector} の font-size が pt 指定でない: {decl}"
 
 
 def test_only_the_first_section_omits_its_separator_rule(window):
