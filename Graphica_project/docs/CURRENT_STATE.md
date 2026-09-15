@@ -51,9 +51,17 @@ v1.4.0 のリリース準備まで済んでいる。**
   「QFontMetrics の実寸」を突き合わせる誤った比較をやめ、**実際に描かれる高さ同士**
   を比べるようにした。`em` 単位も試したが Qt のQSSでは効かなかった。
 
-**残っている作業**: タグ `v1.4.0` の作成と push、CIのビルド確認、
-GitHub Releases でのリリース作成(成果物の添付)。手順は
-`docs/RELEASE_CHECKLIST.md` の「3. 公開」。
+**v1.4.0 は公開済み**: https://github.com/STsuruga/Graphica/releases/tag/v1.4.0
+(Windows 121MB / macOS 85MB、どちらも `LICENSE` と `THIRD_PARTY_LICENSES.md` 同梱)。
+タグのCIは Windows 20分28秒・macOS 11分33秒でどちらも成功。
+
+- **★ macOSの成果物が二重zipになっていた**(`Graphica-macos.zip` を展開すると
+  中に `Graphica-app.zip` がある)。ライセンス同梱のために `.app` を単体で
+  ditto してから zip で包み直したのが原因。**CIは修正済み**(ステージング
+  ディレクトリに `.app` とライセンスを並べてから ditto するので、次回から
+  1段で展開できる)。v1.4.0 のリリースノートには二重zipである旨を明記した。
+- **次に実機で確認すべきこと**: Windows/macOS 両方でダウンロードして起動できるか。
+  特に macOS は未署名なので、右クリック ▸ 「開く」での起動を確認する。
 
 ---
 
