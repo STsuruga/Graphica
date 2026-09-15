@@ -13,6 +13,39 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
+## 現在地(2026-09-16)
+
+**改善ボードは D-3(統計検定プラグイン、ユーザー判断で保留)を除き全20項目完了。
+v1.4.0 のリリース準備まで済んでいる。**
+
+- バージョンは `core/version.py` で **1.4.0**。`CHANGELOG.md` に v1.4.0 の節を記載済み
+  (v1.3.5 以降、改善ボード全項目が未リリースだったため一括で書いた)。
+- **リリース前の総点検を実施し、バグは検出されなかった**:
+  compileall / 全71モジュールのimport / pyflakes(未定義名ゼロ) /
+  47ダイアログの実構築 / dialogs分割の同一性検証(45クラスが1文字も変わらず移動) /
+  フルスイート2,920 passed・0失敗 / カバレッジ93.4% /
+  PyInstallerビルド成功(分割後モジュールがPYZ内に含まれることを確認) /
+  exe起動25秒・ログに新規エラーなし。
+  直したのは今回入れた未使用import 4件のみ。
+- **`LICENSE`(MIT)と `THIRD_PARTY_LICENSES.md` を新設**。同梱している
+  Qt/PySide6 が **LGPL v3** であることと再配布時の条件を明記した。CIが
+  Windows/macOS 両方の成果物にこの2ファイルを同梱するようにしてある
+  (exeだけ配ると条件を満たせない)。
+- **カバレッジ計測の仕組みを追加**。`bash scripts/run_coverage.sh` で
+  `docs/COVERAGE.md` と `htmlcov/` を生成する。チャンクごとに別プロセスなので
+  `parallel = true` + `coverage combine`。実行方法を二重に持たないよう、
+  チャンク実行は `run_tests_chunked.sh` に一本化し `GRAPHICA_COVERAGE=1` で
+  切り替える。
+- **`docs/RELEASE_CHECKLIST.md` を新設**。過去にハマった点(CIのwebhook遅延、
+  exe化でしか出ない ModuleNotFoundError、macOSの.app破損、Gatekeeper)を
+  手順に織り込んである。**リリース作業はこのファイルの順に進めること。**
+
+**残っている作業**: タグ `v1.4.0` の作成と push、CIのビルド確認、
+GitHub Releases でのリリース作成(成果物の添付)。手順は
+`docs/RELEASE_CHECKLIST.md` の「3. 公開」。
+
+---
+
 ## 次にやること(2026-09-08時点、TODO)
 
 - **2026-09-08、コードベース全体の監査を実施し、改善項目20件を「Graphica 改善ボード」
