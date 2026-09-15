@@ -112,6 +112,15 @@ Two filters are applied *inside* `_draw_data`, and both matter when reasoning ab
 
 **Display coordinates ≠ data coordinates.** With waterfall stacking enabled, a trace is drawn at `x + index*offset_x`, `y*depth_scale + index*offset_y`. `_draw_data` records those parameters per dataset in `MplCanvas._waterfall_transforms`, and the canvas exposes **`display_to_data(dataset_or_id, x, y)` / `data_to_display(dataset_or_id, x, y)`** (plus `get_waterfall_transform()`); both accept scalars or numpy arrays and are the identity for a non-waterfall or not-yet-drawn dataset. **Anything that maps a mouse position onto a data row, or a data row onto a screen position, must go through them** — range-select masking, the data cursor readout, editor↔plot highlight, and peak placement all do (`tests/test_waterfall_interaction.py` pins each). Note the split for peak placement: the stored guess is in data coordinates (it is matched against raw `x_data`/`y_data` by the fitter) while its on-canvas marker is drawn at the click's display coordinates. For a category X axis the recorded `offset_x` is `0.0`, because the draw path skips the X shift there.
 
+### Dialogs (`gui/dialogs/`)
+
+The app's 47 dialogs live in a **package**, not one module (item B-2 split the former 5,560-line `gui/dialogs.py`). Six modules by concern — `data_import`, `data_edit`, `analysis`, `export`, `appearance`, `app` — and `__init__.py` re-exports every class, so **callers keep writing `from gui.dialogs import SomeDialog`** and none of the ~44 import sites changed. Rules for adding one:
+
+- Put the class in the module its subject matches, then add it to **both** the import block and `__all__` in `__init__.py`. Forgetting that is invisible at startup — most dialog imports in this codebase are lazy, inside the handler that opens the dialog — so `tests/test_dialogs_package.py` asserts every publicly defined class is re-exported.
+- **Never import one dialogs submodule from another.** The split was possible precisely because cross-class references were down to four, all kept within a single module; a cross-module reference reintroduces `__init__` import-order fragility. There's a test for that too.
+- Monkeypatching a name the dialog imported (e.g. `QDesktopServices`) must target the **submodule** that holds the class (`gui.dialogs.app.QDesktopServices`), not `gui.dialogs` — the package only re-exports classes, so patching it changes nothing the dialog can see.
+- `pyproject.toml` lists packages explicitly, so `gui.dialogs` had to be added there; without it, an out-of-repo plugin repo doing `pip install -e Graphica_project` would not get the subpackage.
+
 ### Icons
 
 `gui/icon_utils.py` renders bundled Tabler Icons SVGs (`assets/icons/*.svg`, MIT-licensed, `stroke="currentColor"`) into themed `QIcon`s by string-replacing `currentColor` before feeding the SVG to `QSvgRenderer`. Path resolution is anchored to `icon_utils.py`'s own file location (not `cwd`) for the same reason described below — icons must resolve correctly regardless of the process's working directory.

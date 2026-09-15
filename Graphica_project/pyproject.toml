@@ -64,6 +64,7 @@ version = { attr = "core.version.__version__" }
 packages = [
     "core",
     "gui",
+    "gui.dialogs",
     "gui.mixins",
     "models",
     "assets",

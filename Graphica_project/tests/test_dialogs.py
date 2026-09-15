@@ -899,7 +899,12 @@ def test_preferences_dialog_hook_errors_tab_lists_errors():
 
 def test_preferences_dialog_open_plugins_folder_button_calls_desktop_services(monkeypatch, tmp_path):
     calls = []
-    monkeypatch.setattr("gui.dialogs.QDesktopServices.openUrl", staticmethod(lambda url: calls.append(url)))
+    # ★ B-2 で gui/dialogs.py を gui/dialogs/ パッケージへ分割したため、
+    #   PreferencesDialog が取り込んでいる QDesktopServices の置き場所は
+    #   gui.dialogs.app になった(gui.dialogs は再エクスポートするだけの
+    #   パッケージなので、そこに差し替えてもダイアログ側からは見えない)。
+    monkeypatch.setattr("gui.dialogs.app.QDesktopServices.openUrl",
+                        staticmethod(lambda url: calls.append(url)))
     monkeypatch.setattr("core.app_paths.get_user_plugins_dir", lambda: str(tmp_path))
 
     dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
