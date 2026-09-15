@@ -132,22 +132,22 @@ jobs:
       - name: Build .app with PyInstaller
         run: pyinstaller graphica.spec --noconfirm
 
-      # Windows側と同じ理由 (LGPL v3 の条文同梱)。.app の中ではなく zip の
-      # 中身として並べたいので、.app と同じ dist/ 直下へ置いてからまとめる。
-      - name: Bundle license files
-        run: |
-          cp ../LICENSE dist/
-          cp ../THIRD_PARTY_LICENSES.md dist/
-
-      - name: Zip .app bundle
+      - name: Zip .app bundle with license files
         # .app はFrameworks配下にシンボリックリンクを含むため、
-        # actions/upload-artifact に生フォルダとして渡すと展開後に
-        # 壊れることがある。macOS純正の ditto で圧縮してから
-        # 単一ファイルとしてアップロードする。
+        # actions/upload-artifact に生フォルダとして渡すと展開後に壊れることがある。
+        # macOS純正の ditto で圧縮してから単一ファイルとしてアップロードする。
+        #
+        # ★ ライセンス (LGPL v3 の条文同梱、THIRD_PARTY_LICENSES.md 参照) は
+        #   .app と一緒に**1つのzipへ**入れる。以前は .app を単体で ditto して
+        #   から zip で包み直していたが、それだと利用者が「zipを展開したら
+        #   中にまたzipがある」二重zipになってしまう。ステージング用の
+        #   ディレクトリに .app とライセンスを並べ、それごと ditto すれば
+        #   シンボリックリンクを保ったまま1段で展開できる。
         run: |
-          cd dist
-          ditto -c -k --sequesterRsrc --keepParent Graphica.app Graphica-app.zip
-          zip -j Graphica-macos.zip Graphica-app.zip LICENSE THIRD_PARTY_LICENSES.md
+          mkdir -p staging
+          cp -R dist/Graphica.app staging/
+          cp ../LICENSE ../THIRD_PARTY_LICENSES.md staging/
+          ditto -c -k --sequesterRsrc staging dist/Graphica-macos.zip
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
