@@ -385,8 +385,11 @@ class UISetupMixin:
             self._export_menu = export_menu
             self._export_menu_action = export_menu.menuAction()
 
+            # ★ ショートカットは割り当てない。以前は「名前を付けて保存」と同じ
+            #   StandardKey.SaveAs(Ctrl+Shift+S)を持っており、Qt の曖昧な
+            #   ショートカットとしてどちらも発火しなかった。Ctrl+Shift+S は
+            #   名前を付けて保存だけのもの(ユーザー判断)。
             self.save_action = export_menu.addAction(tr("名前を付けてエクスポート(&S)..."))
-            self.save_action.setShortcut(QKeySequence.StandardKey.SaveAs)
             self.save_action.triggered.connect(self._on_export_plot)
 
             # (クリップボードコピー: Ctrl+C は既存のテキスト編集のコピー操作と
