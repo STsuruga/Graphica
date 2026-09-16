@@ -393,3 +393,34 @@ def test_minimap_axes_facecolor_is_darker_than_nearest_theme_surface():
 
     assert luminance(LIGHT_AXES_FACECOLOR) < luminance(LIGHT_TOKENS["surface_2"])
     assert luminance(DARK_AXES_FACECOLOR) < luminance(DARK_TOKENS["bg"])
+
+
+# --- 点で描く種別(v1.4.2: ピーク検出の結果が線で結ばれていた) ---
+
+@pytest.mark.parametrize("plot_type", ["Scatter", "Density Scatter", "Z-Color Scatter"])
+def test_minimap_draws_point_types_without_connecting_lines(minimap, plot_type):
+    ds = _make_dataset("peaks", n_points=4)
+    ds.plot_type = plot_type
+    minimap.refresh([ds])
+    line = minimap.ax.get_lines()[0]
+    assert line.get_linestyle() == "None"
+    assert line.get_marker() == "o"
+
+
+@pytest.mark.parametrize("plot_type", ["Line", "Line+Scatter", "Step", "Area", "Bar"])
+def test_minimap_keeps_lines_for_line_types(minimap, plot_type):
+    ds = _make_dataset("data", n_points=4)
+    ds.plot_type = plot_type
+    minimap.refresh([ds])
+    line = minimap.ax.get_lines()[0]
+    assert line.get_linestyle() == "-"
+
+
+def test_peak_detection_result_shows_as_points_over_the_source_line(minimap):
+    source = _make_dataset("spectrum", n_points=20)
+    peaks = Dataset(name="peaks", df=pd.DataFrame({"peak_x": [3.0, 11.0], "peak_y": [9.0, 121.0]}),
+                    x_col_name="peak_x", y_col_name="peak_y", plot_type="Scatter",
+                    linestyle="None", marker="v")
+    minimap.refresh([source, peaks])
+    lines = minimap.ax.get_lines()
+    assert [line.get_linestyle() for line in lines[:2]] == ["-", "None"]

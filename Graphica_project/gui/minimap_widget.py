@@ -26,8 +26,12 @@ from matplotlib.widgets import SpanSelector
 from PySide6.QtCore import Signal
 
 from core.analysis import calculate_lttb_downsample
+from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 
 logger = logging.getLogger(__name__)
+
+# 線ではなく点で概観を描く plot_type。Line+Scatter は線が主なので含めない。
+MINIMAP_POINT_PLOT_TYPES = frozenset({'Scatter', 'Density Scatter', COLOR_BY_COLUMN_PLOT_TYPE})
 
 # ミニマップの高さ(px)。「小さな概観」であることが一目でわかる程度に抑える。
 MINIMAP_HEIGHT_PX = 70
@@ -195,7 +199,15 @@ class MinimapWidget(FigureCanvas):
                 continue
             try:
                 x, y = self._downsample_for_overview(x, y)
-                self.ax.plot(x, y, color=line_color, linewidth=0.7, alpha=0.6)
+                if getattr(ds, 'plot_type', 'Line') in MINIMAP_POINT_PLOT_TYPES:
+                    # ★ 点で描く種別(散布図、ピーク検出の結果など)は、点のまま描く。
+                    #   以前は全データセットを折れ線にしていたため、ピーク検出の結果
+                    #   (数点の散布図)がピーク同士を結ぶ線になり、元データの形と
+                    #   紛らわしかった。X が並んでいない散布図もジグザグの線になっていた。
+                    self.ax.plot(x, y, linestyle='None', marker='o', markersize=1.8,
+                                 color=line_color, alpha=0.8)
+                else:
+                    self.ax.plot(x, y, color=line_color, linewidth=0.7, alpha=0.6)
                 has_data = True
             except Exception:
                 # 概観表示に失敗しても致命的ではないため、ログのみ残してスキップ
