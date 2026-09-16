@@ -467,7 +467,11 @@ class ColorPaletteDialog(QDialog):
         self.add_color_button.clicked.connect(self._on_add_color)
         self.remove_color_button.clicked.connect(self._on_remove_color)
 
-        if active_name in self.palettes:
+        # ★ 組み込みパレット(Okabe-Ito 等)も初期選択の対象にする。以前は
+        #   利用者が作ったパレットだけを見ていたため、組み込みパレットを有効に
+        #   してから開き直すと表示が「Matplotlib既定」に戻っていた(実際の配色は
+        #   組み込みパレットのまま)。そのまま OK を押すと既定に上書きされていた。
+        if active_name in self.palettes or active_name in BUILTIN_PALETTES:
             self.palette_combo.setCurrentText(active_name)
         else:
             self.palette_combo.setCurrentText(self.DEFAULT_PALETTE_NAME)
