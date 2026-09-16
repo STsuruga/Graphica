@@ -125,3 +125,8 @@ exclude_also = [
 show_missing = true
 skip_covered = false
 precision = 1
+
+[tool.coverage.html]
+# CI が master の push ごとに GitHub Pages へ公開する
+# (https://stsuruga.github.io/Graphica/coverage/)。ブラウザのタブに出る名前。
+title = "Graphica テストカバレッジ"

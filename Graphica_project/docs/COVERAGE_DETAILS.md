@@ -2,6 +2,7 @@
 
 計測日: 2026-09-16  
 要約は [`COVERAGE.md`](COVERAGE.md)。このファイルも `bash scripts/run_coverage.sh` が自動生成する。
+ソースと並べた色付き表示は https://stsuruga.github.io/Graphica/coverage/ (CI が master の push ごとに更新)。
 
 全体: 行 **93.4%** / 分岐 88.6%
 

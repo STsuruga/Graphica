@@ -239,6 +239,8 @@ pytest tests/test_dataset.py -k waterfall
 bash scripts/run_coverage.sh       # htmlcov/index.html と docs/COVERAGE.md・COVERAGE_DETAILS.md を生成
 ```
 
+最新のカバレッジレポートは **https://stsuruga.github.io/Graphica/coverage/** で公開しています(master への push ごとに CI が自動更新)。
+
 ---
 
 ## 9. ライセンス

@@ -30,6 +30,7 @@ Graphica_project_backup_*/
 # (数千ファイルになるためコミットしない。要約は docs/COVERAGE.md に出す)
 .coverage.*
 htmlcov/
+_site/
 
 # scripts/run_tests_chunked.sh が実行時に作る一時作業ディレクトリ
 Graphica_project/.ci_test_chunks/

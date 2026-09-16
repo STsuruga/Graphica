@@ -17,6 +17,8 @@ Graphica を新しいバージョンとして公開するときの手順。過�
 - [ ] **カバレッジを更新**。`bash scripts/run_coverage.sh` → `docs/COVERAGE.md`(要約)と
       `docs/COVERAGE_DETAILS.md`(全モジュールの数字と未到達の行番号)が書き換わるので
       両方コミットする。
+      (行ごとの色付き HTML は CI が master の push ごとに
+      https://stsuruga.github.io/Graphica/coverage/ へ自動公開するので、手作業は不要)
 - [ ] **アプリが起動する**。`python main.py` で立ち上げ、データを1つ読み込んで
       グラフが出ることを確認(テストはヘッドレスなので、実表示は別途見る)。
 - [ ] **セーフモードでも起動する**。`python main.py --safe-mode`。

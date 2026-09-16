@@ -5,6 +5,9 @@
 
 このファイルは `bash scripts/run_coverage.sh` が自動生成する。手で編集しても次回の実行で上書きされる。
 
+**最新のレポート(ソースの行ごとの色付き表示): https://stsuruga.github.io/Graphica/coverage/**  
+CI が master への push ごとに更新する。このファイルの数字はリリース前に手元で計測してコミットしたもの。
+
 ## 全体
 
 | 指標 | 値 |
@@ -31,4 +34,5 @@
 
 - **GUIのコードは行カバレッジが低く出やすい**。ダイアログのボタンハンドラのように「実際に押さないと通らない」経路が多く、ここを100%に近づけること自体は目的ではない。
 - `tests/test_export_preview_panel.py` は全件パスした後の終了処理でセグフォルトする既知の問題があり、そのチャンクの計測結果は書き出されない。関係するモジュールは**実際より低く出る**。
-- モジュールごとの数字と**通っていない行番号**は [`COVERAGE_DETAILS.md`](COVERAGE_DETAILS.md)。ソースと並べて色付きで見たい場合は `htmlcov/index.html`(リポジトリには入れていない)。
+- モジュールごとの数字と**通っていない行番号**は [`COVERAGE_DETAILS.md`](COVERAGE_DETAILS.md)。ソースと並べて色付きで見たい場合は https://stsuruga.github.io/Graphica/coverage/ (手元なら `htmlcov/index.html`)。
+- **公開レポートは macOS の CI で計測している**。Windows でしか通らない分岐は未到達になるため、手元(Windows)で計測したこのファイルの数字とはわずかにずれることがある。

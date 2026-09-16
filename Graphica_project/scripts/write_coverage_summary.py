@@ -21,6 +21,8 @@ import sys
 from datetime import date
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# CI(macOS ジョブ)が master の push ごとに htmlcov/ を公開している場所。
+PUBLISHED_REPORT_URL = "https://stsuruga.github.io/Graphica/coverage/"
 OUTPUT = os.path.join(PROJECT_ROOT, "docs", "COVERAGE.md")
 DETAILS_OUTPUT = os.path.join(PROJECT_ROOT, "docs", "COVERAGE_DETAILS.md")
 
@@ -82,6 +84,7 @@ def _write_details(files, totals):
     lines.append(f"計測日: {date.today().isoformat()}  ")
     lines.append("要約は [`COVERAGE.md`](COVERAGE.md)。このファイルも "
                  "`bash scripts/run_coverage.sh` が自動生成する。")
+    lines.append(f"ソースと並べた色付き表示は {PUBLISHED_REPORT_URL} (CI が master の push ごとに更新)。")
     lines.append("")
     lines.append(f"全体: 行 **{totals['percent_covered']:.1f}%**"
                  + (f" / 分岐 {_branch_percent(totals):.1f}%" if _branch_percent(totals) is not None else ""))
@@ -156,6 +159,10 @@ def main():
     lines.append("このファイルは `bash scripts/run_coverage.sh` が自動生成する。"
                  "手で編集しても次回の実行で上書きされる。")
     lines.append("")
+    lines.append(f"**最新のレポート(ソースの行ごとの色付き表示): {PUBLISHED_REPORT_URL}**  ")
+    lines.append("CI が master への push ごとに更新する。このファイルの数字は"
+                 "リリース前に手元で計測してコミットしたもの。")
+    lines.append("")
     lines.append("## 全体")
     lines.append("")
     lines.append("| 指標 | 値 |")
@@ -203,7 +210,10 @@ def main():
                  "ない。関係するモジュールは**実際より低く出る**。")
     lines.append("- モジュールごとの数字と**通っていない行番号**は "
                  "[`COVERAGE_DETAILS.md`](COVERAGE_DETAILS.md)。ソースと並べて"
-                 "色付きで見たい場合は `htmlcov/index.html`(リポジトリには入れていない)。")
+                 f"色付きで見たい場合は {PUBLISHED_REPORT_URL} (手元なら `htmlcov/index.html`)。")
+    lines.append("- **公開レポートは macOS の CI で計測している**。Windows でしか通らない"
+                 "分岐は未到達になるため、手元(Windows)で計測したこのファイルの数字とは"
+                 "わずかにずれることがある。")
     lines.append("")
 
     os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)

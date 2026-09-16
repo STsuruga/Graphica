@@ -22,6 +22,12 @@ name: Build
 #   通しで実行すると、テスト間でQt/matplotlibのリソースが解放されず
 #   蓄積し、進行するほど遅くなって最終的に事実上ハングする既知の問題が
 #   あるため (scripts/run_tests_chunked.sh のコメント参照)。
+# - テストカバレッジは macOS ジョブだけで計測する(Windowsより速く、計測分の
+#   2〜3割の遅れを吸収しやすいため)。master への push では、その HTML レポートを
+#   deploy-coverage ジョブが GitHub Pages
+#   (https://stsuruga.github.io/Graphica/coverage/) に公開する。タグの push や
+#   テストが失敗したランでは公開しない(公開中のレポートは最後に緑だった master)。
+#   リポジトリ設定で Pages のソースを「GitHub Actions」にしてあることが前提。
 
 on:
   push:
@@ -108,11 +114,33 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pillow
+          pip install pyinstaller pillow coverage
 
-      - name: Run tests
+      - name: Run tests with coverage
+        # scripts/run_coverage.sh は run_tests_chunked.sh をカバレッジ付きで回し、
+        # htmlcov/ を生成する。終了コードはテスト側の結果をそのまま返す。
         shell: bash
-        run: bash scripts/run_tests_chunked.sh
+        run: bash scripts/run_coverage.sh
+
+      - name: Prepare coverage site
+        if: github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          mkdir -p _site/coverage
+          cp -R htmlcov/. _site/coverage/
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <meta http-equiv="refresh" content="0; url=coverage/">
+          <title>Graphica</title>
+          <a href="coverage/">テストカバレッジ</a>
+          HTML
+
+      - name: Upload coverage site for Pages
+        if: github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: Graphica_project/_site
 
       - name: Generate macOS icon (.icns) from Graphica.ico
         # Graphica.icns 自体はリポジトリに含めず、Windows用の Graphica.ico
@@ -155,3 +183,22 @@ jobs:
           name: Graphica-macos
           path: Graphica_project/dist/Graphica-macos.zip
           if-no-files-found: error
+
+  deploy-coverage:
+    # macOS ジョブ(テスト〜ビルドまで)が成功した master のランだけ公開する。
+    needs: build-macos
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}coverage/
+
+    steps:
+      - name: Deploy coverage report to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
