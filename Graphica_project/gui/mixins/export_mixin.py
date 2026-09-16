@@ -18,6 +18,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
 from gui.canvas import _HeadlessRenderCanvas
+from gui.export_settings import export_rc_params
 from gui.task_runner import TaskRunner
 from models.project import ProjectModel
 from core.plugin_api import get_plugin_api, get_registered_exporters
@@ -257,14 +258,7 @@ class ExportMixin:
         save_kwargs = {'transparent': options.get('transparent', True), 'bbox_inches': 'tight'}
         if options['format'] not in ('pdf', 'svg'):
             save_kwargs['dpi'] = options['dpi']
-        if options['format'] == 'svg':
-            fonttype = 'path' if options.get('svg_text_as_path', False) else 'none'
-            with mpl.rc_context({'svg.fonttype': fonttype}):
-                fig.savefig(out_path, **save_kwargs)
-        elif options['format'] == 'pdf':
-            with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
-                fig.savefig(out_path, **save_kwargs)
-        else:
+        with mpl.rc_context(export_rc_params(options['format'], options.get('svg_text_as_path', False))):
             fig.savefig(out_path, **save_kwargs)
 
     def _batch_export_subplots(self, indices, options, report_progress=None, is_cancelled=None):
@@ -452,7 +446,7 @@ class ExportMixin:
         from gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
 
         # フォントをTrueTypeとして埋め込む(項目C-801、_on_export_plotのPDF分岐と同じ理由)。
-        with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}), PdfPages(file_path) as pdf:
+        with mpl.rc_context(export_rc_params('pdf')), PdfPages(file_path) as pdf:
             pdf.savefig(self.canvas.fig, bbox_inches='tight')
 
             text_fig = Figure(figsize=(8.27, 11.69))  # A4縦
@@ -563,15 +557,7 @@ class ExportMixin:
 
                     # SVG形式では目盛りの数字・凡例の文字をテキスト(既定、項目108)
                     # またはパス(項目88、svg_text_as_pathチェック時)として出力する
-                    if file_ext == '.svg':
-                        fonttype = 'path' if options.get('svg_text_as_path', False) else 'none'
-                        with mpl.rc_context({'svg.fonttype': fonttype}):
-                            self.canvas.fig.savefig(file_path, **save_kwargs)
-                    elif file_ext == '.pdf':
-                        # フォントをTrueTypeとして埋め込む(項目C-801、_save_figure_with_optionsと同じ理由)
-                        with mpl.rc_context({'pdf.fonttype': 42, 'ps.fonttype': 42}):
-                            self.canvas.fig.savefig(file_path, **save_kwargs)
-                    else:
+                    with mpl.rc_context(export_rc_params(file_ext, options.get('svg_text_as_path', False))):
                         self.canvas.fig.savefig(file_path, **save_kwargs)
                 except Exception as e:
                     QMessageBox.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")

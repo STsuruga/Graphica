@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout,
                                QPushButton, QFileDialog, QMessageBox, QApplication)
 
 from gui.canvas import MplCanvas
+from gui.export_settings import export_rc_params
 from gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
@@ -259,11 +260,7 @@ class ExportPreviewPanel(QWidget):
                 save_kwargs = {'format': fmt, 'bbox_inches': 'tight', 'transparent': transparent}
                 if fmt != 'svg':
                     save_kwargs['dpi'] = dpi
-                if fmt == 'svg':
-                    fonttype = 'path' if svg_text_as_path else 'none'
-                    with mpl.rc_context({'svg.fonttype': fonttype}):
-                        temp_canvas.fig.savefig(buf, **save_kwargs)
-                else:
+                with mpl.rc_context(export_rc_params(fmt, svg_text_as_path)):
                     temp_canvas.fig.savefig(buf, **save_kwargs)
                 buf.seek(0)
                 data = buf.read()
@@ -370,11 +367,8 @@ class ExportPreviewPanel(QWidget):
             save_kwargs = {'transparent': options["transparent"], 'bbox_inches': 'tight'}
             if file_ext not in ('pdf', 'svg'):
                 save_kwargs['dpi'] = options["dpi"]
-            if file_ext == 'svg':
-                fonttype = 'path' if options.get("svg_text_as_path", False) else 'none'
-                with mpl.rc_context({'svg.fonttype': fonttype}):
-                    temp_canvas.fig.savefig(file_path, **save_kwargs)
-            else:
+            # PDF のフォント埋め込みもメインのエクスポートと同じ設定を使う(以前はここだけ抜けていた)
+            with mpl.rc_context(export_rc_params(file_ext, options.get("svg_text_as_path", False))):
                 temp_canvas.fig.savefig(file_path, **save_kwargs)
             self.main_window.statusBar().showMessage(f"保存しました: {file_path}", 3000)
         except Exception as e:
