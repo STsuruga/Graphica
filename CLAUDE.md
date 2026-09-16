@@ -13,7 +13,7 @@ All commands assume `cwd = Graphica_project/`.
 ```bash
 pip install -r requirements.txt   # installs PySide6, matplotlib, numpy, pandas, scipy, openpyxl, pytest
 python main.py                    # run the app
-python main.py --safe-mode        # start with plugins disabled and the saved dock layout ignored
+python main.py --safe-mode        # start with plugins disabled (the saved dock layout is still restored)
 pytest tests/test_dataset.py      # run a single test file
 pytest tests/test_dataset.py::test_name -v   # run a single test
 pytest tests/test_dataset.py -k waterfall    # run a filtered subset
@@ -21,6 +21,8 @@ bash scripts/run_tests_chunked.sh            # the ONLY supported way to run the
 ```
 
 **Do not run bare `pytest` over the whole suite** — a single process degrades until it never finishes (see "Full-suite execution" below). Always use `scripts/run_tests_chunked.sh`.
+
+`tests/conftest.py` also sets `GRAPHICA_CONFIRM_UNSAVED_CHANGES=0`, which turns off the modal "save unsaved changes?" prompt (v1.4.2) for the whole suite — a test that closes a modified window or opens a project would otherwise block forever. `tests/test_unsaved_changes.py` is the only file that turns it back on (via `monkeypatch.setenv`). **Any test that can reach a real modal dialog hangs the chunk runner silently**; if a chunk stops making progress, check CPU time before assuming slowness.
 
 `tests/conftest.py` sets `QT_QPA_PLATFORM=offscreen` and provides a session-scoped, autouse `QApplication` fixture, so the suite runs headless with no display and no manual env var needed — this matters because several `core/`/`models/` classes (`core/commands.py`'s `QUndoCommand` subclasses, `models/project.py`'s `ProjectModel`) are `QObject`s and cannot be instantiated without a live `QApplication`.
 
@@ -143,11 +145,18 @@ self._sub_menu_action = sub.menuAction()  # and its opener action
 
 This matters most for the dataset context menu and the File menu, both of which are candidates for submenu grouping. Note also the pre-existing limitation that menu items nested two or more levels deep cannot be pinned via the quick-access right-click.
 
+### Unsaved changes, file formats and export settings (v1.4.2)
+
+- **"Unsaved changes" is a content hash, not a dirty flag.** `ProjectModel.content_fingerprint()` hashes exactly what `.graphica` saving would write (minus `active_axis_index`), and `PlotterApp.has_unsaved_changes()` compares it with the hash taken at the last successful save/load. Do not replace it with the undo stack's clean state: axis settings, folder operations and column calculations are not undoable. Call `_sync_project_from_ui()` before hashing or saving — the folder tree and subplot rows/cols live only in the UI until then. Restoring from autosave deliberately leaves the hash unset (counts as unsaved).
+- **Readable data formats are one list**: `gui/workers.py`'s `BUILTIN_DATA_FILE_EXTENSIONS` (`.csv`/`.txt` via the CSV path with delimiter sniffing, `.xlsx` via openpyxl, `.xls` via xlrd — use `excel_engine_for()`, never hard-code `engine='openpyxl'`). The open-dialog filter, drag-and-drop, folder import, preview dialog and reload-from-source all read it. xlrd is a runtime dependency and a PyInstaller hidden import.
+- **Export rc settings live in `gui/export_settings.export_rc_params(fmt, svg_text_as_path)`** (SVG text mode, PDF TrueType embedding). Every save path wraps `savefig` in `mpl.rc_context(export_rc_params(...))`; a path that writes its own rc dict is how the preview panel ended up producing Type 3 PDFs.
+- **Dragged legend position** is stored per axis as `legend_position` ([x, y] in axes fraction) and overrides `legend_loc`; picking a location in the combo clears it. matplotlib 3.x has no `Legend.draggable()` — use `set_draggable(True, update='loc')`.
+
 ### Settings and autosave
 
 `QSettings("Graphica", "Graphica")` persists dark mode, autosave interval/directory, recent files, window/dock layout, named dock-layout presets, custom color palettes and the active palette, quick-access pins, disabled plugins, language, minimap visibility, detached-canvas state, snap-to-grid, `point_label_max_points`, and the `clean_exit` / `has_shown_welcome` / `dock_layout_version` bookkeeping flags. Values that aren't plain scalars are stored as **JSON strings** (and binary Qt data such as `saveState()` output is base64-encoded first, see `DOCK_LAYOUT_PRESETS_SETTINGS_KEY`) — follow that pattern rather than storing Python objects.
 
-Autosave writes to `AUTOSAVE_FILENAME` (`autosave.graphica`, JSON format) under a configurable directory (`autosave_dir`, empty = alongside the app) with generation rotation (`_rotate_autosave_generations`, keeps `AUTOSAVE_GENERATIONS` copies).
+Autosave writes to `AUTOSAVE_FILENAME` (`autosave.graphica`, JSON format) under a configurable directory (`autosave_dir`, empty = `core/app_paths.py`'s `get_app_data_dir()`, i.e. `%LOCALAPPDATA%\Graphica`) with generation rotation (`_rotate_autosave_generations`, keeps `AUTOSAVE_GENERATIONS` copies).
 
 Dock layout has two independent mechanisms, and they are easy to confuse: **startup restore** (`saveState()`/`restoreState()` via the `window_state` key) happens only on the first tab and only when `dock_layout_version` matches — so changing the default dock-size constants in code has no visible effect until the user resets or manually resizes. Separately, item C-911 added **manual, always-available** named presets (View ▸ ドックレイアウト ▸ 保存/読み込み/リセット) that work on every tab regardless of `run_startup_checks`; "リセット" restores `self._pristine_dock_state`, snapshotted in `__init__` before any restore happens.
 

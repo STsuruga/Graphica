@@ -114,12 +114,15 @@ class PreferencesDialog(QDialog):
         self.autosave_spinbox.setValue(int(autosave_minutes))
         save_form.addRow(tr("オートセーブ間隔"), self.autosave_spinbox)
 
-        # オートセーブの保存先フォルダ(未指定なら従来どおりアプリのフォルダに保存)
+        # オートセーブの保存先フォルダ(未指定なら core.app_paths.get_app_data_dir()、
+        # Windows では %LOCALAPPDATA%\Graphica。以前の表示「アプリのフォルダ」は
+        # 実際の保存先と違っていた)
         self._autosave_dir = autosave_dir or ""
         autosave_dir_row = QHBoxLayout()
         self.autosave_dir_edit = QLineEdit(self._autosave_dir)
         self.autosave_dir_edit.setReadOnly(True)
-        self.autosave_dir_edit.setPlaceholderText(tr("(既定: アプリのフォルダ)"))
+        from core.app_paths import get_app_data_dir
+        self.autosave_dir_edit.setPlaceholderText(tr("(既定: {path})").format(path=get_app_data_dir()))
         self.autosave_dir_browse_button = QPushButton(tr("参照..."))
         self.autosave_dir_browse_button.setIcon(icon_utils.icon("folder"))
         self.autosave_dir_browse_button.clicked.connect(self._on_browse_autosave_dir)
@@ -337,7 +340,7 @@ class PreferencesDialog(QDialog):
         Returns:
             tuple (bool, int, str, str, int, bool, int): (ダークモードを有効にするか,
                 オートセーブ間隔(分, 0=無効), 表示言語コード,
-                オートセーブ保存先ディレクトリ("" なら既定=アプリのフォルダ),
+                オートセーブ保存先ディレクトリ("" なら既定=get_app_data_dir()),
                 データ点ラベルの表示上限(件数),
                 スナップ・トゥ・グリッドを有効にするか, グリッド間隔(px))
         """
