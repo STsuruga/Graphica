@@ -32,6 +32,8 @@ CI の macOS ジョブが `scripts/run_coverage.sh` でテストを実行し、m
 `deploy-coverage` ジョブが htmlcov を https://stsuruga.github.io/Graphica/coverage/ に出す。
 リポジトリ設定の Pages ソースは「GitHub Actions」(API で設定済み)。タグの push や
 テスト失敗のランでは更新されない。公開レポートは macOS 計測なので Windows 専用分岐は未到達扱い。
+計測で macOS ジョブが約11分→約19.5分に伸びたため、**計測は master のランだけ**にし、
+タグ(リリース)のランは計測なしのチャンク実行に戻した(ユーザー判断)。
 
 **改善ボードは D-3(統計検定プラグイン、ユーザー判断で保留)を除き全20項目完了。
 v1.4.0 のリリース準備まで済んでいる。**

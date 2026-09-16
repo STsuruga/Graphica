@@ -22,11 +22,13 @@ name: Build
 #   通しで実行すると、テスト間でQt/matplotlibのリソースが解放されず
 #   蓄積し、進行するほど遅くなって最終的に事実上ハングする既知の問題が
 #   あるため (scripts/run_tests_chunked.sh のコメント参照)。
-# - テストカバレッジは macOS ジョブだけで計測する(Windowsより速く、計測分の
-#   2〜3割の遅れを吸収しやすいため)。master への push では、その HTML レポートを
-#   deploy-coverage ジョブが GitHub Pages
-#   (https://stsuruga.github.io/Graphica/coverage/) に公開する。タグの push や
-#   テストが失敗したランでは公開しない(公開中のレポートは最後に緑だった master)。
+# - テストカバレッジは **master のランの macOS ジョブだけ** で計測し、その HTML
+#   レポートを deploy-coverage ジョブが GitHub Pages
+#   (https://stsuruga.github.io/Graphica/coverage/) に公開する。テストが失敗した
+#   ランでは公開しない(公開中のレポートは最後に緑だった master)。
+#   計測すると macOS ジョブが約11分→約19.5分に伸びる(実測)ため、タグの push
+#   (リリースビルド)では計測せず通常のチャンク実行にする(ユーザー判断)。
+#   タグは同じコミットの master ランで計測済みなので、情報は失われない。
 #   リポジトリ設定で Pages のソースを「GitHub Actions」にしてあることが前提。
 
 on:
@@ -117,10 +119,18 @@ jobs:
           pip install pyinstaller pillow coverage
 
       - name: Run tests with coverage
-        # scripts/run_coverage.sh は run_tests_chunked.sh をカバレッジ付きで回し、
-        # htmlcov/ を生成する。終了コードはテスト側の結果をそのまま返す。
+        # master のランだけ。scripts/run_coverage.sh は run_tests_chunked.sh を
+        # カバレッジ付きで回し、htmlcov/ を生成する。終了コードはテスト側の
+        # 結果をそのまま返す。
+        if: github.ref == 'refs/heads/master'
         shell: bash
         run: bash scripts/run_coverage.sh
+
+      - name: Run tests
+        # master 以外(リリースタグ等)は計測なしで速く回す。
+        if: github.ref != 'refs/heads/master'
+        shell: bash
+        run: bash scripts/run_tests_chunked.sh
 
       - name: Prepare coverage site
         if: github.ref == 'refs/heads/master'
