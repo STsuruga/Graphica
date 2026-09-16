@@ -285,6 +285,39 @@ def _apply_tick_decimal_places(axis, decimals):
     axis.set_major_formatter(ticker.FormatStrFormatter(f'%.{decimals}f'))
 
 
+# 目盛線の長さ(pt、実機フィードバック)。既定値は matplotlib の rcParams
+# (xtick.major.size=3.5 / xtick.minor.size=2.0)と同じにしてあり、長さの
+# キーを持たない既存プロジェクトの見た目は変わらない。
+# ★ 長さは軸サイズに対する倍率ではなく pt の絶対値にしている。文字サイズや
+#   線の太さも pt 固定なので、目盛りだけ相対値にすると大きいサイズで
+#   エクスポートしたときに「長い目盛りの横に小さい数字」とちぐはぐになり、
+#   多パネル図ではパネルの大きさごとに長さが揃わなくなる(ユーザーと合意済み)。
+DEFAULT_MAJOR_TICK_LENGTH = 3.5
+# 補助目盛の長さが「自動」(負値)のときに主目盛へ掛ける倍率。matplotlib の
+# 既定の比率(2.0 / 3.5 ≈ 0.57)をそのまま使う: 主目盛と見分けがつく程度に
+# 短く、かつ細い線でも潰れない長さで、既定値どうしの組み合わせが従来の
+# 描画と完全に一致する。
+MINOR_TICK_LENGTH_RATIO = 2.0 / 3.5
+# 補助目盛の長さの「自動」を表す値(設定パネルのスピンボックスの最小値)。
+# 判定は「負値なら自動」なので、この値そのものに依存するのは表示側だけ。
+MINOR_TICK_LENGTH_AUTO = -0.5
+
+
+def _resolve_tick_lengths(settings):
+    """
+    設定から (主目盛の長さ, 補助目盛の長さ) を pt で返す。
+    minor_tick_length が未指定または負値なら「自動」とし、
+    主目盛の長さ × MINOR_TICK_LENGTH_RATIO を使う。
+    """
+    major = settings.get('major_tick_length', DEFAULT_MAJOR_TICK_LENGTH)
+    if major is None or major < 0:
+        major = DEFAULT_MAJOR_TICK_LENGTH
+    minor = settings.get('minor_tick_length', -1)
+    if minor is None or minor < 0:
+        minor = major * MINOR_TICK_LENGTH_RATIO
+    return major, minor
+
+
 # --- ダーク/ライトモード用の配色(項目H-3) ---
 # ★ 以前はここに個別のハードコード値(例: '#2b2b2b')を持っており、
 #   gui/theme.py のデザイントークンとは完全に無関係だった(H-0調査で判明した
@@ -2011,6 +2044,7 @@ class _CanvasDrawingMixin:
         tick_width = settings.get('tick_width', 0.8)
         major_dir = settings.get('major_tick_direction', 'out')
         minor_dir = settings.get('minor_tick_direction', 'out')
+        major_tick_length, minor_tick_length = _resolve_tick_lengths(settings)
 
         for spine in ax.spines.values():
             spine.set_linewidth(spine_width)
@@ -2037,13 +2071,13 @@ class _CanvasDrawingMixin:
         x_tick_labels_visible = settings.get('x_tick_labels_visible', legacy_tick_labels_visible)
         y_tick_labels_visible = settings.get('y_tick_labels_visible', legacy_tick_labels_visible)
 
-        ax.tick_params(axis='x', which='major', width=tick_width, color=spine_color, labelcolor=tick_color,
+        ax.tick_params(axis='x', which='major', width=tick_width, length=major_tick_length, color=spine_color, labelcolor=tick_color,
                         direction=major_dir, bottom=x_ticks_visible, labelbottom=x_tick_labels_visible)
-        ax.tick_params(axis='x', which='minor', width=tick_width * 0.75, color=spine_color,
+        ax.tick_params(axis='x', which='minor', width=tick_width * 0.75, length=minor_tick_length, color=spine_color,
                         direction=minor_dir, bottom=x_ticks_visible, labelbottom=x_tick_labels_visible)
-        ax.tick_params(axis='y', which='major', width=tick_width, color=spine_color, labelcolor=tick_color,
+        ax.tick_params(axis='y', which='major', width=tick_width, length=major_tick_length, color=spine_color, labelcolor=tick_color,
                         direction=major_dir, left=y_ticks_visible, labelleft=y_tick_labels_visible)
-        ax.tick_params(axis='y', which='minor', width=tick_width * 0.75, color=spine_color,
+        ax.tick_params(axis='y', which='minor', width=tick_width * 0.75, length=minor_tick_length, color=spine_color,
                         direction=minor_dir, left=y_ticks_visible, labelleft=y_tick_labels_visible)
 
         if settings.get('legend_visible', True):
@@ -2145,8 +2179,8 @@ class _CanvasDrawingMixin:
             for label in secondary_ax.get_yticklabels():
                 label.set(**tick_font_dict)
                 label.set_color(tick_color)
-            secondary_ax.tick_params(axis='y', which='major', width=tick_width, color=spine_color, labelcolor=tick_color, direction=major_dir_y2)
-            secondary_ax.tick_params(axis='y', which='minor', width=tick_width * 0.75, color=spine_color, direction=minor_dir_y2)
+            secondary_ax.tick_params(axis='y', which='major', width=tick_width, length=major_tick_length, color=spine_color, labelcolor=tick_color, direction=major_dir_y2)
+            secondary_ax.tick_params(axis='y', which='minor', width=tick_width * 0.75, length=minor_tick_length, color=spine_color, direction=minor_dir_y2)
             secondary_ax.spines['right'].set_linewidth(spine_width)
             secondary_ax.spines['right'].set_color(spine_color)
             secondary_ax.spines['right'].set_visible(True)
@@ -2198,7 +2232,7 @@ class _CanvasDrawingMixin:
             for label in secondary_x_ax.get_xticklabels():
                 label.set(**tick_font_dict)
                 label.set_color(tick_color)
-            secondary_x_ax.tick_params(axis='x', which='major', width=tick_width,
+            secondary_x_ax.tick_params(axis='x', which='major', width=tick_width, length=major_tick_length,
                                         color=spine_color, labelcolor=tick_color, direction=major_dir)
             secondary_x_ax.spines['top'].set_linewidth(spine_width)
             secondary_x_ax.spines['top'].set_color(spine_color)

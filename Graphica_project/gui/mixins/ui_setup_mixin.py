@@ -112,6 +112,8 @@ class UISetupMixin:
             self.ui.tick_font_button.clicked.connect(self._on_change_tick_font)
             self.ui.tick_color_button.clicked.connect(self._on_change_tick_color)
             self.ui.tick_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
+            self.major_tick_length_spinbox.valueChanged.connect(self._on_axis_setting_changed)
+            self.minor_tick_length_spinbox.valueChanged.connect(self._on_axis_setting_changed)
 
             self.ui.axis_label_font_button.clicked.connect(self._on_change_axis_label_font)
             self.ui.axis_label_color_button.clicked.connect(self._on_change_axis_label_color)

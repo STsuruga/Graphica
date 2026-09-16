@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QDialog, QFontDialog, QColorDialog, QMessageBox
 from core.i18n import tr
 from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_NONE
 from gui import theme
+from gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
 from gui.color_history import get_color_with_history
 from gui.dialogs import LegendOrderDialog, LabelEditDialog
 
@@ -798,6 +799,10 @@ class SettingsMixin:
             'tick_font': self._font_props_to_dict(self._tick_font),
             'tick_color': self._tick_color,
             'tick_width': self.ui.tick_width_spinbox.value(),
+            'major_tick_length': self.major_tick_length_spinbox.value(),
+            # 負値(スピンボックスの「自動」)は -1 に正規化して保存する
+            'minor_tick_length': (self.minor_tick_length_spinbox.value()
+                                  if self.minor_tick_length_spinbox.value() >= 0 else -1),
             'axis_label_font': self._font_props_to_dict(self._axis_label_font),
             'axis_label_color': self._axis_label_color,
             'legend_font': self._font_props_to_dict(self._legend_font),
@@ -961,6 +966,11 @@ class SettingsMixin:
             self._tick_color = settings.get('tick_color', '#000000')
             self._tick_width = settings.get('tick_width', 0.8)
             self.ui.tick_width_spinbox.setValue(self._tick_width) # ★ UIにも反映
+            # 目盛線の長さ。キーを持たない既存プロジェクトは matplotlib 既定(3.5pt / 自動)
+            self.major_tick_length_spinbox.setValue(settings.get('major_tick_length', DEFAULT_MAJOR_TICK_LENGTH))
+            minor_tick_length = settings.get('minor_tick_length', -1)
+            self.minor_tick_length_spinbox.setValue(
+                MINOR_TICK_LENGTH_AUTO if minor_tick_length is None or minor_tick_length < 0 else minor_tick_length)
 
             self._axis_label_color = settings.get('axis_label_color', '#000000')
             self._legend_color = settings.get('legend_color', '#000000')
@@ -1057,6 +1067,8 @@ class SettingsMixin:
         self.ui.tick_font_button.blockSignals(block)
         self.ui.tick_color_button.blockSignals(block)
         self.ui.tick_width_spinbox.blockSignals(block)
+        self.major_tick_length_spinbox.blockSignals(block)
+        self.minor_tick_length_spinbox.blockSignals(block)
         self.ui.axis_label_font_button.blockSignals(block)
         self.ui.axis_label_color_button.blockSignals(block)
         self.legend_font_button.blockSignals(block)

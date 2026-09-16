@@ -161,6 +161,8 @@ def _write_every_control(window):
     window._legend_color = "#778899"
     window._spine_color = "#aabbcc"
     ui.tick_width_spinbox.setValue(2.25)
+    window.major_tick_length_spinbox.setValue(6.5)
+    window.minor_tick_length_spinbox.setValue(4.0)
     ui.spine_width_spinbox.setValue(3.25)
 
     # カラーバー
@@ -371,6 +373,8 @@ def test_applying_an_empty_dict_falls_back_to_documented_defaults(window):
     assert settings['x_major_grid_width'] == pytest.approx(0.8)
     assert settings['x_minor_grid_width'] == pytest.approx(0.5)
     assert settings['major_tick_direction'] == 'out'
+    assert settings['major_tick_length'] == pytest.approx(3.5)
+    assert settings['minor_tick_length'] == -1
     assert settings['colorbar_enabled'] is True
     assert settings['colorbar_position'] == 'right'
 

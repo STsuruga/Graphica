@@ -197,7 +197,8 @@ from ui_main_window import Ui_MainWindow
 from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from core.commands import AddDatasetCommand, RemoveDatasetCommand
-from gui.canvas import MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS
+from gui.canvas import (MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS, DEFAULT_MAJOR_TICK_LENGTH,
+                        MINOR_TICK_LENGTH_AUTO)
 from gui.minimap_widget import MinimapWidget
 from gui.detached_canvas_window import DetachedCanvasWindow
 from gui import theme
@@ -1481,6 +1482,43 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         ):
             self.ui.formLayout_3.insertRow(_grid_style_insert_at, _grid_style_label, _grid_style_layout)
             _grid_style_insert_at += 1
+
+        # 7c. 目盛線の長さ(pt、実機フィードバック): 主目盛/補助目盛。
+        #     「目盛の太さ」の直後に置く。上のグリッド線と同じく行番号を
+        #     ハードコードせず、目盛の太さの行を実行時に探して挿入する。
+        #     補助目盛は最小値(-0.5)を「自動」とし、主目盛の長さ ×
+        #     canvas.MINOR_TICK_LENGTH_RATIO で決める(既定の組み合わせは
+        #     matplotlib 既定の 3.5 / 2.0 と一致し、既存プロジェクトの見た目は不変)。
+        self.tick_length_label = QLabel(tr("目盛の長さ(主/補助)"))
+        self.major_tick_length_spinbox = QDoubleSpinBox()
+        self.major_tick_length_spinbox.setRange(0.0, 20.0)
+        self.major_tick_length_spinbox.setSingleStep(0.5)
+        self.major_tick_length_spinbox.setDecimals(1)
+        self.major_tick_length_spinbox.setSuffix(" pt")
+        self.major_tick_length_spinbox.setValue(DEFAULT_MAJOR_TICK_LENGTH)
+        self.major_tick_length_spinbox.setToolTip(tr("主目盛の線の長さ(pt)"))
+        self.minor_tick_length_spinbox = QDoubleSpinBox()
+        self.minor_tick_length_spinbox.setRange(MINOR_TICK_LENGTH_AUTO, 20.0)
+        self.minor_tick_length_spinbox.setSingleStep(0.5)
+        self.minor_tick_length_spinbox.setDecimals(1)
+        self.minor_tick_length_spinbox.setSuffix(" pt")
+        self.minor_tick_length_spinbox.setSpecialValueText(tr("自動"))
+        self.minor_tick_length_spinbox.setValue(MINOR_TICK_LENGTH_AUTO)
+        self.minor_tick_length_spinbox.setToolTip(
+            tr("補助目盛の線の長さ(pt)。「自動」は主目盛の長さの約0.57倍"))
+        # ★ QDoubleSpinBox の最小幅ヒントは2つ並べると約306pxになり、フォーム
+        #   全体の列幅を押し広げてプロパティドックに横スクロールバーを出す
+        #   (tests/test_main_window.py が検出)。すぐ上の「主軸目盛(主/補助)」行の
+        #   コンボボックスと同じ最小幅に揃え、行の幅をその行と一致させる。
+        for _tick_length_spin in (self.major_tick_length_spinbox, self.minor_tick_length_spinbox):
+            _tick_length_spin.setMinimumWidth(self.major_tick_direction_combo.minimumSizeHint().width())
+        tick_length_layout = QHBoxLayout()
+        tick_length_layout.addWidget(self.major_tick_length_spinbox)
+        tick_length_layout.addWidget(self.minor_tick_length_spinbox)
+        _tick_width_row, _tick_width_role = self.ui.formLayout_3.getWidgetPosition(
+            self.ui.tick_width_spinbox
+        )
+        self.ui.formLayout_3.insertRow(_tick_width_row + 1, self.tick_length_label, tick_length_layout)
 
         # 7b. カラーバー(ヒートマップ用、項目C-501): このサブプロットに2Dマップ
         # (項目C-508)が描画されている場合のみ意味を持つ(gui/canvas.pyの
