@@ -1997,6 +1997,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.canvas.mpl_connect('button_press_event', self._on_middle_button_press_pan)
         self.canvas.mpl_connect('motion_notify_event', self._on_middle_button_motion_pan)
         self.canvas.mpl_connect('button_release_event', self._on_middle_button_release_pan)
+        # 凡例をドラッグで動かした位置を設定へ保存する(v1.4.2)
+        self.canvas.mpl_connect('button_release_event', self._on_legend_drag_release)
 
         # プラグインの読み込み (メニューバー作成より前に行う必要がある:
         # プラグインが register_menu_action() で追加したメニュー項目を

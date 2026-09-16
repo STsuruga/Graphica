@@ -56,7 +56,7 @@ def window(tmp_path, monkeypatch):
 # UIコントロールを持たず、呼び出しのたびに現在のプロジェクトから引き継がれるキー。
 # (_gather_settings_from_ui の末尾参照。注釈・凡例順・自由配置の矩形は
 #  ドラッグ操作等から直接 all_plot_settings へ書かれる)
-NON_UI_KEYS = {"annotations", "legend_order", "free_rect"}
+NON_UI_KEYS = {"annotations", "legend_order", "free_rect", "legend_position"}
 
 
 @contextlib.contextmanager

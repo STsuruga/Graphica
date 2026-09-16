@@ -183,6 +183,23 @@ STAT_LABEL_TITLES = {
 }
 
 
+def _legend_position_from_settings(settings):
+    """
+    settings['legend_position'](ドラッグで動かした凡例の位置、[x, y])を
+    legend の loc に渡せるタプルにする。未設定・壊れた値は None。
+    """
+    position = settings.get('legend_position')
+    if not isinstance(position, (list, tuple)) or len(position) != 2:
+        return None
+    try:
+        x, y = float(position[0]), float(position[1])
+    except (TypeError, ValueError):
+        return None
+    if not (np.isfinite(x) and np.isfinite(y)):
+        return None
+    return (x, y)
+
+
 def _compute_stat_label_text(dataset, stat):
     """
     統計値アンカーラベル(項目C-708)の表示文字列を、dataset.y_data/fit_resultから
@@ -2092,6 +2109,11 @@ class _CanvasDrawingMixin:
 
             if has_primary_data or has_secondary_data:
                 loc_code = settings.get('legend_loc', 'best')
+                # ドラッグで動かした位置(v1.4.2)。軸の左下を(0, 0)、右上を(1, 1)とする
+                # 凡例の左下の座標で、あれば「凡例の位置」の選択より優先する。
+                dragged_position = _legend_position_from_settings(settings)
+                if dragged_position is not None:
+                    loc_code = dragged_position
                 legend_font_dict = settings.get('legend_font', {})
                 legend_color = self._effective_text_color(settings.get('legend_color', '#000000'))
                 legend_font_prop = FontProperties(
@@ -2129,8 +2151,11 @@ class _CanvasDrawingMixin:
                         frame.set_facecolor(LIGHT_LEGEND_FACECOLOR)
                         frame.set_edgecolor(LIGHT_LEGEND_EDGECOLOR)
                     frame.set_alpha(0.92)
-                    try: legend_obj.draggable(True)
-                    except AttributeError: pass
+                    # ★ 以前は legend_obj.draggable(True) を呼んでいたが、このメソッドは
+                    #   matplotlib 3.x で削除済みで、AttributeError を握りつぶしていたため
+                    #   凡例は実際にはドラッグできなかった。update='loc' で離した位置が
+                    #   legend._loc に入り、PlotterApp がそれを設定へ保存する。
+                    legend_obj.set_draggable(True, update='loc')
             else:
                 if ax.get_legend() is not None: ax.get_legend().remove()
                 if secondary_ax and secondary_ax.get_legend() is not None: secondary_ax.get_legend().remove()

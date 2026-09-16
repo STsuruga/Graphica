@@ -124,7 +124,7 @@ class UISetupMixin:
 
             self.ui.legend_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
             self.ui.legend_visible_checkbox.stateChanged.connect(self._on_legend_visibility_changed)
-            self.legend_loc_combo.currentTextChanged.connect(self._on_axis_setting_changed)
+            self.legend_loc_combo.currentTextChanged.connect(self._on_legend_loc_changed)
 
             self.ui.grid_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
             # グリッド表示チェックは、_on_grid_visibility_changed にも接続 (補助グリッドの有効/無効化のため)

@@ -8,6 +8,7 @@
 """
 import functools
 import logging
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFontDialog, QColorDialog, QMessageBox
 
@@ -632,6 +633,52 @@ class SettingsMixin:
         for preview_label, line_edit, placeholder in self._label_preview_widgets:
             self._refresh_label_preview(preview_label, line_edit.text(), placeholder)
 
+    def _on_legend_loc_changed(self, *_args):
+        """
+        「凡例の位置」を選び直したときの処理。ドラッグで動かした位置
+        (legend_position)が残っていると選んだ位置が効かないため、先に消す。
+        """
+        axis_index = self.project.active_axis_index
+        if axis_index < len(self.project.all_plot_settings):
+            self.project.all_plot_settings[axis_index].pop('legend_position', None)
+        self._on_axis_setting_changed()
+
+    def _on_legend_drag_release(self, _event):
+        """
+        キャンバス上でマウスボタンを離したときの処理。凡例のドラッグ終了は
+        matplotlib 側の button_release_event で確定する(legend._loc が更新される)が、
+        このハンドラはそれより先に呼ばれうるので、イベント処理の後に読み取る。
+        """
+        QTimer.singleShot(0, self._store_dragged_legend_positions)
+
+    def _store_dragged_legend_positions(self):
+        """
+        各サブプロットの凡例の現在位置が、ドラッグで決まった座標(タプル)なら
+        その軸の設定 legend_position に保存する。保存しておかないと、次の
+        再描画で「凡例の位置」の選択どおりに戻ってしまう。
+        Returns:
+            bool: どれかの軸の位置を更新したか。
+        """
+        changed = False
+        settings_list = self.project.all_plot_settings
+        secondary_axes = getattr(self.canvas, 'all_secondary_axes', [])
+        for index, ax in enumerate(getattr(self.canvas, 'all_axes', [])):
+            if index >= len(settings_list):
+                break
+            legend = ax.get_legend()
+            if legend is None and index < len(secondary_axes) and secondary_axes[index] is not None:
+                legend = secondary_axes[index].get_legend()
+            loc = getattr(legend, '_loc', None) if legend is not None else None
+            if not isinstance(loc, tuple) or len(loc) != 2:
+                continue  # 'best' 等の既定位置のまま(ドラッグされていない)
+            position = [round(float(loc[0]), 4), round(float(loc[1]), 4)]
+            if settings_list[index].get('legend_position') != position:
+                settings_list[index]['legend_position'] = position
+                changed = True
+        if changed and hasattr(self, '_mark_project_modified'):
+            self._mark_project_modified()
+        return changed
+
     def _on_edit_legend_order(self):
         """
         「凡例の順序...」ボタンが押されたときの処理。
@@ -829,10 +876,13 @@ class SettingsMixin:
             settings['annotations'] = current.get('annotations', [])
             settings['legend_order'] = current.get('legend_order', [])
             settings['free_rect'] = current.get('free_rect')
+            # ドラッグで動かした凡例の位置(v1.4.2)も UI コントロールを持たない
+            settings['legend_position'] = current.get('legend_position')
         else:
             settings['annotations'] = []
             settings['legend_order'] = []
             settings['free_rect'] = None
+            settings['legend_position'] = None
         return settings
 
     def _apply_settings_to_ui_controls(self, settings: dict):
