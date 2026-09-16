@@ -1186,6 +1186,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")
         self._prop_form('extra').addRow(self.point_labels_checkbox)
+        # 点数が表示上限を超えてラベルが描かれないときの説明(v1.4.2)。以前は有効化時に
+        # 「表示しますか?」と確認していたが、はいを選んでも描画側の上限で表示されず、
+        # 何が起きたか分からなかった。上限超過時は確認を出さずに理由をここに表示する。
+        self.point_labels_limit_note = QLabel()
+        self.point_labels_limit_note.setObjectName("point_labels_limit_note")
+        self.point_labels_limit_note.setWordWrap(True)
+        self.point_labels_limit_note.setVisible(False)
+        self._prop_form('extra').addRow(self.point_labels_limit_note)
         self.point_label_col_label = QLabel("ラベルの内容")
         self.point_label_col_combo = QComboBox()
         self._prop_form('extra').addRow(self.point_label_col_label, self.point_label_col_combo)

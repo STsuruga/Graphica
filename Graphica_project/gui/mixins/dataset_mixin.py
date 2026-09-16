@@ -63,7 +63,6 @@ from gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
 )
-from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 
 logger = logging.getLogger(__name__)
 
@@ -2443,37 +2442,39 @@ class DatasetMixin:
     def _on_point_labels_toggled(self, checked):
         """
         「データ点にラベルを表示」チェックボックスが切り替えられたときの処理(項目105)。
-        データ点が多いデータセットにラベルを表示すると、点の数だけ ax.annotate() が
-        呼ばれるため描画が重くなり、アプリがフリーズする場合がある。有効化しようと
-        しているときに、選択中データセットの点数が環境設定の上限を超えていれば、
-        確認ポップアップを表示し、キャンセルされたらチェックボックスを元に戻して
-        プロパティ変更自体を行わない(この場合 _on_property_changed は呼ばない)。
-        無効化(OFF)にする場合や、点数が上限以内の場合は、そのまま通常の
-        プロパティ変更処理(_on_property_changed、self.sender()で判定)に進む。
-        """
-        if checked:
-            selected_datasets = self._get_selected_datasets()
-            max_points = self.settings.value(
-                "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
-            over_limit = [ds for ds in selected_datasets if len(ds.visible_df) > max_points]
-            if over_limit:
-                max_count = max(len(ds.visible_df) for ds in over_limit)
-                reply = QMessageBox.question(
-                    self, "データ点ラベルの表示",
-                    f"選択中のデータセットには最大{max_count}件のデータ点があります"
-                    f"(環境設定の上限: {max_points}件)。\n"
-                    "データ点が多い状態でラベルを表示すると、描画が遅くなったり"
-                    "アプリがフリーズする場合があります。\n\nラベルを表示しますか？",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No
-                )
-                if reply != QMessageBox.StandardButton.Yes:
-                    self.point_labels_checkbox.blockSignals(True)
-                    self.point_labels_checkbox.setChecked(False)
-                    self.point_labels_checkbox.blockSignals(False)
-                    return
 
+        ★ v1.4.2 で確認ポップアップを廃止した。以前は点数が環境設定の上限を超えると
+          「表示しますか?」と確認していたが、「はい」を選んでも描画側
+          (MplCanvas._draw_data)が上限でラベルを省くため、何も表示されなかった。
+          実測では ax.annotate() 1件あたり約2.5msかかり、しかもプロパティを変える
+          たびの再描画で毎回その時間がかかる(1,000点で約2.5秒、20,000点で約68秒、
+          GUIスレッドを止める)。上限を超えて描画させると操作不能になりうるため、
+          上限超過時は描かないまま、理由をパネルに表示する(_update_point_labels_limit_note)。
+        """
         self._on_property_changed()
+        self._update_point_labels_limit_note()
+
+    def _update_point_labels_limit_note(self):
+        """
+        選択中のデータセットのうち、ラベル表示が有効なのに点数が表示上限を超えて
+        いるものがあれば、その理由をチェックボックスの下に表示する。
+        """
+        note = getattr(self, 'point_labels_limit_note', None)
+        if note is None:
+            return
+        max_points = self.canvas.point_label_max_points
+        over_limit = [ds for ds in self._get_selected_datasets()
+                      if ds.show_point_labels and len(ds.visible_df) > max_points]
+        if not over_limit:
+            note.setVisible(False)
+            return
+        largest = max(len(ds.visible_df) for ds in over_limit)
+        note.setText(
+            f"点数({largest:,}件)が表示上限({max_points:,}件)を超えているため、"
+            "ラベルは表示されません。上限は「環境設定」で変更できますが、"
+            "点数が多いと描画に時間がかかります(1,000件で約2秒)。"
+        )
+        note.setVisible(True)
 
     def _on_property_changed(self):
         """
@@ -3087,6 +3088,7 @@ class DatasetMixin:
             self._update_smoothing_control_visibility()
             self._update_error_display_control_items()
             self._update_2d_controls_visibility()
+            self._update_point_labels_limit_note()
 
             # 4e. X/Y軸コンボボックスの更新処理 (シグナルブロックを含む)
             self.x_col_combo.blockSignals(True)

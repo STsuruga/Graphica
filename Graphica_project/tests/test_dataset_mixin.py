@@ -2948,7 +2948,8 @@ def test_point_labels_toggle_on_under_limit_skips_confirmation(tmp_path, monkeyp
     assert ds.show_point_labels is True
 
 
-def test_point_labels_toggle_on_over_limit_prompts_and_yes_applies(tmp_path, monkeypatch):
+def test_point_labels_toggle_on_over_limit_does_not_prompt(tmp_path, monkeypatch):
+    """v1.4.2: 上限超過時の確認ポップアップは廃止(はいを選んでも描画されなかったため)。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     df = pd.DataFrame({'x': np.arange(1500), 'y': np.arange(1500)})
     ds = Dataset(name="big", df=df, x_col_name='x', y_col_name='y')
@@ -2957,22 +2958,57 @@ def test_point_labels_toggle_on_over_limit_prompts_and_yes_applies(tmp_path, mon
 
     window.point_labels_checkbox.setChecked(True)
 
-    assert len(question_calls) == 1
-    assert ds.show_point_labels is True
+    assert question_calls == []
+    assert ds.show_point_labels is True  # 設定は保持(上限を上げれば表示される)
 
 
-def test_point_labels_toggle_on_over_limit_prompts_and_no_reverts_checkbox(tmp_path, monkeypatch):
+def test_point_labels_over_limit_shows_the_reason_and_draws_no_labels(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     df = pd.DataFrame({'x': np.arange(1500), 'y': np.arange(1500)})
     ds = Dataset(name="big", df=df, x_col_name='x', y_col_name='y')
     _add_and_select_dataset(window, ds)
-    question_calls = _patch_question_yes(monkeypatch, accept=False)
 
     window.point_labels_checkbox.setChecked(True)
 
-    assert len(question_calls) == 1
-    assert window.point_labels_checkbox.isChecked() is False
-    assert ds.show_point_labels is False
+    note = window.point_labels_limit_note
+    assert not note.isHidden()
+    assert "1,500件" in note.text() and "1,000件" in note.text()
+    assert len(window.canvas.all_axes[0].texts) == 0
+
+
+def test_point_labels_note_is_hidden_under_the_limit(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+
+    window.point_labels_checkbox.setChecked(True)
+
+    assert window.point_labels_limit_note.isHidden()
+
+
+def test_point_labels_note_follows_the_selected_dataset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    big = Dataset(name="big", df=pd.DataFrame({'x': np.arange(1500), 'y': np.arange(1500)}),
+                  x_col_name='x', y_col_name='y', show_point_labels=True)
+    small = _make_simple_dataset("small")
+    small.show_point_labels = True
+    _add_and_select_dataset(window, big)
+    assert not window.point_labels_limit_note.isHidden()
+    _add_and_select_dataset(window, small)
+    assert window.point_labels_limit_note.isHidden()
+
+
+def test_raising_the_limit_hides_the_note(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    df = pd.DataFrame({'x': np.arange(1500), 'y': np.arange(1500)})
+    ds = Dataset(name="big", df=df, x_col_name='x', y_col_name='y')
+    _add_and_select_dataset(window, ds)
+    window.point_labels_checkbox.setChecked(True)
+
+    window.canvas.point_label_max_points = 2000
+    window._update_point_labels_limit_note()
+
+    assert window.point_labels_limit_note.isHidden()
 
 
 # =============================================================================

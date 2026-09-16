@@ -135,9 +135,9 @@ def test_the_original_form_layout_is_left_empty(window):
 
 
 def test_every_property_row_lives_in_exactly_one_section(window):
-    """39行が過不足なく7セクションに分配されていること。"""
+    """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行)が過不足なく7セクションに分配されていること。"""
     total = sum(window._prop_form(key).rowCount() for key, _ in DATASET_PROPERTY_SECTIONS)
-    assert total == 39
+    assert total == 40
 
 
 def test_no_property_widget_is_orphaned_from_every_layout(window):
@@ -186,6 +186,7 @@ def test_no_property_widget_is_orphaned_from_every_layout(window):
     ('map', 'colormap_combo'),
     ('map', 'vmax_spinbox'),
     ('extra', 'point_labels_checkbox'),
+    ('extra', 'point_labels_limit_note'),
     ('extra', 'point_label_col_combo'),
     ('extra', 'error_display_combo'),
     ('place', 'use_secondary_y_checkbox'),
