@@ -12,6 +12,10 @@ QApplication のインスタンスが存在しないと生成できない。GUI�
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# 未保存の変更の確認ダイアログ(v1.4.2)は、閉じる/開くたびにモーダルで止まるため
+# スイート全体では無効にする。この機能のテスト(tests/test_unsaved_changes.py)だけが
+# monkeypatch で "1" に戻す。
+os.environ["GRAPHICA_CONFIRM_UNSAVED_CHANGES"] = "0"
 
 import pytest
 from PySide6.QtWidgets import QApplication

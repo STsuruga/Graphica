@@ -675,8 +675,6 @@ class SettingsMixin:
             if settings_list[index].get('legend_position') != position:
                 settings_list[index]['legend_position'] = position
                 changed = True
-        if changed and hasattr(self, '_mark_project_modified'):
-            self._mark_project_modified()
         return changed
 
     def _on_edit_legend_order(self):

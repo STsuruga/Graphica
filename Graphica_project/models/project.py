@@ -1,3 +1,4 @@
+import hashlib
 import pickle
 import io
 import json
@@ -283,9 +284,27 @@ class ProjectModel(QObject):
                 children.append(converted)
         return {'name': node.get('name', ''), 'children': children}
 
-    def _save_project_json(self, filepath):
-        """現在のアプリケーション状態をJSON(.graphica)として保存する"""
-        data = {
+    def content_fingerprint(self):
+        """
+        「保存すると書き出される内容」のハッシュ(未保存の変更の検出用、v1.4.2)。
+
+        ★ Undo スタックの clean 状態やフラグでは判定しない。軸設定の変更・
+          列の計算・フォルダ操作など、Undo の対象外の変更が多数あるため、
+          取りこぼしが出る。保存形式(.graphica)と同じ辞書を作ってハッシュを
+          取れば、「保存したら結果が変わるか」をそのまま比べられる。
+        呼び出し側はツリー構造やレイアウトの行数など、UI 側にしかない状態を
+        先に反映しておくこと(PlotterApp._sync_project_from_ui)。
+        """
+        payload = self._json_payload()
+        # 選択中のサブプロットは保存されるが「内容の変更」ではないので比較に含めない
+        # (編集対象を切り替えただけで保存確認が出ないように)。
+        payload.pop('active_axis_index', None)
+        text = json.dumps(payload, cls=GraphicaJSONEncoder, sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+    def _json_payload(self):
+        """.graphica に書き出す辞書(_save_project_json と content_fingerprint で共有)"""
+        return {
             'format_version': CURRENT_FORMAT_VERSION,
             'datasets': [ds.to_dict() for ds in self.datasets],
             'dataset_group_tree': self._tree_to_json(self.dataset_group_tree),
@@ -298,6 +317,10 @@ class ProjectModel(QObject):
             'share_x_axis': self.share_x_axis,
             'share_y_axis': self.share_y_axis,
         }
+
+    def _save_project_json(self, filepath):
+        """現在のアプリケーション状態をJSON(.graphica)として保存する"""
+        data = self._json_payload()
         # ensure_ascii=False: データセット名/フォルダ名に日本語が使われることが
         # 多いため、\uXXXXエスケープではなく読める形でファイルに残す。
         with open(filepath, 'w', encoding='utf-8') as f:

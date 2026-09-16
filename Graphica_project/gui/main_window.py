@@ -170,6 +170,15 @@ MAX_RECENT_FILES = 10
 from gui.workers import BUILTIN_DATA_FILE_EXTENSIONS  # noqa: E402
 SUPPORTED_DATA_FILE_EXTENSIONS = BUILTIN_DATA_FILE_EXTENSIONS
 
+# 未保存の変更の確認ダイアログ(v1.4.2)を無効にする環境変数。テストスイートは
+# ウィンドウを大量に作って閉じるため、モーダルな確認が出るとそこで止まってしまう。
+# tests/conftest.py が "0" を設定する(この機能自体のテストは個別に "1" に戻す)。
+UNSAVED_CHANGES_PROMPT_ENV = "GRAPHICA_CONFIRM_UNSAVED_CHANGES"
+
+
+def _unsaved_changes_prompt_enabled():
+    return os.environ.get(UNSAVED_CHANGES_PROMPT_ENV, "1") != "0"
+
 # --- PySide6 ---
 from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDialog,
                                QComboBox, QLabel, QSpinBox, QDoubleSpinBox, QPushButton,
@@ -643,6 +652,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # プロジェクトファイルのパス。未保存(一度もsave/loadしていない)なら
         # None のままで、manual_save()はこの場合manual_save_as()へフォールバックする。
         self._current_project_path = None
+        # 未保存の変更の検出(v1.4.2): 直前に保存/読み込みした時点の内容のハッシュ
+        # (ProjectModel.content_fingerprint)。None は「ファイルと対応していない」状態。
+        self._saved_content_fingerprint = None
 
         # データセットのプロパティ変更 (色・線種・凡例名など) 用の Undo/Redo スタック
         # (DataEditorDialog 内のセル編集用スタックとは別物)
@@ -2577,15 +2589,73 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         if os.path.exists(self._autosave_filename):
             os.replace(self._autosave_filename, f"{base}.1{ext}")
 
+    def _sync_project_from_ui(self):
+        """
+        UI 側にしか無い状態を、保存・比較の直前に ProjectModel へ反映する。
+        フォルダ構造(ツリーの現在の状態)と、サブプロットの行数/列数
+        (UIのスピンボックスが真の値で、self.project.layout_rows/cols には
+        保存直前まで反映されないため、同期しないと常に既定値(1x1)で保存される)。
+        """
+        self.project.dataset_group_tree = self._capture_dataset_group_tree()
+        self.project.layout_rows = self.subplot_rows_spinbox.value()
+        self.project.layout_cols = self.subplot_cols_spinbox.value()
+
+    def _remember_saved_content(self):
+        """いまの内容を「保存済み」とみなす(保存・読み込みの成功直後に呼ぶ)。"""
+        self._sync_project_from_ui()
+        self._saved_content_fingerprint = self.project.content_fingerprint()
+
+    def has_unsaved_changes(self):
+        """
+        保存していない変更があるか(v1.4.2)。
+        データセットが1つも無く、ファイルとも対応していない(新しいタブのまま)
+        場合は、保存する意味のあるものが無いので False。
+        """
+        if not self.project.datasets and not self._current_project_path:
+            return False
+        if self._saved_content_fingerprint is None:
+            return True  # 一度も保存していない、またはオートセーブから復元した
+        self._sync_project_from_ui()
+        return self.project.content_fingerprint() != self._saved_content_fingerprint
+
+    def confirm_unsaved_changes(self, action_text):
+        """
+        未保存の変更があれば「保存 / 保存しない / キャンセル」を尋ねる(v1.4.2)。
+        ウィンドウ/タブを閉じる前、別のプロジェクトを開く前に呼ぶ。
+
+        Args:
+            action_text (str): 何をしようとしているか(例: "タブを閉じる")。
+        Returns:
+            bool: 続行してよければ True(保存した・保存しないを選んだ・変更が無い)。
+                キャンセルされた、または保存に失敗した場合は False。
+        """
+        if not _unsaved_changes_prompt_enabled() or not self.has_unsaved_changes():
+            return True
+        name = os.path.basename(self._current_project_path) if self._current_project_path else "無題のプロジェクト"
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("保存されていない変更")
+        box.setText(f"「{name}」には保存されていない変更があります。")
+        box.setInformativeText(f"{action_text}前に保存しますか?")
+        save_button = box.addButton("保存", QMessageBox.ButtonRole.AcceptRole)
+        discard_button = box.addButton("保存しない", QMessageBox.ButtonRole.DestructiveRole)
+        cancel_button = box.addButton("キャンセル", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(save_button)
+        box.setEscapeButton(cancel_button)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is discard_button:
+            return True
+        if clicked is save_button:
+            self.manual_save()
+            # 名前を付けて保存をキャンセルした/保存に失敗した場合は、続行しない
+            return not self.has_unsaved_changes()
+        return False
+
     def auto_save(self):
         """タイマーから定期的に呼ばれるオートセーブ処理"""
         try:
-            self.project.dataset_group_tree = self._capture_dataset_group_tree()
-            # ★ サブプロットの行数/列数はUIのスピンボックスが真の値であり、
-            #   self.project.layout_rows/cols には保存直前まで反映されないため、
-            #   ここで同期しないと常にデフォルト値(1x1)で保存されてしまう。
-            self.project.layout_rows = self.subplot_rows_spinbox.value()
-            self.project.layout_cols = self.subplot_cols_spinbox.value()
+            self._sync_project_from_ui()
             self._rotate_autosave_generations()
             self.project.save_project(self._autosave_filename)
             self.statusBar().showMessage("オートセーブ完了", 3000)
@@ -2628,13 +2698,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     def _save_project_to_path(self, filepath):
         """manual_save()/manual_save_as()共通の実際の保存処理。"""
         try:
-            # フォルダ構造(現在のツリーの状態)を保存直前にキャプチャする
-            self.project.dataset_group_tree = self._capture_dataset_group_tree()
-            # ★ サブプロットの行数/列数もUIから保存直前に同期する (auto_saveと同じ理由)
-            self.project.layout_rows = self.subplot_rows_spinbox.value()
-            self.project.layout_cols = self.subplot_cols_spinbox.value()
+            # フォルダ構造・サブプロットの行数/列数を保存直前に反映する
+            self._sync_project_from_ui()
             self.project.save_project(filepath)
             self._current_project_path = filepath
+            self._saved_content_fingerprint = self.project.content_fingerprint()
             self.statusBar().showMessage(f"保存しました: {filepath}", 3000)
             self._add_recent_file(filepath)
             self.project_state_changed.emit()
@@ -2643,6 +2711,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def manual_load(self):
         """ユーザーが読み込み操作をしたときの処理"""
+        if not self.confirm_unsaved_changes("別のプロジェクトを開く"):
+            return
         # 新形式(.graphica)・旧形式(.pkl)のどちらも開けるようにする
         # (project.load_project側が拡張子で自動判別する)
         filepath, _ = QFileDialog.getOpenFileName(
@@ -2719,6 +2789,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 #   しない(復元後に「上書き保存」を押したらユーザーが選んだ
                 #   覚えのないautosaveファイルへ上書きされてしまうのを防ぐ)。
                 self._current_project_path = filepath
+                self._remember_saved_content()
+            else:
+                # オートセーブからの復元はファイルと対応しないので「未保存」扱いにする
+                self._current_project_path = None
+                self._saved_content_fingerprint = None
             self.project_state_changed.emit()
         except Exception as e:
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
@@ -4153,6 +4228,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             return
 
         if file_path.lower().endswith(('.graphica', '.pkl')):
+            if not self.confirm_unsaved_changes("別のプロジェクトを開く"):
+                return
             self._load_project_from_path(file_path)
         else:
             self.load_data(file_path)

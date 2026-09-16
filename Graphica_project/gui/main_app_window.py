@@ -220,6 +220,9 @@ class MainAppWindow(QMainWindow):
             return
 
         project_window = self.tab_widget.widget(index)
+        # 未保存の変更があれば閉じる前に確認する(v1.4.2)
+        if project_window is not None and not project_window.confirm_unsaved_changes("タブを閉じる"):
+            return
         self.tab_widget.removeTab(index)
         if project_window is not None:
             # タブ横断Undo一元化(項目C-007): 閉じるタブのスタックをグループから
@@ -232,6 +235,17 @@ class MainAppWindow(QMainWindow):
 
     def closeEvent(self, event):
         """アプリ全体が閉じられるとき、開いている全タブに正常終了処理をさせてから閉じる。"""
+        # 未保存の変更の確認(v1.4.2)。どのタブのことか分かるよう、そのタブを
+        # 前面に出してから尋ねる。1つでもキャンセルされたら、どのタブも閉じない
+        # (確認を全部済ませてから閉じ始めるので、途中まで閉じた状態にはならない)。
+        for index in range(self.tab_widget.count()):
+            project_window = self.tab_widget.widget(index)
+            if project_window is None or not project_window.has_unsaved_changes():
+                continue
+            self.tab_widget.setCurrentIndex(index)
+            if not project_window.confirm_unsaved_changes("Graphica を終了する"):
+                event.ignore()
+                return
         self._settings.setValue("window_geometry", self.saveGeometry())
         for index in range(self.tab_widget.count()):
             project_window = self.tab_widget.widget(index)
