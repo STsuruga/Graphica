@@ -166,8 +166,9 @@ MAX_RECENT_FILES = 10
 
 # --- ドラッグ&ドロップでの複数ファイル一括読み込みに関する定数 ---
 # gui/workers.py の read_data_file() が実際に読み込める拡張子のみを許可する
-# (QFileDialog側のフィルターは *.txt も含むが、read_data_file() は非対応)
-SUPPORTED_DATA_FILE_EXTENSIONS = ('.csv', '.xls', '.xlsx')
+# (ファイルダイアログのフィルタと同じ一覧を gui/workers.py から共有する)
+from gui.workers import BUILTIN_DATA_FILE_EXTENSIONS  # noqa: E402
+SUPPORTED_DATA_FILE_EXTENSIONS = BUILTIN_DATA_FILE_EXTENSIONS
 
 # --- PySide6 ---
 from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDialog,
@@ -203,7 +204,7 @@ from gui.minimap_widget import MinimapWidget
 from gui.detached_canvas_window import DetachedCanvasWindow
 from gui import theme
 from gui.theme import apply_form_spacing
-from gui.workers import load_data_file_task
+from gui.workers import load_data_file_task, excel_engine_for, is_excel_file
 from gui.task_runner import TaskRunner
 from gui.dialogs import (ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog,
                          FolderImportDialog, AutosaveHistoryDialog)
@@ -3803,12 +3804,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         従来通り1ファイル=1データセットの読み込みフローになる)。
         """
         dataset_name = os.path.basename(file_path)
-        is_excel = file_path.lower().endswith(('.xlsx', '.xls'))
+        is_excel = is_excel_file(file_path)
 
         sheet_names = []
         if is_excel:
             try:
-                sheet_names = pd.ExcelFile(file_path).sheet_names
+                sheet_names = pd.ExcelFile(file_path, engine=excel_engine_for(file_path)).sheet_names
             except Exception as e:
                 logger.warning("Excelのシート一覧取得に失敗しました: %s", e)
 
@@ -3835,7 +3836,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 preview_name = dataset_name
             else:
                 try:
-                    sheet_df = pd.read_excel(file_path, sheet_name=sheet_name)
+                    sheet_df = pd.read_excel(file_path, sheet_name=sheet_name, engine=excel_engine_for(file_path))
                 except Exception as e:
                     QMessageBox.warning(self, "読み込みエラー", f"シート「{sheet_name}」の読み込みに失敗しました:\n{e}")
                     continue

@@ -19,7 +19,7 @@ from core.version import APP_NAME, LOG_FILE_NAME, __version__
 logger = logging.getLogger(__name__)
 
 # バージョン情報を収集する対象の依存パッケージ
-_DEPENDENCY_MODULES = ('PySide6', 'matplotlib', 'numpy', 'pandas', 'scipy', 'openpyxl')
+_DEPENDENCY_MODULES = ('PySide6', 'matplotlib', 'numpy', 'pandas', 'scipy', 'openpyxl', 'xlrd')
 
 
 def _collect_environment_info():

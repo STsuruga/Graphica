@@ -45,6 +45,7 @@ from core.named_colors import POPUP_LIMIT, load_named_colors
 from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from core.label_utils import infer_axis_label_from_column_name
 from core.methods_text import generate_methods_text
+from gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
 from core.plugin_api import get_registered_importer_extensions
 from core.plugin_types import AnalysisResult, PluginExecutionError
 from core.safe_eval import safe_eval_column_formula
@@ -97,9 +98,10 @@ class DatasetMixin:
         # プラグインがregister_importer()(項目B-1)で登録した拡張子も追加する
         plugin_extensions = get_registered_importer_extensions()
         plugin_pattern = ''.join(f' *{ext}' for ext in plugin_extensions)
+        builtin_pattern = ' '.join(f'*{ext}' for ext in BUILTIN_DATA_FILE_EXTENSIONS)
         file_path, _ = QFileDialog.getOpenFileName(
             self, "データファイルを選択", "",
-            f"Data Files (*.csv *.txt *.xls *.xlsx{plugin_pattern});;All Files (*)"
+            f"Data Files ({builtin_pattern}{plugin_pattern});;All Files (*)"
         )
         if file_path:
             # 古い読み込み処理は捨てて、一番下にある load_data メソッドに処理を任せる
@@ -754,10 +756,11 @@ class DatasetMixin:
             )
             return
 
-        from gui.workers import read_data_file
+        from gui.workers import read_data_file, excel_engine_for
         try:
             if dataset.source_sheet:
-                new_df = pd.read_excel(dataset.source_file, sheet_name=dataset.source_sheet, engine='openpyxl')
+                new_df = pd.read_excel(dataset.source_file, sheet_name=dataset.source_sheet,
+                                       engine=excel_engine_for(dataset.source_file))
             else:
                 new_df = read_data_file(dataset.source_file)
         except Exception as e:

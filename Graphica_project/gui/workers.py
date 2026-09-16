@@ -22,6 +22,48 @@ import pandas as pd
 #   UTF-16 は BOM (バイト順マーク) の有無で個別に検出する (_detect_bom_encoding)。
 CSV_ENCODING_FALLBACKS = ['utf-8-sig', 'cp932', 'latin-1']
 
+# ビルトインで読める拡張子(小文字・ドット付き)。ファイルダイアログのフィルタ、
+# ドラッグ&ドロップ/フォルダ一括インポートの振り分け(gui/main_window.py の
+# SUPPORTED_DATA_FILE_EXTENSIONS)、ColumnPreviewDialog の形式判定が
+# すべてここを参照する。以前はダイアログのフィルタだけが *.txt を含み、
+# 読み込み側が非対応という食い違いがあった(v1.4.2 で .txt/.xls に対応)。
+#
+# - 区切り文字付きテキスト: CSV と同じ経路で、文字コードと区切り文字を自動判定する。
+# - Excel: .xlsx は openpyxl、旧形式の .xls は xlrd で読む(excel_engine_for)。
+DELIMITED_TEXT_EXTENSIONS = ('.csv', '.txt')
+EXCEL_EXTENSIONS = ('.xlsx', '.xls')
+BUILTIN_DATA_FILE_EXTENSIONS = DELIMITED_TEXT_EXTENSIONS + EXCEL_EXTENSIONS
+
+
+def is_delimited_text_file(file_path):
+    return bool(file_path) and file_path.lower().endswith(DELIMITED_TEXT_EXTENSIONS)
+
+
+def is_excel_file(file_path):
+    return bool(file_path) and file_path.lower().endswith(EXCEL_EXTENSIONS)
+
+
+def excel_engine_for(file_path):
+    """
+    pandas.read_excel / ExcelFile に渡すエンジン名。openpyxl は .xls
+    (BIFF 形式)を読めないため、拡張子で xlrd と使い分ける。
+    """
+    return 'xlrd' if file_path.lower().endswith('.xls') else 'openpyxl'
+
+
+def pandas_separator(delimiter):
+    """
+    推測/指定された区切り文字を pandas.read_csv の sep に渡す形にする。
+    空白区切りは「空白1文字」ではなく「空白の連続」とみなす(桁揃えのために
+    複数の空白を入れたテキストで、空の列が大量にできるのを防ぐ)。
+    戻り値は (sep, engine)。正規表現の sep は python エンジンが必要。
+    """
+    if delimiter == ' ':
+        return r'\s+', 'python'
+    if len(delimiter) == 1:
+        return delimiter, 'c'
+    return delimiter, 'python'
+
 
 def _detect_bom_encoding(file_path):
     """
@@ -151,20 +193,25 @@ def read_data_file(file_path):
             )
         return result
 
-    if ext == 'csv':
+    if is_delimited_text_file(file_path):
+        # ★ 区切り文字もここで推測する。以前はカンマ固定で読み、区切り文字の
+        #   推測は ColumnPreviewDialog に任せていたが、タブ区切りのファイルは
+        #   カンマで読むと1列に潰れ、プレビューに届く前に
+        #   load_data_file_task の「少なくとも2列必要」で弾かれていた。
         last_error = None
         for encoding in _csv_encoding_candidates(file_path):
             try:
-                return pd.read_csv(file_path, header=0, encoding=encoding)
+                sep, engine = pandas_separator(detect_csv_delimiter(file_path, encoding))
+                return pd.read_csv(file_path, header=0, encoding=encoding, sep=sep, engine=engine)
             except (UnicodeDecodeError, pd.errors.ParserError) as e:
                 last_error = e
                 continue
         raise ValueError(
-            f"CSVファイルの文字コードを判定できませんでした "
+            f"テキストファイルの文字コードを判定できませんでした "
             f"(試行: {', '.join(CSV_ENCODING_FALLBACKS)})。詳細: {last_error}"
         )
-    elif ext in ('xls', 'xlsx'):
-        return pd.read_excel(file_path, engine='openpyxl')
+    elif is_excel_file(file_path):
+        return pd.read_excel(file_path, engine=excel_engine_for(file_path))
     else:
         raise ValueError(f"未対応のファイル形式です: {ext}")
 

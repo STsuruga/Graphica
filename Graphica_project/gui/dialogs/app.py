@@ -644,6 +644,7 @@ class AboutDialog(QDialog):
             <li>pandas (BSD 3-Clause)</li>
             <li>SciPy (BSD 3-Clause)</li>
             <li>openpyxl (MIT)</li>
+            <li>xlrd (BSD)</li>
             <li>Tabler Icons (MIT) — アプリ内のアイコン</li>
         </ul>
         <p>このアプリに同梱している Qt / PySide6 は LGPL v3 です。同梱物の一覧と

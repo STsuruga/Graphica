@@ -75,6 +75,10 @@ hiddenimports = [
     # openpyxl は Excel 読み込み (core/excel_utils.py) で使用。動的import
     # がある場合に備えて明示。
     "openpyxl",
+    # xlrd は旧形式 .xls の読み込み (gui/workers.py の excel_engine_for) で使用。
+    # pandas が engine="xlrd" の文字列から実行時に import するため、静的解析では
+    # 検出されない。
+    "xlrd",
     "scipy.interpolate",
     "scipy.optimize",
     "scipy.signal",

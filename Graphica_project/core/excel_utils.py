@@ -34,6 +34,12 @@ def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, m
     Returns:
         tuple (bool, list[str], bool): (見つかったか, 具体例のリスト, 全体を走査しきったか)
     """
+    # 旧形式の .xls(BIFF)は openpyxl で開けず、xlrd は計算済みの値しか
+    # 持たない形式なので「値の無い数式セル」という状態自体を確認できない。
+    # 検査しようとすると毎回例外ログが出るだけなので、最初から対象外にする。
+    if not str(file_path).lower().endswith('.xlsx'):
+        return False, [], True
+
     wb_formulas = None
     wb_values = None
     try:

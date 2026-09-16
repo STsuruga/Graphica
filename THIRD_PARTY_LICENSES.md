@@ -18,6 +18,7 @@ PyInstaller によって下記のライブラリが**同梱**されています�
 | pandas | 2.3.1 | BSD 3-Clause | https://github.com/pandas-dev/pandas/blob/main/LICENSE |
 | SciPy | 1.16.0 | BSD 3-Clause | https://github.com/scipy/scipy/blob/main/LICENSE.txt |
 | openpyxl | 3.1.5 | MIT | https://foss.heptapod.net/openpyxl/openpyxl |
+| xlrd | 2.0.2 | BSD | https://github.com/python-excel/xlrd |
 
 ## ビルド・テストにのみ使うもの(配布物には含まれない)
 

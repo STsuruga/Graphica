@@ -95,18 +95,21 @@ class ColumnPreviewDialog(QDialog):
 
         self.file_path = file_path
         self.current_df = df
-        self.is_excel = bool(file_path) and file_path.lower().endswith(('.xlsx', '.xls'))
+        from gui.workers import is_delimited_text_file, is_excel_file
+        self.is_excel = is_excel_file(file_path)
         # ビルトインのCSV読み込み(gui/workers.pyのread_data_file)経由のファイルのみ
         # 対象(プラグインインポーターが読み込んだ他形式やクリップボード貼り付けは
         # file_path=Noneまたは非csv拡張子のため、以下の追加コントロールは表示しない)。
-        self.is_csv = bool(file_path) and not self.is_excel and file_path.lower().endswith('.csv')
+        # .txt も CSV と同じ区切り文字付きテキストとして扱う(v1.4.2)。
+        self.is_csv = not self.is_excel and is_delimited_text_file(file_path)
         # 「列の型を確認...」で設定された、列ごとの型上書き ({列名: "数値"/"文字列"/"日付"})
         self.type_overrides = {}
 
         self.sheet_names = []
         if self.is_excel:
             try:
-                self.sheet_names = pd.ExcelFile(file_path).sheet_names
+                from gui.workers import excel_engine_for
+                self.sheet_names = pd.ExcelFile(file_path, engine=excel_engine_for(file_path)).sheet_names
             except Exception as e:
                 logger.warning("Excelのシート一覧取得に失敗しました: %s", e)
 
@@ -322,9 +325,13 @@ class ColumnPreviewDialog(QDialog):
                     read_kwargs['widths'] = [int(w.strip()) for w in widths_text.split(',') if w.strip()]
                 new_df = pd.read_fwf(self.file_path, **read_kwargs)
             else:
+                from gui.workers import pandas_separator
                 delimiter = self._resolve_csv_delimiter()
+                # 推測結果が「空白」のとき、初回読み込み(read_data_file)と同じく
+                # 空白の連続を1つの区切りとみなす。
+                sep, _engine = pandas_separator(delimiter) if delimiter == ' ' else (delimiter, 'python')
                 new_df = pd.read_csv(
-                    self.file_path, sep=delimiter, header=header_row,
+                    self.file_path, sep=sep, header=header_row,
                     encoding=encoding, engine='python'
                 )
         except Exception as e:
@@ -348,9 +355,10 @@ class ColumnPreviewDialog(QDialog):
         usecols = self.usecols_edit.text().strip() or None if self.usecols_edit else None
         nrows = (self.nrows_spinbox.value() or None) if self.nrows_spinbox else None
         try:
+            from gui.workers import excel_engine_for
             new_df = pd.read_excel(
                 self.file_path, sheet_name=sheet_name, header=header_row,
-                usecols=usecols, nrows=nrows
+                usecols=usecols, nrows=nrows, engine=excel_engine_for(self.file_path)
             )
         except Exception as e:
             QMessageBox.warning(

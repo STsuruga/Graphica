@@ -241,7 +241,7 @@ def test_drop_event_skips_unsupported_extension_but_loads_the_rest(tmp_path, mon
 
     csv1 = tmp_path / "a.csv"
     csv1.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
-    unsupported = tmp_path / "notes.txt"
+    unsupported = tmp_path / "notes.dat"
     unsupported.write_text("これはデータファイルではありません", encoding="utf-8")
     csv2 = tmp_path / "b.csv"
     csv2.write_text("x,y\n5,6\n7,8\n", encoding="utf-8")
@@ -255,7 +255,7 @@ def test_drop_event_skips_unsupported_extension_but_loads_the_rest(tmp_path, mon
     assert len(window._flatten_dataset_tree()) == initial_count + 2
     # スキップの警告は(ファイルごとではなく)1回だけまとめて表示される
     assert len(warning_calls) == 1
-    assert "notes.txt" in warning_calls[0][2]
+    assert "notes.dat" in warning_calls[0][2]
 
 
 # =============================================================================
@@ -362,7 +362,7 @@ def test_import_folder_queues_all_matching_files_non_recursive(tmp_path, monkeyp
     folder.mkdir()
     (folder / "a.csv").write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
     (folder / "b.csv").write_text("x,y\n5,6\n7,8\n", encoding="utf-8")
-    (folder / "ignored.txt").write_text("not data", encoding="utf-8")
+    (folder / "ignored.dat").write_text("not data", encoding="utf-8")
     sub = folder / "subfolder"
     sub.mkdir()
     (sub / "c.csv").write_text("x,y\n9,10\n", encoding="utf-8")  # サブフォルダは対象外
