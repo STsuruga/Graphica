@@ -236,7 +236,7 @@ pytest tests/test_dataset.py -k waterfall
 カバレッジを測る場合:
 
 ```
-bash scripts/run_coverage.sh       # htmlcov/index.html と docs/COVERAGE.md を生成
+bash scripts/run_coverage.sh       # htmlcov/index.html と docs/COVERAGE.md・COVERAGE_DETAILS.md を生成
 ```
 
 ---

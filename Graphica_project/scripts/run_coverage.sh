@@ -1,5 +1,6 @@
 #!/bin/bash
-# テストカバレッジを計測して、要約(docs/COVERAGE.md)とHTML(htmlcov/)を出す。
+# テストカバレッジを計測して、要約(docs/COVERAGE.md)、詳細(docs/COVERAGE_DETAILS.md)、
+# HTML(htmlcov/)を出す。
 #
 #   使い方 (cwd = Graphica_project/):
 #     bash scripts/run_coverage.sh
@@ -47,6 +48,7 @@ python scripts/write_coverage_summary.py
 echo
 echo "HTML: htmlcov/index.html"
 echo "要約: docs/COVERAGE.md"
+echo "詳細: docs/COVERAGE_DETAILS.md"
 if [ "$suite_status" -ne 0 ]; then
   echo "※ テスト側が非0で終了している。上のログを確認すること。"
 fi

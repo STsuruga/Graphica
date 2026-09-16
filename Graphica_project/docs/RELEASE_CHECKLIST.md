@@ -14,8 +14,9 @@ Graphica を新しいバージョンとして公開するときの手順。過�
 - [ ] **フルスイートが緑**。`bash scripts/run_tests_chunked.sh`(約18分)。
       `tests/test_export_preview_panel.py` の `!!! WARN`(全件パス後の終了時
       セグフォルト)だけなら緑とみなす。
-- [ ] **カバレッジを更新**。`bash scripts/run_coverage.sh` → `docs/COVERAGE.md`
-      が書き換わるのでコミットする。
+- [ ] **カバレッジを更新**。`bash scripts/run_coverage.sh` → `docs/COVERAGE.md`(要約)と
+      `docs/COVERAGE_DETAILS.md`(全モジュールの数字と未到達の行番号)が書き換わるので
+      両方コミットする。
 - [ ] **アプリが起動する**。`python main.py` で立ち上げ、データを1つ読み込んで
       グラフが出ることを確認(テストはヘッドレスなので、実表示は別途見る)。
 - [ ] **セーフモードでも起動する**。`python main.py --safe-mode`。

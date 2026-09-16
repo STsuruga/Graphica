@@ -9,6 +9,10 @@ HTMLレポート(`htmlcov/`)は数千ファイルになるためリポジトリ�
 
 `scripts/run_coverage.sh` の最後から呼ばれる。単体でも、`coverage combine` 済みの
 `.coverage` があれば実行できる。
+
+詳細版の `docs/COVERAGE_DETAILS.md` も同時に書き出す。こちらは全モジュールの
+行・分岐カバレッジと「通っていない行番号」の一覧で、`htmlcov/` を開かなくても
+リポジトリ上(GitHub のプレビュー等)で未到達箇所を追えるようにするためのもの。
 """
 import json
 import os
@@ -18,6 +22,7 @@ from datetime import date
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT = os.path.join(PROJECT_ROOT, "docs", "COVERAGE.md")
+DETAILS_OUTPUT = os.path.join(PROJECT_ROOT, "docs", "COVERAGE_DETAILS.md")
 
 # 「薄い」とみなす閾値。ここを下回るモジュールだけを一覧に出す
 # (全モジュールを並べると100行を超えて、かえって読まれなくなるため)。
@@ -43,6 +48,78 @@ def _package_of(path):
     """'gui/mixins/foo.py' -> 'gui/mixins' のように、1段上のまとまりを返す。"""
     parts = path.replace("\\", "/").split("/")
     return "/".join(parts[:-1]) or "(ルート)"
+
+
+def _line_ranges(numbers):
+    """[1, 2, 3, 7, 9, 10] -> '1-3, 7, 9-10'。未到達行の一覧を短く書くため。"""
+    numbers = sorted(numbers)
+    if not numbers:
+        return ""
+    ranges = []
+    start = prev = numbers[0]
+    for n in numbers[1:]:
+        if n == prev + 1:
+            prev = n
+            continue
+        ranges.append(f"{start}-{prev}" if start != prev else f"{start}")
+        start = prev = n
+    ranges.append(f"{start}-{prev}" if start != prev else f"{start}")
+    return ", ".join(ranges)
+
+
+def _branch_percent(summary):
+    """分岐が1つも無いファイルは '—' を返す(0% と区別するため)。"""
+    if not summary.get("num_branches"):
+        return None
+    return 100.0 * summary["covered_branches"] / summary["num_branches"]
+
+
+def _write_details(files, totals):
+    """全モジュールの詳細(docs/COVERAGE_DETAILS.md)を書き出す。"""
+    lines = []
+    lines.append("# テストカバレッジ詳細")
+    lines.append("")
+    lines.append(f"計測日: {date.today().isoformat()}  ")
+    lines.append("要約は [`COVERAGE.md`](COVERAGE.md)。このファイルも "
+                 "`bash scripts/run_coverage.sh` が自動生成する。")
+    lines.append("")
+    lines.append(f"全体: 行 **{totals['percent_covered']:.1f}%**"
+                 + (f" / 分岐 {_branch_percent(totals):.1f}%" if _branch_percent(totals) is not None else ""))
+    lines.append("")
+    lines.append("## モジュール別")
+    lines.append("")
+    lines.append("行カバレッジの低い順。「部分分岐」は if の片側しか通っていない分岐の数。")
+    lines.append("")
+    lines.append("| モジュール | 行数 | 未到達 | 行カバレッジ | 分岐 | 部分分岐 | 分岐カバレッジ |")
+    lines.append("|---|---:|---:|---:|---:|---:|---:|")
+    ordered = sorted(files.items(), key=lambda item: (item[1]["summary"]["percent_covered"], item[0]))
+    for path, info in ordered:
+        summary = info["summary"]
+        branch_pct = _branch_percent(summary)
+        lines.append(
+            f"| `{path.replace(chr(92), '/')}` | {summary['num_statements']:,} | "
+            f"{summary['missing_lines']:,} | {summary['percent_covered']:.1f}% | "
+            f"{summary.get('num_branches', 0):,} | {summary.get('num_partial_branches', 0):,} | "
+            + (f"{branch_pct:.1f}%" if branch_pct is not None else "—") + " |"
+        )
+    lines.append("")
+    lines.append("## 未到達の行")
+    lines.append("")
+    lines.append("テストで一度も実行されなかった行の番号(パス順)。"
+                 "すべて到達しているモジュールは省略。")
+    lines.append("")
+    for path, info in sorted(files.items()):
+        missing = info.get("missing_lines") or []
+        if not missing:
+            continue
+        lines.append(f"### `{path.replace(chr(92), '/')}` ({len(missing)} 行)")
+        lines.append("")
+        lines.append(_line_ranges(missing))
+        lines.append("")
+
+    with open(DETAILS_OUTPUT, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print(f"書き出し: {os.path.relpath(DETAILS_OUTPUT, PROJECT_ROOT)}")
 
 
 def main():
@@ -114,7 +191,7 @@ def main():
             lines.append(f"| `{path}` | {pct:.1f}% | {n} |")
         if len(low) > MAX_LISTED:
             lines.append("")
-            lines.append(f"(ほか {len(low) - MAX_LISTED} 件。詳細は `htmlcov/index.html`)")
+            lines.append(f"(ほか {len(low) - MAX_LISTED} 件。詳細は `COVERAGE_DETAILS.md`)")
     lines.append("")
     lines.append("## 数字の読み方")
     lines.append("")
@@ -124,13 +201,15 @@ def main():
     lines.append("- `tests/test_export_preview_panel.py` は全件パスした後の終了処理で"
                  "セグフォルトする既知の問題があり、そのチャンクの計測結果は書き出され"
                  "ない。関係するモジュールは**実際より低く出る**。")
-    lines.append("- 行単位の詳細(どの行が通っていないか)は `htmlcov/index.html` を"
-                 "開くこと。`htmlcov/` はリポジトリには入れていない。")
+    lines.append("- モジュールごとの数字と**通っていない行番号**は "
+                 "[`COVERAGE_DETAILS.md`](COVERAGE_DETAILS.md)。ソースと並べて"
+                 "色付きで見たい場合は `htmlcov/index.html`(リポジトリには入れていない)。")
     lines.append("")
 
     os.makedirs(os.path.dirname(OUTPUT), exist_ok=True)
     with open(OUTPUT, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
+    _write_details(files, totals)
     print(f"書き出し: {os.path.relpath(OUTPUT, PROJECT_ROOT)} "
           f"(全体 {totals['percent_covered']:.1f}%)")
 
