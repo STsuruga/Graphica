@@ -18,7 +18,8 @@ import matplotlib.dates as mdates
 from gui.theme import LIGHT_TOKENS, DARK_TOKENS
 from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
-                           calculate_median_smooth, calculate_gaussian_smooth)
+                           calculate_median_smooth, calculate_gaussian_smooth,
+                           sample_standard_deviation)
 from core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
 
 # 注釈キャッシュの「まだ一度も描いていない」を表す番兵(改善ボード E-2)。
@@ -210,7 +211,7 @@ def _compute_stat_label_text(dataset, stat):
     elif stat == 'std':
         if len(y) < 2:
             return f"{title} = (データ不足)"
-        value = np.std(y, ddof=1)
+        value = sample_standard_deviation(y)
     elif stat == 'max':
         value = np.max(y)
     elif stat == 'min':

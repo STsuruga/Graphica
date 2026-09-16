@@ -37,7 +37,8 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_resample_to_grid, multi_peak_fit_task,
                            calculate_histogram, calculate_kde, calculate_error_propagation,
                            calculate_cross_correlation_alignment, calculate_peaks,
-                           assign_peak_label_levels, split_dataframe_by_column)
+                           assign_peak_label_levels, split_dataframe_by_column,
+                           sample_standard_deviation)
 from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
 from core.color_palettes import BUILTIN_PALETTES
@@ -3195,13 +3196,16 @@ class DatasetMixin:
                 self.stats_summary_label.setText("-")
                 self.dataset_mini_stats_label.setText(dataset.name)
                 return
+            # 標本標準偏差(n−1)。1点しか無いと定義できないので「-」と表示する。
+            std = sample_standard_deviation(valid)
+            std_text = "-" if np.isnan(std) else f"{std:.4g}"
             self.stats_summary_label.setText(
                 f"件数: {len(valid)}   平均: {np.mean(valid):.4g}   "
-                f"標準偏差: {np.std(valid):.4g}   最小: {np.min(valid):.4g}   最大: {np.max(valid):.4g}"
+                f"標準偏差: {std_text}   最小: {np.min(valid):.4g}   最大: {np.max(valid):.4g}"
             )
             self.dataset_mini_stats_label.setText(
                 f"{dataset.name} 〈n={len(valid)}, 平均={np.mean(valid):.4g}, "
-                f"σ={np.std(valid):.4g}〉"
+                f"SD={std_text}〉"
             )
         except (TypeError, ValueError):
             self.stats_summary_label.setText("-")

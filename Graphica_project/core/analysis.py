@@ -1772,6 +1772,24 @@ def calculate_average_duplicate_x(x_data, y_data):
 # として扱う)。
 # ==============================================================================
 
+def sample_standard_deviation(values):
+    """
+    標本標準偏差(不偏分散の平方根、n−1 で割る。numpy の ddof=1)を返す。
+    NaN は除外し、有効な値が2点未満なら NaN を返す(n−1 が 0 以下になるため)。
+
+    ★ アプリ内の「標準偏差」はすべてこの関数で計算する(v1.4.2)。以前は
+      画面下部の要約・統計情報ポップアップ・外れ値検出の Z-score が n で割る
+      母標準偏差、統計値アンカーラベルと反復測定の誤差列が n−1 で、同じデータ
+      なのに場所によって値が違っていた。Graphica が扱うのは母集団全体ではなく
+      測定で得た標本なので、母標準偏差の推定には n−1 を使うのが正しい。
+    """
+    arr = np.asarray(values, dtype=float)
+    arr = arr[~np.isnan(arr)]
+    if arr.size < 2:
+        return float('nan')
+    return float(np.std(arr, ddof=1))
+
+
 def calculate_zscore_outliers(y_data, threshold=3.0):
     """
     Y値のZ-score(標準化スコア)による外れ値検出。|z| > threshold の点を
@@ -1795,7 +1813,8 @@ def calculate_zscore_outliers(y_data, threshold=3.0):
 
     if valid.sum() >= 2:
         mean = np.mean(y[valid])
-        std = np.std(y[valid], ddof=0)
+        # 標本標準偏差(n−1)。他の「標準偏差」表示と揃える(sample_standard_deviation 参照)。
+        std = sample_standard_deviation(y[valid])
         if std > 0:
             z_scores[valid] = (y[valid] - mean) / std
             is_outlier[valid] = np.abs(z_scores[valid]) > threshold
