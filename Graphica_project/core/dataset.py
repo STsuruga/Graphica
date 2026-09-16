@@ -3,6 +3,31 @@ import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field, fields, MISSING
 
+# 線種(Dataset.linestyle)の表記ゆれの正規化。matplotlib は '-' と 'solid' の
+# どちらも受け付けるため、保存済みの値には両方が混在している: 既定値やフィット
+# 曲線などコードが作るデータセットは短い記号('-', '--')、プロパティパネルで
+# 選び直した値はコンボの表示名('solid', 'dashed')。以前はコンボに記号をそのまま
+# setCurrentText() していたため、フィット曲線('--')を選ぶと一致する項目が無く、
+# 直前の表示(多くは solid)が残って「破線なのに solid と表示される」状態になっていた。
+# 保存値は書き換えず(既存プロジェクトの互換性のため)、表示・比較の直前に正規化する。
+LINESTYLE_NAMES = ('solid', 'dashed', 'dotted', 'dashdot')
+_LINESTYLE_ALIASES = {
+    '-': 'solid', 'solid': 'solid',
+    '--': 'dashed', 'dashed': 'dashed',
+    ':': 'dotted', 'dotted': 'dotted',
+    '-.': 'dashdot', 'dashdot': 'dashdot',
+}
+
+
+def linestyle_name(value):
+    """
+    線種の値をプロパティパネルの表示名('solid' 等)に揃える。
+    線を描かない値('None'、空文字、None)や未知の値は None を返す。
+    """
+    if value is None:
+        return None
+    return _LINESTYLE_ALIASES.get(str(value).strip().lower())
+
 # 3列目(z_col_name)の値で点を配色する散布図(改善ボード D-2)の plot_type 値。
 # ★ この文字列はプロジェクトファイルにそのまま保存されるため、変更すると既存の
 #   保存済みプロジェクトの plot_type が未知の値になり、Lineへフォールバックして

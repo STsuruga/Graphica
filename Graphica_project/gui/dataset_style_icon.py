@@ -8,7 +8,7 @@ main_window.py (アイテム新規作成時) と dataset_mixin.py (プロパテ�
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPainter, QPen, QColor, QBrush, QIcon
 
-from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
 from gui.icon_utils import icon as _icon_from_svg
 
 # アイコンのサイズ (幅, 高さ)
@@ -23,12 +23,14 @@ _STYLE_ICON_SIZE = (28, 14)
 DATASET_TREE_NAME_COLUMN = 0
 DATASET_TREE_VISIBILITY_COLUMN = 1
 
-# matplotlibの線種文字列 -> Qtのペンスタイルの対応表
+# 線種の表示名(core.dataset.linestyle_name で正規化したもの) -> Qtのペンスタイル。
+# 以前は記号('--' 等)だけを見ていたため、プロパティパネルで選び直した
+# 'dashed' 等のデータセットはリストのアイコンが実線になっていた。
 _LINESTYLE_TO_QT_PEN = {
-    '-': Qt.PenStyle.SolidLine,
-    '--': Qt.PenStyle.DashLine,
-    '-.': Qt.PenStyle.DashDotLine,
-    ':': Qt.PenStyle.DotLine,
+    'solid': Qt.PenStyle.SolidLine,
+    'dashed': Qt.PenStyle.DashLine,
+    'dashdot': Qt.PenStyle.DashDotLine,
+    'dotted': Qt.PenStyle.DotLine,
 }
 
 
@@ -58,7 +60,7 @@ def make_dataset_style_icon(dataset):
 
     if show_line:
         pen = QPen(color, max(1.0, min(dataset.linewidth, 3.0)))
-        pen.setStyle(_LINESTYLE_TO_QT_PEN.get(dataset.linestyle, Qt.PenStyle.SolidLine))
+        pen.setStyle(_LINESTYLE_TO_QT_PEN.get(linestyle_name(dataset.linestyle), Qt.PenStyle.SolidLine))
         painter.setPen(pen)
         painter.drawLine(2, y, width - 2, y)
 

@@ -42,7 +42,7 @@ from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, 
                            SetMaskedRowsCommand)
 from core.color_palettes import BUILTIN_PALETTES
 from core.named_colors import POPUP_LIMIT, load_named_colors
-from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
+from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
 from core.label_utils import infer_axis_label_from_column_name
 from core.methods_text import generate_methods_text
 from gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
@@ -2996,7 +2996,14 @@ class DatasetMixin:
             # 4c. Dataset オブジェクトの値をUIにロード
             self.ui.legend_name_edit.setText(dataset.name)
             self.ui.plot_type_combo.setCurrentText(dataset.plot_type)
-            self.ui.linestyle_combo.setCurrentText(dataset.linestyle)
+            # 保存値は '--' と 'dashed' のような表記ゆれを含むため、表示名に揃えて選ぶ。
+            # 線を描かない値('None')はどの項目にも当たらないので、選択なしにする
+            # (直前のデータセットの表示が残って誤解されるのを防ぐ)。
+            shown_linestyle = linestyle_name(dataset.linestyle)
+            if shown_linestyle is None:
+                self.ui.linestyle_combo.setCurrentIndex(-1)
+            else:
+                self.ui.linestyle_combo.setCurrentText(shown_linestyle)
             self.ui.linewidth_spinbox.setValue(dataset.linewidth)
             self.ui.marker_combo.setCurrentText(dataset.marker if dataset.marker is not None else 'None')
             self.ui.markersize_spinbox.setValue(dataset.markersize)
