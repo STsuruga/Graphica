@@ -74,6 +74,11 @@ bash scripts/run_tests_chunked.sh            # フルスイート(約20分)
    レビューしやすくなります。
 5. Pull Request のテンプレートのチェック項目を確認して送ってください。
 
+## 行動規範とセキュリティ
+
+- 参加するときは [行動規範](CODE_OF_CONDUCT.md) を守ってください。
+- **脆弱性は公開の Issue に書かず**、[SECURITY.md](SECURITY.md) の方法で非公開で報告してください。
+
 ## ライセンス
 
 送っていただいた変更は、このリポジトリと同じ [MIT License](LICENSE) で公開されることに

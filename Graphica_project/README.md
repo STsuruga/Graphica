@@ -1,5 +1,7 @@
 # Graphica
 
+**日本語** | [English](https://github.com/STsuruga/Graphica/blob/master/README.en.md)
+
 **CSV / Excel の測定データから、論文や報告書に載せられるグラフを作るデスクトップアプリです。**
 曲線フィット、ピーク検出、ベースライン補正などの解析もアプリの中で完結します(Windows / macOS、無料・オープンソース)。
 
