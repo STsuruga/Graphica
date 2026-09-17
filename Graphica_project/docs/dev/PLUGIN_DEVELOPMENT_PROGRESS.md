@@ -63,7 +63,7 @@ editable install する(`pyproject.toml`があり`core`/`gui`/`models`を
 共通の資料と進捗は **プラグイン開発ハブ(Artifact)** にまとめた:
 https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o
 
-- 全64件の状態は、このファイルではなく**ハブのデータベース**(collection `plugins`、
+- 全件の状態は、このファイルではなく**ハブのデータベース**(collection `plugins`、
   doc_id = `P-xxx`、フィールド `state` / `repo` / `version` / `release_url` / `note` /
   `updated`)が正。各プラグインのチャットが着手時・完了時に更新する。
 - ハブの各項目に、そのまま新しいチャットへ貼る「引継ぎプロンプト」がある。
