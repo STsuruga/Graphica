@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使い方(Wiki)
+    url: https://github.com/STsuruga/Graphica/wiki
+    about: 操作方法は画面写真付きの Wiki にまとめています。
+  - name: よくある質問・トラブルシューティング
+    url: https://github.com/STsuruga/Graphica/wiki/16-トラブルシューティング
+    about: macOS で開けない、文字化けする、動作が重い、などの対処方法です。

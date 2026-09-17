@@ -1,0 +1,30 @@
+name: 機能の要望
+description: あったら便利な機能や、使いにくい点の改善案を送ってください。
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困っていること・やりたいこと
+      description: どんな作業で、何ができなくて困っているかを書いてください(実現方法より、目的を教えてもらえると助かります)。
+      placeholder: 例) 複数の測定ファイルで同じ規格化をするたびに、1つずつ操作していて時間がかかる
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: こうなってほしい
+      description: 思いつく解決方法があれば書いてください。
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: いまの回避方法
+      description: 別のソフトで処理している、手作業でやっている、など。
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 補足
+      description: 参考になる画像、他のソフトの例、サンプルデータなどがあれば添付してください。

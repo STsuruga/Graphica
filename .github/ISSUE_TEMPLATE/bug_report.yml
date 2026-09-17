@@ -1,0 +1,83 @@
+name: 不具合の報告
+description: Graphica が正しく動かない、エラーになる、落ちるときに使ってください。
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        報告ありがとうございます。まず [トラブルシューティング](https://github.com/STsuruga/Graphica/wiki/16-トラブルシューティング) に同じ症状が載っていないか確認してください。
+
+  - type: input
+    id: version
+    attributes:
+      label: Graphica のバージョン
+      description: ヘルプ ▸ Graphica について... で確認できます。
+      placeholder: 例) 1.4.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel、ソースから実行)
+        - Linux(ソースから実行)
+        - その他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: 実行方法
+      options:
+        - 配布版(Releases の zip)
+        - ソースから実行(python main.py)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 起きたこと
+      description: 何が起きたか、エラーメッセージがあればその文面も書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: 同じことが起きる手順を、できるだけ具体的に書いてください。
+      placeholder: |
+        1. CSV ファイルを読み込む
+        2. データセットを右クリック ▸ データ処理 ▸ ベースライン補正...
+        3. 「OK」を押すとエラーになる
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待していた動作
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 診断情報とファイル
+      description: |
+        **ヘルプ ▸ 診断情報をエクスポート...** で作った zip を、この欄にドラッグして添付してください(原因の特定に大きく役立ちます)。
+        添付する前に中身を確認してください。`settings.txt` には最近使ったファイルのパスなど、PC 内のフォルダ名が含まれます。
+        問題が起きるデータファイルやプロジェクトファイル(公開してよいもの)があれば、それも添付してください。
+      placeholder: ここにファイルをドラッグ&ドロップ
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 確認
+      options:
+        - label: "`--safe-mode` で起動しても同じ症状が出るか確認した(プラグインを入れている場合)"
