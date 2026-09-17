@@ -1,4 +1,23 @@
-# Graphica 取扱説明書
+# Graphica
+
+**CSV / Excel の測定データから、論文や報告書に載せられるグラフを作るデスクトップアプリです。**
+曲線フィット、ピーク検出、ベースライン補正などの解析もアプリの中で完結します(Windows / macOS、無料・オープンソース)。
+
+A desktop app for turning CSV/Excel measurement data into publication-quality plots, with curve fitting, peak detection and baseline correction built in (Windows / macOS, free and open source). The interface is in Japanese, with an English option for the main menus and dialogs.
+
+[![Release](https://img.shields.io/github/v/release/STsuruga/Graphica)](https://github.com/STsuruga/Graphica/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/STsuruga/Graphica/blob/master/LICENSE)
+[![Coverage report](https://img.shields.io/badge/coverage-report-brightgreen.svg)](https://stsuruga.github.io/Graphica/coverage/)
+
+![Graphica のメイン画面](https://github.com/STsuruga/Graphica/raw/master/Graphica_project/docs/images/main_window.png)
+
+- **ダウンロード**: [最新版(Releases)](https://github.com/STsuruga/Graphica/releases/latest) から、Windows / macOS の zip を入手できます(インストール不要)。
+- **使い方**: [Wiki](https://github.com/STsuruga/Graphica/wiki) に、最初のグラフを作るチュートリアルから解析機能まで、画面写真付きでまとめています。
+- **不具合の報告・要望**: [Issues](https://github.com/STsuruga/Graphica/issues/new/choose) / 開発に参加する方は [CONTRIBUTING.md](https://github.com/STsuruga/Graphica/blob/master/CONTRIBUTING.md)
+
+---
+
+# 取扱説明書
 
 ## 1. 概要
 
