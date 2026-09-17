@@ -15,6 +15,12 @@
 
 ## 現在地(2026-09-17)
 
+**公開に向けた整備(v1.4.2 公開後、同日)**: リポジトリの About(説明文・Wiki へのリンク・トピック10件)を設定。
+README 冒頭に日英の概要・バッジ・スクリーンショット(`docs/images/main_window.png`)・入口リンクを追加。
+Issue フォーム(不具合/要望、白紙 Issue は無効、Wiki へのリンク)、PR テンプレート、`CONTRIBUTING.md` を追加。
+**計画・引き継ぎ資料を `docs/dev/` へ移動**(このファイルも含む)。`docs/` 直下は利用者/貢献者向けの
+`plugin_development.md` と自動生成の `COVERAGE*.md`、`images/` だけにする方針。
+
 **v1.4.2(不具合修正11件)をリリース済み**: https://github.com/STsuruga/Graphica/releases/tag/v1.4.2 (master CI・タグCIとも両OS成功、成果物で exe 内バージョン 1.4.2 と xlrd 同梱を Windows/macOS とも確認)。Wiki も修正に合わせて更新済み(12ページ、公開ページでリンク切れ0・画像59/59を確認)。ユーザーが2026-09-17 00:34に指示し、5時間後に予約実行した。
 方針確認で決まったこと: `.xls` は xlrd を依存に追加 / 完了条件はリリースまで / Wiki も修正に合わせて更新。
 
