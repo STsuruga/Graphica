@@ -15,6 +15,11 @@
 
 ## 現在地(2026-09-17)
 
+**プラグイン開発ハブを公開(2026-09-17)**: https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o
+(ソース `docs/dev/plugin_hub.html`、db capability)。プラグインは1件ずつ別チャット・別リポジトリで
+開発し、状態はハブの db(collection `plugins`)が正。各項目に引継ぎプロンプトあり。
+着手順 1 は P-402(統計検定)。詳細は `docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md` の「次にやること」。
+
 **公開に向けた整備(v1.4.2 公開後、同日)**: リポジトリの About(説明文・Wiki へのリンク・トピック10件)を設定。
 README 冒頭に日英の概要・バッジ・スクリーンショット(`docs/images/main_window.png`)・入口リンクを追加。
 Issue フォーム(不具合/要望、白紙 Issue は無効、Wiki へのリンク)、PR テンプレート、`CONTRIBUTING.md` を追加。

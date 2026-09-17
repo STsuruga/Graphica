@@ -4,6 +4,12 @@
 書けるようにするためのリファレンスです。想定読者はGraphicaのコードベースを
 初めて見るサードパーティ開発者です。
 
+> **プラグインは1つにつき1つの独立したリポジトリで開発します。** リポジトリの構成・
+> テスト・zip のビルドとリリースの手順は、雛形の
+> [graphica-plugin-element-constants](https://github.com/STsuruga/graphica-plugin-element-constants)
+> を参照してください。下のクイックスタートの `plugins/` 配置は、ソースから起動した
+> Graphica で手早く試すための方法です。
+
 Graphicaのプラグインは、アプリと同じPythonプロセス内で実行される通常のPython
 パッケージです。サンドボックスは無いため、**信頼できる配布元のプラグインのみ
 導入してください**(自分で書く分には問題ありません)。
@@ -149,6 +155,7 @@ zipは以下のいずれかのレイアウトに対応しています。
 - `pandas`
 - `scipy`
 - `openpyxl`
+- `xlrd`
 
 これ以外の外部パッケージ(例: `requests`)への依存は避けてください。exe配布版
 にはこれらしか同梱されておらず、プラグインが独自に追加パッケージを
@@ -317,7 +324,8 @@ def smooth(dataset, params):
     window = params["window"]
     new_df = dataset.df.copy()
     new_df["y"] = new_df["y"].rolling(window, center=True, min_periods=1).mean()
-    return Dataset(name=f"{dataset.name} (smoothed)", df=new_df, color=dataset.color)
+    return Dataset(name=f"{dataset.name} (smoothed)", df=new_df,
+                   x_col_name=dataset.x_col_name, y_col_name="y", color=dataset.color)
 
 def register(api):
     api.register_processor(
@@ -357,7 +365,12 @@ class AnalysisResult:
 
 - `table`: `pandas.DataFrame`。結果ダイアログに表として表示され、CSV出力も
   できます。
-- `annotations`: 現在の軸に注釈として追加される辞書のリスト。
+- `annotations`: 現在の軸に注釈として追加される辞書のリスト(Undo対応)。
+  使える形は `type` ごとに次のとおりです(座標はデータ座標。`stat` だけ軸の相対座標 0〜1)。
+  - テキスト: `{"type": "text", "xy": [x, y], "text": "...", "color": "#000000"}`
+  - 矢印: `{"type": "arrow", "xy": [x, y], "xytext": [x, y], "text": "...", "arrow_style": "single" | "double" | "bracket", "arrow_curvature": 0.0}`
+  - 範囲の強調: `{"type": "vspan" | "hspan", "range": [lo, hi], "color": "...", "alpha": 0.2}`
+  - 統計値ラベル: `{"type": "stat", "dataset_id": "...", "stat": "mean" | "std" | "max" | "min" | "r_squared", "xy": [0.05, 0.95]}`
 - `new_datasets`: 非破壊に(Undo対応で)追加される新規 `Dataset` のリスト。
 
 3つとも省略可能(`None`)で、必要なものだけ埋めれば構いません。3つ全部を
@@ -372,8 +385,9 @@ def find_peak(dataset, params):
     x, y = dataset.x_data, dataset.y_data
     idx = y.argmax()
     peak_table = pd.DataFrame({"x": [x[idx]], "y": [y[idx]]})
-    annotation = {"x": x[idx], "y": y[idx], "text": "peak"}
-    baseline = Dataset(name=f"{dataset.name} (baseline)", df=dataset.df.assign(y=0), color=dataset.color)
+    annotation = {"type": "text", "xy": [float(x[idx]), float(y[idx])], "text": "peak"}
+    baseline = Dataset(name=f"{dataset.name} (baseline)", df=dataset.df.assign(**{dataset.y_col_name: 0}),
+                       x_col_name=dataset.x_col_name, y_col_name=dataset.y_col_name, color=dataset.color)
     return AnalysisResult(
         table=peak_table,
         annotations=[annotation],
@@ -387,7 +401,7 @@ def register(api):
 #### `param_schema` の書式(`register_processor`/`register_analyzer` 共通)
 
 `param_schema` は辞書のリストで、各要素はパラメータ入力フォームの1行に対応
-します(自動生成は `gui/dialogs.py` の `PluginParamDialog` が行います)。各要素
+します(自動生成は `gui/dialogs/app.py` の `PluginParamDialog` が行います)。各要素
 のキー:
 
 | キー | 必須 | 説明 |
@@ -448,12 +462,12 @@ def register(api):
 ### `register_plot_type(type_name, drawer, *, requires_2d=False)`
 
 データセットのプロット種別(`plot_type`)に、プラグイン提供の描画方法を
-追加します。既存5種類(`'Line'` / `'Scatter'` / `'Line+Scatter'` / `'Area'` /
-`'Bar'`)の描画コードは変更されず、未知の `plot_type` に遭遇した場合の
-フォールバック経路として動作します。
+追加します。組み込みの種別(`'Line'` / `'Scatter'` / `'Line+Scatter'` / `'Area'` /
+`'Bar'` / `'Step'` / `'Density Scatter'` / `'Z-Color Scatter'`)の描画コードは変更されず、
+未知の `plot_type` に遭遇した場合のフォールバック経路として動作します。
 
 - `type_name` (str): `ds.plot_type` に設定される値。データセットプロパティ
-  ダイアログのプロット種別コンボボックスにも表示されます(組み込み5種類・他の
+  ダイアログのプロット種別コンボボックスにも表示されます(組み込みの種別・他の
   プラグインの同名と重複できません)。
 - `drawer` (callable): `(Dataset, Axes, x_data, y_data) -> Artist | None`。
   `x_data`/`y_data` は、既にウォーターフォールのオフセット等が適用済みの
@@ -478,6 +492,12 @@ def register(api):
 見つけると、このレジストリを引いて `drawer` をそのまま呼ぶだけの独立した経路
 です)。それらの見た目が必要な場合は `drawer` の中で自前に実装してください。
 
+### `register_render_backend(name, backend)`
+
+将来のLaTeX(`usetex`)レンダリング差し替え用に予約されたフックです。**現時点では登録が
+記録されるだけで、描画には一切接続されていません**(`backend` の契約も未定義)。
+このフックに依存するプラグイン(P-601など)は、本体側の接続作業が先に必要です。
+
 ---
 
 ## プラグイン作者向けの設計原則
@@ -501,8 +521,11 @@ def bad_smooth(dataset, params):
 def good_smooth(dataset, params):
     new_df = dataset.df.copy()
     new_df["y"] = new_df["y"].rolling(5, center=True).mean()
-    return Dataset(name=f"{dataset.name} (smoothed)", df=new_df, color=dataset.color)
+    return Dataset(name=f"{dataset.name} (smoothed)", df=new_df,
+                   x_col_name=dataset.x_col_name, y_col_name="y", color=dataset.color)
 ```
+
+> `Dataset` の `name` / `df` / `x_col_name` / `y_col_name` は必須です。
 
 新規Datasetの追加はGraphica側でUndo/Redoコマンドとしてスタックにpushされる
 ため、`good_smooth` のように新しい `Dataset` さえ正しく返せば、Undo対応は
@@ -616,7 +639,7 @@ Graphicaのプラグイン機構は「1箇所の失敗が全体を巻き込ま�
 
 ## プラグイン製パネルのスタイルガイド
 
-現時点(GUIモダン化フェーズ、トラック2)は未着手のため、`register_panel` で
-追加するパネルの見た目については、**特別な指定はありません。標準のQtウィジェット
-スタイルにそのまま従ってください。** トラック2完了後、本体の色トークン・
-余白の基準単位などのデザイン規約が確定次第、この節に追記します。
+`register_panel` で追加するパネルには、本体のテーマ(`gui/theme.py` の QSS)が
+アプリ全体に適用されるため、**標準の Qt ウィジェットをそのまま使えば本体と同じ見た目・
+ダークモードになります。** ウィジェット個別に `setStyleSheet` で色を直書きすると、
+ダークモードで読めなくなるので避けてください。

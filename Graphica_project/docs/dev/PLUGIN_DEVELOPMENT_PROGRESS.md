@@ -58,22 +58,28 @@ editable install する(`pyproject.toml`があり`core`/`gui`/`models`を
 
 ## 次にやること
 
-**★ プラグイン開発自体が後回し(2026-09-13、ユーザー判断)。**
-土台(別リポジトリ方針・zipビルド・テストの走らせ方)は整ったので、
-再開したいときはこのファイルの「開発の場所」節から読めばすぐ始められる。
-**このセクションの内容は「再開したときの着手順」であって、いま進行中の
-作業ではない。**
+**★ 2026-09-17: プラグインは1件ずつ別チャット・別リポジトリで開発する運用を開始(ユーザー判断)。**
 
-再開時の1番目は、改善ボード D-3 の **P-402(統計検定と有意差ブラケット)**
-(ユーザー判断でコア機能への昇格はせず、プラグインとして作る方針が確定済み)。
-`graphica-plugin-stats`(仮)として新しいリポジトリを切る。
+共通の資料と進捗は **プラグイン開発ハブ(Artifact)** にまとめた:
+https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o
 
-その後は`Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」に戻り、
-P-101(JCAMP-DXインポータ、`register_importer`)→ P-304(UV-Visパック、
-`register_analyzer`)と進む。この3つで`register_importer`/`register_analyzer`/
-`register_panel`の3フックが実用に耐えるかの検証も兼ねる
-(`Graphica_PLUGIN_BACKLOG.md`自身の位置づけ通り)。
+- 全64件の状態は、このファイルではなく**ハブのデータベース**(collection `plugins`、
+  doc_id = `P-xxx`、フィールド `state` / `repo` / `version` / `release_url` / `note` /
+  `updated`)が正。各プラグインのチャットが着手時・完了時に更新する。
+- ハブの各項目に、そのまま新しいチャットへ貼る「引継ぎプロンプト」がある。
+- ハブのページ本体は `docs/dev/plugin_hub.html`。仕様や説明を直すときはこのファイルを
+  編集して同じ URL に再公開する(状態はデータベース側なので消えない)。
+- 共通ルール・API 早見表はハブにある(`docs/plugin_development.md` の誤った例は
+  2026-09-17 に修正済み: `Dataset` の必須引数、annotations の形、同梱依存の xlrd、
+  `register_render_backend` が未接続であること)。
 
-P-101のパーサ(`plugins/jcamp_dx_importer/parser.py`、221行)は
-`feature/plugin-track4`ブランチにWIPコミット`e6f5a7e`として退避してある。
-着手時はそこから取り出して新しいリポジトリへ移すこと。
+着手順(ハブの「着手順」と同じ): P-402(統計検定、改善ボード D-3)→ P-101(JCAMP-DX)→
+P-304(UV-Vis)→ P-202(スパイク除去)→ P-306(CV)→ P-201(Shirley/Tougaard)→
+P-401(PCA)→ P-303(Raman/FT-IR)。
+
+P-101 のパーサ(`plugins/jcamp_dx_importer/parser.py`、221行、未検証)は
+`feature/plugin-track4` ブランチの WIP コミット `e6f5a7e` にある。新しいリポジトリへ
+移したあと、ブランチと worktree を消すかはユーザー判断。
+
+プラグインが完了したら、ハブの更新に加えて上の表にも1行追記する(本体リポジトリへの
+書き込みはこの記録だけ。プラグインのチャットは本体のコードを変更しない)。

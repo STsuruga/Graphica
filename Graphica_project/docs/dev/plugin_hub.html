@@ -1,0 +1,934 @@
+<title>Graphica プラグイン開発ハブ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<style>
+/* Graphica 本体の gui/theme.py のトークンに合わせている */
+:root {
+  --bg: #F6F7F9; --surface: #FFFFFF; --surface-2: #EEF0F3;
+  --border: #DFE2E1; --border-strong: #C9CDCB;
+  --text: #1B1F1E; --text-2: #5B6462; --text-3: #7A837F;
+  --accent: #1F6F78; --accent-soft: #E4F0EF;
+  --link: #2563EB; --focus: #2563EB;
+  --done: #1D7A46; --done-soft: #E2F3E8;
+  --prog: #2563EB; --prog-soft: #E3ECFD;
+  --next: #9A5B00; --next-soft: #FDF1D8;
+  --hold: #5B6462; --hold-soft: #EEF0F3;
+  --block: #B42318; --block-soft: #FDE8E6;
+  --code-bg: #EEF0F3;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --sans: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+  --display: "Zen Kaku Gothic New", "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171A; --surface: #1B1F22; --surface-2: #21262A;
+    --border: #2C3236; --border-strong: #3A4147;
+    --text: #EDEFEF; --text-2: #A6AEB2; --text-3: #858E92;
+    --accent: #5FB6BE; --accent-soft: rgba(95,182,190,.16);
+    --link: #6EA2F7; --focus: #3B82F6;
+    --done: #5CC98A; --done-soft: rgba(92,201,138,.14);
+    --prog: #6EA2F7; --prog-soft: rgba(59,130,246,.18);
+    --next: #F2C14E; --next-soft: rgba(250,204,21,.14);
+    --hold: #A6AEB2; --hold-soft: #21262A;
+    --block: #F28B82; --block-soft: rgba(242,139,130,.14);
+    --code-bg: #21262A;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14171A; --surface: #1B1F22; --surface-2: #21262A;
+  --border: #2C3236; --border-strong: #3A4147;
+  --text: #EDEFEF; --text-2: #A6AEB2; --text-3: #858E92;
+  --accent: #5FB6BE; --accent-soft: rgba(95,182,190,.16);
+  --link: #6EA2F7; --focus: #3B82F6;
+  --done: #5CC98A; --done-soft: rgba(92,201,138,.14);
+  --prog: #6EA2F7; --prog-soft: rgba(59,130,246,.18);
+  --next: #F2C14E; --next-soft: rgba(250,204,21,.14);
+  --hold: #A6AEB2; --hold-soft: #21262A;
+  --block: #F28B82; --block-soft: rgba(242,139,130,.14);
+  --code-bg: #21262A;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.7; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; }
+a { color: var(--link); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+code, kbd, .mono { font-family: var(--mono); font-size: .9em; }
+code { background: var(--code-bg); padding: .08em .35em; border-radius: 4px; }
+pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; margin: 0; }
+pre code { background: none; padding: 0; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.35; margin: 0; }
+
+/* header */
+.head { display: grid; gap: 6px; margin-bottom: 18px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; color: var(--accent); }
+.head h1 { font-size: clamp(24px, 4vw, 32px); font-weight: 900; }
+.head p { margin: 0; color: var(--text-2); max-width: 68ch; }
+
+.summary { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 18px; }
+.summary .bar { flex: 1 1 220px; height: 8px; border-radius: 99px; background: var(--surface-2); overflow: hidden; display: flex; min-width: 160px; }
+.summary .bar span { display: block; height: 100%; }
+.stat { display: inline-flex; align-items: baseline; gap: 6px; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.stat b { font-family: var(--mono); font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+.sync { font-size: 12px; color: var(--text-3); margin-left: auto; }
+
+/* tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 22px; overflow-x: auto; }
+.tab { appearance: none; border: 0; background: none; font: inherit; font-weight: 500; color: var(--text-2); padding: 10px 14px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--text); }
+
+/* chips */
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 1px 9px; border-radius: 99px; white-space: nowrap; line-height: 1.8; }
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.s-done { color: var(--done); background: var(--done-soft); }
+.s-in_progress { color: var(--prog); background: var(--prog-soft); }
+.s-next { color: var(--next); background: var(--next-soft); }
+.s-todo { color: var(--hold); background: var(--hold-soft); }
+.s-hold { color: var(--hold); background: var(--hold-soft); }
+.s-blocked { color: var(--block); background: var(--block-soft); }
+.s-dropped { color: var(--text-3); background: var(--hold-soft); text-decoration: line-through; }
+
+/* queue */
+.queue { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 26px; }
+.qitem { appearance: none; font: inherit; color: inherit; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; cursor: pointer; }
+.qitem:hover { border-color: var(--border-strong); }
+.qitem .rank { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+.qitem .qname { font-weight: 700; line-height: 1.4; }
+.qitem .qrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.qitem .pid { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+
+/* filters */
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.filters input, .filters select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; min-width: 0; }
+.filters input { flex: 1 1 200px; }
+.count { font-size: 12px; color: var(--text-3); }
+
+/* board */
+.cat { margin-bottom: 22px; }
+.cat h2 { font-size: 16px; display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.cat h2 .mono { font-size: 12px; color: var(--text-3); font-weight: 400; }
+.list { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+details.row + details.row { border-top: 1px solid var(--border); }
+details.row > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 58px 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 14px; }
+details.row > summary::-webkit-details-marker { display: none; }
+details.row > summary:hover { background: var(--surface-2); }
+details.row[open] > summary { background: var(--accent-soft); }
+.rid { font-family: var(--mono); font-size: 12.5px; color: var(--accent); font-weight: 600; }
+.rname { font-weight: 500; line-height: 1.45; }
+.rmeta { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--text-3); }
+.rmeta .hook { font-family: var(--mono); color: var(--text-2); }
+.detail { padding: 4px 14px 18px 84px; display: grid; gap: 14px; }
+.detail h3 { font-size: 13px; font-family: var(--sans); font-weight: 700; color: var(--text-2); letter-spacing: .02em; margin-bottom: 4px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; font-size: 13px; }
+.kv dt { color: var(--text-3); }
+.kv dd { margin: 0; }
+.notes { margin: 0; padding-left: 1.2em; }
+.notes li + li { margin-top: 3px; }
+.warn { border-left: 3px solid var(--next); background: var(--next-soft); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 13px; }
+.blockwarn { border-left-color: var(--block); background: var(--block-soft); }
+.live { font-size: 13px; background: var(--surface-2); border-radius: 8px; padding: 8px 12px; }
+.prompt-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+textarea.prompt { width: 100%; min-height: 220px; resize: vertical; font-family: var(--mono); font-size: 12px; line-height: 1.55; color: var(--text); background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+button.btn { font: inherit; font-size: 13px; font-weight: 500; color: #fff; background: var(--accent); border: 0; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+:root[data-theme="dark"] button.btn { color: #0E1113; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.btn { color: #0E1113; } }
+button.btn:hover { filter: brightness(1.08); }
+.hint { font-size: 12px; color: var(--text-3); }
+
+/* prose tabs */
+.prose { display: grid; gap: 22px; max-width: 80ch; }
+.prose h2 { font-size: 19px; }
+.prose h3 { font-size: 15px; font-family: var(--sans); font-weight: 700; margin-top: 4px; }
+.prose p { margin: 0; }
+.prose section { display: grid; gap: 10px; }
+.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.steps > li { counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: 0 10px; }
+.steps > li::before { content: counter(s); font-family: var(--mono); font-weight: 600; font-size: 13px; color: var(--accent); background: var(--accent-soft); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; }
+.steps > li > div { display: grid; gap: 6px; min-width: 0; }
+.rule { display: grid; gap: 4px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.rule strong { font-weight: 700; }
+.tbl { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+th { font-weight: 700; color: var(--text-2); background: var(--surface-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.sig { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  details.row > summary { grid-template-columns: 1fr auto; }
+  .rid { grid-column: 1 / 3; }
+  .rmeta { grid-column: 1 / 3; }
+  .detail { padding-left: 14px; }
+  .kv { grid-template-columns: 1fr; }
+  .kv dt { margin-top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div class="eyebrow">Track 4 · PLUGIN_API_VERSION 1.0 · 1プラグイン = 1リポジトリ</div>
+    <h1>Graphica プラグイン開発ハブ</h1>
+    <p>プラグインは1つずつ別のチャット・別のリポジトリで開発します。このページは、どのチャットからも同じ前提で始められるようにするための共通の資料と、全64件の進捗ボードです。状態はこのページのデータベースに保存され、各チャットが更新します。</p>
+  </header>
+
+  <div class="summary" id="summary" aria-live="polite"></div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-board" aria-controls="panel-board" aria-selected="true">進捗ボード</button>
+    <button class="tab" role="tab" id="tab-start" aria-controls="panel-start" aria-selected="false">新しいプラグインの始め方</button>
+    <button class="tab" role="tab" id="tab-rules" aria-controls="panel-rules" aria-selected="false">共通ルール</button>
+    <button class="tab" role="tab" id="tab-api" aria-controls="panel-api" aria-selected="false">API 早見表</button>
+  </div>
+
+  <!-- ================= ボード ================= -->
+  <section id="panel-board" role="tabpanel" aria-labelledby="tab-board">
+    <h2 style="font-size:16px;margin-bottom:10px">着手順</h2>
+    <div class="queue" id="queue"></div>
+
+    <div class="filters">
+      <input id="q" type="search" placeholder="名前・ID・フックで絞り込み(例: Raman、importer、P-30)" aria-label="絞り込み">
+      <select id="fstate" aria-label="状態で絞り込み">
+        <option value="">すべての状態</option>
+        <option value="next">次に着手</option>
+        <option value="in_progress">進行中</option>
+        <option value="done">完了</option>
+        <option value="todo">未着手</option>
+        <option value="blocked">本体側が必要</option>
+        <option value="hold">保留</option>
+        <option value="dropped">見送り</option>
+      </select>
+      <span class="count" id="count"></span>
+    </div>
+    <div id="board"></div>
+  </section>
+
+  <!-- ================= 始め方 ================= -->
+  <section id="panel-start" role="tabpanel" aria-labelledby="tab-start" hidden>
+    <div class="prose">
+      <section>
+        <h2>進め方の全体像</h2>
+        <p>ユーザーはこのボードで対象のプラグインを開き、「引継ぎプロンプト」をコピーして新しいチャットに貼り付けます。貼り付けられたチャットは、このページ(<code>https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o</code>)を <code>Artifact</code> ツールの <code>action: "read"</code> で読んでから、次の手順で進めてください。</p>
+      </section>
+
+      <section>
+        <h2>手順</h2>
+        <ol class="steps">
+          <li><div>
+            <h3>ハブを読み、状態を「進行中」にする</h3>
+            <p>このページの「共通ルール」「API 早見表」と、担当プラグインの項目を読みます。着手したら、データベースの <code>plugins/&lt;ID&gt;</code> を <code>state: "in_progress"</code> に更新します(書き方は「共通ルール」の最後)。</p>
+          </div></li>
+          <li><div>
+            <h3>仕様をユーザーと決める</h3>
+            <p>各項目の「着手前に決めること」をユーザーに確認してから実装に入ります。対象範囲(対応するファイル形式の種類、検定の種類など)は工数を大きく左右するので、選択肢と推奨を示して1回で決めてもらいます。</p>
+          </div></li>
+          <li><div>
+            <h3>リポジトリを作る</h3>
+            <p>名前は <code>graphica-plugin-&lt;name&gt;</code>(各項目に候補があります)。GitHub への作成・push は外部に公開する操作なので、ユーザーの了承を得てから行います。ローカルの置き場所は、本体の <code>PlotterApp</code> と同じ階層に <code>graphica-plugins/</code> フォルダを作り、その中にまとめるのが推奨です。</p>
+<pre><code>gh repo create STsuruga/graphica-plugin-&lt;name&gt; --public --description "Graphica用プラグイン: …(P-xxx)"
+git clone https://github.com/STsuruga/graphica-plugin-&lt;name&gt;.git</code></pre>
+            <p>雛形は <a href="https://github.com/STsuruga/graphica-plugin-element-constants">graphica-plugin-element-constants</a>(P-805)です。次のファイルをコピーして、プラグイン名の部分だけ書き換えます。</p>
+            <div class="tbl"><table>
+              <thead><tr><th>ファイル</th><th>そのまま使える?</th><th>役割</th></tr></thead>
+              <tbody>
+                <tr><td><code>tests/conftest.py</code></td><td>そのまま</td><td>offscreen の QApplication と、本体が無い環境でテストを skip する <code>requires_graphica</code></td></tr>
+                <tr><td><code>scripts/build_zip.py</code></td><td>docstring の例だけ</td><td>インストール可能な zip(トップレベルにプラグインフォルダが1つ)を <code>dist/</code> に作る</td></tr>
+                <tr><td><code>.gitignore</code> / <code>requirements-dev.txt</code></td><td>そのまま</td><td><code>dist/</code> などの除外、テスト依存</td></tr>
+                <tr><td><code>README.md</code></td><td>構成を流用</td><td>できること / インストール / 開発環境 / zip のビルド / 構成</td></tr>
+              </tbody>
+            </table></div>
+            <div class="warn">雛形リポジトリには <code>LICENSE</code> と CI がまだありません。新しいリポジトリでは <code>LICENSE</code>(MIT、本体と同じ)を最初から置いてください。CI は「共通ルール」の雛形を使えますが、まだどのリポジトリでも動作確認していません。最初に使ったチャットが動作を確かめ、このページに結果を反映してください。</div>
+          </div></li>
+          <li><div>
+            <h3>開発環境をつなぐ</h3>
+<pre><code>pip install -e ../../PlotterApp/Graphica_project   # 本体を editable install(パスは置き場所に合わせる)
+pip install -r requirements-dev.txt
+pytest</code></pre>
+            <p>本体の <code>pyproject.toml</code> が <code>core</code> / <code>gui</code> / <code>gui.mixins</code> / <code>gui.dialogs</code> / <code>models</code> をトップレベルのパッケージとして公開しているので、<code>from core.dataset import Dataset</code> のように import できます。</p>
+          </div></li>
+          <li><div>
+            <h3>実装とテスト</h3>
+            <p>計算処理は GUI にも本体にも依存しないモジュール(例: <code>analysis.py</code>)に分け、純粋な関数として単体テストします。<code>register(api)</code> の配線は <code>FakeGraphicaPluginAPI</code> で、<strong>実際の読み込み経路は本物の <code>PluginManager</code> にリポジトリのフォルダを渡すスモークテスト</strong>で確認します(相対 import の誤りはこのテストでしか見つかりません)。</p>
+          </div></li>
+          <li><div>
+            <h3>本体に入れて動かす</h3>
+            <p><code>python scripts/build_zip.py --all</code> で zip を作り、Graphica をソースから起動(<code>python main.py</code>)して <strong>編集 ▸ 環境設定 ▸ プラグイン ▸ プラグインをインストール...</strong> から入れ、再起動して実際に操作します。画面を伴う機能は、ユーザーにも実機で確認してもらいます。</p>
+          </div></li>
+          <li><div>
+            <h3>リリースする</h3>
+            <p><code>plugin.json</code> の <code>version</code> とタグを揃え、zip を GitHub Release に添付します(zip はリポジトリにコミットしません)。</p>
+<pre><code>git tag v1.0.0 &amp;&amp; git push origin v1.0.0
+gh release create v1.0.0 dist/&lt;plugin_name&gt;-1.0.0.zip --title "v1.0.0" --notes "…"</code></pre>
+          </div></li>
+          <li><div>
+            <h3>ハブを更新する</h3>
+            <p><code>state: "done"</code>、<code>repo</code>、<code>version</code>、<code>release_url</code>、<code>note</code> を書き込み、更新後の状態をユーザーに表で示します。本体リポジトリの <code>docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md</code> の表にも1行追記します(本体への書き込みはこの記録だけ)。</p>
+          </div></li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>各リポジトリに置く CLAUDE.md の雛形</h2>
+        <p>次のセッションが前提を失わないよう、リポジトリ直下に置きます。<code>&lt;…&gt;</code> を埋めてください。</p>
+<pre id="claude-md"></pre>
+      </section>
+    </div>
+  </section>
+
+  <!-- ================= 共通ルール ================= -->
+  <section id="panel-rules" role="tabpanel" aria-labelledby="tab-rules" hidden>
+    <div class="prose">
+      <section>
+        <h2>守ること</h2>
+        <div class="rule"><strong>Graphica 本体のコードは変更しない。</strong><span>フックが足りない、本体の不具合を見つけた、といった場合は実装を止めて、<a href="https://github.com/STsuruga/Graphica/issues">Graphica の Issue</a> に「必要な拡張点と、プラグイン側で何ができなかったか」を書き(作成はユーザーの了承を得てから)、ハブの <code>note</code> にも残します。回避策で本体の非公開メソッドに深く依存するのは避けます。</span></div>
+        <div class="rule"><strong>使えるのは本体が同梱しているパッケージだけ。</strong><span>標準ライブラリ、<code>PySide6</code> / <code>matplotlib</code> / <code>numpy</code> / <code>pandas</code> / <code>scipy</code> / <code>openpyxl</code> / <code>xlrd</code>。配布版(exe/app)にはこれ以外が入っていません。<code>h5py</code> や <code>plotly</code> などが必要な項目は、着手前に「pip 版だけで動くプラグインにするか」をユーザーと決めます。使うモジュールは <code>plugin.json</code> の <code>requires</code> に書くと、無い環境で明確なメッセージとともにスキップされます。</span></div>
+        <div class="rule"><strong>プラグインフォルダ内の import は相対 import。</strong><span>本体はプラグインを <code>graphica_plugin_&lt;フォルダ名&gt;</code> という動的モジュール名で読み込みます。<code>from .analysis import …</code> と書き、<code>from my_plugin.analysis import …</code> とは書きません。<strong>プラグイン同士も import できません</strong>(他プラグインのコードを使うならコピーして同梱)。</span></div>
+        <div class="rule"><strong>元のデータを書き換えない。</strong><span>processor / analyzer は受け取った <code>Dataset</code> やその <code>df</code> を変更せず、新しい <code>Dataset</code> を返します。追加は本体が Undo 付きで行います。</span></div>
+        <div class="rule"><strong>結果は構造化して返す。</strong><span>analyzer の結果は文字列に詰め込まず、<code>AnalysisResult</code> の <code>table</code>(DataFrame)/ <code>annotations</code> / <code>new_datasets</code> に分けます。表示・CSV 出力・Undo は本体側が面倒を見ます。</span></div>
+        <div class="rule"><strong>タブを跨いで参照を持たない。</strong><span>Graphica は複数タブ(独立したプロジェクト)を開けます。メニューの callback に渡される <code>main_window</code> は呼び出し時点のタブです。<code>register()</code> の時点の何かを保存して使い回さないでください。パネルの <code>widget_factory</code> はタブごとに1回呼ばれます。</span></div>
+        <div class="rule"><strong>すべて GUI スレッドで同期実行される。</strong><span>重い計算(数秒以上)はそのまま UI を止めます。点数に上限を設ける、間引く、処理前に件数を示すなどで対処し、ハブの <code>note</code> に計測値を残します。</span></div>
+        <div class="rule"><strong>表示名は英語か日本語をそのまま渡す。</strong><span>本体の翻訳機構(<code>tr()</code>)にはつながりません。メニュー名・パネル名は、利用者が主に使う言語で1つに決めます(既存の P-805 は日本語)。</span></div>
+      </section>
+
+      <section>
+        <h2>リポジトリの構成</h2>
+<pre><code>graphica-plugin-&lt;name&gt;/
+  &lt;plugin_name&gt;/          ← プラグイン本体。このフォルダ名がインストール先のフォルダ名になる
+    __init__.py          ← register(api) だけを置く(軽く保つ)
+    plugin.json          ← name / version / api_version(必須)
+    analysis.py など      ← GUI・本体に依存しない計算
+    panel.py など         ← Qt ウィジェット(必要なときだけ)
+  tests/
+    conftest.py          ← 雛形からコピー
+    test_*.py
+  scripts/build_zip.py   ← 雛形からコピー
+  README.md  LICENSE  CLAUDE.md  .gitignore  requirements-dev.txt
+  .github/workflows/test.yml   ← 任意(下の雛形)</code></pre>
+      </section>
+
+      <section>
+        <h2>plugin.json</h2>
+<pre><code>{
+  "name": "UV-Vis Pack",
+  "version": "1.0.0",
+  "api_version": "1.0",
+  "author": "STsuruga",
+  "description": "Tauc plot によるバンドギャップ算出など(P-304)",
+  "requires": ["scipy"]
+}</code></pre>
+        <p><code>api_version</code> が本体の <code>PLUGIN_API_VERSION</code>(現在 <code>"1.0"</code>)と違うと、コードは読み込まれません。<code>entry_point</code> は予約済みですが未使用です(常に <code>__init__.py</code> の <code>register(api)</code> が呼ばれます)。</p>
+      </section>
+
+      <section>
+        <h2>テストの型</h2>
+<pre><code># tests/test_&lt;plugin_name&gt;.py
+import os, sys
+import pytest
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from conftest import requires_graphica, GRAPHICA_AVAILABLE
+from &lt;plugin_name&gt;.analysis import compute_something   # 本体非依存の計算
+
+if GRAPHICA_AVAILABLE:
+    import core.plugin_api as plugin_api_module
+    from core.plugin_api import PluginManager, GraphicaPluginAPI
+    from core.plugin_testing import FakeGraphicaPluginAPI
+
+
+@pytest.fixture(autouse=True)
+def _isolate_plugin_registry():
+    """プラグインのレジストリはプロセスで1つ。テスト間で持ち越さない。"""
+    yield
+    if GRAPHICA_AVAILABLE:
+        plugin_api_module._singleton_api = None
+        plugin_api_module._singleton_manager = None
+
+
+def test_compute_something():
+    ...  # 純粋な計算のテスト(本体が無くても走る)
+
+
+@requires_graphica
+def test_register_adds_the_analyzer():
+    from &lt;plugin_name&gt; import register
+    api = FakeGraphicaPluginAPI()
+    register(api)
+    assert "…" in api.analyzers
+
+
+@requires_graphica
+def test_loads_through_the_real_plugin_manager():
+    """相対 import の誤りなど、本番の読み込み経路でしか出ない問題を捕まえる。"""
+    # 雛形リポジトリの tests/test_element_constants.py の同名テストを参考に、
+    # リポジトリルートを plugins ディレクトリとして PluginManager に渡す。
+    ...</code></pre>
+      </section>
+
+      <section>
+        <h2>CI の雛形(未検証)</h2>
+<pre><code># .github/workflows/test.yml
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install Graphica (editable) and test deps
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/STsuruga/Graphica.git ../Graphica
+          pip install -e ../Graphica/Graphica_project
+          pip install -r requirements-dev.txt
+      - run: pytest</code></pre>
+        <p class="hint">Windows ランナーを使うのは、Linux では offscreen の Qt に追加のシステムライブラリが要るためです。本体の master に追従するので、本体側の変更で落ちたときは本体の Issue を確認します。</p>
+      </section>
+
+      <section>
+        <h2>ハブの状態を更新する</h2>
+        <p><code>Artifact</code> ツールの <code>write_db</code>(このセッションに <code>ArtifactData</code> ツールがあればそちら)で、このページの URL に対して書き込みます。書く前に <code>read_db</code> で読み、返ってきた <code>version</code> を <code>if_version</code> に渡してください。ドキュメントが無ければ <code>set</code> で作ります。</p>
+        <div class="tbl"><table>
+          <thead><tr><th>フィールド</th><th>値</th></tr></thead>
+          <tbody>
+            <tr><td><code>state</code></td><td><code>next</code> 次に着手 / <code>in_progress</code> 進行中 / <code>done</code> 完了 / <code>hold</code> 保留 / <code>blocked</code> 本体側が必要 / <code>dropped</code> 見送り(ユーザー判断)</td></tr>
+            <tr><td><code>repo</code></td><td><code>STsuruga/graphica-plugin-…</code></td></tr>
+            <tr><td><code>version</code></td><td>リリース済みの版(例: <code>1.0.0</code>)</td></tr>
+            <tr><td><code>release_url</code></td><td>GitHub Release の URL</td></tr>
+            <tr><td><code>note</code></td><td>1〜3文。決まった仕様、残っている課題、本体への要望(Issue 番号)</td></tr>
+            <tr><td><code>updated</code></td><td>日付(<code>2026-09-18</code> の形)</td></tr>
+          </tbody>
+        </table></div>
+<pre><code>action: "write_db", url: "https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o"
+db_op: "set", collection: "plugins", doc_id: "P-304"
+data: { "state": "in_progress", "repo": "STsuruga/graphica-plugin-uvvis",
+        "note": "Tauc plot と A⇔%T 変換から着手。Beer-Lambert は v1.1 に回す。",
+        "updated": "2026-09-18" }</code></pre>
+        <p class="hint">項目の説明文(仕様・着手前に決めること)を直したい場合は、本体リポジトリの <code>Graphica_project/docs/dev/plugin_hub.html</code> を編集し、同じ URL へ再公開します(状態はデータベース側にあるので消えません)。</p>
+      </section>
+    </div>
+  </section>
+
+  <!-- ================= API 早見表 ================= -->
+  <section id="panel-api" role="tabpanel" aria-labelledby="tab-api" hidden>
+    <div class="prose" style="max-width:none">
+      <section>
+        <h2>register(api) で使えるフック</h2>
+        <p>どのフックも例外を投げず、失敗すると <code>False</code> を返してログに記録します(画面には何も出ません)。動かないときは <code>%LOCALAPPDATA%\Graphica\graphica.log</code> を見ます。同じ名前の二重登録は失敗します。</p>
+        <div class="tbl"><table>
+          <thead><tr><th>フック</th><th>渡すもの</th><th>画面のどこに出るか</th></tr></thead>
+          <tbody>
+            <tr><td class="sig">register_fit_function(name, func, param_names, p0=None)</td><td><code>func(x, *params)</code>。<code>p0</code> はリストか <code>(x, y) -&gt; list</code></td><td>曲線フィットのモデル一覧</td></tr>
+            <tr><td class="sig">register_menu_action(text, callback, shortcut=None)</td><td><code>callback(main_window)</code>(呼び出し時点のタブ)</td><td>「プラグイン」メニュー</td></tr>
+            <tr><td class="sig">register_importer(extensions, loader, *, name=None, priority=0)</td><td><code>loader(path) -&gt; pandas.DataFrame</code>(1つだけ。複数ブロックは未対応)</td><td>ファイルを開く・ドラッグ&amp;ドロップ・フォルダ一括</td></tr>
+            <tr><td class="sig">register_exporter(format_name, extension, writer, *, name=None)</td><td><code>writer(Figure, path)</code></td><td>エクスポートとバッチエクスポートの形式</td></tr>
+            <tr><td class="sig">register_processor(name, fn, *, category="general", param_schema=None)</td><td><code>fn(Dataset, params) -&gt; Dataset</code>(新しいもの)</td><td>プラグイン ▸ データ処理 ▸ category</td></tr>
+            <tr><td class="sig">register_analyzer(name, fn, *, output_kind="table", param_schema=None)</td><td><code>fn(Dataset, params) -&gt; AnalysisResult</code></td><td>プラグイン ▸ 解析(選択中のデータセットに対して実行)</td></tr>
+            <tr><td class="sig">register_panel(name, widget_factory, *, area="right")</td><td><code>widget_factory(ProjectModel, QUndoStack) -&gt; QWidget</code>。タブごとに呼ばれる。初期状態は非表示</td><td>ドックパネル(プラグインメニューから表示)</td></tr>
+            <tr><td class="sig">register_plot_type(type_name, drawer, *, requires_2d=False)</td><td><code>drawer(Dataset, Axes, x, y) -&gt; Artist|None</code>。<code>x, y</code> はウォーターフォール等を適用済み</td><td>プロパティの「種別」</td></tr>
+            <tr><td class="sig">register_render_backend(name, backend)</td><td>登録されるだけで、<strong>描画にはまだ接続されていない</strong></td><td>(なし)</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section>
+        <h2>Dataset を作るとき</h2>
+        <p><code>name</code> / <code>df</code> / <code>x_col_name</code> / <code>y_col_name</code> は<strong>必須</strong>です(本体の古いガイドの例には抜けているものがあります)。</p>
+<pre><code>from core.dataset import Dataset
+
+new_df = pd.DataFrame({"energy_eV": e, "tauc": t})
+return Dataset(name=f"{dataset.name} (Tauc)", df=new_df,
+               x_col_name="energy_eV", y_col_name="tauc", color=dataset.color)</code></pre>
+        <p>読むときは <code>dataset.x_data</code> / <code>dataset.y_data</code>(マスクした行を除いた配列)を使います。行番号で <code>df</code> に戻る場合は <code>dataset.visible_df</code> を基準にします。誤差列は <code>x_err_data</code> / <code>y_err_data</code>、2Dマップは <code>data_kind == "2d_grid"</code> と <code>z_col_name</code>。</p>
+      </section>
+
+      <section>
+        <h2>AnalysisResult の annotations</h2>
+        <p>現在のサブプロットに注釈として追加されます(Undo 対応)。座標はデータ座標です(<code>stat</code> だけ軸の相対座標 0〜1)。</p>
+        <div class="tbl"><table>
+          <thead><tr><th>type</th><th>キー</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td><code>"text"</code></td><td><code>xy: [x, y]</code>, <code>text</code>, <code>color</code></td><td>ピーク値などのラベル</td></tr>
+            <tr><td><code>"arrow"</code></td><td><code>xy</code>(矢の先), <code>xytext</code>(文字の位置), <code>text</code>, <code>arrow_style: "single" | "double" | "bracket"</code>, <code>arrow_curvature</code>, <code>color</code></td><td><code>bracket</code> は有意差ブラケット(P-402)の土台</td></tr>
+            <tr><td><code>"vspan"</code> / <code>"hspan"</code></td><td><code>range: [lo, hi]</code>, <code>color</code>, <code>alpha</code></td><td>積分範囲・帰属バンドの強調</td></tr>
+            <tr><td><code>"stat"</code></td><td><code>dataset_id</code>, <code>stat: "mean" | "std" | "max" | "min" | "r_squared"</code>, <code>xy</code>(軸の相対座標)</td><td>データに追従する統計値ラベル</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section>
+        <h2>param_schema</h2>
+        <p>processor / analyzer の実行前に、入力フォームが自動で作られます。</p>
+<pre><code>param_schema = [
+    {"name": "n", "label": "遷移の種類", "type": "choice", "default": "直接遷移 (n=1/2)",
+     "choices": ["直接遷移 (n=1/2)", "間接遷移 (n=2)"]},
+    {"name": "fit_min", "label": "フィット範囲 下限 (eV)", "type": "float", "default": 2.5, "decimals": 3},
+    {"name": "fit_max", "label": "フィット範囲 上限 (eV)", "type": "float", "default": 3.2, "decimals": 3},
+    {"name": "window", "label": "窓幅", "type": "int", "default": 5, "min": 1, "max": 999},
+    {"name": "show_line", "label": "直線を表示", "type": "bool", "default": True},
+]</code></pre>
+      </section>
+
+      <section>
+        <h2>複数のデータセットを入力にしたいとき</h2>
+        <p>processor / analyzer が受け取るのは<strong>選択中のデータセット1つ</strong>だけです。複数を比べる機能(検定、PCA、掃引速度依存など)は次のどちらかで作ります。</p>
+        <ul class="notes">
+          <li><strong>1つのデータセットの列で表す</strong>: 群を表す列(カテゴリ)や、条件ごとの列を持つ表を入力にする。analyzer のままで作れて、テストも簡単。</li>
+          <li><strong>パネルで選ばせる</strong>: <code>register_panel</code> の <code>widget_factory</code> に渡る <code>ProjectModel</code> の <code>datasets</code> から一覧を作り、結果は <code>project</code> と <code>undo_stack</code> 経由で反映する。自由度は高いが、本体の内部 API に触れる範囲が広がる。</li>
+        </ul>
+      </section>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ============================================================
+   プラグインの一覧(Graphica_PLUGIN_BACKLOG.md より)
+   state の既定値はここ、実際の状態は db の plugins/<ID> が優先。
+   ============================================================ */
+const HUB_URL = "https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o";
+
+const CATS = {
+  "P-1": "装置・ファイル形式インポータ", "P-2": "分光解析(汎用エンジン)", "P-3": "手法別解析パック",
+  "P-4": "統計・多変量解析", "P-5": "特殊プロット", "P-6": "レンダリング・出力",
+  "P-7": "外部連携", "P-8": "参照データベース",
+};
+const HOOK = { i: "register_importer", e: "register_exporter", p: "register_processor", a: "register_analyzer", t: "register_plot_type", d: "register_panel", r: "register_render_backend", f: "register_fit_function", m: "register_menu_action" };
+const STATE_LABEL = { next: "次に着手", in_progress: "進行中", done: "完了", todo: "未着手", blocked: "本体側が必要", hold: "保留", dropped: "見送り" };
+
+// [id, 名前, 難, 工数, 需要, フック, リポジトリ名候補, 備考, 既定の状態, 着手順]
+const P = [
+  ["P-101","JCAMP-DX インポータ (.jdx/.dx)","★★☆","M","◎","i","jcamp-dx","分光の標準交換形式。仕様公開で自前パーサ可。メーカー非依存で多くの装置をカバー。","next",2],
+  ["P-102","Thermo SPC (.spc)","★★☆","M","○","i","spc","FT-IR / Raman で広く使われる。","todo"],
+  ["P-103","Bruker OPUS (.0, .1 …)","★★☆","M","○","i","opus","FT-IR。非公開仕様だが解析実装が存在する。","todo"],
+  ["P-104","Renishaw WDF (.wdf)","★★☆","M","○","i","wdf","Raman。2D マップを含む。","todo"],
+  ["P-105","Princeton SPE / WinSpec","★★☆","M","△","i","spe","CCD 分光器。","todo"],
+  ["P-106","XRD 各社形式 (RAW / XRDML / UXD / BRML)","★★☆","M","○","i","xrd-formats","Bruker / PANalytical / Rigaku。","todo"],
+  ["P-107","NMR (Bruker fid/1r、JCAMP-DX NMR)","★★☆","L","○","i","nmr-import","FID → FT の処理まで含めると大きくなる。","todo"],
+  ["P-108","クロマトグラフィー (Agilent / Shimadzu / ANDI-MS netCDF)","★★☆","L","○","i","chromatography-import","","todo"],
+  ["P-109","HDF5 / NeXus","★★☆","M","○","i","hdf5","h5py が必要(本体に同梱していない)。","todo"],
+  ["P-110","SQLite / 汎用 DB 接続","★★☆","M","△","id","database","SQLite は標準ライブラリで可能。","todo"],
+  ["P-111","LabVIEW TDMS","★★☆","M","△","i","tdms","計測系で頻出。","todo"],
+  ["P-112","画像 (TIFF/PNG) からの 2D マップ読込","★★☆","M","△","i","image-map","本体の 2D マップ(C-508)は実装済み。","todo"],
+  ["P-113","Web API / REST からのデータ取得","★★☆","L","△","id","rest-import","用途が限定的。","todo"],
+  ["P-114","クラウドストレージ同期 (Drive / OneDrive)","★★★","L","△","i","cloud-sync","OS の同期フォルダで代替できる。優先度低。","todo"],
+  ["P-201","Shirley / Tougaard ベースライン","★★☆","M","◎","pa","xps-background","XPS 特化。汎用ベースラインは本体 C-308(実装済み)。P-301 の中核を先行して作る。","todo",6],
+  ["P-202","スパイク・宇宙線除去","★★☆","M","◎","p","despike","Raman に必須。中央値法 / 複数測定比較。単体で完結する。","todo",4],
+  ["P-203","デコンボリューション(装置関数の除去)","★★★","L","△","p","deconvolution","Wiener / Richardson-Lucy。数値的に不安定。","todo"],
+  ["P-204","参照スペクトル照合エンジン","★★☆","L","○","ad","spectrum-match","類似度計算と候補ランキング。DB は P-8。","todo"],
+  ["P-205","ピーク帰属ライブラリ(ユーザー定義の線位置重畳)","★★☆","M","○","ad","peak-assign","JSON で共有できるようにする。","todo"],
+  ["P-206","スペクトル類似度 (SAM / コサイン / 相関)","★☆☆","S","○","a","similarity","","todo"],
+  ["P-207","2 次元相関分光 (2D-COS)","★★★","L","△","a","2dcos","本体の 2D マップ(C-508)は実装済み。","todo"],
+  ["P-208","STFT / スペクトログラム","★★☆","M","○","at","spectrogram","時系列・音響・時間分解。","todo"],
+  ["P-209","スペクトルの正規化モード集 (SNV / MSC / 面積規格化)","★☆☆","S","○","p","normalize-modes","ケモメトリクスの定番前処理。","todo"],
+  ["P-301","XPS / UPS パック","★★★","L","◎","ad","xps","Shirley 背景、スピン軌道分裂の拘束、元素帰属、相対感度係数による組成、帯電補正。","todo"],
+  ["P-302","XRD パック","★★★","L","◎","ad","xrd","ピークサーチ、Scherrer 式による結晶子径、格子定数精密化、標準パターン照合。","todo"],
+  ["P-303","Raman / FT-IR パック","★★☆","L","◎","ad","raman-ftir","官能基 DB 照合、波数校正、偏光比、KK 変換。P-802 とセットで価値が出る。","todo",8],
+  ["P-304","UV-Vis パック","★★☆","M","◎","a","uvvis","Tauc plot によるバンドギャップ、吸光度⇔透過率、Beer-Lambert 定量。需要が高く実装が最も軽い。","todo",3],
+  ["P-305","蛍光 / EEM パック","★★☆","L","○","a","fluorescence","3D 励起発光マトリクス、Rayleigh/Raman 散乱除去、内部フィルタ補正。","todo"],
+  ["P-306","電気化学 CV パック","★★☆","M","◎","a","cv","ピーク電流/電位、可逆性判定、Randles-Sevcik、掃引速度依存。実装が軽く対象ユーザーが多い。","todo",5],
+  ["P-307","EIS パック","★★★","L","○","at","eis","Nyquist / Bode 表示、等価回路フィット(回路記述エディタが必要)。","todo"],
+  ["P-308","熱分析 DSC / DTA / TGA パック","★★☆","M","○","a","thermal","ピーク面積 = エンタルピー、ガラス転移点、重量減少段の自動分割。","todo"],
+  ["P-309","クロマトグラフィー パック","★★☆","M","○","a","chromatography","保持時間、分離度、理論段数、面積百分率、内標定量。","todo"],
+  ["P-310","NMR パック","★★★","L","○","ad","nmr","化学シフト校正、積分値、多重度解析、位相 / ベースライン補正。","todo"],
+  ["P-311","過渡吸収・時間分解パック","★★★","L","○","a","transient","多重指数減衰、時定数マップ、チャープ補正。","todo"],
+  ["P-312","反応速度論・吸着等温線パック","★☆☆","M","○","f","kinetics","Langmuir / Freundlich、擬一次 / 擬二次。既存の register_fit_function で概ね作れる。","todo"],
+  ["P-313","Arrhenius プロット解析","★☆☆","S","○","fa","arrhenius","活性化エネルギーの算出。","todo"],
+  ["P-314","検量線・LOD / LOQ パック","★★☆","M","○","a","calibration","分析化学の必需品。本体の構造化フィット結果(C-401)は実装済み。","todo"],
+  ["P-315","磁性・電気特性パック","★★☆","M","△","a","magnetic-electric","ヒステリシス解析、Hall 測定、抵抗率変換。","todo"],
+  ["P-401","主成分分析 (PCA) + スコア / ローディング","★★☆","M","○","ad","pca","numpy.linalg.svd で実装可(scikit-learn 不要)。分野横断で使える。","todo",7],
+  ["P-402","仮説検定パック(t 検定 / ANOVA / Mann-Whitney)+ 有意差ブラケット","★★☆","M","○","a","stats","ブラケットは本体の矢印注釈 arrow_style: \"bracket\"(C-703、実装済み)で描ける。改善ボード D-3。","next",1],
+  ["P-403","相関行列ヒートマップ","★☆☆","S","○","a","correlation-matrix","","todo"],
+  ["P-404","クラスタリング (k-means / 階層)","★★☆","M","△","a","clustering","scipy.cluster で実装可。","todo"],
+  ["P-405","t-SNE / UMAP 次元削減","★★☆","M","△","a","embedding","umap-learn が重い。少数サンプルでは誤用リスクが大きい。","todo"],
+  ["P-406","PLS 回帰(ケモメトリクス)","★★★","L","△","a","pls","近赤外・定量分析で標準。","todo"],
+  ["P-407","MCR-ALS(多変量スペクトル分離)","★★★","L","△","a","mcr-als","混合スペクトルの成分分解。","todo"],
+  ["P-408","ブートストラップによる不確かさ推定","★★☆","M","△","a","bootstrap","計算が重い。すべて GUI スレッドで動く点に注意。","todo"],
+  ["P-501","三元系ダイアグラム (Ternary)","★★☆","M","△","t","ternary","合金・混合物組成。","todo"],
+  ["P-502","ベクターマップ (quiver / 流線)","★★☆","M","△","t","vector-map","流体・磁場・変位場。","todo"],
+  ["P-503","ボクセル・ボリューム描画","★★★","L","△","t","volume","matplotlib では性能が実用に耐えない可能性。","todo"],
+  ["P-504","3D ライティング・陰影調整","★★☆","M","△","t","3d-lighting","前提の本体 C-515(3D 描画)はユーザー判断で除外済み。","blocked"],
+  ["P-505","3D ウォーターフォールプロット","★★☆","M","△","t","3d-waterfall","本体 C-514 は実装済みだが、C-515(3D 描画)は除外済み。","blocked"],
+  ["P-506","スミスチャート / ボード線図","★★☆","M","△","t","smith-bode","電気・高周波系。","todo"],
+  ["P-507","サンキーダイアグラム / パラレルコーディネート","★★☆","M","△","t","sankey","理系実験データでの使用頻度は低い。","todo"],
+  ["P-601","LaTeX (usetex=True) レンダリングエンジン","★★★","L","○","r","latex","register_render_backend は描画に未接続。LaTeX 未導入環境の検出とフォールバックが必須。","blocked"],
+  ["P-602","Plotly 連携インタラクティブ HTML 出力","★★☆","M","○","e","plotly-export","plotly が必要(本体に同梱していない)。共同研究者への共有に強い。","todo"],
+  ["P-603","MP4 動画エクスポート","★★☆","M","△","e","mp4-export","ffmpeg の実行ファイルが必要。","todo"],
+  ["P-604","学会ポスター / スライド用レイアウト出力","★★☆","M","△","e","poster-layout","複数図の定型配置。","todo"],
+  ["P-605","電子ラボノート (ELN) 形式エクスポート","★★☆","M","△","e","eln-export","本体の処理履歴(C-1101)は実装済み。","todo"],
+  ["P-701","Jupyter / Python からのリモート操作 API","★★★","L","○","d","remote-api","ソケット経由で ProjectModel を操作。研究者への訴求が強い。","todo"],
+  ["P-702","Git 連携(プロジェクトの版管理)","★★☆","M","△","d","git","本体の format_version(C-001)は実装済み。","todo"],
+  ["P-703","測定装置とのリアルタイム連携 (シリアル / ソケット / VISA)","★★★","L","△","id","instrument","pyserial / pyvisa が必要。","todo"],
+  ["P-704","研究室内テンプレート / 設定の共有サーバ連携","★★☆","M","△","i","lab-share","本体のテンプレート独立ファイル化(C-806)は実装済み。","todo"],
+  ["P-801","XRD 標準パターン DB (COD 等)","★★☆","L","○","a","xrd-db","ライセンス確認が必須。ICDD PDF は商用。","todo"],
+  ["P-802","FT-IR / Raman 官能基 DB","★★☆","M","○","a","functional-groups","波数範囲と帰属の対応表。自作可能。","todo"],
+  ["P-803","XPS 結合エネルギー DB","★★☆","M","○","a","xps-db","NIST XPS DB が公開されている(利用条件を確認)。","todo"],
+  ["P-804","公開スペクトル DB の取得・キャッシュ","★★★","L","△","ia","spectra-fetch","各 DB の利用規約の確認が必須。","todo"],
+  ["P-805","元素・同位体・物理定数テーブル","★☆☆","S","○","d","element-constants","他パックの共通基盤。","done"],
+];
+
+// 着手順の上位と、特に情報が要る項目の詳細
+const DETAIL = {
+  "P-402": {
+    spec: [
+      "t 検定(Welch / Student / 対応あり)、一元配置 ANOVA と多重比較(Tukey HSD: scipy.stats.tukey_hsd)、Mann-Whitney U、Kruskal-Wallis を scipy.stats で。",
+      "結果は table(群・統計量・p 値・効果量)と、有意差ブラケットの annotations(type: \"arrow\"、arrow_style: \"bracket\"、text に * / ** / *** / n.s.)。",
+      "ブラケットの高さは比較する群の最大値+余白から積み上げる。群の X 位置は数値 X ならその値、カテゴリ X(文字列)ならカテゴリの並び順 0, 1, 2 … になる点に注意(実データで確認)。",
+    ],
+    decide: [
+      "入力の形: 1つのデータセットの「群の列+値の列」にするか、複数データセットをパネルで選ばせるか(API 早見表の最後を参照)。推奨は前者から。",
+      "v1.0 に入れる検定と、多重比較の補正方法(Tukey / Bonferroni / Holm)。",
+      "星の閾値(0.05 / 0.01 / 0.001)と表記、n.s. を描くか。",
+    ],
+    notes: [
+      "コア機能への昇格はせず、プラグインとして作ることが決定済み(改善ボード D-3)。",
+      "標準偏差はアプリ全体で標本標準偏差(n−1)に統一済み(v1.4.2)。表の SD もそれに合わせる。",
+    ],
+  },
+  "P-101": {
+    spec: [
+      "AFFN / (X++(Y..Y)) 形式と、圧縮形式(SQZ / DIF / DUP)に対応。##XFACTOR / ##YFACTOR / ##FIRSTX / ##LASTX / ##NPOINTS で値を復元し、点数の整合を検証する。",
+      "列名は ##XUNITS / ##YUNITS から作る(例: \"1/CM\", \"ABSORBANCE\")。##TITLE はデータセット名にはならない(importer は DataFrame しか返せない)ので、必要なら列名に含める。",
+      "register_importer([\".jdx\", \".dx\", \".jcamp\"], loader)。",
+    ],
+    decide: [
+      "1 ファイルに複数ブロック(LINK / 複数スペクトル)があるとき: 最初のブロックだけにするか、列を横に並べて1つの表にするか。",
+      "NMR 用の JCAMP-DX(##.OBSERVE FREQUENCY など)をこのプラグインで扱うか、P-107 に回すか。",
+    ],
+    notes: [
+      "パーサの途中実装(221 行)が本体リポジトリの feature/plugin-track4 ブランチに残っている: git show e6f5a7e:Graphica_project/plugins/jcamp_dx_importer/parser.py。新しいリポジトリへ移して、テストを書き足してから使う(動作は未確認)。",
+      "移し終えたら、本体の feature/plugin-track4 ブランチと worktree を消してよいかユーザーに確認する(消すのはユーザー判断)。",
+    ],
+  },
+  "P-304": {
+    spec: [
+      "Tauc plot: X が波長(nm)なら E = 1239.84 / λ で eV に変換し、(αhν)^(1/n) を縦軸にした新しいデータセットを作る(直接遷移 n = 1/2、間接遷移 n = 2)。",
+      "バンドギャップ: 指定したエネルギー範囲で直線フィットし、X 切片を Eg とする。table に Eg・フィット範囲・R²、annotations に接線の端点と Eg のラベル。",
+      "吸光度 ⇔ 透過率(A = −log10 T、%T)の変換は processor で。",
+    ],
+    decide: [
+      "α の扱い: 吸光度をそのまま使うか、膜厚を入力して α = 2.303·A / d にするか(Eg は定数倍では変わらない)。",
+      "直線範囲を数値入力にするか、グラフの範囲選択を使うか(現状の API ではフォームの数値入力が素直)。",
+      "Beer-Lambert の定量(検量線)を v1.0 に入れるか。P-314 と重なる。",
+    ],
+    notes: [],
+  },
+  "P-202": {
+    spec: [
+      "差分系列の修正 Z スコア(Whitaker-Hayes 法)でスパイク点を検出し、近傍の非スパイク点の中央値 / 補間で置き換える processor。",
+      "パラメータ: しきい値(既定 3.5〜6)、窓幅、検出点の表示用に元データとの差分を別データセットで返すかどうか。",
+    ],
+    decide: [
+      "複数回測定の比較による除去(同じ条件のデータセットを並べる方式)を v1.0 に含めるか。",
+    ],
+    notes: ["X が等間隔でないデータでも崩れないことをテストする。"],
+  },
+  "P-306": {
+    spec: [
+      "1 本の CV から Epa / Epc / ipa / ipc / ΔEp / E1/2 / ipa/ipc を求める analyzer。ピーク電流はベースライン(直前の線形部分の外挿)からの高さ。",
+      "掃引速度依存: ip と √v の直線性、Randles-Sevcik 式による拡散係数。",
+    ],
+    decide: [
+      "掃引速度依存の入力: 掃引速度ごとのデータセットをパネルで選ぶか、列で表すか。",
+      "電位の基準・単位(V vs. Ag/AgCl など)と、電流の単位の扱い。",
+    ],
+    notes: [
+      "CV は X(電位)が往復する。本体は表示のために X が昇順のときだけ間引き(LTTB)を使うので描画は崩れないが、解析側では往路と復路を X の反転点で分けてから扱う。",
+    ],
+  },
+  "P-201": {
+    spec: [
+      "Shirley(反復法、収束判定つき)と Tougaard(universal cross-section、B / C パラメータ)。",
+      "背景を差し引いたデータセットと、背景そのもののデータセットの2つを返したいので analyzer(new_datasets に2つ)にする。",
+    ],
+    decide: ["端点の決め方(範囲の数値入力、端点付近の平均点数)。"],
+    notes: ["XPS は結合エネルギーを降順に表示することが多い(本体の「軸を反転」)。計算は X の並び順に依存させない。"],
+  },
+  "P-401": {
+    spec: [
+      "複数スペクトルを共通の X 格子に補間して行列にし、平均中心化(任意でスケーリング)→ numpy.linalg.svd。",
+      "スコアとローディングを新しいデータセットとして返し、寄与率を table に。",
+    ],
+    decide: [
+      "入力の選び方: パネルで複数データセットを選ぶか、1 つの表の各列をスペクトルとみなすか。",
+      "スコアプロットの点ラベル(データセット名)の出し方。",
+    ],
+    notes: ["点数×本数が大きいと GUI が止まるので、行列サイズの上限を決めて note に残す。"],
+  },
+  "P-303": {
+    spec: ["波数校正(標準物質のピーク位置との対応)、官能基帯域の重ね表示(annotations の vspan)、偏光比。"],
+    decide: ["P-802(官能基 DB)を同じリポジトリに含めるか、別にするか。KK 変換を v1.0 に入れるか。"],
+    notes: [],
+  },
+  "P-805": {
+    spec: ["元素周期表(118 元素)と物理定数(scipy.constants)を検索する常設パネル。"],
+    decide: [],
+    notes: [
+      "リポジトリ: STsuruga/graphica-plugin-element-constants。新しいリポジトリの雛形。",
+      "GitHub Release(配布用 zip)がまだ無い。README は Releases からの入手を案内しているので、リリースを作る必要がある。LICENSE も未作成。",
+    ],
+  },
+  "P-504": { spec: [], decide: [], notes: ["本体の 3D 描画(C-515)がユーザー判断で除外されているため、このままでは作れない。作るなら本体側の方針変更が先。"] },
+  "P-505": { spec: [], decide: [], notes: ["本体の 3D 描画(C-515)がユーザー判断で除外されているため、このままでは作れない。"] },
+  "P-601": { spec: [], decide: [], notes: ["register_render_backend は登録を記録するだけで、MplCanvas の描画経路に未接続。作るには本体側で接続する作業(別ロードマップ)が先に必要。"] },
+  "P-109": { spec: [], decide: ["h5py が必要。配布版では動かない「pip 版専用」のプラグインにするかを決める。"], notes: [] },
+  "P-602": { spec: [], decide: ["plotly が必要。pip 版専用にするか、plotly.js を埋め込んだ HTML を自前で書き出すかを決める。"], notes: [] },
+  "P-603": { spec: [], decide: ["ffmpeg の実行ファイルに依存する。利用者に別途インストールしてもらう前提でよいか決める。"], notes: [] },
+  "P-405": { spec: [], decide: ["umap-learn が必要。t-SNE だけ scipy / numpy で書くか、pip 版専用にするかを決める。"], notes: [] },
+  "P-703": { spec: [], decide: ["pyserial / pyvisa が必要。pip 版専用にするか決める。GUI スレッドで待ち続けない設計(QTimer でのポーリング等)が必須。"], notes: [] },
+};
+
+/* ------------------------------------------------------------ */
+const liveState = {};   // db の内容 id -> data
+let dbReady = false;
+
+function effState(p) { const d = liveState[p[0]]; return (d && typeof d.state === "string" && STATE_LABEL[d.state]) ? d.state : p[8]; }
+function hooksOf(p) { return [...p[5]].map(c => HOOK[c]); }
+function repoName(p) { const d = liveState[p[0]]; return (d && d.repo) || ("STsuruga/graphica-plugin-" + p[6]); }
+function el(tag, attrs = {}, ...children) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v);
+  }
+  for (const c of children) if (c != null) n.append(c);
+  return n;
+}
+function chip(state) { return el("span", { class: "chip s-" + state, text: STATE_LABEL[state] }); }
+
+function promptFor(p) {
+  const d = DETAIL[p[0]] || { spec: [], decide: [], notes: [] };
+  const lines = [];
+  lines.push(`Graphica のプラグイン開発を始めます: ${p[0]} ${p[1]}`);
+  lines.push("");
+  lines.push("## まず読むもの");
+  lines.push(`- 開発ハブ(Artifact): ${HUB_URL}`);
+  lines.push("  Artifact ツールの action: \"read\" で読み、「新しいプラグインの始め方」「共通ルール」「API 早見表」と、この項目(" + p[0] + ")の内容に従ってください。");
+  lines.push("- 本体リポジトリ: https://github.com/STsuruga/Graphica(ローカルでは PlotterApp。CLAUDE.md の「Plugin API」節)");
+  lines.push("- 雛形リポジトリ: https://github.com/STsuruga/graphica-plugin-element-constants");
+  lines.push("");
+  lines.push("## このプラグイン");
+  lines.push(`- 使うフック: ${hooksOf(p).join(", ")}`);
+  lines.push(`- リポジトリ名の候補: ${repoName(p)}`);
+  lines.push(`- 規模の目安: 難易度 ${p[2]} / 工数 ${p[3]} / 需要 ${p[4]}`);
+  if (p[7]) lines.push(`- 概要: ${p[7]}`);
+  if (d.spec.length) { lines.push("- 仕様の叩き台:"); d.spec.forEach(s => lines.push(`  - ${s}`)); }
+  if (d.notes.length) { lines.push("- 注意:"); d.notes.forEach(s => lines.push(`  - ${s}`)); }
+  const live = liveState[p[0]];
+  if (live && live.note) lines.push(`- ハブに記録されている最新メモ: ${live.note}`);
+  lines.push("");
+  lines.push("## 進め方");
+  lines.push("1. ハブの db(collection \"plugins\"、doc_id \"" + p[0] + "\")を read_db で読み、state を \"in_progress\" にする。");
+  if (d.decide.length) {
+    lines.push("2. 実装の前に、次の点を選択肢と推奨を添えてユーザーに確認する:");
+    d.decide.forEach(s => lines.push(`   - ${s}`));
+  } else {
+    lines.push("2. 実装の前に、v1.0 に入れる範囲を選択肢と推奨を添えてユーザーに確認する。");
+  }
+  lines.push("3. リポジトリの作成と push はユーザーの了承を得てから行う。雛形から conftest.py / build_zip.py などをコピーし、LICENSE(MIT)と CLAUDE.md(ハブの雛形)を置く。");
+  lines.push("4. 計算は本体非依存のモジュールに分けて単体テスト、register() は FakeGraphicaPluginAPI、本番の読み込み経路は本物の PluginManager でテストする。");
+  lines.push("5. zip をビルドし、ソース版 Graphica にインストールして動作を確認。画面を伴う機能はユーザーにも確認してもらう。");
+  lines.push("6. GitHub Release に zip を添付し、ハブの db を state \"done\" / repo / version / release_url / note で更新して、更新後の状態を表で報告する。本体の docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表にも1行追記する。");
+  lines.push("");
+  lines.push("## 守ること");
+  lines.push("- Graphica 本体のコードは変更しない。足りない拡張点や本体の不具合は、ユーザーの了承を得て Graphica の Issue に書き、ハブの note にも残す。");
+  lines.push("- 使えるのは本体が同梱しているパッケージだけ(PySide6 / matplotlib / numpy / pandas / scipy / openpyxl / xlrd と標準ライブラリ)。");
+  lines.push("- プラグイン内の import は相対 import。プラグイン同士は import できない。");
+  lines.push("- 受け取った Dataset は書き換えず、新しい Dataset を返す(name / df / x_col_name / y_col_name は必須)。");
+  return lines.join("\n");
+}
+
+function renderSummary() {
+  const counts = {};
+  for (const p of P) { const s = effState(p); counts[s] = (counts[s] || 0) + 1; }
+  const box = document.getElementById("summary");
+  box.replaceChildren();
+  const bar = el("div", { class: "bar", role: "img", "aria-label": `全 ${P.length} 件中 完了 ${counts.done || 0} 件` });
+  const colors = { done: "var(--done)", in_progress: "var(--prog)", next: "var(--next)", blocked: "var(--block)" };
+  for (const s of ["done", "in_progress", "next", "blocked"]) {
+    if (counts[s]) { const seg = el("span"); seg.style.width = (counts[s] / P.length * 100) + "%"; seg.style.background = colors[s]; bar.append(seg); }
+  }
+  box.append(bar);
+  for (const s of ["done", "in_progress", "next", "todo", "blocked", "hold", "dropped"]) {
+    if (!counts[s] && !["done", "in_progress", "next", "todo"].includes(s)) continue;
+    box.append(el("span", { class: "stat" }, el("b", { text: String(counts[s] || 0) }), STATE_LABEL[s]));
+  }
+  box.append(el("span", { class: "sync", text: dbReady ? "状態はデータベースと同期中" : "状態: ページ既定値を表示中" }));
+}
+
+function openItem(id) {
+  selectTab("board");
+  document.getElementById("q").value = "";
+  document.getElementById("fstate").value = "";
+  renderBoard();
+  const d = document.getElementById("row-" + id);
+  if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "start" }); d.querySelector("summary").focus({ preventScroll: true }); }
+}
+
+function renderQueue() {
+  const q = document.getElementById("queue");
+  q.replaceChildren();
+  const ranked = P.filter(p => p[9]).sort((a, b) => a[9] - b[9]);
+  for (const p of ranked) {
+    const b = el("button", { class: "qitem", type: "button" },
+      el("div", { class: "qrow" }, el("span", { class: "rank", text: `着手順 ${p[9]}` }), chip(effState(p))),
+      el("div", { class: "qname", text: p[1] }),
+      el("span", { class: "pid", text: p[0] }));
+    b.addEventListener("click", () => openItem(p[0]));
+    q.append(b);
+  }
+}
+
+function list(items) { const ul = el("ul", { class: "notes" }); items.forEach(t => ul.append(el("li", { text: t }))); return ul; }
+
+function buildDetail(p) {
+  const d = DETAIL[p[0]] || { spec: [], decide: [], notes: [] };
+  const box = el("div", { class: "detail" });
+  const kv = el("dl", { class: "kv" });
+  const add = (k, v) => { kv.append(el("dt", { text: k })); const dd = el("dd"); dd.append(v); kv.append(dd); };
+  add("使うフック", hooksOf(p).map(h => h).join(" / "));
+  add("リポジトリ", repoName(p));
+  add("規模", `難易度 ${p[2]}・工数 ${p[3]}(S 〜1日 / M 2〜5日 / L 1〜3週)・需要 ${p[4]}`);
+  if (p[7]) add("概要", p[7]);
+  box.append(kv);
+
+  const live = liveState[p[0]];
+  if (live && (live.note || live.version || live.release_url || live.updated)) {
+    const lv = el("div", { class: "live" });
+    const parts = [];
+    if (live.updated) parts.push(`更新 ${live.updated}`);
+    if (live.version) parts.push(`v${String(live.version).replace(/^v/, "")}`);
+    lv.append(el("strong", { text: "最新の記録" }), document.createTextNode(parts.length ? `(${parts.join("・")}) ` : " "));
+    if (live.note) lv.append(document.createTextNode(String(live.note)));
+    if (live.release_url && /^https:\/\/github\.com\//.test(String(live.release_url))) {
+      lv.append(document.createTextNode(" "), el("a", { href: String(live.release_url), target: "_blank", rel: "noopener", text: "リリース" }));
+    }
+    box.append(lv);
+  }
+  if (effState(p) === "blocked") box.append(el("div", { class: "warn blockwarn", text: "本体側の対応が先に必要な項目です(注意を参照)。" }));
+  if (d.spec.length) box.append(el("div", {}, el("h3", { text: "仕様の叩き台" }), list(d.spec)));
+  if (d.decide.length) box.append(el("div", {}, el("h3", { text: "着手前に決めること" }), list(d.decide)));
+  if (d.notes.length) box.append(el("div", {}, el("h3", { text: "注意" }), list(d.notes)));
+
+  const ta = el("textarea", { class: "prompt", readonly: "", id: "prompt-" + p[0], "aria-label": p[0] + " の引継ぎプロンプト" });
+  ta.value = promptFor(p);
+  const btn = el("button", { class: "btn", type: "button", text: "コピー" });
+  const msg = el("span", { class: "hint", "aria-live": "polite" });
+  btn.addEventListener("click", async () => {
+    ta.value = promptFor(p);
+    try { await navigator.clipboard.writeText(ta.value); msg.textContent = "コピーしました。新しいチャットに貼り付けてください。"; }
+    catch { ta.focus(); ta.select(); msg.textContent = "テキストを選択しました。Ctrl+C でコピーしてください。"; }
+  });
+  box.append(el("div", {}, el("h3", { text: "引継ぎプロンプト" }), ta, el("div", { class: "prompt-tools" }, btn, msg)));
+  return box;
+}
+
+function renderBoard() {
+  const query = document.getElementById("q").value.trim().toLowerCase();
+  const fs = document.getElementById("fstate").value;
+  const board = document.getElementById("board");
+  const openIds = new Set([...board.querySelectorAll("details[open]")].map(d => d.dataset.id));
+  board.replaceChildren();
+  let shown = 0;
+  for (const [key, label] of Object.entries(CATS)) {
+    const items = P.filter(p => p[0].startsWith(key));
+    const matched = items.filter(p => {
+      if (fs && effState(p) !== fs) return false;
+      if (!query) return true;
+      const hay = [p[0], p[1], p[7], p[6], hooksOf(p).join(" ")].join(" ").toLowerCase();
+      return hay.includes(query);
+    });
+    if (!matched.length) continue;
+    shown += matched.length;
+    const sec = el("section", { class: "cat" }, el("h2", {}, label, el("span", { class: "mono", text: `${key} · ${matched.length}件` })));
+    const lst = el("div", { class: "list" });
+    for (const p of matched) {
+      const st = effState(p);
+      const det = el("details", { class: "row", id: "row-" + p[0] });
+      det.dataset.id = p[0];
+      const sum = el("summary", {},
+        el("span", { class: "rid", text: p[0] }),
+        el("span", { class: "rname", text: p[1] }),
+        chip(st),
+        el("span", { class: "rmeta" },
+          ...hooksOf(p).map(h => el("span", { class: "hook", text: h.replace("register_", "") })),
+          el("span", { text: `工数 ${p[3]}` }),
+          el("span", { text: `需要 ${p[4]}` })));
+      det.append(sum);
+      let built = false;
+      det.addEventListener("toggle", () => { if (det.open && !built) { det.append(buildDetail(p)); built = true; } });
+      if (openIds.has(p[0])) { det.open = true; }
+      lst.append(det);
+    }
+    sec.append(lst);
+    board.append(sec);
+  }
+  document.getElementById("count").textContent = `${shown} / ${P.length} 件`;
+}
+
+function renderAll() { renderSummary(); renderQueue(); renderBoard(); }
+
+/* tabs */
+const TABS = ["board", "start", "rules", "api"];
+function selectTab(name) {
+  for (const t of TABS) {
+    const on = t === name;
+    document.getElementById("tab-" + t).setAttribute("aria-selected", String(on));
+    document.getElementById("panel-" + t).hidden = !on;
+  }
+  try { localStorage.setItem("hub-tab", name); } catch {}
+}
+for (const t of TABS) document.getElementById("tab-" + t).addEventListener("click", () => selectTab(t));
+try { const saved = localStorage.getItem("hub-tab"); if (saved && TABS.includes(saved)) selectTab(saved); } catch {}
+
+document.getElementById("q").addEventListener("input", renderBoard);
+document.getElementById("fstate").addEventListener("change", renderBoard);
+
+document.getElementById("claude-md").textContent =
+`# CLAUDE.md
+
+Graphica(https://github.com/STsuruga/Graphica)用プラグイン <P-xxx 名前> のリポジトリ。
+
+## 最初に読むもの
+- 開発ハブ(Artifact): ${HUB_URL}
+  Artifact ツールの action: "read" で読む。共通ルール・API 早見表・この項目の仕様と状態がある。
+- 本体の CLAUDE.md「Plugin API」節(本体リポジトリ)
+
+## このプラグイン
+- 項目: <P-xxx>。使うフック: <register_...>
+- v1.0 の範囲(ユーザーと決めた内容): <…>
+- 見送ったこと・次の版に回したこと: <…>
+
+## コマンド
+pip install -e <PlotterApp>/Graphica_project
+pip install -r requirements-dev.txt
+pytest
+python scripts/build_zip.py --all      # dist/<plugin_name>-<version>.zip
+
+## ルール
+- Graphica 本体のコードは変更しない。足りない拡張点は本体の Issue(ユーザーの了承を得て作成)とハブの note に記録する。
+- 依存は本体同梱のパッケージのみ(PySide6 / matplotlib / numpy / pandas / scipy / openpyxl / xlrd)。
+- プラグイン内は相対 import。他プラグインは import できない。
+- 受け取った Dataset は書き換えない。新しい Dataset は name / df / x_col_name / y_col_name 必須。
+- リリースしたら plugin.json の version とタグを揃え、ハブの db(collection "plugins", doc_id "<P-xxx>")を更新する。
+
+## 現状
+<作業の区切りごとに更新: どこまでできていて、次に何をするか>`;
+
+renderAll();
+
+/* db: 状態の同期 */
+(async () => {
+  let db = null;
+  try { db = await window.claude?.use?.("db"); } catch { db = null; }
+  if (!db) return;
+  db.collection("plugins").onSnapshot(snap => {
+    for (const k of Object.keys(liveState)) delete liveState[k];
+    for (const doc of snap.docs) { if (doc.exists) liveState[doc.id] = doc.data() || {}; }
+    dbReady = true;
+    renderAll();
+  }, () => { dbReady = false; renderSummary(); });
+})();
+</script>
