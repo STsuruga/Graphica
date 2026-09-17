@@ -6,9 +6,9 @@
 (過去の完了履歴を積み上げる場所ではない)。
 
 - 完了履歴の詳細(いつ・何を・どう実装したか): トラック1(プラグインAPI拡張)は
-  `docs/PLUGIN_API_PROGRESS.md`、トラック2(GUIモダン化)は
-  `docs/GUI_MODERNIZATION_PROGRESS.md`(役割は同じ、対象トラックが異なるだけ)
-- 全項目の通しナンバリング・チェックリスト: `docs/roadmap.html`
+  `docs/dev/PLUGIN_API_PROGRESS.md`、トラック2(GUIモダン化)は
+  `docs/dev/GUI_MODERNIZATION_PROGRESS.md`(役割は同じ、対象トラックが異なるだけ)
+- 全項目の通しナンバリング・チェックリスト: `docs/dev/roadmap.html`
   (Artifactとしても公開: https://claude.ai/code/artifact/3305056d-6417-4056-8899-b5e2bca0c553 。
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
@@ -79,7 +79,7 @@ v1.4.0 のリリース準備まで済んでいる。**
   `parallel = true` + `coverage combine`。実行方法を二重に持たないよう、
   チャンク実行は `run_tests_chunked.sh` に一本化し `GRAPHICA_COVERAGE=1` で
   切り替える。
-- **`docs/RELEASE_CHECKLIST.md` を新設**。過去にハマった点(CIのwebhook遅延、
+- **`docs/dev/RELEASE_CHECKLIST.md` を新設**。過去にハマった点(CIのwebhook遅延、
   exe化でしか出ない ModuleNotFoundError、macOSの.app破損、Gatekeeper)を
   手順に織り込んである。**リリース作業はこのファイルの順に進めること。**
 
@@ -618,8 +618,8 @@ v1.4.0 のリリース準備まで済んでいる。**
   (#134/#138/#140/#141/#142/#145/#150/#157/#161/#80/#117/#139/#152/#154/#160/#162)を
   実装しやすい順に実装完了・全項目コミット/push済み**、同時に11項目
   (#81/#86/#99/#106/#131/#151/#155/#156/#143/#144/#158)をユーザー判断により
-  除外確定(番号・行は保持、roadmap.html/`docs/Graphica_CORE_BACKLOG.md`に
-  理由注記済み、コミット`cbf11d0`)。roadmap.html/`docs/CORE_FEATURES_PROGRESS.md`/
+  除外確定(番号・行は保持、roadmap.html/`docs/dev/Graphica_CORE_BACKLOG.md`に
+  理由注記済み、コミット`cbf11d0`)。roadmap.html/`docs/dev/CORE_FEATURES_PROGRESS.md`/
   ローカルの`backlog_detail.html`(Artifact)は全項目分反映済み。主なコミット:
   `63fc689`(更新通知/ラスタ警告/セーフモード確認)・`9cb54f5`(学術パレット/
   キャプション生成)・`244e51f`(mm単位/ジャーナルプリセット)・`8599e3b`
@@ -672,7 +672,7 @@ v1.4.0 のリリース準備まで済んでいる。**
 - **2026-09-08、roadmap #105(C-307 X軸アライメント)・#109(C-313 誤差伝播)・
   #113(C-503 階段プロット)・#115(C-505 ヒストグラム/KDE)・#127(C-608 列の
   単位メタデータ→軸ラベル自動生成)を実装完了**(詳細は
-  `docs/CORE_FEATURES_PROGRESS.md`末尾の該当行)。roadmap.htmlは更新済み
+  `docs/dev/CORE_FEATURES_PROGRESS.md`末尾の該当行)。roadmap.htmlは更新済み
   (republish未実施、次のセッション開始時にpublish状態を確認すること)。
   あわせて実機フィードバック3件を修正: (1)`ColorPickerWidget`のカラー
   コード欄が`editingFinished`(Enter/フォーカスアウト)まで見た目に反映
@@ -698,7 +698,7 @@ v1.4.0 のリリース準備まで済んでいる。**
   https://claude.ai/code/artifact/3305056d-6417-4056-8899-b5e2bca0c553)。
 
 - **2026-09-03、roadmap #85(C-104)・#88(C-107)・#90(C-109)・#93(C-203)・
-  #94(C-204)・#104(C-306)を実装完了**(詳細は`docs/CORE_FEATURES_PROGRESS.md`
+  #94(C-204)・#104(C-306)を実装完了**(詳細は`docs/dev/CORE_FEATURES_PROGRESS.md`
   末尾の該当行)。#104(C-306外れ値検出)はユーザー指示により、自動検出は
   行うが「検出結果をマスクに適用するか」は`OutlierDetectionDialog`の
   チェックボックス(既定OFF)でユーザーが明示的に選ぶ設計にした(自動では
@@ -706,7 +706,7 @@ v1.4.0 のリリース準備まで済んでいる。**
   コミット済み(push試行中)。
 
 - **2026-09-03、ユーザー指示によりroadmap #100/#107/#111/#114/#116/#118/#121/
-  #122/#123/#126/#159を除外確定**(理由は`docs/Graphica_CORE_BACKLOG.md`
+  #122/#123/#126/#159を除外確定**(理由は`docs/dev/Graphica_CORE_BACKLOG.md`
   「低優先(ユーザー判断により不要、番号は保持)」節の該当行、および
   `roadmap.html`の各行タイトル注記を参照)。あわせて#133(C-706数式入力
   エディタ)・#149(C-906データセットのグループ/フォルダ管理)は既存実装
@@ -719,7 +719,7 @@ v1.4.0 のリリース準備まで済んでいる。**
   #128(C-701)・#108(C-312)・#135(C-708)・#148(C-905)・#83(C-102)・
   #95(C-205)・#96(C-206)・#97(C-207)・#98(C-208)・#153(C-912)・
   #102(C-303)・#103(C-304)・#110(C-407)・#124(C-604)・#130(C-703)を実装完了**
-  (詳細は`docs/CORE_FEATURES_PROGRESS.md`末尾の「未分類の残り項目」節)。
+  (詳細は`docs/dev/CORE_FEATURES_PROGRESS.md`末尾の「未分類の残り項目」節)。
   ユーザー指示(「pushは項目を実装するごとに実施して」)によりコミット・
   push運用に切り替え済み(#82/#84/#91/#128は`0c5e483`、#146は`6206423`、
   #108/#135/#148は`b1e2bb2`、#83/#95/#96/#97/#98/#153は`8a52f7a`、
@@ -728,17 +728,17 @@ v1.4.0 のリリース準備まで済んでいる。**
   セグフォルトのみWARNで完走確認済み。
   #108/#135/#708実装時にC-701の副作用バグ(vspan/hspan混在時の
   `_try_delete_annotation_near`クラッシュ)を発見・修正済み(詳細は
-  `docs/CORE_FEATURES_PROGRESS.md`のC-708行)。
+  `docs/dev/CORE_FEATURES_PROGRESS.md`のC-708行)。
   #110(C-407)実装時、自作したバッチフィットのテストで「`QMessageBox.information`
   をモックし忘れると、offscreen環境でもモーダルdialogの`exec()`が実際に
   イベントループを無期限ブロックする」というテスト側のバグを発見・修正
-  (本体側のバグではない、詳細は`docs/CORE_FEATURES_PROGRESS.md`のC-407行)。
+  (本体側のバグではない、詳細は`docs/dev/CORE_FEATURES_PROGRESS.md`のC-407行)。
 - **#146(C-903 スタイルペインター)・#96(C-206 列の算術変換)は既存実装確認で
   完了扱い済み**(それぞれ2026-09-02、C-903はユーザー確認済み)。
   「書式のコピー&ペースト」は#64(C-902、`_on_copy_dataset_style`/
   `_on_paste_dataset_style`)、「列の算術変換」は既存の「列の計算」機能
   (`_on_calculate_column`、`ColumnCalculatorDialog`)とそれぞれ機能的に
-  同一のため、いずれも新規コード変更なし。詳細は`docs/CORE_FEATURES_PROGRESS.md`
+  同一のため、いずれも新規コード変更なし。詳細は`docs/dev/CORE_FEATURES_PROGRESS.md`
   のC-903/C-206行を参照。
 - **#153(C-912 スタートアップ画面)は意図的にスコープを絞った**: 起動の
   たびに自動表示する変更はせず(起動シーケンスは壊れやすいと文書化されている
@@ -754,13 +754,13 @@ v1.4.0 のリリース準備まで済んでいる。**
   まだ得ていない(バグ報告→修正→リリースの流れで進めており、動作確認の
   返答自体はこのファイルの更新時点でまだ受け取っていない)。次のセッション
   開始時に確認を求めるか、ユーザーから確認が来ていないか先に聞くこと。
-- **C-913(グラフ書式の既定値設定)**: `docs/Graphica_CORE_BACKLOG.md`の
+- **C-913(グラフ書式の既定値設定)**: `docs/dev/Graphica_CORE_BACKLOG.md`の
   C-9節に記録済みだが未着手。着手前に、適用範囲(フォント/色/軸設定の
   どこまでを既定化するか)とUI(専用の設定ダイアログか、既存の設定パネルに
   「これを既定として保存」ボタンを足す形か)をユーザーと相談してから
   実装すること(CLAUDE.md項目14: コスト・リスクが大きい設計判断は着手前に
   選択肢を提示)。
-- 「追加機能の開発」を継続する場合の次の候補: `docs/CORE_FEATURES_PROGRESS.md`
+- 「追加機能の開発」を継続する場合の次の候補: `docs/dev/CORE_FEATURES_PROGRESS.md`
   末尾の表・下記「実装方向で検討中」節(C-704のみ残存、C-703は#130で実装済み)・
   「効果◎で未実装のまま残っている項目」節を参照。番号での指示を待つ。
 
@@ -774,7 +774,7 @@ v1.4.0 のリリース準備まで済んでいる。**
 - **トラック3-1(解析基盤、全10項目)・トラック3-2(性能・体験、C-003/C-004の
   大型2項目含め全項目)・トラック3-3(差別化機能、6項目)は、いずれも
   2026-08-16までに完了・master統合済み**。実装の詳細ログは
-  `docs/CORE_FEATURES_PROGRESS.md`の該当トラック節を参照(このファイルには
+  `docs/dev/CORE_FEATURES_PROGRESS.md`の該当トラック節を参照(このファイルには
   再掲しない)。
 - **トラック3-4(大型投資)、2026-08-17に完了**:
   - C-508(ヒートマップ)/C-501(カラーバー)/C-510(散在データ補間)/性能設計
@@ -784,9 +784,9 @@ v1.4.0 のリリース準備まで済んでいる。**
   - **C-605(軸の中断)はユーザー判断によりスキップ確定**(2026-08-16)。
     「Graphicaで作った図はイラレで最終調整する」運用が前提のため、フル
     パリティ実装の工数・リスクに見合わないと判断。バックログ上はID・行を
-    保持したまま`docs/Graphica_CORE_BACKLOG.md`の低優先索引セクションに
+    保持したまま`docs/dev/Graphica_CORE_BACKLOG.md`の低優先索引セクションに
     記録済み。
-  - `docs/roadmap.html`の#75/#76/#77/#78(C-508/C-509/C-501/C-511)は
+  - `docs/dev/roadmap.html`の#75/#76/#77/#78(C-508/C-509/C-501/C-511)は
     `true`に更新・republish済み。#79(C-605)は上記の理由注記付きで`false`
     のまま(実装しない意思決定であり、未着手ではない)。
 
@@ -806,7 +806,7 @@ provenance追跡・スクリプトエクスポート・性能改善)。
 新規報告2件のうち、緊急度の高い方(「タブを増やしたときに増やしたタブが
 何も操作できない」)を修正してリリース。もう1件(書式フォーマットとは別に
 「アプリ起動時のグラフ既定値」を設定できるようにしてほしい、Win/Mac両方)は
-設計が必要な新機能のため、`docs/Graphica_CORE_BACKLOG.md`のC-913として
+設計が必要な新機能のため、`docs/dev/Graphica_CORE_BACKLOG.md`のC-913として
 記録し、今回のリリース対象からは外した。詳細は`CHANGELOG.md`のv1.3.5節。
 
 **技術的な学び(タブ埋め込みの不具合)**: `gui/main_app_window.py`の
@@ -982,8 +982,8 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
 **ユーザーの意向: この先は別チャットセッションで再開する予定。** 新しい
 セッションを始める際は、まずこのファイルとこの節を読むこと。
 
-`docs/Graphica_MASTER_SCHEDULE.md`のトラック3-4節が明記する通り、
-「未分類の残り項目」は`docs/Graphica_CORE_BACKLOG.md`の3-1〜3-4いずれにも
+`docs/dev/Graphica_MASTER_SCHEDULE.md`のトラック3-4節が明記する通り、
+「未分類の残り項目」は`docs/dev/Graphica_CORE_BACKLOG.md`の3-1〜3-4いずれにも
 割り当てられなかった項目群で、優先度は各項目の「効果」列(◎大半のユーザーが
 日常的に使う / ○使う人が多い / △ニッチだが刺さる)を参照して適宜拾ってよい、
 という運用。**この方針に従い、今回のセッションで以下の絞り込みを済ませた**
@@ -991,7 +991,7 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
 
 ### 除外確定(ユーザー判断、2026-08-16。実装しない)
 
-以下12項目は、`docs/Graphica_CORE_BACKLOG.md`の「低優先(ユーザー判断により
+以下12項目は、`docs/dev/Graphica_CORE_BACKLOG.md`の「低優先(ユーザー判断により
 不要、番号は保持)」索引セクションに理由付きで記録済み(番号・元の行は削除
 せず保持、🔽マーカー付き)。共通する判断軸は「Graphicaで作った図はイラレ
 (Illustrator)で最終調整する運用が前提のため、データに連動しない装飾・
@@ -1012,18 +1012,18 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
 ### 実装方向で検討中(コストが低ければ着手してよい、ユーザー承認済み)
 
 - **C-703(矢印のバリエーション拡張: 両端/曲率/ブラケット)は#130で実装済み**
-  (2026-09-02、詳細は`docs/CORE_FEATURES_PROGRESS.md`のC-703行)。
+  (2026-09-02、詳細は`docs/dev/CORE_FEATURES_PROGRESS.md`のC-703行)。
 - **C-704(スケールバー)**: 顕微鏡像・2Dマップ向け。コストが低ければ実装
   方向。まだ未着手。
 
 ### 「効果◎」で未実装のまま残っている項目(優先度が高い候補、次のセッションで
 最初に検討すべき)
 
-`docs/Graphica_CORE_BACKLOG.md`で効果列が◎(大半のユーザーが日常的に使う)
+`docs/dev/Graphica_CORE_BACKLOG.md`で効果列が◎(大半のユーザーが日常的に使う)
 かつ、まだ3-1〜3-4のどのトラックにも組み込まれておらず、上記の除外/実装
 方向にも含まれていない項目のうち、**未着手のまま残っているのはC-802のみ**
 (C-101/C-103/C-201/C-312/C-701/C-708/C-903/C-905はいずれも2026-09-02までに
-実装済み、詳細は`docs/CORE_FEATURES_PROGRESS.md`末尾の表を参照):
+実装済み、詳細は`docs/dev/CORE_FEATURES_PROGRESS.md`末尾の表を参照):
 
 - **C-802は要再検討**: 当初「クイックウィン」候補として挙げたが、
   ベクター(SVG/PDF)出力はイラレ側で損失なくリサイズできるため、
@@ -1043,7 +1043,7 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
 **★ 方針転換(ユーザー判断): プラグインは本体リポジトリの`plugins/`ではなく、
 種類ごとに独立したGitHubリポジトリで開発する。** 命名は`graphica-plugin-<name>`。
 本体の`plugins/`に残すのは`example_plugin`(APIの使い方を示す同梱サンプル)だけ。
-詳細な構成・テストの走らせ方は`docs/PLUGIN_DEVELOPMENT_PROGRESS.md`の
+詳細な構成・テストの走らせ方は`docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md`の
 「開発の場所」節を参照(雛形は下記のelement-constantsリポジトリ)。
 
 - **P-805(元素・物理定数テーブル)は別リポジトリへ移設済み**:
@@ -1078,7 +1078,7 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
 **★ プラグイン開発自体は後回し(2026-09-13、ユーザー判断)。** D-4の整理
 (方針決定・P-805の移設・JCAMPパーサの退避・ドキュメント更新)までで区切り、
 **D-3(P-402 統計検定プラグイン)は未着手のまま保留**にする。
-土台は整っているので、再開時は`docs/PLUGIN_DEVELOPMENT_PROGRESS.md`の
+土台は整っているので、再開時は`docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md`の
 「開発の場所」節を読めばそのまま始められる。
 **未分類項目(トラック3後の残り)とは独立した別トラックなので、混同しないこと。**
 
@@ -1087,7 +1087,7 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
 **過去の完了作業の詳細**(H-5画像回帰テスト実装・背景Agentによるバグ監査
 19件・テストカバレッジ70%→97%への引き上げ・H-0〜H-4のGUIモダン化の
 詳細など)は、このファイルの後半に引き続き記録が残っている(このファイルは
-本来「現在地のみ」を保つ運用だが、`docs/GUI_MODERNIZATION_PROGRESS.md`側に
+本来「現在地のみ」を保つ運用だが、`docs/dev/GUI_MODERNIZATION_PROGRESS.md`側に
 まだ転記できていない詳細があるため、当面はここに残す)。**機能追加が目的の
 新しいセッションでは、この「現在の状況」節・「開発の進め方」節・
 「既知の注意点」節を読めば十分で、後半の詳細な完了履歴(H-0以降)を
@@ -1117,7 +1117,7 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
   (`run_in_background: true`)で行う方が確実。
 
 ユーザーは続けて「一旦パブリッシュしたい、手順をまとめておいて実行はしない
-で」とも指示している。`docs/RELEASE_CHECKLIST.md`(新設)に手順のドラフトを
+で」とも指示している。`docs/dev/RELEASE_CHECKLIST.md`(新設)に手順のドラフトを
 まとめてあるが、**いずれの手順も実行していない**(PR作成・バージョン更新・
 タグ付け・ビルド等は一切未着手)。
 
@@ -1231,7 +1231,7 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
 のため)。
 
 `feature/plugin-track4`用の`git worktree`
-(`D:\ユーザー\shuta\ドキュメント\PlotterApp-plugins`)はまだ存在する。
+(リポジトリと同じ階層の `PlotterApp-plugins` フォルダ)はまだ存在する。
 **一時停止は2026-09-13に解除済み**(改善ボード D-4、上記「トラック4は再開済み」節
 参照)。P-805はmasterへマージしたが、このブランチにはP-101(JCAMP-DX)の
 パーサがWIPコミットとして残っているため、**まだ削除しないこと**。
@@ -1240,7 +1240,7 @@ bash 3.2互換のループに置き換えて解消(コミット`a4d2f12`)。**�
 
 **トラック3-1(解析基盤)、10項目全て完了。** 4回に分けてコミット・push済み
 (いずれも`feature/analysis-foundation`)。実装の詳細は
-`docs/CORE_FEATURES_PROGRESS.md`参照。
+`docs/dev/CORE_FEATURES_PROGRESS.md`参照。
 - 1回目(コミット`65dd727`): C-401(フィット結果の構造化保持)・C-308(ベースライン
   補正: ALS/多項式/ラバーバンド/手動点)・C-907(データセット表示/非表示トグル、
   ユーザー追加要望により3-1と同時並行で着手、検索・絞り込み部分は未着手)。
@@ -1269,15 +1269,15 @@ H-2-8(#47、ステータスバー)・H-3(#48、matplotlib配色連動)・H-4(#49
 を受けて追加修正(`QPushButton:default`と`QGroupBox::title`を
 `selection_accent`/`selection_highlight`に統一、チップのクリッピングは
 `top`オフセットを`-6px`→`0px`に変更して解消)。**詳細はこのファイルではなく
-`docs/GUI_MODERNIZATION_PROGRESS.md`の該当行(表形式、「H-2-6追加分」行)と
-`docs/gui_style_audit.md`の対応する節(Before/After画像付き)を参照すること**
+`docs/dev/GUI_MODERNIZATION_PROGRESS.md`の該当行(表形式、「H-2-6追加分」行)と
+`docs/dev/gui_style_audit.md`の対応する節(Before/After画像付き)を参照すること**
 (このファイルは過去の完了履歴を積み上げる場所ではない)。
 
 **H-5実装+バグ監査19件の修正を反映した、文字通りのフルスイート
 (カバレッジ計測込み)を実行し、701件全件グリーン(失敗0件)を確認済み
 (2026-08-09、実行時間2時間23分)。カバレッジはTOTAL 70%(8450 stmts /
 2546 miss、H-5実装のみ・バグ修正前のベースライン66%から改善)。
-`docs/roadmap.html`の#50は`true`に更新・再publish済み。
+`docs/dev/roadmap.html`の#50は`true`に更新・再publish済み。
 
 **H-3/H-4で得た重要な発見**: matplotlib純正の`NavigationToolbar2QT`は
 アイコン読み込み時にQPalette明度からダークモード配色へ自動的に切り替わる
@@ -1347,8 +1347,8 @@ H-2-8(#47、ステータスバー)・H-3(#48、matplotlib配色連動)・H-4(#49
   日本語グリフフォールバック、`FitWidthPixmapLabel`による幅/高さ自動フィット)、
   クリックで`LabelEditDialog`が開く`_ClickableMathPreviewLabel`、複数装飾の
   合成(`\boldsymbol`)、タブ上部の灰色線・プロットパネル枠線・ミニマップ配色
-  等、以降の4ラウンドの詳細は`docs/GUI_MODERNIZATION_PROGRESS.md`の
-  「H-2-4追加分」〜「H-2-4追加分(4回目)」行と`docs/gui_style_audit.md`の
+  等、以降の4ラウンドの詳細は`docs/dev/GUI_MODERNIZATION_PROGRESS.md`の
+  「H-2-4追加分」〜「H-2-4追加分(4回目)」行と`docs/dev/gui_style_audit.md`の
   対応節(Before/After画像付き)を参照。
 
 H-2-3で実施した変更:
@@ -1388,7 +1388,7 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
 - **matplotlib側(`gui/canvas.py`)とミニマップ(`gui/minimap_widget.py`)は、
   `gui/theme.py`のトークンとは完全に独立した、それぞれ個別にハードコードされた
   ダーク/ライト配色定数を持つ(値も一致していない)。統合するかは未判断のまま
-  スコープ外としている**(docs/gui_style_audit.md 7節参照)。
+  スコープ外としている**(docs/dev/gui_style_audit.md 7節参照)。
 - 「カスタムカラーパレット」機能(QSettings永続化)はデータセットの線色サイクル
   であり、UIテーマのアクセントカラーとは無関係。
 
@@ -1400,15 +1400,15 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
 節を参照すること。この節自体は削除せず残すが、以降のセッションはこの節を
 無視してよい。**
 
-- ユーザーが`docs/roadmap.html`の番号(例:「N-M実施」)で作業範囲を指示して
+- ユーザーが`docs/dev/roadmap.html`の番号(例:「N-M実施」)で作業範囲を指示して
   くるので、その番号**のみ**着手する(スコープ外への自主拡張はしない)。
-  着手前に必ず`docs/roadmap.html`の`DATA`配列で該当番号の状態を確認し、
-  どのトラック/フェーズかを`docs/Graphica_MASTER_SCHEDULE.md`で確認すること
+  着手前に必ず`docs/dev/roadmap.html`の`DATA`配列で該当番号の状態を確認し、
+  どのトラック/フェーズかを`docs/dev/Graphica_MASTER_SCHEDULE.md`で確認すること
   (CLAUDE.mdの指示通り)。この運用ルール自体は今も有効。
 
 ## 開発の進め方(ユーザーとの合意事項・運用ルール)
 
-- ユーザーは`docs/roadmap.html`(通しナンバリングされたチェックリスト)を見ながら
+- ユーザーは`docs/dev/roadmap.html`(通しナンバリングされたチェックリスト)を見ながら
   「N-M実施」のように番号で作業範囲を指示してくる。指示された番号の項目**のみ**着手し、
   スコープ外への自主的な拡張はしない(CLAUDE.mdの「スコープ規律」節を参照)。
   Track 0の前提条件が終わっていないうちはTrack 1以降に着手しない、という
@@ -1434,16 +1434,16 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
        `Bash`の`run_in_background: true`で流し、完了通知を待つ(ポーリングしない)。
   3. 失敗があれば原因を調査して修正する(テスト自体の実行順序依存など、
      実装バグでない場合もあるので切り分ける)
-  4. 対象トラックの進捗ファイル(トラック1なら`docs/PLUGIN_API_PROGRESS.md`、
-     トラック2なら`docs/GUI_MODERNIZATION_PROGRESS.md`)に完了項目の詳細
+  4. 対象トラックの進捗ファイル(トラック1なら`docs/dev/PLUGIN_API_PROGRESS.md`、
+     トラック2なら`docs/dev/GUI_MODERNIZATION_PROGRESS.md`)に完了項目の詳細
      (ID・状態・完了日・実装メモ)を追記
   5. 明確なコミットメッセージでコミット(関連ファイルのみ`git add`、
      autosaveファイルや無関係な変更は含めない)
   6. push
-  7. `docs/roadmap.html`の該当番号を`true`に更新し、Artifactとして再publish
+  7. `docs/dev/roadmap.html`の該当番号を`true`に更新し、Artifactとして再publish
   8. **改善ボード(下記)の項目なら、そのdbの`status`を`done`に更新し、
      更新後のボード状況をユーザーに表示する**
-  9. **このファイル(`docs/CURRENT_STATE.md`)を最新の状態に上書き**
+  9. **このファイル(`docs/dev/CURRENT_STATE.md`)を最新の状態に上書き**
 - **改善ボード(コード監査TODO、2026-09-08〜)での作業指示**:
   ユーザーは`https://claude.ai/code/artifact/947b83ab-3d04-406f-91ca-824ac03d5513`
   (Artifact「Graphica 改善ボード」、全20項目 A/B/C/D/E)の**項目ID**でも作業を
@@ -1549,7 +1549,7 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
   PNGはWindows専用。他OSではフォントレンダリングの違いで必ず誤検出するため
   `pytestmark`でWindows限定にしてある。macOS/Linux固有のベースラインを
   別途用意する場合はこの`skipif`を外して対応すること。
-- `docs/roadmap.html`は`<title>`+`<style>`+本体HTML+`<script>`のみを持つ
+- `docs/dev/roadmap.html`は`<title>`+`<style>`+本体HTML+`<script>`のみを持つ
   (`<!DOCTYPE>`/`<html>`/`<head>`/`<body>`タグは書かない)。Artifactツールが
   自動でラップする前提の構造なので、編集時もこの形式を崩さないこと。
 - テストスイート全体は実行順序次第でグローバル状態(例: `core/plugin_api.py`の
@@ -1576,8 +1576,8 @@ H-0の調査で判明した重要な事実(H-2の残り項目でも必ず踏ま�
   同じ手法)した上で、`window.show()`+`processEvents()`を数回回してからgrabすれば、
   実際のレンダリング結果を確認できる。ダークモードは`window.dark_mode_action.
   setChecked(True)`で切り替えてから再度grabする。スクリーンショットは
-  `docs/screenshots/h2-N/`配下にPNGで保存し、`docs/gui_style_audit.md`から
-  相対パスで埋め込む(実例: H-2-1、`docs/screenshots/h2-1/`)。
+  `docs/dev/screenshots/h2-N/`配下にPNGで保存し、`docs/dev/gui_style_audit.md`から
+  相対パスで埋め込む(実例: H-2-1、`docs/dev/screenshots/h2-1/`)。
 - **Agentツールの`isolation: "worktree"`は、このセッションで一度、割り当てられた
   worktreeが理由不明のまま消失する事象が起きた**(`git worktree list`に登録が
   無くなり、パスもENOENT。エージェント自身が削除した形跡は無い)。再現条件は

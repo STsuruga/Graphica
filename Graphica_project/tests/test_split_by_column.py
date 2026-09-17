@@ -138,7 +138,7 @@ def _choose_column(monkeypatch, column, accepted=True):
 
     ★ モックし忘れると、offscreen環境でもモーダルダイアログの exec() が
     イベントループを無期限にブロックする(このプロジェクトで実際に一度
-    踏んでいる。docs/CURRENT_STATE.md の C-407 の記述参照)。
+    踏んでいる。docs/dev/CURRENT_STATE.md の C-407 の記述参照)。
     """
     monkeypatch.setattr(
         dataset_mixin_module.QInputDialog, "getItem",

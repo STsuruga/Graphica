@@ -103,7 +103,7 @@ class ProjectModel(QObject):
     確認されていない)。それら既存38箇所を全てシグナル配線に置き換える
     「フルrefactor」は、コア機構(models/project.py)への広範囲な変更となり
     コスト・リスクに見合わないと判断し、意図的にスコープ外とした(詳細は
-    docs/CORE_FEATURES_PROGRESS.mdのC-005エントリ参照)。
+    docs/dev/CORE_FEATURES_PROGRESS.mdのC-005エントリ参照)。
 
     代わりに、今後追加される新しいミューテーション経路(プラグインAPI経由の
     変更や、切り離しCanvas/ミニマップのように「誰が呼ぶか」が自明でない

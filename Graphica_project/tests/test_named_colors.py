@@ -17,7 +17,7 @@
 
 ★ ダイアログを開く経路は QColorDialog / QInputDialog を必ずモックする。
   offscreen環境でもモーダルの exec() はイベントループを無期限にブロックする
-  (このリポジトリで実際に踏んでいる、docs/CORE_FEATURES_PROGRESS.md の C-407 参照)。
+  (このリポジトリで実際に踏んでいる、docs/dev/CORE_FEATURES_PROGRESS.md の C-407 参照)。
 """
 import json
 

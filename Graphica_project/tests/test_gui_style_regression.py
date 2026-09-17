@@ -2,7 +2,7 @@
 """
 H-5: 画像回帰テスト。
 
-docs/Graphica_ROADMAP_PLUGIN_AND_GUI.md のH-5節に基づく。pytest-mplは新規依存を
+docs/dev/Graphica_ROADMAP_PLUGIN_AND_GUI.md のH-5節に基づく。pytest-mplは新規依存を
 増やすため採用せず、既存のH-2各フェーズで使ってきた「QWidget.grab() -> QPixmap」
 パターンをそのまま流用し、ベースラインPNG(tests/baseline_images/)とのピクセル差分を
 許容閾値付きで比較する自前の仕組みにする(ロードマップの「pytest-mplまたは類似の
@@ -179,7 +179,7 @@ def test_preferences_dialog_light_matches_baseline(tmp_path, monkeypatch):
 
     # ★ gui.theme._current_tokens はプロセス全体で共有されるグローバル状態のため、
     #   フルスイート実行時に実行順序次第で別のテストがダークのまま残している
-    #   ことがある(docs/CURRENT_STATE.mdの既知の注意点と同根)。ダイアログ自体は
+    #   ことがある(docs/dev/CURRENT_STATE.mdの既知の注意点と同根)。ダイアログ自体は
     #   PreferencesDialogの引数(dark_mode=False)ではなく、その時点でQApplicationに
     #   適用済みのQSS/パレットをそのまま継承するだけなので、明示的にライトへ
     #   戻してから開く。

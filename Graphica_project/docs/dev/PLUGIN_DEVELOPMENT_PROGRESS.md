@@ -8,7 +8,7 @@
 `GUI_MODERNIZATION_PROGRESS.md`、トラック3は`CORE_FEATURES_PROGRESS.md`が
 同じ役割を持つ(対象トラックが異なるだけ)。
 
-`docs/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」(P-805→P-101→
+`docs/dev/Graphica_PLUGIN_BACKLOG.md`の「着手推奨プラグイン Top 8」(P-805→P-101→
 P-304→...)の順に着手する。
 
 ## ★ 開発の場所: プラグインは種類ごとに別リポジトリ(2026-09-13、ユーザー判断)

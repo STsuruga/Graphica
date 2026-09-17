@@ -201,8 +201,8 @@
 新しいセッションを開始する際、最初のメッセージの型として以下を推奨する。
 
 ```
-docs/Graphica_MASTER_SCHEDULE.md を確認し、現在のトラック・フェーズを特定して。
-着手前提条件(トラック0)が完了しているか docs/PLUGIN_API_PROGRESS.md で確認し、
+docs/dev/Graphica_MASTER_SCHEDULE.md を確認し、現在のトラック・フェーズを特定して。
+着手前提条件(トラック0)が完了しているか docs/dev/PLUGIN_API_PROGRESS.md で確認し、
 未完了ならその旨を報告して(勝手に前提条件を実装しない)。
 完了していれば [対象フェーズ/項目] のみ着手して。
 完了条件を全て満たしたら pytest を実行し、進捗ファイルを更新してコミットして。

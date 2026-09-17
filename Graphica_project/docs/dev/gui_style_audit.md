@@ -190,7 +190,7 @@ H-1時点で既に`gui/theme.py`のQSS(`QMenuBar`/`QMenu`セクション)でカ�
 
 **メニューの開閉状態(参考)**: メニューを開いた際の見た目(`QMenu`のドロップダウン、
 ホバー時のアクセント色強調)は既存のQSSで実装済みで、今回変更していない
-(角丸8px・ボーダー・ホバー時`accent_soft`背景、`docs/gui_style_audit.md` 1節参照)。
+(角丸8px・ボーダー・ホバー時`accent_soft`背景、`docs/dev/gui_style_audit.md` 1節参照)。
 
 **テスト**: `tests/test_quick_access_mixin.py::test_quick_access_toolbar_is_not_movable`
 を追加。既存のUIテスト(オフスクリーン)は全てグリーン。
@@ -1121,12 +1121,12 @@ _current_tokens`)がテスト実行順序によって前のテストの影響を
 実行から実際の比較が行われる）。
 
 **画像回帰テスト自身がpytest経由（offscreenプラットフォーム）で実行される
-ため、docs/screenshots/配下の実機確認用スクリーンショット（CJKフォント
+ため、docs/dev/screenshots/配下の実機確認用スクリーンショット（CJKフォント
 込みで見た目を人が確認するためのもの）とは別物である点に注意**:
 `tests/conftest.py`が`QT_QPA_PLATFORM=offscreen`を強制するオフスクリーン
 環境では、日本語フォントが正しく解決されず豆腐（tofu）ボックスとして
 描画される（このセッションのH-2各フェーズで実機確認用に撮った
-`docs/screenshots/`配下のPNGは、あえて`QT_QPA_PLATFORM`を設定しない
+`docs/dev/screenshots/`配下のPNGは、あえて`QT_QPA_PLATFORM`を設定しない
 スクリプトから撮ることで実際のCJKフォント描画を得ていた、という違いが
 ある）。この画像回帰テストの目的は色・レイアウト・余白等のスタイル
 トークンの回帰検出であり、テキストの可読性そのものはこのテストの対象外

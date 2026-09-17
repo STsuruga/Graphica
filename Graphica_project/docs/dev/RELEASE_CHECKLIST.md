@@ -35,7 +35,7 @@ Graphica を新しいバージョンとして公開するときの手順。過�
       `pyproject.toml` は `[tool.setuptools.dynamic]` でここを読む)。
 - [ ] `CHANGELOG.md` の先頭に新しい節を追加。**利用者から見て何が変わったか**を
       書く(内部リファクタは「内部の変更(動作に影響はありません)」にまとめる)。
-- [ ] `docs/CURRENT_STATE.md` を更新。
+- [ ] `docs/dev/CURRENT_STATE.md` を更新。
 - [ ] ロードマップ/改善ボードの項目を消化していれば、そちらの状態も更新。
 
 ## 3. 公開
@@ -61,7 +61,7 @@ Graphica を新しいバージョンとして公開するときの手順。過�
 ## 4. リリース後
 
 - [ ] ダウンロードして実際に起動できることを、可能なら Windows/macOS 両方で確認。
-- [ ] `docs/CURRENT_STATE.md` の「現在地」をリリース済みの状態に更新。
+- [ ] `docs/dev/CURRENT_STATE.md` の「現在地」をリリース済みの状態に更新。
 
 ---
 

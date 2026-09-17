@@ -94,7 +94,7 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
 # ニュートラルグレー+ティール系アクセントの配色に揃えている。
 # 公開名(LIGHT_TOKENS/DARK_TOKENS)はロードマップH-1の完了条件に合わせたもの。
 # 現状これらを上書きするユーザー設定(QSettings)は存在しない
-# (docs/gui_style_audit.md 6節: 「カスタムカラーパレット」機能はデータセットの
+# (docs/dev/gui_style_audit.md 6節: 「カスタムカラーパレット」機能はデータセットの
 # 線色サイクルであり、このUIテーマのアクセントカラーとは無関係)。
 LIGHT_TOKENS = {
     # ★ 実機フィードバック: 「背景色が若干黄色っぽい」との指摘を受け、

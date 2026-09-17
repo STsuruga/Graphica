@@ -14,7 +14,7 @@ plugins/ 配下のプラグインを、配布・インストール可能なzip�
     という関係であって、どちらか一方を選ぶものではない。
 
     ★ プラグイン本体は種類ごとに別リポジトリで開発する方針(2026-09-13、
-    docs/PLUGIN_DEVELOPMENT_PROGRESS.md の「開発の場所」節)のため、この
+    docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の「開発の場所」節)のため、この
     リポジトリの plugins/ に残るのは example_plugin(APIの使い方を示す同梱
     サンプル)だけ。各プラグインリポジトリは、このスクリプトを1プラグイン分に
     調整した scripts/build_zip.py を自前で持つ
@@ -38,7 +38,7 @@ import sys
 import zipfile
 
 # scripts/ の1つ上(Graphica_project/)をプロジェクトルートとする。
-# cwd には依存しない(docs/Graphica_SPEC.md §2.8 の制約)。
+# cwd には依存しない(docs/dev/Graphica_SPEC.md §2.8 の制約)。
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGINS_DIR = os.path.join(PROJECT_ROOT, "plugins")
 DEFAULT_OUT_DIR = os.path.join(PROJECT_ROOT, "dist", "plugins")

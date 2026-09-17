@@ -449,7 +449,7 @@ def register_render_backend(self, name: str, backend: RenderBackend):
 - `matplotlib`側の配色(Figure背景・軸色・グリッド色)がダークモードとどう連動しているか(`rcParams`経由か、`Dataset`のスタイル設定経由か)を確認
 - 既存のカスタムウィジェット一覧を洗い出す: ドック各種、クイックアクセスツールバー(`#87`)、色ピッカー、レイアウトエディタのハンドル、ミニマップ(`#83`)、エクスポートプレビューパネル、コマンドパレット(`#47`)
 
-**成果物**: `docs/gui_style_audit.md`(新規)に上記の調査結果をまとめる。以降のH-1〜H-5はこの調査結果を土台に進める。
+**成果物**: `docs/dev/gui_style_audit.md`(新規)に上記の調査結果をまとめる。以降のH-1〜H-5はこの調査結果を土台に進める。
 
 ---
 
@@ -510,7 +510,7 @@ def build_qss(tokens: dict) -> str:
 7. **プラグイン管理UI(F-2で追加されたタブ)** — ここで初めて他のダイアログと統一されたスタイルが当たる
 8. ステータスバー・通知トースト類
 
-**完了条件**: 各コンポーネントごとに、ライト/ダーク両モードでのスクリーンショットを`docs/gui_style_audit.md`に追記し、Before/Afterを記録する。既存のUIテスト(オフスクリーン)が壊れていないこと。
+**完了条件**: 各コンポーネントごとに、ライト/ダーク両モードでのスクリーンショットを`docs/dev/gui_style_audit.md`に追記し、Before/Afterを記録する。既存のUIテスト(オフスクリーン)が壊れていないこと。
 
 ---
 
@@ -564,7 +564,7 @@ def build_qss(tokens: dict) -> str:
 
 ### GUIモダン化(フェーズH)
 
-- [ ] `docs/gui_style_audit.md` に現状調査とBefore/Afterが記録されている
+- [ ] `docs/dev/gui_style_audit.md` に現状調査とBefore/Afterが記録されている
 - [ ] `gui/theme/tokens.py` に色・余白・角丸等が一元化されている
 - [ ] H-2で列挙した全コンポーネントのスタイル調整が完了している
 - [ ] ダークモード切替時にグラフ(matplotlib側)の配色が破綻しない
