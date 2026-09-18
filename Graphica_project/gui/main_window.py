@@ -639,10 +639,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 影響しない)。
         self._batch_import_filename_regex = None
         self._copied_dataset_style = None  # 「スタイルをコピー」でコピーした属性値の辞書
-        # 上書き保存(実機フィードバック)用: 現在開いている/直前に保存した
-        # プロジェクトファイルのパス。未保存(一度もsave/loadしていない)なら
-        # None のままで、manual_save()はこの場合manual_save_as()へフォールバックする。
+        # 上書き保存先。None なら manual_save() は「名前を付けて保存」になる。
+        # タブ名もこの値から作る(ProjectModel.current_filepath はオートセーブでも変わる)。
         self._current_project_path = None
+        self._restored_unsaved = False  # オートセーブから復元し、まだ保存していない
         # 未保存の変更の検出(v1.4.2): 直前に保存/読み込みした時点の内容のハッシュ
         # (ProjectModel.content_fingerprint)。None は「ファイルと対応していない」状態。
         self._saved_content_fingerprint = None
@@ -2596,6 +2596,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._sync_project_from_ui()
         self._saved_content_fingerprint = self.project.content_fingerprint()
 
+    def document_title(self):
+        """タブ名・ウィンドウタイトル・保存確認に出す文書名。"""
+        if self._current_project_path:
+            return os.path.basename(self._current_project_path)
+        if self._restored_unsaved:
+            return "無題のプロジェクト(復元)"
+        return "無題のプロジェクト"
+
     def has_unsaved_changes(self):
         """
         保存していない変更があるか(v1.4.2)。
@@ -2622,7 +2630,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         if not _unsaved_changes_prompt_enabled() or not self.has_unsaved_changes():
             return True
-        name = os.path.basename(self._current_project_path) if self._current_project_path else "無題のプロジェクト"
+        name = self.document_title()
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle("保存されていない変更")
@@ -2693,6 +2701,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._sync_project_from_ui()
             self.project.save_project(filepath)
             self._current_project_path = filepath
+            self._restored_unsaved = False
             self._saved_content_fingerprint = self.project.content_fingerprint()
             self.statusBar().showMessage(f"保存しました: {filepath}", 3000)
             self._add_recent_file(filepath)
@@ -2726,6 +2735,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             # 残っていると、上書き保存でそのファイルを別の内容で壊してしまう。
             self._current_project_path = None
             self._saved_content_fingerprint = None
+            self._restored_unsaved = False
 
             self._rebuild_dataset_tree_widget()
 
@@ -2768,6 +2778,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 self._add_recent_file(filepath)
                 self._current_project_path = filepath
                 self._remember_saved_content()
+            else:
+                self._restored_unsaved = True
             self.project_state_changed.emit()
         except Exception as e:
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")

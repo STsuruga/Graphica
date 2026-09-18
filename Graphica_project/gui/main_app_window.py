@@ -189,24 +189,24 @@ class MainAppWindow(QMainWindow):
         return project_window
 
     def _tab_title_for(self, project_window):
-        """プロジェクトの現在のファイルパスから、タブに表示する短いタイトルを作る。"""
-        import os
-        filepath = project_window.project.current_filepath
-        if filepath:
-            return os.path.basename(filepath)
-        return "無題のプロジェクト"
+        return project_window.document_title()
 
     def _refresh_tab_title(self, project_window):
         index = self.tab_widget.indexOf(project_window)
         if index != -1:
             self.tab_widget.setTabText(index, self._tab_title_for(project_window))
+            if index == self.tab_widget.currentIndex():
+                self._update_window_title(project_window)
+
+    def _update_window_title(self, project_window):
+        self.setWindowTitle(f"{APP_NAME} {__version__} - {self._tab_title_for(project_window)}")
 
     def _on_current_tab_changed(self, index):
         if index == -1:
             return
         project_window = self.tab_widget.widget(index)
         if project_window is not None:
-            self.setWindowTitle(f"{APP_NAME} {__version__} - {self._tab_title_for(project_window)}")
+            self._update_window_title(project_window)
             # タブ横断Undo一元化(項目C-007): アクティブなタブのスタックに
             # 追従させる。Undo履歴パネル(QUndoView)もこれを通じて連動する。
             self.undo_group.setActiveStack(project_window.undo_stack)
