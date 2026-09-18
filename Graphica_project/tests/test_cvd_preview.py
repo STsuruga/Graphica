@@ -2,7 +2,7 @@
 """gui/cvd_preview.py(項目140、C-803)のQImage変換に対するテスト。"""
 from PySide6.QtGui import QImage, QColor
 
-from gui.cvd_preview import simulate_qimage
+from graphica.gui.cvd_preview import simulate_qimage
 
 
 def _solid_color_image(color_hex, width=4, height=4):

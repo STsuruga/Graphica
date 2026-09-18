@@ -5,12 +5,12 @@ from dataclasses import fields
 
 from PySide6.QtWidgets import QMessageBox
 
-from core.app_paths import get_plugin_data_dir
-from core.color_palettes import normalize_palettes
-from core.commands import SetDatasetPropertiesCommand
-from core.dataset import Dataset
-from core.named_colors import add_named_color, load_named_colors, save_named_colors
-from core.plugin_context import PluginContext
+from graphica.core.app_paths import get_plugin_data_dir
+from graphica.core.color_palettes import normalize_palettes
+from graphica.core.commands import SetDatasetPropertiesCommand
+from graphica.core.dataset import Dataset
+from graphica.core.named_colors import add_named_color, load_named_colors, save_named_colors
+from graphica.core.plugin_context import PluginContext
 
 logger = logging.getLogger(__name__)
 

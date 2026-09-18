@@ -15,8 +15,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gui.canvas import MplCanvas
-from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.gui.canvas import MplCanvas
+from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 
 
 @pytest.fixture
@@ -179,8 +179,8 @@ def test_combines_with_waterfall_offsets(canvas):
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
     from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication
-    import gui.main_window as main_window_module
-    from gui.main_window import PlotterApp
+    import graphica.gui.main_window as main_window_module
+    from graphica.gui.main_window import PlotterApp
 
     settings_path = str(tmp_path / "test_settings.ini")
 
@@ -265,8 +265,8 @@ def test_2d_grid_dataset_still_shows_every_grid_control(tmp_path, monkeypatch):
 # --- スタンドアロンスクリプト書き出し ---
 
 def _generate_script(datasets, settings):
-    from models.project import ProjectModel
-    from core.script_export import generate_python_script
+    from graphica.models.project import ProjectModel
+    from graphica.core.script_export import generate_python_script
 
     project = ProjectModel()
     project.datasets = list(datasets)

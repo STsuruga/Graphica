@@ -14,10 +14,10 @@ import json
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QInputDialog
 
-import gui.main_window as main_window_module
-import gui.mixins.project_io_mixin as project_io_mixin_module
-from gui.main_window import PlotterApp
-from gui.dialogs import PreferencesDialog
+import graphica.gui.main_window as main_window_module
+import graphica.gui.mixins.project_io_mixin as project_io_mixin_module
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.dialogs import PreferencesDialog
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -225,7 +225,7 @@ def test_on_show_preferences_applies_snap_to_grid_changes(tmp_path, monkeypatch)
 def test_on_show_preferences_language_change_shows_restart_notice(tmp_path, monkeypatch):
     """表示言語が変更された場合、次回起動時に反映される旨のメッセージが出ること"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    from core.i18n import get_language
+    from graphica.core.i18n import get_language
     other_language = "en" if get_language() != "en" else "ja"
 
     new_settings = (
@@ -245,7 +245,7 @@ def test_on_show_preferences_language_change_shows_restart_notice(tmp_path, monk
 
 def test_on_show_preferences_disabled_plugin_names_are_persisted(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    from gui.main_window import DISABLED_PLUGINS_SETTINGS_KEY
+    from graphica.gui.main_window import DISABLED_PLUGINS_SETTINGS_KEY
 
     new_settings = (
         window.canvas.dark_mode, 0, "ja", "", 1000, False, 10,
@@ -299,7 +299,7 @@ def test_on_save_plot_template_excludes_annotations_and_free_rect(tmp_path, monk
 
 
 def test_on_save_plot_template_saves_all_subplots_and_dataset_styles(tmp_path, monkeypatch):
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -419,7 +419,7 @@ def test_on_load_plot_template_new_format_cyclic_apply_across_subplots(tmp_path,
 
 
 def test_on_load_plot_template_new_format_applies_dataset_styles_cyclically(tmp_path, monkeypatch):
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)

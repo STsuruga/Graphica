@@ -12,11 +12,11 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFontDialog, QMessageBox
 
-from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_NONE
-from gui import theme
-from gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
-from gui.color_history import get_color_with_history
-from gui.dialogs import LegendOrderDialog, LabelEditDialog
+from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_NONE
+from graphica.gui import theme
+from graphica.gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
+from graphica.gui.color_history import get_color_with_history
+from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
 
 logger = logging.getLogger(__name__)
 
@@ -589,7 +589,7 @@ class SettingsMixin:
         (main_window.pyがこのMixinをインポートしているため)を避けるために
         ここで遅延importして渡している。
         """
-        from gui.main_window import LABEL_SYMBOL_PALETTE
+        from graphica.gui.main_window import LABEL_SYMBOL_PALETTE
 
         dialog = LabelEditDialog(line_edit.text(), dialog_title, LABEL_SYMBOL_PALETTE, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -605,7 +605,7 @@ class SettingsMixin:
         同じ役割)。line_edit.textChanged、および初期表示・ダークモード切り替え
         (_refresh_all_label_previews)から呼ばれる。
         """
-        from gui.mathtext_preview import render_mathtext_to_pixmap
+        from graphica.gui.mathtext_preview import render_mathtext_to_pixmap
 
         tokens = theme.current_tokens()
         if text:

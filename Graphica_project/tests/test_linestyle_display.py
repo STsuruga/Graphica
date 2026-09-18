@@ -13,10 +13,10 @@ import pytest
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset, LINESTYLE_NAMES, linestyle_name
-from gui.dataset_style_icon import _LINESTYLE_TO_QT_PEN
-from gui.main_window import PlotterApp
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset, LINESTYLE_NAMES, linestyle_name
+from graphica.gui.dataset_style_icon import _LINESTYLE_TO_QT_PEN
+from graphica.gui.main_window import PlotterApp
 
 
 @pytest.mark.parametrize("value, name", [

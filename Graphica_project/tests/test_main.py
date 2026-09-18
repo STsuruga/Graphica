@@ -5,7 +5,7 @@ main.py は import時にQApplication等を構築しない
 (if __name__ == '__main__': main() のガードがあるため)ので、
 _safe_mode_flag_requested() だけを単体でimportしてテストできる。
 """
-from main import _safe_mode_flag_requested
+from graphica.__main__ import _safe_mode_flag_requested
 
 
 def test_safe_mode_flag_present():

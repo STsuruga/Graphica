@@ -7,7 +7,7 @@
 import os
 import re
 
-from core.version import APP_NAME
+from graphica.core.version import APP_NAME
 
 
 def get_app_data_dir():

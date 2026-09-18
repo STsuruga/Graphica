@@ -16,16 +16,16 @@ from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_pdf import PdfPages
 
-from gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
-from gui.canvas import _HeadlessRenderCanvas
-from gui.export_settings import export_rc_params
-from gui.task_runner import TaskRunner
-from models.project import ProjectModel
-from core.plugin_api import get_plugin_api, get_registered_exporters
-from core.plugin_types import PluginExecutionError
-from core.script_export import generate_python_script
-from core.caption_export import sanitize_label
-from core.report_export import collect_methods_sections, generate_html_report
+from graphica.gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
+from graphica.gui.canvas import _HeadlessRenderCanvas
+from graphica.gui.export_settings import export_rc_params
+from graphica.gui.task_runner import TaskRunner
+from graphica.models.project import ProjectModel
+from graphica.core.plugin_api import get_plugin_api, get_registered_exporters
+from graphica.core.plugin_types import PluginExecutionError
+from graphica.core.script_export import generate_python_script
+from graphica.core.caption_export import sanitize_label
+from graphica.core.report_export import collect_methods_sections, generate_html_report
 
 logger = logging.getLogger(__name__)
 
@@ -443,7 +443,7 @@ class ExportMixin:
         タイトル+方法文をテキストページとして描画したPDFを2ページ構成で書き出す
         (matplotlib.backends.backend_pdf.PdfPages、追加依存なし)。
         """
-        from gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
+        from graphica.gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
 
         # フォントをTrueTypeとして埋め込む(項目C-801、_on_export_plotのPDF分岐と同じ理由)。
         with mpl.rc_context(export_rc_params('pdf')), PdfPages(file_path) as pdf:

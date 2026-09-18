@@ -25,7 +25,7 @@ _named_color_icon)、いずれも同じモジュール内に収めてあるた�
 """
 
 # データの取り込み
-from gui.dialogs.data_import import (
+from graphica.gui.dialogs.data_import import (
     ColumnPreviewDialog,
     ColumnTypeDialog,
     ExcelMultiSheetDialog,
@@ -34,7 +34,7 @@ from gui.dialogs.data_import import (
 )
 
 # データの編集・列操作
-from gui.dialogs.data_edit import (
+from graphica.gui.dialogs.data_edit import (
     ColumnCalculatorDialog,
     CalcHelpDialog,
     ColumnStringOpsDialog,
@@ -46,7 +46,7 @@ from gui.dialogs.data_edit import (
 )
 
 # 解析
-from gui.dialogs.analysis import (
+from graphica.gui.dialogs.analysis import (
     FitDialog,
     MultiPeakFitDialog,
     PeakSettingsDialog,
@@ -64,7 +64,7 @@ from gui.dialogs.analysis import (
 )
 
 # エクスポート・出力
-from gui.dialogs.export import (
+from graphica.gui.dialogs.export import (
     ExportDialog,
     BatchExportDialog,
     CaptionGeneratorDialog,
@@ -72,7 +72,7 @@ from gui.dialogs.export import (
 )
 
 # 見た目・注釈
-from gui.dialogs.appearance import (
+from graphica.gui.dialogs.appearance import (
     LabelEditDialog,
     ColorPaletteDialog,
     NamedColorManagerDialog,
@@ -83,7 +83,7 @@ from gui.dialogs.appearance import (
 )
 
 # アプリ全体(設定・ヘルプ・操作)
-from gui.dialogs.app import (
+from graphica.gui.dialogs.app import (
     PreferencesDialog,
     HelpDialog,
     AboutDialog,

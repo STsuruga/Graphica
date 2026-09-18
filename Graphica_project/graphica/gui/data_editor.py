@@ -13,14 +13,14 @@ from PySide6.QtCore import Signal, Qt
 logger = logging.getLogger(__name__)
 
 # 自分で切り出したモジュールの読み込み
-from core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
+from graphica.core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
                            AddColumnCommand, DeleteColumnCommand, SetMaskedRowsCommand,
                            RenameColumnCommand)
-from core.safe_eval import safe_eval_column_formula
-from gui.dialogs import (ColumnCalculatorDialog, ReplicateErrorDialog, ColumnStringOpsDialog,
+from graphica.core.safe_eval import safe_eval_column_formula
+from graphica.gui.dialogs import (ColumnCalculatorDialog, ReplicateErrorDialog, ColumnStringOpsDialog,
                          ColumnVisibilityDialog, FindReplaceDialog)
-from gui import icon_utils
-from gui import theme
+from graphica.gui import icon_utils
+from graphica.gui import theme
 
 
 def _masked_row_background():

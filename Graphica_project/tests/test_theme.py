@@ -15,7 +15,7 @@ from PySide6.QtGui import QColor, QPainter, QWheelEvent
 from PySide6.QtWidgets import (QApplication, QComboBox, QDoubleSpinBox, QMainWindow,
                                QStyle, QStyleFactory, QWidget, QVBoxLayout)
 
-from gui import theme
+from graphica.gui import theme
 
 
 def _make_wheel_event():

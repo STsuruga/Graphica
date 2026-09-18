@@ -6,12 +6,12 @@ import sys
 
 import pytest
 
-import core.analysis as analysis_module
-import core.plugin_api as plugin_api_module
-from core.plugin_api import (
+import graphica.core.analysis as analysis_module
+import graphica.core.plugin_api as plugin_api_module
+from graphica.core.plugin_api import (
     is_safe_mode_enabled, load_plugins_once, set_safe_mode,
 )
-from core.plugin_manifest import PLUGIN_API_VERSION
+from graphica.core.plugin_manifest import PLUGIN_API_VERSION
 
 
 @pytest.fixture(autouse=True)

@@ -31,9 +31,9 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPixmap
-from gui.theme import apply_form_spacing
-from core.cvd_simulation import CVD_TYPE_LABELS
-from gui.cvd_preview import simulate_qimage
+from graphica.gui.theme import apply_form_spacing
+from graphica.core.cvd_simulation import CVD_TYPE_LABELS
+from graphica.gui.cvd_preview import simulate_qimage
 
 
 
@@ -448,7 +448,7 @@ class CaptionGeneratorDialog(QDialog):
             self.image_name_edit.setText(os.path.basename(file_path))
 
     def _update_preview(self):
-        from core.caption_export import generate_latex_figure
+        from graphica.core.caption_export import generate_latex_figure
         latex_code = generate_latex_figure(
             self.image_name_edit.text().strip(), self.caption_edit.text(),
             self.label_edit.text().strip(), self.width_combo.currentText(),

@@ -15,12 +15,12 @@ from matplotlib.patches import Polygon
 import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
-from gui.theme import LIGHT_TOKENS, DARK_TOKENS
-from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
-from core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
+from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
+from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
                            calculate_median_smooth, calculate_gaussian_smooth,
                            sample_standard_deviation)
-from core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
+from graphica.core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
 
 # 注釈キャッシュの「まだ一度も描いていない」を表す番兵(改善ボード E-2)。
 # None を使うと、キーが None のときに誤って一致してしまう。
@@ -1709,7 +1709,7 @@ class _CanvasDrawingMixin:
                     # 項目D-2: register_plot_type()でプラグインが追加した未知のplot_type。
                     # 既存5種類の分岐は変更しない増分実装(ウォーターフォール等の追加
                     # オーバーレイはプラグイン描画には自動適用されない、既知の制限)。
-                    from core.plugin_api import get_plugin_api
+                    from graphica.core.plugin_api import get_plugin_api
                     api = get_plugin_api()
                     plugin_plot_type = api.get_plot_type(ds.plot_type) if api is not None else None
                     if plugin_plot_type is not None:

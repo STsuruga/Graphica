@@ -15,7 +15,7 @@ gui/residual_panel.py(項目C-406)と同じ「メインキャンバスとは別�
 """
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem
 
-from core.methods_text import describe_operation
+from graphica.core.methods_text import describe_operation
 
 
 class ProvenancePanel(QWidget):

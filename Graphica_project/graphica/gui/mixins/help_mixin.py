@@ -8,11 +8,11 @@ from datetime import datetime
 
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
-from gui.dialogs import HelpDialog, CalcHelpDialog, AboutDialog, ShortcutsDialog
-from gui.task_runner import TaskRunner
-from core.diagnostics import build_diagnostic_bundle
-from core.update_check import check_for_update
-from core.version import __version__
+from graphica.gui.dialogs import HelpDialog, CalcHelpDialog, AboutDialog, ShortcutsDialog
+from graphica.gui.task_runner import TaskRunner
+from graphica.core.diagnostics import build_diagnostic_bundle
+from graphica.core.update_check import check_for_update
+from graphica.core.version import __version__
 
 logger = logging.getLogger(__name__)
 

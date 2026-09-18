@@ -16,9 +16,9 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
-from gui.mixins.mouse_mode_mixin import MOUSE_MODES, MOUSE_MODES_BY_NAME
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.mixins.mouse_mode_mixin import MOUSE_MODES, MOUSE_MODES_BY_NAME
 
 MODE_NAMES = [mode.name for mode in MOUSE_MODES]
 

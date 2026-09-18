@@ -13,8 +13,8 @@ import sys
 import zipfile
 from datetime import datetime
 
-from core.app_paths import get_app_data_dir
-from core.version import APP_NAME, LOG_FILE_NAME, __version__
+from graphica.core.app_paths import get_app_data_dir
+from graphica.core.version import APP_NAME, LOG_FILE_NAME, __version__
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def _collect_environment_info():
 
 
 def _collect_plugin_info():
-    from core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
+    from graphica.core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
     records = get_loaded_plugin_records()
     if records is None:
         return "プラグインは未読み込みです。"

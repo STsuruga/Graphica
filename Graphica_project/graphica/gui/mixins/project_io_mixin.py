@@ -10,11 +10,11 @@ import json
 import logging
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 
-from gui.dialogs import PreferencesDialog
-from gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
-from gui.mixins.annotation_mixin import DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
-from gui.mixins.dataset_mixin import STYLE_ATTRS
-from core.i18n import tr, get_language
+from graphica.gui.dialogs import PreferencesDialog
+from graphica.gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
+from graphica.gui.mixins.annotation_mixin import DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
+from graphica.gui.mixins.dataset_mixin import STYLE_ATTRS
+from graphica.core.i18n import tr, get_language
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +114,8 @@ class ProjectIOMixin:
         # プラグイン管理タブ(項目F-2)向けのデータ。
         # gui.main_window はこのMixinを読み込む側(逆方向にimportすると循環
         # importになる)なので、関数内でのローカルimportにする。
-        from core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
-        from gui.main_window import DISABLED_PLUGINS_SETTINGS_KEY, disabled_plugin_names
+        from graphica.core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
+        from graphica.gui.main_window import DISABLED_PLUGINS_SETTINGS_KEY, disabled_plugin_names
         current_disabled_plugin_names = disabled_plugin_names(self.settings)
 
         dlg = PreferencesDialog(

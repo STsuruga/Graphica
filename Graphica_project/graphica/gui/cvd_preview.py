@@ -8,7 +8,7 @@ QImageとnumpy配列の相互変換だけを担当する(Qt依存部分をcore�
 import numpy as np
 from PySide6.QtGui import QImage
 
-from core.cvd_simulation import simulate_rgb_array
+from graphica.core.cvd_simulation import simulate_rgb_array
 
 
 def simulate_qimage(image, cvd_type):

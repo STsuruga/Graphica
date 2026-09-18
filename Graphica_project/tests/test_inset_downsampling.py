@@ -14,10 +14,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gui.canvas import (
+from graphica.gui.canvas import (
     MplCanvas, LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
 )
-from core.dataset import Dataset
+from graphica.core.dataset import Dataset
 
 
 @pytest.fixture

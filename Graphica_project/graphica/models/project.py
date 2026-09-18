@@ -6,8 +6,8 @@ import logging
 
 from PySide6.QtCore import QObject, Signal
 
-from core.dataset import Dataset
-from core.json_utils import GraphicaJSONEncoder
+from graphica.core.dataset import Dataset
+from graphica.core.json_utils import GraphicaJSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +18,10 @@ logger = logging.getLogger(__name__)
 _ALLOWED_MODULE_PREFIXES = (
     "numpy",
     "pandas",
-    "core.dataset",
+    "graphica.core.dataset",
 )
+# パッケージを graphica.* に移す前に保存した .pkl は、Dataset を "core.dataset" の名前で持っている。
+_RENAMED_MODULES = {"core.dataset": "graphica.core.dataset"}
 _ALLOWED_BUILTINS = {
     "builtins": {
         "object", "list", "dict", "set", "frozenset", "tuple", "str", "bytes",
@@ -34,6 +36,7 @@ class _RestrictedUnpickler(pickle.Unpickler):
     """許可されたモジュール/クラスのみ復元するUnpickler(任意コード実行対策)。"""
 
     def find_class(self, module, name):
+        module = _RENAMED_MODULES.get(module, module)
         allowed_names = _ALLOWED_BUILTINS.get(module)
         if allowed_names is not None and name in allowed_names:
             return super().find_class(module, name)

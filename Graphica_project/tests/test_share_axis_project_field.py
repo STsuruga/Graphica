@@ -4,8 +4,8 @@ import json
 
 import pandas as pd
 
-from core.dataset import Dataset
-from models.project import ProjectModel
+from graphica.core.dataset import Dataset
+from graphica.models.project import ProjectModel
 
 
 def _make_project():

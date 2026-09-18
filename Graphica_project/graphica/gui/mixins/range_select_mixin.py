@@ -22,7 +22,7 @@ import logging
 from matplotlib.patches import Rectangle
 from PySide6.QtWidgets import QMessageBox
 
-from core.commands import SetMaskedRowsCommand
+from graphica.core.commands import SetMaskedRowsCommand
 
 logger = logging.getLogger(__name__)
 

@@ -33,12 +33,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QFont
-from gui import icon_utils
-from gui.theme import apply_form_spacing
-from gui.mathtext_preview import FitWidthPixmapLabel
-from core.i18n import tr
-from core.color_palettes import BUILTIN_PALETTES
-from core.named_colors import (
+from graphica.gui import icon_utils
+from graphica.gui.theme import apply_form_spacing
+from graphica.gui.mathtext_preview import FitWidthPixmapLabel
+from graphica.core.i18n import tr
+from graphica.core.color_palettes import BUILTIN_PALETTES
+from graphica.core.named_colors import (
     NamedColorError,
     add_named_color,
     load_named_colors,
@@ -231,8 +231,8 @@ class LabelEditDialog(QDialog):
         の_refresh_label_preview)と同じ考え方・同じレンダラ(gui/
         mathtext_preview.py)を、このダイアログ内のtext_edit用に流用している。
         """
-        from gui import theme
-        from gui.mathtext_preview import render_mathtext_to_pixmap
+        from graphica.gui import theme
+        from graphica.gui.mathtext_preview import render_mathtext_to_pixmap
 
         tokens = theme.current_tokens()
         text = self.text_edit.text()
@@ -521,7 +521,7 @@ class ColorPaletteDialog(QDialog):
             colors = BUILTIN_PALETTES[name]
         else:
             colors = self.palettes.get(name, [])
-        from gui import theme
+        from graphica.gui import theme
         border_color = theme.current_tokens()["border_strong"]
         for color_hex in colors:
             item = QListWidgetItem()
@@ -617,7 +617,7 @@ class ColorPaletteDialog(QDialog):
 
 def _named_color_icon(color_name, size=16):
     """リスト行の先頭に出す色見本(色欄のポップアップと同じ見た目に揃える)。"""
-    from gui.color_picker_widget import _color_icon
+    from graphica.gui.color_picker_widget import _color_icon
     return _color_icon(color_name, size=size)
 
 

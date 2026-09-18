@@ -58,7 +58,7 @@ def tr(text):
 # モジュール読み込み時に、同梱の英語翻訳辞書を自動登録しておく。
 # (呼び出し側が個別に import・登録する手間を無くすため)
 try:
-    from core.translations_en import TRANSLATIONS as _EN_TRANSLATIONS
+    from graphica.core.translations_en import TRANSLATIONS as _EN_TRANSLATIONS
     register_translations("en", _EN_TRANSLATIONS)
 except ImportError:
     logger.warning("英語翻訳辞書 (core/translations_en.py) の読み込みに失敗しました。")

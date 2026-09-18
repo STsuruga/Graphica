@@ -3,7 +3,7 @@
 利用者のパレットは QSettings の custom_color_palettes_json に保存する(gui/mixins/dataset_mixin.py)。
 """
 
-from core.named_colors import normalize_color
+from graphica.core.named_colors import normalize_color
 
 # 出典: Tableau 10、ColorBrewer(Set2/Dark2/Paired、パブリックドメイン)、
 # Okabe & Ito (2008) Color Universal Design(1型/2型色覚でも判別しやすい8色)。

@@ -24,9 +24,9 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-import gui.mixins.settings_mixin as settings_mixin_module
-from gui.main_window import PlotterApp
+import graphica.gui.main_window as main_window_module
+import graphica.gui.mixins.settings_mixin as settings_mixin_module
+from graphica.gui.main_window import PlotterApp
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):

@@ -1,34 +1,14 @@
 #!/usr/bin/env python3
 """
-plugins/ 配下のプラグインを、配布・インストール可能なzipに固める
-(改善ボード D-4)。
+graphica/plugins/ のプラグイン(同梱サンプルの example_plugin)を、環境設定の
+「プラグインをインストール...」で入れられる zip に固める。
 
-なぜ必要か:
-    gui/main_window.py の plugin_search_paths() は `if not is_frozen()` の
-    ときだけ resource_path("plugins") を探索する。つまり**リポジトリの
-    plugins/ はソース実行時にしか読まれず、PyInstallerで固めたexeの利用者には
-    一切届かない**。exe利用者に渡すには、環境設定の「プラグインを
-    インストール...」が受け取れるzipにして配る必要がある。
+配布版(exe)は graphica/plugins/ を探さないので、利用者に渡すには zip が要る。
+中身は1つのトップレベルフォルダ(= プラグイン名)の下に __init__.py がある形
+(graphica/core/plugin_install.py の _find_plugin_root() が受け付ける形)。
+プラグイン本体は別リポジトリで開発し、それぞれが同じ仕組みの scripts/build_zip.py を持つ。
 
-    リポジトリの plugins/ は「ソースの置き場」、zipは「そこから作る配布物」
-    という関係であって、どちらか一方を選ぶものではない。
-
-    ★ プラグイン本体は種類ごとに別リポジトリで開発する方針(2026-09-13、
-    docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の「開発の場所」節)のため、この
-    リポジトリの plugins/ に残るのは example_plugin(APIの使い方を示す同梱
-    サンプル)だけ。各プラグインリポジトリは、このスクリプトを1プラグイン分に
-    調整した scripts/build_zip.py を自前で持つ
-    (雛形: STsuruga/graphica-plugin-element-constants)。
-
-出力するzipのレイアウト:
-    core/plugin_install.py の _find_plugin_root() が受け付ける「レイアウト(a)」
-    (単一のトップレベルフォルダの中に __init__.py がある形)で作る。
-    展開後のフォルダ名がそのままプラグイン名になるため、フォルダ名を
-    保ったまま固めるこの形が最も素直。
-
-使い方:
     python scripts/build_plugin_zip.py example_plugin
-    python scripts/build_plugin_zip.py --all
     python scripts/build_plugin_zip.py --all --out-dir dist/plugins
 """
 import argparse
@@ -40,7 +20,7 @@ import zipfile
 # scripts/ の1つ上(Graphica_project/)をプロジェクトルートとする。
 # cwd には依存しない(docs/dev/Graphica_SPEC.md §2.8 の制約)。
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLUGINS_DIR = os.path.join(PROJECT_ROOT, "plugins")
+PLUGINS_DIR = os.path.join(PROJECT_ROOT, "graphica", "plugins")
 DEFAULT_OUT_DIR = os.path.join(PROJECT_ROOT, "dist", "plugins")
 
 # zipに含めない一時ファイル/キャッシュ

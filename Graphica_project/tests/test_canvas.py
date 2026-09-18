@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gui.canvas import (
+from graphica.gui.canvas import (
     _apply_legend_order, _safe_multiple_locator, _apply_nan_policy, _compute_stat_label_text,
     _sci_each_formatter, _apply_tick_format_mode, _apply_tick_decimal_places,
     MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
@@ -20,7 +20,7 @@ from gui.canvas import (
     GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS,
     WATERFALL_DEPTH_SHRINK_MIN_SCALE,
 )
-from core.dataset import Dataset
+from graphica.core.dataset import Dataset
 
 
 # --- _apply_nan_policy(項目C-201: 欠損値の方針設定) ---
@@ -1164,7 +1164,7 @@ def test_secondary_x_axis_ticks_reflect_converted_values(canvas):
     canvas.redraw_all([ds], 1, 1, [settings])
     ax = canvas.all_axes[0]
     secondary_ax = [child for child in ax.child_axes if child.get_xlabel() == 'eV(エネルギー)'][0]
-    from core.unit_conversion import convert_x_axis_unit
+    from graphica.core.unit_conversion import convert_x_axis_unit
     primary_xlim = ax.get_xlim()
     expected = convert_x_axis_unit(np.array(primary_xlim), 'nm', 'eV')
     np.testing.assert_allclose(sorted(secondary_ax.get_xlim()), sorted(expected), rtol=1e-6)
@@ -1320,7 +1320,7 @@ def test_update_all_axes_appearance_and_data_draws_panel_labels_when_enabled(can
 
 def test_update_all_axes_appearance_and_data_sets_facecolor_from_dark_mode(canvas):
     import matplotlib.colors as mcolors
-    from gui.canvas import DARK_FIGURE_FACECOLOR
+    from graphica.gui.canvas import DARK_FIGURE_FACECOLOR
     ds = Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y")
     canvas.redraw_all([ds], 1, 1, [{}])
 
@@ -1467,11 +1467,11 @@ def test_remove_last_free_axis_noop_when_no_axes(canvas):
 #     完全に無関係だった、H-0調査で判明した既知の不整合) ---
 
 def test_figure_and_axes_facecolor_constants_match_theme_surface_token():
-    from gui.canvas import (
+    from graphica.gui.canvas import (
         LIGHT_FIGURE_FACECOLOR, LIGHT_AXES_FACECOLOR,
         DARK_FIGURE_FACECOLOR, DARK_AXES_FACECOLOR,
     )
-    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
 
     assert LIGHT_FIGURE_FACECOLOR == LIGHT_TOKENS['surface']
     assert LIGHT_AXES_FACECOLOR == LIGHT_TOKENS['surface']
@@ -1480,19 +1480,19 @@ def test_figure_and_axes_facecolor_constants_match_theme_surface_token():
 
 
 def test_text_color_constants_match_theme_text_primary_token():
-    from gui.canvas import LIGHT_TEXT_COLOR, DARK_TEXT_COLOR
-    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.canvas import LIGHT_TEXT_COLOR, DARK_TEXT_COLOR
+    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
 
     assert LIGHT_TEXT_COLOR == LIGHT_TOKENS['text_primary']
     assert DARK_TEXT_COLOR == DARK_TOKENS['text_primary']
 
 
 def test_legend_color_constants_match_theme_surface2_and_border_strong_tokens():
-    from gui.canvas import (
+    from graphica.gui.canvas import (
         LIGHT_LEGEND_FACECOLOR, LIGHT_LEGEND_EDGECOLOR,
         DARK_LEGEND_FACECOLOR, DARK_LEGEND_EDGECOLOR,
     )
-    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
 
     assert LIGHT_LEGEND_FACECOLOR == LIGHT_TOKENS['surface_2']
     assert LIGHT_LEGEND_EDGECOLOR == LIGHT_TOKENS['border_strong']
@@ -1501,7 +1501,7 @@ def test_legend_color_constants_match_theme_surface2_and_border_strong_tokens():
 
 
 def test_axes_facecolor_follows_dark_mode_flag(canvas):
-    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
     import matplotlib.colors as mcolors
 
     ds = _make_dataset(3, show_point_labels=False)
@@ -1524,7 +1524,7 @@ def test_grid_lines_use_theme_border_strong_color(canvas):
     以前グリッド線の色はmatplotlibの既定値(rcParams、テーマと無関係な固定の
     薄灰色)任せだった。border_strongトークンを明示的に使うことを確認する。
     """
-    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
     import matplotlib.colors as mcolors
 
     ds = _make_dataset(3, show_point_labels=False)
@@ -1566,7 +1566,7 @@ def test_redraw_all_skips_axes_without_matching_settings(canvas):
     """all_plot_settingsがサブプロット数より少ない場合、余った軸には
     データ描画・外観適用のどちらも行われずスキップされる(continue分岐)。"""
     import matplotlib.colors as mcolors
-    from gui.theme import DARK_TOKENS
+    from graphica.gui.theme import DARK_TOKENS
     canvas.dark_mode = True
     ds = _make_dataset(3, show_point_labels=False)
     canvas.redraw_all([ds], 1, 2, [{}])
@@ -1987,7 +1987,7 @@ def test_step_plot_type_uses_steps_post_drawstyle(canvas):
 
 
 def test_step_plot_type_icon_shows_line_preview():
-    from gui.dataset_style_icon import make_dataset_style_icon
+    from graphica.gui.dataset_style_icon import make_dataset_style_icon
     df = pd.DataFrame({"x": [0.0, 1.0], "y": [0.0, 1.0]})
     ds = Dataset(name="step_ds", df=df, x_col_name="x", y_col_name="y", plot_type='Step', color='#112233')
     icon = make_dataset_style_icon(ds)  # 例外が出なければOK(Line同様プレビューに線を描く)
@@ -2033,7 +2033,7 @@ def test_density_scatter_falls_back_to_plain_scatter_for_singular_covariance(can
 
 
 def test_density_scatter_icon_shows_marker_preview():
-    from gui.dataset_style_icon import make_dataset_style_icon
+    from graphica.gui.dataset_style_icon import make_dataset_style_icon
     df = pd.DataFrame({"x": [0.0, 1.0], "y": [0.0, 1.0]})
     ds = Dataset(name="density_ds", df=df, x_col_name="x", y_col_name="y",
                  plot_type='Density Scatter', color='#112233')

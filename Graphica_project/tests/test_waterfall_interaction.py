@@ -23,9 +23,9 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
-from core.dataset import Dataset
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
+from graphica.core.dataset import Dataset
 
 # 積み重ね2本目(index=1)のずれ量。X/Yとも、この分だけ表示座標がデータ座標から
 # ずれている状態を作ってテストする。

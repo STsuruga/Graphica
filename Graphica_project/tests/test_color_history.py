@@ -9,7 +9,7 @@ settings には QSettings 互換の value()/setValue() だけを持つ軽量な�
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QColorDialog
 
-from gui.color_history import (
+from graphica.gui.color_history import (
     load_recent_colors_into_picker,
     get_color_with_history,
     MAX_RECENT_COLORS,

@@ -33,7 +33,7 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
-from gui import theme
+from graphica.gui import theme
 
 logger = logging.getLogger(__name__)
 

@@ -15,7 +15,7 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QPixma
 from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QComboBox,
                                QProxyStyle, QStyle, QStyleFactory)
 
-from gui.icon_utils import icon as _svg_icon
+from graphica.gui.icon_utils import icon as _svg_icon
 
 # 起動時の元のパレット/スタイル名を保持し、ライトモードへの復帰に使う
 _original_palette = None

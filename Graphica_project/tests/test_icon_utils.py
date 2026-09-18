@@ -2,7 +2,7 @@
 """gui/icon_utils.py (Tabler Icons SVGのQIcon読み込み) に対するテスト。"""
 import os
 
-from gui.icon_utils import load_svg_icon, icon, ICONS_DIR, _PROJECT_ROOT
+from graphica.gui.icon_utils import load_svg_icon, icon, ICONS_DIR, _PROJECT_ROOT
 
 
 def test_load_svg_icon_existing_file_returns_non_null_icon():
@@ -56,7 +56,7 @@ def _sample_stroke_pixel_color(pixmap):
 
 
 def test_icon_without_explicit_color_uses_light_theme_text_secondary(qapp):
-    from gui import theme
+    from graphica.gui import theme
 
     theme.apply_theme(qapp, dark=False)
     result = icon("pointer", size=24)
@@ -70,7 +70,7 @@ def test_icon_without_explicit_color_uses_light_theme_text_secondary(qapp):
 
 
 def test_icon_without_explicit_color_uses_dark_theme_text_secondary(qapp):
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtGui import QColor
 
     theme.apply_theme(qapp, dark=True)
@@ -85,7 +85,7 @@ def test_icon_without_explicit_color_uses_dark_theme_text_secondary(qapp):
 
 
 def test_icon_explicit_color_overrides_theme_default(qapp):
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtGui import QColor
 
     theme.apply_theme(qapp, dark=False)

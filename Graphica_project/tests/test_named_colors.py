@@ -30,15 +30,15 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QColorDialog, QInputDialog
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset
-from core.named_colors import (
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset
+from graphica.core.named_colors import (
     MAX_NAME_LENGTH, NAMED_COLORS_SETTINGS_KEY, POPUP_LIMIT, NamedColorError,
     add_named_color, find_index_by_name, load_named_colors, move_named_color,
     normalize_color, normalize_name, remove_named_color, save_named_colors,
     update_named_color,
 )
-from gui.main_window import PlotterApp
+from graphica.gui.main_window import PlotterApp
 
 
 # =============================================================================
@@ -201,7 +201,7 @@ def test_named_colors_use_a_separate_key_from_the_palette_manager():
     ★ 配色パレット(順序付きの色のリスト)とは目的が違うので、同じキーに
     相乗りさせない。混ぜるとパレット管理側の意味が壊れる。
     """
-    from gui.mixins.dataset_mixin import COLOR_PALETTES_SETTINGS_KEY
+    from graphica.gui.mixins.dataset_mixin import COLOR_PALETTES_SETTINGS_KEY
     assert NAMED_COLORS_SETTINGS_KEY != COLOR_PALETTES_SETTINGS_KEY
 
 
@@ -288,7 +288,7 @@ def test_registering_a_duplicate_name_warns_and_keeps_the_original(window, monke
     monkeypatch.setattr(QInputDialog, "getText",
                         staticmethod(lambda *a, **k: ("試料A", True)))
     warned = []
-    monkeypatch.setattr("gui.color_picker_widget.QMessageBox.warning",
+    monkeypatch.setattr("graphica.gui.color_picker_widget.QMessageBox.warning",
                         staticmethod(lambda *a, **k: warned.append(a)))
 
     picker._on_register_current_color()
@@ -424,7 +424,7 @@ def test_applying_with_no_selection_does_nothing(window):
 # --- 管理ダイアログ ---
 
 def test_manager_dialog_lists_name_and_hex(window):
-    from gui.dialogs import NamedColorManagerDialog
+    from graphica.gui.dialogs import NamedColorManagerDialog
     _seed(window, [("試料A", "#1f77b4"), ("試料B", "#d62728")])
 
     dialog = NamedColorManagerDialog(window.settings, window)
@@ -443,7 +443,7 @@ def test_manager_dialog_saves_immediately(window, monkeypatch):
     このダイアログは OK を待たずその場で保存する(登録簿を育てる操作であって、
     プロットの見た目を変えるものではないため)。
     """
-    from gui.dialogs import NamedColorManagerDialog
+    from graphica.gui.dialogs import NamedColorManagerDialog
     monkeypatch.setattr(QColorDialog, "getColor",
                         staticmethod(lambda *a, **k: QColor("#0a0b0c")))
     monkeypatch.setattr(QInputDialog, "getText",
@@ -460,7 +460,7 @@ def test_manager_dialog_saves_immediately(window, monkeypatch):
 
 
 def test_manager_dialog_move_updates_both_list_and_settings(window):
-    from gui.dialogs import NamedColorManagerDialog
+    from graphica.gui.dialogs import NamedColorManagerDialog
     _seed(window, [("A", "#111111"), ("B", "#222222")])
 
     dialog = NamedColorManagerDialog(window.settings, window)
@@ -476,7 +476,7 @@ def test_manager_dialog_move_updates_both_list_and_settings(window):
 
 
 def test_manager_dialog_delete(window):
-    from gui.dialogs import NamedColorManagerDialog
+    from graphica.gui.dialogs import NamedColorManagerDialog
     _seed(window, [("A", "#111111"), ("B", "#222222")])
 
     dialog = NamedColorManagerDialog(window.settings, window)
@@ -529,7 +529,7 @@ def test_apply_menu_caps_the_list_and_offers_the_rest(window):
 
 
 def test_picker_dialog_lists_every_entry_regardless_of_the_popup_limit(window):
-    from gui.dialogs import NamedColorPickerDialog
+    from graphica.gui.dialogs import NamedColorPickerDialog
     total = POPUP_LIMIT + 4
     _seed_many(window, total)
 
@@ -541,7 +541,7 @@ def test_picker_dialog_lists_every_entry_regardless_of_the_popup_limit(window):
 
 
 def test_picker_dialog_filters_by_name_and_by_hex(window):
-    from gui.dialogs import NamedColorPickerDialog
+    from graphica.gui.dialogs import NamedColorPickerDialog
     _seed(window, [("試料A", "#1f77b4"), ("試料B", "#d62728"), ("ブランク", "#7f7f7f")])
 
     dialog = NamedColorPickerDialog(window.settings, window)
@@ -560,7 +560,7 @@ def test_picker_dialog_filters_by_name_and_by_hex(window):
 
 
 def test_picker_dialog_returns_the_selected_entry(window):
-    from gui.dialogs import NamedColorPickerDialog
+    from graphica.gui.dialogs import NamedColorPickerDialog
     _seed(window, [("試料A", "#1f77b4"), ("試料B", "#d62728")])
 
     dialog = NamedColorPickerDialog(window.settings, window)
@@ -574,7 +574,7 @@ def test_picker_dialog_returns_the_selected_entry(window):
 
 def test_picker_dialog_returns_nothing_when_the_filter_matches_nothing(window):
     """絞り込みで0件になった状態でOKを押しても、選択が無いので何も返さない。"""
-    from gui.dialogs import NamedColorPickerDialog
+    from graphica.gui.dialogs import NamedColorPickerDialog
     _seed(window, [("試料A", "#1f77b4")])
 
     dialog = NamedColorPickerDialog(window.settings, window)

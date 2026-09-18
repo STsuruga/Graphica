@@ -16,16 +16,16 @@ from matplotlib.backend_bases import MouseEvent
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
-from gui.minimap_widget import (
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.minimap_widget import (
     MinimapWidget,
     DARK_AXES_FACECOLOR,
     LIGHT_AXES_FACECOLOR,
     MINIMAP_DOWNSAMPLE_THRESHOLD,
     MINIMAP_DOWNSAMPLE_TARGET_POINTS,
 )
-from core.dataset import Dataset
+from graphica.core.dataset import Dataset
 
 
 def _make_dataset(name, n_points=5):
@@ -383,7 +383,7 @@ def test_minimap_axes_facecolor_is_darker_than_nearest_theme_surface():
     「他の所の背景と同じ色にはしないで少しだけ暗い色に」の回帰テスト。
     ライトはsurface_2(#EEF0F3)より、ダークはbg(#14171A)より暗いことを確認する。
     """
-    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
     from PySide6.QtGui import QColor
 
     def luminance(hex_color):

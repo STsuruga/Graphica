@@ -18,7 +18,7 @@ Step/Z-Color Scatter)・
 スクリプト側にプラグインを持ち出せないため、コメント付きでLineとして代替出力する。
 """
 
-from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 
 
 def _to_native(value):

@@ -13,10 +13,10 @@ tests/test_plugin_api_contract.py が両者のシグネチャの一致を確か�
 """
 import tempfile
 
-from core.color_palettes import normalize_palettes
-from core.named_colors import add_named_color
-from core.plugin_context import PluginContext
-from core.plugin_types import PluginMenuAction
+from graphica.core.color_palettes import normalize_palettes
+from graphica.core.named_colors import add_named_color
+from graphica.core.plugin_context import PluginContext
+from graphica.core.plugin_types import PluginMenuAction
 
 
 class FakeGraphicaPluginAPI:

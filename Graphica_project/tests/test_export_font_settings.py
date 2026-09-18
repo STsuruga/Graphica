@@ -13,10 +13,10 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QFileDialog
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset
-from gui.export_settings import export_rc_params
-from gui.main_window import PlotterApp
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset
+from graphica.gui.export_settings import export_rc_params
+from graphica.gui.main_window import PlotterApp
 
 
 @pytest.mark.parametrize("fmt", ["pdf", ".pdf", "PDF", "eps", "ps"])

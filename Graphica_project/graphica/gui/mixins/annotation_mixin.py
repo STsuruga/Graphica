@@ -19,8 +19,8 @@ import logging
 
 from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
 
-from core.commands import SetAnnotationsCommand
-from gui.dialogs import ArrowAnnotationDialog
+from graphica.core.commands import SetAnnotationsCommand
+from graphica.gui.dialogs import ArrowAnnotationDialog
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +209,7 @@ class AnnotationMixin:
                 # インセット(拡大図、項目138、C-711)は'xy'/'xytext'を持たず、
                 # コーナー位置+サイズ(Axes相対座標)から中心点を逆算してヒット
                 # テストの代表点にする(統計値アンカーラベルと同じtransAxes系)。
-                from gui.canvas import _INSET_CORNER_ORIGINS
+                from graphica.gui.canvas import _INSET_CORNER_ORIGINS
                 x0, y0 = _INSET_CORNER_ORIGINS.get(ann.get('corner', '右上'), (0.55, 0.55))
                 size = ann.get('size', 0.4)
                 pos = (x0 + size / 2, y0 + size / 2)

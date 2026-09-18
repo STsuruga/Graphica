@@ -32,11 +32,11 @@ import pytest
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtWidgets import QApplication, QFormLayout, QToolButton
 
-import core.plugin_api as plugin_api_module
-import gui.main_window as main_window_module
-from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
-from core.plugin_api import GraphicaPluginAPI
-from gui.main_window import (
+import graphica.core.plugin_api as plugin_api_module
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.core.plugin_api import GraphicaPluginAPI
+from graphica.gui.main_window import (
     DATASET_PROPERTY_SECTIONS, DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY,
     PLOT_TYPE_COMBO_MIN_CHARS, PlotterApp,
 )
@@ -549,7 +549,7 @@ def test_indent_forms_a_ladder_from_parent_to_child_to_content(window):
     親の見出しは padding-left:4px で描かれるのに子は0で、子のほうが4px左に
     出ていた。親 < 子 < 中身 の順に深くなること。
     """
-    from gui import theme
+    from graphica.gui import theme
     qss = theme.build_qss(theme.LIGHT_TOKENS)
 
     parent = _left_padding(qss, "QToolButton#collapsible_section_toggle")
@@ -587,7 +587,7 @@ def test_heading_sizes_follow_the_application_font(window):
     ★ px 固定に戻さないための歯止め。OS既定フォントが変わっても
     「親 > 子 > 本文」の順序が保たれるよう、相対で決めること。
     """
-    from gui import theme
+    from graphica.gui import theme
 
     heading_pt, subheading_pt = theme.heading_point_sizes()
     base_pt = QApplication.instance().font().pointSizeF()

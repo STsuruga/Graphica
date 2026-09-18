@@ -125,7 +125,7 @@ class Dataset:
         if self.data_kind != '2d_grid' or not self.z_col_name:
             return None
 
-        from core.grid_data import compute_z_grid, GridDataError
+        from graphica.core.grid_data import compute_z_grid, GridDataError
 
         resolution_key = tuple(self.grid_resolution) if self.grid_resolution else None
         version = self.__dict__.get('_version', 0)

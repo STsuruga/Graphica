@@ -176,8 +176,8 @@ def read_data_file(file_path):
     """
     ext = file_path.lower().split('.')[-1]
 
-    from core.plugin_api import get_plugin_api
-    from core.plugin_types import PluginExecutionError
+    from graphica.core.plugin_api import get_plugin_api
+    from graphica.core.plugin_types import PluginExecutionError
     api = get_plugin_api()
     importer = api.get_importer_for_extension(ext) if api is not None else None
     if importer is not None:

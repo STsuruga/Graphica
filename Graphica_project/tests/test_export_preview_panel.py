@@ -13,9 +13,9 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
-from core.dataset import Dataset
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
+from graphica.core.dataset import Dataset
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):

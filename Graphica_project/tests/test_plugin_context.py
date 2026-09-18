@@ -2,10 +2,10 @@
 import pandas as pd
 import pytest
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset
-from core.named_colors import NamedColorError
-from core.plugin_types import PluginMenuAction
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset
+from graphica.core.named_colors import NamedColorError
+from graphica.core.plugin_types import PluginMenuAction
 from tests.test_main_window import _make_isolated_plotter_app
 
 

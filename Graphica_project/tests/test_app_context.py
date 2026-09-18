@@ -3,10 +3,10 @@
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QTabWidget, QWidget
 
-import gui.app_context as app_context_module
-from gui.app_context import AppContext
-from gui.main_window import MAX_RECENT_FILES
-from core.plugin_api import GraphicaPluginAPI
+import graphica.gui.app_context as app_context_module
+from graphica.gui.app_context import AppContext
+from graphica.gui.main_window import MAX_RECENT_FILES
+from graphica.core.plugin_api import GraphicaPluginAPI
 
 
 class _FakeMainAppWindow:

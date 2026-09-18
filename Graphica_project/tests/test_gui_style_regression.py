@@ -37,10 +37,10 @@ from PySide6.QtWidgets import QApplication
 
 from pathlib import Path
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
-from gui.dialogs import PreferencesDialog
-from core.dataset import Dataset
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.dialogs import PreferencesDialog
+from graphica.core.dataset import Dataset
 
 BASELINE_DIR = Path(__file__).parent / "baseline_images"
 
@@ -175,7 +175,7 @@ def test_main_window_dark_matches_baseline(tmp_path, monkeypatch):
 # --- 環境設定ダイアログ ---
 
 def test_preferences_dialog_light_matches_baseline(tmp_path, monkeypatch):
-    from gui import theme
+    from graphica.gui import theme
 
     # ★ gui.theme._current_tokens はプロセス全体で共有されるグローバル状態のため、
     #   フルスイート実行時に実行順序次第で別のテストがダークのまま残している
@@ -191,7 +191,7 @@ def test_preferences_dialog_light_matches_baseline(tmp_path, monkeypatch):
 
 
 def test_preferences_dialog_dark_matches_baseline(tmp_path, monkeypatch):
-    from gui import theme
+    from graphica.gui import theme
 
     theme.apply_theme(QApplication.instance(), dark=True)
     try:

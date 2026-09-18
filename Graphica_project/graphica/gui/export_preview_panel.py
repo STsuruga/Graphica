@@ -24,9 +24,9 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout,
                                QLabel, QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox,
                                QPushButton, QFileDialog, QMessageBox, QApplication)
 
-from gui.canvas import MplCanvas
-from gui.export_settings import export_rc_params
-from gui.theme import apply_form_spacing
+from graphica.gui.canvas import MplCanvas
+from graphica.gui.export_settings import export_rc_params
+from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
 

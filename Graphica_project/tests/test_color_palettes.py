@@ -2,7 +2,7 @@
 """core/color_palettes.py(項目141、C-804: 論文向けカラーパレットマネージャー)のテスト。"""
 import re
 
-from core.color_palettes import BUILTIN_PALETTES
+from graphica.core.color_palettes import BUILTIN_PALETTES
 
 _HEX_COLOR_RE = re.compile(r'^#[0-9a-fA-F]{6}$')
 

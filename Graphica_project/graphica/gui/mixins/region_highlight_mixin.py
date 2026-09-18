@@ -19,7 +19,7 @@ import logging
 from matplotlib.patches import Rectangle
 from PySide6.QtWidgets import QMessageBox
 
-from core.commands import SetAnnotationsCommand
+from graphica.core.commands import SetAnnotationsCommand
 
 logger = logging.getLogger(__name__)
 

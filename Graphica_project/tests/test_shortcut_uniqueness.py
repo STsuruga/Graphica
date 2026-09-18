@@ -14,8 +14,8 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
 
 
 def _window(tmp_path, monkeypatch):

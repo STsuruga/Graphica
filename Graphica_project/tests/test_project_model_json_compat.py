@@ -22,8 +22,8 @@ import pickle
 import pandas as pd
 import pytest
 
-from core.dataset import Dataset
-from models.project import ProjectModel
+from graphica.core.dataset import Dataset
+from graphica.models.project import ProjectModel
 
 
 def make_dataset(**overrides):

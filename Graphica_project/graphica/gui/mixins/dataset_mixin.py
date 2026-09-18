@@ -27,7 +27,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QFileDialog, QInputDialog, QMenu,
                                QProgressDialog)
 
-from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_quantification,
+from graphica.core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_quantification,
                            calculate_savgol,
                            calculate_baseline_als, calculate_baseline_polynomial,
                            calculate_baseline_rubberband, calculate_baseline_manual,
@@ -39,27 +39,27 @@ from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_q
                            calculate_cross_correlation_alignment, calculate_peaks,
                            assign_peak_label_levels, split_dataframe_by_column,
                            sample_standard_deviation)
-from core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
+from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
-from core.color_palettes import BUILTIN_PALETTES
-from core.named_colors import POPUP_LIMIT, load_named_colors
-from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
-from core.label_utils import infer_axis_label_from_column_name
-from core.methods_text import generate_methods_text
-from gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
-from core.plugin_api import get_registered_importer_extensions
-from core.plugin_types import AnalysisResult, PluginExecutionError
-from core.safe_eval import safe_eval_column_formula
-from gui.task_runner import TaskRunner
-from gui.data_editor import DataEditorDialog
-from gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
+from graphica.core.color_palettes import BUILTIN_PALETTES
+from graphica.core.named_colors import POPUP_LIMIT, load_named_colors
+from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
+from graphica.core.label_utils import infer_axis_label_from_column_name
+from graphica.core.methods_text import generate_methods_text
+from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
+from graphica.core.plugin_api import get_registered_importer_extensions
+from graphica.core.plugin_types import AnalysisResult, PluginExecutionError
+from graphica.core.safe_eval import safe_eval_column_formula
+from graphica.gui.task_runner import TaskRunner
+from graphica.gui.data_editor import DataEditorDialog
+from graphica.gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
                          BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
                          ResampleDatasetDialog, MultiPeakFitDialog,
                          DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
                          HistogramKDEDialog, XAxisAlignmentDialog, InsetDialog)
-from gui.dataset_style_icon import (
+from graphica.gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
 )
@@ -608,7 +608,7 @@ class DatasetMixin:
         ここで遅延インポートする。単体PlotterAppとして起動された場合
         (self.window()がMainAppWindowでない、主にテスト環境)は空リストを返す。
         """
-        from gui.main_app_window import MainAppWindow
+        from graphica.gui.main_app_window import MainAppWindow
         top = self.window()
         if not isinstance(top, MainAppWindow):
             return []
@@ -758,7 +758,7 @@ class DatasetMixin:
             )
             return
 
-        from gui.workers import read_data_file, excel_engine_for
+        from graphica.gui.workers import read_data_file, excel_engine_for
         try:
             if dataset.source_sheet:
                 new_df = pd.read_excel(dataset.source_file, sheet_name=dataset.source_sheet,
@@ -2797,7 +2797,7 @@ class DatasetMixin:
 
     def _on_apply_named_color_from_list(self):
         """登録が POPUP_LIMIT 件を超えたときに、検索欄付きの一覧から選んで適用する。"""
-        from gui.dialogs import NamedColorPickerDialog
+        from graphica.gui.dialogs import NamedColorPickerDialog
         dialog = NamedColorPickerDialog(self.settings, self, title="登録色を適用")
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
@@ -4218,5 +4218,5 @@ class DatasetMixin:
 
 def _named_color_menu_icon(color_name, size=16):
     """「登録した色を適用」メニューの色見本(色欄のポップアップと同じ描き方)。"""
-    from gui.color_picker_widget import _color_icon
+    from graphica.gui.color_picker_widget import _color_icon
     return _color_icon(color_name, size=size)

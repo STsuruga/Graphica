@@ -14,10 +14,10 @@ from matplotlib.backend_bases import MouseEvent
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset
-from gui.canvas import MplCanvas, _legend_position_from_settings
-from gui.main_window import PlotterApp
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset
+from graphica.gui.canvas import MplCanvas, _legend_position_from_settings
+from graphica.gui.main_window import PlotterApp
 
 
 def _dataset(name="data"):

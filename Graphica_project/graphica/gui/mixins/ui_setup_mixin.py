@@ -7,10 +7,10 @@ __init__ の最後の方から一度だけ呼び出されるメソッド群を�
 from PySide6.QtGui import QKeySequence, QAction
 from PySide6.QtWidgets import QApplication
 
-from gui.theme import apply_theme
-from gui.dialogs import CommandPaletteDialog
-from core.version import APP_NAME
-from core.i18n import tr
+from graphica.gui.theme import apply_theme
+from graphica.gui.dialogs import CommandPaletteDialog
+from graphica.core.version import APP_NAME
+from graphica.core.i18n import tr
 
 
 class UISetupMixin:
@@ -884,7 +884,7 @@ class UISetupMixin:
         PlotterApp.__init__で一度だけ構築される永続的なウィジェットのため、
         明示的な再設定が必要。
         """
-        from gui.main_window import _svg_icon
+        from graphica.gui.main_window import _svg_icon
 
         if hasattr(self, 'cursor_action'):
             self.cursor_action.setIcon(_svg_icon("pointer"))

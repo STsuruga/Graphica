@@ -5,8 +5,8 @@ import urllib.error
 
 import pytest
 
-import core.update_check as update_check_module
-from core.update_check import is_newer_version, fetch_latest_release_info, check_for_update
+import graphica.core.update_check as update_check_module
+from graphica.core.update_check import is_newer_version, fetch_latest_release_info, check_for_update
 
 
 # --- is_newer_version / _parse_version ---

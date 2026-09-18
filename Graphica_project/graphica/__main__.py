@@ -15,12 +15,12 @@ from PySide6.QtGui import QFont, QGuiApplication
 
 # 複数プロジェクトタブ(項目40)に対応した最上位ウィンドウ。
 # 内部で PlotterApp を各タブとして生成する。
-from gui.main_app_window import MainAppWindow
-from gui.crash_handler import install_crash_handler, prompt_safe_mode_and_apply
-from gui.theme import disable_scroll_value_change
-from core.version import LOG_FILE_NAME
-from core.app_paths import get_app_data_dir
-from core.plugin_api import set_safe_mode
+from graphica.gui.main_app_window import MainAppWindow
+from graphica.gui.crash_handler import install_crash_handler, prompt_safe_mode_and_apply
+from graphica.gui.theme import disable_scroll_value_change
+from graphica.core.version import LOG_FILE_NAME
+from graphica.core.app_paths import get_app_data_dir
+from graphica.core.plugin_api import set_safe_mode
 
 # アプリ全体のUIフォント。既定の "MS Shell Dlg 2"(素朴な見た目)ではなく、
 # Windows 10/11 の設定アプリ等でも使われている「Yu Gothic UI」を明示的に使う。

@@ -15,11 +15,11 @@ import zipfile
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
-import gui.main_window as main_window_module
-import gui.mixins.help_mixin as help_mixin_module
-from gui.main_window import PlotterApp
-from gui.dialogs import AboutDialog, ShortcutsDialog, HelpDialog, CalcHelpDialog
-from core.version import __version__
+import graphica.gui.main_window as main_window_module
+import graphica.gui.mixins.help_mixin as help_mixin_module
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.dialogs import AboutDialog, ShortcutsDialog, HelpDialog, CalcHelpDialog
+from graphica.core.version import __version__
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from core.grid_data import compute_z_grid, is_regular_grid, extract_slice, GridDataError
+from graphica.core.grid_data import compute_z_grid, is_regular_grid, extract_slice, GridDataError
 
 
 def _make_regular_grid_points(xs, ys, z_func):
@@ -226,7 +226,7 @@ def test_extract_slice_respects_n_points():
 def test_extract_slice_works_on_interpolated_grid():
     """散在データを補間して得たz_grid(is_regular=False)に対しても、
     x_grid/y_grid自体は規則的な1次元配列であるためそのまま使える。"""
-    from core.grid_data import compute_z_grid
+    from graphica.core.grid_data import compute_z_grid
     rng = np.random.default_rng(0)
     x = rng.uniform(0, 10, size=50)
     y = rng.uniform(0, 10, size=50)

@@ -20,10 +20,10 @@ import pandas as pd
 from PySide6.QtCore import QSettings, QPoint
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
-from core.dataset import Dataset
-from gui.mixins.quick_access_mixin import (
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
+from graphica.core.dataset import Dataset
+from graphica.gui.mixins.quick_access_mixin import (
     QUICK_ACCESS_SETTINGS_KEY, quick_access_action_identifier,
 )
 

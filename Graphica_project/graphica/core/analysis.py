@@ -10,7 +10,7 @@ from scipy.signal import find_peaks, peak_widths, savgol_filter, correlate, corr
 from scipy.special import wofz
 from scipy.stats import gaussian_kde
 
-from core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
+from graphica.core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
 
 CURVE_FIT_MAX_ITERATIONS = 5000
 

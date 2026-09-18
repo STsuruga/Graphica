@@ -15,9 +15,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from core.dataset import Dataset
-from core.script_export import generate_python_script
-from models.project import ProjectModel
+from graphica.core.dataset import Dataset
+from graphica.core.script_export import generate_python_script
+from graphica.models.project import ProjectModel
 
 
 def _make_project(datasets=None, all_plot_settings=None, rows=1, cols=1, layout_mode='grid'):

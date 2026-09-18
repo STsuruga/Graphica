@@ -29,10 +29,9 @@ import sys
 PROJECT_ROOT = os.path.dirname(os.path.abspath(SPEC))
 IS_MACOS = sys.platform == "darwin"
 
-# core/version.py の __version__ をmacOSの Info.plist に転記する
-# (バージョン文字列をこのファイルに二重管理しないため)
+# graphica/core/version.py の __version__ を macOS の Info.plist に転記する(二重管理しない)
 _version_spec = importlib.util.spec_from_file_location(
-    "graphica_version", os.path.join(PROJECT_ROOT, "core", "version.py")
+    "graphica_version", os.path.join(PROJECT_ROOT, "graphica", "core", "version.py")
 )
 _version_module = importlib.util.module_from_spec(_version_spec)
 _version_spec.loader.exec_module(_version_module)
@@ -40,15 +39,12 @@ APP_VERSION = _version_module.__version__
 
 block_cipher = None
 
+# resource_path() は凍結時に sys._MEIPASS を graphica/ の代わりに使うので、置き先は graphica/ からの相対位置と同じにする。
+PACKAGE_ROOT = os.path.join(PROJECT_ROOT, "graphica")
 datas = [
-    # 実行時に import される Qt Designer 生成ファイル。
-    (os.path.join(PROJECT_ROOT, "ui_main_window.py"), "."),
-    # gui/icon_utils.py がバンドルする Tabler Icons SVG 一式 (MIT license)。
-    (os.path.join(PROJECT_ROOT, "assets", "icons"), os.path.join("assets", "icons")),
-    # ウィンドウ/タスクバーアイコン (resource_path("Graphica.ico") で参照)。
-    (os.path.join(PROJECT_ROOT, "Graphica.ico"), "."),
-    # 初回起動時の「サンプルデータを読み込む」機能が参照するCSV。
-    (os.path.join(PROJECT_ROOT, "sample_data"), "sample_data"),
+    (os.path.join(PACKAGE_ROOT, "assets", "icons"), os.path.join("assets", "icons")),
+    (os.path.join(PACKAGE_ROOT, "Graphica.ico"), "."),
+    (os.path.join(PACKAGE_ROOT, "sample_data"), "sample_data"),
 ]
 
 hiddenimports = [
@@ -117,8 +113,10 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-icon_path = os.path.join(
-    PROJECT_ROOT, "Graphica.icns" if IS_MACOS else "Graphica.ico"
+# Graphica.icns は CI が graphica/Graphica.ico から Graphica_project/ 直下に生成する。
+icon_path = (
+    os.path.join(PROJECT_ROOT, "Graphica.icns") if IS_MACOS
+    else os.path.join(PACKAGE_ROOT, "Graphica.ico")
 )
 
 exe = EXE(

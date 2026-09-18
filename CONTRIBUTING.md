@@ -14,7 +14,9 @@ Graphica に関心を持っていただきありがとうございます。不�
 
 ## 開発環境
 
-Python 3.10 以降が必要です。作業ディレクトリは `Graphica_project/` です。
+Python 3.10 以降が必要です。作業ディレクトリは `Graphica_project/` で、本体のコードはすべて
+パッケージ `Graphica_project/graphica/` の下にあります(`python -m graphica` でも起動できます)。
+下に出てくる `core/…` や `gui/…` のパスは `graphica/` からの相対位置です。
 
 ```
 git clone https://github.com/STsuruga/Graphica.git
@@ -48,7 +50,7 @@ bash scripts/run_tests_chunked.sh            # フルスイート(約20分)
 [`CLAUDE.md`](CLAUDE.md) にまとめています(AI エージェント向けに書き始めたものですが、
 人が読んでもそのまま使えます)。特に次の点は壊しやすいので、該当箇所を触る前に読んでください。
 
-- `ui_main_window.py` は Qt Designer の生成物なので手で編集しない
+- `graphica/ui_main_window.py` は Qt Designer の生成物なので手で編集しない
 - データセットのプロパティパネルには、行を末尾に追加する(`_prop_form(...).addRow`)
 - マウスモードの排他制御は `gui/mixins/mouse_mode_mixin.py` の一覧に1行足す
 - `Dataset` / `ProjectModel` に項目を足すときは、既存のプロジェクトの見た目が変わらない既定値にする
@@ -70,7 +72,7 @@ bash scripts/run_tests_chunked.sh            # フルスイート(約20分)
 - docstring は、名前とコードから分からないことがあるときだけ 1〜2 行で書きます(無くてよい)。
   ただしプラグイン作者が読む公開 API(`core/plugin_api.py`、`core/plugin_testing.py`、
   `core/plugin_types.py`、`Dataset` の公開メソッド)は `Args:` / `Returns:` 付きで書きます。
-- 見本は `Graphica_project/core/named_colors.py` です。
+- 見本は `Graphica_project/graphica/core/named_colors.py` です。
 
 ## プラグイン
 

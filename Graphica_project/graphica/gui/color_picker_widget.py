@@ -11,12 +11,12 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QLineEdit,
                                QInputDialog, QMenu, QMessageBox)
 
-from core.i18n import tr
-from core.named_colors import (
+from graphica.core.i18n import tr
+from graphica.core.named_colors import (
     POPUP_LIMIT, NamedColorError, add_named_color, load_named_colors,
     save_named_colors,
 )
-from gui.color_history import get_color_with_history
+from graphica.gui.color_history import get_color_with_history
 
 # ポップアップに並べる色見本の一辺(px)
 _SWATCH_ICON_SIZE = 14
@@ -98,7 +98,7 @@ class ColorPickerWidget(QWidget):
         #   現在テーマのborder_strongトークンを参照するよう変更。
         # preview_color: カラーコード欄への入力中(未確定)のライブプレビュー用。
         #   Noneなら確定済みの self._color を使う(通常の再描画)。
-        from gui import theme
+        from graphica.gui import theme
         border_color = theme.current_tokens()["border_strong"]
         color_name = (preview_color or self._color).name()
         self.swatch_button.setStyleSheet(
@@ -168,7 +168,7 @@ class ColorPickerWidget(QWidget):
 
     def _on_choose_from_all_named_colors(self):
         """登録が POPUP_LIMIT 件を超えたときに開く、検索欄付きの一覧。"""
-        from gui.dialogs import NamedColorPickerDialog
+        from graphica.gui.dialogs import NamedColorPickerDialog
         dialog = NamedColorPickerDialog(self._settings, self)
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
@@ -207,7 +207,7 @@ class ColorPickerWidget(QWidget):
         ★ gui/dialogs.py はこのモジュールを取り込む側なので、循環importを避ける
         ため関数内で遅延importする。
         """
-        from gui.dialogs import NamedColorManagerDialog
+        from graphica.gui.dialogs import NamedColorManagerDialog
         dialog = NamedColorManagerDialog(self._settings, self)
         dialog.exec()
 
@@ -248,7 +248,7 @@ def _color_icon(color_name, size=_SWATCH_ICON_SIZE):
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    from gui import theme
+    from graphica.gui import theme
     painter.setPen(QPen(QColor(theme.current_tokens()["border_strong"]), 1))
     painter.setBrush(QColor(color_name))
     painter.drawRoundedRect(0, 0, size - 1, size - 1, 3, 3)

@@ -20,8 +20,8 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -214,7 +214,7 @@ def test_removing_free_subplot_reassigns_datasets_instead_of_hiding_them(tmp_pat
     どの軸にも描画されずサイレントに消えていた
     (gui/mixins/settings_mixin.py の _on_layout_changed と同種のバグ)。
     """
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)

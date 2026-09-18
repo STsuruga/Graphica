@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 from PySide6.QtCore import Qt
-from gui.theme import apply_form_spacing
+from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class ColumnPreviewDialog(QDialog):
 
         self.file_path = file_path
         self.current_df = df
-        from gui.workers import is_delimited_text_file, is_excel_file
+        from graphica.gui.workers import is_delimited_text_file, is_excel_file
         self.is_excel = is_excel_file(file_path)
         # ビルトインのCSV読み込み(gui/workers.pyのread_data_file)経由のファイルのみ
         # 対象(プラグインインポーターが読み込んだ他形式やクリップボード貼り付けは
@@ -108,7 +108,7 @@ class ColumnPreviewDialog(QDialog):
         self.sheet_names = []
         if self.is_excel:
             try:
-                from gui.workers import excel_engine_for
+                from graphica.gui.workers import excel_engine_for
                 self.sheet_names = pd.ExcelFile(file_path, engine=excel_engine_for(file_path)).sheet_names
             except Exception as e:
                 logger.warning("Excelのシート一覧取得に失敗しました: %s", e)
@@ -116,7 +116,7 @@ class ColumnPreviewDialog(QDialog):
         self._detected_encoding = None
         self._detected_delimiter = None
         if self.is_csv:
-            from gui.workers import detect_csv_encoding, detect_csv_delimiter
+            from graphica.gui.workers import detect_csv_encoding, detect_csv_delimiter
             try:
                 self._detected_encoding = detect_csv_encoding(file_path)
             except Exception as e:
@@ -325,7 +325,7 @@ class ColumnPreviewDialog(QDialog):
                     read_kwargs['widths'] = [int(w.strip()) for w in widths_text.split(',') if w.strip()]
                 new_df = pd.read_fwf(self.file_path, **read_kwargs)
             else:
-                from gui.workers import pandas_separator
+                from graphica.gui.workers import pandas_separator
                 delimiter = self._resolve_csv_delimiter()
                 # 推測結果が「空白」のとき、初回読み込み(read_data_file)と同じく
                 # 空白の連続を1つの区切りとみなす。
@@ -356,7 +356,7 @@ class ColumnPreviewDialog(QDialog):
         usecols = self.usecols_edit.text().strip() or None if self.usecols_edit else None
         nrows = (self.nrows_spinbox.value() or None) if self.nrows_spinbox else None
         try:
-            from gui.workers import excel_engine_for
+            from graphica.gui.workers import excel_engine_for
             new_df = pd.read_excel(
                 self.file_path, sheet_name=sheet_name, header=header_row,
                 usecols=usecols, nrows=nrows, engine=excel_engine_for(self.file_path)
@@ -674,7 +674,7 @@ class NewDatasetDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from core.i18n import tr
+        from graphica.core.i18n import tr
 
         self.setWindowTitle(tr("新規データセットを作成"))
         self.resize(360, 180)
@@ -702,7 +702,7 @@ class NewDatasetDialog(QDialog):
         apply_form_spacing(self)
 
     def _on_accept(self):
-        from core.i18n import tr
+        from graphica.core.i18n import tr
         if not self.get_dataset_name():
             QMessageBox.warning(self, tr("新規データセットを作成"), tr("データセット名を入力してください。"))
             return

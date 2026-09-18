@@ -2,8 +2,8 @@
 """core/app_paths.py (C-009: ログ出力先を%LOCALAPPDATA%に統一) のテスト。"""
 import os
 
-from core.app_paths import get_app_data_dir, get_user_plugins_dir
-from core.version import APP_NAME
+from graphica.core.app_paths import get_app_data_dir, get_user_plugins_dir
+from graphica.core.version import APP_NAME
 
 
 def test_get_app_data_dir_uses_localappdata_when_set(monkeypatch, tmp_path):

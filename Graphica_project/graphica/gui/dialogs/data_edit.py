@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from PySide6.QtCore import Qt
-from gui.theme import apply_form_spacing
+from graphica.gui.theme import apply_form_spacing
 
 
 
@@ -278,7 +278,7 @@ class CalcHelpDialog(QDialog):
     def refresh_theme(self):
         """表見出し行の色を現在のテーマトークンに合わせて再適用する
         (詳しい経緯はHelpDialog.refresh_theme参照、同じバグ・同じ対処)。"""
-        from gui import theme
+        from graphica.gui import theme
         _tokens = theme.current_tokens()
         self._text_browser.document().setDefaultStyleSheet(
             f"tr.header-row {{ background-color: {_tokens['surface_2']}; "

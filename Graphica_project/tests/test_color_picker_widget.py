@@ -5,7 +5,7 @@ QColorDialogを実際に開く経路(スウォッチボタンのクリック)は
 プログラム的な色更新(set_color)とカラーコード欄への直接入力(_on_hex_edited)の
 挙動のみを検証する(QColorDialog.getColor()はモーダルでブロックするため)。
 """
-from gui.color_picker_widget import ColorPickerWidget
+from graphica.gui.color_picker_widget import ColorPickerWidget
 
 
 def test_initial_color():
@@ -94,7 +94,7 @@ def test_hex_edit_same_color_does_not_emit_signal():
 #     rgba(128,128,128,110)ハードコードの解消) ---
 
 def test_swatch_border_uses_theme_border_strong_token(qapp):
-    from gui import theme
+    from graphica.gui import theme
     theme.apply_theme(qapp, dark=False)
     widget = ColorPickerWidget(settings=None, initial_color="#123456")
     assert theme.LIGHT_TOKENS["border_strong"] in widget.swatch_button.styleSheet()
@@ -102,7 +102,7 @@ def test_swatch_border_uses_theme_border_strong_token(qapp):
 
 
 def test_refresh_theme_updates_swatch_border_after_dark_mode_toggle(qapp):
-    from gui import theme
+    from graphica.gui import theme
     theme.apply_theme(qapp, dark=False)
     widget = ColorPickerWidget(settings=None, initial_color="#123456")
     assert theme.LIGHT_TOKENS["border_strong"] in widget.swatch_button.styleSheet()

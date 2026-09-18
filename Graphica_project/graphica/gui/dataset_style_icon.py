@@ -8,8 +8,8 @@ main_window.py (アイテム新規作成時) と dataset_mixin.py (プロパテ�
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPainter, QPen, QColor, QBrush, QIcon
 
-from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
-from gui.icon_utils import icon as _icon_from_svg
+from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
+from graphica.gui.icon_utils import icon as _icon_from_svg
 
 # アイコンのサイズ (幅, 高さ)
 _STYLE_ICON_SIZE = (28, 14)
@@ -116,5 +116,5 @@ def apply_dataset_visibility_text_style(item, dataset, column=0):
     if getattr(dataset, "visible", True):
         item.setData(column, Qt.ItemDataRole.ForegroundRole, None)
     else:
-        from gui import theme
+        from graphica.gui import theme
         item.setForeground(column, QBrush(QColor(theme.current_tokens()["text_muted"])))

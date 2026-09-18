@@ -7,8 +7,8 @@ plot_type描画のフォールバック配線はgui/canvas.py側でそれぞれ�
 """
 import pytest
 
-import core.plugin_api as plugin_api_module
-from core.plugin_api import GraphicaPluginAPI, get_registered_panels, get_registered_plot_types
+import graphica.core.plugin_api as plugin_api_module
+from graphica.core.plugin_api import GraphicaPluginAPI, get_registered_panels, get_registered_plot_types
 
 
 @pytest.fixture(autouse=True)

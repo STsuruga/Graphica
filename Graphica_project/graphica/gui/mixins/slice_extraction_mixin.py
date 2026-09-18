@@ -18,8 +18,8 @@ import logging
 
 from PySide6.QtWidgets import QMessageBox
 
-from core.dataset import Dataset
-from core.grid_data import extract_slice, GridDataError
+from graphica.core.dataset import Dataset
+from graphica.core.grid_data import extract_slice, GridDataError
 
 logger = logging.getLogger(__name__)
 

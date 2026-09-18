@@ -40,8 +40,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QToolBar, QMenu
 
-from core.i18n import tr
-from gui.dialogs import QuickAccessManagerDialog
+from graphica.core.i18n import tr
+from graphica.gui.dialogs import QuickAccessManagerDialog
 
 logger = logging.getLogger(__name__)
 

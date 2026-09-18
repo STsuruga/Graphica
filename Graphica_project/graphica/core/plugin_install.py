@@ -14,7 +14,7 @@ import tempfile
 import uuid
 import zipfile
 
-from core.app_paths import get_user_plugins_dir
+from graphica.core.app_paths import get_user_plugins_dir
 
 
 class PluginInstallError(Exception):

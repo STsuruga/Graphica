@@ -3,9 +3,9 @@
 import json
 import zipfile
 
-from core.diagnostics import build_diagnostic_bundle
-from core.plugin_manifest import PLUGIN_API_VERSION
-from core.version import LOG_FILE_NAME, __version__
+from graphica.core.diagnostics import build_diagnostic_bundle
+from graphica.core.plugin_manifest import PLUGIN_API_VERSION
+from graphica.core.version import LOG_FILE_NAME, __version__
 
 
 def test_build_diagnostic_bundle_creates_zip_with_expected_entries(tmp_path, monkeypatch):
@@ -74,7 +74,7 @@ def test_build_diagnostic_bundle_includes_settings_txt_when_given(tmp_path, monk
 def test_build_diagnostic_bundle_plugins_txt_handles_unloaded_registry(tmp_path, monkeypatch):
     """load_plugins_once()が一度も呼ばれていない(get_loaded_plugin_records()がNoneを返す)
     状態でもクラッシュしないこと。"""
-    import core.plugin_api as plugin_api_module
+    import graphica.core.plugin_api as plugin_api_module
     monkeypatch.setattr(plugin_api_module, "_singleton_manager", None)
     monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / "appdata"))
     out_path = tmp_path / "diag.zip"
@@ -89,7 +89,7 @@ def test_build_diagnostic_bundle_plugins_txt_handles_unloaded_registry(tmp_path,
 def test_build_diagnostic_bundle_plugins_txt_includes_hook_level_registration_errors(tmp_path, monkeypatch):
     """フック単位の登録失敗(フェーズA-2、プラグイン全体としては成功扱いなので
     通常のプラグイン一覧には現れない)も、診断バンドルには含まれること。"""
-    import core.plugin_api as plugin_api_module
+    import graphica.core.plugin_api as plugin_api_module
     monkeypatch.setattr(plugin_api_module, "_singleton_api", None)
     monkeypatch.setattr(plugin_api_module, "_singleton_manager", None)
     monkeypatch.setenv('LOCALAPPDATA', str(tmp_path / "appdata"))

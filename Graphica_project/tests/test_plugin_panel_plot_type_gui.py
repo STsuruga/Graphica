@@ -8,10 +8,10 @@ tests/test_main_window.py の _make_isolated_plotter_app に倣う。
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QLabel
 
-import core.plugin_api as plugin_api_module
-import gui.main_window as main_window_module
-from core.plugin_api import GraphicaPluginAPI
-from gui.main_window import PlotterApp
+import graphica.core.plugin_api as plugin_api_module
+import graphica.gui.main_window as main_window_module
+from graphica.core.plugin_api import GraphicaPluginAPI
+from graphica.gui.main_window import PlotterApp
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):

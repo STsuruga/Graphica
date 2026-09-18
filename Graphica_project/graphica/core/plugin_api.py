@@ -19,10 +19,10 @@ import logging
 import os
 import sys
 
-from core.analysis import register_fit_function
+from graphica.core.analysis import register_fit_function
 # 外部プラグインが core.plugin_api から import している可能性があるため再公開する。
-from core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestError, load_plugin_manifest  # noqa: F401
-from core.plugin_types import (
+from graphica.core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestError, load_plugin_manifest  # noqa: F401
+from graphica.core.plugin_types import (
     PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter, PluginMenuAction,
     PluginPanel, PluginPlotType, PluginProcessor, PluginRegistrationError,
     PluginRenderBackend,

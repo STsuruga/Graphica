@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from core.dataset import Dataset
+from graphica.core.dataset import Dataset
 
 
 def make_dataset(**overrides):

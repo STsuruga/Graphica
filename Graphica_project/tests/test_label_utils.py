@@ -1,6 +1,6 @@
 # tests/test_label_utils.py
 """core/label_utils.py (項目127、C-608: 列の単位メタデータ→軸ラベル自動生成) のテスト。"""
-from core.label_utils import infer_axis_label_from_column_name
+from graphica.core.label_utils import infer_axis_label_from_column_name
 
 
 def test_infers_label_from_parentheses_format():

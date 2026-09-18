@@ -33,8 +33,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QEvent, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QKeySequence
-from gui import icon_utils
-from gui.theme import apply_form_spacing
+from graphica.gui import icon_utils
+from graphica.gui.theme import apply_form_spacing
 
 
 
@@ -62,7 +62,7 @@ class PreferencesDialog(QDialog):
         空リストの「1つも無い」とは区別して表示する。
         """
         super().__init__(parent)
-        from core.i18n import tr, SUPPORTED_LANGUAGES, get_language
+        from graphica.core.i18n import tr, SUPPORTED_LANGUAGES, get_language
         self.setWindowTitle(tr("環境設定"))
         # ★ QGroupBoxの見出しをアクセントカラーの背景チップで目立たせるQSS
         #   (GUIモダン化第2弾、項目68)により、各グループボックスの上部余白
@@ -121,7 +121,7 @@ class PreferencesDialog(QDialog):
         autosave_dir_row = QHBoxLayout()
         self.autosave_dir_edit = QLineEdit(self._autosave_dir)
         self.autosave_dir_edit.setReadOnly(True)
-        from core.app_paths import get_app_data_dir
+        from graphica.core.app_paths import get_app_data_dir
         self.autosave_dir_edit.setPlaceholderText(tr("(既定: {path})").format(path=get_app_data_dir()))
         self.autosave_dir_browse_button = QPushButton(tr("参照..."))
         self.autosave_dir_browse_button.setIcon(icon_utils.icon("folder"))
@@ -234,7 +234,7 @@ class PreferencesDialog(QDialog):
         1行を出す。各行のチェック状態は現在の無効化設定を反映する(表示専用の
         行=状態未読込プラグイン向けエラー行にはチェックボックスを付けない)。
         """
-        from core.i18n import tr
+        from graphica.core.i18n import tr
         self.plugin_list.clear()
         if plugin_records is None:
             item = QListWidgetItem(tr("(プラグインは読み込まれていません)"))
@@ -271,7 +271,7 @@ class PreferencesDialog(QDialog):
             self.plugin_list.addItem(item)
 
     def _populate_hook_errors_list(self, plugin_registration_errors):
-        from core.i18n import tr
+        from graphica.core.i18n import tr
         self.plugin_hook_errors_list.clear()
         if not plugin_registration_errors:
             item = QListWidgetItem(tr("(フック単位の登録エラーはありません)"))
@@ -297,11 +297,11 @@ class PreferencesDialog(QDialog):
         return disabled
 
     def _on_open_plugins_folder(self):
-        from core.app_paths import get_user_plugins_dir
+        from graphica.core.app_paths import get_user_plugins_dir
         QDesktopServices.openUrl(QUrl.fromLocalFile(get_user_plugins_dir()))
 
     def _on_browse_autosave_dir(self):
-        from core.i18n import tr
+        from graphica.core.i18n import tr
         directory = QFileDialog.getExistingDirectory(
             self, tr("オートセーブの保存先を選択"), self._autosave_dir or ""
         )
@@ -314,14 +314,14 @@ class PreferencesDialog(QDialog):
         self.autosave_dir_edit.setText("")
 
     def _on_install_plugin(self):
-        from core.i18n import tr
+        from graphica.core.i18n import tr
         zip_path, _ = QFileDialog.getOpenFileName(
             self, tr("プラグインをインストール"), "", tr("Zip files (*.zip)")
         )
         if not zip_path:
             return
 
-        from core.plugin_install import install_plugin_zip, PluginInstallError
+        from graphica.core.plugin_install import install_plugin_zip, PluginInstallError
         try:
             installed_name = install_plugin_zip(zip_path)
         except PluginInstallError as e:
@@ -584,7 +584,7 @@ class HelpDialog(QDialog):
         古いテーマのまま取り残されるバグがあった
         (gui/mixins/ui_setup_mixin.py の _on_toggle_dark_mode から呼ばれる)。
         """
-        from gui import theme
+        from graphica.gui import theme
         _tokens = theme.current_tokens()
         self._text_browser.document().setDefaultStyleSheet(
             f"tr.header-row {{ background-color: {_tokens['surface_2']}; "
@@ -606,8 +606,8 @@ class AboutDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from core.version import APP_NAME, __version__
-        from core.i18n import tr
+        from graphica.core.version import APP_NAME, __version__
+        from graphica.core.i18n import tr
 
         self.setWindowTitle(tr("{app} について").format(app=APP_NAME))
         self.resize(420, 380)
@@ -684,8 +684,8 @@ class WelcomeDialog(QDialog):
     def __init__(self, parent=None, recent_files=None):
         super().__init__(parent)
         import os
-        from core.version import APP_NAME
-        from core.i18n import tr
+        from graphica.core.version import APP_NAME
+        from graphica.core.i18n import tr
 
         self.setWindowTitle(tr("{app} へようこそ").format(app=APP_NAME))
         self.resize(480, 560)
@@ -966,7 +966,7 @@ class QuickAccessManagerDialog(QDialog):
                 チェック状態が変わった項目に対して呼ばれる、ピン留め/解除の実処理。
         """
         super().__init__(parent)
-        from core.i18n import tr
+        from graphica.core.i18n import tr
 
         self.setWindowTitle(tr("クイックアクセスの管理"))
         self.resize(480, 420)

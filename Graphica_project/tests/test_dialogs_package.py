@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-import gui.dialogs as dialogs_package
+import graphica.gui.dialogs as dialogs_package
 
 
 PACKAGE_DIR = Path(dialogs_package.__file__).parent
@@ -49,7 +49,7 @@ def _submodule_names():
 
 def _iter_submodules():
     for name in sorted(_submodule_names()):
-        yield name, importlib.import_module(f"gui.dialogs.{name}")
+        yield name, importlib.import_module(f"graphica.gui.dialogs.{name}")
 
 
 def _public_classes(module):
@@ -128,7 +128,7 @@ def test_callers_can_still_import_from_gui_dialogs(class_name):
     呼び出し側44箇所はすべて `from gui.dialogs import X` の形。分割しても
     そのまま通ることが、この作業の前提条件だった。
     """
-    module = importlib.import_module("gui.dialogs")
+    module = importlib.import_module("graphica.gui.dialogs")
     assert isinstance(getattr(module, class_name), type)
 
 
@@ -138,10 +138,10 @@ def test_no_caller_had_to_switch_to_a_submodule_path():
     そうなると、ダイアログを別のモジュールへ移すたびに呼び出し側の修正が必要になり、
     再エクスポートで吸収している意味が無くなる。
     """
-    project_root = PACKAGE_DIR.parent.parent
+    project_root = PACKAGE_DIR.parent.parent.parent
     offenders = []
-    for path in list((project_root / "gui").rglob("*.py")) + \
-            list((project_root / "core").rglob("*.py")):
+    for path in list((project_root / "graphica" / "gui").rglob("*.py")) + \
+            list((project_root / "graphica" / "core").rglob("*.py")):
         if PACKAGE_DIR in path.parents:
             continue
         text = path.read_text(encoding="utf-8")
@@ -187,6 +187,6 @@ def test_the_package_is_shipped_by_pyproject():
     gui.dialogs が見えなくなる(CLAUDE.md「A plugin repo tests against Graphica
     via pip install -e」参照)。
     """
-    project_root = PACKAGE_DIR.parent.parent
+    project_root = PACKAGE_DIR.parent.parent.parent
     text = (project_root / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"gui.dialogs"' in text
+    assert '"graphica.gui.dialogs"' in text

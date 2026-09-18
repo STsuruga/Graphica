@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from core.cvd_simulation import (
+from graphica.core.cvd_simulation import (
     CVD_MATRICES, CVD_TYPE_LABELS, simulate_rgb_array, simulate_hex_color,
 )
 

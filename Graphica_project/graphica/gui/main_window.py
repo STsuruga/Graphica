@@ -167,7 +167,7 @@ MAX_RECENT_FILES = 10
 # --- ドラッグ&ドロップでの複数ファイル一括読み込みに関する定数 ---
 # gui/workers.py の read_data_file() が実際に読み込める拡張子のみを許可する
 # (ファイルダイアログのフィルタと同じ一覧を gui/workers.py から共有する)
-from gui.workers import BUILTIN_DATA_FILE_EXTENSIONS  # noqa: E402
+from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS  # noqa: E402
 SUPPORTED_DATA_FILE_EXTENSIONS = BUILTIN_DATA_FILE_EXTENSIONS
 
 # 未保存の変更の確認ダイアログ(v1.4.2)を無効にする環境変数。テストスイートは
@@ -190,37 +190,37 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDial
                                QStyledItemDelegate, QStyleOptionViewItem, QStyle, QHeaderView)
 from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack, QPainter, QPainterPath
 from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal, QRectF, QByteArray
-from models.project import ProjectModel
-from core.version import APP_NAME, __version__
-from core.i18n import tr, set_language, DEFAULT_LANGUAGE
-from core.plugin_api import load_plugins_once, get_registered_importer_extensions
-from core.plugin_types import PluginExecutionError
-from gui.plugin_context import TabPluginContext
-from core.app_paths import get_app_data_dir, get_user_plugins_dir
+from graphica.models.project import ProjectModel
+from graphica.core.version import APP_NAME, __version__
+from graphica.core.i18n import tr, set_language, DEFAULT_LANGUAGE
+from graphica.core.plugin_api import load_plugins_once, get_registered_importer_extensions
+from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui.plugin_context import TabPluginContext
+from graphica.core.app_paths import get_app_data_dir, get_user_plugins_dir
 
 # --- Matplotlib ---
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
 # --- Qt Designer から生成された UI ---
 # ※ main_window.py と同じ階層ではなく大元のフォルダにあるため、そのままインポートできます
-from ui_main_window import Ui_MainWindow
+from graphica.ui_main_window import Ui_MainWindow
 
 # --- 自分で分割したモジュール ---
-from core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
-from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
-from core.commands import AddDatasetCommand, RemoveDatasetCommand
-from gui.canvas import (MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS, DEFAULT_MAJOR_TICK_LENGTH,
+from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
+from graphica.core.commands import AddDatasetCommand, RemoveDatasetCommand
+from graphica.gui.canvas import (MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS, DEFAULT_MAJOR_TICK_LENGTH,
                         MINOR_TICK_LENGTH_AUTO)
-from gui.minimap_widget import MinimapWidget
-from gui.detached_canvas_window import DetachedCanvasWindow
-from gui import theme
-from gui.theme import apply_form_spacing
-from gui.workers import load_data_file_task, excel_engine_for, is_excel_file
-from gui.task_runner import TaskRunner
-from gui.dialogs import (ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog,
+from graphica.gui.minimap_widget import MinimapWidget
+from graphica.gui.detached_canvas_window import DetachedCanvasWindow
+from graphica.gui import theme
+from graphica.gui.theme import apply_form_spacing
+from graphica.gui.workers import load_data_file_task, excel_engine_for, is_excel_file
+from graphica.gui.task_runner import TaskRunner
+from graphica.gui.dialogs import (ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog,
                          FolderImportDialog, AutosaveHistoryDialog)
-from gui.color_picker_widget import ColorPickerWidget
-from gui.icon_utils import load_svg_icon, ICONS_DIR
+from graphica.gui.color_picker_widget import ColorPickerWidget
+from graphica.gui.icon_utils import load_svg_icon, ICONS_DIR
 
 # キャンバス上部ツールバーのアイコンサイズ(px)。Qtの既定は24pxだが、
 # カスタムボタンを追加した結果、ウィンドウ幅が狭いときにツールバーが溢れ、
@@ -264,7 +264,7 @@ def _svg_icon(name, size=20):
     については_on_toggle_dark_mode側で明示的に再設定する
     (_refresh_custom_svg_icons、gui/mixins/ui_setup_mixin.py参照)。
     """
-    from gui import theme
+    from graphica.gui import theme
     color = theme.current_tokens()["text_secondary"]
     return load_svg_icon(resource_path(os.path.join(ICONS_DIR, f"{name}.svg")),
                           color=color, size=size)
@@ -282,19 +282,19 @@ def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, m
     monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", ...)
     でこのモジュール属性を直接差し替える前提になっているため。
     """
-    from core.excel_utils import find_unevaluated_formula_cells as _impl
+    from graphica.core.excel_utils import find_unevaluated_formula_cells as _impl
     return _impl(file_path, sheet_name, max_examples, max_scan_cells)
 
 
-from gui.export_preview_panel import ExportPreviewPanel
-from gui.residual_panel import ResidualPanel
-from gui.provenance_panel import ProvenancePanel
-from gui.dataset_style_icon import (
+from graphica.gui.export_preview_panel import ExportPreviewPanel
+from graphica.gui.residual_panel import ResidualPanel
+from graphica.gui.provenance_panel import ProvenancePanel
+from graphica.gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN,
 )
-from gui.mathtext_preview import FitWidthPixmapLabel, JP_CAPABLE_FONT_FAMILIES
-from gui.color_history import load_recent_colors_into_picker
+from graphica.gui.mathtext_preview import FitWidthPixmapLabel, JP_CAPABLE_FONT_FAMILIES
+from graphica.gui.color_history import load_recent_colors_into_picker
 
 # グラフ内テキスト(目盛り・軸ラベル・凡例)の既定フォント。
 # アプリのUIフォント(main.py の APP_FONT_FAMILIES)とは意図的に別系統にしている:
@@ -322,23 +322,23 @@ def _make_default_plot_font():
     return font
 
 # --- 責務ごとに分割した Mixin (God Object 化を避けるための構成) ---
-from gui.mixins.ui_setup_mixin import UISetupMixin
-from gui.mixins.settings_mixin import SettingsMixin
-from gui.mixins.dataset_mixin import DatasetMixin
-from gui.mixins.mouse_mode_mixin import MouseModeMixin
-from gui.mixins.cursor_mixin import CursorMixin
-from gui.mixins.annotation_mixin import (
+from graphica.gui.mixins.ui_setup_mixin import UISetupMixin
+from graphica.gui.mixins.settings_mixin import SettingsMixin
+from graphica.gui.mixins.dataset_mixin import DatasetMixin
+from graphica.gui.mixins.mouse_mode_mixin import MouseModeMixin
+from graphica.gui.mixins.cursor_mixin import CursorMixin
+from graphica.gui.mixins.annotation_mixin import (
     AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
 )
-from gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
-from gui.mixins.range_select_mixin import RangeSelectMixin
-from gui.mixins.peak_placement_mixin import PeakPlacementMixin
-from gui.mixins.slice_extraction_mixin import SliceExtractionMixin
-from gui.mixins.region_highlight_mixin import RegionHighlightMixin
-from gui.mixins.export_mixin import ExportMixin
-from gui.mixins.project_io_mixin import ProjectIOMixin
-from gui.mixins.help_mixin import HelpMixin
-from gui.mixins.quick_access_mixin import QuickAccessMixin
+from graphica.gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
+from graphica.gui.mixins.range_select_mixin import RangeSelectMixin
+from graphica.gui.mixins.peak_placement_mixin import PeakPlacementMixin
+from graphica.gui.mixins.slice_extraction_mixin import SliceExtractionMixin
+from graphica.gui.mixins.region_highlight_mixin import RegionHighlightMixin
+from graphica.gui.mixins.export_mixin import ExportMixin
+from graphica.gui.mixins.project_io_mixin import ProjectIOMixin
+from graphica.gui.mixins.help_mixin import HelpMixin
+from graphica.gui.mixins.quick_access_mixin import QuickAccessMixin
 
 
 def resource_path(relative_path):
@@ -4100,7 +4100,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             QMessageBox.information(self, "クリップボードから貼り付け", "クリップボードにテキストデータがありません。")
             return
 
-        from gui.workers import detect_clipboard_delimiter
+        from graphica.gui.workers import detect_clipboard_delimiter
         delimiter = detect_clipboard_delimiter(text)
         try:
             df = pd.read_csv(io.StringIO(text), sep=delimiter, engine='python')

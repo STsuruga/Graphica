@@ -22,11 +22,11 @@ from PySide6.QtGui import QIcon, QUndoGroup
 from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QMessageBox, QDockWidget,
                                QUndoView, QWidget, QHBoxLayout)
 
-from gui.main_window import PlotterApp, resource_path
-from gui.app_context import AppContext
-from gui.icon_utils import icon as svg_icon
-from gui import theme
-from core.version import APP_NAME, __version__
+from graphica.gui.main_window import PlotterApp, resource_path
+from graphica.gui.app_context import AppContext
+from graphica.gui.icon_utils import icon as svg_icon
+from graphica.gui import theme
+from graphica.core.version import APP_NAME, __version__
 
 logger = logging.getLogger(__name__)
 

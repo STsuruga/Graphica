@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFont
-from gui.theme import apply_form_spacing
+from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class FitDialog(QDialog):
         ])
         # プラグインが追加したフィット関数を、組み込みの選択肢と
         # 「カスタム数式...」の間に挿入する
-        from core.analysis import get_plugin_fit_type_names
+        from graphica.core.analysis import get_plugin_fit_type_names
         self.fit_type_combo.addItems(get_plugin_fit_type_names())
         self.fit_type_combo.addItem("カスタム数式...")
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
@@ -208,7 +208,7 @@ class FitDialog(QDialog):
         fit_type = self.fit_type_combo.currentText()
         custom_formula = self.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
         try:
-            from core.analysis import get_fit_param_names
+            from graphica.core.analysis import get_fit_param_names
             param_names = get_fit_param_names(fit_type, custom_formula)
         except ValueError:
             param_names = []
@@ -501,7 +501,7 @@ class MultiPeakFitDialog(QDialog):
         settings = PeakSettingsDialog.get_peak_settings(self)
         if settings is None:
             return
-        from core.analysis import calculate_peak_quantification
+        from graphica.core.analysis import calculate_peak_quantification
         try:
             result = calculate_peak_quantification(
                 self._x_data, self._y_data, settings['peak_type'], settings
@@ -677,7 +677,7 @@ class ResultDialog(QDialog):
             layout.addWidget(QLabel("残差プロット (実測値 - フィット値)"))
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
             from matplotlib.figure import Figure
-            from gui import theme
+            from graphica.gui import theme
             # ★ バグ修正: この残差プロットはgui/canvas.pyのMplCanvasとは別の、
             # 独立したFigureを都度その場で作っているため、canvas.py側の
             # dark_mode分岐(facecolor/文字色/グリッド色)を一切継承しない。

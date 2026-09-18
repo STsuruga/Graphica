@@ -153,7 +153,7 @@ def main():
     lines.append("# テストカバレッジ")
     lines.append("")
     lines.append(f"計測日: {date.today().isoformat()}  ")
-    lines.append("対象: `core` / `gui` / `models`(設定は `pyproject.toml` の "
+    lines.append("対象: `graphica`(設定は `pyproject.toml` の "
                  "`[tool.coverage.*]`)")
     lines.append("")
     lines.append("このファイルは `bash scripts/run_coverage.sh` が自動生成する。"

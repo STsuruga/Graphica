@@ -21,8 +21,8 @@ import pickle
 import numpy as np
 import pandas as pd
 
-from core.dataset import Dataset
-from models.project import ProjectModel
+from graphica.core.dataset import Dataset
+from graphica.models.project import ProjectModel
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 

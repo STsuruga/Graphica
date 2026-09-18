@@ -5,8 +5,8 @@ import zipfile
 
 import pytest
 
-import core.plugin_install as plugin_install_module
-from core.plugin_install import install_plugin_zip, PluginInstallError
+import graphica.core.plugin_install as plugin_install_module
+from graphica.core.plugin_install import install_plugin_zip, PluginInstallError
 
 
 def _make_wrapped_zip(tmp_path, zip_name, folder_name, extra_content="x = 1"):

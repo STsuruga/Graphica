@@ -25,8 +25,8 @@ from matplotlib.figure import Figure
 from matplotlib.widgets import SpanSelector
 from PySide6.QtCore import Signal
 
-from core.analysis import calculate_lttb_downsample
-from core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.core.analysis import calculate_lttb_downsample
+from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 
 logger = logging.getLogger(__name__)
 

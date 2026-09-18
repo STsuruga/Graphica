@@ -20,8 +20,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from gui.canvas import MplCanvas, WATERFALL_DEPTH_SHRINK_MIN_SCALE
-from core.dataset import Dataset
+from graphica.gui.canvas import MplCanvas, WATERFALL_DEPTH_SHRINK_MIN_SCALE
+from graphica.core.dataset import Dataset
 
 
 @pytest.fixture

@@ -45,7 +45,7 @@ def icon(name, color=None, size=16):
     (ダイアログを開き直せば常に最新のテーマ色を拾う)。
     """
     if color is None:
-        from gui import theme
+        from graphica.gui import theme
         color = theme.current_tokens()["text_secondary"]
     svg_path = os.path.join(_PROJECT_ROOT, ICONS_DIR, f"{name}.svg")
     return load_svg_icon(svg_path, color=color, size=size)

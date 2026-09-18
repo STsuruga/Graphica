@@ -16,8 +16,8 @@ import traceback
 
 from PySide6.QtWidgets import QMessageBox
 
-from core.version import APP_NAME, LOG_FILE_NAME
-from core.app_paths import get_app_data_dir
+from graphica.core.version import APP_NAME, LOG_FILE_NAME
+from graphica.core.app_paths import get_app_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,6 @@ def prompt_safe_mode_and_apply(settings, parent=None):
     # 未処理例外まわりのモジュールだが、既存のclean_exit追跡を持つ
     # main_window.py 側ではなく、main.pyの起動シーケンスから呼びやすい
     # このモジュールに置くほうが自然なため、F-4の実装場所としてここを選んだ)。
-    from core.plugin_api import set_safe_mode
+    from graphica.core.plugin_api import set_safe_mode
     set_safe_mode(True)
     return True

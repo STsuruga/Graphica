@@ -12,8 +12,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTreeWidgetItem
 
-from core.dataset import Dataset
-from gui.dataset_style_icon import (
+from graphica.core.dataset import Dataset
+from graphica.gui.dataset_style_icon import (
     make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_NAME_COLUMN,
 )

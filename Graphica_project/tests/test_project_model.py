@@ -6,8 +6,8 @@ import pickle
 import pandas as pd
 import pytest
 
-from core.dataset import Dataset
-from models.project import ProjectModel
+from graphica.core.dataset import Dataset
+from graphica.models.project import ProjectModel
 
 
 def make_project():
@@ -182,3 +182,33 @@ def test_notify_changed_without_any_connection_does_not_raise():
     (既存の約38箇所の直接呼び出しには一切影響しない、というスコープを裏付ける)。"""
     project = ProjectModel()
     project.notify_changed()  # 例外にならないこと
+
+
+def test_pkl_saved_before_the_graphica_package_move_still_loads(tmp_path):
+    """パッケージを graphica.* に移す前の .pkl は、Dataset を "core.dataset" の名前で持っている。"""
+    project = ProjectModel()
+    project.datasets.append(Dataset(name="old", df=pd.DataFrame({"x": [1.0, 2.0], "y": [3.0, 4.0]}),
+                                    x_col_name="x", y_col_name="y"))
+    current = tmp_path / "current.pkl"
+    project.save_project(str(current))
+    with open(current, "rb") as f:
+        data = pickle.load(f)  # テストで作ったファイルなので制限なしで読んでよい
+    # protocol 3 はクラスをモジュール名の文字列で参照するので、旧い名前に置き換えられる
+    legacy_bytes = pickle.dumps(data, protocol=3).replace(b"graphica.core.dataset", b"core.dataset")
+    assert b"core.dataset" in legacy_bytes and b"graphica.core" not in legacy_bytes
+    legacy = tmp_path / "legacy.pkl"
+    legacy.write_bytes(legacy_bytes)
+
+    reloaded = ProjectModel()
+    reloaded.load_project(str(legacy))
+
+    assert [ds.name for ds in reloaded.datasets] == ["old"]
+    assert isinstance(reloaded.datasets[0], Dataset)
+
+
+def test_restricted_unpickler_still_rejects_other_old_style_modules(tmp_path):
+    """旧い名前の読み替えは core.dataset だけ。ほかの core.* は許可しない。"""
+    path = tmp_path / "evil.pkl"
+    path.write_bytes(b"ccore.plugin_api\nset_safe_mode\n.")
+    with pytest.raises(pickle.UnpicklingError, match="core.plugin_api"):
+        ProjectModel().load_project(str(path))

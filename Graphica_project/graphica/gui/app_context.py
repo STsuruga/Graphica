@@ -23,8 +23,8 @@ import os
 
 from PySide6.QtCore import QSettings
 
-from core.plugin_api import load_plugins_once
-from gui.main_window import MAX_RECENT_FILES, disabled_plugin_names, plugin_search_paths
+from graphica.core.plugin_api import load_plugins_once
+from graphica.gui.main_window import MAX_RECENT_FILES, disabled_plugin_names, plugin_search_paths
 
 
 class AppContext:

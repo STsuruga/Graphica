@@ -14,11 +14,11 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from core.analysis import calculate_zscore_outliers, sample_standard_deviation
-from core.dataset import Dataset
-from gui.canvas import _compute_stat_label_text
-from gui.main_window import PlotterApp
+import graphica.gui.main_window as main_window_module
+from graphica.core.analysis import calculate_zscore_outliers, sample_standard_deviation
+from graphica.core.dataset import Dataset
+from graphica.gui.canvas import _compute_stat_label_text
+from graphica.gui.main_window import PlotterApp
 
 VALUES = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]  # 母SD=2.0、標本SD≈2.138
 SAMPLE_SD = float(np.std(VALUES, ddof=1))

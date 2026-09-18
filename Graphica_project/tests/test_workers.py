@@ -7,10 +7,10 @@
 import pandas as pd
 import pytest
 
-import core.plugin_api as plugin_api_module
-from core.plugin_api import GraphicaPluginAPI
-from core.plugin_types import PluginExecutionError
-from gui.workers import (load_data_file_task, read_data_file, detect_csv_encoding, detect_csv_delimiter,
+import graphica.core.plugin_api as plugin_api_module
+from graphica.core.plugin_api import GraphicaPluginAPI
+from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui.workers import (load_data_file_task, read_data_file, detect_csv_encoding, detect_csv_delimiter,
                          detect_clipboard_delimiter)
 
 

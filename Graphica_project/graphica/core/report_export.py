@@ -10,7 +10,7 @@ import base64
 import datetime
 import html
 
-from core.methods_text import generate_methods_text
+from graphica.core.methods_text import generate_methods_text
 
 
 def collect_methods_sections(project):

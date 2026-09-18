@@ -9,8 +9,8 @@
 """
 import pytest
 
-from core.color_palettes import BUILTIN_PALETTES
-from gui.dialogs import ColorPaletteDialog
+from graphica.core.color_palettes import BUILTIN_PALETTES
+from graphica.gui.dialogs import ColorPaletteDialog
 
 
 @pytest.mark.parametrize("builtin_name", sorted(BUILTIN_PALETTES))
