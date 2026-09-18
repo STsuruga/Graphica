@@ -394,6 +394,21 @@ def test_find_downward_peaks_inverts_signal():
     assert len(peak_x) >= 1
 
 
+@pytest.mark.parametrize("peak_type, offset, expected_y", [
+    ("下に凸 (Valleys)", +5.0, 3.0),   # 谷が Y>0 にある
+    ("上に凸 (Peaks)", -5.0, -3.0),    # 山が Y<0 にある
+])
+def test_peak_detection_without_height_finds_features_on_either_side_of_zero(peak_type, offset, expected_y):
+    x = np.linspace(0, 20, 400)
+    sign = -1.0 if "下に凸" in peak_type else 1.0
+    y = offset + sign * 2.0 * np.exp(-((x - 10) ** 2) / (2 * 0.3 ** 2))
+    settings = {"height": None, "prominence": None, "distance_x": 0}
+    peak_x, peak_y = calculate_peaks(x, y, peak_type, settings)
+
+    assert len(peak_x) == 1
+    assert peak_y[0] == pytest.approx(expected_y, abs=0.05)
+
+
 def test_downward_peak_height_threshold_uses_correct_sign_for_valleys():
     """
     回帰テスト: 「下に凸(谷)」検出はfind_peaks(-y_data)と信号を反転させて

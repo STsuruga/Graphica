@@ -563,108 +563,68 @@ class MultiPeakFitDialog(QDialog):
 
 
 
-#==============================================================================
-# カスタムダイアログクラス (3)
-#==============================================================================
 class PeakSettingsDialog(QDialog):
-    """
-    ピーク検出 (find_peaks) のパラメータを入力するためのダイアログクラスです。
-    
-    scipy.signal.find_peaks の height, distance, prominence に対応する値を
-    ユーザーが入力できるようにします。
-    """
-    
+    """ピーク/谷検出(scipy.signal.find_peaks)の height・distance・prominence を入力する。"""
+
+    # height の最小値を「なし」(高さで絞らない)として表示する。
+    _HEIGHT_NONE = -1e12
+
     def __init__(self, parent=None):
-        """
-        ダイアログのUIコンポーネントを初期化します。
-        
-        Args:
-            parent (QWidget, optional): 親ウィジェット。
-        """
         super().__init__(parent)
         self.setWindowTitle("ピーク検出 設定")
-        
-        # UIのレイアウトとして QFormLayout を使用 (ラベル: [入力欄] の形式に最適)
         layout = QFormLayout(self)
 
-        # --- 検出タイプの選択 ---
         self.type_combo = QComboBox()
         self.type_combo.addItems(["上に凸 (Peaks)", "下に凸 (Valleys)"])
-        # insertRow(0, ...) で、レイアウトの先頭 (0行目) に挿入
-        layout.insertRow(0, "検出タイプ", self.type_combo)
+        layout.addRow("検出タイプ", self.type_combo)
 
-        # --- 最小高さ (height) ---
+        # 既定を 0 にすると、Y<0 の山や Y>0 の谷が1つも見つからない。
         self.height_spinbox = QDoubleSpinBox()
-        self.height_spinbox.setToolTip("検出するピーク/谷の最小高さ (Y値)。\n例: 5 を指定すると Y > 5 のピークのみ検出。\n例: -10 を指定すると Y < -10 の谷のみ検出。")
-        self.height_spinbox.setDecimals(4) # 小数点以下4桁まで
-        self.height_spinbox.setRange(-np.inf, np.inf) # 負の値（谷の閾値）も許容
-        self.height_spinbox.setValue(0.0) # デフォルト値
-        
-        # --- 最小距離 (distance) ---
+        self.height_spinbox.setToolTip("検出するピーク/谷の最小高さ (Y値)。「なし」は高さで絞らない。\n例: 5 を指定すると Y > 5 のピークのみ検出。\n例: -10 を指定すると Y < -10 の谷のみ検出。")
+        self.height_spinbox.setDecimals(4)
+        self.height_spinbox.setRange(self._HEIGHT_NONE, 1e12)
+        self.height_spinbox.setSpecialValueText("なし")
+        self.height_spinbox.setValue(self._HEIGHT_NONE)
+
         self.distance_spinbox = QDoubleSpinBox()
         self.distance_spinbox.setToolTip("隣接するピーク/谷の間の最小距離 (X軸の値)。\n近すぎるピーク/谷を間引きます。")
         self.distance_spinbox.setDecimals(4)
-        self.distance_spinbox.setRange(0.0001, np.inf) # 0より大きい値である必要がある
-        self.distance_spinbox.setValue(1.0) # デフォルト値
-        
-        # --- 突出度 (prominence) ---
+        self.distance_spinbox.setRange(0.0001, np.inf)
+        self.distance_spinbox.setValue(1.0)
+
         self.prominence_spinbox = QDoubleSpinBox()
         self.prominence_spinbox.setToolTip("ピーク/谷の突出度 (周囲のデータからの際立ち)。\nノイズのような小さなピーク/谷を除去するのに有効です。")
         self.prominence_spinbox.setDecimals(4)
-        self.prominence_spinbox.setRange(0.0, np.inf) # 0以上
-        self.prominence_spinbox.setValue(0.0) # デフォルトは 0 (無効)
-        
-        # --- フォームに行を追加 ---
+        self.prominence_spinbox.setRange(0.0, np.inf)
+        self.prominence_spinbox.setValue(0.0)
+
         layout.addRow("Y値の閾値 (Height)", self.height_spinbox)
         layout.addRow("最小X距離 (Distance)", self.distance_spinbox)
         layout.addRow("最小突出度 (Prominence)", self.prominence_spinbox)
-        
-        # --- OK / Cancel ボタン ---
-        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | 
-                                    QDialogButtonBox.StandardButton.Cancel)
-        button_box.accepted.connect(self.accept) # OK が押されたら accept
-        button_box.rejected.connect(self.reject) # Cancel が押されたら reject
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                      QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
         layout.addRow(button_box)
 
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        ダイアログで入力された設定値を辞書として返します。
-        
-        Returns:
-            dict: ユーザーが入力した設定値。
-        """
-        # distance は find_peaks 関数では「データ点数(index)」で指定する必要があるため、
-        # ここではX軸の値を "distance_x" として返し、呼び出し側 (_on_find_peaks) で
-        # データ点数に変換する設計になっています。
-        
-        # prominence が 0 の場合は、None (無効) として返す
-        prominence_value = self.prominence_spinbox.value()
-        
+        """distance_x は X 軸の値のまま返す(データ点数への換算は core.analysis 側)。
+        height・prominence は無効のとき None。"""
+        height = self.height_spinbox.value()
+        prominence = self.prominence_spinbox.value()
         return {
             "peak_type": self.type_combo.currentText(),
-            "height": self.height_spinbox.value(),
-            "distance_x": self.distance_spinbox.value(), # X軸での距離
-            "prominence": prominence_value if prominence_value > 0 else None
+            "height": None if height == self._HEIGHT_NONE else height,
+            "distance_x": self.distance_spinbox.value(),
+            "prominence": prominence if prominence > 0 else None,
         }
 
     @staticmethod
     def get_peak_settings(parent=None):
-        """
-        【スタティックメソッド】
-        ダイアログをモーダルで表示し、OKが押された場合は設定辞書を、
-        Cancelが押された場合は None を返します。
-        
-        これにより、呼び出し側は以下の1行で済みます。
-        settings = PeakSettingsDialog.get_peak_settings(self)
-        
-        Args:
-            parent (QWidget, optional): 親ウィジェット。
-        
-        Returns:
-            dict or None: 設定辞書、または None。
-        """
+        """モーダルで開き、OK なら設定の辞書、キャンセルなら None を返す。"""
         dialog = PeakSettingsDialog(parent)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return dialog.get_settings()
