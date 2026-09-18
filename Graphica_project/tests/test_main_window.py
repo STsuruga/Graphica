@@ -2106,6 +2106,38 @@ def test_manual_save_without_current_project_path_falls_back_to_save_as(tmp_path
     assert window._current_project_path == target
 
 
+def test_failed_load_does_not_leave_the_previous_file_as_save_target(tmp_path, monkeypatch):
+    """読み込みが途中で失敗しても、中身は別の内容に入れ替わっている。
+    そのまま上書き保存すると、前に開いていたファイルが別の内容で上書きされてしまう。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    original = str(tmp_path / "original.graphica")
+    window.project.save_project(original)
+    window._load_project_from_path(original)
+    backup = str(tmp_path / "autosave.graphica")
+    window.project.save_project(backup)
+
+    monkeypatch.setattr(main_window_module.QMessageBox, "critical", staticmethod(lambda *a, **k: None))
+
+    def _fail():
+        raise RuntimeError("UI rebuild failed")
+
+    monkeypatch.setattr(window, "_rebuild_dataset_tree_widget", _fail)
+    window._load_project_from_path(backup, add_to_recent=False)
+
+    dialog_calls = []
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: dialog_calls.append(1) or ("", "")),
+    )
+    saved_paths = []
+    monkeypatch.setattr(window.project, "save_project", lambda path: saved_paths.append(path))
+
+    window.manual_save()
+
+    assert saved_paths == []
+    assert dialog_calls == [1]
+
+
 def test_manual_save_as_always_shows_dialog_even_with_current_project_path(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window._current_project_path = str(tmp_path / "existing.graphica")

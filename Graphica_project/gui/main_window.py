@@ -2714,21 +2714,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _load_project_from_path(self, filepath, add_to_recent=True):
         """
-        指定されたパスのプロジェクト(.graphica または .pkl)を読み込み、UIを再構築する。
-        manual_load (ファイルダイアログ経由)、最近使ったファイル一覧からの
-        再オープン、オートセーブからの復元の、いずれからも呼ばれる共通処理。
+        プロジェクト(.graphica / .pkl)を読み込み、UIを再構築する。
 
         Args:
-            add_to_recent (bool): 「最近使ったファイル」一覧に追加するかどうか。
-                オートセーブファイルはユーザーが明示的に選んだ項目ではないため、
-                復元時はFalseにして一覧を汚さないようにする。
+            add_to_recent (bool): False はオートセーブからの復元。最近使ったファイルに
+                載せず、上書き保存の対象にもしない(未保存扱い)。
         """
         try:
-            # 1. Modelにデータを読み込ませる
             self.project.load_project(filepath)
+            # 中身はもう入れ替わっている。この先で失敗したとき前のファイルが保存先に
+            # 残っていると、上書き保存でそのファイルを別の内容で壊してしまう。
+            self._current_project_path = None
+            self._saved_content_fingerprint = None
 
-            # 2. 復元されたModelの状態に合わせてUIを再構築
-            # (フォルダ構造も含めて dataset_group_tree からツリーを再構築する)
             self._rebuild_dataset_tree_widget()
 
             self._block_all_signals(True)
@@ -2757,15 +2755,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     self.project.all_plot_settings[self.project.active_axis_index]
                 )
 
-            # ★ 別のプロジェクトを読み込んだ時点で、それ以前のUndo履歴は
-            # 「別の文書に対する操作」になり意味を持たない。放置すると、
-            # 読み込み後にUndoしただけで読み込んだ内容が壊れる:
-            # RemoveDatasetCommand(改善ボード A-3)と ReorderDatasetsCommand は
-            # どちらも project.datasets をリストごと差し戻すため、読み込んだ
-            # データセット群が丸ごと以前のものへ置き換わってしまう
-            # (ProjectModelのインスタンス自体はload_project()で使い回され、
-            # 中身だけが入れ替わるので、コマンド側からは見分けが付かない)。
-            # 文書を開き直したら履歴も切る、というのが素直な挙動でもある。
+            # 前の文書へのコマンドは datasets をリストごと差し戻すので、残すと
+            # Undo 1回で読み込んだ内容が前の文書に置き換わる。
             self.undo_stack.clear()
 
             # 画面状態とプロットの最終更新
@@ -2775,16 +2766,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.statusBar().showMessage("プロジェクトを読み込みました", 3000)
             if add_to_recent:
                 self._add_recent_file(filepath)
-                # ★ オートセーブからの復元(add_to_recent=False)は内部的な
-                #   一時ファイルからの読み込みのため、上書き保存の対象には
-                #   しない(復元後に「上書き保存」を押したらユーザーが選んだ
-                #   覚えのないautosaveファイルへ上書きされてしまうのを防ぐ)。
                 self._current_project_path = filepath
                 self._remember_saved_content()
-            else:
-                # オートセーブからの復元はファイルと対応しないので「未保存」扱いにする
-                self._current_project_path = None
-                self._saved_content_fingerprint = None
             self.project_state_changed.emit()
         except Exception as e:
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
