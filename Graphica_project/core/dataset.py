@@ -1,4 +1,5 @@
 import uuid
+import warnings
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field, fields, MISSING
@@ -393,7 +394,15 @@ class Dataset:
 
     def set_cell(self, row_idx, col_name, value):
         """指定したセル (行インデックス, 列名) の値を更新する"""
-        self.df.loc[row_idx, col_name] = value
+        # 列の型に入らない値(bool 列の NaN、日時列の文字列など)は、列を object 型に
+        # してから入れる。pandas 3 は暗黙の型変換をやめて例外を出す。
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            try:
+                self.df.loc[row_idx, col_name] = value
+            except (FutureWarning, TypeError):
+                self.df[col_name] = self.df[col_name].astype(object)
+                self.df.loc[row_idx, col_name] = value
         self.invalidate_visible_df_cache()
 
     def add_row(self):

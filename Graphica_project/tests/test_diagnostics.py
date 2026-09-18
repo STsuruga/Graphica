@@ -1,7 +1,6 @@
 # tests/test_diagnostics.py
 """core/diagnostics.py (診断情報バンドル出力、C-1201) のテスト。"""
 import json
-import os
 import zipfile
 
 from core.diagnostics import build_diagnostic_bundle

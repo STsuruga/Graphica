@@ -219,3 +219,38 @@ def test_undo_history_dock_gets_focus_highlight_installed(tmp_path, monkeypatch)
         app.processEvents()
 
     assert window.undo_history_dock.property("dockActive") is True
+
+
+def test_tab_title_follows_the_save_target_not_the_autosave_file(tmp_path, monkeypatch):
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    tab = window.tab_widget.widget(0)
+    tab._autosave_filename = str(tmp_path / "autosave.graphica")
+    original = str(tmp_path / "original.graphica")
+    tab.project.save_project(original)
+    tab._load_project_from_path(original)
+
+    tab.auto_save()
+    tab.project_state_changed.emit()
+
+    assert window.tab_widget.tabText(0) == "original.graphica"
+    assert window.windowTitle().endswith("original.graphica")
+
+
+def test_tab_title_after_restoring_from_autosave_says_it_is_restored(tmp_path, monkeypatch):
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    tab = window.tab_widget.widget(0)
+    backup = str(tmp_path / "autosave.graphica")
+    tab.project.save_project(backup)
+
+    tab._load_project_from_path(backup, add_to_recent=False)
+
+    assert window.tab_widget.tabText(0) == "無題のプロジェクト(復元)"
+    assert window.windowTitle().endswith("無題のプロジェクト(復元)")
+
+    saved = str(tmp_path / "saved.graphica")
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (saved, "Graphica Project (*.graphica)")),
+    )
+    tab.manual_save()
+    assert window.tab_widget.tabText(0) == "saved.graphica"

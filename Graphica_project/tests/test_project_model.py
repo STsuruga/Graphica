@@ -1,10 +1,7 @@
 # tests/test_project_model.py
 """models/project.py (プロジェクトの保存/読込、pickleセキュリティ) に対するテスト。"""
-import io
 import os
 import pickle
-import subprocess
-import sys
 
 import pandas as pd
 import pytest

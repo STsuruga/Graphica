@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 import pandas as pd
 import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 import gui.main_window as main_window_module
 import gui.mixins.dataset_mixin as dataset_mixin_module

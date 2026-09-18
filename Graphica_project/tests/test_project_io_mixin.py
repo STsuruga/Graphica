@@ -11,9 +11,8 @@ tests/test_dataset_mixin.py の FakeNormalizeDialog と同じパターンで、�
 """
 import json
 
-import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QInputDialog
+from PySide6.QtWidgets import QApplication, QDialog, QInputDialog
 
 import gui.main_window as main_window_module
 import gui.mixins.project_io_mixin as project_io_mixin_module

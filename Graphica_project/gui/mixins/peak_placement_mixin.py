@@ -120,11 +120,9 @@ class PeakPlacementMixin:
         click_px = ax.transData.transform((event.xdata, event.ydata))
 
         best_i, best_distance = None, None
-        for i, (guess, _line, point) in enumerate(self._pending_peak_markers):
-            # ★ 改善ボード A-1: guess はデータ座標で保持しているため、クリック
-            # 位置(表示座標)との距離比較には使えない。マーカーが実際に描かれて
-            # いる位置を Artist から読み取って比較する(表示座標どうしの比較に
-            # なり、ウォーターフォールの有無に関わらず正しく動く)。
+        for i, (_guess, _line, point) in enumerate(self._pending_peak_markers):
+            # guess はデータ座標なので、描かれたマーカーの位置(表示座標)で比べる。
+            # こうしないとウォーターフォール表示でずれる。
             marker_x = point.get_xdata()[0]
             marker_y = point.get_ydata()[0]
             pos_px = ax.transData.transform((marker_x, marker_y))

@@ -11,7 +11,6 @@ gui/workers.py の DataLoadWorker と同じ方針: 大半は run() をスレッ�
 """
 import time
 
-import pytest
 from PySide6.QtWidgets import QApplication
 
 from gui.task_runner import TaskRunner

@@ -1,7 +1,5 @@
-# core/analysis.py
 import re
 import numpy as np
-import pandas as pd
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from scipy.integrate import simpson, cumulative_trapezoid, cumulative_simpson
@@ -1054,14 +1052,8 @@ def _peak_detection_signal_and_kwargs(x_data, y_data, peak_type, settings):
     """
     calculate_peaks / calculate_peak_quantification 共通の前処理。
 
-    「下に凸(谷)」の場合、find_peaksは常に反転した信号 (-y_data) に対して
-    実行する必要があり、その際は height しきい値も一緒に符号反転しないと
-    噛み合わない(GUI側(PeakSettingsDialog)のツールチップが「Y < -10 の谷の
-    み検出」のように谷側でも負の閾値をそのまま入力する仕様を明示しているため)。
-    この符号反転ロジックを1箇所に一本化することで、calculate_peaksと
-    calculate_peak_quantificationの片方だけ直し忘れるバグ
-    (過去に実際に発生した。test_downward_peak_height_threshold_uses_correct_sign_for_valleys
-    参照)を再発させないようにする。
+    谷は反転した信号 (-y_data) で探すので、height も一緒に符号反転する
+    (利用者は谷でも「Y < -10」を -10 と入力する)。height=None は高さで絞らない。
 
     Returns:
         tuple (np.ndarray, dict): (find_peaksに渡す信号(必要なら反転済み),
@@ -1072,7 +1064,8 @@ def _peak_detection_signal_and_kwargs(x_data, y_data, peak_type, settings):
 
     if "下に凸" in peak_type:
         y_data_to_find = -y_data
-        height = -height
+        if height is not None:
+            height = -height
 
     kwargs = {"height": height}
 
@@ -1995,7 +1988,7 @@ def calculate_kde(data, n_points=200, bw_method=None):
         x_grid = np.linspace(data.min(), data.max(), n_points)
         density = kde(x_grid)
     except np.linalg.LinAlgError:
-        raise ValueError("データにばらつきが無いため、カーネル密度推定を計算できません。")
+        raise ValueError("データにばらつきが無いため、カーネル密度推定を計算できません。") from None
     return {'x_grid': x_grid, 'density': density, 'n_points_used': len(data)}
 
 

@@ -19,7 +19,6 @@ dtypeフィデリティ・numpy由来の値・オブジェクト同一性・単�
 import json
 import pickle
 
-import numpy as np
 import pandas as pd
 import pytest
 

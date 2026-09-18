@@ -478,20 +478,20 @@ class DataEditorDialog(QDialog):
                 self.table_widget.item(row, column).setText(item_text)
                 self.table_widget.blockSignals(False)
 
-        except Exception as e:
-            # コマンド作成中に予期せぬエラーが発生した場合
+        except Exception:
             logger.exception("セル編集コマンド作成エラー")
-            # エラーが起きたら元の値をテーブルに再表示 (Undoはされない)
+            # 元の値を表示し直す。シグナルは必ず戻す(止めたままだと以後の編集が無視される)。
+            self.table_widget.blockSignals(True)
             try:
-                self.table_widget.blockSignals(True)
                 original_index = self.view_df.index[row]
                 col_name = self.view_df.columns[column]
                 original_value = self.dataset.df.loc[original_index, col_name]
                 item_text = "" if pd.isna(original_value) else str(original_value)
                 self.table_widget.item(row, column).setText(item_text)
+            except Exception:
+                logger.exception("セルの表示を元の値に戻せませんでした")
+            finally:
                 self.table_widget.blockSignals(False)
-            except Exception: 
-                pass # 復元も失敗した場合はあきらめる
 
     def _reset_view(self):
         """

@@ -1419,9 +1419,16 @@ def test_peak_settings_dialog_defaults():
     dlg = PeakSettingsDialog()
     settings = dlg.get_settings()
     assert settings["peak_type"] == "上に凸 (Peaks)"
-    assert settings["height"] == 0.0
+    assert settings["height"] is None  # 既定は「なし」= 高さで絞らない
+    assert dlg.height_spinbox.text() == "なし"
     assert settings["distance_x"] == 1.0
     assert settings["prominence"] is None  # 0のときはNone
+
+
+def test_peak_settings_dialog_height_zero_is_a_real_threshold():
+    dlg = PeakSettingsDialog()
+    dlg.height_spinbox.setValue(0.0)
+    assert dlg.get_settings()["height"] == 0.0
 
 
 def test_peak_settings_dialog_prominence_above_zero_is_kept():
@@ -2348,7 +2355,7 @@ def test_preferences_dialog_browse_autosave_dir_cancelled_keeps_previous(monkeyp
 # --- CommandPaletteDialog ---
 
 def _make_actions(parent):
-    from PySide6.QtGui import QAction, QKeySequence
+    from PySide6.QtGui import QAction
 
     save_action = QAction("保存", parent)
     save_action.setEnabled(True)

@@ -2,7 +2,6 @@
 """core/excel_utils.py (数式セルの値ずれ検出) に対するテスト。"""
 import openpyxl
 import pandas as pd
-import pytest
 
 from core.excel_utils import find_unevaluated_formula_cells
 

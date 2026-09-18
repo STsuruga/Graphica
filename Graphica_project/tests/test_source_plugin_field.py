@@ -7,7 +7,6 @@ core/dataset.py の source_plugin フィールド(項目C-3)の往復テスト�
 → クラッシュせず通常データとして表示され、生成元プラグイン名が見える。
 """
 import json
-import pickle
 
 import pandas as pd
 

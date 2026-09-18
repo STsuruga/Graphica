@@ -6,7 +6,6 @@ QColorDialog.getColor()/setCustomColor() はQtの静的な状態を書き換え�
 settings には QSettings 互換の value()/setValue() だけを持つ軽量なフェイクを使う
 (実ファイルI/Oを避け、テストを高速・独立に保つため)。
 """
-import pytest
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QColorDialog
 

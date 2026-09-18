@@ -12,7 +12,6 @@ LabelEditDialog.exec 差し替えと同じパターン)。HelpDialog/CalcHelpDia
 """
 import zipfile
 
-import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 

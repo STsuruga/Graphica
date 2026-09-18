@@ -4,27 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "graphica"
-# バージョンは core/version.py の __version__ を単一の情報源とする
-# (下の [tool.setuptools.dynamic] 参照。pyproject.toml 側に数値を
-# 重複してハードコードしない)。
+# バージョンは core/version.py の __version__ が唯一の情報源。
 dynamic = ["version"]
 description = "PySide6 + matplotlib によるデータプロット・解析デスクトップアプリケーション"
-# setuptools はプロジェクトルート (Graphica_project/) の外にあるファイルを
-# readme として直接参照できないため、リポジトリルートの README.md を
-# Graphica_project/README.md としてコピーしたものを参照する
-# (詳細はそのファイル冒頭のコメント参照)。
+# setuptools はプロジェクトルートの外を参照できないため、リポジトリ直下の README.md の複製を使う。
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
     { name = "STsuruga" },
 ]
-# PEP 639 の SPDX 式で指定する。License:: 分類子との併用は setuptools 77+ で
-# エラーになるため classifiers 側には書かない。
-# license-files は指定しない — LICENSE はリポジトリルートにあり、setuptools は
-# プロジェクトルート (Graphica_project/) の外のファイルを取り込めないため
-# (README.md を複製しているのと同じ制約)。このパッケージは
-# "Private :: Do Not Upload" で配布物としては使わないので、メタデータ上の
-# ライセンス表明だけで足りる。
+# License:: 分類子との併用は setuptools 77+ でエラーになる。
+# LICENSE はプロジェクトルートの外にあるので license-files は指定できない。
 license = "MIT"
 keywords = ["plotting", "matplotlib", "PySide6", "data-visualization", "curve-fitting"]
 classifiers = [
@@ -39,9 +29,7 @@ classifiers = [
     "Environment :: X11 Applications :: Qt",
     "Private :: Do Not Upload",
 ]
-# requirements.txt の実行時依存 (PySide6, matplotlib, numpy, pandas, scipy,
-# openpyxl) をそのまま反映。pyinstaller/pytest はビルド/テスト専用のため
-# optional-dependencies 側に分離する。
+# requirements.txt の実行時依存と揃える。
 dependencies = [
     "PySide6==6.9.1",
     "matplotlib==3.10.7",
@@ -53,7 +41,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1"]
+dev = ["pytest==9.1.1", "ruff==0.16.8"]
 build = ["pyinstaller==6.16.0"]
 
 [project.scripts]
@@ -62,13 +50,9 @@ graphica = "main:main"
 [tool.setuptools.dynamic]
 version = { attr = "core.version.__version__" }
 
-# 既存の import スタイル (`from core.dataset import Dataset` のように
-# Graphica_project/ をルートとした絶対import) を一切変更しないため、
-# core / gui / gui.mixins / models をトップレベルパッケージとしてそのまま
-# 公開する(src-layout や graphica 名前空間パッケージへの巻き直しはしない)。
-# assets / assets.icons / sample_data は非Pythonリソース (SVGアイコン,
-# CSVサンプル) を resource_path() が期待する相対位置のまま同梱するための
-# 「データ専用パッケージ」(__init__.py を追加して package_data の対象にした)。
+# プラグインが `from core.dataset import Dataset` と書くので、core / gui / models を
+# トップレベルパッケージとして公開している。assets / sample_data はリソースを
+# resource_path() が期待する相対位置のまま同梱するためのデータ専用パッケージ。
 [tool.setuptools]
 packages = [
     "core",
@@ -86,40 +70,35 @@ include-package-data = true
 [tool.setuptools.package-data]
 "assets.icons" = ["*.svg"]
 "sample_data" = ["*.csv"]
-# 注意: Graphica.ico はどのパッケージディレクトリにも属さない
-# プロジェクトルート直下の単独ファイルのため、[tool.setuptools.package-data]
-# では同梱できない (setuptools のバリデーションは "" をキーとして許可しない)。
-# MANIFEST.in の `include Graphica.ico` で sdist には含めているが、
-# editable install (pip install -e .) はソースをそのままの配置で参照する
-# ため resource_path()/icon_utils.py の解決には影響しない。非editableな
-# wheel配布で確実に同梱したい場合は、Graphica.ico をいずれかのパッケージ
-# 配下 (例: assets/) に移し resource_path() 側の参照も合わせて更新する
-# 追加対応が別途必要(今回は main.py 以外の実行パスを変更しないスコープの
-# ため未対応)。
+# Graphica.ico はパッケージ外にあるため wheel には入らない(sdist には MANIFEST.in で入る)。
 
-# --- テストカバレッジ (scripts/run_coverage.sh) ---
-# チャンクごとに別プロセスで測るため parallel = true。各プロセスが
-# .coverage.<host>.<pid>.<乱数> を書き、あとから `coverage combine` で束ねる。
+# 静的解析。確実に不具合かゴミと言えるものだけを検出する(書式・好みのルールは入れない)。
+[tool.ruff]
+target-version = "py310"
+extend-exclude = ["ui_main_window.py"]  # pyside6-uic の生成物
+
+[tool.ruff.lint]
+select = ["F", "E9", "B", "PLE"]
+# zip(strict=) を足すと長さ不一致で例外になり挙動が変わる。
+ignore = ["B905"]
+
+# チャンクごとに別プロセスで測り、あとで `coverage combine` で束ねる。
 [tool.coverage.run]
 parallel = true
 branch = true
 source = ["core", "gui", "models"]
 omit = [
-    # Qt Designer / pyside6-uic の生成物。手で編集しない方針なので、
-    # カバレッジの対象にしても改善のしようがない。
     "ui_main_window.py",
     "*/__pycache__/*",
     "tests/*",
 ]
 
 [tool.coverage.report]
-# 「測れないもの・測っても意味の薄いもの」を除外する。
 exclude_also = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
-    # 環境依存の分岐(PyInstallerで固めたときだけ通る等)はCIでもローカルでも
-    # 片側しか通らないため。
+    # 片側の環境でしか通らない分岐
     'if is_frozen\(\):',
     "except ImportError:",
 ]
@@ -128,6 +107,4 @@ skip_covered = false
 precision = 1
 
 [tool.coverage.html]
-# CI が master の push ごとに GitHub Pages へ公開する
-# (https://stsuruga.github.io/Graphica/coverage/)。ブラウザのタブに出る名前。
 title = "Graphica テストカバレッジ"

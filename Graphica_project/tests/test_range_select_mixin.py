@@ -150,7 +150,7 @@ def test_toggle_range_select_mode_off_disconnects_and_clears_state(tmp_path, mon
 
 def test_press_ignored_when_mode_disabled(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _add_dataset(window)
+    _add_dataset(window)
     ax = window.all_axes[0]
 
     window._on_range_select_press(_FakeMplEvent(ax, 1.0, 1.0))
@@ -280,7 +280,7 @@ def test_motion_falls_back_to_full_redraw_when_background_missing(tmp_path, monk
 
 def test_release_clears_captured_background(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _add_dataset(window, select=True)
+    _add_dataset(window, select=True)
     window.range_select_mode_enabled = True
     ax = window.all_axes[0]
     window._on_range_select_press(_FakeMplEvent(ax, 1.0, 1.0))

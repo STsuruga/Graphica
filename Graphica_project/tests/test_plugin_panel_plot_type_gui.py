@@ -6,7 +6,7 @@ gui/main_window.py (PlotterApp) 側の、register_panel() (項目D-1) の
 tests/test_main_window.py の _make_isolated_plotter_app に倣う。
 """
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QLabel, QWidget
+from PySide6.QtWidgets import QApplication, QLabel
 
 import core.plugin_api as plugin_api_module
 import gui.main_window as main_window_module

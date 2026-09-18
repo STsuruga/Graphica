@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 from core.dataset import Dataset
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (ColumnCalculatorDialog, ReplicateErrorDialog, ColumnStringOpsDialog,
-                         ColumnVisibilityDialog, FindReplaceDialog)
+                         ColumnVisibilityDialog)
 
 
 def _make_dataset_with_bool_column(flag_value=True):
@@ -1343,5 +1343,19 @@ def test_calculate_replicate_error_unexpected_exception_shows_critical(qapp, mon
     try:
         dlg._on_calculate_replicate_error()
         assert len(calls["critical"]) == 1
+    finally:
+        dlg.close()
+
+
+def test_failed_cell_edit_does_not_leave_table_signals_blocked(qapp):
+    """編集にも元の値の再表示にも失敗したとき、表のシグナルを止めたままにしない
+    (止まったままだと、以後の編集が黙って無視される)。"""
+    ds = _make_simple_dataset()
+    dlg = DataEditorDialog(ds)
+    try:
+        col_index = list(dlg.view_df.columns).index('y')
+        ds.df = ds.df.drop(columns=['y'])  # 編集も復元も KeyError になる
+        dlg.table_widget.item(0, col_index).setText("123")
+        assert not dlg.table_widget.signalsBlocked()
     finally:
         dlg.close()

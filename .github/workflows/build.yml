@@ -1,35 +1,13 @@
 name: Build
 
-# Graphica (Graphica_project/) の Windows exe / macOS .app を PyInstaller で
-# ビルドし、成果物を Actions のアーティファクトとしてアップロードする
-# ワークフロー。
-#
-# 注意:
-# - リポジトリルートの Graphica_ver1.spec / main_ver6.spec は現行レイアウト
-#   より前の古いファイルなので使用しない。ビルドには
-#   Graphica_project/graphica.spec を使う (Windows/macOS共用、sys.platform
-#   で分岐)。
-# - 署名・公証(notarization)・PyPI公開・リリース作成等、secrets を要する
-#   外部公開ステップは意図的に含めていない (アーティファクトのアップロード
-#   までが範囲)。macOS版は未署名のため、初回起動時にGatekeeperの警告が出る
-#   (README側で右クリック起動の回避方法を案内)。
-# - macOSビルドは GitHub Actions の macos-latest ランナー (Apple Silicon /
-#   arm64) 上で行うため、生成される .app は Apple Silicon Mac 向け。
-#   Intel Mac向けが必要になった場合は macos-13 等のIntelランナーを使う
-#   ジョブを別途追加する。
-# - テストは `pytest` 一括実行ではなく scripts/run_tests_chunked.sh 経由で
-#   ファイル単位に分けたプロセスで実行する。フルスイートを1プロセスで
-#   通しで実行すると、テスト間でQt/matplotlibのリソースが解放されず
-#   蓄積し、進行するほど遅くなって最終的に事実上ハングする既知の問題が
-#   あるため (scripts/run_tests_chunked.sh のコメント参照)。
-# - テストカバレッジは **master のランの macOS ジョブだけ** で計測し、その HTML
-#   レポートを deploy-coverage ジョブが GitHub Pages
-#   (https://stsuruga.github.io/Graphica/coverage/) に公開する。テストが失敗した
-#   ランでは公開しない(公開中のレポートは最後に緑だった master)。
-#   計測すると macOS ジョブが約11分→約19.5分に伸びる(実測)ため、タグの push
-#   (リリースビルド)では計測せず通常のチャンク実行にする(ユーザー判断)。
-#   タグは同じコミットの master ランで計測済みなので、情報は失われない。
-#   リポジトリ設定で Pages のソースを「GitHub Actions」にしてあることが前提。
+# Graphica_project/ の Windows exe / macOS .app を PyInstaller でビルドし、Actions の
+# アーティファクトとして上げる。
+# - ビルドには Graphica_project/graphica.spec を使う(リポジトリ直下の古い .spec は使わない)。
+# - secrets を要する署名・公証・公開は含めない。macOS 版は未署名で Apple Silicon 向け。
+# - テストは必ず scripts/run_tests_chunked.sh で回す。1 プロセスで全件流すと Qt/matplotlib の
+#   資源がたまって進むほど遅くなり、事実上止まる。
+# - カバレッジは master のランの macOS ジョブだけで測り、GitHub Pages に公開する
+#   (計測すると約 8 分延びるため、タグと PR では測らない)。Pages のソースは「GitHub Actions」前提。
 
 on:
   push:
@@ -37,12 +15,12 @@ on:
       - master
     tags:
       - "v*"
+  pull_request:
+    branches:
+      - master
   workflow_dispatch: {}
 
-# 同じref(masterブランチ、または個々のタグ)への新しいpushが来たら、その
-# refに対する古い実行中ランを自動キャンセルする。ref単位でグループ化して
-# いるため、masterへの連続pushは互いにキャンセルし合うが、リリースタグの
-# push(v1.2.0等)はmasterの状況に関わらず独立して最後まで走る。
+# 同じ ref の古いランは取り消す。タグは ref が別なので master の push に取り消されない。
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -73,6 +51,10 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      # 重いテストより前に落とす。設定は pyproject.toml の [tool.ruff]。
+      - name: Lint
+        run: ruff check .
+
       - name: Run tests
         shell: bash
         run: bash scripts/run_tests_chunked.sh
@@ -80,9 +62,7 @@ jobs:
       - name: Build exe with PyInstaller
         run: pyinstaller graphica.spec --noconfirm
 
-      # 配布物にライセンス関連を同梱する。同梱している Qt/PySide6 は LGPL v3 で、
-      # 条文の提示と「利用者が Qt を差し替えられること」の案内が要るため、
-      # exe だけを配ると条件を満たせない (THIRD_PARTY_LICENSES.md 参照)。
+      # 同梱の Qt/PySide6 は LGPL v3 のため、条文と差し替えの案内を必ず同梱する。
       - name: Bundle license files
         shell: bash
         run: |
@@ -119,15 +99,11 @@ jobs:
           pip install pyinstaller pillow coverage
 
       - name: Run tests with coverage
-        # master のランだけ。scripts/run_coverage.sh は run_tests_chunked.sh を
-        # カバレッジ付きで回し、htmlcov/ を生成する。終了コードはテスト側の
-        # 結果をそのまま返す。
         if: github.ref == 'refs/heads/master'
         shell: bash
         run: bash scripts/run_coverage.sh
 
       - name: Run tests
-        # master 以外(リリースタグ等)は計測なしで速く回す。
         if: github.ref != 'refs/heads/master'
         shell: bash
         run: bash scripts/run_tests_chunked.sh
@@ -153,9 +129,7 @@ jobs:
           path: Graphica_project/_site
 
       - name: Generate macOS icon (.icns) from Graphica.ico
-        # Graphica.icns 自体はリポジトリに含めず、Windows用の Graphica.ico
-        # (複数解像度を内包) から都度生成する。ico内で最大のフレームを
-        # 使うため、元絵の解像度次第ではicnsとしてはやや粗い点に注意。
+        # .icns はリポジトリに置かず、Graphica.ico の最大フレームから都度生成する。
         run: |
           python3 - <<'PY'
           from PIL import Image
@@ -171,16 +145,8 @@ jobs:
         run: pyinstaller graphica.spec --noconfirm
 
       - name: Zip .app bundle with license files
-        # .app はFrameworks配下にシンボリックリンクを含むため、
-        # actions/upload-artifact に生フォルダとして渡すと展開後に壊れることがある。
-        # macOS純正の ditto で圧縮してから単一ファイルとしてアップロードする。
-        #
-        # ★ ライセンス (LGPL v3 の条文同梱、THIRD_PARTY_LICENSES.md 参照) は
-        #   .app と一緒に**1つのzipへ**入れる。以前は .app を単体で ditto して
-        #   から zip で包み直していたが、それだと利用者が「zipを展開したら
-        #   中にまたzipがある」二重zipになってしまう。ステージング用の
-        #   ディレクトリに .app とライセンスを並べ、それごと ditto すれば
-        #   シンボリックリンクを保ったまま1段で展開できる。
+        # .app はシンボリックリンクを含むので ditto で固めてから上げる。ライセンスは
+        # 二重 zip にならないよう .app と同じ階層に並べて 1 つの zip にする。
         run: |
           mkdir -p staging
           cp -R dist/Graphica.app staging/
@@ -195,7 +161,7 @@ jobs:
           if-no-files-found: error
 
   deploy-coverage:
-    # macOS ジョブ(テスト〜ビルドまで)が成功した master のランだけ公開する。
+    # テストが緑の master だけ公開する(公開中のレポートは最後に緑だった master)。
     needs: build-macos
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest

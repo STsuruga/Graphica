@@ -218,16 +218,7 @@ from gui.task_runner import TaskRunner
 from gui.dialogs import (ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog,
                          FolderImportDialog, AutosaveHistoryDialog)
 from gui.color_picker_widget import ColorPickerWidget
-from gui.icon_utils import load_svg_icon, ICONS_DIR, icon as icon_utils_icon
-
-# ツールバー/ボタンのアイコン(項目67・70)。
-# ★ 項目H-4(アイコンセットの見直し): 以前はここに固定のダークグレー
-#   ('#3B3F42')を持っており、ダークモードのボタン背景に対してほぼ同化して
-#   見えなくなっていた(H-0調査で「未検証」として記録した懸念が、実機の
-#   スクリーンショットで確認された)。gui/icon_utils.py の icon() と同じ方針で
-#   テーマのtext_secondaryトークンを呼び出しの都度解決するように変更したため、
-#   この定数自体はもう _svg_icon() から使われない(後方互換のため残置)。
-TOOLBAR_ICON_COLOR = "#3B3F42"
+from gui.icon_utils import load_svg_icon, ICONS_DIR
 
 # キャンバス上部ツールバーのアイコンサイズ(px)。Qtの既定は24pxだが、
 # カスタムボタンを追加した結果、ウィンドウ幅が狭いときにツールバーが溢れ、
@@ -648,10 +639,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 影響しない)。
         self._batch_import_filename_regex = None
         self._copied_dataset_style = None  # 「スタイルをコピー」でコピーした属性値の辞書
-        # 上書き保存(実機フィードバック)用: 現在開いている/直前に保存した
-        # プロジェクトファイルのパス。未保存(一度もsave/loadしていない)なら
-        # None のままで、manual_save()はこの場合manual_save_as()へフォールバックする。
+        # 上書き保存先。None なら manual_save() は「名前を付けて保存」になる。
+        # タブ名もこの値から作る(ProjectModel.current_filepath はオートセーブでも変わる)。
         self._current_project_path = None
+        self._restored_unsaved = False  # オートセーブから復元し、まだ保存していない
         # 未保存の変更の検出(v1.4.2): 直前に保存/読み込みした時点の内容のハッシュ
         # (ProjectModel.content_fingerprint)。None は「ファイルと対応していない」状態。
         self._saved_content_fingerprint = None
@@ -2225,8 +2216,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     [EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT],
                     Qt.Orientation.Vertical
                 )
-            except Exception as e:
-                logger.warning("resizeDocks に失敗しました: %s", e)
+            except Exception:
+                logger.exception("resizeDocks に失敗しました")
 
     # --- ドックレイアウトの保存/復元/リセット(項目152、C-911) ---
     # 「最初のタブ・初回起動のみ復元」という既存の制約(起動シーケンス自体は
@@ -2605,6 +2596,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._sync_project_from_ui()
         self._saved_content_fingerprint = self.project.content_fingerprint()
 
+    def document_title(self):
+        """タブ名・ウィンドウタイトル・保存確認に出す文書名。"""
+        if self._current_project_path:
+            return os.path.basename(self._current_project_path)
+        if self._restored_unsaved:
+            return "無題のプロジェクト(復元)"
+        return "無題のプロジェクト"
+
     def has_unsaved_changes(self):
         """
         保存していない変更があるか(v1.4.2)。
@@ -2631,7 +2630,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         if not _unsaved_changes_prompt_enabled() or not self.has_unsaved_changes():
             return True
-        name = os.path.basename(self._current_project_path) if self._current_project_path else "無題のプロジェクト"
+        name = self.document_title()
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle("保存されていない変更")
@@ -2660,7 +2659,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.project.save_project(self._autosave_filename)
             self.statusBar().showMessage("オートセーブ完了", 3000)
         except Exception as e:
-            logger.error("オートセーブに失敗しました: %s", e)
+            logger.exception("オートセーブに失敗しました")
             self.statusBar().showMessage(f"オートセーブ失敗: {e}", 3000)
 
     def manual_save(self):
@@ -2702,11 +2701,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._sync_project_from_ui()
             self.project.save_project(filepath)
             self._current_project_path = filepath
+            self._restored_unsaved = False
             self._saved_content_fingerprint = self.project.content_fingerprint()
             self.statusBar().showMessage(f"保存しました: {filepath}", 3000)
             self._add_recent_file(filepath)
             self.project_state_changed.emit()
         except Exception as e:
+            logger.exception("プロジェクトの保存に失敗しました: %s", filepath)
             QMessageBox.critical(self, "エラー", f"保存に失敗しました:\n{e}")
 
     def manual_load(self):
@@ -2723,21 +2724,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _load_project_from_path(self, filepath, add_to_recent=True):
         """
-        指定されたパスのプロジェクト(.graphica または .pkl)を読み込み、UIを再構築する。
-        manual_load (ファイルダイアログ経由)、最近使ったファイル一覧からの
-        再オープン、オートセーブからの復元の、いずれからも呼ばれる共通処理。
+        プロジェクト(.graphica / .pkl)を読み込み、UIを再構築する。
 
         Args:
-            add_to_recent (bool): 「最近使ったファイル」一覧に追加するかどうか。
-                オートセーブファイルはユーザーが明示的に選んだ項目ではないため、
-                復元時はFalseにして一覧を汚さないようにする。
+            add_to_recent (bool): False はオートセーブからの復元。最近使ったファイルに
+                載せず、上書き保存の対象にもしない(未保存扱い)。
         """
         try:
-            # 1. Modelにデータを読み込ませる
             self.project.load_project(filepath)
+            # 中身はもう入れ替わっている。この先で失敗したとき前のファイルが保存先に
+            # 残っていると、上書き保存でそのファイルを別の内容で壊してしまう。
+            self._current_project_path = None
+            self._saved_content_fingerprint = None
+            self._restored_unsaved = False
 
-            # 2. 復元されたModelの状態に合わせてUIを再構築
-            # (フォルダ構造も含めて dataset_group_tree からツリーを再構築する)
             self._rebuild_dataset_tree_widget()
 
             self._block_all_signals(True)
@@ -2766,15 +2766,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     self.project.all_plot_settings[self.project.active_axis_index]
                 )
 
-            # ★ 別のプロジェクトを読み込んだ時点で、それ以前のUndo履歴は
-            # 「別の文書に対する操作」になり意味を持たない。放置すると、
-            # 読み込み後にUndoしただけで読み込んだ内容が壊れる:
-            # RemoveDatasetCommand(改善ボード A-3)と ReorderDatasetsCommand は
-            # どちらも project.datasets をリストごと差し戻すため、読み込んだ
-            # データセット群が丸ごと以前のものへ置き換わってしまう
-            # (ProjectModelのインスタンス自体はload_project()で使い回され、
-            # 中身だけが入れ替わるので、コマンド側からは見分けが付かない)。
-            # 文書を開き直したら履歴も切る、というのが素直な挙動でもある。
+            # 前の文書へのコマンドは datasets をリストごと差し戻すので、残すと
+            # Undo 1回で読み込んだ内容が前の文書に置き換わる。
             self.undo_stack.clear()
 
             # 画面状態とプロットの最終更新
@@ -2784,18 +2777,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.statusBar().showMessage("プロジェクトを読み込みました", 3000)
             if add_to_recent:
                 self._add_recent_file(filepath)
-                # ★ オートセーブからの復元(add_to_recent=False)は内部的な
-                #   一時ファイルからの読み込みのため、上書き保存の対象には
-                #   しない(復元後に「上書き保存」を押したらユーザーが選んだ
-                #   覚えのないautosaveファイルへ上書きされてしまうのを防ぐ)。
                 self._current_project_path = filepath
                 self._remember_saved_content()
             else:
-                # オートセーブからの復元はファイルと対応しないので「未保存」扱いにする
-                self._current_project_path = None
-                self._saved_content_fingerprint = None
+                self._restored_unsaved = True
             self.project_state_changed.emit()
         except Exception as e:
+            logger.exception("プロジェクトの読み込みに失敗しました: %s", filepath)
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
 
     def _reset_zoom(self):
@@ -3923,6 +3911,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 try:
                     sheet_df = pd.read_excel(file_path, sheet_name=sheet_name, engine=excel_engine_for(file_path))
                 except Exception as e:
+                    logger.exception("シート「%s」の読み込みに失敗しました", sheet_name)
                     QMessageBox.warning(self, "読み込みエラー", f"シート「{sheet_name}」の読み込みに失敗しました:\n{e}")
                     continue
                 if sheet_df.shape[1] < 2:
@@ -4090,6 +4079,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         try:
             df = pd.read_csv(io.StringIO(text), sep=delimiter, engine='python')
         except Exception as e:
+            logger.exception("クリップボードの内容を表として読めませんでした")
             QMessageBox.warning(
                 self, "貼り付けエラー",
                 f"クリップボードの内容を表として解釈できませんでした:\n{e}"

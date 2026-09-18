@@ -26,8 +26,7 @@ import gui.mixins.dataset_mixin as dataset_mixin_module
 import gui.mixins.settings_mixin as settings_mixin_module
 from gui.main_window import PlotterApp
 from gui.dialogs import (
-    NormalizeDatasetDialog, PluginParamDialog, FitDialog, PeakSettingsDialog,
-    DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
+    NormalizeDatasetDialog, PluginParamDialog, DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
     NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
     ResampleDatasetDialog, DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
     HistogramKDEDialog, XAxisAlignmentDialog, InsetDialog,

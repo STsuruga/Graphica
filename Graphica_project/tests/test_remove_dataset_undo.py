@@ -16,7 +16,6 @@
 import matplotlib
 matplotlib.use("Agg")
 import pandas as pd
-import pytest
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication
 
@@ -87,7 +86,9 @@ def _tree_names(window):
 
 def test_removing_one_dataset_is_undoable(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    a, b, c = _add(window, "a"), _add(window, "b"), _add(window, "c")
+    _add(window, "a")
+    b = _add(window, "b")
+    _add(window, "c")
 
     _select(window, b)
     window._on_remove_dataset()
@@ -121,7 +122,8 @@ def test_undo_restores_the_dataset_with_its_mask_and_style(tmp_path, monkeypatch
 
 def test_redo_removes_it_again(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    a, b = _add(window, "a"), _add(window, "b")
+    a = _add(window, "a")
+    _add(window, "b")
 
     _select(window, a)
     window._on_remove_dataset()
@@ -172,7 +174,7 @@ def test_removing_multiple_datasets_is_undone_in_one_step(tmp_path, monkeypatch)
 
 def test_removing_a_folder_restores_the_folder_and_its_contents(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    outside = _add(window, "outside")
+    _add(window, "outside")
     folder = window._add_dataset_folder_item("グループ1")
     inner1 = _add(window, "inner1", parent_folder=folder)
     inner2 = _add(window, "inner2", parent_folder=folder)
@@ -273,7 +275,8 @@ def test_remove_without_confirmation_is_also_undoable(tmp_path, monkeypatch):
     Undoできること(移動先タブへの追加は別のundo_stackなので戻らない
     ―_remove_datasets_without_confirmationのdocstring参照)。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    a, b = _add(window, "a"), _add(window, "b")
+    a = _add(window, "a")
+    _add(window, "b")
 
     window._remove_datasets_without_confirmation([a], description="別のタブへ移動(1件)")
     assert _names(window) == ["b"]
@@ -297,7 +300,7 @@ def test_loading_a_project_clears_the_undo_stack(tmp_path, monkeypatch):
     コマンド側からは文書が入れ替わったことを検出できない)。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    kept = _add(window, "kept")
+    _add(window, "kept")
     saved = tmp_path / "saved.graphica"
     window.project.save_project(str(saved))
 

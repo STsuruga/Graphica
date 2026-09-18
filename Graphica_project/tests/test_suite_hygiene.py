@@ -30,7 +30,6 @@ QApplication は生きたままなので、放っておくとウィジェット�
 import re
 from pathlib import Path
 
-import pytest
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 import tests.conftest as conftest_module

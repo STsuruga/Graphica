@@ -194,6 +194,7 @@ class MinimapWidget(FigureCanvas):
                 x = ds.x_data
                 y = ds.y_data
             except Exception:
+                logger.debug("ミニマップ用のデータを取り出せません: %s", ds.name, exc_info=True)
                 continue
             if x is None or len(x) == 0:
                 continue

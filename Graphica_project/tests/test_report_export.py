@@ -1,7 +1,6 @@
 # tests/test_report_export.py
 """core/report_export.py(項目157、C-1104: PDF/HTML実験レポート自動ビルド)のテスト。"""
 import pandas as pd
-import pytest
 
 from core.dataset import Dataset
 from core.report_export import collect_methods_sections, generate_html_report

@@ -691,7 +691,6 @@ def test_gradient_line_with_single_point_falls_back_to_plain_line(canvas):
         plot_type='Line', gradient_enabled=True, gradient_target='line',
     )
     canvas.redraw_all([ds], 1, 1, [{}])
-    ax = canvas.all_axes[0]
     assert isinstance(ds.artist, Line2D)
 
 
