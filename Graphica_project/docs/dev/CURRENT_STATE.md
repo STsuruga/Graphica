@@ -21,6 +21,23 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
 **ユーザー指示: どの項目でも、触ったファイルについて pip 配布に向けた整理とコメントの最小化を一緒に行う**
 (詳細はボードの「作業ルールと引き継ぎ」)。まだどの項目も未着手。
 
+**保守性ボードの作業場所と進め方(2026-09-18 決定)**
+- 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
+  `D:\ユーザー\shuta\ドキュメント\PlotterApp-maintenance`(本体フォルダ PlotterApp は master のまま)。
+- 理由: プラグインのリポジトリは本体フォルダ `PlotterApp/Graphica_project` を editable install で
+  参照している。そこで I-1(`graphica.*` への再編)などをすると、進行中のプラグイン開発が壊れる。
+  **worktree 側で `pip install -e` しないこと**(プラグインの参照先が worktree に移ってしまう)。
+  worktree ではアプリもテストも `Graphica_project/` から直接実行する。
+- CI は master と tag の push でしか動かない。ブランチの検証はローカルのフルスイート
+  (`bash scripts/run_tests_chunked.sh`)で行い、F-1 で `pull_request` トリガーを追加して
+  PR でも CI が回るようにする。
+- master への取り込みは区切りごとに PR で行う(目安: F 完了 / G 完了 / I-1 単独 / H は1項目ずつ /
+  J は適宜)。取り込み前にフルスイートと PR の CI を緑にする。長期間ためない。
+- master 側でも、プラグインのチャットによる `PLUGIN_DEVELOPMENT_PROGRESS.md` の追記や、
+  緊急の不具合修正はありうる。ブランチには定期的に master を取り込む。
+  I-1(全ファイルの import 書き換え)の期間だけは、master のコード変更を止めてもらう(ユーザーに連絡)。
+- リリースはブランチからは行わない。master に取り込んでから通常の手順(RELEASE_CHECKLIST.md)で。
+
 ### 以前の状況(2026-09-17)
 
 **プラグイン開発ハブを公開(2026-09-17)**: https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o
