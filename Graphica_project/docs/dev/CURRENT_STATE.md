@@ -32,7 +32,14 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   `tests/test_broad_except_allowlist.py` がファイルごとの数を固定している(増やすときは理由を書いて表を更新)。
 - K(ついでの改善、ボード db の `findings`): K-1, K-2, K-4, K-11, K-12, K-13 を修正済み(各 `fix:` コミット)。
   K-3, K-5〜K-10 は M 以上なので、着手前に直し方の選択肢を示して確認する。
-- 次: F 完了の PR(ユーザーの了承を得てから作る)。その後 J-1(方針確認)。
+- F と J-1 は PR #14 で master に取り込み済み(2026-09-19、マージコミット 5c5fd4e)。J-1 のコメント方針は
+  CONTRIBUTING.md「コメントと docstring」、見本は core/named_colors.py。
+- G-1〜G-3 完了: プラグイン API 2.0。プラグインは PluginContext(タブ×プラグインごと)で本体を操作し、
+  import してよいのは graphica.plugin / graphica.plugin.testing だけ。版は「主番号一致・小番号以下」で読み込む。
+  tests/test_plugin_public_api.py が公開 API を固定。P-805 は graphica-plugin-element-constants のブランチ
+  api-2.0 で対応済み(G の PR マージ直後に push)。ハブも G の PR マージ時に再公開する。
+- 次: G の PR → マージ後に I-1(方針はボードの I-1 の note。graphica/ の下へ移し、旧名の別名は残さない。
+  旧形式 .pkl 内の "core.dataset" は新しい場所へ読み替える)。I-1 の PR マージまで master のコード変更は止めてもらう。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
