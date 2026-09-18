@@ -34,18 +34,15 @@ plugins/
 {
   "name": "Hello Plugin",
   "version": "1.0",
-  "api_version": "1.0"
+  "api_version": "2.0"
 }
 ```
 
 `__init__.py`(トップレベルに `register(api)` 関数を1つ定義するだけ):
 
 ```python
-from PySide6.QtWidgets import QMessageBox
-
-
-def _say_hello(main_window):
-    QMessageBox.information(main_window, "Hello Plugin", "Hello from a plugin!")
+def _say_hello(ctx):
+    ctx.show_message("Hello from a plugin!")
 
 
 def register(api):
@@ -53,9 +50,18 @@ def register(api):
 ```
 
 これだけで、Graphicaを起動すると「プラグイン」メニューに "Say Hello" が追加され、
-クリックすると本文冒頭のメッセージが表示されます。以降の節で、この
-`register(api)` に渡ってくる `api`(`GraphicaPluginAPI`)が提供する全フックを
-説明します。
+クリックするとメッセージが表示されます。
+
+プラグインが Graphica とやりとりする相手は2つだけです。
+
+- `register(api)` に渡る **`api`(`GraphicaPluginAPI`)**: 起動時に1回だけ、機能を登録する。
+- メニューやパネルに渡る **`ctx`(`PluginContext`)**: 実行時に、そのタブのデータセットを読んだり
+  変えたりする窓口。
+
+本体から import してよいのは **`graphica.plugin`**(`Dataset` / `AnalysisResult` / `PluginContext` など)と、
+テスト用の **`graphica.plugin.testing`** だけです。Graphica 本体の内部(`core` / `gui` / `models`、
+`PlotterApp`、`_` で始まるメソッド)には触らないでください。本体の内部は予告なく変わりますが、
+`api`・`ctx`・`graphica.plugin` はプラグイン API の版(`api_version`)で守られています。
 
 ---
 
@@ -111,7 +117,7 @@ zipは以下のいずれかのレイアウトに対応しています。
 {
   "name": "JCAMP Importer",
   "version": "1.0",
-  "api_version": "1.0",
+  "api_version": "2.0",
   "author": "Your Name",
   "description": "JCAMP-DX file import support",
   "requires": ["numpy"],
@@ -123,9 +129,11 @@ zipは以下のいずれかのレイアウトに対応しています。
 - `version` (必須): プラグイン自身のバージョン文字列(任意の書式。Graphica側は
   中身を検証しません)。
 - `api_version` (必須): このプラグインが対応するGraphicaプラグインAPIの
-  バージョン。現在の値は **`"1.0"`**(`core/plugin_manifest.py` の
+  バージョン。現在の値は **`"2.0"`**(`core/plugin_manifest.py` の
   `PLUGIN_API_VERSION`)。ここが一致しないプラグインは、`__init__.py` を
   importすることすら無く、ロード前に安全にスキップされます。
+  **主番号が本体と同じで、小番号が本体以下なら読み込まれます**(下の「版の方針」)。
+  `"1.0"` のプラグインは 2.0 では読み込まれません(移行方法は末尾の「1.0 からの移行」)。
 - `author` / `description` (任意、推奨): 診断・管理UI上での表示に使われます。
   無くてもロードは失敗しません。
 - `requires` (任意): 依存ポリシー節を参照。
@@ -141,6 +149,17 @@ zipは以下のいずれかのレイアウトに対応しています。
 欠けている、`api_version` が不一致——これらはいずれも例外を起こさず、該当
 プラグインだけが警告ログとともにスキップされます(他のプラグインの読み込みや
 アプリ本体の起動には影響しません)。
+
+### 版の方針
+
+プラグイン API の版は `主番号.小番号` です。
+
+- **小番号が上がる**(2.0 → 2.1): 窓口のメソッドやフックが**増えた**だけ。今あるプラグインはそのまま動きます。
+  新しい機能を使うプラグインは、`api_version` をその版(`"2.1"`)にします。古い本体(2.0)では読み込まれません。
+- **主番号が上がる**(2.x → 3.0): 何かが**消えた・変わった**。この資料に移行表を書きます。
+  古い主番号のプラグインは読み込まれないので、`api_version` を上げて書き直します。
+
+`api_version` には、プラグインが使う機能がそろった最も古い版を書くと、いちばん多くの本体で動きます。
 
 ---
 
@@ -173,7 +192,7 @@ importできるモジュール名のリストを書いておくと、Graphica起
 {
   "name": "SciPy Fitter",
   "version": "1.0",
-  "api_version": "1.0",
+  "api_version": "2.0",
   "requires": ["scipy"]
 }
 ```
@@ -226,25 +245,24 @@ def register(api):
 「プラグイン」メニューにアクションを追加します。
 
 - `text` (str): メニューに表示するテキスト。
-- `callback` (callable): クリック時に呼ばれる関数。呼び出し時に、**現在
-  アクティブな `PlotterApp` インスタンスが1引数として渡されます**。データセット
-  一覧やキャンバスへは、そこから公開属性経由でアクセスしてください
-  (例: `main_window._get_current_dataset()`)。
+- `callback` (callable): `(ctx) -> None`。選んだときのタブの窓口(`PluginContext`)が渡ります。
+  例外を出すと、プラグイン名付きのエラーとして表示されます(アプリは止まりません)。
 - `shortcut` (str | None): キーボードショートカット(例: `"Ctrl+Shift+P"`)。
 
 ```python
+def _show_name(ctx):
+    ds = ctx.current_dataset()
+    if ds is None:
+        ctx.show_message("データセットを選んでください。")
+        return
+    ctx.show_message(ds.name)
+
 def register(api):
     api.register_menu_action("Show current dataset name", _show_name, shortcut="Ctrl+Alt+N")
-
-def _show_name(main_window):
-    ds = main_window._get_current_dataset()
-    ...
 ```
 
-> **重要**: `callback` に渡ってくる `main_window` は**呼び出し時点で
-> アクティブなタブ**です。Graphicaは複数タブ(複数の独立した `PlotterApp`)を
-> 同時に開けるため、`register(api)` の実行時にたまたま存在したタブへの参照を
-> どこかにキャッシュして使い回す、というような実装は避けてください。
+> Graphica は複数のタブを開けます。`ctx` はそのつど、選んだときのタブのものが渡ります。
+> 前に受け取った `ctx` を保存して別のときに使うと、別のタブを操作してしまうので避けてください。
 
 ### `register_importer(extensions, loader, *, name=None, priority=0)`
 
@@ -318,7 +336,7 @@ def register(api):
 
 ```python
 import numpy as np
-from core.dataset import Dataset
+from graphica.plugin import Dataset
 
 def smooth(dataset, params):
     window = params["window"]
@@ -378,8 +396,7 @@ class AnalysisResult:
 
 ```python
 import pandas as pd
-from core.plugin_types import AnalysisResult
-from core.dataset import Dataset
+from graphica.plugin import AnalysisResult, Dataset
 
 def find_peak(dataset, params):
     x, y = dataset.x_data, dataset.y_data
@@ -429,20 +446,30 @@ param_schema = [
 
 - `name` (str): パネルのタイトル(ドックのタイトルバー・表示メニューに使われる)。
   他のプラグインの同名パネルと重複できません。
-- `widget_factory` (callable): `(ProjectModel, QUndoStack) -> QWidget`。
+- `widget_factory` (callable): `(ctx) -> QWidget`。そのタブの窓口(`PluginContext`)が渡ります。
+  パネルはこの `ctx` を持ち続けてかまいません(パネルはタブと一緒に作られ、一緒に消えます)。
 - `area` (str): `"right"` / `"left"` / `"top"` / `"bottom"` のいずれか。
 
 ```python
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
 class MyPanel(QWidget):
-    def __init__(self, project, undo_stack):
+    def __init__(self, ctx):
         super().__init__()
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(f"Datasets: {len(project.datasets)}"))
+        self._ctx = ctx
+        self._label = QLabel()
+        QVBoxLayout(self).addWidget(self._label)
+        ctx.on_datasets_changed(self._refresh)                # データセットが変わったら
+        ctx.on_selection_changed(lambda ds: self._refresh())  # 選択が変わったら
+        self._refresh()
+
+    def _refresh(self):
+        ds = self._ctx.current_dataset()
+        name = ds.name if ds else "-"
+        self._label.setText(f"{len(self._ctx.datasets())} 件 / 選択: {name}")
 
 def register(api):
-    api.register_panel("My Panel", lambda project, undo_stack: MyPanel(project, undo_stack), area="right")
+    api.register_panel("My Panel", MyPanel, area="right")
 ```
 
 **重要な実行時の挙動**(`gui/main_window.py` を確認):
@@ -497,6 +524,33 @@ def register(api):
 将来のLaTeX(`usetex`)レンダリング差し替え用に予約されたフックです。**現時点では登録が
 記録されるだけで、描画には一切接続されていません**(`backend` の契約も未定義)。
 このフックに依存するプラグイン(P-601など)は、本体側の接続作業が先に必要です。
+
+---
+
+## 窓口 `PluginContext`(`ctx`)
+
+メニューの `callback` とパネルの `widget_factory` に渡る、タブ1つ・プラグイン1つごとの窓口です
+(仕様は `core/plugin_context.py`)。データセットを変える操作はすべて **Undo で取り消せます**。
+
+| メソッド | 内容 |
+|---|---|
+| `datasets()` | タブの全データセット(リストはコピー。要素は本体と同じ `Dataset`) |
+| `current_dataset()` | データセット一覧で選ばれているもの(無ければ `None`) |
+| `selected_datasets()` | 選択中のもの(複数選択を含む) |
+| `add_dataset(dataset, description=None)` | データセットを追加(Undo 可) |
+| `set_dataset_properties(dataset, values, description=None)` | 属性をまとめて変更して再描画(Undo 可)。例: `{"color": "#1f77b4", "linewidth": 2.0}`。`Dataset` に無い属性名は `AttributeError` |
+| `redraw()` | グラフを描き直す |
+| `on_datasets_changed(callback)` | 追加・削除・変更・読み込みのあとに `callback()`。描き直しのたびに呼ばれるので軽くする |
+| `on_selection_changed(callback)` | 選択が変わったら `callback(current_dataset)` |
+| `parent_widget` | ダイアログの親にするウィンドウ |
+| `show_message(text, title=None)` / `show_error(text, title=None)` | メッセージ表示(タイトルの既定はプラグイン名) |
+| `data_dir` | このプラグイン専用の書き込み用フォルダ(`%LOCALAPPDATA%\Graphica\plugin_data\<名前>`)。設定やライブラリはここに保存する |
+| `named_colors()` / `set_named_colors(entries)` | 本体の「名前付きの色」(`[{"name", "color"}]`)。書き込み時に検証される |
+| `color_palettes()` / `set_color_palettes(palettes)` | 利用者の配色パレット(`{名前: [色, ...]}`、組み込みのパレットは含まない) |
+| `active_color_cycle()` | いま選ばれているパレットの色 |
+
+`Dataset` の中身(`df` や `color` など)を直接書き換えると、Undo もできず再描画もされません。
+変更は `set_dataset_properties()` で行ってください。
 
 ---
 
@@ -560,7 +614,7 @@ def good_smooth(dataset, params):
 
 ---
 
-## プラグインをテストする(`FakeGraphicaPluginAPI`)
+## プラグインをテストする(`FakeGraphicaPluginAPI` / `FakePluginContext`)
 
 Graphica本体(GUI/QApplication)を一切起動せずに、`register(api)` が期待通りの
 フックを登録しているかを単体テストできます。`core/plugin_testing.py` の
@@ -575,8 +629,8 @@ Graphica本体(GUI/QApplication)を一切起動せずに、`register(api)` が�
 
 ```python
 # my_plugin/__init__.py
-def _say_hello(main_window):
-    ...  # 実際にはダイアログを出す等
+def _say_hello(ctx):
+    ctx.show_message("Hello from a plugin!")
 
 def register(api):
     api.register_menu_action("Say Hello", _say_hello, shortcut="Ctrl+Shift+H")
@@ -584,18 +638,40 @@ def register(api):
 
 ```python
 # tests/test_my_plugin.py
-from core.plugin_testing import FakeGraphicaPluginAPI
+from graphica.plugin.testing import FakeGraphicaPluginAPI, FakePluginContext
 from my_plugin import register
 
-def test_register_adds_hello_menu_action():
-    api = FakeGraphicaPluginAPI()
+def test_hello_menu_action_shows_a_message():
+    api = FakeGraphicaPluginAPI(plugin_name="hello")
     register(api)
 
-    assert len(api.menu_actions) == 1
-    text, callback, shortcut = api.menu_actions[0]
-    assert text == "Say Hello"
-    assert shortcut == "Ctrl+Shift+H"
-    assert callable(callback)
+    action = api.menu_actions[0]
+    assert (action.text, action.shortcut) == ("Say Hello", "Ctrl+Shift+H")
+
+    ctx = FakePluginContext(plugin_name="hello")
+    action.callback(ctx)
+    assert ctx.messages == [("info", "hello", "Hello from a plugin!")]
+```
+
+`FakePluginContext` はメモリ上だけで動く窓口で、本物と同じ検証をします。
+`datasets=` / `current=` で初期状態を渡し、`messages`(表示したメッセージ)、
+`undo_descriptions`(Undo に積まれた操作)、`redraw_count` で結果を確かめられます。
+`select(dataset)` と `fire_datasets_changed()` で通知を送れるので、パネルの更新も試せます。
+
+本番と同じ読み込み経路(manifest の検証 → import → `register(api)`)で確かめるには
+`load_plugin_like_graphica` を使います。相対 import の誤りや `api_version` の不一致は、偽物の API では見つかりません。
+
+```python
+from graphica.plugin.testing import install_zip_like_graphica, load_plugin_like_graphica
+
+def test_loads_like_graphica(tmp_path):
+    api, record = load_plugin_like_graphica("my_plugin", work_dir=str(tmp_path))
+    assert record["error"] is None
+    assert [a.text for a in api.menu_actions] == ["Say Hello"]
+
+def test_zip_installs(tmp_path):
+    name = install_zip_like_graphica("dist/my_plugin-1.0.0.zip", str(tmp_path))
+    assert name == "my_plugin"
 ```
 
 `register_importer`/`register_exporter`/`register_processor`/`register_analyzer`/
@@ -623,8 +699,11 @@ Graphicaのプラグイン機構は「1箇所の失敗が全体を巻き込ま�
   (フック単位での隔離)。
 - **`register_panel` の `widget_factory` がタブごとに失敗**: そのタブでだけ
   パネルがスキップされ、他のタブ・アプリ本体には影響しません。
+- **`on_datasets_changed` などの通知先が例外を出す**: ログに残るだけで、描画や他の通知先は止まりません。
 
-いずれの場合も**ダイアログは出ず、アプリはクラッシュしません**。つまり、
+ここまでの場合は**ダイアログは出ず、アプリはクラッシュしません**。
+(メニューの `callback` と、processor / analyzer / importer / exporter の実行時の失敗だけは、
+プラグイン名付きのエラーとして画面に表示されます。)つまり、
 プラグインにタイプミス等の軽微な不具合があると、目に見えるエラーなしに
 「何も起きない」ように見えることがあります。プラグインが期待通りに動作
 しない場合は、まず `graphica.log`(`%LOCALAPPDATA%\Graphica` 配下)を確認して
@@ -643,3 +722,25 @@ Graphicaのプラグイン機構は「1箇所の失敗が全体を巻き込ま�
 アプリ全体に適用されるため、**標準の Qt ウィジェットをそのまま使えば本体と同じ見た目・
 ダークモードになります。** ウィジェット個別に `setStyleSheet` で色を直書きすると、
 ダークモードで読めなくなるので避けてください。
+
+---
+
+## 1.0 からの移行
+
+プラグイン API 2.0 で、プラグインは Graphica 本体の内部(`PlotterApp`)を受け取らなくなりました。
+
+| 1.0 | 2.0 |
+|---|---|
+| `plugin.json` の `"api_version": "1.0"` | `"api_version": "2.0"` |
+| メニューの `callback(main_window)` | `callback(ctx)` |
+| `main_window._get_current_dataset()` | `ctx.current_dataset()` |
+| `main_window._get_selected_datasets()` | `ctx.selected_datasets()` |
+| `main_window.project.datasets` | `ctx.datasets()` |
+| `QMessageBox.information(main_window, ...)` | `ctx.show_message(...)` |
+| パネルの `widget_factory(project, undo_stack)` | `widget_factory(ctx)` |
+| `FakeGraphicaPluginAPI().menu_actions[0]` はタプル | `.text` / `.callback` / `.shortcut` を持つ `PluginMenuAction` |
+| `from core.dataset import Dataset` など本体内部からの import | `from graphica.plugin import Dataset`(テストは `graphica.plugin.testing`) |
+| テストで `core.plugin_api.PluginManager` を直接使う | `load_plugin_like_graphica(folder)` |
+| テストで `core.plugin_install.install_plugin_zip` | `install_zip_like_graphica(zip_path, target_dir)` |
+
+processor / analyzer / importer / exporter / plot_type / fit_function の書き方は変わりません。

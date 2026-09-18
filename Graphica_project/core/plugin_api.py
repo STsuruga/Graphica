@@ -1,42 +1,17 @@
-# core/plugin_api.py
 """
-Graphicaのプラグイン機構。
+Graphica のプラグイン機構。
 
-設計方針:
-- プラグインは探索対象ディレクトリ(gui/main_window.py の
-  plugin_search_paths()、項目E-1: ソース実行時のみ resource_path("plugins")、
-  常に %LOCALAPPDATA%\\Graphica\\plugins)配下の、各サブフォルダとして配置する。
-  各サブフォルダは `__init__.py` と `plugin.json`(項目F-1、
-  core/plugin_manifest.py 参照。name/version/api_versionが必須キー)を
-  直下に持つ通常のPythonパッケージで、`__init__.py` はトップレベルに
-  以下を定義する:
+プラグインは探索フォルダ(gui/main_window.py の plugin_search_paths())の下の、
+`__init__.py` と `plugin.json` を持つ Python パッケージ。`__init__.py` に
+`register(api: GraphicaPluginAPI)` を定義し、その中で api.register_xxx() を呼ぶ。
 
-    def register(api: GraphicaPluginAPI) -> None:
-        ...  # api.register_fit_function(...) 等を呼ぶ
-
-  plugin.jsonが欠落・不正・api_version不一致の場合、__init__.pyは一切
-  importされずロードをスキップする(A-2のエラー隔離経路に乗る)。
-- プラグインはアプリと同じPythonプロセス内で実行される、サンドボックスなしの
-  通常のPythonコードである。信頼できる配布元のプラグインのみ導入すること
-  (models/project.py の pickle 復元における _RestrictedUnpickler の
-  ドキュメントコメントと同様の注意が必要)。
-- 1つのプラグインの読み込み/登録に失敗しても、他のプラグインの読み込みや
-  アプリ本体の起動を止めない(例外はログに記録し、そのプラグインだけを
-  スキップする)。
-- 拡張ポイントは現時点では「カーブフィット関数の追加」「メニューへの
-  アクション追加」「データインポーターの追加」「エクスポート形式の追加」
-  「データ処理の追加」「解析の追加」「パネルの追加」「プロット種別の追加」
-  「描画バックエンドの追加(項目G、骨組みのみで実装は未接続)」の9つ。
-  今後も同様のパターン(register_xxx メソッドを追加する)で拡張できる。
-- 【項目D-3・方針決定】UIフック(register_panel/register_menu_action等)が
-  プラグイン側から渡す表示名(パネルのタイトル、メニュー項目名等)は、
-  現時点では英語表記のみサポートする。core/i18n.py の tr() による翻訳統合は
-  行わない(プラグイン側の文字列をtr()の辞書キーとして解決しようとすると、
-  プラグイン作者が本体の翻訳辞書の存在を意識する必要が生じてしまい、
-  過剰な結合になるため)。プラグインエコシステムが実際に育ち、多言語対応の
-  需要が具体化してから、プラグイン側にも言語別文字列を渡せる仕組み
-  (例: name引数をdictにする等)を改めて検討する。それまではこの制約を
-  docs/plugin_development.md(将来のF-3)にも明記すること。
+- plugin.json が無い・壊れている・api_version が合わないプラグインは import しない。
+- プラグインはサンドボックスなしで同じプロセス内で動く。信頼できる配布元のものだけ入れること。
+- 1つのプラグインの失敗で他のプラグインやアプリの起動を止めない(ログに残してスキップ)。
+- 登録はプロセス全体で1回(タブごとではない)。タブに関わる操作は、呼び出し時に渡る
+  PluginContext(core/plugin_context.py)を通す。
+- プラグインが渡す表示名(メニュー項目名など)は翻訳しない。tr() の辞書に載せると、
+  プラグイン作者が本体の翻訳辞書を意識しなければならなくなる。
 """
 import importlib
 import importlib.util
@@ -45,11 +20,10 @@ import os
 import sys
 
 from core.analysis import register_fit_function
-from core.plugin_manifest import load_plugin_manifest
 # 外部プラグインが core.plugin_api から import している可能性があるため再公開する。
-from core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestError  # noqa: F401
+from core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestError, load_plugin_manifest  # noqa: F401
 from core.plugin_types import (
-    PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter,
+    PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter, PluginMenuAction,
     PluginPanel, PluginPlotType, PluginProcessor, PluginRegistrationError,
     PluginRenderBackend,
 )
@@ -60,13 +34,13 @@ PLUGIN_REGISTER_FUNC = "register"
 
 
 def _normalize_extension(extension):
-    """拡張子を先頭ピリオド付き・小文字の形に揃える(例: "JDX" -> ".jdx")。"""
+    """".JDX" / "jdx" を ".jdx" にそろえる。"""
     ext = extension.lower()
     return ext if ext.startswith('.') else '.' + ext
 
 
 def _check_plugin_dependencies(info):
-    """PLUGIN_INFOのrequiresキー(あれば)を見て、importできないモジュール名を列挙して返す(項目E-3)。"""
+    """plugin.json の requires のうち、import できないモジュール名を返す。"""
     missing = []
     for module_name in info.get("requires", []) or []:
         if importlib.util.find_spec(module_name) is None:
@@ -75,45 +49,34 @@ def _check_plugin_dependencies(info):
 
 
 class PluginLoadError(Exception):
-    """プラグインの読み込み/登録に失敗したことを表す(呼び出し側でキャッチして続行する用途)"""
+    """プラグインの読み込みに失敗した(呼び出し側で捕まえて次のプラグインへ進む)。"""
 
 
 class GraphicaPluginAPI:
     """
-    プラグインの `register(api)` に渡されるオブジェクト。
-    プラグインが触れて良い範囲を明示的なメソッド越しに限定するための窓口
-    (Datasetやウィジェットの内部実装へ直接アクセスさせない)。
+    プラグインの register(api) に渡される登録窓口。
+
+    特定のタブへの参照は持たない。タブを操作する callback には、呼び出し時にそのタブの
+    PluginContext が渡る(最初に開いたタブを握り続けると、複数タブで取り違える)。
     """
 
-    def __init__(self, main_window=None):
-        self._main_window = main_window
-        self._menu_actions = []  # (text, callback, shortcut) のリスト。メニュー構築側が読む。
-        self._importers = {}  # 拡張子(".jdx"等) -> list[PluginImporter](priority降順)
+    def __init__(self):
+        self._menu_actions = []  # list[PluginMenuAction]
+        self._importers = {}  # 拡張子 -> list[PluginImporter](priority の高い順)
         self._exporters = {}  # format_name.lower() -> PluginExporter
-        self._processors = {}  # name -> PluginProcessor
-        self._analyzers = {}  # name -> PluginAnalyzer
-        self._panels = {}  # name -> PluginPanel
-        self._plot_types = {}  # type_name -> PluginPlotType
-        self._render_backends = {}  # name -> PluginRenderBackend(項目G、骨組みのみ)
+        self._processors = {}
+        self._analyzers = {}
+        self._panels = {}
+        self._plot_types = {}
+        self._render_backends = {}
 
-        # フック登録の失敗をプラグイン単位ではなくフック単位で隔離するための
-        # 記録先(フェーズA-2)。1プラグインが複数のフックを登録する場合、
-        # そのうち1つが失敗しても他のフックの登録は継続する。
-        # F-2(プラグイン管理UI)から読み出される想定。
+        # 1プラグインの中でもフック単位で失敗を隔離し、プラグイン管理画面に出す。
         self._registration_errors = []  # list[PluginRegistrationError]
-        # 現在register(api)を実行中のプラグイン名。PluginManager.load_all()が
-        # 各プラグインのregister()を呼ぶ直前に差し替える。register_xxx呼び出し
-        # 自体はどのプラグインが呼んでいるか知らないため、この経由で伝える。
+        # register_xxx は呼び出し元のプラグインを知らないので、PluginManager が差し替える。
         self._current_plugin_name = "(不明なプラグイン)"
 
     def _safe_register(self, hook_kind, fn, *args, **kwargs):
-        """
-        フック登録処理(fn)を実行し、例外が起きてもプラグイン全体を巻き込まず
-        このフック1件の失敗として隔離する(フェーズA-2)。
-
-        Returns:
-            bool: 登録に成功したかどうか。
-        """
+        """登録に失敗してもこのフック1件だけの失敗として記録し、False を返す。"""
         try:
             fn(*args, **kwargs)
             return True
@@ -129,15 +92,14 @@ class GraphicaPluginAPI:
 
     def register_fit_function(self, name, func, param_names, p0=None):
         """
-        カーブフィットの選択肢に、プラグイン提供の関数を追加する。
+        曲線フィットの選択肢に関数を追加する。
 
         Args:
-            name (str): フィットタイプのコンボボックスに表示される名前
-                (組み込みのフィットタイプ名や他のプラグイン名と重複不可)。
-            func (callable): scipy.optimize.curve_fit に渡せる f(x, *params) 形式の関数。
-            param_names (list[str]): パラメータ名のリスト(結果表示に使われる)。
-            p0 (list[float] | callable | None): 初期値のリスト、または
-                (x_data, y_data) -> list[float] を返す関数。省略時は全て1.0。
+            name (str): フィットの種類の選択肢に出す名前(組み込みや他のプラグインと重複不可)。
+            func (callable): scipy.optimize.curve_fit に渡せる f(x, *params)。
+            param_names (list[str]): パラメータ名(結果の表示に使う)。
+            p0 (list[float] | callable | None): 初期値、または (x_data, y_data) -> list[float]。
+                省略時はすべて 1.0。
         """
         return self._safe_register(
             PluginHookKind.FIT_FUNCTION, register_fit_function, name, func, param_names, p0=p0
@@ -145,39 +107,30 @@ class GraphicaPluginAPI:
 
     def register_menu_action(self, text, callback, shortcut=None):
         """
-        「プラグイン」メニューにアクションを追加する。
+        「プラグイン」メニューに項目を追加する。
 
         Args:
-            text (str): メニューに表示するテキスト。
-            callback (callable): クリック時に呼ばれる関数。呼び出し時に
-                現在アクティブな PlotterApp インスタンスを1引数として渡す
-                (データセット一覧やキャンバスへは、そこから通常のpublicな
-                属性経由でアクセスする)。
+            text (str): メニューに出す文字列。
+            callback (callable): (PluginContext) -> None。選んだときのタブの窓口が渡る。
+                例外はプラグイン名付きでエラー表示され、アプリは止まらない。
             shortcut (str | None): キーボードショートカット(例: "Ctrl+Shift+P")。
         """
         return self._safe_register(
-            PluginHookKind.MENU_ACTION, self._menu_actions.append, (text, callback, shortcut)
+            PluginHookKind.MENU_ACTION, self._menu_actions.append,
+            PluginMenuAction(text=text, callback=callback, shortcut=shortcut,
+                             plugin_name=self._current_plugin_name),
         )
 
     def register_importer(self, extensions, loader, *, name=None, priority=0):
         """
-        データファイルの読み込みに、プラグイン提供のローダーを追加する(項目B-1)。
-        登録した拡張子は、データ追加のファイルダイアログ・ドラッグ&ドロップ一括取込
-        (項目77)の両方で自動的に受け付けられるようになる(gui/workers.pyの
-        read_data_file()がファイル読み込みの入口で優先的に参照する)。
-
-        現時点では単一の pandas.DataFrame を返すローダーのみサポートする
-        (複数シート/複数データセットを一度に返す形式は未対応。将来的な拡張点)。
+        データファイルの読み込み形式を追加する。ファイルを開くダイアログ、ドラッグ&ドロップ、
+        フォルダからの一括インポートのすべてで使われる。
 
         Args:
-            extensions (list[str]): 対応する拡張子のリスト(例: [".jdx", ".dx"]、
-                先頭のピリオドは省略可)。
-            loader (callable): ファイルパス(str)を受け取り、pandas.DataFrame を
-                返す関数。
-            name (str | None): エラーメッセージ等に表示する名前
-                (省略時は登録元のプラグイン名)。
-            priority (int): 同じ拡張子に複数のプラグインが登録した場合の優先順位
-                (値が大きいほど優先。同点の場合は登録順)。
+            extensions (list[str]): 対応する拡張子(例: [".jdx", ".dx"]、ピリオドは省略可)。
+            loader (callable): (ファイルパス: str) -> pandas.DataFrame。
+            name (str | None): エラー表示に使う名前。省略時はプラグイン名。
+            priority (int): 同じ拡張子に複数登録されたときの優先度(大きいほど優先、同点は登録順)。
         """
         return self._safe_register(
             PluginHookKind.IMPORTER, self._do_register_importer, extensions, loader,
@@ -190,39 +143,25 @@ class GraphicaPluginAPI:
             importer = PluginImporter(extension=ext, loader=loader, name=name, priority=priority)
             bucket = self._importers.setdefault(ext, [])
             bucket.append(importer)
-            # 優先度の高い順に並べ替える(同点は登録順を保つ安定ソート)
-            bucket.sort(key=lambda imp: -imp.priority)
+            bucket.sort(key=lambda imp: -imp.priority)  # 安定ソートなので同点は登録順のまま
 
     def get_importer_for_extension(self, extension):
-        """
-        指定した拡張子に対して最も優先度の高い登録済みインポーターを返す
-        (登録が無ければNone)。
-
-        Args:
-            extension (str): 先頭ピリオドの有無・大文字小文字を問わない。
-        """
+        """最も優先度の高いインポーター。無ければ None。"""
         bucket = self._importers.get(_normalize_extension(extension))
         return bucket[0] if bucket else None
 
     def get_importer_extensions(self):
-        """登録済みインポーターが対応する拡張子の一覧(重複無し、ソート済み)。"""
         return sorted(self._importers.keys())
 
     def register_exporter(self, format_name, extension, writer, *, name=None):
         """
-        プロットのエクスポート形式に、プラグイン提供の書き出し処理を追加する
-        (項目B-2)。バッチエクスポートの「形式」コンボボックス・単発エクスポートの
-        保存ダイアログの両方から選べるようになる。
+        グラフの書き出し形式を追加する。エクスポートと一括エクスポートの両方で選べる。
 
         Args:
-            format_name (str): エクスポート形式の選択肢に表示される名前
-                (例: "MyFormat")。BatchExportDialogの形式コンボの選択値として
-                そのまま使われる。
-            extension (str): 出力ファイルの拡張子(先頭ピリオドは省略可)。
-            writer (callable): (matplotlib.figure.Figure, 出力パス:str) を受け取り、
-                ファイルへの書き出しを行う関数。戻り値は使われない。
-            name (str | None): エラーメッセージ等に表示する名前
-                (省略時は登録元のプラグイン名)。
+            format_name (str): 形式の選択肢に出す名前。
+            extension (str): 出力ファイルの拡張子(ピリオドは省略可)。
+            writer (callable): (matplotlib.figure.Figure, 出力パス: str) -> None。
+            name (str | None): エラー表示に使う名前。省略時はプラグイン名。
         """
         return self._safe_register(
             PluginHookKind.EXPORTER, self._do_register_exporter, format_name, extension, writer,
@@ -235,11 +174,9 @@ class GraphicaPluginAPI:
         )
 
     def get_exporter(self, format_name):
-        """指定した形式名(大文字小文字を問わない)に対応する登録済みエクスポーターを返す。"""
         return self._exporters.get(format_name.lower())
 
     def get_exporter_for_extension(self, extension):
-        """指定した拡張子に対応する登録済みエクスポーターを返す(無ければNone)。"""
         ext = _normalize_extension(extension)
         for exporter in self._exporters.values():
             if exporter.extension == ext:
@@ -247,32 +184,22 @@ class GraphicaPluginAPI:
         return None
 
     def get_exporters(self):
-        """登録済みエクスポーターの一覧。"""
         return list(self._exporters.values())
 
     def register_processor(self, name, fn, *, category="general", param_schema=None):
         """
-        「現在のデータセット」に対する非破壊のデータ処理を、プラグインメニューの
-        「データ処理」配下に追加する(項目C-1)。
-
-        fn は元のDatasetを一切変更せず、新しいDatasetを返すこと(規格化・
-        Savitzky-Golay等の既存機能と同じ非破壊パターン)。実行結果の新規
-        Datasetの追加はAddDatasetCommand経由でUndo/Redoスタックにpushされる
-        ため、プラグイン側はUndoを一切意識する必要が無い。
+        現在のデータセットから新しいデータセットを作る処理を、「プラグイン ▸ データ処理」に追加する。
+        結果は Undo できる形で追加されるので、プラグイン側で Undo を扱う必要はない。
 
         Args:
-            name (str): メニューに表示される名前(他のプラグインの同名処理と
-                重複不可)。
-            fn (callable): (Dataset, dict) -> Dataset。第2引数はparam_schema
-                から自動生成されたフォームで入力された値の辞書
-                (param_schema省略時は空の辞書)。
-            category (str): メニューでのグルーピングに使うカテゴリ名。
-            param_schema (list[dict] | None): パラメータ入力フォームの自動生成に
-                使うスキーマ。各要素は少なくとも "name"(パラメータ名)と
-                "type"("int"/"float"/"str"/"bool"/"choice")を持つ辞書。
-                例: [{"name": "window", "label": "窓幅", "type": "int",
-                      "default": 5, "min": 1, "max": 999}]
-                省略時はパラメータ入力無しで即実行される。
+            name (str): メニューに出す名前(他のプラグインと重複不可)。
+            fn (callable): (Dataset, dict) -> Dataset。元の Dataset は変更しないこと。
+                第2引数は param_schema から作った入力フォームの値(無ければ空の辞書)。
+            category (str): メニューでのまとまり。
+            param_schema (list[dict] | None): 入力フォームの定義。各要素は "name" と
+                "type"("int"/"float"/"str"/"bool"/"choice")を持つ。
+                例: [{"name": "window", "label": "窓幅", "type": "int", "default": 5, "min": 1, "max": 999}]
+                省略時は入力なしで実行する。
         """
         return self._safe_register(
             PluginHookKind.PROCESSOR, self._do_register_processor, name, fn,
@@ -288,27 +215,21 @@ class GraphicaPluginAPI:
         )
 
     def get_processors(self):
-        """登録済みデータ処理の一覧。"""
         return list(self._processors.values())
 
     def get_processor_categories(self):
-        """登録済みデータ処理のカテゴリ一覧(重複無し、ソート済み)。"""
         return sorted({p.category for p in self._processors.values()})
 
     def register_analyzer(self, name, fn, *, output_kind="table", param_schema=None):
         """
-        「現在のデータセット」を解析し、構造化された結果(表・注釈・派生データセット)
-        を返すフックを、プラグインメニューの「解析」配下に追加する(項目C-2)。
+        現在のデータセットを解析し、表・注釈・新しいデータセットを返す処理を、
+        「プラグイン ▸ 解析」に追加する。
 
         Args:
-            name (str): メニューに表示される名前(他のプラグインの同名解析と
-                重複不可)。
-            fn (callable): (Dataset, dict) -> AnalysisResult。第2引数は
-                register_processorと同様、param_schemaから自動生成された
-                フォームの入力値。
-            output_kind (str): 解析結果の主な性質を表す分類用の文字列
-                (現状は表示上の分類用途のみで、動作は変えない)。
-            param_schema (list[dict] | None): register_processorと同じ形式。
+            name (str): メニューに出す名前(他のプラグインと重複不可)。
+            fn (callable): (Dataset, dict) -> AnalysisResult。第2引数は register_processor と同じ。
+            output_kind (str): 結果の分類(表示上の区別だけで、動作は変わらない)。
+            param_schema (list[dict] | None): register_processor と同じ形式。
         """
         return self._safe_register(
             PluginHookKind.ANALYZER, self._do_register_analyzer, name, fn,
@@ -324,30 +245,17 @@ class GraphicaPluginAPI:
         )
 
     def get_analyzers(self):
-        """登録済み解析処理の一覧。"""
         return list(self._analyzers.values())
 
     def register_panel(self, name, widget_factory, *, area="right"):
         """
-        プラグイン製のドックパネルを追加する(項目D-1)。register_dockという
-        別フックには分離せず、この1つに統合する(当初検討した分離案は
-        区別する実益が薄いため不採用)。
-
-        widget_factoryはタブ(PlotterAppインスタンス)ごとに、そのタブの
-        構築時に個別に呼ばれる。register_menu_action同様、GraphicaPluginAPI
-        自身は特定のタブへの参照を保持しない(shibokenのGC罠・古いタブへの
-        参照固定を避けるため、CLAUDE.md参照)。
+        ドックパネルを追加する。「プラグイン ▸ パネル」から表示を切り替えられる。
 
         Args:
-            name (str): パネルのタイトル(ドックのタイトルバー・表示メニューに
-                使われる。他のプラグインの同名パネルと重複不可)。
-            widget_factory (callable): (ProjectModel, QUndoStack) -> QWidget。
-                呼び出しはタブごとに1回。例外を投げた場合、そのタブでは
-                パネルを作らずログに警告を残す(他のパネル・タブ自体の
-                起動は継続する)。
-            area (str): "right"/"left"/"top"/"bottom"のいずれか。実際の
-                Qt.DockWidgetAreaへのマッピングはGUI側で行う(coreは
-                PySide6に依存しないため)。
+            name (str): パネルのタイトル(他のプラグインと重複不可)。
+            widget_factory (callable): (PluginContext) -> QWidget。タブごとに、そのタブを
+                作るときに1回呼ばれ、そのタブの窓口が渡る。例外を出すとそのタブにはパネルを作らない。
+            area (str): "right" / "left" / "top" / "bottom"。
         """
         return self._safe_register(
             PluginHookKind.PANEL, self._do_register_panel, name, widget_factory,
@@ -362,31 +270,20 @@ class GraphicaPluginAPI:
         )
 
     def get_panels(self):
-        """登録済みパネルの一覧。"""
         return list(self._panels.values())
 
     def register_plot_type(self, type_name, drawer, *, requires_2d=False):
         """
-        データセットのプロット種別(plot_type)に、プラグイン提供の描画方法を
-        追加する(項目D-2)。既存5種類('Line'/'Scatter'/'Line+Scatter'/'Area'/
-        'Bar')の描画コードは変更しない。gui/canvas.pyは未知のplot_typeに
-        遭遇した際にこのレジストリを引く、というフォールバック経路のみが
-        新設される(既存分岐を壊さない増分実装)。
+        データセットのプロット種別を追加する。
 
         Args:
-            type_name (str): ds.plot_typeに設定する値。データセットプロパティ
-                ダイアログのプロット種別コンボボックスにも表示される
-                (組み込み5種類・他のプラグインの同名と重複不可)。
+            type_name (str): Dataset.plot_type に入る値で、種別の選択肢にも出る
+                (組み込みや他のプラグインと重複不可)。
             drawer (callable): (Dataset, Axes, x_data, y_data) -> Artist | None。
-                x_data/y_dataは既にウォーターフォールのオフセット等が適用
-                済みの描画用配列(ds.x_data/ds.y_dataそのものではない場合が
-                ある)。返り値のArtistはds.artistにキャッシュされ、凡例表示に
-                使われる(不要ならNoneを返してよい)。ウォーターフォールの
-                隠蔽描画・グラデーション等の追加オーバーレイは組み込み
-                plot_typeのみの対応であり、プラグイン製plot_typeには
-                自動適用されない(既知の制限)。
-            requires_2d (bool): 現状は表示上の分類用途のみ(将来の2Dマップ系
-                プラグインplot_type向けの予約フラグ)。
+                x_data / y_data はウォーターフォールのずらしなどを適用済みの描画用の配列。
+                返した Artist は凡例に使う(不要なら None)。グラデーションなどの重ね描きは
+                組み込みの種別だけの機能で、プラグインの種別には付かない。
+            requires_2d (bool): 分類用の予約フラグ(いまは動作に影響しない)。
         """
         return self._safe_register(
             PluginHookKind.PLOT_TYPE, self._do_register_plot_type, type_name, drawer,
@@ -401,27 +298,18 @@ class GraphicaPluginAPI:
         )
 
     def get_plot_types(self):
-        """登録済みプロット種別の一覧。"""
         return list(self._plot_types.values())
 
     def get_plot_type(self, type_name):
-        """指定した名前に対応する登録済みプロット種別を返す(無ければNone)。"""
         return self._plot_types.get(type_name)
 
     def register_render_backend(self, name, backend):
         """
-        将来のusetex(LaTeX)差し替え等のためのプレースホルダ(項目G、骨組みのみ)。
-
-        【重要】現時点では gui/canvas.py のレンダリング経路には一切未接続。
-        このメソッドを呼んでも登録が記録されるだけで、実際の描画には何の
-        影響も無い。接続する場合はMplCanvasの初期化経路を変更する大きめの
-        変更になるため、別ロードマップとして切り出すこと(本ロードマップの
-        スコープ外)。backendの中身の契約(どんなメソッドを持つべきか)も
-        現時点では未定義(core.plugin_types.RenderBackend参照)。
+        描画バックエンドの登録枠(予約)。描画にはまだ接続しておらず、登録しても何も起きない。
 
         Args:
-            name (str): バックエンドの識別名(他のプラグインの同名と重複不可)。
-            backend (RenderBackend): 現時点では契約未定義のプレースホルダ。
+            name (str): 識別名(他のプラグインと重複不可)。
+            backend (RenderBackend): 中身の仕様は未定。
         """
         return self._safe_register(
             PluginHookKind.RENDER_BACKEND, self._do_register_render_backend, name, backend,
@@ -436,7 +324,6 @@ class GraphicaPluginAPI:
         )
 
     def get_render_backends(self):
-        """登録済み描画バックエンドの一覧(骨組みのみ、項目G)。"""
         return list(self._render_backends.values())
 
     @property
@@ -445,34 +332,20 @@ class GraphicaPluginAPI:
 
     @property
     def registration_errors(self):
-        """このプロセスで発生した、フック単位の登録失敗の一覧。"""
         return list(self._registration_errors)
 
 
 class PluginManager:
-    """
-    plugins/ ディレクトリ配下のプラグインを検出・読み込み・登録するマネージャー。
-    """
+    """探索フォルダのプラグインを見つけて読み込み、register(api) を呼ぶ。"""
 
     def __init__(self, plugins_dir):
-        # plugins_dir は単一パス(str、既存の呼び出し元との後方互換)か、
-        # 優先順位つきの複数パス(list[str]、項目E-1)のどちらでも受け付ける。
+        """plugins_dir は1つのパス、または優先順のパスのリスト。"""
         self.plugins_dirs = [plugins_dir] if isinstance(plugins_dir, str) else list(plugins_dir)
-        # 読み込み結果の記録: 各要素は
-        # {"name": フォルダ名, "info": PLUGIN_INFO or None, "error": str or None}
-        self.loaded_plugins = []
-        # discover_plugin_dirs() が最後に見つけた、プラグイン名 -> 発見元ディレクトリ。
-        # _load_module() が同じ呼び出し内でどのディレクトリから読むかを引くのに使う。
-        self._plugin_locations = {}
+        self.loaded_plugins = []  # list[{"name", "info", "error", "disabled"}]
+        self._plugin_locations = {}  # プラグイン名 -> 見つかった探索フォルダ
 
     def discover_plugin_dirs(self):
-        """
-        plugins_dirs を優先順位順に走査し、__init__.py を持つサブディレクトリ名の
-        一覧を返す(戻り値は従来通りフォルダ名のリスト、項目E-1)。
-        複数の探索パスに同名のプラグインフォルダが存在する場合、先に見つかった
-        方(＝探索順の早いパス)を採用し、後から見つかった方はログに警告を
-        出してスキップする。
-        """
+        """__init__.py を持つサブフォルダ名を返す。同名は先に見つかった探索フォルダのものを使う。"""
         self._plugin_locations = {}
         names = []
         for plugins_dir in self.plugins_dirs:
@@ -494,7 +367,6 @@ class PluginManager:
         return names
 
     def _load_module(self, plugin_name):
-        """1つのプラグインパッケージを importlib で読み込み、モジュールオブジェクトを返す"""
         base_dir = self._plugin_locations[plugin_name]
         init_path = os.path.join(base_dir, plugin_name, "__init__.py")
         module_name = f"graphica_plugin_{plugin_name}"
@@ -515,38 +387,27 @@ class PluginManager:
 
     def load_all(self, api, disabled_names=None):
         """
-        plugins_dir 配下の全プラグインを読み込み、register(api) を呼び出す。
-        1つのプラグインで例外が発生しても、他のプラグインの読み込みは継続する。
+        すべてのプラグインを読み込み register(api) を呼ぶ。1つが失敗しても続ける。
 
-        Args:
-            disabled_names (set[str] | None): プラグイン管理UI(項目F-2)で
-                個別に無効化されたプラグイン名の集合。ここに含まれる名前は
-                manifest(表示用のname/version等)だけ読み込み、依存チェック・
-                __init__.pyのimport・register()呼び出しは一切行わない
-                (次回起動反映でよい、という仕様のため、ここでスキップすれば
-                「無効化した状態での次回起動」がそのまま実現される)。
+        disabled_names に含まれるプラグインは、表示用に manifest だけ読み、import しない。
         """
         disabled_names = disabled_names or set()
         self.loaded_plugins = []
         for plugin_name in self.discover_plugin_dirs():
             record = {"name": plugin_name, "info": None, "error": None, "disabled": False}
+            plugin_dir = os.path.join(self._plugin_locations[plugin_name], plugin_name)
 
             if plugin_name in disabled_names:
                 record["disabled"] = True
                 try:
-                    plugin_dir = os.path.join(self._plugin_locations[plugin_name], plugin_name)
                     record["info"] = load_plugin_manifest(plugin_dir)
                 except PluginManifestError:
-                    # 無効化中なので、表示用の名前・バージョンが取れないだけ。
                     logger.debug("無効化中のプラグイン '%s' の manifest を読めません", plugin_name, exc_info=True)
                 self.loaded_plugins.append(record)
                 continue
 
             try:
-                # plugin.json(項目F-1)はモジュールをimportする前に検証する。
-                # api_version不一致等で弾く場合、プラグインのコード自体は
-                # 一切実行されない(信頼できないプラグインへの安全側の配慮)。
-                plugin_dir = os.path.join(self._plugin_locations[plugin_name], plugin_name)
+                # manifest は import より前に検証する。弾いたプラグインのコードは一切実行しない。
                 info = load_plugin_manifest(plugin_dir)
                 record["info"] = info
 
@@ -565,20 +426,12 @@ class PluginManager:
                     raise PluginLoadError(
                         f"プラグイン '{plugin_name}' に {PLUGIN_REGISTER_FUNC}(api) 関数がありません。"
                     )
-                # register_xxx呼び出し自身はどのプラグインが呼んでいるか知らないため、
-                # ここで現在実行中のプラグイン名をapiに伝える(_safe_register参照)。
                 api._current_plugin_name = plugin_name
                 register_func(api)
 
             except Exception as e:
+                # 本体側のコード(manifest の解析など)の不具合もここに来るので、traceback を残す。
                 record["error"] = str(e)
-                # ★ バグ修正: logger.warning()はトレースバックを一切残さない。
-                # このtryブロックはプラグイン自身のコード(register_func)だけで
-                # なく、マニフェスト解析・依存チェック・モジュールexecという
-                # このアプリ自身のコードも同じexcept節で受けているため、
-                # Graphica側のバグが原因でも「このプラグインが壊れている」と
-                # 一行のメッセージだけがログに残り、原因の切り分けが極めて
-                # 困難だった。logger.exception()でスタックトレースも残す。
                 logger.exception("プラグイン '%s' の読み込みに失敗しました: %s", plugin_name, e)
 
             self.loaded_plugins.append(record)
@@ -586,59 +439,35 @@ class PluginManager:
         return self.loaded_plugins
 
 
-# ★ フィット関数のレジストリ (core/analysis.py の _PLUGIN_FIT_FUNCTIONS) は
-# プロセス全体で1つのモジュールレベル辞書であり、複数プロジェクトタブ(項目40)
-# では PlotterApp インスタンスがタブごとに作られるため、タブが増えるたびに
-# 同じプラグインを読み込むと「既に登録されています」エラーになってしまう。
-# そのためプラグインの読み込み・登録はプロセス全体で1度だけ行い、以降の呼び出しは
-# 同じ GraphicaPluginAPI インスタンス(と、そのmenu_actions)を使い回す。
+# 登録先(フィット関数の辞書など)がプロセス全体で1つなので、読み込みもプロセスで1回だけ行う。
+# タブごとに読み込むと「既に登録されています」で失敗する。
 _singleton_api = None
 _singleton_manager = None
 
-# セーフモード(項目F-4)のON/OFF。main.pyが起動直後、load_plugins_once()が
-# 最初に呼ばれるより前に set_safe_mode() で設定する想定。プロセス全体で1つの
-# フラグであり、_singleton_api 同様タブごとの状態は持たない。
+# main.py が load_plugins_once() の最初の呼び出しより前に設定する。
 _safe_mode_enabled = False
 
 
 def set_safe_mode(enabled):
-    """
-    セーフモードのON/OFFを切り替える(項目F-4)。
-    load_plugins_once() の最初の呼び出しより後に呼んでも、既にキャッシュ済みの
-    _singleton_api には影響しない(既存のシングルトンキャッシュの仕組みと同じ)。
-    """
+    """load_plugins_once() が一度呼ばれたあとに変えても、読み込み済みの結果には影響しない。"""
     global _safe_mode_enabled
     _safe_mode_enabled = bool(enabled)
 
 
 def is_safe_mode_enabled():
-    """現在セーフモードが有効かどうかを返す。"""
     return _safe_mode_enabled
 
 
 def load_plugins_once(plugins_dir, disabled_names=None):
     """
-    plugins_dir 配下のプラグインを、プロセス内で最初の呼び出し時にのみ読み込む。
-    2回目以降の呼び出しは、キャッシュされた GraphicaPluginAPI をそのまま返す
-    (新しいタブが開かれるたびに再読み込み・再登録が走らないようにするため)。
-
-    セーフモード(項目F-4)が有効な場合、プラグインディレクトリには一切触れず
-    (ディレクトリ作成すら行わない)、何も登録されていない空の GraphicaPluginAPI を
-    返す。これも通常時と同じくキャッシュされるため、2回目以降の呼び出しは
-    同じ空のAPIを返し続ける。
-
-    Args:
-        disabled_names (set[str] | None): プラグイン管理UI(項目F-2)で個別に
-            無効化されたプラグイン名の集合。PluginManager.load_all()にそのまま
-            渡す。セーフモード有効時は無視される(そもそも何も読み込まないため)。
+    最初の呼び出しでだけプラグインを読み込み、以後は同じ GraphicaPluginAPI を返す。
+    セーフモードでは探索フォルダに一切触れず(作成もしない)、空の API を返す。
     """
     global _singleton_api, _singleton_manager
     if _singleton_api is not None:
         return _singleton_api
 
     if is_safe_mode_enabled():
-        # 「プラグインを一切ロードしない」ことがセーフモードの本質のため、
-        # ディレクトリ作成を含むファイルシステムへのアクセスを一切行わない。
         _singleton_api = GraphicaPluginAPI()
         _singleton_manager = None
         return _singleton_api
@@ -653,58 +482,43 @@ def load_plugins_once(plugins_dir, disabled_names=None):
 
 
 def get_loaded_plugin_records():
-    """最後に load_plugins_once() で読み込まれたプラグインの一覧を返す(未読み込みならNone)"""
+    """未読み込みなら None。"""
     return None if _singleton_manager is None else list(_singleton_manager.loaded_plugins)
 
 
 def get_plugin_registration_errors():
-    """
-    フック単位の登録失敗の一覧を返す(未読み込みならNone、フェーズA-2)。
-    プラグイン全体としては読み込みに成功していても、個別のregister_xxx呼び出しが
-    失敗している場合はここに記録される(get_loaded_plugin_recordsのerrorには現れない)。
-    """
+    """フック単位の登録失敗(プラグイン全体の読み込みは成功していても記録される)。未読み込みなら None。"""
     return None if _singleton_api is None else _singleton_api.registration_errors
 
 
 def get_plugin_api():
-    """
-    現在ロード済みの GraphicaPluginAPI を返す(未読み込みなら None)。
-    plugins_dir を知らない呼び出し元(gui/workers.py 等、UIから離れた場所)向けの
-    アクセサ。load_plugins_once() と異なり、未読み込みでも新規ロードは行わない。
-    """
+    """読み込み済みの API。未読み込みなら None(読み込みはしない)。"""
     return _singleton_api
 
 
 def get_registered_importer_extensions():
-    """登録済みインポーターが対応する拡張子の一覧(未読み込みなら空リスト、項目B-1)。"""
     return _singleton_api.get_importer_extensions() if _singleton_api is not None else []
 
 
 def get_registered_exporters():
-    """登録済みエクスポーターの一覧(未読み込みなら空リスト、項目B-2)。"""
     return _singleton_api.get_exporters() if _singleton_api is not None else []
 
 
 def get_registered_processors():
-    """登録済みデータ処理の一覧(未読み込みなら空リスト、項目C-1)。"""
     return _singleton_api.get_processors() if _singleton_api is not None else []
 
 
 def get_registered_analyzers():
-    """登録済み解析処理の一覧(未読み込みなら空リスト、項目C-2)。"""
     return _singleton_api.get_analyzers() if _singleton_api is not None else []
 
 
 def get_registered_panels():
-    """登録済みパネルの一覧(未読み込みなら空リスト、項目D-1)。"""
     return _singleton_api.get_panels() if _singleton_api is not None else []
 
 
 def get_registered_plot_types():
-    """登録済みプロット種別の一覧(未読み込みなら空リスト、項目D-2)。"""
     return _singleton_api.get_plot_types() if _singleton_api is not None else []
 
 
 def get_registered_render_backends():
-    """登録済み描画バックエンドの一覧(未読み込みなら空リスト、項目G、骨組みのみ)。"""
     return _singleton_api.get_render_backends() if _singleton_api is not None else []

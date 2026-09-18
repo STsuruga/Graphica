@@ -55,6 +55,8 @@ version = { attr = "core.version.__version__" }
 # resource_path() が期待する相対位置のまま同梱するためのデータ専用パッケージ。
 [tool.setuptools]
 packages = [
+    "graphica",
+    "graphica.plugin",
     "core",
     "gui",
     "gui.dialogs",

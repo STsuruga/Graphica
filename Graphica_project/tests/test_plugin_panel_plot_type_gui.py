@@ -39,8 +39,8 @@ def _set_singleton_plugin_api(monkeypatch, api):
 def test_plugin_panel_dock_created_and_hidden_by_default(tmp_path, monkeypatch):
     received = []
 
-    def widget_factory(project, undo_stack):
-        received.append((project, undo_stack))
+    def widget_factory(ctx):
+        received.append(ctx)
         return QLabel("hello")
 
     api = GraphicaPluginAPI()
@@ -54,14 +54,14 @@ def test_plugin_panel_dock_created_and_hidden_by_default(tmp_path, monkeypatch):
     assert isinstance(dock.widget(), QLabel)
     assert dock.isVisible() is False
     assert len(received) == 1
-    assert received[0] == (window.project, window.undo_stack)
+    assert received[0] is window.plugin_context(api.get_panels()[0].plugin_name)
 
 
 def test_plugin_panel_area_maps_to_dock_widget_area(tmp_path, monkeypatch):
     from PySide6.QtCore import Qt
 
     api = GraphicaPluginAPI()
-    api.register_panel("Left Panel", lambda project, undo_stack: QLabel("x"), area="left")
+    api.register_panel("Left Panel", lambda ctx: QLabel("x"), area="left")
     _set_singleton_plugin_api(monkeypatch, api)
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -71,7 +71,7 @@ def test_plugin_panel_area_maps_to_dock_widget_area(tmp_path, monkeypatch):
 
 
 def test_plugin_panel_construction_failure_is_isolated(tmp_path, monkeypatch):
-    def broken_factory(project, undo_stack):
+    def broken_factory(ctx):
         raise RuntimeError("boom")
 
     api = GraphicaPluginAPI()
@@ -85,7 +85,7 @@ def test_plugin_panel_construction_failure_is_isolated(tmp_path, monkeypatch):
 
 def test_plugin_panel_wrong_return_type_is_isolated(tmp_path, monkeypatch):
     api = GraphicaPluginAPI()
-    api.register_panel("Bad Return", lambda project, undo_stack: "not a widget")
+    api.register_panel("Bad Return", lambda ctx: "not a widget")
     _set_singleton_plugin_api(monkeypatch, api)
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -95,7 +95,7 @@ def test_plugin_panel_wrong_return_type_is_isolated(tmp_path, monkeypatch):
 
 def test_plugin_menu_has_panel_toggle_action(tmp_path, monkeypatch):
     api = GraphicaPluginAPI()
-    api.register_panel("My Panel", lambda project, undo_stack: QLabel("x"))
+    api.register_panel("My Panel", lambda ctx: QLabel("x"))
     _set_singleton_plugin_api(monkeypatch, api)
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)

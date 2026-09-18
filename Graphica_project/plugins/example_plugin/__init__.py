@@ -1,22 +1,17 @@
-# plugins/example_plugin/__init__.py
 """
-Graphicaプラグインのサンプル実装。
+Graphica のプラグインのサンプル。
 
-プラグインの作り方を示すための最小限の例:
-- カーブフィットの選択肢に「二重指数減衰」を追加する
-- 「プラグイン」メニューに、選択中データセットの点数を表示するアクションを追加する
+- 曲線フィットの選択肢に「二重指数減衰」を追加する
+- 「プラグイン」メニューに、選択中のデータセットの点数を表示する項目を追加する
 
-このファイル(と隣の plugin.json / register()）が、プラグインとして
-認識されるために必要な最小構成のすべて(項目F-1: マニフェストは
-plugin.jsonに分離、__init__.pyにPLUGIN_INFO辞書は不要)。他のプラグインを
-作る際は、plugins/ 配下に別のサブフォルダをコピーして書き換えればよい。
+プラグインに要るのは、このフォルダの __init__.py(register(api) を定義する)と plugin.json だけ。
+本体とのやりとりは、callback に渡る窓口(ctx: PluginContext)だけを使う。
 """
 import numpy as np
-from PySide6.QtWidgets import QMessageBox
 
 
 def _double_exp_func(x, a, b, c, d):
-    """二重指数減衰: y = a * exp(-b*x) + c * exp(-d*x)"""
+    """y = a*exp(-b*x) + c*exp(-d*x)"""
     return a * np.exp(-b * x) + c * np.exp(-d * x)
 
 
@@ -25,16 +20,12 @@ def _double_exp_p0(x_data, y_data):
     return [amplitude, 1.0, amplitude, 0.1]
 
 
-def _show_dataset_point_count(main_window):
-    """「プラグイン」メニューのアクション: 選択中データセットの点数をダイアログで表示する"""
-    dataset = main_window._get_current_dataset()
+def _show_dataset_point_count(ctx):
+    dataset = ctx.current_dataset()
     if dataset is None:
-        QMessageBox.information(main_window, "Example Plugin", "データセットが選択されていません。")
+        ctx.show_message("データセットが選択されていません。")
         return
-    QMessageBox.information(
-        main_window, "Example Plugin",
-        f"「{dataset.name}」の表示中の点数: {len(dataset.visible_df)}"
-    )
+    ctx.show_message(f"「{dataset.name}」の表示中の点数: {len(dataset.visible_df)}")
 
 
 def register(api):

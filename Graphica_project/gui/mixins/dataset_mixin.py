@@ -2373,6 +2373,7 @@ class DatasetMixin:
         self._refresh_minimap()
         if hasattr(self, 'export_preview_panel'):
             self.export_preview_panel.refresh_preview()
+        self._notify_plugins_datasets_changed()
 
     def _push_dataset_property_command(self, dataset, old_values: dict, new_values: dict, description: str):
         """
@@ -2422,9 +2423,8 @@ class DatasetMixin:
             current_item (QTreeWidgetItem): 新しく選択されたアイテム。
             previous_item (QTreeWidgetItem): 以前選択されていたアイテム。
         """
-        # 選択状態が変わったので、UI全体の状態を更新するヘルパーメソッドを呼ぶ
-        # (_update_ui_state が、選択されたデータセットのプロパティをUIにロードする)
-        self._update_ui_state()
+        self._update_ui_state()  # 選んだデータセットのプロパティをパネルに読み込む
+        self._notify_plugins_selection_changed()
 
     def _on_legend_name_changed(self):
         """

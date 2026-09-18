@@ -1,7 +1,7 @@
 {
   "name": "Example Plugin",
-  "version": "1.0",
+  "version": "2.0",
   "author": "Graphica",
-  "api_version": "1.0",
+  "api_version": "2.0",
   "description": "プラグイン機構のサンプル(二重指数減衰フィット + データセット点数表示)"
 }

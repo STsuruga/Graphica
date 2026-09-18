@@ -92,7 +92,7 @@ def test_load_plugins_once_normal_mode_still_loads_real_plugin(tmp_path):
 
     assert "valid_plugin_fit" in analysis_module.get_plugin_fit_type_names()
     assert len(api.menu_actions) == 1
-    assert api.menu_actions[0][0] == "Do something"
+    assert api.menu_actions[0].text == "Do something"
 
 
 def test_safe_mode_set_after_first_load_does_not_retroactively_empty_the_cache(tmp_path):

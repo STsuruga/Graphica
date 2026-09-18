@@ -104,7 +104,7 @@ def test_load_all_registers_valid_plugin(tmp_path):
 
     assert "valid_plugin_fit" in analysis_module.get_plugin_fit_type_names()
     assert len(api.menu_actions) == 1
-    assert api.menu_actions[0][0] == "Do something"
+    assert api.menu_actions[0].text == "Do something"
 
 
 def test_load_all_isolates_plugin_missing_register_func(tmp_path):
@@ -198,7 +198,7 @@ def test_load_plugins_once_creates_missing_directory(tmp_path):
 def test_register_menu_action_stores_shortcut():
     api = GraphicaPluginAPI()
     api.register_menu_action("Test Action", lambda mw: None, shortcut="Ctrl+Shift+T")
-    assert api.menu_actions[0] == ("Test Action", api.menu_actions[0][1], "Ctrl+Shift+T")
+    assert (api.menu_actions[0].text, api.menu_actions[0].shortcut) == ("Test Action", "Ctrl+Shift+T")
 
 
 # --- フック単位の登録失敗の隔離(フェーズA-2) ---
@@ -220,7 +220,7 @@ def test_hook_failure_does_not_abort_other_hooks_in_the_same_plugin(tmp_path):
     assert records[0]["error"] is None
     # だが後続のフックは登録されている
     assert len(api.menu_actions) == 1
-    assert api.menu_actions[0][0] == "After the failure"
+    assert api.menu_actions[0].text == "After the failure"
 
 
 def test_hook_failure_is_recorded_in_registration_errors(tmp_path):
@@ -340,7 +340,7 @@ def test_plugin_with_existing_dependency_loads_normally(tmp_path):
 
     assert records[0]["error"] is None
     assert len(api.menu_actions) == 1
-    assert api.menu_actions[0][0] == "Registered fine"
+    assert api.menu_actions[0].text == "Registered fine"
 
 
 def test_plugin_without_requires_key_is_unaffected(tmp_path):
@@ -374,7 +374,7 @@ def test_plugin_missing_manifest_is_isolated_and_register_not_called(tmp_path):
     # no_manifest_pluginのregister()は呼ばれていないので、menu_actionsには
     # valid_pluginの分(1件)しか無い
     assert len(api.menu_actions) == 1
-    assert api.menu_actions[0][0] == "Do something"
+    assert api.menu_actions[0].text == "Do something"
 
 
 def test_plugin_manifest_invalid_json_is_isolated(tmp_path):
