@@ -169,7 +169,7 @@ td.sig { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
 
 <div class="wrap">
   <header class="head">
-    <div class="eyebrow">Track 4 · PLUGIN_API_VERSION 1.0 · 1プラグイン = 1リポジトリ</div>
+    <div class="eyebrow">Track 4 · PLUGIN_API_VERSION 2.0 · 1プラグイン = 1リポジトリ</div>
     <h1>Graphica プラグイン開発ハブ</h1>
     <p>プラグインは1つずつ別のチャット・別のリポジトリで開発します。このページは、どのチャットからも同じ前提で始められるようにするための共通の資料と、全件の進捗ボードです。状態はこのページのデータベースに保存され、各チャットが更新します。</p>
   </header>
@@ -287,7 +287,7 @@ gh release create v1.0.0 dist/&lt;plugin_name&gt;-1.0.0.zip --title "v1.0.0" --n
         <div class="rule"><strong>プラグインフォルダ内の import は相対 import。</strong><span>本体はプラグインを <code>graphica_plugin_&lt;フォルダ名&gt;</code> という動的モジュール名で読み込みます。<code>from .analysis import …</code> と書き、<code>from my_plugin.analysis import …</code> とは書きません。<strong>プラグイン同士も import できません</strong>(他プラグインのコードを使うならコピーして同梱)。</span></div>
         <div class="rule"><strong>元のデータを書き換えない。</strong><span>processor / analyzer は受け取った <code>Dataset</code> やその <code>df</code> を変更せず、新しい <code>Dataset</code> を返します。追加は本体が Undo 付きで行います。</span></div>
         <div class="rule"><strong>結果は構造化して返す。</strong><span>analyzer の結果は文字列に詰め込まず、<code>AnalysisResult</code> の <code>table</code>(DataFrame)/ <code>annotations</code> / <code>new_datasets</code> に分けます。表示・CSV 出力・Undo は本体側が面倒を見ます。</span></div>
-        <div class="rule"><strong>タブを跨いで参照を持たない。</strong><span>Graphica は複数タブ(独立したプロジェクト)を開けます。メニューの callback に渡される <code>main_window</code> は呼び出し時点のタブです。<code>register()</code> の時点の何かを保存して使い回さないでください。パネルの <code>widget_factory</code> はタブごとに1回呼ばれます。</span></div>
+        <div class="rule"><strong>本体とは窓口 <code>ctx</code>(PluginContext)だけでやりとりする。</strong><span>メニューの callback とパネルの <code>widget_factory</code> には、そのタブの窓口 <code>ctx</code> が渡ります。データセットの取得・追加・変更(Undo 付き)、再描画、変化の通知、メッセージ表示、プラグイン専用の保存フォルダ(<code>ctx.data_dir</code>)、登録色と配色パレットの読み書きは、すべて <code>ctx</code> で行います。本体の内部(<code>PlotterApp</code>、<code>_</code> で始まるメソッド、QSettings のキー)には触りません。メニューで受け取った <code>ctx</code> を保存して別のときに使うと別のタブを操作してしまうので、使い回さないでください(パネルは自分の <code>ctx</code> を持ち続けてよい)。</span></div>
         <div class="rule"><strong>すべて GUI スレッドで同期実行される。</strong><span>重い計算(数秒以上)はそのまま UI を止めます。点数に上限を設ける、間引く、処理前に件数を示すなどで対処し、ハブの <code>note</code> に計測値を残します。</span></div>
         <div class="rule"><strong>表示名は英語か日本語をそのまま渡す。</strong><span>本体の翻訳機構(<code>tr()</code>)にはつながりません。メニュー名・パネル名は、利用者が主に使う言語で1つに決めます(既存の P-805 は日本語)。</span></div>
       </section>
@@ -313,12 +313,12 @@ gh release create v1.0.0 dist/&lt;plugin_name&gt;-1.0.0.zip --title "v1.0.0" --n
 <pre><code>{
   "name": "UV-Vis Pack",
   "version": "1.0.0",
-  "api_version": "1.0",
+  "api_version": "2.0",
   "author": "STsuruga",
   "description": "Tauc plot によるバンドギャップ算出など(P-304)",
   "requires": ["scipy"]
 }</code></pre>
-        <p><code>api_version</code> が本体の <code>PLUGIN_API_VERSION</code>(現在 <code>"1.0"</code>)と違うと、コードは読み込まれません。<code>entry_point</code> は予約済みですが未使用です(常に <code>__init__.py</code> の <code>register(api)</code> が呼ばれます)。</p>
+        <p><code>api_version</code> が本体の <code>PLUGIN_API_VERSION</code>(現在 <code>"2.0"</code>)と違うと、コードは読み込まれません。<code>entry_point</code> は予約済みですが未使用です(常に <code>__init__.py</code> の <code>register(api)</code> が呼ばれます)。</p>
       </section>
 
       <section>
@@ -334,7 +334,7 @@ from &lt;plugin_name&gt;.analysis import compute_something   # 本体非依存�
 if GRAPHICA_AVAILABLE:
     import core.plugin_api as plugin_api_module
     from core.plugin_api import PluginManager, GraphicaPluginAPI
-    from core.plugin_testing import FakeGraphicaPluginAPI
+    from core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
 
 
 @pytest.fixture(autouse=True)
@@ -356,6 +356,16 @@ def test_register_adds_the_analyzer():
     api = FakeGraphicaPluginAPI()
     register(api)
     assert "…" in api.analyzers
+
+
+@requires_graphica
+def test_menu_action_uses_the_context():
+    from &lt;plugin_name&gt; import register
+    api = FakeGraphicaPluginAPI(plugin_name="&lt;plugin_name&gt;")
+    register(api)
+    ctx = FakePluginContext(datasets=[…], current=…)
+    api.menu_actions[0].callback(ctx)
+    assert ctx.messages == […]      # 表示したメッセージ、ctx.undo_descriptions なども確かめられる
 
 
 @requires_graphica
@@ -417,17 +427,17 @@ data: { "state": "in_progress", "repo": "STsuruga/graphica-plugin-uvvis",
     <div class="prose" style="max-width:none">
       <section>
         <h2>register(api) で使えるフック</h2>
-        <p>どのフックも例外を投げず、失敗すると <code>False</code> を返してログに記録します(画面には何も出ません)。動かないときは <code>%LOCALAPPDATA%\Graphica\graphica.log</code> を見ます。同じ名前の二重登録は失敗します。</p>
+        <p>どのフックも例外を投げず、失敗すると <code>False</code> を返してログに記録します(画面には何も出ません)。メニューの callback と processor / analyzer などの<strong>実行時</strong>の失敗は、プラグイン名付きのエラーとして画面に出ます。動かないときは <code>%LOCALAPPDATA%\Graphica\graphica.log</code> を見ます。同じ名前の二重登録は失敗します。</p>
         <div class="tbl"><table>
           <thead><tr><th>フック</th><th>渡すもの</th><th>画面のどこに出るか</th></tr></thead>
           <tbody>
             <tr><td class="sig">register_fit_function(name, func, param_names, p0=None)</td><td><code>func(x, *params)</code>。<code>p0</code> はリストか <code>(x, y) -&gt; list</code></td><td>曲線フィットのモデル一覧</td></tr>
-            <tr><td class="sig">register_menu_action(text, callback, shortcut=None)</td><td><code>callback(main_window)</code>(呼び出し時点のタブ)</td><td>「プラグイン」メニュー</td></tr>
+            <tr><td class="sig">register_menu_action(text, callback, shortcut=None)</td><td><code>callback(ctx)</code>(選んだときのタブの窓口)</td><td>「プラグイン」メニュー</td></tr>
             <tr><td class="sig">register_importer(extensions, loader, *, name=None, priority=0)</td><td><code>loader(path) -&gt; pandas.DataFrame</code>(1つだけ。複数ブロックは未対応)</td><td>ファイルを開く・ドラッグ&amp;ドロップ・フォルダ一括</td></tr>
             <tr><td class="sig">register_exporter(format_name, extension, writer, *, name=None)</td><td><code>writer(Figure, path)</code></td><td>エクスポートとバッチエクスポートの形式</td></tr>
             <tr><td class="sig">register_processor(name, fn, *, category="general", param_schema=None)</td><td><code>fn(Dataset, params) -&gt; Dataset</code>(新しいもの)</td><td>プラグイン ▸ データ処理 ▸ category</td></tr>
             <tr><td class="sig">register_analyzer(name, fn, *, output_kind="table", param_schema=None)</td><td><code>fn(Dataset, params) -&gt; AnalysisResult</code></td><td>プラグイン ▸ 解析(選択中のデータセットに対して実行)</td></tr>
-            <tr><td class="sig">register_panel(name, widget_factory, *, area="right")</td><td><code>widget_factory(ProjectModel, QUndoStack) -&gt; QWidget</code>。タブごとに呼ばれる。初期状態は非表示</td><td>ドックパネル(プラグインメニューから表示)</td></tr>
+            <tr><td class="sig">register_panel(name, widget_factory, *, area="right")</td><td><code>widget_factory(ctx) -&gt; QWidget</code>。タブごとに呼ばれる。初期状態は非表示。<code>ctx.on_datasets_changed</code> / <code>on_selection_changed</code> で表示を更新</td><td>ドックパネル(プラグインメニューから表示)</td></tr>
             <tr><td class="sig">register_plot_type(type_name, drawer, *, requires_2d=False)</td><td><code>drawer(Dataset, Axes, x, y) -&gt; Artist|None</code>。<code>x, y</code> はウォーターフォール等を適用済み</td><td>プロパティの「種別」</td></tr>
             <tr><td class="sig">register_render_backend(name, backend)</td><td>登録されるだけで、<strong>描画にはまだ接続されていない</strong></td><td>(なし)</td></tr>
           </tbody>
@@ -477,7 +487,7 @@ return Dataset(name=f"{dataset.name} (Tauc)", df=new_df,
         <p>processor / analyzer が受け取るのは<strong>選択中のデータセット1つ</strong>だけです。複数を比べる機能(検定、PCA、掃引速度依存など)は次のどちらかで作ります。</p>
         <ul class="notes">
           <li><strong>1つのデータセットの列で表す</strong>: 群を表す列(カテゴリ)や、条件ごとの列を持つ表を入力にする。analyzer のままで作れて、テストも簡単。</li>
-          <li><strong>パネルで選ばせる</strong>: <code>register_panel</code> の <code>widget_factory</code> に渡る <code>ProjectModel</code> の <code>datasets</code> から一覧を作り、結果は <code>project</code> と <code>undo_stack</code> 経由で反映する。自由度は高いが、本体の内部 API に触れる範囲が広がる。</li>
+          <li><strong>パネルで選ばせる</strong>: <code>register_panel</code> の <code>widget_factory</code> に渡る <code>ctx</code> の <code>datasets()</code> / <code>selected_datasets()</code> から一覧を作り、結果は <code>ctx.add_dataset()</code>(Undo 付き)で追加する。<code>ctx.on_datasets_changed</code> で一覧を最新に保つ。</li>
         </ul>
       </section>
     </div>
@@ -680,15 +690,15 @@ const DETAIL = {
       "パレットは5色前後(色数は変更可)。各色の HEX コピー、ランダム生成、元に戻す / やり直し。",
       "色覚への配慮: 本体の core/cvd_simulation.simulate_hex_color で、P型・D型・T型の見え方に切り替えて表示。隣り合う色が見分けにくい組み合わせを警告する(色差 ΔE の閾値で判定)。",
       "【ライブラリ】作ったグラデーションとパレットに名前を付けてプラグイン専用の保存先に保存・一覧・削除・複製。JSON で書き出し / 読み込み(研究室内での共有用)。",
-      "【本体への受け渡し】(1) 本体の登録色(色見本メニューの登録色)へ名前付きで追加: core/named_colors の add_named_color / save_named_colors で QSettings キー named_colors_json に書く。(2) 本体の配色パレットとして登録し、有効にする: QSettings キー custom_color_palettes_json と active_color_palette。こうすると本体の「自動配色」ボタンで、選択中のデータセットに順番に色を割り当てられる。",
+      "【本体への受け渡し】(1) 本体の登録色(色見本メニューの登録色)へ名前付きで追加: ctx.named_colors() で読み、追加して ctx.set_named_colors() で書く(本体と同じ検証が入る)。(2) 本体の配色パレットとして登録: ctx.color_palettes() / ctx.set_color_palettes()。いま有効なパレットは ctx.active_color_cycle() で読める。本体の「自動配色」ボタンで、選択中のデータセットに順番に色を割り当てられる。QSettings のキーを直接読み書きしない。",
       "UI: カラーホイールや色見本は幅が要るので、ドックパネル(register_panel)よりも、プラグインメニューから開く独立したウィンドウ(register_menu_action)が向く。パネルにはライブラリの一覧と「開く」ボタンだけを置く案もある。",
     ],
     decide: [
       "グラデーションを補間する色空間: RGB(単純だが中間色がくすむ)/ OKLab・OKLCH(知覚的に均一で見た目がきれい、推奨)/ HSV。切り替えられるようにするか。",
       "カラーホイールの種類: Adobe と同じ RYB(絵の具の色相環。補色の見た目が直感どおり)か、RGB / HSV の色相環か。",
       "v1.0 の範囲: 3つの作り方(基準色・画像・ホイール)と配色ルールを全部入れるか、グラデーション作成+ホイール+配色ルールを先に出して画像からの抽出を次の版に回すか。",
-      "データセットへの色の適用方法: 本体の配色パレット経由で「自動配色」を使う(本体の操作と同じ・推奨)か、プラグインの画面から選択中のデータセットに直接割り当てる(ProjectModel の datasets と undo_stack を使う)か。",
-      "ライブラリの保存先: Graphica の設定(QSettings)にプラグイン専用のキーで保存するか、%LOCALAPPDATA%\\Graphica の下に JSON ファイルで保存するか(ファイルならバックアップや共有がしやすい)。",
+      "データセットへの色の適用方法: 本体の配色パレット経由で「自動配色」を使う(本体の操作と同じ・推奨)か、プラグインの画面から選択中のデータセットに直接割り当てる(ctx.selected_datasets() と ctx.set_dataset_properties(ds, {\"color\": …})、Undo 付き)か。",
+      "ライブラリの保存先: ctx.data_dir(プラグイン専用の書き込み用フォルダ)の下に JSON ファイルで保存する(推奨。バックアップや共有がしやすい)。",
       "UI の置き場所: 独立ウィンドウ / ドックパネル / 両方。",
     ],
     notes: [
