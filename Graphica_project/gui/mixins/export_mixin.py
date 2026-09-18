@@ -602,20 +602,22 @@ class ExportMixin:
 
             # 5. 一時的な軸 (temp_ax) に対し、アクティブな軸の
             #    「データ」と「外観」を描画/適用する
+            # _draw_data は第2Y軸をこの一時的な Figure 上に作り all_secondary_axes に入れる。
+            # 失敗しても必ず戻さないと、画面の第2Y軸がプレビューの軸を指したままになる。
+            original_secondary = self.canvas.all_secondary_axes.copy()
             try:
-                original_secondary = self.canvas.all_secondary_axes.copy()
                 while len(self.canvas.all_secondary_axes) <= active_index:
-                     self.canvas.all_secondary_axes.append(None)
+                    self.canvas.all_secondary_axes.append(None)
 
                 self.canvas._draw_data(
                     temp_ax, active_index, self.project.datasets,
                     full_resolution=options.get('full_resolution', False),
                 )
                 self.canvas._apply_appearance(temp_ax, active_index, active_settings)
-
-                self.canvas.all_secondary_axes = original_secondary
             except Exception as e:
                 logger.error("プレビュー生成中にエラー: %s", e)
+            finally:
+                self.canvas.all_secondary_axes = original_secondary
 
             # 6. tight_layout() でラベルの重なりを調整
             try:

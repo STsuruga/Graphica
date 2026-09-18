@@ -876,6 +876,23 @@ def test_generate_preview_logs_warning_when_active_axis_out_of_range(tmp_path, m
     window._generate_preview(dialog)  # 例外が出ないことを確認する
 
 
+def test_generate_preview_restores_secondary_axes_when_drawing_fails(tmp_path, monkeypatch):
+    """プレビューは第2Y軸の参照を一時的な Figure の軸に差し替えて描く。失敗しても元に戻すこと。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    dialog = ExportDialog(window)
+    before = list(window.canvas.all_secondary_axes)
+
+    def _draw_then_fail(ax, index, *a, **k):
+        window.canvas.all_secondary_axes[index] = ax.twinx()
+        raise RuntimeError("draw failed")
+
+    monkeypatch.setattr(window.canvas, "_draw_data", _draw_then_fail)
+    window._generate_preview(dialog)
+
+    assert window.canvas.all_secondary_axes == before
+
+
 # --- _calculate_size_in_inches ---
 
 def test_calculate_size_in_inches_inch_unit_returns_as_is():
