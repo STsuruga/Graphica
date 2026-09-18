@@ -111,6 +111,15 @@ code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surfa
 .rulebox p { margin: 0 0 6px; } .rulebox ul { margin: 0; }
 .sync { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-left: auto; padding-left: 10px; }
 footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.addform { background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); padding: 12px 16px; margin-top: 6px; }
+.addform summary { cursor: pointer; font-size: 13.5px; color: var(--accent); }
+.addform .grid { display: grid; gap: 8px; margin-top: 10px; }
+.addform input, .addform textarea, .addform select { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; width: 100%; box-sizing: border-box; }
+.addform select { width: auto; }
+.addform textarea { min-height: 80px; resize: vertical; }
+.addform .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.addform button { font: inherit; font-size: 13px; background: var(--accent); color: #fff; border: 0; border-radius: 999px; padding: 6px 16px; cursor: pointer; }
+.addform .hint { font-size: 12.5px; color: var(--muted); }
 .empty { padding: 30px 0; color: var(--muted); font-size: 14px; text-align: center; }
 @media (max-width: 620px) { .detail dl { grid-template-columns: 1fr; gap: 2px 0; } .detail dt { margin-top: 10px; } .handoff { padding: 18px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -162,6 +171,18 @@ footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line);
       <ul>
         <li><strong>pip 配布に向けた整理</strong>: トップレベルに新しいモジュールを増やさない(新しいコードは I-1 後の <code>graphica.*</code> の配置、I-1 前なら既存パッケージの中に置く)。リソースはパッケージ内に置き <code>resource_path()</code> 経由で読む。カレントディレクトリに依存しない。本体の内部に依存するプラグイン向けの書き方を増やさない(G-1 の窓口を使う)。</li>
         <li><strong>コメントを最小限にする</strong>: J-1 の方針に沿って、触ったファイルの経緯・実機フィードバックの記録・項目番号の説明などを削り、「なぜそうしているか」「知らないと壊す制約」だけを残す。不要になったコード(使われていない関数・import・分岐)も同時に消す。</li>
+      </ul>
+    </div>
+
+    <h3>ついでに見つかったアプリの改善(K、ユーザー指示、2026-09-18)</h3>
+    <div class="rulebox">
+      <p>保守性の作業中に見つけたアプリの不具合・改善点は、<strong>同じブランチでまとめて直す</strong>。見つけた時点で上の「K」に登録する(データベースの <code>findings</code> コレクション、doc_id は <code>K-1</code>, <code>K-2</code>…。ユーザーもボードのフォームから追加できる)。</p>
+      <ul>
+        <li><strong>登録</strong>: <code>title</code> / <code>where</code>(ファイル:行や画面の場所)/ <code>detail</code>(何が起きるか・再現手順)/ <code>sev</code>(high・mid・low)/ <code>size</code>(S・M・L)/ <code>state</code>(todo)/ <code>found</code>(どの項目の作業中に見つけたか)。</li>
+        <li><strong>確認なしで直してよいもの</strong>: 挙動が明らかに誤っていて、直し方に仕様判断がなく、S サイズのもの。それ以外(見た目・操作の変更、保存形式に関わるもの、M 以上)は登録だけして、ユーザーに選択肢と推奨を示して確認してから直す。ユーザーが登録したものは、それ自体が依頼なので着手してよい(仕様判断がいる点だけ確認する)。</li>
+        <li><strong>コミットを分ける</strong>: 挙動を変える修正は、リファクタリングやコメント整理のコミットに混ぜない。1 件 1 コミット(<code>fix: …</code>)で、再現するテストを先に書く。リファクタリングの「挙動は変わっていない」という検証を崩さないため。</li>
+        <li><strong>タイミング</strong>: 直すと進行中の H/I 項目と衝突する場合は、その項目を終えてから直す。</li>
+        <li><strong>完了</strong>: <code>state</code> を done、<code>note</code> にコミットハッシュと要点。PR の本文に K の一覧を載せ、次のリリースノートに入れる。利用者向けの挙動が変わったら Wiki の該当ページも直す。</li>
       </ul>
     </div>
 
@@ -359,6 +380,7 @@ const STATE_NEXT = { todo:"doing", doing:"done", done:"todo" };
 
 let statuses = {};
 let notes = {};
+let findings = [];
 let db = null;
 let filterGroup = "all";
 let filterSev = "all";
@@ -371,11 +393,12 @@ function setSyncNote(text) { const el = document.getElementById("syncNote"); if 
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
 
 async function setStatus(id, state) {
-  statuses[id] = state;
+  const f = findings.find(x => x.id === id);
+  if (f) f.state = state; else statuses[id] = state;
   render();
   if (db) {
     try {
-      const ref = db.doc("status/" + id);
+      const ref = db.doc((f ? "findings/" : "status/") + id);
       const cur = await ref.get();
       if (cur.exists) await ref.update({ state, updatedAt: new Date().toISOString() });
       else await ref.set({ state, updatedAt: new Date().toISOString() });
@@ -404,7 +427,8 @@ function filters() {
   const el = document.getElementById("filters");
   if (el.dataset.built) return;
   el.dataset.built = "1";
-  const gChips = Object.entries(GROUPS).map(([k, g]) => `<button class="chip" data-kind="group" data-val="${k}">${k} ${g.name}</button>`).join("");
+  const gChips = Object.entries(GROUPS).map(([k, g]) => `<button class="chip" data-kind="group" data-val="${k}">${k} ${g.name}</button>`).join("") +
+    `<button class="chip" data-kind="group" data-val="K">K ついでの改善</button>`;
   el.innerHTML =
     `<button class="chip" data-kind="group" data-val="all" aria-pressed="true">すべて</button>` + gChips +
     `<span class="sep"></span>` +
@@ -465,7 +489,82 @@ function itemHTML(it) {
   </article>`;
 }
 
+function findingHTML(f) {
+  const st = f.state || "todo";
+  const sev = SEV_LABEL[f.sev] ? f.sev : "mid";
+  const note = f.note ? `<div class="note"><strong>記録:</strong> ${esc(f.note)}</div>` : "";
+  return `
+  <article class="item sev-${sev} ${st === "done" ? "is-done" : ""}" data-id="${esc(f.id)}">
+    <div class="row" role="button" tabindex="0" aria-expanded="false">
+      <span class="id">${esc(f.id)}</span>
+      <div>
+        <div class="title">${esc(f.title || "(無題)")}</div>
+        <div class="badges">
+          <span class="badge sev-${sev}">${SEV_LABEL[sev]}</span>
+          ${f.size ? `<span class="badge effort">工数 ${esc(f.size)}</span>` : ""}
+          ${f.found ? `<span class="badge dep">発見 ${esc(f.found)}</span>` : ""}
+        </div>
+      </div>
+      <button class="status-btn" data-state="${esc(st)}" data-act="status">${STATE_LABEL[st] || esc(st)}</button>
+    </div>
+    <div class="detail">
+      <dl><dt>内容</dt><dd style="white-space:pre-wrap">${esc(f.detail || "")}</dd></dl>
+      ${note}
+      ${f.where ? `<div class="src"><div><code>${esc(f.where)}</code></div></div>` : ""}
+    </div>
+  </article>`;
+}
+
+function findingNumber(f) { return parseInt(String(f.id).replace(/^K-/, ""), 10) || 0; }
+
+function findingsHTML() {
+  const list = findings
+    .filter(f => (filterSev === "all" || f.sev === filterSev) && !(hideDone && f.state === "done"))
+    .sort((a, b) => findingNumber(a) - findingNumber(b));
+  const form = db ? `
+    <details class="addform" id="addFinding">
+      <summary>改善点を追加する</summary>
+      <div class="grid">
+        <input id="fTitle" placeholder="何を直したいか(1 行)">
+        <input id="fWhere" placeholder="場所(画面・メニュー・ファイルなど、任意)">
+        <textarea id="fDetail" placeholder="何が起きるか、どうなってほしいか"></textarea>
+        <div class="actions">
+          <select id="fSev" aria-label="優先度"><option value="high">優先</option><option value="mid" selected>中</option><option value="low">低</option></select>
+          <button type="button" data-act="add-finding">追加</button>
+          <span class="hint" id="fHint"></span>
+        </div>
+      </div>
+    </details>` : `<p class="empty">共有ストレージに接続できないため、ここからは追加できません。</p>`;
+  return `<section>
+    <div class="sec-head">
+      <h2>K. ついでに見つかったアプリの改善 <span class="tag">FINDINGS · ${list.length}</span></h2>
+      <p>保守性の作業中に見つけた不具合・改善点。同じブランチで、リファクタリングとは別のコミットとして直します(ルールは下の「作業ルールと引き継ぎ」)。</p>
+    </div>
+    ${list.length ? list.map(findingHTML).join("") : `<p class="empty">まだ登録はありません。</p>`}
+    ${form}
+  </section>`;
+}
+
+async function addFinding() {
+  const title = document.getElementById("fTitle").value.trim();
+  const hint = document.getElementById("fHint");
+  if (!title) { hint.textContent = "1 行目を入力してください"; return; }
+  const id = "K-" + (findings.reduce((m, f) => Math.max(m, findingNumber(f)), 0) + 1);
+  try {
+    await db.doc("findings/" + id).set({
+      title,
+      where: document.getElementById("fWhere").value.trim(),
+      detail: document.getElementById("fDetail").value.trim(),
+      sev: document.getElementById("fSev").value,
+      state: "todo",
+      found: "ユーザー",
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (e) { hint.textContent = "保存に失敗しました"; }
+}
+
 function render() {
+  const formOpen = document.getElementById("addFinding")?.open;
   summary();
   syncChips();
   const board = document.getElementById("board");
@@ -483,7 +582,9 @@ function render() {
       ${list.map(itemHTML).join("")}
     </section>`;
   }
+  if (filterGroup === "all" || filterGroup === "K") html += findingsHTML();
   board.innerHTML = html || `<p class="empty">この条件に一致する項目はありません。</p>`;
+  if (formOpen) { const fm = document.getElementById("addFinding"); if (fm) fm.open = true; }
   openIds.forEach(id => {
     const node = board.querySelector(`.item[data-id="${id}"]`);
     if (node) { node.classList.add("open"); node.querySelector(".row").setAttribute("aria-expanded", "true"); }
@@ -491,6 +592,7 @@ function render() {
 }
 
 document.getElementById("board").addEventListener("click", (ev) => {
+  if (ev.target.closest('[data-act="add-finding"]')) { addFinding(); return; }
   const statusBtn = ev.target.closest('[data-act="status"]');
   if (statusBtn) {
     ev.stopPropagation();
@@ -536,6 +638,13 @@ setSyncNote("この端末にのみ記録");
       setSyncNote("共有ストレージに同期中");
     },
     () => setSyncNote("同期できません(この端末にのみ記録)")
+  );
+  db.collection("findings").onSnapshot(
+    snap => {
+      findings = snap.docs.map(d => ({ ...(d.data() || {}), id: d.id }));
+      render();
+    },
+    () => {}
   );
 })();
 </script>
