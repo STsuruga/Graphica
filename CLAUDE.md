@@ -26,7 +26,7 @@ bash scripts/run_tests_chunked.sh            # the ONLY supported way to run the
 
 `tests/conftest.py` sets `QT_QPA_PLATFORM=offscreen` and provides a session-scoped, autouse `QApplication` fixture, so the suite runs headless with no display and no manual env var needed — this matters because several `core/`/`models/` classes (`core/commands.py`'s `QUndoCommand` subclasses, `models/project.py`'s `ProjectModel`) are `QObject`s and cannot be instantiated without a live `QApplication`.
 
-There is no configured linter/formatter in this repo (no `.flake8`, `.pylintrc`, and `pyproject.toml` carries packaging metadata only, no lint config) — match the surrounding code's style rather than introducing a new tool. That `pyproject.toml` does make the app pip-installable (`pip install -e Graphica_project`), which is how out-of-repo plugin repositories get `core.plugin_testing` for their tests.
+**Lint with `ruff check .`** (config in `pyproject.toml`'s `[tool.ruff]`; CI runs it before the tests on Windows). The rule set is deliberately limited to near-certain bugs and junk (`F`, `E9`, `B` minus `B905`, `PLE`) — no style rules and no formatter, so match the surrounding code's style. A name that is imported only to be re-exported for plugins needs `# noqa: F401`. That `pyproject.toml` does make the app pip-installable (`pip install -e Graphica_project`), which is how out-of-repo plugin repositories get `core.plugin_testing` for their tests.
 
 ## Architecture
 

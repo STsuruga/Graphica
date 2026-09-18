@@ -555,7 +555,7 @@ def test_label_symbol_palette_macros_are_valid_matplotlib_mathtext():
     from matplotlib.mathtext import MathTextParser
 
     parser = MathTextParser('path')
-    for glyph, macro in main_window_module.LABEL_SYMBOL_PALETTE:
+    for _glyph, macro in main_window_module.LABEL_SYMBOL_PALETTE:
         if macro is None:
             continue
         parser.parse(f"$\\{macro}$", dpi=100)  # 例外が出ないことを確認するだけでよい
@@ -838,7 +838,6 @@ def test_label_edit_dialog_wrap_without_selection_does_nothing_silently(qapp, mo
     単に何もしないだけにした。
     """
     from gui.dialogs import LabelEditDialog
-    from PySide6.QtWidgets import QMessageBox
 
     shown = []
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: shown.append(True)))

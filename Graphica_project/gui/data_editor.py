@@ -478,8 +478,7 @@ class DataEditorDialog(QDialog):
                 self.table_widget.item(row, column).setText(item_text)
                 self.table_widget.blockSignals(False)
 
-        except Exception as e:
-            # コマンド作成中に予期せぬエラーが発生した場合
+        except Exception:
             logger.exception("セル編集コマンド作成エラー")
             # エラーが起きたら元の値をテーブルに再表示 (Undoはされない)
             try:

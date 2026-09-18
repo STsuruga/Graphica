@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 from core.dataset import Dataset
 from gui.data_editor import DataEditorDialog
 from gui.dialogs import (ColumnCalculatorDialog, ReplicateErrorDialog, ColumnStringOpsDialog,
-                         ColumnVisibilityDialog, FindReplaceDialog)
+                         ColumnVisibilityDialog)
 
 
 def _make_dataset_with_bool_column(flag_value=True):

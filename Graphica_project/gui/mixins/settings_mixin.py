@@ -10,9 +10,8 @@ import functools
 import logging
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QDialog, QFontDialog, QColorDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QFontDialog, QMessageBox
 
-from core.i18n import tr
 from core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_NONE
 from gui import theme
 from gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO

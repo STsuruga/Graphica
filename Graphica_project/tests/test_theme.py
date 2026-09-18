@@ -213,7 +213,6 @@ class TestSpinboxArrowIcons:
         # url()に渡す文字列にバックスラッシュが残っていないこと
         assert "\\" not in url
 
-        from pathlib import Path
         generated_files = list(tmp_path.glob("*.png"))
         assert len(generated_files) == 1
         assert generated_files[0].stat().st_size > 0

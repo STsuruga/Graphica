@@ -84,7 +84,7 @@ def _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=None):
         z_values = ds.z_data
         if z_values is None or len(z_values) != len(ds.x_data):
             lines.append(
-                f"# Z列が未設定/長さ不一致のため、単色のScatterとして出力しています"
+                "# Z列が未設定/長さ不一致のため、単色のScatterとして出力しています"
             )
             lines.append(
                 f"{ax_var}.scatter(x, y, marker={ds.marker!r}, s={ds.markersize!r} ** 2, {kwargs})"

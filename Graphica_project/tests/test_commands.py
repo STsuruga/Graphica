@@ -2,7 +2,6 @@
 """core/commands.py (Undo/Redoコマンド) に対するテスト。"""
 import numpy as np
 import pandas as pd
-import pytest
 
 from core.dataset import Dataset
 from core.commands import (

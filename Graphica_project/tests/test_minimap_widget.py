@@ -367,7 +367,6 @@ def test_minimap_axes_facecolor_is_not_a_flat_neutral_gray():
     以前の#f2f2f2(ライト)/#1e1e1e(ダーク)は R=G=B の無彩色グレーで、
     gui/theme.pyの寒色寄りトークン(R<G<Bの傾向)と色味が揃っていなかった。
     """
-    from gui.theme import LIGHT_TOKENS, DARK_TOKENS
     from PySide6.QtGui import QColor
 
     for hex_color in (LIGHT_AXES_FACECOLOR, DARK_AXES_FACECOLOR):

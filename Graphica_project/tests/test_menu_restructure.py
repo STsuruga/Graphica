@@ -17,7 +17,6 @@
 import matplotlib
 matplotlib.use("Agg")
 import pandas as pd
-import pytest
 from PySide6.QtCore import QSettings, QPoint
 from PySide6.QtWidgets import QApplication
 

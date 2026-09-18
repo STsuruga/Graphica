@@ -24,7 +24,7 @@ import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QColorDialog, QFileDialog, QInputDialog, QMenu,
+from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QFileDialog, QInputDialog, QMenu,
                                QProgressDialog)
 
 from core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_quantification,
@@ -1172,7 +1172,7 @@ class DatasetMixin:
                         if token.strip()
                     ]
                 except ValueError:
-                    raise ValueError("アンカー点のX座標は数値をカンマ区切りで入力してください。")
+                    raise ValueError("アンカー点のX座標は数値をカンマ区切りで入力してください。") from None
                 x_sorted, baseline, corrected = calculate_baseline_manual(
                     x_data, y_data, anchor_x=anchor_x, method=params["method"]
                 )

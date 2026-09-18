@@ -19,7 +19,15 @@
 (ソース `docs/dev/maintenance_board.html`、db の `status` コレクションが状態の正)。
 F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント整理 の17項目。項目IDで指示が来る。
 **ユーザー指示: どの項目でも、触ったファイルについて pip 配布に向けた整理とコメントの最小化を一緒に行う**
-(詳細はボードの「作業ルールと引き継ぎ」)。まだどの項目も未着手。
+(詳細はボードの「作業ルールと引き継ぎ」)。
+
+**保守性ボードの進捗(ブランチ `refactor/maintainability`)**
+- F-1 完了: ruff を導入(`pyproject.toml` の `[tool.ruff]`、ルールは `F`・`E9`・`B`(B905 以外)・`PLE`、
+  `ruff==0.16.8` を requirements.txt と dev extras で固定)。既存の違反 62 件を解消。CI の Windows ジョブで
+  テスト前に `ruff check .`、`pull_request`(master 向け)トリガーを追加。
+  **コメント整理の範囲**: J-1 の方針が決まるまでは、触ったファイルのうち設定ファイルは全体、
+  コードは変更箇所の周辺だけ整理する(大きいファイル全体の整理は J-1/J-2 で)。
+- 次: F-2(`except Exception` の仕分け)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree

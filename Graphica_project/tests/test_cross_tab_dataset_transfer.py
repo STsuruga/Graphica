@@ -10,9 +10,8 @@ _remove_datasets_without_confirmation を、実際に複数タブを持つ MainA
 に倣う。
 """
 import pandas as pd
-import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 import gui.main_app_window as main_app_window_module
 import gui.main_window as main_window_module

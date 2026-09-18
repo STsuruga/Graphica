@@ -2,7 +2,6 @@
 """core/update_check.py(項目161、C-1203: アップデート通知)に対するテスト。"""
 import json
 import urllib.error
-from io import BytesIO
 
 import pytest
 

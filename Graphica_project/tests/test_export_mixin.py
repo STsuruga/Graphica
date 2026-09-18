@@ -12,7 +12,7 @@ import matplotlib as mpl
 import pandas as pd
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QFileDialog
+from PySide6.QtWidgets import QApplication, QDialog
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 

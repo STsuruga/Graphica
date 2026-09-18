@@ -218,16 +218,7 @@ from gui.task_runner import TaskRunner
 from gui.dialogs import (ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog,
                          FolderImportDialog, AutosaveHistoryDialog)
 from gui.color_picker_widget import ColorPickerWidget
-from gui.icon_utils import load_svg_icon, ICONS_DIR, icon as icon_utils_icon
-
-# ツールバー/ボタンのアイコン(項目67・70)。
-# ★ 項目H-4(アイコンセットの見直し): 以前はここに固定のダークグレー
-#   ('#3B3F42')を持っており、ダークモードのボタン背景に対してほぼ同化して
-#   見えなくなっていた(H-0調査で「未検証」として記録した懸念が、実機の
-#   スクリーンショットで確認された)。gui/icon_utils.py の icon() と同じ方針で
-#   テーマのtext_secondaryトークンを呼び出しの都度解決するように変更したため、
-#   この定数自体はもう _svg_icon() から使われない(後方互換のため残置)。
-TOOLBAR_ICON_COLOR = "#3B3F42"
+from gui.icon_utils import load_svg_icon, ICONS_DIR
 
 # キャンバス上部ツールバーのアイコンサイズ(px)。Qtの既定は24pxだが、
 # カスタムボタンを追加した結果、ウィンドウ幅が狭いときにツールバーが溢れ、

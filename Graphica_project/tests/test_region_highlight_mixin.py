@@ -259,7 +259,7 @@ def test_release_on_different_axes_than_press_is_noop(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.subplot_rows_spinbox.setValue(1)
     window.subplot_cols_spinbox.setValue(2)
-    ds = _add_dataset(window, subplot_target=0)
+    _add_dataset(window, subplot_target=0)
     _add_dataset(window, subplot_target=1)
     window._update_plot()
     window.region_highlight_mode_enabled = True

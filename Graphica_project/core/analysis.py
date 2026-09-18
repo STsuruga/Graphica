@@ -1,7 +1,5 @@
-# core/analysis.py
 import re
 import numpy as np
-import pandas as pd
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
 from scipy.integrate import simpson, cumulative_trapezoid, cumulative_simpson
@@ -1995,7 +1993,7 @@ def calculate_kde(data, n_points=200, bw_method=None):
         x_grid = np.linspace(data.min(), data.max(), n_points)
         density = kde(x_grid)
     except np.linalg.LinAlgError:
-        raise ValueError("データにばらつきが無いため、カーネル密度推定を計算できません。")
+        raise ValueError("データにばらつきが無いため、カーネル密度推定を計算できません。") from None
     return {'x_grid': x_grid, 'density': density, 'n_points_used': len(data)}
 
 

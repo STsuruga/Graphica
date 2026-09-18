@@ -2348,7 +2348,7 @@ def test_preferences_dialog_browse_autosave_dir_cancelled_keeps_previous(monkeyp
 # --- CommandPaletteDialog ---
 
 def _make_actions(parent):
-    from PySide6.QtGui import QAction, QKeySequence
+    from PySide6.QtGui import QAction
 
     save_action = QAction("保存", parent)
     save_action.setEnabled(True)

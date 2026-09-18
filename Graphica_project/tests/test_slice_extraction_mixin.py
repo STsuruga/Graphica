@@ -332,7 +332,7 @@ def test_release_on_different_axes_than_current_dataset_shows_info(tmp_path, mon
     window.subplot_rows_spinbox.setValue(1)
     window.subplot_cols_spinbox.setValue(2)
     ds = _add_2d_dataset(window, subplot_target=0)
-    other_ds = _add_dataset(window, subplot_target=1)
+    _add_dataset(window, subplot_target=1)
     window._update_plot()
     _select_dataset(window, ds)
     window.slice_extraction_mode_enabled = True

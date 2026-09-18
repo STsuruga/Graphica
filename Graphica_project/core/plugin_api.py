@@ -45,7 +45,9 @@ import os
 import sys
 
 from core.analysis import register_fit_function
-from core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestError, load_plugin_manifest
+from core.plugin_manifest import load_plugin_manifest
+# 外部プラグインが core.plugin_api から import している可能性があるため再公開する。
+from core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestError  # noqa: F401
 from core.plugin_types import (
     PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter,
     PluginPanel, PluginPlotType, PluginProcessor, PluginRegistrationError,

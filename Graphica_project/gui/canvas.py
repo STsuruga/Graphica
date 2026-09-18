@@ -862,7 +862,7 @@ class _CanvasDrawingMixin:
         is_free_layout = layout_mode == 'free'
         is_secondary_visible_global = False
 
-        for index, ax in enumerate(self.all_axes):
+        for index in range(len(self.all_axes)):
             if index >= len(all_plot_settings):
                 continue
             settings = all_plot_settings[index]
