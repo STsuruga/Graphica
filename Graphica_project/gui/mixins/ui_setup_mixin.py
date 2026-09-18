@@ -609,28 +609,20 @@ class UISetupMixin:
             apply_theme(QApplication.instance(), self.canvas.dark_mode)
 
 
-            # --- 4. 「プラグイン」メニュー ---
-            # ★ self.plugin_api は __init__ 側で _create_menu_bar() より前に
-            #   load_plugins_once() 済み。フィット関数の登録はプロセス全体で
-            #   1度だけだが、メニューアクションはタブごとの menuBar() に
-            #   個別に追加する必要があるため、ここで毎回追加する。
-            # menu_actions・データ処理(register_processor、項目C-1)・
-            # 解析(register_analyzer、項目C-2)・パネル(register_panel、項目D-1)の
-            # いずれか1件でも登録されていなければメニュー自体を作らない(既存の挙動を踏襲)。
+            # --- 4. 「プラグイン」メニュー(何も登録されていなければ作らない) ---
+            # 登録はプロセスで1回だが、メニューはタブごとの menuBar() に毎回足す。
             processors = self.plugin_api.get_processors()
             analyzers = self.plugin_api.get_analyzers()
             if self.plugin_api.menu_actions or processors or analyzers or self._plugin_panel_docks:
                 plugin_menu = menu_bar.addMenu(tr("プラグイン(&P)"))
                 self._plugin_menu = plugin_menu  # 破棄されないよう保持 (上記file_menuと同じ理由)
-                for text, callback, shortcut in self.plugin_api.menu_actions:
-                    action = plugin_menu.addAction(text)
-                    if shortcut:
-                        action.setShortcut(QKeySequence(shortcut))
-                    # callback(self) の形式で、現在のPlotterAppインスタンスを渡す。
-                    # デフォルト引数でクロージャに現在のcallback/selfを束縛する
-                    # (ループ変数をラムダで直接使うと最後の値だけが使われてしまうため)。
+                for menu_action in self.plugin_api.menu_actions:
+                    action = plugin_menu.addAction(menu_action.text)
+                    if menu_action.shortcut:
+                        action.setShortcut(QKeySequence(menu_action.shortcut))
+                    # 既定引数で束縛する(ループ変数を直接使うと最後の値だけになる)
                     action.triggered.connect(
-                        lambda checked=False, cb=callback: cb(self)
+                        lambda checked=False, ma=menu_action: self._run_plugin_menu_action(ma)
                     )
 
                 # データ処理(項目C-1): カテゴリごとにサブメニューへグルーピングする

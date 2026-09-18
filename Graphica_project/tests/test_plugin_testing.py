@@ -1,8 +1,11 @@
-# tests/test_plugin_testing.py
-"""core/plugin_testing.py (FakeGraphicaPluginAPI、トラック1 フェーズA-3) のテスト。"""
+"""core/plugin_testing.py(プラグイン作者向けの偽物)のテスト。"""
+import pandas as pd
 import pytest
 
-from core.plugin_testing import FakeGraphicaPluginAPI
+from core.dataset import Dataset
+from core.named_colors import NamedColorError
+from core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
+from core.plugin_types import PluginMenuAction
 
 
 def test_register_fit_function_stores_call():
@@ -14,9 +17,11 @@ def test_register_fit_function_stores_call():
 
 def test_register_menu_action_stores_call():
     api = FakeGraphicaPluginAPI()
-    callback = lambda main_window: None
+    def callback(ctx):
+        return None
+
     api.register_menu_action("Do it", callback, shortcut="Ctrl+D")
-    assert api.menu_actions == [("Do it", callback, "Ctrl+D")]
+    assert api.menu_actions == [PluginMenuAction("Do it", callback, "Ctrl+D", "test_plugin")]
 
 
 def test_register_importer_normalizes_extension():
@@ -39,7 +44,7 @@ def test_plugin_register_function_can_be_verified_via_fake_api():
     """プラグイン開発者が想定する典型的な使い方: register(api)を直接呼んで検証する。"""
     def register(api):
         api.register_fit_function("custom", lambda x, a: a * x, ["a"])
-        api.register_menu_action("My Action", lambda mw: None)
+        api.register_menu_action("My Action", lambda ctx: None)
         api.register_importer([".custom"], lambda fp: None)
         api.register_exporter("Custom", ".cst", lambda fig, path: None)
 
@@ -47,7 +52,7 @@ def test_plugin_register_function_can_be_verified_via_fake_api():
     register(api)
 
     assert "custom" in api.fit_functions
-    assert api.menu_actions[0][0] == "My Action"
+    assert api.menu_actions[0].text == "My Action"
     assert ".custom" in api.importers
     assert "custom" in api.exporters
 
@@ -82,9 +87,9 @@ def test_register_analyzer_rejects_duplicate_name():
 
 def test_register_panel_rejects_duplicate_name():
     api = FakeGraphicaPluginAPI()
-    api.register_panel("mypanel", lambda project, undo_stack: None)
+    api.register_panel("mypanel", lambda ctx: None)
     with pytest.raises(ValueError):
-        api.register_panel("mypanel", lambda project, undo_stack: None)
+        api.register_panel("mypanel", lambda ctx: None)
 
 
 def test_register_plot_type_rejects_duplicate_name():
@@ -99,3 +104,70 @@ def test_register_render_backend_rejects_duplicate_name():
     api.register_render_backend("mybackend", object())
     with pytest.raises(ValueError):
         api.register_render_backend("mybackend", object())
+
+
+# --- FakePluginContext ---
+
+def _dataset(name="D"):
+    return Dataset(name=name, df=pd.DataFrame({"x": [0.0, 1.0], "y": [1.0, 2.0]}), x_col_name="x", y_col_name="y")
+
+
+def test_fake_context_runs_a_menu_callback_end_to_end():
+    api = FakeGraphicaPluginAPI(plugin_name="counter")
+
+    def show_count(ctx):
+        ctx.show_message(f"{len(ctx.current_dataset().visible_df)} 点")
+
+    api.register_menu_action("点数", show_count)
+    ds = _dataset()
+    ctx = FakePluginContext(datasets=[ds], current=ds, plugin_name="counter")
+
+    api.menu_actions[0].callback(ctx)
+
+    assert ctx.messages == [("info", "counter", "2 点")]
+
+
+def test_fake_context_records_undoable_changes_and_notifies():
+    ds = _dataset()
+    ctx = FakePluginContext(datasets=[ds], current=ds)
+    changes = []
+    ctx.on_datasets_changed(lambda: changes.append(len(ctx.datasets())))
+
+    ctx.set_dataset_properties(ds, {"color": "#ff0000"}, description="色")
+    ctx.add_dataset(_dataset("E"))
+
+    assert ds.color == "#ff0000"
+    assert ctx.undo_descriptions == ["色", "[test_plugin] データセットの追加"]
+    assert changes == [1, 2]
+
+
+def test_fake_context_rejects_unknown_dataset_attributes_like_the_real_one():
+    ds = _dataset()
+    ctx = FakePluginContext(datasets=[ds])
+    with pytest.raises(AttributeError, match="no_such_field"):
+        ctx.set_dataset_properties(ds, {"no_such_field": 1})
+
+
+def test_fake_context_validates_colors_like_the_real_one():
+    ctx = FakePluginContext()
+    ctx.set_named_colors([{"name": "水", "color": "#ABC"}])
+    assert ctx.named_colors() == [{"name": "水", "color": "#aabbcc"}]
+    with pytest.raises(NamedColorError):
+        ctx.set_named_colors([{"name": "水", "color": "#000"}, {"name": "水", "color": "#111"}])
+    with pytest.raises(ValueError):
+        ctx.set_color_palettes({"P": ["blue"]})
+
+
+def test_fake_context_select_notifies_selection_listeners():
+    ds = _dataset()
+    ctx = FakePluginContext(datasets=[ds])
+    seen = []
+    ctx.on_selection_changed(seen.append)
+    ctx.select(ds)
+    assert seen == [ds] and ctx.current_dataset() is ds and ctx.selected_datasets() == [ds]
+
+
+def test_fake_context_data_dir_is_writable(tmp_path):
+    ctx = FakePluginContext(data_dir=str(tmp_path))
+    assert ctx.data_dir == str(tmp_path)
+    assert FakePluginContext().data_dir  # 省略時は一時フォルダ

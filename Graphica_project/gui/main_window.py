@@ -194,6 +194,8 @@ from models.project import ProjectModel
 from core.version import APP_NAME, __version__
 from core.i18n import tr, set_language, DEFAULT_LANGUAGE
 from core.plugin_api import load_plugins_once, get_registered_importer_extensions
+from core.plugin_types import PluginExecutionError
+from gui.plugin_context import TabPluginContext
 from core.app_paths import get_app_data_dir, get_user_plugins_dir
 
 # --- Matplotlib ---
@@ -2023,16 +2025,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             plugin_search_paths(), disabled_names=disabled_plugin_names(self.settings)
         )
 
-        # プラグイン製パネル (項目D-1、register_panel): タブ (このPlotterApp
-        # インスタンス) ごとに widget_factory を個別に呼び出し、専用の
-        # QDockWidget として追加する。表示メニューへのトグル項目の追加は
-        # _create_menu_bar() 側 (プラグインメニュー) で行うため、ドック自体は
-        # それより前のここで作る必要がある。1つのパネルの構築に失敗しても
-        # 他のパネル・タブ自体の起動は継続する(プラグイン機構全体の方針を踏襲)。
+        # プラグインへの窓口は (このタブ, プラグイン) ごとに1つ。
+        self._plugin_contexts = {}
+
+        # プラグインのパネル。メニューに表示切替を足すのは _create_menu_bar() なので、
+        # ドックはそれより前に作る。1つ失敗しても他のパネルとタブの起動は続ける。
         self._plugin_panel_docks = {}
         for panel in self.plugin_api.get_panels():
             try:
-                widget = panel.widget_factory(self.project, self.undo_stack)
+                widget = panel.widget_factory(self.plugin_context(panel.plugin_name))
                 if not isinstance(widget, QWidget):
                     raise TypeError(f"QWidgetを返しませんでした(型: {type(widget).__name__})。")
             except Exception as e:
@@ -2596,6 +2597,32 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._sync_project_from_ui()
         self._saved_content_fingerprint = self.project.content_fingerprint()
 
+    def plugin_context(self, plugin_name):
+        """このタブでプラグインに渡す窓口(PluginContext)。"""
+        context = self._plugin_contexts.get(plugin_name)
+        if context is None:
+            context = TabPluginContext(self, plugin_name)
+            self._plugin_contexts[plugin_name] = context
+        return context
+
+    def _notify_plugins_datasets_changed(self):
+        for context in self._plugin_contexts.values():
+            context._notify_datasets_changed()
+
+    def _notify_plugins_selection_changed(self):
+        current = self._get_current_dataset()
+        for context in self._plugin_contexts.values():
+            context._notify_selection_changed(current)
+
+    def _run_plugin_menu_action(self, menu_action):
+        try:
+            menu_action.callback(self.plugin_context(menu_action.plugin_name))
+        except Exception as e:
+            logger.exception("[plugin:%s] メニュー「%s」の実行に失敗しました", menu_action.plugin_name, menu_action.text)
+            QMessageBox.critical(self, "プラグインのエラー", str(PluginExecutionError(
+                menu_action.plugin_name, f"「{menu_action.text}」の実行に失敗しました: {e}"
+            )))
+
     def document_title(self):
         """タブ名・ウィンドウタイトル・保存確認に出す文書名。"""
         if self._current_project_path:
@@ -2863,10 +2890,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #   消えてしまう。データエディタが開いていて行が選択中なら再度反映する。
         self._reapply_editor_row_highlight()
 
-        # ★ 項目83: ミニマップ(レンジスライダー)の概観も、データセット/テーマの
-        #   変更に合わせて更新する。ミニマップはメインキャンバスとは別のFigureを
-        #   持つため、redraw_all()のfig.clf()では自動的に更新されない。
+        # ミニマップは別の Figure なので、redraw_all() では描き直されない。
         self._refresh_minimap()
+        self._notify_plugins_datasets_changed()
 
     def _refresh_minimap(self):
         """

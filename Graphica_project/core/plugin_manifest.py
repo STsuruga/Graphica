@@ -1,23 +1,15 @@
 # core/plugin_manifest.py
 """
-プラグインマニフェスト(plugin.json)の読み込み・検証(項目F-1)。
+プラグインのマニフェスト(plugin.json)の読み込みと検証。
 
-各プラグインディレクトリ直下に plugin.json を必須とする(従来 __init__.py に
-埋め込んでいた PLUGIN_INFO 辞書はこれに置き換わった)。api_version は
-このロードマップ(トラック1 フェーズA〜G)で実装したプラグインAPIの
-バージョンを表し、フェーズGの完了時点で "1.0" として固定する。将来
-破壊的変更を行う場合はここを "2.0" のように上げ、不一致のプラグインは
-ロード前に(register()を一切呼ばずに)弾く。
-
-entry_point キー(plugin.json のサンプルに含まれる
-"graphica_plugin_jcamp:register" のような形式)は将来の拡張用に予約された
-フィールドであり、現時点では未使用(実装が読むのは常に "モジュール直下の
-__init__.py の register(api) 関数"という既存の固定規約のまま)。
+api_version が PLUGIN_API_VERSION と一致しないプラグインは、import する前に弾く。
+壊す変更をしたら PLUGIN_API_VERSION を上げる。entry_point キーは予約済みで未使用
+(常にパッケージの __init__.py の register(api) を呼ぶ)。
 """
 import json
 import os
 
-PLUGIN_API_VERSION = "1.0"
+PLUGIN_API_VERSION = "2.0"
 PLUGIN_MANIFEST_FILENAME = "plugin.json"
 
 # entry_point は将来の拡張用予約フィールド(現状未使用)のため必須にしない。

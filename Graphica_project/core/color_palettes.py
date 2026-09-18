@@ -1,20 +1,12 @@
-# core/color_palettes.py
 """
-論文向けカラーパレットマネージャー(項目141、C-804)。
-
-既存のカスタムパレット永続化(QSettings、gui/mixins/dataset_mixin.pyの
-COLOR_PALETTES_SETTINGS_KEY)に相乗りする形で、ユーザーが自分で作らなくても
-選べる「よく知られた」カテゴリカルパレットをいくつか組み込みで用意する。
-いずれも読み取り専用(既存の「Matplotlib既定」と同じ扱い)で、名前変更・削除・
-色の追加/削除の対象にはしない。
+組み込みの配色パレット(読み取り専用)と、利用者のパレットの検証。
+利用者のパレットは QSettings の custom_color_palettes_json に保存する(gui/mixins/dataset_mixin.py)。
 """
 
-# 出典: Tableau 10(Tableauの既定カテゴリカルパレット)、
-# ColorBrewer(https://colorbrewer2.org/)の定性(qualitative)パレット3種
-# (Set2/Dark2/Paired、いずれもパブリックドメインとして配布)、
-# Okabe-Ito(色覚多様性対応、項目140、C-803。Okabe & Ito, 2008
-# 「Color Universal Design (CUD)」で提案された8色、1型/2型色覚でも
-# 判別しやすいことが実証されているパレット)。
+from core.named_colors import normalize_color
+
+# 出典: Tableau 10、ColorBrewer(Set2/Dark2/Paired、パブリックドメイン)、
+# Okabe & Ito (2008) Color Universal Design(1型/2型色覚でも判別しやすい8色)。
 BUILTIN_PALETTES = {
     'Okabe-Ito(色覚多様性対応)': [
         '#000000', '#e69f00', '#56b4e9', '#009e73',
@@ -37,3 +29,19 @@ BUILTIN_PALETTES = {
         '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6', '#6a3d9a',
     ],
 }
+
+
+def normalize_palettes(palettes):
+    """利用者のパレット {名前: [色, ...]} を検証し、色を小文字の #rrggbb にしたコピーを返す。"""
+    if not isinstance(palettes, dict):
+        raise ValueError("パレットは {名前: [色, ...]} の形で渡してください。")
+    result = {}
+    for name, colors in palettes.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("パレット名が空です。")
+        if name in BUILTIN_PALETTES:
+            raise ValueError(f"「{name}」は組み込みのパレットと同じ名前です。")
+        if not isinstance(colors, (list, tuple)):
+            raise ValueError(f"パレット「{name}」の色はリストで渡してください。")
+        result[name] = [normalize_color(c) for c in colors]
+    return result

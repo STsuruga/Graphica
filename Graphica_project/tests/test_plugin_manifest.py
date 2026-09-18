@@ -137,7 +137,7 @@ def test_all_missing_required_keys_are_listed_at_once(tmp_path):
     assert "name" in message and "version" in message and "api_version" in message
 
 
-@pytest.mark.parametrize("bad_version", ["0.9", "2.0", "1", "1.0.0", ""])
+@pytest.mark.parametrize("bad_version", ["0.9", "1.0", "2", "2.0.0", ""])
 def test_api_version_mismatch_raises(tmp_path, bad_version):
     """★ api_version が一致しないと、そのプラグインのコードは一切 import
     されない。PLUGIN_API_VERSION を上げる=既存の全プラグインが読み込まれなく

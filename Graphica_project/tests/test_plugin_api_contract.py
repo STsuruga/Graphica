@@ -10,7 +10,8 @@ FakeGraphicaPluginAPI(core/plugin_testing.py)と本物のGraphicaPluginAPI
 import inspect
 
 from core.plugin_api import GraphicaPluginAPI
-from core.plugin_testing import FakeGraphicaPluginAPI
+from core.plugin_context import PluginContext
+from core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
 
 
 def _register_method_names(cls):
@@ -34,3 +35,17 @@ def test_fake_api_register_method_signatures_match_the_real_api():
             real_default = real_sig.parameters[param_name].default
             fake_default = fake_sig.parameters[param_name].default
             assert real_default == fake_default, f"{name}.{param_name}"
+
+
+def test_both_contexts_implement_every_member_of_the_contract():
+    from gui.plugin_context import TabPluginContext
+
+    contract = {n for n in dir(PluginContext) if not n.startswith("_")}
+    for cls in (TabPluginContext, FakePluginContext):
+        missing = {n for n in contract if getattr(cls, n) is getattr(PluginContext, n)}
+        assert not missing, f"{cls.__name__} が実装していない: {sorted(missing)}"
+        for name in contract:
+            member = getattr(PluginContext, name)
+            if inspect.isfunction(member):
+                assert inspect.signature(getattr(cls, name)).parameters.keys() == \
+                    inspect.signature(member).parameters.keys(), f"{cls.__name__}.{name}"
