@@ -1,7 +1,7 @@
-# tests/test_dataset.py
 """core/dataset.py の Dataset データクラスに対するテスト。"""
 import copy
 import pickle
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -954,3 +954,18 @@ def test_1d_dataset_from_dict_without_2d_fields_defaults_gracefully():
     restored = Dataset.from_dict(data)
     assert restored.data_kind == '1d'
     assert restored.z_grid is None
+
+
+@pytest.mark.parametrize("column, value", [
+    (pd.Series([True, False]), np.nan),
+    (pd.to_datetime(pd.Series(["2024-01-01", "2024-01-02"])), "not_a_date"),
+])
+def test_set_cell_accepts_a_value_the_column_dtype_cannot_hold(column, value):
+    # pandas 3 では型の合わない代入が例外になる(pandas 2 は FutureWarning)。
+    ds = Dataset(name="D", df=pd.DataFrame({"x": [1.0, 2.0], "c": column}), x_col_name="x", y_col_name="x")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        ds.set_cell(0, "c", value)
+    stored = ds.df.loc[0, "c"]
+    assert stored == value or (pd.isna(stored) and pd.isna(value))
+    assert ds.df.loc[1, "c"] == column[1]
