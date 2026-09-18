@@ -52,6 +52,9 @@ datas = [
 ]
 
 hiddenimports = [
+    # プラグインだけが import する公開の入口。本体からは import しないので静的解析で見つからない。
+    "graphica.plugin",
+    "graphica.plugin.testing",
     # matplotlib の Qt (PySide6) 用バックエンド。gui/canvas.py が
     # matplotlib.backends.backend_qtagg を直接importしているので通常は
     # 静的解析で検出されるが、明示しておく。

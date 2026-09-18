@@ -1,10 +1,10 @@
-# core/plugin_manifest.py
 """
 プラグインのマニフェスト(plugin.json)の読み込みと検証。
 
-api_version が PLUGIN_API_VERSION と一致しないプラグインは、import する前に弾く。
-壊す変更をしたら PLUGIN_API_VERSION を上げる。entry_point キーは予約済みで未使用
-(常にパッケージの __init__.py の register(api) を呼ぶ)。
+プラグイン API の版は "主番号.小番号"。壊す変更で主番号を、互換のある追加で小番号を上げる。
+plugin.json の api_version は、主番号が本体と同じで小番号が本体以下なら読み込む
+(使う機能がそろっている)。合わないプラグインは import する前に弾く。
+entry_point キーは予約済みで未使用(常にパッケージの __init__.py の register(api) を呼ぶ)。
 """
 import json
 import os
@@ -12,22 +12,15 @@ import os
 PLUGIN_API_VERSION = "2.0"
 PLUGIN_MANIFEST_FILENAME = "plugin.json"
 
-# entry_point は将来の拡張用予約フィールド(現状未使用)のため必須にしない。
 _REQUIRED_MANIFEST_KEYS = ("name", "version", "api_version")
 
 
 class PluginManifestError(Exception):
-    """plugin.jsonの欠落・不正・api_version不一致を表す(呼び出し元でキャッチしてそのプラグインをスキップする用途)。"""
+    """plugin.json が無い・壊れている・api_version が合わない(呼び出し側はそのプラグインを飛ばす)。"""
 
 
 def load_plugin_manifest(plugin_dir):
-    """
-    plugin_dir/plugin.json を読み込み、辞書として返す。
-
-    欠落・JSONとして不正・オブジェクトでない・必須キー(name/version/
-    api_version)欠落・api_version不一致のいずれかの場合は
-    PluginManifestError を送出する。
-    """
+    """plugin_dir/plugin.json を辞書で返す。不正なら PluginManifestError。"""
     manifest_path = os.path.join(plugin_dir, PLUGIN_MANIFEST_FILENAME)
     if not os.path.exists(manifest_path):
         raise PluginManifestError(
@@ -49,10 +42,25 @@ def load_plugin_manifest(plugin_dir):
             f"{PLUGIN_MANIFEST_FILENAME} に必須キーがありません: {', '.join(missing_keys)}"
         )
 
-    if manifest["api_version"] != PLUGIN_API_VERSION:
+    if not is_compatible_api_version(manifest["api_version"]):
         raise PluginManifestError(
             f"api_version '{manifest['api_version']}' はサポート対象外です"
-            f"(このGraphicaが対応するプラグインAPIのバージョンは '{PLUGIN_API_VERSION}' です)。"
+            f"(このGraphicaのプラグインAPIは '{PLUGIN_API_VERSION}'。主番号が同じで、"
+            f"小番号がこれ以下のプラグインを読み込めます)。"
         )
 
     return manifest
+
+
+def parse_api_version(text):
+    """ "2.1" -> (2, 1)。形が違えば None。"""
+    parts = str(text).split(".")
+    if len(parts) != 2 or not all(p.isdigit() for p in parts):
+        return None
+    return int(parts[0]), int(parts[1])
+
+
+def is_compatible_api_version(plugin_api_version, app_api_version=PLUGIN_API_VERSION):
+    plugin = parse_api_version(plugin_api_version)
+    app = parse_api_version(app_api_version)
+    return plugin is not None and plugin[0] == app[0] and plugin[1] <= app[1]

@@ -18,7 +18,7 @@ import pytest
 
 from core.plugin_manifest import (
     PLUGIN_API_VERSION, PLUGIN_MANIFEST_FILENAME,
-    PluginManifestError, load_plugin_manifest,
+    PluginManifestError, is_compatible_api_version, load_plugin_manifest,
 )
 
 
@@ -137,16 +137,26 @@ def test_all_missing_required_keys_are_listed_at_once(tmp_path):
     assert "name" in message and "version" in message and "api_version" in message
 
 
-@pytest.mark.parametrize("bad_version", ["0.9", "1.0", "2", "2.0.0", ""])
-def test_api_version_mismatch_raises(tmp_path, bad_version):
-    """★ api_version が一致しないと、そのプラグインのコードは一切 import
-    されない。PLUGIN_API_VERSION を上げる=既存の全プラグインが読み込まれなく
-    なる、という重い変更であることを、この厳密比較が示している。"""
+@pytest.mark.parametrize("bad_version", ["1.0", "3.0", "2.1", "2", "2.0.0", "", "two.zero"])
+def test_incompatible_api_version_raises(tmp_path, bad_version):
+    """主番号が違う・本体より新しい小番号・形が違う api_version のプラグインは import しない。"""
     plugin_dir = str(tmp_path / "wrong_api")
     _write_manifest(plugin_dir, _valid_manifest(api_version=bad_version))
 
     with pytest.raises(PluginManifestError, match="api_version"):
         load_plugin_manifest(plugin_dir)
+
+
+@pytest.mark.parametrize("plugin_version, app_version, expected", [
+    ("2.0", "2.0", True),
+    ("2.0", "2.3", True),   # 古い小番号のプラグインは新しい本体で動く
+    ("2.3", "2.3", True),
+    ("2.4", "2.3", False),  # 本体に無い機能を使う
+    ("1.9", "2.3", False),  # 主番号が違う = 壊れた変更をまたぐ
+    ("3.0", "2.3", False),
+])
+def test_is_compatible_api_version(plugin_version, app_version, expected):
+    assert is_compatible_api_version(plugin_version, app_version) is expected
 
 
 def test_api_version_error_message_names_the_supported_version(tmp_path):

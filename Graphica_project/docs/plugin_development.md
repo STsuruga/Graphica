@@ -58,9 +58,10 @@ def register(api):
 - メニューやパネルに渡る **`ctx`(`PluginContext`)**: 実行時に、そのタブのデータセットを読んだり
   変えたりする窓口。
 
-Graphica 本体の内部(`PlotterApp` やその `_` で始まるメソッド)には触らないでください。
-本体の内部は予告なく変わりますが、`api` と `ctx` はプラグイン API のバージョン
-(`api_version`)で守られています。
+本体から import してよいのは **`graphica.plugin`**(`Dataset` / `AnalysisResult` / `PluginContext` など)と、
+テスト用の **`graphica.plugin.testing`** だけです。Graphica 本体の内部(`core` / `gui` / `models`、
+`PlotterApp`、`_` で始まるメソッド)には触らないでください。本体の内部は予告なく変わりますが、
+`api`・`ctx`・`graphica.plugin` はプラグイン API の版(`api_version`)で守られています。
 
 ---
 
@@ -131,6 +132,7 @@ zipは以下のいずれかのレイアウトに対応しています。
   バージョン。現在の値は **`"2.0"`**(`core/plugin_manifest.py` の
   `PLUGIN_API_VERSION`)。ここが一致しないプラグインは、`__init__.py` を
   importすることすら無く、ロード前に安全にスキップされます。
+  **主番号が本体と同じで、小番号が本体以下なら読み込まれます**(下の「版の方針」)。
   `"1.0"` のプラグインは 2.0 では読み込まれません(移行方法は末尾の「1.0 からの移行」)。
 - `author` / `description` (任意、推奨): 診断・管理UI上での表示に使われます。
   無くてもロードは失敗しません。
@@ -147,6 +149,17 @@ zipは以下のいずれかのレイアウトに対応しています。
 欠けている、`api_version` が不一致——これらはいずれも例外を起こさず、該当
 プラグインだけが警告ログとともにスキップされます(他のプラグインの読み込みや
 アプリ本体の起動には影響しません)。
+
+### 版の方針
+
+プラグイン API の版は `主番号.小番号` です。
+
+- **小番号が上がる**(2.0 → 2.1): 窓口のメソッドやフックが**増えた**だけ。今あるプラグインはそのまま動きます。
+  新しい機能を使うプラグインは、`api_version` をその版(`"2.1"`)にします。古い本体(2.0)では読み込まれません。
+- **主番号が上がる**(2.x → 3.0): 何かが**消えた・変わった**。この資料に移行表を書きます。
+  古い主番号のプラグインは読み込まれないので、`api_version` を上げて書き直します。
+
+`api_version` には、プラグインが使う機能がそろった最も古い版を書くと、いちばん多くの本体で動きます。
 
 ---
 
@@ -323,7 +336,7 @@ def register(api):
 
 ```python
 import numpy as np
-from core.dataset import Dataset
+from graphica.plugin import Dataset
 
 def smooth(dataset, params):
     window = params["window"]
@@ -383,8 +396,7 @@ class AnalysisResult:
 
 ```python
 import pandas as pd
-from core.plugin_types import AnalysisResult
-from core.dataset import Dataset
+from graphica.plugin import AnalysisResult, Dataset
 
 def find_peak(dataset, params):
     x, y = dataset.x_data, dataset.y_data
@@ -626,7 +638,7 @@ def register(api):
 
 ```python
 # tests/test_my_plugin.py
-from core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
+from graphica.plugin.testing import FakeGraphicaPluginAPI, FakePluginContext
 from my_plugin import register
 
 def test_hello_menu_action_shows_a_message():
@@ -645,6 +657,22 @@ def test_hello_menu_action_shows_a_message():
 `datasets=` / `current=` で初期状態を渡し、`messages`(表示したメッセージ)、
 `undo_descriptions`(Undo に積まれた操作)、`redraw_count` で結果を確かめられます。
 `select(dataset)` と `fire_datasets_changed()` で通知を送れるので、パネルの更新も試せます。
+
+本番と同じ読み込み経路(manifest の検証 → import → `register(api)`)で確かめるには
+`load_plugin_like_graphica` を使います。相対 import の誤りや `api_version` の不一致は、偽物の API では見つかりません。
+
+```python
+from graphica.plugin.testing import install_zip_like_graphica, load_plugin_like_graphica
+
+def test_loads_like_graphica(tmp_path):
+    api, record = load_plugin_like_graphica("my_plugin", work_dir=str(tmp_path))
+    assert record["error"] is None
+    assert [a.text for a in api.menu_actions] == ["Say Hello"]
+
+def test_zip_installs(tmp_path):
+    name = install_zip_like_graphica("dist/my_plugin-1.0.0.zip", str(tmp_path))
+    assert name == "my_plugin"
+```
 
 `register_importer`/`register_exporter`/`register_processor`/`register_analyzer`/
 `register_panel`/`register_plot_type` も同様に、`api.importers` /
@@ -711,5 +739,8 @@ Graphicaのプラグイン機構は「1箇所の失敗が全体を巻き込ま�
 | `QMessageBox.information(main_window, ...)` | `ctx.show_message(...)` |
 | パネルの `widget_factory(project, undo_stack)` | `widget_factory(ctx)` |
 | `FakeGraphicaPluginAPI().menu_actions[0]` はタプル | `.text` / `.callback` / `.shortcut` を持つ `PluginMenuAction` |
+| `from core.dataset import Dataset` など本体内部からの import | `from graphica.plugin import Dataset`(テストは `graphica.plugin.testing`) |
+| テストで `core.plugin_api.PluginManager` を直接使う | `load_plugin_like_graphica(folder)` |
+| テストで `core.plugin_install.install_plugin_zip` | `install_zip_like_graphica(zip_path, target_dir)` |
 
 processor / analyzer / importer / exporter / plot_type / fit_function の書き方は変わりません。
