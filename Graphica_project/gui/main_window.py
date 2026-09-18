@@ -2216,8 +2216,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     [EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT],
                     Qt.Orientation.Vertical
                 )
-            except Exception as e:
-                logger.warning("resizeDocks に失敗しました: %s", e)
+            except Exception:
+                logger.exception("resizeDocks に失敗しました")
 
     # --- ドックレイアウトの保存/復元/リセット(項目152、C-911) ---
     # 「最初のタブ・初回起動のみ復元」という既存の制約(起動シーケンス自体は
@@ -2659,7 +2659,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.project.save_project(self._autosave_filename)
             self.statusBar().showMessage("オートセーブ完了", 3000)
         except Exception as e:
-            logger.error("オートセーブに失敗しました: %s", e)
+            logger.exception("オートセーブに失敗しました")
             self.statusBar().showMessage(f"オートセーブ失敗: {e}", 3000)
 
     def manual_save(self):
@@ -2707,6 +2707,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._add_recent_file(filepath)
             self.project_state_changed.emit()
         except Exception as e:
+            logger.exception("プロジェクトの保存に失敗しました: %s", filepath)
             QMessageBox.critical(self, "エラー", f"保存に失敗しました:\n{e}")
 
     def manual_load(self):
@@ -2782,6 +2783,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 self._restored_unsaved = True
             self.project_state_changed.emit()
         except Exception as e:
+            logger.exception("プロジェクトの読み込みに失敗しました: %s", filepath)
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
 
     def _reset_zoom(self):
@@ -3909,6 +3911,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 try:
                     sheet_df = pd.read_excel(file_path, sheet_name=sheet_name, engine=excel_engine_for(file_path))
                 except Exception as e:
+                    logger.exception("シート「%s」の読み込みに失敗しました", sheet_name)
                     QMessageBox.warning(self, "読み込みエラー", f"シート「{sheet_name}」の読み込みに失敗しました:\n{e}")
                     continue
                 if sheet_df.shape[1] < 2:
@@ -4076,6 +4079,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         try:
             df = pd.read_csv(io.StringIO(text), sep=delimiter, engine='python')
         except Exception as e:
+            logger.exception("クリップボードの内容を表として読めませんでした")
             QMessageBox.warning(
                 self, "貼り付けエラー",
                 f"クリップボードの内容を表として解釈できませんでした:\n{e}"

@@ -560,6 +560,7 @@ class ExportMixin:
                     with mpl.rc_context(export_rc_params(file_ext, options.get('svg_text_as_path', False))):
                         self.canvas.fig.savefig(file_path, **save_kwargs)
                 except Exception as e:
+                    logger.exception("エクスポートに失敗しました")
                     QMessageBox.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
                 finally:
                     # 10. ★★★ 必須 ★★★
@@ -614,8 +615,8 @@ class ExportMixin:
                     full_resolution=options.get('full_resolution', False),
                 )
                 self.canvas._apply_appearance(temp_ax, active_index, active_settings)
-            except Exception as e:
-                logger.error("プレビュー生成中にエラー: %s", e)
+            except Exception:
+                logger.exception("エクスポートのプレビューを描画できませんでした")
             finally:
                 self.canvas.all_secondary_axes = original_secondary
 

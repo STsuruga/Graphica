@@ -535,6 +535,7 @@ class DatasetMixin:
                         file_path += '.csv'
                     dataset.df.to_csv(file_path, index=False, encoding='utf-8-sig')
             except Exception as e:
+                logger.exception("データセットの書き出しに失敗しました")
                 QMessageBox.warning(self, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
                 return
             QMessageBox.information(self, "書き出し完了", f"書き出しました:\n{file_path}")
@@ -568,6 +569,7 @@ class DatasetMixin:
                         used_sheet_names.add(sheet_name)
                         dataset.df.to_excel(writer, sheet_name=sheet_name, index=False)
             except Exception as e:
+                logger.exception("データセットの書き出しに失敗しました")
                 QMessageBox.warning(self, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
                 return
             QMessageBox.information(self, "書き出し完了", f"{len(selected)}件を書き出しました:\n{file_path}")
@@ -764,6 +766,7 @@ class DatasetMixin:
             else:
                 new_df = read_data_file(dataset.source_file)
         except Exception as e:
+            logger.exception("元ファイルからの再読み込みに失敗しました")
             QMessageBox.warning(self, "再読み込み", f"ファイルの読み込みに失敗しました:\n{e}")
             return
 
@@ -1644,6 +1647,7 @@ class DatasetMixin:
         try:
             match_result = safe_eval_column_formula(original_dataset.df, formula)
         except Exception as e:
+            logger.exception("行フィルタの条件式を評価できませんでした")
             QMessageBox.warning(self, "行フィルタ", f"条件式の評価に失敗しました:\n{e}")
             return
 
@@ -1845,6 +1849,7 @@ class DatasetMixin:
         try:
             peak_x, peak_y = calculate_peaks(x_data, y_data, peak_type, settings)
         except Exception as e:
+            logger.exception("ピーク検出に失敗しました")
             QMessageBox.warning(self, "ピーク検出エラー", f"エラーが発生しました:\n{e}")
             return
 
@@ -1899,6 +1904,7 @@ class DatasetMixin:
             if not isinstance(new_dataset, Dataset):
                 raise TypeError(f"Datasetを返しませんでした(型: {type(new_dataset).__name__})。")
         except Exception as e:
+            logger.exception("[plugin:%s] processor の実行に失敗しました", processor.plugin_name)
             QMessageBox.critical(
                 self, "データ処理エラー",
                 str(PluginExecutionError(processor.plugin_name, f"「{processor.name}」の実行に失敗しました: {e}"))
@@ -1937,6 +1943,7 @@ class DatasetMixin:
             if not isinstance(result, AnalysisResult):
                 raise TypeError(f"AnalysisResultを返しませんでした(型: {type(result).__name__})。")
         except Exception as e:
+            logger.exception("[plugin:%s] analyzer の実行に失敗しました", analyzer.plugin_name)
             QMessageBox.critical(
                 self, "解析エラー",
                 str(PluginExecutionError(analyzer.plugin_name, f"「{analyzer.name}」の実行に失敗しました: {e}"))
@@ -4151,6 +4158,7 @@ class DatasetMixin:
             # 検出結果自体は従来と完全に同じ)。
             quant = calculate_peak_quantification(x_data, y_data, peak_type, settings)
         except Exception as e:
+            logger.exception("ピーク検出に失敗しました")
             QMessageBox.warning(self, "ピーク検出エラー", f"エラーが発生しました:\n{e}")
             return
 

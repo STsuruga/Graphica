@@ -1,11 +1,6 @@
-# gui/dialogs/analysis.py
-"""
-解析のダイアログ。
+"""解析のダイアログ。呼び出し側は `from gui.dialogs import X` で参照する。"""
 
-gui/dialogs.py(5,560行・47ダイアログ)を機能群ごとに分割したもの
-(改善ボード B-2)。呼び出し側は従来どおり `from gui.dialogs import X` で
-参照できる(gui/dialogs/__init__.py が再エクスポートしている)。
-"""
+import logging
 
 import numpy as np
 from PySide6.QtWidgets import (
@@ -33,6 +28,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFont
 from gui.theme import apply_form_spacing
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -510,6 +507,7 @@ class MultiPeakFitDialog(QDialog):
                 self._x_data, self._y_data, settings['peak_type'], settings
             )
         except Exception as e:
+            logger.exception("ピークの自動検出に失敗しました")
             QMessageBox.warning(self, "ピーク検出", f"ピーク検出に失敗しました:\n{e}")
             return
         if len(result['peak_x']) == 0:
@@ -744,6 +742,7 @@ class ResultDialog(QDialog):
             self.csv_data.to_csv(file_path, index=False, encoding='utf-8-sig')
             QMessageBox.information(self, "保存完了", f"CSVファイルとして保存しました:\n{file_path}")
         except Exception as e:
+            logger.exception("結果の CSV 保存に失敗しました")
             QMessageBox.warning(self, "保存エラー", f"CSV保存中にエラーが発生しました:\n{e}")
 
 

@@ -335,6 +335,7 @@ class ColumnPreviewDialog(QDialog):
                     encoding=encoding, engine='python'
                 )
         except Exception as e:
+            logger.exception("CSV のプレビューを読み込めませんでした")
             QMessageBox.warning(
                 self, "読み込みエラー",
                 f"指定した条件(文字コード/区切り文字/ヘッダー行/固定長)では読み込めませんでした:\n{e}"
@@ -361,6 +362,7 @@ class ColumnPreviewDialog(QDialog):
                 usecols=usecols, nrows=nrows, engine=excel_engine_for(self.file_path)
             )
         except Exception as e:
+            logger.exception("Excel のプレビューを読み込めませんでした")
             QMessageBox.warning(
                 self, "読み込みエラー",
                 f"指定した条件(シート/ヘッダー行/使用する列/最大行数)では読み込めませんでした:\n{e}"

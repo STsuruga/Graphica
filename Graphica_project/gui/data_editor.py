@@ -489,8 +489,8 @@ class DataEditorDialog(QDialog):
                 item_text = "" if pd.isna(original_value) else str(original_value)
                 self.table_widget.item(row, column).setText(item_text)
                 self.table_widget.blockSignals(False)
-            except Exception: 
-                pass # 復元も失敗した場合はあきらめる
+            except Exception:
+                logger.exception("セルの表示を元の値に戻せませんでした")
 
     def _reset_view(self):
         """

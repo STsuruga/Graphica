@@ -117,7 +117,7 @@ def _render_once(text, color, fontsize, dpi):
         fig.text(0.01, 0.5, display_text, fontsize=fontsize, color=color,
                   family=JP_CAPABLE_FONT_FAMILIES, va='center', ha='left')
         canvas.draw()
-    except Exception:
+    except ValueError:  # mathtext の構文エラー。$ をそのまま文字として描き直す
         fig = Figure(figsize=_CANVAS_SIZE_INCHES, dpi=dpi)
         canvas = FigureCanvasAgg(fig)
         fig.patch.set_alpha(0.0)

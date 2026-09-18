@@ -536,8 +536,9 @@ class PluginManager:
                 try:
                     plugin_dir = os.path.join(self._plugin_locations[plugin_name], plugin_name)
                     record["info"] = load_plugin_manifest(plugin_dir)
-                except Exception:
-                    pass  # 無効化中は表示用の名前・バージョンが取れないだけで致命的ではない
+                except PluginManifestError:
+                    # 無効化中なので、表示用の名前・バージョンが取れないだけ。
+                    logger.debug("無効化中のプラグイン '%s' の manifest を読めません", plugin_name, exc_info=True)
                 self.loaded_plugins.append(record)
                 continue
 
