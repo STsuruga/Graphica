@@ -13,7 +13,15 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-17)
+## 現在地(2026-09-18)
+
+**保守性ボードを公開(2026-09-18)**: https://claude.ai/artifact/SQ8zoWEC7SBnxEJNL7GDtU
+(ソース `docs/dev/maintenance_board.html`、db の `status` コレクションが状態の正)。
+F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント整理 の17項目。項目IDで指示が来る。
+**ユーザー指示: どの項目でも、触ったファイルについて pip 配布に向けた整理とコメントの最小化を一緒に行う**
+(詳細はボードの「作業ルールと引き継ぎ」)。まだどの項目も未着手。
+
+### 以前の状況(2026-09-17)
 
 **プラグイン開発ハブを公開(2026-09-17)**: https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o
 (ソース `docs/dev/plugin_hub.html`、db capability)。プラグインは1件ずつ別チャット・別リポジトリで

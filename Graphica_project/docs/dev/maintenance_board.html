@@ -1,0 +1,541 @@
+<title>Graphica 保守性ボード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 既存の「Graphica 改善ボード」と同じ見た目・同じ状態保存の仕組み(db の status コレクション) */
+:root {
+  --ground: #F4F6FA; --surface: #FFFFFF; --surface-2: #EDF1F7;
+  --ink: #131A22; --ink-2: #3A4553; --muted: #5F6B7A;
+  --line: #DCE3EC; --line-soft: #E8EDF4;
+  --accent: #2563EB; --accent-soft: #E4ECFD;
+  --sev-high: #C2410C; --sev-high-soft: #FBE9E0;
+  --sev-mid: #A16207; --sev-mid-soft: #FAF0DC;
+  --sev-low: #0F766E; --sev-low-soft: #DFF0EE;
+  --done: #15803D; --done-soft: #E0F0E5;
+  --shadow: 0 1px 2px rgba(19,26,34,.05), 0 4px 14px rgba(19,26,34,.05);
+  --radius: 10px;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0E1319; --surface: #161D26; --surface-2: #1D2733;
+    --ink: #E9EEF5; --ink-2: #C2CCD9; --muted: #8C99A8;
+    --line: #2A3644; --line-soft: #232E3B;
+    --accent: #6098F5; --accent-soft: #1B2A44;
+    --sev-high: #F0854E; --sev-high-soft: #33201A;
+    --sev-mid: #DFAA44; --sev-mid-soft: #2E2617;
+    --sev-low: #4FBFB2; --sev-low-soft: #162C2A;
+    --done: #5BBE7C; --done-soft: #15291C;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0E1319; --surface: #161D26; --surface-2: #1D2733;
+  --ink: #E9EEF5; --ink-2: #C2CCD9; --muted: #8C99A8;
+  --line: #2A3644; --line-soft: #232E3B;
+  --accent: #6098F5; --accent-soft: #1B2A44;
+  --sev-high: #F0854E; --sev-high-soft: #33201A;
+  --sev-mid: #DFAA44; --sev-mid-soft: #2E2617;
+  --sev-low: #4FBFB2; --sev-low-soft: #162C2A;
+  --done: #5BBE7C; --done-soft: #15291C;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1060px; margin: 0 auto; padding-inline: 20px; padding-block: 0 96px; }
+header { padding: 52px 0 28px; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+h1 { font-size: clamp(28px, 4.4vw, 42px); font-weight: 700; letter-spacing: -.01em; line-height: 1.25; margin: 0 0 14px; text-wrap: balance; }
+.lede { font-size: 16px; color: var(--ink-2); max-width: 64ch; margin: 0 0 22px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 18px; border-top: 1px solid var(--line); }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 26px 0 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px 17px; box-shadow: var(--shadow); }
+.stat .n { font-family: var(--font-mono); font-size: 26px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; display: block; margin-bottom: 3px; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.stat.high .n { color: var(--sev-high); } .stat.mid .n { color: var(--sev-mid); } .stat.low .n { color: var(--sev-low); } .stat.prog .n { color: var(--done); }
+.bar { height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: 9px; }
+.bar > i { display: block; height: 100%; background: var(--done); transition: width .35s ease; }
+.metrics { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); margin: 18px 0 0; }
+.metrics table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 520px; }
+.metrics th, .metrics td { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.metrics th { font-family: var(--font-mono); font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: .06em; background: var(--surface-2); }
+.metrics td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.metrics tr:last-child td { border-bottom: 0; }
+.filters { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--ground) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); padding: 12px 0; margin: 26px 0 0; display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.chip { font-family: inherit; font-size: 12.5px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 999px; padding: 5px 13px; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip:focus-visible, .status-btn:focus-visible, .row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.filters .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
+section { margin-top: 40px; }
+.sec-head { margin-bottom: 14px; }
+.sec-head h2 { font-size: 19px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sec-head h2 .tag { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .08em; }
+.sec-head p { margin: 0; font-size: 13.5px; color: var(--muted); }
+.item { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--sev-low); border-radius: var(--radius); margin-bottom: 10px; box-shadow: var(--shadow); overflow: hidden; }
+.item.sev-high { border-left-color: var(--sev-high); } .item.sev-mid { border-left-color: var(--sev-mid); } .item.sev-low { border-left-color: var(--sev-low); }
+.item.is-done { opacity: .58; }
+.item.is-done .title { text-decoration: line-through; text-decoration-thickness: 1px; }
+.row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; padding: 14px 16px; cursor: pointer; }
+.row:hover { background: var(--surface-2); }
+.id { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; background: var(--surface-2); color: var(--ink-2); border-radius: 5px; padding: 3px 7px; white-space: nowrap; margin-top: 2px; }
+.title { font-weight: 500; font-size: 15px; line-height: 1.55; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.badge { font-size: 11px; border-radius: 4px; padding: 2px 7px; font-family: var(--font-mono); letter-spacing: .02em; }
+.badge.sev-high { background: var(--sev-high-soft); color: var(--sev-high); } .badge.sev-mid { background: var(--sev-mid-soft); color: var(--sev-mid); } .badge.sev-low { background: var(--sev-low-soft); color: var(--sev-low); }
+.badge.effort, .badge.dep { background: var(--surface-2); color: var(--muted); }
+.badge.ask { background: var(--accent-soft); color: var(--accent); }
+.status-btn { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 4px 12px; cursor: pointer; white-space: nowrap; margin-top: 1px; transition: background .15s, color .15s, border-color .15s; }
+.status-btn:hover { border-color: var(--accent); color: var(--accent); }
+.status-btn[data-state="doing"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.status-btn[data-state="done"] { background: var(--done-soft); color: var(--done); border-color: transparent; }
+.detail { display: none; padding: 0 16px 16px 16px; border-top: 1px solid var(--line-soft); }
+.item.open .detail { display: block; }
+.detail dl { margin: 0; display: grid; grid-template-columns: 92px 1fr; gap: 6px 14px; }
+.detail dt { font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: .06em; padding-top: 5px; }
+.detail dd { margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.7; }
+.detail ul { margin: 4px 0; padding-left: 18px; }
+.detail li { margin-bottom: 3px; }
+.detail .note { margin-top: 12px; padding: 8px 12px; background: var(--done-soft); color: var(--ink-2); border-radius: 6px; font-size: 13.5px; }
+.detail .src { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.detail .src code { background: none; padding: 0; color: var(--muted); font-size: 12px; }
+code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-2); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
+.handoff { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px 26px; box-shadow: var(--shadow); }
+.handoff h3 { font-size: 15px; margin: 22px 0 8px; font-weight: 700; }
+.handoff h3:first-of-type { margin-top: 0; }
+.handoff p, .handoff li { font-size: 14px; color: var(--ink-2); }
+.handoff ul, .handoff ol { padding-left: 20px; margin: 6px 0; }
+.rulebox { border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 0 0 6px; }
+.rulebox p { margin: 0 0 6px; } .rulebox ul { margin: 0; }
+.sync { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-left: auto; padding-left: 10px; }
+footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.empty { padding: 30px 0; color: var(--muted); font-size: 14px; text-align: center; }
+@media (max-width: 620px) { .detail dl { grid-template-columns: 1fr; gap: 2px 0; } .detail dt { margin-top: 10px; } .handoff { padding: 18px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">Maintainability plan / 2026-09-18</p>
+  <h1>Graphica 保守性ボード</h1>
+  <p class="lede">
+    コードの堅牢性とメンテナンス性を上げ、pip で配布できる形に整えるための作業項目です。
+    「改善ボード」と同じく、項目 ID で「F-1 実施」のように指示してください。状態はボタンで切り替えると保存され、別のチャットからも読めます。
+  </p>
+  <div class="meta">
+    <span>基準コミット: e24bedf(v1.4.2 公開後)</span>
+    <span>本体 82 ファイル / 34,001 行</span>
+    <span>テスト 約3,000件・カバレッジ 93.4%</span>
+  </div>
+  <div class="metrics">
+    <table>
+      <thead><tr><th>計測値(基準コミット時点)</th><th>値</th><th>関係する項目</th></tr></thead>
+      <tbody>
+        <tr><td>静的解析(リンター)</td><td class="num">なし</td><td>F-1</td></tr>
+        <tr><td><code>except Exception</code></td><td class="num">72 か所</td><td>F-2</td></tr>
+        <tr><td>型注釈のある関数</td><td class="num">29 / 1,026(2%)</td><td>J-4</td></tr>
+        <tr><td>100 行を超える関数</td><td class="num">30(200 行超 9)</td><td>H-2〜H-4</td></tr>
+        <tr><td>最大の関数</td><td class="num">1,665 行</td><td><code>main_window.__init__</code> → H-3</td></tr>
+        <tr><td>最大の mixin</td><td class="num">4,214 行</td><td><code>dataset_mixin.py</code> → H-1</td></tr>
+        <tr><td>コメント・docstring の割合</td><td class="num">35%(10,619 行)</td><td>J-1, J-2</td></tr>
+        <tr><td><code>gui/</code> から <code>core/</code> への逆依存</td><td class="num">0(層は分離済み)</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</header>
+
+<div class="summary" id="summary"></div>
+<div class="filters" id="filters"></div>
+<div id="board"></div>
+
+<section>
+  <div class="sec-head">
+    <h2>作業ルールと引き継ぎ <span class="tag">HANDOFF</span></h2>
+    <p>別のセッションで作業を始めるときは、ここと <code>Graphica_project/docs/dev/CURRENT_STATE.md</code> を先に読んでください。</p>
+  </div>
+  <div class="handoff">
+    <h3>どの項目にも共通して行うこと(ユーザー指示、2026-09-18)</h3>
+    <div class="rulebox">
+      <p>各項目の作業では、その項目の本題に加えて、<strong>触ったファイルについて次の2つも必ず行う</strong>。</p>
+      <ul>
+        <li><strong>pip 配布に向けた整理</strong>: トップレベルに新しいモジュールを増やさない(新しいコードは I-1 後の <code>graphica.*</code> の配置、I-1 前なら既存パッケージの中に置く)。リソースはパッケージ内に置き <code>resource_path()</code> 経由で読む。カレントディレクトリに依存しない。本体の内部に依存するプラグイン向けの書き方を増やさない(G-1 の窓口を使う)。</li>
+        <li><strong>コメントを最小限にする</strong>: J-1 の方針に沿って、触ったファイルの経緯・実機フィードバックの記録・項目番号の説明などを削り、「なぜそうしているか」「知らないと壊す制約」だけを残す。不要になったコード(使われていない関数・import・分岐)も同時に消す。</li>
+      </ul>
+    </div>
+
+    <h3>着手順の推奨</h3>
+    <ol>
+      <li><strong>F-1 → F-2</strong>: 以降の大きな変更の安全網。F-1 はリンターの導入だけなので短い。</li>
+      <li><strong>J-1</strong>: コメント方針を先に決める(以降の全項目がこの方針でコメントを削るため)。</li>
+      <li><strong>G-1 → G-2</strong>: プラグイン開発が本格化する前に、プラグイン向けの窓口を固める。</li>
+      <li><strong>I-1</strong>: パッケージを <code>graphica.*</code> に再編。H の分割より先にやると、分割したファイルを最初から最終的な場所に置ける。</li>
+      <li><strong>H-1 → H-5 → H-2 → H-3 → H-4</strong>: 変更の多いところから分割する。</li>
+      <li><strong>I-2 → I-3</strong>: GitHub から pip で入れられる形を仕上げ、必要になったら PyPI へ。</li>
+      <li>J-2〜J-4、F-3 は上の作業と並行して少しずつ。</li>
+    </ol>
+
+    <h3>プロジェクトの規約(既存)</h3>
+    <ul>
+      <li>1 項目ごとに 実装 → テスト → コミット → push。完了したらこのボードの状態を「完了」にし、note(コミットハッシュと要点)を書き、更新後の進捗表をユーザーに表示する。</li>
+      <li><code>core/</code>・<code>gui/theme.py</code>・保存形式・プラグインのレジストリなど共有の仕組みに触れる変更はフルスイート必須(<code>scripts/run_tests_chunked.sh</code>、約 18 分。素の <code>pytest</code> で全件は流さない)。</li>
+      <li>コストやリスクの大きい設計判断は、着手前に選択肢と推奨を示して確認する(「方針確認」の付いた項目)。</li>
+      <li>挙動を変えない整理は、変更前後で同じテストが通ることで確かめる。テストが内部メソッド名に依存している場合は、テストを公開の振る舞いに合わせて直してから分割する。</li>
+    </ul>
+
+    <h3>知っておくべき地雷(抜粋。詳細はリポジトリ直下の CLAUDE.md)</h3>
+    <ul>
+      <li>サブメニューは <code>QMenu</code> と <code>menuAction()</code> の両方を <code>self.</code> 属性で保持しないと PySide6 が破棄する(H-4 で必ず踏む)。</li>
+      <li><code>formLayout_3</code> は番号指定の <code>insertRow</code> が実行順に依存している(H-3 で注意)。</li>
+      <li>テストでモーダルダイアログが実際に開くと、チャンク実行がそこで止まったまま戻らない。止まったら CPU 時間の増加で判定する。</li>
+      <li>プラグインは <code>graphica_plugin_&lt;名前&gt;</code> という動的モジュール名で読み込まれ、<code>from core.dataset import Dataset</code> で本体を使っている(I-1 の互換で壊さないこと)。</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  ソース: <code>Graphica_project/docs/dev/maintenance_board.html</code>。項目の説明を直すときはこのファイルを編集して同じ URL に再公開します(状態はデータベース側にあるので消えません)。
+</footer>
+</div>
+
+<script>
+const ITEMS = [
+  { g:"F", id:"F-1", sev:"high", effort:"S",
+    title:"リンター(ruff)を導入し、CI で確実な不具合だけを検出する",
+    impact:"静的解析が一切なく、未定義の名前・未使用の import・存在しないメソッドの呼び出しを機械的に見つけられません。v1.4.2 で直した凡例の不具合(matplotlib 3.x で削除された <code>legend.draggable()</code> を呼び、例外を握りつぶしていたため凡例がドラッグできなかった)はこの種の典型です。",
+    detail:"最初から全ルールを有効にすると大量の警告で止まるので、<strong>ほぼ確実に不具合であるもの</strong>(未定義名 F821、未使用 import F401、未使用変数 F841、重複定義 F811、到達不能コードなど)から始め、段階的に広げます。フォーマッターは導入しません(差分が全ファイルに及ぶため、J-2 のコメント整理と合わせて判断)。",
+    fix:"<code>pyproject.toml</code> に <code>[tool.ruff]</code> を追加し、CI の Windows ジョブの先頭で <code>ruff check</code> を実行。既存の違反はこの項目の中で直す(未使用 import は削除、未定義名は不具合として個別に確認)。",
+    src:["Graphica_project/pyproject.toml",".github/workflows/build.yml"] },
+
+  { g:"F", id:"F-2", sev:"high", effort:"M",
+    title:"<code>except Exception</code> 72 か所を仕分け、不具合を隠している箇所を直す",
+    impact:"広く例外を受ける箇所の中に、失敗を黙って握りつぶして不具合を見えなくしているものがあります。画面上は「何も起きない」だけなので、利用者も開発者も気づけません。",
+    detail:`仕分けの基準:
+    <ul>
+      <li><strong>残す</strong>: プラグインの隔離(1 つのプラグインの失敗でアプリを止めない)、ユーザーにエラーを表示している箇所、クラッシュハンドラ、終了処理。</li>
+      <li><strong>直す</strong>: 想定している例外の種類が特定できる箇所(<code>ValueError</code> や <code>OSError</code> に絞る)、<code>pass</code> だけ・ログも残さない箇所(最低でも <code>logger.exception</code>)。</li>
+    </ul>`,
+    fix:"一覧表(ファイル・行・分類・理由)を作ってから直す。直したあと、<code>except Exception</code> の数が増えないことを確認するテスト(許可リスト方式)を追加する。",
+    src:["gui/ core/ models/ の全体(72 か所)"] },
+
+  { g:"F", id:"F-3", sev:"low", effort:"S",
+    title:"カバレッジの下限を CI で守る",
+    impact:"カバレッジは master の push ごとに計測・公開していますが、下がっても CI は失敗しません。分割(H)やコメント整理(J)の途中でテストの穴が広がっても気づけません。",
+    detail:"macOS ジョブの計測値(行 93% 前後)を基準に、下限を少し下に設定します。",
+    fix:"<code>coverage report --fail-under=&lt;値&gt;</code> を <code>scripts/run_coverage.sh</code> に入れる。値は実測の 1〜2 ポイント下から始める。",
+    src:["Graphica_project/scripts/run_coverage.sh",".github/workflows/build.yml"] },
+
+  { g:"G", id:"G-1", sev:"high", effort:"M", ask:true,
+    title:"プラグイン向けの公開窓口(PluginContext)を用意する",
+    impact:"プラグインは <code>main_window._get_current_dataset()</code> のような本体内部の非公開メソッドを直接呼ぶ前提になっています(同梱サンプルもそう書いている)。プラグインが増えるほど、本体の内部を直すたびに外部リポジトリのプラグインが壊れます。H の分割も I-1 の再編もできなくなります。",
+    detail:`窓口に入れる候補:
+    <ul>
+      <li>現在のデータセット / 選択中のデータセット / 全データセット</li>
+      <li>再描画の要求、データセットの追加(Undo 対応)、プロパティの変更(Undo 対応)</li>
+      <li>本体の登録色・配色パレットの読み書き(P-901 カラースタジオが必要としている。いまは内部の保存形式に直接書くしかない)</li>
+      <li>アプリのデータフォルダ(プラグインが設定やライブラリを保存する場所)</li>
+    </ul>
+    メニューの callback や processor に「PlotterApp そのもの」ではなくこの窓口を渡すと、プラグインが触れる範囲を限定できます。`,
+    fix:"<code>core/plugin_context.py</code>(I-1 後は <code>graphica.plugin_context</code>)に窓口を定義し、<code>PlotterApp</code> 側で実装する。<code>FakeGraphicaPluginAPI</code> と対になる <code>FakePluginContext</code> も用意する。既存の呼び方は当面残し、<code>PLUGIN_API_VERSION</code> は互換のまま <code>1.1</code> にする。<strong>方針確認</strong>: 窓口に入れる操作の範囲、渡し方(引数を増やすか、<code>api.context()</code> で取るか)。",
+    src:["core/plugin_api.py","core/plugin_testing.py","plugins/example_plugin/__init__.py:30","docs/plugin_development.md"] },
+
+  { g:"G", id:"G-2", sev:"mid", effort:"S", dep:"G-1",
+    title:"プラグインの資料と雛形を公開窓口に切り替える",
+    impact:"G-1 を作っても、資料と雛形が内部メソッドを使っていると、新しいプラグインは古い書き方で作られ続けます。",
+    detail:"対象は、同梱サンプル、<code>docs/plugin_development.md</code>、プラグイン開発ハブ(API 早見表・共通ルール・引継ぎプロンプト)、雛形リポジトリ(P-805)。",
+    fix:"すべてを窓口経由の書き方に直し、ハブを再公開する。既に進行中のプラグインがあれば、ハブの note で移行を知らせる。",
+    src:["plugins/example_plugin/","docs/plugin_development.md","docs/dev/plugin_hub.html"] },
+
+  { g:"G", id:"G-3", sev:"low", effort:"S",
+    title:"プラグイン API の互換性テストと版の方針を決める",
+    impact:"<code>PLUGIN_API_VERSION</code> は「壊す変更をしたら上げる」とだけ決まっていて、どこまでが公開 API か、古い版のプラグインをどう扱うかが決まっていません。",
+    detail:"公開 API(<code>register_*</code>、窓口、<code>Dataset</code> の公開フィールド、<code>AnalysisResult</code>)を一覧にし、シグネチャが変わったら落ちるテストで固定します。",
+    fix:"公開 API の一覧とテストを追加し、版の上げ方(互換を保つ追加は小数点、壊す変更は整数)を <code>docs/plugin_development.md</code> に書く。",
+    src:["core/plugin_api.py","core/plugin_manifest.py","tests/test_plugin_api_contract.py"] },
+
+  { g:"H", id:"H-1", sev:"high", effort:"L", ask:true,
+    title:"<code>dataset_mixin.py</code>(4,214 行)を機能ごとの部品に分ける",
+    impact:"データ処理・曲線フィット・ピーク検出・配色・右クリックメニュー(30 項目)・一括処理が 1 ファイルに入り、本体側の部品を 94 種類・延べ 551 回、暗黙の共有 <code>self</code> 越しに参照しています。何に依存しているかが宣言されておらず、単体でテストできません。",
+    detail:"分け方の案: 曲線フィット / ピーク検出・定量 / データ処理メニュー(規格化〜外れ値)/ 配色(パレット・登録色・自動配色)/ 一括処理 / 右クリックメニューの組み立て / プロパティパネルとの同期。分けた先は mixin ではなく、必要なもの(プロジェクト、Undo スタック、再描画の関数など)をコンストラクタで受け取る普通のクラスにします。",
+    fix:"1 機能ずつ切り出し、その都度フルスイートで確認する。テストが <code>window._on_xxx</code> のような内部名を呼んでいる箇所は、先に公開の振る舞いを確かめる形に直す。<strong>方針確認</strong>: 分け方と切り出す順番。",
+    src:["gui/mixins/dataset_mixin.py","tests/test_dataset_mixin.py(438 件)"] },
+
+  { g:"H", id:"H-2", sev:"mid", effort:"M",
+    title:"描画の <code>_draw_data</code>(517 行)と <code>_apply_appearance</code>(352 行)を分ける",
+    impact:"プロットの種類ごとの描画、ウォーターフォール、グラデーション、誤差表示、点ラベルが 1 つの関数に入っています。種類を 1 つ足すたびにこの関数を読み解く必要があります。",
+    detail:"プラグインの <code>register_plot_type</code> と同じ「種類名 → 描画関数」の表を本体の種類にも使えば、組み込みとプラグインの経路を揃えられます。",
+    fix:"種類ごとの描画関数を表にまとめ、<code>_draw_data</code> はその呼び出しと共通処理(間引き・ウォーターフォールの変換・ラベル)だけにする。<code>_apply_appearance</code> は軸・目盛り・凡例・グリッドの単位に分ける。見た目が変わらないことを画像回帰テスト(既存)で確認。",
+    src:["gui/canvas.py:_draw_data","gui/canvas.py:_apply_appearance","tests/test_gui_style_regression.py"] },
+
+  { g:"H", id:"H-3", sev:"mid", effort:"M",
+    title:"<code>main_window.__init__</code>(1,665 行)をパネルごとの組み立てに分ける",
+    impact:"画面の組み立て・状態の初期化・シグナル接続が 1 つの関数に並び、後の処理が前の処理の副作用(作られた部品)に暗黙に依存しています。",
+    detail:"<code>formLayout_3</code> の番号指定の挿入は実行順に依存しているので、分割の最初に番号指定をなくす(名前で位置を探す形に揃える)と安全です。",
+    fix:"プロパティパネル・プロット設定・データセットリスト・ツールバーなど、パネルごとの組み立て関数(またはクラス)に分け、<code>__init__</code> は呼び出しの並びだけにする。",
+    src:["gui/main_window.py:__init__"] },
+
+  { g:"H", id:"H-4", sev:"low", effort:"M",
+    title:"メニューを一覧表から組み立てる(<code>_create_menu_bar</code> 426 行、<code>_connect_signals</code> 257 行)",
+    impact:"メニュー項目の追加・並べ替えのたびに長い関数の中の正しい位置を探す必要があり、サブメニューの参照保持(PySide6 の地雷)も手作業です。",
+    detail:"「メニュー名・項目名・ショートカット・呼び出す関数」の表から組み立てれば、参照の保持も 1 か所で確実にできます。",
+    fix:"表からメニューを作る関数を用意し、既存のメニューを順に移す。コマンドパレット・クイックアクセスの識別子(メニューのパス文字列)が変わらないことをテストで確認。",
+    src:["gui/mixins/ui_setup_mixin.py:_create_menu_bar","gui/mixins/ui_setup_mixin.py:_connect_signals"] },
+
+  { g:"H", id:"H-5", sev:"mid", effort:"M",
+    title:"軸設定(約 100 個の文字列キー)の既定値を 1 か所で定義する",
+    impact:"軸ごとの設定は文字列キーの辞書で、既定値が「UI から集める」「UI に戻す」「描画」の 3 か所に <code>settings.get('キー', 既定値)</code> として散らばっています。1 か所だけ既定値を変えると、保存・読み込みで見た目が変わる不具合になります。",
+    detail:"保存形式(辞書)は変えずに、キーと既定値の定義だけを 1 つのモジュールにまとめれば、既存のプロジェクトファイルとの互換を保ったまま直せます。QSettings のキー(アプリ全体の設定)も同じ考え方で 1 か所にまとめます。",
+    fix:"キーと既定値の定義モジュールを作り、3 か所がそこから読むようにする。定義と各所の <code>get</code> が一致しているかをテストで確認。",
+    src:["gui/mixins/settings_mixin.py","gui/canvas.py","models/project.py"] },
+
+  { g:"I", id:"I-1", sev:"high", effort:"M", ask:true,
+    title:"パッケージを <code>graphica.*</code> に再編する(プラグインとの互換を保って)",
+    impact:"いまは <code>core</code>・<code>gui</code>・<code>models</code>・<code>main</code> などを一般的な名前のままトップレベルにインストールします。PyPI には同名の別パッケージ(<code>core</code>、<code>gui</code>、<code>models</code>)があり、同じ環境に入れると衝突します。",
+    detail:"プラグインは <code>from core.dataset import Dataset</code> のように書いているので、単純に名前を変えると全プラグインが壊れます。<code>core</code> などを <code>graphica.core</code> への別名として当面残す互換の仕組み(非推奨の警告付き)で吸収します。",
+    fix:"<code>graphica/</code> パッケージの下に移し、本体内の import をすべて書き換える。互換用の別名パッケージを用意し、プラグインの読み込みテスト(雛形リポジトリの書き方)が通ることを確認。<strong>方針確認</strong>: 互換の別名を残す期間、プラグイン API の版の扱い。",
+    src:["Graphica_project/pyproject.toml","全モジュールの import"] },
+
+  { g:"I", id:"I-2", sev:"mid", effort:"S",
+    title:"GitHub から pip で入れられる形を仕上げる",
+    impact:"<code>pip install \"git+https://github.com/STsuruga/Graphica.git#subdirectory=Graphica_project\"</code> で入りますが、Windows では起動時に黒いコンソール画面も開き、アプリのアイコンと LICENSE が含まれず、依存パッケージのバージョンが完全固定で利用者の環境とぶつかりやすい状態です。",
+    detail:"exe のビルド用には固定のバージョンを別ファイルに残し、パッケージ側は範囲指定にします。",
+    fix:"起動コマンドを <code>gui-scripts</code> に変更、<code>Graphica.ico</code> と LICENSE をパッケージ内へ、依存を範囲指定に。クリーンな仮想環境にインストールして起動するテストを CI に追加。README にインストール方法を書く。",
+    src:["Graphica_project/pyproject.toml","Graphica_project/requirements.txt","Graphica_project/MANIFEST.in"] },
+
+  { g:"I", id:"I-3", sev:"low", effort:"S", dep:"I-1, I-2", ask:true,
+    title:"PyPI に公開する",
+    impact:"名前だけで <code>pip install</code> できると、研究室外の人にも見つけてもらいやすくなります。",
+    detail:"<code>graphica</code> という名前は PyPI で使用済み(別人のツール)。<code>graphica-plot</code> や <code>graphica-app</code> は空いています(2026-09-18 時点)。公開を止める分類子 <code>Private :: Do Not Upload</code> を外す必要があります。",
+    fix:"パッケージ名を決め、GitHub Actions から Trusted Publishing でタグ push 時に公開する。<strong>PyPI のアカウント作成と Trusted Publisher の登録はユーザーの操作が必要</strong>。<strong>方針確認</strong>: パッケージ名。",
+    src:["Graphica_project/pyproject.toml",".github/workflows/"] },
+
+  { g:"J", id:"J-1", sev:"high", effort:"S", ask:true,
+    title:"コメントの方針を決める(何を残し、何を消すか)",
+    impact:"本体コードの 35%(10,619 行)がコメントと docstring です。多くは実装の経緯・実機フィードバックの記録・ロードマップの項目番号の説明で、コードを読む妨げになっています。一方で、知らないと壊す制約(PySide6 の地雷、座標変換、保存形式の互換など)も同じ場所に書かれているので、機械的には消せません。",
+    detail:`方針の案:
+    <ul>
+      <li><strong>残す</strong>: なぜそうしているか、知らないと壊す制約、外部仕様への参照。1〜3 行で書く。</li>
+      <li><strong>消す</strong>: 変更の経緯(git の履歴にある)、「実機フィードバック:」「項目 C-xxx:」の記録、コードをそのまま言い換えただけの説明、「以前は〜だった」。</li>
+      <li><strong>移す</strong>: 複数ファイルにまたがる設計上の注意は CLAUDE.md へ(既に大半がある)。</li>
+      <li>docstring は公開の関数・クラスに 1〜2 行。引数の説明は、型注釈(J-4)で分かるものは書かない。</li>
+    </ul>`,
+    fix:"方針を CONTRIBUTING.md と CLAUDE.md に書き、1 ファイル(例: <code>core/named_colors.py</code>)で見本を作ってユーザーに確認してもらう。<strong>方針確認</strong>: 残す範囲の線引き。",
+    src:["CONTRIBUTING.md","CLAUDE.md"] },
+
+  { g:"J", id:"J-2", sev:"mid", effort:"L", dep:"J-1",
+    title:"コメントを方針に沿って減らす(説明の多いファイルから)",
+    impact:"説明が特に多いのは <code>main_window.py</code>(説明 1,470 行 / コード 2,231 行)、<code>dataset_mixin.py</code>(1,076 / 2,692)、<code>canvas.py</code>(910 / 1,219)、<code>analysis.py</code>(855 / 1,083)、<code>settings_mixin.py</code>(397 / 623)。",
+    detail:"H の分割で触るファイルは、その項目の中で一緒に整理します(ボード共通のルール)。この項目は、H で触らないファイルをまとめて整理するためのものです。コードの挙動は変えません。",
+    fix:"1 ファイルずつ整理し、各コミットで「コードの行は変わっていない(コメントと docstring だけの差分)」ことを確認する。消した制約のうち重要なものが CLAUDE.md に残っているかを確かめる。",
+    src:["gui/main_window.py","gui/mixins/dataset_mixin.py","gui/canvas.py","core/analysis.py","gui/mixins/settings_mixin.py"] },
+
+  { g:"J", id:"J-3", sev:"mid", effort:"S", dep:"F-1",
+    title:"使われていないコードを消す",
+    impact:"使われていない関数・分岐・引数が残っています。例: <code>settings_mixin.py</code> には「以下のメソッドはデッドコード(呼び出されない)」と自分で書かれたメソッドが残っています。",
+    detail:"F-1 のリンターで未使用の import・変数は見つかります。未使用の関数は、呼び出し元の検索とカバレッジ(実行されていない行)で候補を出し、1 つずつ確認します。",
+    fix:"候補の一覧を作り、呼び出し元が本当に無いこと(プラグインから使われうる公開 API でないこと)を確認してから削除する。",
+    src:["gui/mixins/settings_mixin.py:707-720","docs/COVERAGE_DETAILS.md(未到達の行)"] },
+
+  { g:"J", id:"J-4", sev:"low", effort:"M",
+    title:"型注釈を <code>core/</code> とプラグイン API から付け、型チェックを CI に入れる",
+    impact:"型注釈のある関数は 2%(1,026 個中 29 個)。関数が何を受け取り何を返すかが、読まないと分かりません。",
+    detail:"全体に一度に付けるのではなく、GUI に依存しない <code>core/</code> と、外部に公開しているプラグイン API から始めます。docstring の引数説明は型注釈で置き換えられるので、J-2 のコメント削減にもなります。",
+    fix:"<code>core/</code> とプラグイン API に型注釈を付け、<code>mypy</code> を <code>core/</code> だけに対して CI で実行する。対象は少しずつ広げる。",
+    src:["core/","core/plugin_api.py","core/plugin_types.py","core/dataset.py"] },
+];
+
+const GROUPS = {
+  F: { name:"安全網", tag:"SAFETY NET", desc:"以降の大きな変更を安全に進めるための仕組み。先にやるほど効きます。" },
+  G: { name:"プラグイン向けの窓口", tag:"PLUGIN API", desc:"プラグイン開発が本格化する前に固めたい項目。後になるほど直すプラグインが増えます。" },
+  H: { name:"大きいものを分ける", tag:"STRUCTURE", desc:"変更の多いところから、依存を明示した部品に分けます。1 つずつ切り出してはテストで確認。" },
+  I: { name:"pip 配布", tag:"PACKAGING", desc:"GitHub から pip で入れられる形、将来的には PyPI 公開まで。" },
+  J: { name:"コメントとクリーンアップ", tag:"CLEANUP", desc:"コメントを最小限にし、使われていないコードを消し、型で意図を表す。" },
+};
+
+const SEV_LABEL = { high:"優先", mid:"中", low:"低" };
+const STATE_LABEL = { todo:"未着手", doing:"対応中", done:"完了" };
+const STATE_NEXT = { todo:"doing", doing:"done", done:"todo" };
+
+let statuses = {};
+let notes = {};
+let db = null;
+let filterGroup = "all";
+let filterSev = "all";
+let hideDone = false;
+
+const LS_KEY = "graphica_maintenance_status_v1";
+function loadLocal() { try { return JSON.parse(localStorage.getItem(LS_KEY) || "{}"); } catch (e) { return {}; } }
+function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(statuses)); } catch (e) {} }
+function setSyncNote(text) { const el = document.getElementById("syncNote"); if (el) el.textContent = text; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c])); }
+
+async function setStatus(id, state) {
+  statuses[id] = state;
+  render();
+  if (db) {
+    try {
+      const ref = db.doc("status/" + id);
+      const cur = await ref.get();
+      if (cur.exists) await ref.update({ state, updatedAt: new Date().toISOString() });
+      else await ref.set({ state, updatedAt: new Date().toISOString() });
+    } catch (e) { saveLocal(); setSyncNote("保存に失敗(この端末にのみ記録)"); }
+  } else { saveLocal(); }
+}
+
+function summary() {
+  const counts = { high:0, mid:0, low:0 };
+  let done = 0;
+  for (const it of ITEMS) { counts[it.sev]++; if (statuses[it.id] === "done") done++; }
+  const pct = Math.round((done / ITEMS.length) * 100);
+  document.getElementById("summary").innerHTML = `
+    <div class="stat high"><span class="n">${counts.high}</span><span class="k">優先</span></div>
+    <div class="stat mid"><span class="n">${counts.mid}</span><span class="k">中</span></div>
+    <div class="stat low"><span class="n">${counts.low}</span><span class="k">低</span></div>
+    <div class="stat"><span class="n">${ITEMS.length}</span><span class="k">項目合計</span></div>
+    <div class="stat prog">
+      <span class="n">${done}<span style="font-size:15px;color:var(--muted)">/${ITEMS.length}</span></span>
+      <span class="k">完了 ${pct}%</span>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+    </div>`;
+}
+
+function filters() {
+  const el = document.getElementById("filters");
+  if (el.dataset.built) return;
+  el.dataset.built = "1";
+  const gChips = Object.entries(GROUPS).map(([k, g]) => `<button class="chip" data-kind="group" data-val="${k}">${k} ${g.name}</button>`).join("");
+  el.innerHTML =
+    `<button class="chip" data-kind="group" data-val="all" aria-pressed="true">すべて</button>` + gChips +
+    `<span class="sep"></span>` +
+    ["high","mid","low"].map(s => `<button class="chip" data-kind="sev" data-val="${s}">${SEV_LABEL[s]}</button>`).join("") +
+    `<span class="sep"></span>` +
+    `<button class="chip" data-kind="hide" data-val="done">完了を隠す</button>` +
+    `<span class="sync" id="syncNote">読み込み中…</span>`;
+  el.addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".chip");
+    if (!btn) return;
+    const { kind, val } = btn.dataset;
+    if (kind === "group") filterGroup = (filterGroup === val && val !== "all") ? "all" : val;
+    else if (kind === "sev") filterSev = (filterSev === val) ? "all" : val;
+    else if (kind === "hide") hideDone = !hideDone;
+    render();
+  });
+}
+
+function syncChips() {
+  document.querySelectorAll("#filters .chip").forEach(btn => {
+    const { kind, val } = btn.dataset;
+    let on = false;
+    if (kind === "group") on = (filterGroup === val);
+    else if (kind === "sev") on = (filterSev === val);
+    else if (kind === "hide") on = hideDone;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+function itemHTML(it) {
+  const st = statuses[it.id] || "todo";
+  const srcList = it.src.map(s => `<div><code>${s}</code></div>`).join("");
+  const note = notes[it.id] ? `<div class="note"><strong>記録:</strong> ${esc(notes[it.id])}</div>` : "";
+  return `
+  <article class="item sev-${it.sev} ${st === "done" ? "is-done" : ""}" data-id="${it.id}">
+    <div class="row" role="button" tabindex="0" aria-expanded="false">
+      <span class="id">${it.id}</span>
+      <div>
+        <div class="title">${it.title}</div>
+        <div class="badges">
+          <span class="badge sev-${it.sev}">${SEV_LABEL[it.sev]}</span>
+          <span class="badge effort">工数 ${it.effort}</span>
+          ${it.ask ? `<span class="badge ask">方針確認</span>` : ""}
+          ${it.dep ? `<span class="badge dep">前提 ${it.dep}</span>` : ""}
+        </div>
+      </div>
+      <button class="status-btn" data-state="${st}" data-act="status">${STATE_LABEL[st]}</button>
+    </div>
+    <div class="detail">
+      <dl>
+        <dt>現状</dt><dd>${it.impact}</dd>
+        <dt>補足</dt><dd>${it.detail}</dd>
+        <dt>対応方針</dt><dd>${it.fix}</dd>
+      </dl>
+      ${note}
+      <div class="src">${srcList}</div>
+    </div>
+  </article>`;
+}
+
+function render() {
+  summary();
+  syncChips();
+  const board = document.getElementById("board");
+  const openIds = new Set([...board.querySelectorAll(".item.open")].map(n => n.dataset.id));
+  let html = "";
+  for (const [key, g] of Object.entries(GROUPS)) {
+    if (filterGroup !== "all" && filterGroup !== key) continue;
+    const list = ITEMS.filter(it => it.g === key && (filterSev === "all" || it.sev === filterSev) && !(hideDone && statuses[it.id] === "done"));
+    if (!list.length) continue;
+    html += `<section>
+      <div class="sec-head">
+        <h2>${key}. ${g.name} <span class="tag">${g.tag} · ${list.length}</span></h2>
+        <p>${g.desc}</p>
+      </div>
+      ${list.map(itemHTML).join("")}
+    </section>`;
+  }
+  board.innerHTML = html || `<p class="empty">この条件に一致する項目はありません。</p>`;
+  openIds.forEach(id => {
+    const node = board.querySelector(`.item[data-id="${id}"]`);
+    if (node) { node.classList.add("open"); node.querySelector(".row").setAttribute("aria-expanded", "true"); }
+  });
+}
+
+document.getElementById("board").addEventListener("click", (ev) => {
+  const statusBtn = ev.target.closest('[data-act="status"]');
+  if (statusBtn) {
+    ev.stopPropagation();
+    const id = statusBtn.closest(".item").dataset.id;
+    setStatus(id, STATE_NEXT[statuses[id] || "todo"]);
+    return;
+  }
+  const row = ev.target.closest(".row");
+  if (row) {
+    const item = row.closest(".item");
+    item.classList.toggle("open");
+    row.setAttribute("aria-expanded", item.classList.contains("open") ? "true" : "false");
+  }
+});
+document.getElementById("board").addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const row = ev.target.closest(".row");
+  if (!row || ev.target !== row) return;
+  ev.preventDefault();
+  row.click();
+});
+
+statuses = loadLocal();
+filters();
+render();
+setSyncNote("この端末にのみ記録");
+
+(async () => {
+  let store = null;
+  try { store = await window.claude?.use?.("db"); } catch (e) { store = null; }
+  if (!store) { setSyncNote("この端末にのみ記録"); return; }
+  db = store;
+  db.collection("status").onSnapshot(
+    snap => {
+      const next = {}, nextNotes = {};
+      snap.docs.forEach(d => {
+        const body = d.data();
+        if (body && typeof body.state === "string") next[d.id] = body.state;
+        if (body && typeof body.note === "string" && body.note) nextNotes[d.id] = body.note;
+      });
+      statuses = next; notes = nextNotes;
+      render();
+      setSyncNote("共有ストレージに同期中");
+    },
+    () => setSyncNote("同期できません(この端末にのみ記録)")
+  );
+})();
+</script>
