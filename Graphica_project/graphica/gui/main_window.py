@@ -196,6 +196,7 @@ from graphica.core.i18n import tr, set_language, DEFAULT_LANGUAGE
 from graphica.core.plugin_api import load_plugins_once, get_registered_importer_extensions
 from graphica.core.plugin_types import PluginExecutionError
 from graphica.gui.datasets.colors import ColorController
+from graphica.gui.datasets.transfer import TransferController
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.peaks import PeakController
@@ -639,7 +640,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # キューを使い切った時点でNoneに戻す(通常のドラッグ&ドロップ取込みには
         # 影響しない)。
         self._batch_import_filename_regex = None
-        self._copied_dataset_style = None  # 「スタイルをコピー」でコピーした属性値の辞書
         # 上書き保存先。None なら manual_save() は「名前を付けて保存」になる。
         # タブ名もこの値から作る(ProjectModel.current_filepath はオートセーブでも変わる)。
         self._current_project_path = None
@@ -659,6 +659,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.fitting = FittingController(self._dataset_host)
         self.processing = ProcessingController(self._dataset_host)
         self.colors = ColorController(self._dataset_host)
+        self.transfer = TransferController(self._dataset_host)
 
         # オートセーブ用タイマーの設定 (間隔は設定から復元。0分なら無効化されたまま)
         # ★ _create_menu_bar() がメニューの初期表示テキストのために参照するため、
@@ -3952,7 +3953,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             final_df = preview_dialog.get_dataframe()
 
             # 元ファイルへのリンク保持(項目C-103): 「再読み込み」
-            # (gui/mixins/dataset_mixin.pyの_on_reload_dataset_from_source)が
+            # (gui/datasets/transfer.py の reload_from_source)が
             # このパスからファイルを読み直せるよう、絶対パスを保持しておく。
             # Excelでシートを切り替えていた場合に備え、ダイアログのシートコンボの
             # 最終的な選択値(checked_sheetではなく、こちらが実際に使われた値)を使う。

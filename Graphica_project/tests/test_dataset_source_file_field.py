@@ -3,7 +3,7 @@
 core/dataset.py の source_file / source_sheet フィールド(項目C-103: 元ファイルへの
 リンク保持と再読み込み)の往復テスト。
 
-_on_reload_dataset_from_source() 自体(GUIメニュー動作)のテストは
+TransferController.reload_from_source() 自体(GUIメニュー動作)のテストは
 tests/test_dataset_mixin.py 側に置く。ここでは Dataset の永続化(pickle/.graphica両方)
 の往復と後方互換フォールバックのみを検証する。
 """

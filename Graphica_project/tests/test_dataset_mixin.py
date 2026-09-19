@@ -25,6 +25,7 @@ import graphica.gui.datasets.colors as colors_module
 import graphica.gui.datasets.processing as processing_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.datasets.fitting as fitting_module
+import graphica.gui.datasets.transfer as transfer_module
 import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
 import graphica.gui.mixins.settings_mixin as settings_mixin_module
 from graphica.gui.main_window import PlotterApp
@@ -1305,7 +1306,7 @@ def test_context_menu_paste_style_disabled_without_copied_style(tmp_path, monkey
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    assert window._copied_dataset_style is None
+    assert window.transfer.copied_style is None
     _patch_recording_menu(monkeypatch)
 
     window._on_dataset_tree_context_menu(QPoint(0, 0))
@@ -1318,7 +1319,7 @@ def test_context_menu_paste_style_enabled_after_copy(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
     _patch_recording_menu(monkeypatch)
 
     window._on_dataset_tree_context_menu(QPoint(0, 0))
@@ -1328,13 +1329,13 @@ def test_context_menu_paste_style_enabled_after_copy(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# スタイルのコピー&ペースト (_on_copy_dataset_style / _on_paste_dataset_style)
+# スタイルのコピー&ペースト (TransferController.copy_style / paste_style)
 # =============================================================================
 
 def test_copy_dataset_style_with_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_copy_dataset_style()
-    assert window._copied_dataset_style is None
+    window.transfer.copy_style()
+    assert window.transfer.copied_style is None
 
 
 def test_copy_dataset_style_captures_style_attrs_by_value(tmp_path, monkeypatch):
@@ -1344,33 +1345,33 @@ def test_copy_dataset_style_captures_style_attrs_by_value(tmp_path, monkeypatch)
     ds.linestyle = "dashed"
     _add_and_select_dataset(window, ds)
 
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
 
-    assert window._copied_dataset_style["color"] == "#abcdef"
-    assert window._copied_dataset_style["linestyle"] == "dashed"
+    assert window.transfer.copied_style["color"] == "#abcdef"
+    assert window.transfer.copied_style["linestyle"] == "dashed"
     # コピー元を後から変えても、既にコピーした内容には影響しない(値のコピーであること)
     ds.color = "#000000"
-    assert window._copied_dataset_style["color"] == "#abcdef"
+    assert window.transfer.copied_style["color"] == "#abcdef"
 
 
 def test_paste_dataset_style_without_copy_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    window._on_paste_dataset_style()  # 例外なく完了すればOK
+    window.transfer.paste_style()  # 例外なく完了すればOK
 
 
 def test_paste_dataset_style_without_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
     folder = window._add_dataset_folder_item("Folder")
     window.ui.dataset_list_widget.clearSelection()
     folder.setSelected(True)
     window.ui.dataset_list_widget.setCurrentItem(folder)
 
-    window._on_paste_dataset_style()  # 対象データセットが無いので何も起きない
+    window.transfer.paste_style()  # 対象データセットが無いので何も起きない
 
 
 def test_paste_dataset_style_single_dataset_applies_and_is_undoable(tmp_path, monkeypatch):
@@ -1379,13 +1380,13 @@ def test_paste_dataset_style_single_dataset_applies_and_is_undoable(tmp_path, mo
     source.color = "#123456"
     source.linestyle = "dashed"
     _add_and_select_dataset(window, source)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
 
     target = _make_simple_dataset("target")
     original_color = target.color
     _add_and_select_dataset(window, target)
 
-    window._on_paste_dataset_style()
+    window.transfer.paste_style()
 
     assert target.color == "#123456"
     assert target.linestyle == "dashed"
@@ -1407,11 +1408,11 @@ def test_copy_paste_dataset_style_includes_2d_appearance_but_not_structure(tmp_p
     source.data_kind = '2d_grid'
     source.z_col_name = 'some_z_col'
     _add_and_select_dataset(window, source)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
 
     target = _make_simple_dataset("target")
     _add_and_select_dataset(window, target)
-    window._on_paste_dataset_style()
+    window.transfer.paste_style()
 
     assert target.colormap == "plasma"
     assert target.vmin == -1.0
@@ -1425,14 +1426,14 @@ def test_paste_dataset_style_batch_uses_single_macro(tmp_path, monkeypatch):
     source = _make_simple_dataset("source")
     source.color = "#123456"
     _add_and_select_dataset(window, source)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
 
     targets = [_make_simple_dataset(f"t{i}") for i in range(2)]
     for ds in targets:
         window._add_dataset(ds, None, select=False)
     _select_items(window, targets)
 
-    window._on_paste_dataset_style()
+    window.transfer.paste_style()
 
     assert all(ds.color == "#123456" for ds in targets)
 
@@ -1441,17 +1442,17 @@ def test_paste_dataset_style_batch_uses_single_macro(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# データ表の書き出し (_on_export_dataset_data)
+# データ表の書き出し (TransferController.export_data)
 # =============================================================================
 
 def test_export_dataset_data_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: calls.append(1) or ("", ""))
     )
-    window._on_export_dataset_data()
+    window.transfer.export_data()
     assert calls == []
 
 
@@ -1461,12 +1462,12 @@ def test_export_single_dataset_csv(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     out_path = str(tmp_path / "out.csv")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "CSV Files (*.csv)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert os.path.exists(out_path)
     assert len(info_calls) == 1
@@ -1478,12 +1479,12 @@ def test_export_single_dataset_excel_via_filter_appends_extension(tmp_path, monk
     _add_and_select_dataset(window, ds)
     out_path_no_ext = str(tmp_path / "outbook")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path_no_ext, "Excel Files (*.xlsx)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert os.path.exists(out_path_no_ext + ".xlsx")
     assert len(info_calls) == 1
@@ -1494,12 +1495,12 @@ def test_export_single_dataset_cancelled_writes_nothing(tmp_path, monkeypatch):
     ds = _make_simple_dataset("mydata")
     _add_and_select_dataset(window, ds)
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: ("", ""))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert info_calls == []
 
@@ -1510,7 +1511,7 @@ def test_export_single_dataset_write_error_shows_warning(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     out_path = str(tmp_path / "out.csv")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "CSV Files (*.csv)"))
     )
 
@@ -1521,7 +1522,7 @@ def test_export_single_dataset_write_error_shows_warning(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert len(warnings) == 1
     assert info_calls == []
@@ -1535,16 +1536,16 @@ def test_export_multi_datasets_csv_per_file_with_name_collision(tmp_path, monkey
     window._add_dataset(ds2, None, select=False)
     _select_items(window, [ds1, ds2])
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", True))
     )
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getExistingDirectory",
+        transfer_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: str(tmp_path))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert (tmp_path / "dup.csv").exists()
     assert (tmp_path / "dup_2.csv").exists()
@@ -1559,17 +1560,17 @@ def test_export_multi_datasets_excel_workbook_with_sheet_collision(tmp_path, mon
     window._add_dataset(ds2, None, select=False)
     _select_items(window, [ds1, ds2])
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("Excel (1ブックにシート分け)", True))
     )
     out_path = str(tmp_path / "book.xlsx")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "Excel Files (*.xlsx)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert os.path.exists(out_path)
     xls = pd.ExcelFile(out_path)
@@ -1584,12 +1585,12 @@ def test_export_multi_datasets_format_choice_cancelled_writes_nothing(tmp_path, 
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", False))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert info_calls == []
 
@@ -1601,16 +1602,16 @@ def test_export_multi_datasets_csv_dir_cancelled_writes_nothing(tmp_path, monkey
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", True))
     )
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getExistingDirectory",
+        transfer_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: "")
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert info_calls == []
 
@@ -3416,9 +3417,9 @@ def test_smoothing_method_included_in_style_copy_paste(tmp_path, monkeypatch):
     window._add_dataset(source, None, select=True)
     window._add_dataset(target, None, select=False)
 
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
     _add_and_select_dataset(window, target)
-    window._on_paste_dataset_style()
+    window.transfer.paste_style()
 
     assert target.smoothing_method == 'gaussian'
 
@@ -6848,7 +6849,7 @@ def test_warn_if_font_family_unavailable_does_not_warn_when_stretch_resolvable(t
 
 
 # =============================================================================
-# 元ファイルからの再読み込み (_on_reload_dataset_from_source, 項目C-103)
+# 元ファイルからの再読み込み (TransferController.reload_from_source)
 # =============================================================================
 
 def test_reload_dataset_replaces_data_and_preserves_style(tmp_path, monkeypatch):
@@ -6865,7 +6866,7 @@ def test_reload_dataset_replaces_data_and_preserves_style(tmp_path, monkeypatch)
     # ファイルを更新してから再読み込み(測定やり直しを模す)
     path.write_text("x,y\n1,20\n3,40\n5,60\n", encoding='utf-8')
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     assert dataset.name == "measurement"
     assert dataset.color == '#ff0000'
@@ -6883,7 +6884,7 @@ def test_reload_dataset_clears_masked_rows(tmp_path, monkeypatch):
                        source_file=str(path), masked_row_indices=[0])
     _add_and_select_dataset(window, dataset)
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     assert dataset.masked_row_indices == []
 
@@ -6898,7 +6899,7 @@ def test_reload_dataset_is_undoable(tmp_path, monkeypatch):
     _add_and_select_dataset(window, dataset)
 
     path.write_text("x,y\n1,20\n3,40\n", encoding='utf-8')
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
     np.testing.assert_allclose(dataset.y_data, np.array([20.0, 40.0]))
 
     window.undo_stack.undo()
@@ -6914,7 +6915,7 @@ def test_reload_dataset_without_source_file_is_noop(tmp_path, monkeypatch):
     _add_and_select_dataset(window, dataset)
     before_index = window.undo_stack.index()
 
-    window._on_reload_dataset_from_source()  # 例外にならず何もしない
+    window.transfer.reload_from_source()  # 例外にならず何もしない
 
     assert window.undo_stack.index() == before_index
 
@@ -6929,7 +6930,7 @@ def test_reload_dataset_missing_file_shows_warning(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     assert len(calls) == 1
     assert "見つかりません" in calls[0][2]
@@ -6951,7 +6952,7 @@ def test_reload_dataset_missing_column_aborts_with_warning(tmp_path, monkeypatch
     calls = []
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     assert len(calls) == 1
     assert "見つかりませんでした" in calls[0][2]
@@ -6971,7 +6972,7 @@ def test_reload_dataset_excel_uses_source_sheet(tmp_path, monkeypatch):
                        source_file=str(path), source_sheet="Sheet2")
     _add_and_select_dataset(window, dataset)
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     np.testing.assert_allclose(dataset.y_data, np.array([100.0, 200.0]))
 

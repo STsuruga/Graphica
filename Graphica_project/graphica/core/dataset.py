@@ -305,7 +305,7 @@ class Dataset:
 
     # 元ファイルへのリンク保持と再読み込み(項目C-103)。ファイル読み込みで
     # 作成されたDatasetについて、読込元ファイルの絶対パスを保持しておき、
-    # 「再読み込み」(gui/mixins/dataset_mixin.pyの_on_reload_dataset_from_source)
+    # 「再読み込み」(gui/datasets/transfer.py の reload_from_source)
     # でファイルの最新内容に df だけを差し替えられるようにする(書式・注釈・
     # X/Y列選択は維持)。クリップボード貼り付け・プラグインprocessor/analyzerの
     # 生成物・データセット間演算等の「元ファイルを持たない」Datasetは常にNone。

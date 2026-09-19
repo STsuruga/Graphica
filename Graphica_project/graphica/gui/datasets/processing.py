@@ -22,27 +22,7 @@ from graphica.gui.dialogs import (ResultDialog, ColumnCalculatorDialog, DatasetA
 
 logger = logging.getLogger(__name__)
 
-# カスタム配色パレットをQSettingsに保存する際のキー
-
-# エラーバー用の誤差列コンボボックスで「誤差列を使わない」ことを表す選択肢
-NO_ERROR_COLUMN_LABEL = "(なし)"
-
-# 「スタイルのコピー&ペースト」で複製対象とする、見た目に関する属性
-# (凡例名・X/Y列・エラーバー列・描画先など、データ/構造に関わるものは含めない)。
-# colormap/vmin/vmax/grid_interp_methodは2Dマップ(項目C-508)の見た目に関する
-# 属性のため含めるが、data_kind/z_col_nameはX/Y列と同様に「どの列を使うか」という
-# 構造の選択であり、他のデータセットへ無条件にコピーすると意図しない相手を
-# 2Dグリッド扱いにしてしまうため、意図的に含めない。
-STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing',
-               'smoothing_method', 'alpha',
-               'error_display', 'colormap', 'vmin', 'vmax', 'grid_interp_method')
-
-# カラーマップからの自動配色(項目C-805)で選ばせる候補。連続データの系列を
-# 表現するのに適した(知覚的に均一な、またはよく使われる)ものを厳選する。
-RECOMMENDED_COLORMAPS = ['viridis', 'plasma', 'cividis', 'coolwarm', 'turbo', 'rainbow']
-
-# データポイントラベルの「内容」コンボボックスで、Y値そのものを表示することを示す選択肢
-POINT_LABEL_Y_VALUE_LABEL = "Y値"
+# 列の値で分割したとき、これを超える数の系列ができるなら確認する(連続値の列を取り違えた疑い)。
 SPLIT_BY_COLUMN_CONFIRM_THRESHOLD = 30
 
 

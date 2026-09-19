@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 from graphica.gui.dialogs import PreferencesDialog
 from graphica.gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 from graphica.gui.mixins.annotation_mixin import DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
-from graphica.gui.mixins.dataset_mixin import STYLE_ATTRS
+from graphica.gui.datasets.transfer import STYLE_ATTRS
 from graphica.core.i18n import tr, get_language
 
 logger = logging.getLogger(__name__)

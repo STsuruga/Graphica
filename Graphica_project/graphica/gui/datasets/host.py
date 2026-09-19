@@ -111,6 +111,23 @@ class DatasetHost:
         """アプリ全体の設定(QSettings)。"""
         return self._app.settings
 
-    def push_property_change(self, dataset, old_values, new_values, description):
-        """データセットの属性の変更を Undo できる形で積む(変化が無ければ何もしない)。"""
-        self._app._push_dataset_property_command(dataset, old_values, new_values, description)
+    def push_property_change(self, dataset, old_values, new_values, description, skip_if_unchanged=True):
+        """データセットの属性の変更を Undo できる形で積む(skip_if_unchanged なら変化が無いときは何もしない)。"""
+        self._app._push_dataset_property_command(dataset, old_values, new_values, description,
+                                                 skip_if_unchanged=skip_if_unchanged)
+
+    def remove_datasets(self, datasets, description=None):
+        """確認なしで Undo できる形で消す。"""
+        items = [item for dataset in datasets
+                 if (item := self._app._get_dataset_tree_item(dataset)) is not None]
+        self._app._remove_dataset_items_with_undo(items, description=description)
+
+    def sibling_tabs(self):
+        """ほかのタブの (タブの見出し, そのタブの DatasetHost)。タブの窓に入っていなければ空。"""
+        from graphica.gui.main_app_window import MainAppWindow  # main_app_window がこのパッケージを読み込むので遅らせる
+        top = self._app.window()
+        if not isinstance(top, MainAppWindow):
+            return []
+        tabs = top.tab_widget
+        return [(tabs.tabText(i), tabs.widget(i)._dataset_host)
+                for i in range(tabs.count()) if tabs.widget(i) is not self._app]

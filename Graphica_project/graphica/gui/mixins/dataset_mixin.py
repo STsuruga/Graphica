@@ -15,9 +15,6 @@ _add_dataset_list_item / _add_dataset_folder_item 参照)。
 """
 import copy
 import logging
-import os
-import re
-import uuid
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
@@ -42,24 +39,8 @@ from graphica.gui.dataset_style_icon import (
 
 logger = logging.getLogger(__name__)
 
-# カスタム配色パレットをQSettingsに保存する際のキー
-
 # エラーバー用の誤差列コンボボックスで「誤差列を使わない」ことを表す選択肢
 NO_ERROR_COLUMN_LABEL = "(なし)"
-
-# 「スタイルのコピー&ペースト」で複製対象とする、見た目に関する属性
-# (凡例名・X/Y列・エラーバー列・描画先など、データ/構造に関わるものは含めない)。
-# colormap/vmin/vmax/grid_interp_methodは2Dマップ(項目C-508)の見た目に関する
-# 属性のため含めるが、data_kind/z_col_nameはX/Y列と同様に「どの列を使うか」という
-# 構造の選択であり、他のデータセットへ無条件にコピーすると意図しない相手を
-# 2Dグリッド扱いにしてしまうため、意図的に含めない。
-STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing',
-               'smoothing_method', 'alpha',
-               'error_display', 'colormap', 'vmin', 'vmax', 'grid_interp_method')
-
-# カラーマップからの自動配色(項目C-805)で選ばせる候補。連続データの系列を
-# 表現するのに適した(知覚的に均一な、またはよく使われる)ものを厳選する。
-RECOMMENDED_COLORMAPS = ['viridis', 'plasma', 'cividis', 'coolwarm', 'turbo', 'rainbow']
 
 # データポイントラベルの「内容」コンボボックスで、Y値そのものを表示することを示す選択肢
 POINT_LABEL_Y_VALUE_LABEL = "Y値"
@@ -306,11 +287,11 @@ class DatasetMixin:
         if self._get_current_dataset() is not None:
             menu.addSeparator()
             copy_style_action = menu.addAction("スタイルをコピー")
-            copy_style_action.triggered.connect(self._on_copy_dataset_style)
+            copy_style_action.triggered.connect(self.transfer.copy_style)
 
             paste_style_action = menu.addAction("スタイルを貼り付け")
-            paste_style_action.setEnabled(self._copied_dataset_style is not None)
-            paste_style_action.triggered.connect(self._on_paste_dataset_style)
+            paste_style_action.setEnabled(self.transfer.copied_style is not None)
+            paste_style_action.triggered.connect(self.transfer.paste_style)
 
             # 元ファイルからの再読み込み(項目C-103): ファイル読み込みで作成された
             # データセット(dataset.source_fileを保持)のみ有効。クリップボード貼り付け・
@@ -318,7 +299,7 @@ class DatasetMixin:
             # 持たないデータセットではグレーアウトする。
             reload_action = menu.addAction("元ファイルから再読み込み")
             reload_action.setEnabled(bool(self._get_current_dataset().source_file))
-            reload_action.triggered.connect(self._on_reload_dataset_from_source)
+            reload_action.triggered.connect(self.transfer.reload_from_source)
 
             # 規格化(ノーマライズ、項目78): 曲線フィット/ピーク検出と同様、1つの
             # データセット(フォーカス中のカレントアイテム)に対する操作なので、
@@ -443,17 +424,17 @@ class DatasetMixin:
 
         if self._get_selected_datasets():
             export_data_action = export_menu.addAction("データ表をファイルに書き出す...")
-            export_data_action.triggered.connect(self._on_export_dataset_data)
+            export_data_action.triggered.connect(self.transfer.export_data)
 
             # タブ間のデータセットコピー/移動(項目C-905): タブ=完全に独立した
             # プロジェクトという設計上、他のタブが無ければ意味を成さないため
             # 常に表示しつつハンドラ側で案内する(setEnabledで隠すより、
             # 「タブが無いから使えない」ことに気づける方が親切なため)。
             copy_to_tab_action = tab_menu.addAction("別のタブへコピー...")
-            copy_to_tab_action.triggered.connect(lambda: self._on_copy_or_move_dataset_to_tab(move=False))
+            copy_to_tab_action.triggered.connect(lambda: self.transfer.copy_or_move_to_tab(move=False))
 
             move_to_tab_action = tab_menu.addAction("別のタブへ移動...")
-            move_to_tab_action.triggered.connect(lambda: self._on_copy_or_move_dataset_to_tab(move=True))
+            move_to_tab_action.triggered.connect(lambda: self.transfer.copy_or_move_to_tab(move=True))
 
         # ★ 改善ボード C-2: 上の各ブロックで中身を詰めたサブメニューを、ここで
         # まとめて menu に繋ぐ。選択状態によっては1項目も入らないもの
@@ -477,307 +458,6 @@ class DatasetMixin:
         menu._graphica_submenus = submenus
         return menu
 
-    def _on_export_dataset_data(self):
-        """
-        「データ表をファイルに書き出す...」メニューの処理。
-        グラフ画像ではなく、加工済みのデータセットそのもの(DataFrame)を
-        他のソフト(Excel等)で使えるようファイル出力する。
-        1件選択時はCSVまたはExcelのファイルを直接選ばせ、複数選択時は
-        フォルダを選ばせて各データセットを別々のCSVとして書き出すか、
-        1つのExcelブックにシート分けしてまとめるかを選ばせる。
-        """
-        selected = self._get_selected_datasets()
-        if not selected:
-            return
-
-        if len(selected) == 1:
-            dataset = selected[0]
-            default_name = re.sub(r'[\\/:*?"<>|]', '_', dataset.name) or "dataset"
-            file_path, selected_filter = QFileDialog.getSaveFileName(
-                self, "データ表を書き出す", default_name,
-                "CSV Files (*.csv);;Excel Files (*.xlsx)"
-            )
-            if not file_path:
-                return
-            try:
-                if file_path.lower().endswith('.xlsx') or "Excel" in selected_filter:
-                    if not file_path.lower().endswith('.xlsx'):
-                        file_path += '.xlsx'
-                    dataset.df.to_excel(file_path, index=False)
-                else:
-                    if not file_path.lower().endswith('.csv'):
-                        file_path += '.csv'
-                    dataset.df.to_csv(file_path, index=False, encoding='utf-8-sig')
-            except Exception as e:
-                logger.exception("データセットの書き出しに失敗しました")
-                QMessageBox.warning(self, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
-                return
-            QMessageBox.information(self, "書き出し完了", f"書き出しました:\n{file_path}")
-            return
-
-        # --- 複数選択時 ---
-        format_choice, ok = QInputDialog.getItem(
-            self, "データ表を書き出す", "書き出し形式を選択してください:",
-            ["CSV (データセットごとに別ファイル)", "Excel (1ブックにシート分け)"], 0, False
-        )
-        if not ok:
-            return
-
-        if format_choice.startswith("Excel"):
-            file_path, _ = QFileDialog.getSaveFileName(
-                self, "データ表を書き出す", "datasets.xlsx", "Excel Files (*.xlsx)"
-            )
-            if not file_path:
-                return
-            if not file_path.lower().endswith('.xlsx'):
-                file_path += '.xlsx'
-            used_sheet_names = set()
-            try:
-                with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-                    for dataset in selected:
-                        sheet_name = re.sub(r'[\\/:*?\[\]]', '_', dataset.name)[:31] or "Sheet"
-                        base_name, suffix = sheet_name, 1
-                        while sheet_name in used_sheet_names:
-                            suffix += 1
-                            sheet_name = f"{base_name[:28]}_{suffix}"
-                        used_sheet_names.add(sheet_name)
-                        dataset.df.to_excel(writer, sheet_name=sheet_name, index=False)
-            except Exception as e:
-                logger.exception("データセットの書き出しに失敗しました")
-                QMessageBox.warning(self, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
-                return
-            QMessageBox.information(self, "書き出し完了", f"{len(selected)}件を書き出しました:\n{file_path}")
-        else:
-            dir_path = QFileDialog.getExistingDirectory(self, "書き出し先フォルダを選択")
-            if not dir_path:
-                return
-            succeeded, failed = [], []
-            used_names = set()
-            for dataset in selected:
-                base_name = re.sub(r'[\\/:*?"<>|]', '_', dataset.name) or "dataset"
-                file_name, suffix = base_name, 1
-                while file_name in used_names:
-                    suffix += 1
-                    file_name = f"{base_name}_{suffix}"
-                used_names.add(file_name)
-                try:
-                    dataset.df.to_csv(os.path.join(dir_path, f"{file_name}.csv"), index=False, encoding='utf-8-sig')
-                    succeeded.append(dataset.name)
-                except Exception as e:
-                    failed.append(f"{dataset.name}: {e}")
-            message = f"{len(succeeded)}件を書き出しました。"
-            if failed:
-                message += "\n\n失敗:\n" + "\n".join(failed)
-            QMessageBox.information(self, "書き出し完了", message)
-
-    def _get_sibling_tabs(self):
-        """
-        自分以外のタブ(PlotterAppインスタンス)を、(タブのタイトル文字列, その
-        PlotterAppインスタンス) のリストとして返す(項目C-905)。
-        gui/main_app_window.pyのMainAppWindowが実際にタブを保持しているが、
-        PlotterApp生成時には参照を渡されていないため、self.window()
-        (Qt標準、自分が属する最上位ウィンドウを返す)経由で辿る。
-        gui.main_app_windowをモジュールレベルでインポートすると循環インポートに
-        なる(main_app_window.pyがgui.main_windowをインポートしているため)、
-        ここで遅延インポートする。単体PlotterAppとして起動された場合
-        (self.window()がMainAppWindowでない、主にテスト環境)は空リストを返す。
-        """
-        from graphica.gui.main_app_window import MainAppWindow
-        top = self.window()
-        if not isinstance(top, MainAppWindow):
-            return []
-        return [
-            (top.tab_widget.tabText(i), top.tab_widget.widget(i))
-            for i in range(top.tab_widget.count())
-            if top.tab_widget.widget(i) is not self
-        ]
-
-    def _remove_datasets_without_confirmation(self, datasets, description=None):
-        """
-        指定したDatasetのリストを、確認ダイアログなしでこのタブから削除する
-        (項目C-905の「別のタブへ移動」専用ヘルパー)。_on_remove_dataset
-        (右クリック「削除」)と削除ロジック自体は同じだが、ツリーの選択状態では
-        なく呼び出し元が渡した具体的なDatasetのリストを対象にする点が異なる。
-
-        ★ 改善ボード A-3: こちらも RemoveDatasetCommand 経由でUndo可能にした。
-        ただし「別のタブへ移動」から呼ばれた場合、Undoで元に戻るのは*このタブ側の
-        削除だけ*である(タブ=独立したPlotterAppインスタンスで undo_stack も別、
-        移動先タブへの追加は取り消されない)。そのため移動をUndoすると、
-        両方のタブに1件ずつ存在する状態になる。復元手段が全く無い従来よりは
-        マシだが、この非対称性は仕様として認識しておくこと。
-        """
-        items = [
-            item for ds in datasets
-            if (item := self._get_dataset_tree_item(ds)) is not None
-        ]
-        self._remove_dataset_items_with_undo(items, description=description)
-
-    def _on_copy_or_move_dataset_to_tab(self, move):
-        """
-        「別のタブへコピー...」/「別のタブへ移動...」メニューの処理(項目C-905)。
-        タブ=完全に独立したPlotterAppインスタンス(1プロジェクト)という設計上、
-        選択中のデータセットを丸ごと複製し、対象タブのproject.datasetsへ
-        直接追加する(ファイル保存/読込を経由しない、インメモリでの転送)。
-        複製自体は「プロット複製」(_on_duplicate_dataset)と同じ
-        copy.deepcopy()を使う(DataFrame等を含め完全に独立させる、既に
-        確立済みの安全なDataset複製方法)。dataset_idだけは、コピー先タブで
-        元と衝突しないよう新しく振り直す。
-        移動の場合は、対象タブへの追加が成功した後に元タブから削除する。
-        移動先タブへの追加はUndo非対応のまま(タブごとにundo_stackが独立して
-        いるため、このタブのUndoから相手タブを巻き戻すことはできない)。
-        元タブからの削除だけは改善ボード A-3 でUndo可能になっている
-        (_remove_datasets_without_confirmation のdocstring参照)。
-        """
-        selected = self._get_selected_datasets()
-        if not selected:
-            return
-
-        sibling_tabs = self._get_sibling_tabs()
-        if not sibling_tabs:
-            QMessageBox.information(self, "タブ間のデータセット転送", "コピー/移動先の他のタブがありません。")
-            return
-
-        tab_titles = [title for title, _ in sibling_tabs]
-        action_label = "移動" if move else "コピー"
-        choice, ok = QInputDialog.getItem(
-            self, f"別のタブへ{action_label}", "転送先のタブ:", tab_titles, 0, False
-        )
-        if not ok:
-            return
-        target_window = sibling_tabs[tab_titles.index(choice)][1]
-
-        for dataset in selected:
-            new_dataset = copy.deepcopy(dataset)
-            new_dataset.dataset_id = uuid.uuid4().hex
-            target_window._add_dataset(new_dataset, target_window._get_target_folder_for_new_dataset())
-
-        if move:
-            self._remove_datasets_without_confirmation(
-                selected, description=f"別のタブへ移動({len(selected)}件)"
-            )
-
-        self.statusBar().showMessage(
-            f"{len(selected)}件のデータセットを「{choice}」へ{action_label}しました", 3000
-        )
-
-    def _on_copy_dataset_style(self):
-        """
-        「スタイルをコピー」メニューが選ばれたときの処理。
-        現在カレントのデータセット1件から、見た目に関する属性(STYLE_ATTRS)だけを
-        値としてコピーしておく(オブジェクト参照ではなく値のコピーなので、
-        コピー元を後から変更してもコピー内容には影響しない)。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None:
-            return
-        self._copied_dataset_style = {attr: getattr(dataset, attr) for attr in STYLE_ATTRS}
-        self.statusBar().showMessage(f"「{dataset.name}」のスタイルをコピーしました", 3000)
-
-    def _on_paste_dataset_style(self):
-        """
-        「スタイルを貼り付け」メニューが選ばれたときの処理。
-        コピーしておいたスタイルを、選択中の(複数可)データセットにまとめて適用する。
-        複数選択時は1回のUndo/Redoでまとめて元に戻せるようにする。
-        """
-        if self._copied_dataset_style is None:
-            return
-        selected_datasets = self._get_selected_datasets()
-        if not selected_datasets:
-            return
-
-        is_batch = len(selected_datasets) > 1
-        if is_batch:
-            self.undo_stack.beginMacro(f"スタイルの貼り付け ({len(selected_datasets)}件)")
-        for dataset in selected_datasets:
-            old_values = {attr: getattr(dataset, attr) for attr in STYLE_ATTRS}
-            self._push_dataset_property_command(
-                dataset, old_values, dict(self._copied_dataset_style),
-                description="スタイルの貼り付け"
-            )
-        if is_batch:
-            self.undo_stack.endMacro()
-
-    def _on_reload_dataset_from_source(self):
-        """
-        「元ファイルから再読み込み」メニューの処理(項目C-103)。
-        dataset.source_file(gui/main_window.pyの_import_loaded_dataframeが
-        ファイル読み込み時に設定)からファイルを読み直し、書式・注釈・データセット名は
-        そのままに df(データ本体)だけを差し替える。測定をやり直すたびに図を
-        ゼロから作り直さずに済むようにする機能。
-
-        X/Y軸・エラーバー・データ点ラベルの列選択(x_col_name等)は変更しない
-        (ファイルの列構成が変わっていなければ引き続き正しく参照できるため)。
-        ただし再読み込み後にそれらの列が見つからない場合は、壊れた状態で
-        グラフが描画される前にエラーで中断する。
-
-        ★ 既知の制約: インポートウィザード(項目C-101)で文字コード/区切り文字/
-        ヘッダー行/固定長を個別に調整して読み込んだCSVについては、その調整内容は
-        保持していないため、再読み込みは常に標準設定(自動判定)で読み直す。
-        調整が必要なファイルで列が見つからない場合は、このメソッドではなく
-        通常のインポート操作(ウィザードで再調整)でのデータセット追加をお勧めする
-        メッセージを表示する。
-
-        マスク済み行(masked_row_indices)は、旧データの行ラベルに紐づいた情報であり
-        新しいデータでは無意味(むしろ別の行を誤って除外し続ける)になるため、
-        再読み込みと同時にクリアする。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None or not dataset.source_file:
-            return
-
-        if not os.path.exists(dataset.source_file):
-            QMessageBox.warning(
-                self, "再読み込み",
-                f"元ファイルが見つかりません:\n{dataset.source_file}"
-            )
-            return
-
-        from graphica.gui.workers import read_data_file, excel_engine_for
-        try:
-            if dataset.source_sheet:
-                new_df = pd.read_excel(dataset.source_file, sheet_name=dataset.source_sheet,
-                                       engine=excel_engine_for(dataset.source_file))
-            else:
-                new_df = read_data_file(dataset.source_file)
-        except Exception as e:
-            logger.exception("元ファイルからの再読み込みに失敗しました")
-            QMessageBox.warning(self, "再読み込み", f"ファイルの読み込みに失敗しました:\n{e}")
-            return
-
-        required_columns = (
-            dataset.x_col_name, dataset.y_col_name,
-            dataset.x_err_col_name, dataset.y_err_col_name, dataset.point_label_col_name,
-        )
-        missing = [col for col in required_columns if col and col not in new_df.columns]
-        if missing:
-            QMessageBox.warning(
-                self, "再読み込み",
-                "再読み込みしたファイルに、現在使用中の列が見つかりませんでした:\n"
-                + "\n".join(missing)
-                + "\n\nファイルの構造(列名/区切り文字/ヘッダー行など)が変わった可能性があります。"
-                "「データセット追加」から改めてインポートし直すことをお勧めします。"
-                "再読み込みは中止しました。"
-            )
-            return
-
-        old_values = {'df': dataset.df, 'masked_row_indices': list(dataset.masked_row_indices)}
-        new_values = {'df': new_df, 'masked_row_indices': []}
-        # ★ _push_dataset_property_command は old_values == new_values で変更なし判定を
-        #   行うが、辞書にDataFrameが含まれると == の評価自体が
-        #   ValueError("The truth value of a DataFrame is ambiguous") になるため、
-        #   ここでは使わずSetDatasetPropertiesCommandを直接発行する。
-        command = SetDatasetPropertiesCommand(
-            dataset, old_values, new_values,
-            on_applied=lambda: self._refresh_after_dataset_property_change(
-                dataset, changed_keys=new_values.keys(), old_values=old_values, new_values=new_values
-            ),
-            description=f"「{dataset.name}」を再読み込み"
-        )
-        self.undo_stack.push(command)
-        self.statusBar().showMessage(f"「{dataset.name}」を元ファイルから再読み込みしました", 3000)
-
-    # 分割で一度に作るデータセット数の目安。これを超える場合は、連続値の列を
-    # 誤って選んだ等の取り違えが疑われるため、作る前に確認を挟む。
     # 統計値アンカーラベル(項目C-708)の選択肢: 表示名 -> gui/canvas.pyの
     # _compute_stat_label_text/STAT_LABEL_TITLESが解釈する内部キー。
     STAT_ANCHOR_LABEL_CHOICES = {
@@ -1140,12 +820,14 @@ class DatasetMixin:
             self.export_preview_panel.refresh_preview()
         self._notify_plugins_datasets_changed()
 
-    def _push_dataset_property_command(self, dataset, old_values: dict, new_values: dict, description: str):
+    def _push_dataset_property_command(self, dataset, old_values: dict, new_values: dict, description: str,
+                                       skip_if_unchanged=True):
         """
         Dataset のプロパティ変更を Undo/Redo 可能なコマンドとして発行する共通ヘルパー。
         old_values と new_values が同じ (実質的に変更なし) 場合は何もしない。
+        値に DataFrame を含むときは == で比べられないので skip_if_unchanged=False で呼ぶ。
         """
-        if old_values == new_values:
+        if skip_if_unchanged and old_values == new_values:
             return
         command = SetDatasetPropertiesCommand(
             dataset, old_values, new_values,
