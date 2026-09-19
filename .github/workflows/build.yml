@@ -55,6 +55,10 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      # 対象と設定は pyproject.toml の [tool.mypy](core/ とプラグインの入口)。
+      - name: Type check
+        run: mypy
+
       - name: Run tests
         shell: bash
         run: bash scripts/run_tests_chunked.sh

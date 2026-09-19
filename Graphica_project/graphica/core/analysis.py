@@ -1,5 +1,5 @@
 import re
-from typing import Any
+from typing import Any, Callable
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
@@ -26,7 +26,8 @@ _BUILTIN_FIT_TYPE_SUBSTRINGS = (
 )
 
 
-def register_fit_function(name, func, param_names, p0=None):
+def register_fit_function(name: str, func: Callable[..., Any], param_names: list[str],
+                          p0: list[float] | Callable[..., Any] | None = None) -> None:
     """p0 は初期値のリストか (x_data, y_data) -> list を返す関数。省略時は全て 1.0。"""
     if not name or not name.strip():
         raise ValueError("フィット関数名が空です。")
@@ -39,13 +40,13 @@ def register_fit_function(name, func, param_names, p0=None):
     _PLUGIN_FIT_FUNCTIONS[name] = {"func": func, "params": list(param_names), "p0": p0}
 
 
-def get_plugin_fit_type_names():
+def get_plugin_fit_type_names() -> list[str]:
     return list(_PLUGIN_FIT_FUNCTIONS.keys())
 
 _RESERVED_FORMULA_NAMES = set(DEFAULT_FUNCTIONS.keys()) | {'x'}
 
 
-def _extract_formula_params(formula):
+def _extract_formula_params(formula: str) -> list[str]:
     """x でも既知の関数名でもない識別子を、出現順にパラメータとして取り出す。"""
     params = []
     for name in re.findall(r'[a-zA-Z_][a-zA-Z_0-9]*', formula):
@@ -57,8 +58,8 @@ def _extract_formula_params(formula):
     return params
 
 
-def _build_custom_fit_func(formula, param_names):
-    def custom_func(x, *params):
+def _build_custom_fit_func(formula: str, param_names: list[str]) -> Callable[..., Any]:
+    def custom_func(x: Any, *params: float) -> Any:
         variables = {'x': x}
         variables.update(zip(param_names, params))
         try:
@@ -68,7 +69,7 @@ def _build_custom_fit_func(formula, param_names):
     return custom_func
 
 
-def get_fit_param_names(fit_type, custom_formula=None):
+def get_fit_param_names(fit_type: str, custom_formula: str | None = None) -> list[str]:
     """フィットせずにパラメータ名を返す(フィットの前に入力欄を組み立てるため)。
 
     判定の順序とパラメータ名は calculate_curve_fit() の分岐と同じにしておくこと。
@@ -117,8 +118,10 @@ def get_fit_param_names(fit_type, custom_formula=None):
 _ROBUST_LOSS_FUNCTIONS = ('linear', 'soft_l1', 'huber')
 
 
-def _run_curve_fit_with_overrides(fit_func, params_info, p0, x_data, y_data, sigma,
-                                   p0_overrides, fixed_params, bounds, fit_type_label, loss='linear'):
+def _run_curve_fit_with_overrides(fit_func: Callable[..., Any], params_info: list[str], p0: Any, x_data: Any, y_data: Any,
+                                   sigma: Any, p0_overrides: dict[str, float] | None, fixed_params: dict[str, float] | None,
+                                   bounds: dict[str, tuple[float, float]] | None, fit_type_label: str,
+                                   loss: str = 'linear') -> tuple[np.ndarray, np.ndarray]:
     """p0 の上書き・固定・範囲拘束を適用して curve_fit を実行する。
 
     popt と pcov は固定パラメータも含めたフルサイズで返す(固定分の pcov は 0)。
@@ -164,8 +167,8 @@ def _run_curve_fit_with_overrides(fit_func, params_info, p0, x_data, y_data, sig
         # curve_fit には自由パラメータだけを渡し、固定値は関数の中で元の位置に挿し込む
         original_fit_func = fit_func
 
-        def fit_func_for_curve_fit(x, *free_args):
-            full_params = [None] * len(params_info)
+        def fit_func_for_curve_fit(x: Any, *free_args: float) -> Any:
+            full_params: list[float | None] = [None] * len(params_info)
             for i in fixed_indices:
                 full_params[i] = fixed_values[i]
             for idx, i in enumerate(free_indices):
@@ -235,8 +238,10 @@ def _run_curve_fit_with_overrides(fit_func, params_info, p0, x_data, y_data, sig
     return popt, pcov
 
 
-def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_range=None,
-                         p0_overrides=None, fixed_params=None, bounds=None, loss='linear'):
+def calculate_curve_fit(x_data: Any, y_data: Any, fit_type: str, custom_formula: str | None = None, sigma: Any = None,
+                        x_range: tuple[float, float] | None = None, p0_overrides: dict[str, float] | None = None,
+                        fixed_params: dict[str, float] | None = None,
+                        bounds: dict[str, tuple[float, float]] | None = None, loss: str = 'linear') -> dict[str, Any]:
     """曲線フィット。popt / pcov / perr / x_fit・y_fit / r_squared / residuals などの dict を返す。
 
     x_range は両端を含み、範囲外の点は p0 の推定にも使わない。sigma は absolute_sigma=True で渡す。
@@ -264,54 +269,54 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
     if len(x_data) == 0:
         raise ValueError("有効なデータ点がありません(すべて欠損値です)。フィッティングできません。")
 
-    def linear_func(x, a, b):
+    def linear_func(x: Any, a: float, b: float) -> Any:
         return a * x + b
 
-    def poly2_func(x, a, b, c):
+    def poly2_func(x: Any, a: float, b: float, c: float) -> Any:
         return a * x**2 + b * x + c
 
-    def poly3_func(x, a, b, c, d):
+    def poly3_func(x: Any, a: float, b: float, c: float, d: float) -> Any:
         return a * x**3 + b * x**2 + c * x + d
 
-    def exp_func(x, a, b):
+    def exp_func(x: Any, a: float, b: float) -> Any:
         return a * np.exp(b * x)
 
-    def log_func(x, a, b):
+    def log_func(x: Any, a: float, b: float) -> Any:
         return a * np.log(x) + b
 
-    def power_func(x, a, b):
+    def power_func(x: Any, a: float, b: float) -> Any:
         return a * np.power(x, b)
 
-    def gaussian_func(x, a, b, c, d):
+    def gaussian_func(x: Any, a: float, b: float, c: float, d: float) -> Any:
         return a * np.exp(-((x - b) ** 2) / (2 * c ** 2)) + d
 
-    def sigmoid_func(x, a, b, c):
+    def sigmoid_func(x: Any, a: float, b: float, c: float) -> Any:
         return a / (1 + np.exp(-b * (x - c)))
 
-    def multi_exp_func(x, a1, b1, a2, b2, c):
+    def multi_exp_func(x: Any, a1: float, b1: float, a2: float, b2: float, c: float) -> Any:
         return a1 * np.exp(b1 * x) + a2 * np.exp(b2 * x) + c
 
-    def lorentzian_func(x, a, b, c, d):
+    def lorentzian_func(x: Any, a: float, b: float, c: float, d: float) -> Any:
         return a / (1 + ((x - b) / c) ** 2) + d
 
-    def pseudo_voigt_func(x, a, b, c, eta, d):
+    def pseudo_voigt_func(x: Any, a: float, b: float, c: float, eta: float, d: float) -> Any:
         # 共通の中心 b と FWHM c を持つローレンツ型とガウス型を eta で混ぜる
         lorentzian_shape = 1 / (1 + ((x - b) / c) ** 2)
         gaussian_shape = np.exp(-4 * np.log(2) * ((x - b) / c) ** 2)
         return a * (eta * lorentzian_shape + (1 - eta) * gaussian_shape) + d
 
-    def voigt_func(x, a, b, sigma, gamma, d):
+    def voigt_func(x: Any, a: float, b: float, sigma: float, gamma: float, d: float) -> Any:
         # Faddeeva 関数による Voigt。この正規化で gamma→0 のとき a がピーク高さになる
         z = ((x - b) + 1j * gamma) / (sigma * np.sqrt(2))
         return a * np.real(wofz(z)) / (sigma * np.sqrt(2 * np.pi)) + d
 
-    def boltzmann_sigmoid_func(x, a1, a2, x0, dx):
+    def boltzmann_sigmoid_func(x: Any, a1: float, a2: float, x0: float, dx: float) -> Any:
         return a2 + (a1 - a2) / (1 + np.exp((x - x0) / dx))
 
-    def hill_func(x, vmax, k, n):
+    def hill_func(x: Any, vmax: float, k: float, n: float) -> Any:
         return (vmax * np.power(x, n)) / (np.power(k, n) + np.power(x, n))
 
-    def estimate_fwhm(x_arr, y_arr, amplitude):
+    def estimate_fwhm(x_arr: Any, y_arr: Any, amplitude: float) -> float:
         """半値を横切る X の幅を FWHM の粗い推定にする(裾の広い形で誤った局所解に落ちないため)。"""
         half_level = np.nanmin(y_arr) + amplitude / 2
         above_half = x_arr[y_arr >= half_level]
@@ -463,34 +468,34 @@ def calculate_curve_fit(x_data, y_data, fit_type, custom_formula=None, sigma=Non
 
 # 多峰分離の成分関数。ベースラインを全成分で共有するので、単峰版と違いオフセットを持たない。
 
-def _gaussian_component(x, a, b, c):
+def _gaussian_component(x: Any, a: float, b: float, c: float) -> Any:
     return a * np.exp(-((x - b) ** 2) / (2 * c ** 2))
 
 
-def _lorentzian_component(x, a, b, c):
+def _lorentzian_component(x: Any, a: float, b: float, c: float) -> Any:
     return a / (1 + ((x - b) / c) ** 2)
 
 
-def _pseudo_voigt_component(x, a, b, c, eta):
+def _pseudo_voigt_component(x: Any, a: float, b: float, c: float, eta: float) -> Any:
     lorentzian_shape = 1 / (1 + ((x - b) / c) ** 2)
     gaussian_shape = np.exp(-4 * np.log(2) * ((x - b) / c) ** 2)
     return a * (eta * lorentzian_shape + (1 - eta) * gaussian_shape)
 
 
-def _voigt_component(x, a, b, sigma, gamma):
+def _voigt_component(x: Any, a: float, b: float, sigma: float, gamma: float) -> Any:
     z = ((x - b) + 1j * gamma) / (sigma * np.sqrt(2))
     return a * np.real(wofz(z)) / (sigma * np.sqrt(2 * np.pi))
 
 
-def _constant_baseline(x, c):
+def _constant_baseline(x: Any, c: float) -> Any:
     return np.full_like(np.asarray(x, dtype=float), c)
 
 
-def _linear_baseline(x, m, b):
+def _linear_baseline(x: Any, m: float, b: float) -> Any:
     return m * np.asarray(x, dtype=float) + b
 
 
-_MULTI_PEAK_COMPONENT_TYPES = {
+_MULTI_PEAK_COMPONENT_TYPES: dict[str, dict[str, Any]] = {
     'gaussian': {'label': 'ガウシアン', 'func': _gaussian_component, 'param_names': ['a', 'b', 'c']},
     'lorentzian': {'label': 'ローレンツ', 'func': _lorentzian_component, 'param_names': ['a', 'b', 'c']},
     'pseudo_voigt': {'label': '擬似フォークト', 'func': _pseudo_voigt_component, 'param_names': ['a', 'b', 'c', 'eta']},
@@ -498,8 +503,11 @@ _MULTI_PEAK_COMPONENT_TYPES = {
 }
 
 
-def calculate_multi_peak_fit(x_data, y_data, component_type, initial_guesses, baseline_type='constant',
-                              x_range=None, sigma=None, p0_overrides=None, fixed_params=None, bounds=None):
+def calculate_multi_peak_fit(x_data: Any, y_data: Any, component_type: str, initial_guesses: list[dict[str, float]],
+                             baseline_type: str = 'constant', x_range: tuple[float, float] | None = None,
+                             sigma: Any = None, p0_overrides: dict[str, float] | None = None,
+                             fixed_params: dict[str, float] | None = None,
+                             bounds: dict[str, tuple[float, float]] | None = None) -> dict[str, Any]:
     """同じ種類の N 成分とベースラインを同時にフィットする。
 
     initial_guesses は [{'center', 'height', 'width'(FWHM)}, ...]。戻り値は calculate_curve_fit() の
@@ -541,8 +549,8 @@ def calculate_multi_peak_fit(x_data, y_data, component_type, initial_guesses, ba
     n_component_params = len(component_param_names)
     n_components = len(initial_guesses)
 
-    params_info = []
-    p0 = []
+    params_info: list[str] = []
+    p0: list[float] = []
     for i, guess in enumerate(initial_guesses, start=1):
         height = float(guess['height'])
         center = float(guess['center'])
@@ -563,6 +571,7 @@ def calculate_multi_peak_fit(x_data, y_data, component_type, initial_guesses, ba
             amplitude0 = height * sigma0 * np.sqrt(2 * np.pi)
             p0.extend([amplitude0, center, sigma0, gamma0])
 
+    baseline_func: Callable[..., Any] | None
     if baseline_type == 'constant':
         params_info.append('baseline_c')
         p0.append(float(np.nanmin(y_data)))
@@ -574,7 +583,7 @@ def calculate_multi_peak_fit(x_data, y_data, component_type, initial_guesses, ba
     else:
         baseline_func = None
 
-    def fit_func(x, *params):
+    def fit_func(x: Any, *params: float) -> Any:
         total = np.zeros_like(np.asarray(x, dtype=float))
         for i in range(n_components):
             comp_params = params[i * n_component_params:(i + 1) * n_component_params]
@@ -627,9 +636,12 @@ def calculate_multi_peak_fit(x_data, y_data, component_type, initial_guesses, ba
     }
 
 
-def fit_curve_task(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_range=None,
-                    p0_overrides=None, fixed_params=None, bounds=None, loss='linear',
-                    report_progress=None, is_cancelled=None):
+def fit_curve_task(x_data: Any, y_data: Any, fit_type: str, custom_formula: str | None = None, sigma: Any = None,
+                   x_range: tuple[float, float] | None = None, p0_overrides: dict[str, float] | None = None,
+                   fixed_params: dict[str, float] | None = None,
+                   bounds: dict[str, tuple[float, float]] | None = None, loss: str = 'linear',
+                   report_progress: Callable[..., Any] | None = None,
+                   is_cancelled: Callable[[], bool] | None = None) -> dict[str, Any]:
     """TaskRunner 用。curve_fit は進捗も中断もできないので、report_progress と is_cancelled は受け取るだけ。"""
     return calculate_curve_fit(
         x_data, y_data, fit_type, custom_formula=custom_formula, sigma=sigma, x_range=x_range,
@@ -637,9 +649,13 @@ def fit_curve_task(x_data, y_data, fit_type, custom_formula=None, sigma=None, x_
     )
 
 
-def multi_peak_fit_task(x_data, y_data, component_type, initial_guesses, baseline_type='constant',
-                         x_range=None, sigma=None, p0_overrides=None, fixed_params=None, bounds=None,
-                         report_progress=None, is_cancelled=None):
+def multi_peak_fit_task(x_data: Any, y_data: Any, component_type: str, initial_guesses: list[dict[str, float]],
+                        baseline_type: str = 'constant', x_range: tuple[float, float] | None = None,
+                        sigma: Any = None, p0_overrides: dict[str, float] | None = None,
+                        fixed_params: dict[str, float] | None = None,
+                        bounds: dict[str, tuple[float, float]] | None = None,
+                        report_progress: Callable[..., Any] | None = None,
+                        is_cancelled: Callable[[], bool] | None = None) -> dict[str, Any]:
     """TaskRunner 用。fit_curve_task() と同じく進捗と中断は受け取るだけ。"""
     return calculate_multi_peak_fit(
         x_data, y_data, component_type, initial_guesses, baseline_type=baseline_type,
@@ -650,7 +666,7 @@ def multi_peak_fit_task(x_data, y_data, component_type, initial_guesses, baselin
 _INTEGRAL_METHODS = ("trapezoid", "simpson")
 
 
-def _trapezoid_integrate(y, x):
+def _trapezoid_integrate(y: Any, x: Any) -> float:
     """NumPy 2.0 で trapz が trapezoid になった。古い版でも動くようにする。"""
     trapezoid_func = getattr(np, "trapezoid", None)
     if trapezoid_func is None:
@@ -658,7 +674,8 @@ def _trapezoid_integrate(y, x):
     return float(trapezoid_func(y, x))
 
 
-def calculate_interval_integral(x_data, y_data, x_range, method="trapezoid", subtract_baseline=False):
+def calculate_interval_integral(x_data: Any, y_data: Any, x_range: tuple[float, float], method: str = "trapezoid",
+                                subtract_baseline: bool = False) -> dict[str, Any]:
     """x_range(両端を含む)で y を x について積分する。
 
     subtract_baseline は範囲の両端を結ぶ直線を引いてから積分する。両端の Y は、その X 位置で補間した値。
@@ -725,7 +742,7 @@ def calculate_interval_integral(x_data, y_data, x_range, method="trapezoid", sub
     }
 
 
-def calculate_cumulative_integral(x_data, y_data, method="trapezoid"):
+def calculate_cumulative_integral(x_data: Any, y_data: Any, method: str = "trapezoid") -> dict[str, Any]:
     """各点までの累積積分 ∫[x_min, x_i] y dx を返す(先頭は 0)。"""
     if method not in _INTEGRAL_METHODS:
         raise ValueError(f"未知の積分方法です: {method}")
@@ -756,7 +773,8 @@ def calculate_cumulative_integral(x_data, y_data, method="trapezoid"):
     }
 
 
-def _peak_detection_signal_and_kwargs(x_data, y_data, peak_type, settings):
+def _peak_detection_signal_and_kwargs(x_data: Any, y_data: Any, peak_type: str,
+                                      settings: dict[str, Any]) -> tuple[np.ndarray, dict[str, Any]]:
     """calculate_peaks と calculate_peak_quantification の共通の前処理。
 
     谷は -y_data で探すので height も符号を反転する(利用者は谷でも「Y < -10」を -10 と入力する)。
@@ -788,7 +806,7 @@ def _peak_detection_signal_and_kwargs(x_data, y_data, peak_type, settings):
     return y_data_to_find, kwargs
 
 
-def calculate_peaks(x_data, y_data, peak_type, settings):
+def calculate_peaks(x_data: Any, y_data: Any, peak_type: str, settings: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
     y_data_to_find, kwargs = _peak_detection_signal_and_kwargs(x_data, y_data, peak_type, settings)
 
     peak_indices, _ = find_peaks(y_data_to_find, **kwargs)
@@ -799,7 +817,7 @@ def calculate_peaks(x_data, y_data, peak_type, settings):
     return x_data[peak_indices], y_data[peak_indices]
 
 
-def calculate_peak_quantification(x_data, y_data, peak_type, settings):
+def calculate_peak_quantification(x_data: Any, y_data: Any, peak_type: str, settings: dict[str, Any]) -> dict[str, Any]:
     """ピーク/谷の位置に加え、FWHM・面積・重心を返す。
 
     谷は反転した信号の上で計算するので、面積は谷でも正の値(検出方向への突出量)になる。
@@ -872,7 +890,8 @@ def calculate_peak_quantification(x_data, y_data, peak_type, settings):
     }
 
 
-def calculate_savgol(x_data, y_data, window_length, polyorder, deriv=0):
+def calculate_savgol(x_data: Any, y_data: Any, window_length: int, polyorder: int,
+                     deriv: int = 0) -> tuple[np.ndarray, np.ndarray]:
     """Savitzky-Golay による平滑化(deriv=0)または微分(deriv=1, 2)。
 
     delta に X の間隔の中央値を渡すので、微分は dy/dx の大きさになる(X がほぼ等間隔である前提)。
@@ -896,7 +915,7 @@ def calculate_savgol(x_data, y_data, window_length, polyorder, deriv=0):
 # 線の平滑化(Dataset.smoothing_method)。描画用で元データは変えない。
 # どれも X でソートして実データ点のまま返す(CubicSpline と違い点を補間で増やさない)。
 
-def calculate_moving_average_smooth(x_data, y_data, window=5):
+def calculate_moving_average_smooth(x_data: Any, y_data: Any, window: int = 5) -> tuple[np.ndarray, np.ndarray]:
     """window は点数。データ点数を超えたら切り詰める。端は端の値を延長する。"""
     x_data = np.asarray(x_data, dtype=float)
     y_data = np.asarray(y_data, dtype=float)
@@ -910,7 +929,7 @@ def calculate_moving_average_smooth(x_data, y_data, window=5):
     return x_sorted, uniform_filter1d(y_sorted, size=w, mode='nearest')
 
 
-def calculate_median_smooth(x_data, y_data, window=5):
+def calculate_median_smooth(x_data: Any, y_data: Any, window: int = 5) -> tuple[np.ndarray, np.ndarray]:
     x_data = np.asarray(x_data, dtype=float)
     y_data = np.asarray(y_data, dtype=float)
     order = np.argsort(x_data)
@@ -923,7 +942,7 @@ def calculate_median_smooth(x_data, y_data, window=5):
     return x_sorted, median_filter(y_sorted, size=w, mode='nearest')
 
 
-def calculate_gaussian_smooth(x_data, y_data, sigma=2.0):
+def calculate_gaussian_smooth(x_data: Any, y_data: Any, sigma: float = 2.0) -> tuple[np.ndarray, np.ndarray]:
     """sigma はデータ点のインデックス単位(X の間隔ではない)。"""
     x_data = np.asarray(x_data, dtype=float)
     y_data = np.asarray(y_data, dtype=float)
@@ -937,14 +956,15 @@ def calculate_gaussian_smooth(x_data, y_data, sigma=2.0):
 
 # ベースライン補正。どの手法も (ソート済みの x, ベースライン, 差し引いた y) を返す。
 
-def _sort_xy_for_baseline(x_data, y_data):
+def _sort_xy_for_baseline(x_data: Any, y_data: Any) -> tuple[np.ndarray, np.ndarray]:
     x_data = np.asarray(x_data, dtype=float)
     y_data = np.asarray(y_data, dtype=float)
     order = np.argsort(x_data)
     return x_data[order], y_data[order]
 
 
-def calculate_baseline_als(x_data, y_data, lam=1e5, p=0.01, niter=10):
+def calculate_baseline_als(x_data: Any, y_data: Any, lam: float = 1e5, p: float = 0.01,
+                           niter: int = 10) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Asymmetric Least Squares (Eilers & Boelens 2005)。
 
     lam が大きいほど滑らか、p が小さいほどピークを避けて下側を通る(目安 0.001〜0.1)。
@@ -975,7 +995,8 @@ def calculate_baseline_als(x_data, y_data, lam=1e5, p=0.01, niter=10):
     return x_sorted, baseline, y_sorted - baseline
 
 
-def calculate_baseline_polynomial(x_data, y_data, degree=3, iterations=10):
+def calculate_baseline_polynomial(x_data: Any, y_data: Any, degree: int = 3,
+                                  iterations: int = 10) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """反復多項式フィット(Lieber & Mahadevan-Jansen 2003 の ModPoly)。
 
     フィット曲線を上回る点をフィット値で置き換えて再フィットし、ピークを少しずつ削る。
@@ -999,7 +1020,7 @@ def calculate_baseline_polynomial(x_data, y_data, degree=3, iterations=10):
     return x_sorted, baseline, y_sorted - baseline
 
 
-def calculate_baseline_rubberband(x_data, y_data):
+def calculate_baseline_rubberband(x_data: Any, y_data: Any) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """ラバーバンド法。下側凸包の頂点を区分線形でつないだものをベースラインにする。"""
     x_sorted, y_sorted = _sort_xy_for_baseline(x_data, y_data)
     n_points = len(x_sorted)
@@ -1007,7 +1028,7 @@ def calculate_baseline_rubberband(x_data, y_data):
         raise ValueError(f"ラバーバンド法には少なくとも3点のデータが必要です(現在{n_points}点)。")
 
     # Andrew の monotone chain の下側だけ
-    hull_indices = []
+    hull_indices: list[int] = []
     for i in range(n_points):
         while len(hull_indices) >= 2:
             o, a = hull_indices[-2], hull_indices[-1]
@@ -1026,7 +1047,8 @@ def calculate_baseline_rubberband(x_data, y_data):
     return x_sorted, baseline, y_sorted - baseline
 
 
-def calculate_baseline_manual(x_data, y_data, anchor_x, method="linear"):
+def calculate_baseline_manual(x_data: Any, y_data: Any, anchor_x: Any,
+                              method: str = "linear") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """指定した X 位置でデータを補間した点を、線形("linear")か 3 次スプライン("spline")で結ぶ。"""
     if method not in ("linear", "spline"):
         raise ValueError(f"未知の補間方法です: {method}")
@@ -1055,7 +1077,8 @@ def calculate_baseline_manual(x_data, y_data, anchor_x, method="linear"):
     return x_sorted, baseline, y_sorted - baseline
 
 
-def calculate_confidence_band(x_eval, fit_func, popt, pcov, residuals, confidence=0.95, band_type="confidence"):
+def calculate_confidence_band(x_eval: Any, fit_func: Callable[..., Any], popt: Any, pcov: Any, residuals: Any,
+                              confidence: float = 0.95, band_type: str = "confidence") -> dict[str, Any]:
     """非線形回帰の信頼帯・予測帯をデルタ法(線形化)で近似する。
 
     各点で J(x) @ pcov @ J(x).T を分散とする。予測帯はさらに残差の平均二乗誤差を足す。
@@ -1115,7 +1138,8 @@ def calculate_confidence_band(x_eval, fit_func, popt, pcov, residuals, confidenc
     }
 
 
-def calculate_resample_to_grid(x_data, y_data, target_x, method="linear", extrapolate=False):
+def calculate_resample_to_grid(x_data: Any, y_data: Any, target_x: Any, method: str = "linear",
+                               extrapolate: bool = False) -> np.ndarray:
     """(x_data, y_data) を target_x の格子に補間する。
 
     extrapolate=False(既定)は元の X の範囲外を NaN にする。True のとき "linear" は両端の傾きで
@@ -1179,7 +1203,7 @@ def calculate_resample_to_grid(x_data, y_data, target_x, method="linear", extrap
     return result
 
 
-def calculate_average_duplicate_x(x_data, y_data):
+def calculate_average_duplicate_x(x_data: Any, y_data: Any) -> dict[str, Any]:
     """同じ X の行の Y を平均する。重複の「除去」は index ラベルが要るので呼び出し側で行う。"""
     x_data = np.asarray(x_data, dtype=float)
     y_data = np.asarray(y_data, dtype=float)
@@ -1214,7 +1238,7 @@ def calculate_average_duplicate_x(x_data, y_data):
 # 外れ値の検出。マスクへの適用は利用者が選ぶので、ここでは検出だけ。
 # is_outlier は入力と同じ長さと並び(NaN は False)。visible_df.index[is_outlier] でそのまま引けるように。
 
-def sample_standard_deviation(values):
+def sample_standard_deviation(values: Any) -> float:
     """標本標準偏差(n−1 で割る)。有効な値が 2 未満なら NaN。
 
     アプリ内の「標準偏差」はすべてこれで計算する。場所によって n と n−1 が混ざると同じデータで値が違って見える。
@@ -1226,7 +1250,7 @@ def sample_standard_deviation(values):
     return float(np.std(arr, ddof=1))
 
 
-def calculate_zscore_outliers(y_data, threshold=3.0):
+def calculate_zscore_outliers(y_data: Any, threshold: float = 3.0) -> dict[str, Any]:
     if threshold <= 0:
         raise ValueError("しきい値は正の値である必要があります。")
 
@@ -1250,7 +1274,7 @@ def calculate_zscore_outliers(y_data, threshold=3.0):
     }
 
 
-def calculate_iqr_outliers(y_data, multiplier=1.5):
+def calculate_iqr_outliers(y_data: Any, multiplier: float = 1.5) -> dict[str, Any]:
     """[Q1 - multiplier*IQR, Q3 + multiplier*IQR] の外を外れ値とする。"""
     if multiplier <= 0:
         raise ValueError("係数は正の値である必要があります。")
@@ -1276,7 +1300,7 @@ def calculate_iqr_outliers(y_data, multiplier=1.5):
     }
 
 
-def calculate_lttb_downsample(x_data, y_data, n_out):
+def calculate_lttb_downsample(x_data: Any, y_data: Any, n_out: int) -> np.ndarray:
     """Largest-Triangle-Three-Buckets(Steinarsson 2013)による表示用の間引き。
 
     x_data はソート済みであること。選んだ点のインデックス(先頭と末尾を含む昇順)を返すので、
@@ -1320,7 +1344,7 @@ def calculate_lttb_downsample(x_data, y_data, n_out):
     return selected
 
 
-def calculate_histogram(data, bins='auto', density=False):
+def calculate_histogram(data: Any, bins: Any = 'auto', density: bool = False) -> dict[str, Any]:
     """ビン中心と度数(density=True なら確率密度)を返す。"""
     data = np.asarray(data, dtype=float)
     data = data[~np.isnan(data)]
@@ -1336,7 +1360,7 @@ def calculate_histogram(data, bins='auto', density=False):
     }
 
 
-def calculate_kde(data, n_points=200, bw_method=None):
+def calculate_kde(data: Any, n_points: int = 200, bw_method: Any = None) -> dict[str, Any]:
     data = np.asarray(data, dtype=float)
     data = data[~np.isnan(data)]
     if len(data) < 2:
@@ -1350,7 +1374,7 @@ def calculate_kde(data, n_points=200, bw_method=None):
     return {'x_grid': x_grid, 'density': density, 'n_points_used': len(data)}
 
 
-def calculate_error_propagation(operation, value_a, error_a, value_b, error_b):
+def calculate_error_propagation(operation: str, value_a: Any, error_a: Any, value_b: Any, error_b: Any) -> np.ndarray:
     """独立な誤差を仮定した誤差伝播。
 
     除算は、分子がゼロのときに NaN にならないよう、比ではなく分母で割る形の式にしている。
@@ -1375,7 +1399,7 @@ def calculate_error_propagation(operation, value_a, error_a, value_b, error_b):
 _XCORR_MAX_GRID_POINTS = 20000
 
 
-def calculate_cross_correlation_alignment(x_a, y_a, x_b, y_b):
+def calculate_cross_correlation_alignment(x_a: Any, y_a: Any, x_b: Any, y_b: Any) -> dict[str, float]:
     """B を A に重ねるための X のシフト量(x_b + shift)を相互相関のピークから求める。
 
     両者の範囲全体を覆う等間隔グリッドに補間し(範囲外は 0)、平均を引いてから相関を取る。
@@ -1426,7 +1450,8 @@ def calculate_cross_correlation_alignment(x_a, y_a, x_b, y_b):
     return {'shift': shift, 'grid_step': float(step), 'correlation_peak': float(corr[best_idx])}
 
 
-def assign_peak_label_levels(peak_x_values, x_axis_span, proximity_ratio=0.05, max_levels=4):
+def assign_peak_label_levels(peak_x_values: Any, x_axis_span: float, proximity_ratio: float = 0.05,
+                             max_levels: int = 4) -> list[int]:
     """X が近いピークのラベルに互い違いの段番号を割り当てる(ずらす量は呼び出し側で決める)。"""
     peak_x_values = list(peak_x_values)
     if x_axis_span <= 0 or not peak_x_values:
@@ -1446,7 +1471,7 @@ def assign_peak_label_levels(peak_x_values, x_axis_span, proximity_ratio=0.05, m
     return levels
 
 
-def split_dataframe_by_column(df, split_col):
+def split_dataframe_by_column(df: Any, split_col: str) -> dict[str, Any]:
     """区分列の値ごとに DataFrame を分ける(long 形式のデータ)。
 
     グループはファイル中の初出順(測定順などの並びに意味があることが多い)。
@@ -1467,7 +1492,7 @@ def split_dataframe_by_column(df, split_col):
     return {'groups': groups, 'n_dropped': n_dropped, 'n_groups': len(groups)}
 
 
-def _format_group_label(value):
+def _format_group_label(value: Any) -> str:
     """numpy のスカラは str() すると 'np.float64(1.5)' になるので、Python の型にしてから文字列にする。"""
     if hasattr(value, 'item'):
         try:
