@@ -505,6 +505,17 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
         super().mousePressEvent(event)
 
 
+def _insert_form_row_after(form, anchor, *row):
+    """
+    form の、anchor(ラベルか欄のウィジェット)がある行の次に行を入れる。
+    行番号で入れると、ほかの挿入の順番が変わったときに黙って別の位置に入る。
+    """
+    anchor_row, _ = form.getWidgetPosition(anchor)
+    if anchor_row < 0:
+        raise ValueError(f"{anchor!r} は {form.objectName()} にありません")
+    form.insertRow(anchor_row + 1, *row)
+
+
 #==============================================================================
 # メインアプリケーションクラス
 #==============================================================================
@@ -565,6 +576,26 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         )
         self._autosave_filename = self._autosave_base_filename
 
+        self._load_designer_ui()
+        self._init_state()
+        self._setup_window()
+        self._build_canvas_and_toolbar()
+        self._setup_status_bar()
+        self._build_dataset_color_picker()
+        self._build_dataset_list_buttons()
+        self._build_dataset_style_controls()
+        self._build_legend_location_control()
+        self._build_fit_info_and_stats()
+        self._build_secondary_y_controls()
+        self._build_tick_grid_and_colorbar_controls()
+        self._build_tick_format_controls()
+        self._build_label_editors()
+        self._add_subplot_target_row()
+        self._arrange_property_docks()
+        self._rebuild_label_tab()
+        self._connect_and_initialize()
+
+    def _load_designer_ui(self):
         # --- 1. UIファイルのロード ---
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
@@ -626,6 +657,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #  tr("プロパティ") へ設定し直す)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.control_dock_widget)
 
+    def _init_state(self):
         # --- 2. 状態変数の初期化 ---
         self.data_editor_dialog = None # データエディタ (非モーダル) のインスタンス保持用
         self.help_dialog = None        # mathtextヘルプ (非モーダル) のインスタンス保持用
@@ -769,6 +801,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._legend_font = _make_default_plot_font()
         self._legend_color = '#000000'
 
+    def _setup_window(self):
         # --- 3. ウィンドウサイズとレイアウトの基本設定 ---
         self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         self.ui.control_dock_widget.setFixedWidth(CONTROL_DOCK_WIDTH) # 右側パネルの幅を固定
@@ -784,7 +817,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.ui.gridLayout_2.setRowStretch(2, 0)  # データセットリスト: 内容に応じた高さのみ
         self.ui.gridLayout_2.setRowStretch(3, 0)  # 操作ボタン行: 内容に応じた高さのみ
 
-
+    def _build_canvas_and_toolbar(self):
         # --- 4. Matplotlib キャンバスとツールバーの組み込み ---
 
         # MplCanvas (グラフ描画領域) を作成
@@ -982,14 +1015,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.minimap.setVisible(self.minimap_visible)
         self.minimap_separator.setVisible(self.minimap_visible)
 
+    def _setup_status_bar(self):
         # --- 5. ステータスバーの設定 ---
         self.coordinate_label = QLabel("X= ---, Y= ---")
         # addPermanentWidget で、ステータスバーの右側に常時表示
         self.ui.statusbar.addPermanentWidget(self.coordinate_label)
 
-
-        # --- 6. UIの「動的構築」 (Designer で定義されていないUIをコードで追加) ---
-
+    def _build_dataset_color_picker(self):
         # 0. データセットの色選択欄を、スウォッチ+カラーコード入力欄の複合ウィジェットに
         #    差し替える(項目65: パレット展開ボタン+カラーコード直接編集)
         old_color_button = self.ui.color_button
@@ -1003,6 +1035,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.new_dataset_button = QPushButton(tr("新規データセット作成..."))
         self.ui.horizontalLayout_3.insertWidget(1, self.new_dataset_button)
 
+    def _build_dataset_list_buttons(self):
         # 1. 「プロット複製」「データ編集」ボタンをコードで作成
         self.duplicate_dataset_button = QPushButton(tr("プロット複製"))
         self.view_edit_data_button = QPushButton(tr("データ表示/編集"))
@@ -1109,6 +1142,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         #     (色ピッカーの replaceWidget) との順序は変えないこと。
         self._build_dataset_property_sections()
 
+    def _build_dataset_style_controls(self):
         # 2. X/Y軸 列選択コンボボックスをコードで作成
         self.x_col_combo = QComboBox()
         self.y_col_combo = QComboBox()
@@ -1320,27 +1354,30 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._prop_form('style').addRow(self.ui.smoothing_checkbox)
         self._prop_form('style').addRow(self.smoothing_method_label, self.smoothing_method_combo)
 
+    def _build_legend_location_control(self):
         # 3. 凡例の位置を選択するUIをコードで作成
         self.legend_loc_label = QLabel("凡例の位置")
         self.legend_loc_combo = QComboBox()
         self.legend_loc_combo.addItems([
             "best", "upper right", "upper left", "lower left", "lower right", "center"
         ])
-        # Designer 上の既存のフォームレイアウト (formLayout_3) の7行目に挿入
-        self.ui.formLayout_3.insertRow(7, self.legend_loc_label, self.legend_loc_combo)
+        _insert_form_row_after(self.ui.formLayout_3, self.ui.legend_visible_checkbox,
+                               self.legend_loc_label, self.legend_loc_combo)
 
         # (凡例フォント・色ボタンも同様に追加)
         self.legend_font_label = QLabel("凡例フォント")
         self.legend_font_button = QPushButton("フォント選択...")
-        self.ui.formLayout_3.insertRow(8, self.legend_font_label, self.legend_font_button)
+        _insert_form_row_after(self.ui.formLayout_3, self.legend_loc_combo,
+                               self.legend_font_label, self.legend_font_button)
 
         self.legend_color_label = QLabel("凡例 文字色")
         self.legend_color_button = QPushButton("色選択...")
-        self.ui.formLayout_3.insertRow(9, self.legend_color_label, self.legend_color_button)
+        _insert_form_row_after(self.ui.formLayout_3, self.legend_font_button,
+                               self.legend_color_label, self.legend_color_button)
 
         # (凡例の表示順序: 描画順とは独立にドラッグで並べ替えできるようにする)
         self.legend_order_button = QPushButton("凡例の順序...")
-        self.ui.formLayout_3.insertRow(10, self.legend_order_button)
+        _insert_form_row_after(self.ui.formLayout_3, self.legend_color_button, self.legend_order_button)
 
         # フォント選択/色選択ボタン群にアイコンを追加(ユーザーフィードバックを受けて)
         # ★ 項目H-4: インスタンス属性として保持し、_refresh_custom_svg_iconsから
@@ -1357,6 +1394,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         for button, icon_name in self._field_icon_buttons.items():
             button.setIcon(_svg_icon(icon_name, size=16))
 
+    def _build_fit_info_and_stats(self):
         # 4. フィット情報表示用のUI (非表示で) 追加
         self.fit_info_label = QLabel("フィット情報")
         self.fit_info_textedit = QTextEdit()
@@ -1397,10 +1435,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         stats_widget_action.setDefaultWidget(stats_popup)
         stats_menu.addAction(stats_widget_action)
         self.stats_toolbar_button.setMenu(stats_menu)
-        toolbar.addSeparator()
-        toolbar.addWidget(self.stats_toolbar_button)
+        self.mpl_toolbar.addSeparator()
+        self.mpl_toolbar.addWidget(self.stats_toolbar_button)
 
-
+    def _build_secondary_y_controls(self):
         # 5. 第2Y軸チェックボックスを追加
         self.use_secondary_y_checkbox = QCheckBox("第2Y軸 (右側) を使用")
         self._prop_form('place').addRow(self.use_secondary_y_checkbox)
@@ -1408,8 +1446,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 6. 第2Y軸ラベル用のUI (非表示で) 追加
         self.y2_label_text_label = QLabel("第2Y軸ラベル")
         self.y2_label_text_edit = QLineEdit()
-        self.ui.formLayout_3.insertRow(3, self.y2_label_text_label, self.y2_label_text_edit)
+        _insert_form_row_after(self.ui.formLayout_3, self.ui.y_label_text_edit,
+                               self.y2_label_text_label, self.y2_label_text_edit)
 
+    def _build_tick_grid_and_colorbar_controls(self):
         # 7. 目盛り方向UIを追加
         self.tick_direction_label = QLabel("主軸目盛(主/補助)")
         self.major_tick_direction_combo = QComboBox()
@@ -1429,8 +1469,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         dir_y2_layout.addWidget(self.major_tick_direction_y2_combo)
         dir_y2_layout.addWidget(self.minor_tick_direction_y2_combo)
 
-        self.ui.formLayout_3.insertRow(5, self.tick_direction_label, dir_layout)
-        self.ui.formLayout_3.insertRow(6, self.tick_direction_y2_label, dir_y2_layout)
+        _insert_form_row_after(self.ui.formLayout_3, self.ui.tick_format_label, self.tick_direction_label, dir_layout)
+        _insert_form_row_after(self.ui.formLayout_3, self.tick_direction_label, self.tick_direction_y2_label, dir_y2_layout)
 
         # 7b. グリッド線の詳細カスタマイズ(項目82): X軸/Y軸・主目盛/補助目盛の
         #     それぞれに独立した線種(実線/破線/点線/一点鎖線)・太さ・透過度を
@@ -1497,18 +1537,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_major_grid_style_label = QLabel(tr("Y軸主目盛"))
         self.y_minor_grid_style_label = QLabel(tr("Y軸補助目盛"))
 
-        _minor_grid_row, _minor_grid_role = self.ui.formLayout_3.getWidgetPosition(
-            self.ui.minor_grid_visible_checkbox
-        )
-        _grid_style_insert_at = _minor_grid_row + 1
+        _grid_style_anchor = self.ui.minor_grid_visible_checkbox
         for _grid_style_label, _grid_style_layout in (
             (self.x_major_grid_style_label, x_major_grid_layout),
             (self.x_minor_grid_style_label, x_minor_grid_layout),
             (self.y_major_grid_style_label, y_major_grid_layout),
             (self.y_minor_grid_style_label, y_minor_grid_layout),
         ):
-            self.ui.formLayout_3.insertRow(_grid_style_insert_at, _grid_style_label, _grid_style_layout)
-            _grid_style_insert_at += 1
+            _insert_form_row_after(self.ui.formLayout_3, _grid_style_anchor, _grid_style_label, _grid_style_layout)
+            _grid_style_anchor = _grid_style_label
 
         # 7c. 目盛線の長さ(pt、実機フィードバック): 主目盛/補助目盛。
         #     「目盛の太さ」の直後に置く。上のグリッド線と同じく行番号を
@@ -1542,10 +1579,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         tick_length_layout = QHBoxLayout()
         tick_length_layout.addWidget(self.major_tick_length_spinbox)
         tick_length_layout.addWidget(self.minor_tick_length_spinbox)
-        _tick_width_row, _tick_width_role = self.ui.formLayout_3.getWidgetPosition(
-            self.ui.tick_width_spinbox
-        )
-        self.ui.formLayout_3.insertRow(_tick_width_row + 1, self.tick_length_label, tick_length_layout)
+        _insert_form_row_after(self.ui.formLayout_3, self.ui.tick_width_spinbox,
+                               self.tick_length_label, tick_length_layout)
 
         # 7b. カラーバー(ヒートマップ用、項目C-501): このサブプロットに2Dマップ
         # (項目C-508)が描画されている場合のみ意味を持つ(gui/canvas.pyの
@@ -1576,6 +1611,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.colorbar_label_edit = QLineEdit()
         self.ui.formLayout_3.addRow(self.colorbar_label_label, self.colorbar_label_edit)
 
+    def _build_tick_format_controls(self):
         # 8. 目盛りの指数表記フォーマット切り替え(項目62)
         #    自動/軸端にまとめて指数表記/目盛りごとに指数表記/常に小数表記 から選択
         tick_format_choices = [
@@ -1700,6 +1736,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_log_minor_subs_combo.setVisible(False)
         self.y_log_minor_labels_checkbox.setVisible(False)
 
+    def _build_label_editors(self):
         # 9. タイトル/軸ラベル入力欄を、クリックで編集ダイアログを開く
         #    mathtextプレビューラベルに差し替える(項目61/H-2-4追加分)。
         #    ★ ポップアップウィンドウ化(実機フィードバック、レイアウト画像の
@@ -1778,8 +1815,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     self._open_label_edit_dialog(le, dt)
             )
 
-        # --- 7. UIの「動的リファクタリング」 (Designer のUI構造をコードで変更) ---
-
+    def _add_subplot_target_row(self):
         # 1. 「描画先」コンボボックスを "プロパティ" 欄に追加
         self.subplot_target_label = QLabel("描画先プロット")
         self.subplot_target_combo = QComboBox()
@@ -1787,6 +1823,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # フィット情報欄 (上で構築済み) は、このセクションの最後に置く
         self._prop_form('place').addRow(self.fit_info_label, self.fit_info_textedit)
 
+    def _arrange_property_docks(self):
         # 2. ★ GUI洗練: 「プロットのプロパティ」(control_dock_widget) と
         #    「データセットのプロパティ」(properties_groupbox) は、以前は別々の
         #    QDockWidgetとして右側に縦積みされていた。それぞれが独自のOS標準
@@ -1910,6 +1947,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         self.export_preview_dock_widget.visibilityChanged.connect(_on_export_preview_visibility_changed)
 
+    def _rebuild_label_tab(self):
         # 5. ★ 「ラベル/書式」タブのレイアウトを「手術」する
         #    (サブプロット設定用のUIを先頭に挿入するため)
         layout_group = QGroupBox(tr("グラフ全体レイアウト"))
@@ -2005,6 +2043,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             # 9. 既存のレイアウトを 2行目 に追加し直す
             grid_layout.addItem(existing_layout_item, 2, 0)
 
+    def _connect_and_initialize(self):
         # --- 8. イベント接続と初期化の呼び出し ---
 
         # Matplotlib のマウス移動イベント -> ステータスバー座標更新
