@@ -38,12 +38,11 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   PluginContext(タブ×プラグインごと)で本体を操作し、import してよいのは graphica.plugin / graphica.plugin.testing
   だけ。版は「主番号一致・小番号以下」で読み込む。tests/test_plugin_public_api.py が公開 API を固定。
   ハブを再公開(Version 4)、P-805 は 2.0 対応を push 済み(graphica-plugin-element-constants main 6b7b4ca)。
-- I-1 実装済み(ブランチ refactor/i1-package-move、d452755): 本体を Graphica_project/graphica/ の1パッケージへ移動。
-  旧名の別名は残さない。旧形式 .pkl の "core.dataset" だけ読み替える。起動は python -m graphica(main.py は薄い入口)。
-  **I-1 の PR をマージするまで master のコード変更は止めてもらっている。** マージ後、本体フォルダ
-  (PlotterApp)を git pull すると、プラグインのリポジトリの editable install も新しい配置を参照する。
-- K-14 登録(pip 版で site-packages に plugins フォルダを作ろうとする)。I-1 の直後に fix: で直す。
-- 次: I-1 の PR → マージ → H-1(方針確認)。
+- I-1 完了、PR #16 で master に取り込み済み(マージコミット 00fa917、2026-09-19)。本体は Graphica_project/graphica/ の
+  1パッケージ。旧名の別名は残さない。旧形式 .pkl の "core.dataset" だけ読み替える。起動は python -m graphica
+  (main.py は薄い入口)。master のコード変更の停止は解除してよい。
+- K-14(pip 版で site-packages に plugins フォルダを作ろうとする)を c085c43 で修正。
+- 次: H-1(dataset_mixin の分割、方針確認)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
