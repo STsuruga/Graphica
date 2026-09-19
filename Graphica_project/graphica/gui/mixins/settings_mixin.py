@@ -166,7 +166,6 @@ class SettingsMixin:
             self.active_axis_combo.setCurrentIndex(self.project.active_axis_index)
 
             # 「描画先」の選択はデータセットを選んだときに property_panel.update_ui_state が決める
-
             self.active_axis_combo.blockSignals(False)
             self.subplot_target_combo.blockSignals(False)
 

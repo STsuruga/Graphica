@@ -328,7 +328,6 @@ class DataEditorDialog(QDialog):
             if (is_nan_old and not is_nan_new) or \
                (not is_nan_old and is_nan_new) or \
                (not is_nan_old and not is_nan_new and old_value != new_value):
-                
                 command = EditCellCommand(self.dataset, original_index, col_name, old_value, new_value)
                 self.undo_stack.push(command)
             

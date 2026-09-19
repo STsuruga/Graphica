@@ -1510,7 +1510,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             grid_layout.addItem(existing_layout_item, 2, 0)
 
     def _connect_and_initialize(self):
-
         self.canvas.mpl_connect('motion_notify_event', self._on_mouse_move)
 
         # グラフの要素のクリックでの選択は、どのモードでも常に有効
