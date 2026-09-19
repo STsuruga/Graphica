@@ -505,23 +505,18 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
         super().mousePressEvent(event)
 
 
-#==============================================================================
-# メインアプリケーションクラス
-#==============================================================================
-# 各 Mixin が担当する責務:
-#   UISetupMixin    : 一度きりのUI初期化 (シグナル接続, メニューバー, 初期状態)
-#   SettingsMixin   : プロット(軸)の外観設定の収集/適用、フォント・色ダイアログ
-#   DatasetMixin    : データセットの追加/削除/複製/プロパティ編集、フィット・ピーク検出
-#   CursorMixin     : データカーソル (グラフ上のクリックで座標表示) 機能
-#   ExportMixin     : 画像/PDF/SVGへのエクスポートとプレビュー生成
-#   ProjectIOMixin  : プロジェクト保存/読込メニューと書式テンプレート機能
-#   HelpMixin       : ヘルプダイアログ
-#   QuickAccessMixin: クイックアクセスのカスタムツールバー(項目87)
-#   PeakPlacementMixin: グラフクリックによる多峰分離フィットの初期値配置(項目C-410)
-#   SliceExtractionMixin: 2Dマップからのドラッグによる1Dスライス抽出(項目C-511)
-#   RegionHighlightMixin: ドラッグによる領域ハイライト(縦帯/横帯)の追加(項目C-701)
-# PlotterApp 本体には、初期化・ファイルI/Oの中核・プロット更新など、
-# 上記どれにも属さない「アプリのエントリーポイント」的な処理のみを残す。
+def _insert_form_row_after(form, anchor, *row):
+    """
+    form の、anchor(ラベルか欄のウィジェット)がある行の次に行を入れる。
+    行番号で入れると、ほかの挿入の順番が変わったときに黙って別の位置に入る。
+    """
+    anchor_row, _ = form.getWidgetPosition(anchor)
+    if anchor_row < 0:
+        raise ValueError(f"{anchor!r} は {form.objectName()} にありません")
+    form.insertRow(anchor_row + 1, *row)
+
+
+# 1つのタブ。機能ごとの mixin の役割は CLAUDE.md の「PlotterApp mixin composition」
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                   MouseModeMixin,
                   CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
@@ -539,79 +534,69 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def __init__(self, run_startup_checks=True, tab_id=None):
         """
-        アプリケーションの初期化 (コンストラクタ)。
-        UIのロード、状態変数の初期化、動的UIの構築、シグナル接続を行います。
+        画面を組み立てる。組み立ての各段は後の段が前の段で作った部品を使うので、呼ぶ順番は変えない。
 
         Args:
-            run_startup_checks (bool): オートセーブ復元確認・初回起動ウェルカム表示・
-                ウィンドウの表示状態(ドック配置)復元/保存・clean_exitフラグの管理を
-                行うかどうか。複数プロジェクトタブ(項目40)機能で、MainAppWindowが
-                2つ目以降のタブとしてこのクラスを起動する際は False にする
-                (これらはアプリ全体で1回・1つのタブに対してのみ意味を持つ処理のため)。
-            tab_id (int, optional): タブ化機能で複数インスタンスを同時に開く際、
-                オートセーブファイルが衝突しないよう区別するための番号。
-                None(既定、単独起動または最初のタブ)の場合は従来通りの
-                ファイル名 (autosave.graphica) を使う。
+            run_startup_checks (bool): オートセーブからの復元確認・初回の案内・ドック配置の復元と保存・
+                clean_exit の管理をするか。アプリ全体で1回だけ意味を持つので、2つ目以降のタブでは False。
+            tab_id (int, optional): 2つ目以降のタブの番号。オートセーブのファイル名が重ならないようにする。
+                None なら autosave.graphica。
         """
         super().__init__()
         self._run_startup_checks = run_startup_checks
         self.tab_id = tab_id
-        # ★ 複数タブが同時にオートセーブすると同じファイルを取り合ってしまうため、
-        # 最初のタブ(=従来の単独起動と同じ)以外は専用のファイル名を使う。
-        # (保存先ディレクトリの反映は self.settings 作成後に _update_autosave_path で行う)
+        # 保存先のフォルダは self.settings を作った後に _update_autosave_path で決める
         self._autosave_base_filename = (
             AUTOSAVE_FILENAME if not tab_id
             else f"autosave_tab{tab_id}{os.path.splitext(AUTOSAVE_FILENAME)[1]}"
         )
         self._autosave_filename = self._autosave_base_filename
 
-        # --- 1. UIファイルのロード ---
+        self._load_designer_ui()
+        self._init_state()
+        self._setup_window()
+        self._build_canvas_and_toolbar()
+        self._setup_status_bar()
+        self._build_dataset_color_picker()
+        self._build_dataset_list_buttons()
+        self._build_dataset_style_controls()
+        self._build_legend_location_control()
+        self._build_fit_info_and_stats()
+        self._build_secondary_y_controls()
+        self._build_tick_grid_and_colorbar_controls()
+        self._build_tick_format_controls()
+        self._build_label_editors()
+        self._add_subplot_target_row()
+        self._arrange_property_docks()
+        self._rebuild_label_tab()
+        self._connect_and_initialize()
+
+    def _load_designer_ui(self):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        # 塗りつぶし(エリア)プロット / 棒グラフ: Qt Designerが生成したコンボボックスに
-        # 実行時に選択肢を追加する (他の動的追加ウィジェットと同じ方針で、
-        # ui_main_window.py 自体は編集しない)
+        # ui_main_window.py は生成物なので、Designer に無い種類はここで足す
         self.ui.plot_type_combo.addItem("Area")
         self.ui.plot_type_combo.addItem("Bar")
-        self.ui.plot_type_combo.addItem("Step")  # 階段プロット(項目113、C-503)
-        self.ui.plot_type_combo.addItem("Density Scatter")  # 2D密度散布図(項目117、C-507)
-        # 3列目の値で点を配色する散布図(改善ボード D-2)。Density Scatterが「点の密度」で
-        # 色を付けるのに対し、こちらは z_col_combo で選んだ任意の列の値で色を付ける
-        # (温度・時間・濃度・深さ等の測定条件を1枚の散布図に載せる定番の表現)。
+        self.ui.plot_type_combo.addItem("Step")
+        self.ui.plot_type_combo.addItem("Density Scatter")
         self.ui.plot_type_combo.addItem(COLOR_BY_COLUMN_PLOT_TYPE)
 
-        # ★ データセットリストを QListWidget から QTreeWidget に置き換える。
-        #   フォルダによるグループ分けに対応するため (Designerが生成する
-        #   dataset_list_widget は QListWidget なので、実行時に同じ位置へ差し替える)。
+        # フォルダ分けのため、Designer の QListWidget を同じ位置の QTreeWidget に差し替える
         self._replace_dataset_list_with_tree()
 
         self.project = ProjectModel()
-        # ProjectModelのシグナル化(項目80、C-005、最小スコープ版)。既存の
-        # 「ミューテーション箇所ごとに self._update_plot() を明示的に呼ぶ」規約
-        # (約38箇所)はそのまま維持しつつ、`project.notify_changed()`を呼ぶだけで
-        # 再描画に繋がる経路をここで一度だけ配線しておく(詳細はProjectModelの
-        # クラスdocstring参照)。
+        # 新しい変更の経路が project.notify_changed() だけで描き直せるように(既存の箇所は _update_plot を直接呼ぶ)
         self.project.changed.connect(self._update_plot)
-        # アプリの設定 (オートセーブ間隔、最近使ったファイル一覧) を永続化するためのストレージ
         self.settings = QSettings("Graphica", "Graphica")
-        # オートセーブの保存先(環境設定で指定可能): 未設定なら従来どおりアプリのフォルダ
         self._update_autosave_path()
-        # 色選択ダイアログの「最近使った色」をカスタムカラー欄に復元する
         load_recent_colors_into_picker(self.settings)
 
-        # UIの多言語対応(項目41): 保存済みの表示言語をここで反映する。
-        # (以降に構築されるメニュー・主要ボタン等の tr() 呼び出しに影響するため、
-        #  UI構築より前、できるだけ早い段階で行う必要がある)
+        # 以降に作るメニューやボタンの tr() に効くので、画面を組み立てる前に
         set_language(self.settings.value("language", DEFAULT_LANGUAGE))
 
-        # 前回のセッションが正常終了したかどうかのフラグ。
-        # 起動時に読み取った直後にFalseへ書き換え、closeEvent()で正常終了時のみ
-        # Trueに戻す。次回起動時にFalseのままなら、前回はクラッシュ等で異常終了した
-        # とみなし、オートセーブからの復元を提案する (_check_autosave_recovery)。
-        # ★ このフラグはアプリ全体で共有する1つのQSettings値のため、複数タブが
-        # 同時に読み書きすると意味を成さなくなる。run_startup_checks=Falseの
-        # (2つ目以降の)タブでは一切触らない。
+        # 起動時に False にし、正常に閉じたときだけ closeEvent で True に戻す。次の起動で False なら異常終了とみなし、
+        # オートセーブからの復元を勧める。アプリ全体で1つの値なので、2つ目以降のタブは触らない
         if self._run_startup_checks:
             self._had_clean_exit = self.settings.value("clean_exit", True, type=bool)
             self.settings.setValue("clean_exit", False)
@@ -621,37 +606,30 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.setWindowTitle(f"{APP_NAME} {__version__}")
         icon_path = resource_path("Graphica.ico")
         self.setWindowIcon(QIcon(icon_path))
-        # Designer で作成したドックウィジェット (右側のパネル) をメインウィンドウに追加
-        # (タイトルは、後段でプロパティ/データセットの2セクションを統合する際に
-        #  tr("プロパティ") へ設定し直す)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.control_dock_widget)
 
-        # --- 2. 状態変数の初期化 ---
-        self.data_editor_dialog = None # データエディタ (非モーダル) のインスタンス保持用
-        self.help_dialog = None        # mathtextヘルプ (非モーダル) のインスタンス保持用
-        self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
-        self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
-        self._batch_export_task_runner = None  # バッチエクスポート用バックグラウンドタスク(項目C-004フェーズ5b)の保持用
-        self._update_check_task_runner = None  # アップデート確認用バックグラウンドタスク(項目161、C-1203)の保持用
-        self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
-        self._data_load_queue_total = 0  # 現在処理中のバッチの総ファイル数 (進捗表示用)
-        self._data_load_queue_done = 0   # 現在処理中のバッチで読み込みを開始した件数 (進捗表示用)
-        # フォルダから一括インポート(項目C-104)でユーザーが指定した、ファイル名
-        # から列を抽出する正規表現(未使用時はNone)。_import_loaded_dataframe
-        # が各ファイルのDataset構築前に適用し、_process_next_queued_fileが
-        # キューを使い切った時点でNoneに戻す(通常のドラッグ&ドロップ取込みには
-        # 影響しない)。
+    def _init_state(self):
+        # 非モーダルのダイアログとバックグラウンドの処理は、回収されないよう参照を持っておく
+        self.data_editor_dialog = None
+        self.help_dialog = None
+        self.calc_help_dialog = None
+        self._data_load_task_runner = None
+        self._batch_export_task_runner = None
+        self._update_check_task_runner = None
+        # 複数ファイルをまとめて読み込むときの待ち行列と進捗
+        self._data_load_queue = []
+        self._data_load_queue_total = 0
+        self._data_load_queue_done = 0
+        # フォルダからの一括取り込みで、ファイル名から列を取り出す正規表現。待ち行列を使い切ったら None に戻す
         self._batch_import_filename_regex = None
         # 上書き保存先。None なら manual_save() は「名前を付けて保存」になる。
         # タブ名もこの値から作る(ProjectModel.current_filepath はオートセーブでも変わる)。
         self._current_project_path = None
         self._restored_unsaved = False  # オートセーブから復元し、まだ保存していない
-        # 未保存の変更の検出(v1.4.2): 直前に保存/読み込みした時点の内容のハッシュ
-        # (ProjectModel.content_fingerprint)。None は「ファイルと対応していない」状態。
+        # 直前に保存/読み込みした時点の内容のハッシュ(未保存の変更の判定)。None はファイルと対応していない
         self._saved_content_fingerprint = None
 
-        # データセットのプロパティ変更 (色・線種・凡例名など) 用の Undo/Redo スタック
-        # (DataEditorDialog 内のセル編集用スタックとは別物)
+        # データエディタのセル編集の Undo とは別
         self.undo_stack = QUndoStack(self)
 
         # データセットに対する操作を機能ごとに分けたクラス。窓口(DatasetHost)は本体に使うときに触れるので、
@@ -666,9 +644,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.plugin_runs = PluginRunController(self._dataset_host)
         self.property_panel = DatasetPropertyPanel(self)
 
-        # オートセーブ用タイマーの設定 (間隔は設定から復元。0分なら無効化されたまま)
-        # ★ _create_menu_bar() がメニューの初期表示テキストのために参照するため、
-        #   メニュー作成より前にここで用意しておく必要がある。
+        # メニューを作るときに参照するので、ここで用意する(0分なら止めたまま)
         self.autosave_timer = QTimer(self)
         self.autosave_timer.timeout.connect(self.auto_save)
         saved_interval_min = self.settings.value(
@@ -677,90 +653,73 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         if saved_interval_min > 0:
             self.autosave_timer.start(saved_interval_min * 60 * 1000)
 
-        # --- サブプロット管理用の変数 ---
-        self.all_axes = []           # すべての主軸 (Matplotlib Axes) を保持するリスト
-        self.all_secondary_axes = [] # すべての第2Y軸 (Axes) を保持するリスト
-        self.project.all_plot_settings = []  # すべての軸の設定 (辞書) を保持するリスト
-        self.project.active_axis_index = 0   # 現在編集中の軸インデックス (0始まり)
+        self.all_axes = []
+        self.all_secondary_axes = []
+        self.project.all_plot_settings = []
+        self.project.active_axis_index = 0
 
-        # --- データカーソル機能用の変数 ---
-        self.cursor_mode_enabled = False # カーソルモードがONかOFFか
-        self.cursor_connection_id = None # Matplotlib イベント接続ID (切断時に使用)
-        self.cursor_annotation = None    # 表示中の注釈 (Annotation) オブジェクト
+        # マウス操作の各モードの状態(接続 ID は切るときに使う)
+        self.cursor_mode_enabled = False
+        self.cursor_connection_id = None
+        self.cursor_annotation = None
 
-        # --- マウス操作拡充(項目C-908)の中ボタンドラッグパン用の状態 ---
-        # ドラッグ中かどうかは self._middle_pan_axes が None かどうかで判定する。
+        # 中ボタンでのパン。ドラッグ中かどうかは _middle_pan_axes が None かどうか
         self._middle_pan_axes = None
         self._middle_pan_start_data = None
         self._middle_pan_start_xlim = None
         self._middle_pan_start_ylim = None
 
-        # --- 自由なテキスト注釈・矢印機能用の変数 ---
-        self.annotation_mode_enabled = False   # 注釈モードがONかOFFか
-        self._annotation_press_cid = None      # button_press_event の接続ID
-        self._annotation_release_cid = None    # button_release_event の接続ID
-        self._annotation_drag_start = None     # ドラッグ開始点 (ax, x, y) または None
-        # スナップ・トゥ・グリッド(項目84): 設定から復元(既定では無効=従来どおりの挙動)
+        self.annotation_mode_enabled = False
+        self._annotation_press_cid = None
+        self._annotation_release_cid = None
+        self._annotation_drag_start = None     # (ax, x, y)
         self.snap_to_grid_enabled = self.settings.value(
             "snap_to_grid_enabled", DEFAULT_SNAP_TO_GRID_ENABLED, type=bool)
         self.snap_grid_interval_px = self.settings.value(
             "snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, type=int)
 
-        # --- 自由配置レイアウト(項目37)の編集モード用の変数 ---
-        self.layout_edit_mode_enabled = False  # レイアウト編集モードがONかOFFか
-        self._layout_edit_press_cid = None     # button_press_event の接続ID
-        self._layout_edit_motion_cid = None    # motion_notify_event の接続ID
-        self._layout_edit_release_cid = None   # button_release_event の接続ID
-        self._layout_edit_leave_cid = None     # figure_leave_event の接続ID(ドラッグ中に画面外へ出た時の保険)
-        self._layout_drag_state = None         # ドラッグ中の状態 (dict) または None
-        # 項目85: レイアウト編集モードでクリックして「選択」されているサブプロットの
-        # 軸インデックス (ドラッグ中かどうかとは独立して保持する)。数値入力欄
-        # (X/Y/幅/高さ)の表示対象・書き込み先を決めるために使う。未選択ならNone。
+        self.layout_edit_mode_enabled = False
+        self._layout_edit_press_cid = None
+        self._layout_edit_motion_cid = None
+        self._layout_edit_release_cid = None
+        self._layout_edit_leave_cid = None     # ドラッグ中に図の外へ出たとき用
+        self._layout_drag_state = None
+        # クリックで選んだ軸(ドラッグとは別)。位置と大きさの数値欄の対象
         self._layout_selected_axis_index = None
 
-        # --- グラフ上での範囲選択(項目C-909)用の変数 ---
-        self.range_select_mode_enabled = False  # 範囲選択モードがONかOFFか
+        self.range_select_mode_enabled = False
         self._range_select_press_cid = None
         self._range_select_motion_cid = None
         self._range_select_release_cid = None
-        self._range_select_axes = None          # ドラッグ中のAxes、またはNone
-        self._range_select_start_x = None       # ドラッグ開始点のXデータ座標
-        self._range_select_preview_artist = None  # ドラッグ中のプレビュー矩形
+        self._range_select_axes = None
+        self._range_select_start_x = None
+        self._range_select_preview_artist = None
 
-        # --- グラフクリックによるピーク配置(項目C-410、多峰分離フィットの初期値収集)用の変数 ---
-        self.peak_placement_mode_enabled = False  # ピーク配置モードがONかOFFか
+        self.peak_placement_mode_enabled = False
         self._peak_placement_press_cid = None
         self._pending_peak_guesses = []   # [{'center':, 'height':, 'width':}, ...]
-        self._pending_peak_markers = []   # [(guess, axvline, plot point), ...] (仮マーカーのArtist)
+        self._pending_peak_markers = []   # [(guess, axvline, plot point), ...]
 
-        # --- 2Dマップからのドラッグによる1Dスライス抽出(項目C-511)用の変数 ---
-        self.slice_extraction_mode_enabled = False  # スライス抽出モードがONかOFFか
+        self.slice_extraction_mode_enabled = False
         self._slice_extraction_press_cid = None
         self._slice_extraction_motion_cid = None
         self._slice_extraction_release_cid = None
-        self._slice_extraction_axes = None          # ドラッグ中のAxes、またはNone
-        self._slice_extraction_start = None         # ドラッグ開始点の(x, y)データ座標
-        self._slice_extraction_preview_artist = None  # ドラッグ中のプレビュー線
+        self._slice_extraction_axes = None
+        self._slice_extraction_start = None         # (x, y) データ座標
+        self._slice_extraction_preview_artist = None
 
-        # --- 領域ハイライト(項目C-701、ドラッグによる縦帯/横帯の追加)用の変数 ---
-        self.region_highlight_mode_enabled = False  # 領域ハイライトモードがONかOFFか
+        self.region_highlight_mode_enabled = False
         self._region_highlight_press_cid = None
         self._region_highlight_motion_cid = None
         self._region_highlight_release_cid = None
-        self._region_highlight_axes = None          # ドラッグ中のAxes、またはNone
-        self._region_highlight_start = None         # ドラッグ開始点の(x, y)データ座標
-        self._region_highlight_preview_artist = None  # ドラッグ中のプレビュー矩形
+        self._region_highlight_axes = None
+        self._region_highlight_start = None         # (x, y) データ座標
+        self._region_highlight_preview_artist = None
 
-        # --- デフォルトの書式設定 (これらが all_plot_settings[0] の初期値になる) ---
-        # ★ QFont() (=アプリ全体のUIフォントを継承) ではなく明示的に
-        #   _make_default_plot_font() (PLOT_DEFAULT_FONT_FAMILIES) を指定する。
-        #   グラフのテキストはmatplotlib自身のフォント解決系(独自のフォント
-        #   キャッシュ)を通るため、Qt側のUIフォント("Yu Gothic UI"等のUI専用
-        #   バリアント)をそのまま渡すとmatplotlibがフォントを解決できず
-        #   文字化けする(findfont警告)。UIのフォントとプロット内テキストの
-        #   フォントは別系統として扱う。
+        # 最初の軸の設定の既定値になる。フォントは QFont()(UI のフォント)にしない:
+        # matplotlib は "Yu Gothic UI" のような UI 用のフォントを解決できず、文字化けする
         self._tick_font = _make_default_plot_font()
-        self._tick_color = '#000000' # 黒
+        self._tick_color = '#000000'
         self._tick_width = 0.8
         self._axis_label_font = _make_default_plot_font()
         self._axis_label_color = '#000000'
@@ -769,90 +728,45 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._legend_font = _make_default_plot_font()
         self._legend_color = '#000000'
 
-        # --- 3. ウィンドウサイズとレイアウトの基本設定 ---
+    def _setup_window(self):
         self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
-        self.ui.control_dock_widget.setFixedWidth(CONTROL_DOCK_WIDTH) # 右側パネルの幅を固定
+        self.ui.control_dock_widget.setFixedWidth(CONTROL_DOCK_WIDTH)
 
-        # ★ GUI洗練: 中央ウィジェットのgridLayout_2は、どの行にも明示的な
-        #   stretch指定が無かったため、ウィンドウの余った縦スペースがキャンバス行(1)と
-        #   データセットリスト行(2)に均等に配分されてしまい、データセットが少ない時に
-        #   リストの下に大きな空白ができていた(旧properties_groupbox用の行5が
-        #   プロパティドックへ移動して空になった分の余白も、キャンバスではなく
-        #   リスト側に流れ込んでいた)。余ったスペースは常にキャンバスへ優先的に
-        #   割り当てるようにする。
-        self.ui.gridLayout_2.setRowStretch(1, 1)  # プロットキャンバス: 余白を優先的に受け取る
-        self.ui.gridLayout_2.setRowStretch(2, 0)  # データセットリスト: 内容に応じた高さのみ
-        self.ui.gridLayout_2.setRowStretch(3, 0)  # 操作ボタン行: 内容に応じた高さのみ
+        # 余った縦の空きはキャンバスに回す(指定しないとデータセット一覧と均等に分けられ、一覧の下が空く)
+        self.ui.gridLayout_2.setRowStretch(1, 1)  # キャンバス
+        self.ui.gridLayout_2.setRowStretch(2, 0)  # データセット一覧
+        self.ui.gridLayout_2.setRowStretch(3, 0)  # ボタンの行
 
-
-        # --- 4. Matplotlib キャンバスとツールバーの組み込み ---
-
-        # MplCanvas (グラフ描画領域) を作成
+    def _build_canvas_and_toolbar(self):
         self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
-        # ダークモード設定を復元
         self.canvas.dark_mode = self.settings.value("dark_mode", False, type=bool)
-        # ★ バグ修正: 以前はここでQApplication側の配色(QSS/パレット)を適用せず
-        # _create_menu_bar()まで先送りしていたが、この間(ツールバーの
-        # カーソル/注釈/レイアウト編集/ズームリセットボタン、データセット
-        # 操作ボタン群、フォント/色選択ボタン群など)に構築される多数の
-        # Tabler Iconsアイコンは、_svg_icon()が都度theme.current_tokens()から
-        # 色を解決する仕組みになっている。apply_theme()を一度も呼んでいない
-        # 時点ではtheme._current_tokensがNoneのままライト用トークンに
-        # フォールバックするため、「前回起動時にダークモードにしていた」
-        # ユーザーが次に起動すると、メインツールバーの各種アイコンだけ
-        # ライト用の暗いグレーで焼き込まれ、ダーク背景に対してほぼ見えない
-        # 状態になっていた(_on_toggle_dark_modeで一度手動でダークを
-        # 切り替え直すまで直らない)。アイコン構築が始まる前にここで
-        # 適用しておく(_create_menu_bar()側の呼び出しは、Fusionスタイルを
-        # 毎回確実に適用する目的もあり冪等なのでそのまま残す)。
+        # アイコンは作るときにテーマの色を焼き込むので、アイコンを作り始める前にテーマを当てる
+        # (当てないと、ダークモードで起動したときツールバーのアイコンがライト用の色になって見えない)
         theme.apply_theme(QApplication.instance(), self.canvas.dark_mode)
-        # データ点ラベルの表示上限(環境設定、項目105: 大量データでのフリーズ防止)
         self.canvas.point_label_max_points = self.settings.value(
             "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
-        # Matplotlib 標準のナビゲーションツールバーを作成
         toolbar = NavigationToolbar(self.canvas, self)
-        # ★ 項目H-4: matplotlib純正のNavigationToolbar2QTは、アイコン読み込み
-        #   (_icon())時にQPaletteのbackgroundRole()の明度を見て自動的に
-        #   ダークモード配色へ切り替える仕組みを内蔵しているが、これはツール
-        #   バー構築時(=常にライトモードのパレットで初期化されるアプリ起動時)
-        #   に一度だけ実行され、以後ダークモードに切り替えてもアイコンは
-        #   再読み込みされない(実機で発覚: home/back/forward/pan/zoom/save
-        #   アイコンがダークモードで見えにくいまま残っていた)。
-        #   _on_toggle_dark_mode(gui/mixins/ui_setup_mixin.py)から再読み込み
-        #   できるよう、インスタンス属性として保持しておく。
+        # matplotlib のツールバーはアイコンの明暗を作ったときに一度だけ決めるので、
+        # ダークモードの切り替え(_on_toggle_dark_mode)で作り直せるよう持っておく
         self.mpl_toolbar = toolbar
-        # ★ バグ修正: このツールバーはQMainWindowのツールバー領域ではなく
-        #   plot_container の通常のレイアウトに入れているため、幅が足りなくなると
-        #   はみ出したボタンが幅12pxほどの極小の「>>」ボタンの中に押し込まれ、
-        #   事実上見つけられなくなる。カスタムボタン(データカーソル/注釈/
-        #   レイアウト編集/統計情報)を追加した結果、既定の24pxアイコンでは
-        #   ウィンドウを少し狭めただけで溢れるようになっていた。
-        #   アプリ内の他のアイコンボタン(18px)とトーンを揃えつつ、必要幅を
-        #   縮めてオーバーフローしにくくする。
+        # 普通のレイアウトに入れたツールバーは、幅が足りないとボタンが小さな「>>」に押し込まれて見つからない。
+        # アイコンを小さくしてはみ出しにくくする
         toolbar.setIconSize(QSize(TOOLBAR_ICON_SIZE, TOOLBAR_ICON_SIZE))
         self._localize_navigation_toolbar(toolbar)
 
-        # --- ★ ツールバーにカスタムボタン (データカーソル) を追加 ★ ---
+        # マウス操作のモード。互いに排他にするため、アクションは属性で持つ(mouse_mode_mixin の表から操作する)
         toolbar.addSeparator()
-        # 1. Action (ボタンの動作定義) を作成
-        # ★ self.cursor_action として保持する (後で注釈モードとの排他制御のために
-        #   setChecked() で外部からこのActionを操作する必要があるため)
         self.cursor_action = QAction(
-            # Tabler Icons "pointer"(項目67): matplotlibツールバーと同トーンの線画アイコン
             _svg_icon("pointer"),
-            tr("データカーソル"), # ツールチップ
-            self # 親ウィジェット
+            tr("データカーソル"),
+            self
         )
-        # 2. Action をチェック可能 (トグルボタン) にする
         self.cursor_action.setCheckable(True)
-        # 3. Action がトリガーされたら (checked の bool 値と共に) スロットに接続
         self.cursor_action.triggered.connect(self._toggle_cursor_mode)
-        # 4. Action をツールバーに追加
         toolbar.addAction(self.cursor_action)
 
-        # --- ★ ツールバーにカスタムボタン (自由なテキスト注釈・矢印) を追加 ★ ---
         self.annotation_action = QAction(
-            _svg_icon("message-2"),  # Tabler Icons "message-2"(項目67)
+            _svg_icon("message-2"),
             tr("注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)"),
             self
         )
@@ -860,11 +774,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.annotation_action.triggered.connect(self._toggle_annotation_mode)
         toolbar.addAction(self.annotation_action)
 
-        # --- ★ ツールバーにカスタムボタン (自由配置レイアウトの編集) を追加 ★ ---
-        # 「自由配置レイアウト」チェックボックスが有効な間だけ使えるモード。
-        # ドラッグでサブプロットの位置(内部ドラッグ)・サイズ(右下端ドラッグ)を変更する。
+        # 自由配置レイアウトのときだけ使える
         self.layout_edit_action = QAction(
-            _svg_icon("layout-grid"),  # Tabler Icons "layout-grid"(項目67)
+            _svg_icon("layout-grid"),
             tr("レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)"),
             self
         )
@@ -873,11 +785,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.layout_edit_action.triggered.connect(self._toggle_layout_edit_mode)
         toolbar.addAction(self.layout_edit_action)
 
-        # --- ★ ツールバーにカスタムボタン (グラフ上での範囲選択) を追加 ★ ---
-        # 項目C-909: カレントデータセット上でXの範囲をドラッグ選択すると、
-        # その範囲のデータ点をマスク(除外、項目36)する。
         self.range_select_action = QAction(
-            _svg_icon("select-all"),  # Tabler Icons "select-all"(項目67)
+            _svg_icon("select-all"),
             tr("範囲選択 (ドラッグした範囲のカレントデータセットをマスク)"),
             self
         )
@@ -885,11 +794,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.range_select_action.triggered.connect(self._toggle_range_select_mode)
         toolbar.addAction(self.range_select_action)
 
-        # --- ★ ツールバーにカスタムボタン (ピーク配置、多峰分離フィットの初期値収集) を追加 ★ ---
-        # 項目C-410: クリックした位置(中心X・高さY)を多峰分離フィット(項目C-409、
-        # 「多峰フィット...」ボタン)の初期値として集める。
         self.peak_placement_action = QAction(
-            _svg_icon("mountain"),  # Tabler Icons "mountain"(ピーク検出ボタンと同じアイコン、意味の一貫性のため)
+            _svg_icon("mountain"),  # ピーク検出ボタンと同じ
             tr("ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)"),
             self
         )
@@ -897,11 +803,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.peak_placement_action.triggered.connect(self._toggle_peak_placement_mode)
         toolbar.addAction(self.peak_placement_action)
 
-        # --- ★ ツールバーにカスタムボタン (2Dマップからのスライス抽出) を追加 ★ ---
-        # 項目C-511: カレントの2Dマップ(ヒートマップ/等高線)上でドラッグした
-        # 線分に沿って1Dデータセットを抽出する。
         self.slice_extraction_action = QAction(
-            _svg_icon("chart-line"),  # Tabler Icons "chart-line"(2Dマップから1D断面を抽出、の意)
+            _svg_icon("chart-line"),
             tr("スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)"),
             self
         )
@@ -909,12 +812,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.slice_extraction_action.triggered.connect(self._toggle_slice_extraction_mode)
         toolbar.addAction(self.slice_extraction_action)
 
-        # --- ★ ツールバーにカスタムボタン (領域ハイライト) を追加 ★ ---
-        # 項目C-701: 横方向にドラッグすると縦帯(axvspan)、縦方向にドラッグすると
-        # 横帯(axhspan)を追加する。データ座標に紐づくハイライトのため、
-        # データセットを差し替えても(項目C-103の再読み込み等)位置が保たれる。
         self.region_highlight_action = QAction(
-            _svg_icon("highlight"),  # Tabler Icons "highlight"
+            _svg_icon("highlight"),
             tr("領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)"),
             self
         )
@@ -922,51 +821,38 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.region_highlight_action.triggered.connect(self._toggle_region_highlight_mode)
         toolbar.addAction(self.region_highlight_action)
 
-        # --- ★ ツールバーにカスタムボタン (ズームリセット) を追加 ★ ---
-        # マウスドラッグ/矩形選択等で拡大した表示を、設定通りの既定表示に戻す。
         self.reset_zoom_action = QAction(
-            _svg_icon("refresh"),  # Tabler Icons "refresh"
+            _svg_icon("refresh"),
             tr("表示をリセット (拡大/パンを元に戻す)"),
             self
         )
         self.reset_zoom_action.triggered.connect(self._reset_zoom)
         toolbar.addAction(self.reset_zoom_action)
 
-        # ★ 統計情報ボタン(項目106)はこの時点ではまだ self.stats_summary_label が
-        #   存在しないため、それが作られた後のセクションでこの `toolbar` 変数を
-        #   使って追加する(__init__の同じメソッドスコープ内なので参照可能)。
+        # 統計情報のボタンは stats_summary_label を作った後(_build_fit_info_and_stats)で足す
 
-        # Designer で用意した plot_container (おそらく QWidget) にレイアウトを作成
-        # 項目72: キャンバス周りに余白とセパレーターを設け、書式パネルの並びとの
-        # 境目をはっきりさせる(フォームの塊が続くだけの画面に見えないようにする)。
+        # キャンバスの周りに余白と区切り線を置いて、右のパネルとの境目をはっきりさせる
         self.ui.plot_container.setObjectName("plot_container")
         plot_layout = QVBoxLayout(self.ui.plot_container)
         plot_layout.setContentsMargins(6, 6, 6, 6)
         plot_layout.setSpacing(6)
-        plot_layout.addWidget(toolbar) # 上部にツールバー
+        plot_layout.addWidget(toolbar)
 
         canvas_separator = QFrame()
         canvas_separator.setFrameShape(QFrame.Shape.HLine)
         canvas_separator.setObjectName("canvas_separator")
         plot_layout.addWidget(canvas_separator)
 
-        plot_layout.addWidget(self.canvas) # 下部にキャンバス
+        plot_layout.addWidget(self.canvas)
 
-        # --- ★ 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し) ---
-        # 「元に戻す」操作時に self.canvas を寸分違わぬ元の位置
-        # (canvas_separatorの直後)へ挿入し直せるよう、レイアウトへの参照と
-        # 挿入位置(この時点でのインデックス)を保持しておく。この後に
-        # ミニマップ関連のウィジェットが追加されるが、それらはcanvasより後ろの
-        # インデックスに入るだけなので、ここで記録したインデックスは影響を受けない。
+        # キャンバスを別ウィンドウへ切り離したあと、元の位置に戻せるようにする
+        # (この後に足すミニマップはキャンバスより後ろなので、この位置は変わらない)
         self._plot_layout = plot_layout
         self._canvas_layout_index = plot_layout.indexOf(self.canvas)
         self._canvas_detach_window = None
         self.canvas_detached = False
 
-        # --- ★ 項目83: レンジスライダー(ミニマップ) ---
-        # グラフ下部に全体像の小さな概観を表示し、ドラッグ選択でX軸ズーム範囲を
-        # 全サブプロット一括で絞り込めるようにする。canvas_separatorと同じ
-        # objectNameを使うことで、theme.py側のQSSをそのまま流用する。
+        # グラフの下の小さな全体図。ドラッグで全部の軸の X の範囲を絞る。区切り線は canvas_separator のスタイルを使う
         self.minimap_separator = QFrame()
         self.minimap_separator.setFrameShape(QFrame.Shape.HLine)
         self.minimap_separator.setObjectName("canvas_separator")
@@ -976,51 +862,36 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.minimap.range_selected.connect(self._on_minimap_range_selected)
         plot_layout.addWidget(self.minimap)
 
-        # 表示/非表示は設定(QSettings)から復元する。表示メニュー側のチェック状態
-        # (_create_menu_bar内)もこの値に合わせる。
         self.minimap_visible = self.settings.value("minimap_visible", True, type=bool)
         self.minimap.setVisible(self.minimap_visible)
         self.minimap_separator.setVisible(self.minimap_visible)
 
-        # --- 5. ステータスバーの設定 ---
+    def _setup_status_bar(self):
         self.coordinate_label = QLabel("X= ---, Y= ---")
-        # addPermanentWidget で、ステータスバーの右側に常時表示
         self.ui.statusbar.addPermanentWidget(self.coordinate_label)
 
-
-        # --- 6. UIの「動的構築」 (Designer で定義されていないUIをコードで追加) ---
-
-        # 0. データセットの色選択欄を、スウォッチ+カラーコード入力欄の複合ウィジェットに
-        #    差し替える(項目65: パレット展開ボタン+カラーコード直接編集)
+    def _build_dataset_color_picker(self):
         old_color_button = self.ui.color_button
         self.color_picker_widget = ColorPickerWidget(self.settings, self)
         self.ui.formLayout_4.replaceWidget(old_color_button, self.color_picker_widget)
         old_color_button.hide()
         old_color_button.deleteLater()
 
-        # 0b. 「新規データセット作成...」ボタン(項目63): ファイル読み込みを介さず、
-        #     空のテーブルからデータセットを作成する。「データ追加」ボタンのすぐ隣に配置。
+        # 「データ追加」のすぐ隣
         self.new_dataset_button = QPushButton(tr("新規データセット作成..."))
         self.ui.horizontalLayout_3.insertWidget(1, self.new_dataset_button)
 
-        # 1. 「プロット複製」「データ編集」ボタンをコードで作成
+    def _build_dataset_list_buttons(self):
         self.duplicate_dataset_button = QPushButton(tr("プロット複製"))
         self.view_edit_data_button = QPushButton(tr("データ表示/編集"))
         self.fit_curve_button = QPushButton(tr("曲線フィット"))
         self.find_peaks_button = QPushButton(tr("ピーク検出"))
-        self.multi_peak_fit_button = QPushButton(tr("多峰フィット"))  # 項目C-409: N成分+ベースライン同時フィット
-        self.auto_color_button = QPushButton(tr("自動配色"))  # 選択中の(複数可)データセットに配色を自動割り当て
-        self.new_folder_button = QPushButton(tr("新しいフォルダ"))  # データセットのグループ分け用フォルダを作成
+        self.multi_peak_fit_button = QPushButton(tr("多峰フィット"))
+        self.auto_color_button = QPushButton(tr("自動配色"))
+        self.new_folder_button = QPushButton(tr("新しいフォルダ"))
 
-        # 1b. 操作ボタン行をアイコン付き・グループ分けに再編(項目70):
-        #     「データ処理系」「解析系」「整理系」の3グループに分け、間を薄い
-        #     セパレーターで区切る。頻度の低い「パレット管理...」はボタンとして
-        #     常設せず、「…」オーバーフローメニューに移す。
-        #     (シグナル接続は _connect_signals 側で従来どおり各ボタンに対して行うため、
-        #      ここではアイコン付与とレイアウト上の並びだけを変更し、ロジックには触れない)
-        # ★ 項目H-4: このマッピングはインスタンス属性として保持しておき、
-        #   _on_toggle_dark_mode側でアイコンを再読み込みできるようにする
-        #   (_refresh_custom_svg_icons、gui/mixins/ui_setup_mixin.py参照)。
+        # ボタンをアイコンだけにして「データ処理」「解析」「整理」の3組に分ける(文字はツールチップに残す)。
+        # ダークモードの切り替えでアイコンを作り直すので(_refresh_custom_svg_icons)、対応を持っておく
         self._dataset_action_button_icons = {
             self.ui.add_dataset_button: ("file-plus", tr("データ追加")),
             self.new_dataset_button: ("table", tr("新規作成")),
@@ -1033,19 +904,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.auto_color_button: ("palette", tr("自動配色")),
             self.new_folder_button: ("folder-plus", tr("新しいフォルダ")),
         }
-        # ★ GUI洗練: テキスト付きボタンではなく、アイコンのみの正方形ボタンにする。
-        #   ラベルはツールチップに残すため発見しやすさは保ちつつ、9個並んだ状態でも
-        #   横幅を大きく取らず、右パネル全体の余白・サイズ感を改善する。
         for button, (icon_name, short_label) in self._dataset_action_button_icons.items():
             button.setToolTip(button.text() or short_label)
             button.setText("")
             button.setIcon(_svg_icon(icon_name, size=18))
             button.setProperty("iconOnly", True)
             button.setFixedSize(34, 34)
-            # ★ 実機フィードバック: 「ボタンが一回押すと他のボタン押すまで
-            #   ずっと色付きになる」。QPushButtonの既定フォーカスポリシー
-            #   により、クリック後もgui/theme.pyのQPushButton:focus(青枠)が
-            #   居座り続けるため、フォーカスを持たせないようにする。
+            # フォーカスを持つと、押した後も :focus の枠が残って押されたままに見える
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         def _make_group_separator():
@@ -1055,44 +920,37 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             sep.setFixedWidth(2)
             return sep
 
-        # データ処理系グループ: 追加/新規作成/複製/表示編集/削除 の並び順に揃える
-        # (remove_dataset_button は Designer 由来ですでにレイアウトの2番目にあるため、
-        #  複製・表示編集をその手前に挿入することで並び順だけを調整する)
+        # データ処理: 追加・新規作成・複製・表示編集・削除(削除は Designer の配置のまま)
         self.ui.horizontalLayout_3.insertWidget(2, self.duplicate_dataset_button)
         self.ui.horizontalLayout_3.insertWidget(3, self.view_edit_data_button)
 
         self.ui.horizontalLayout_3.insertWidget(5, _make_group_separator())
-        # 解析系グループ
+        # 解析
         self.ui.horizontalLayout_3.addWidget(self.fit_curve_button)
         self.ui.horizontalLayout_3.addWidget(self.find_peaks_button)
         self.ui.horizontalLayout_3.addWidget(self.multi_peak_fit_button)
 
         self.ui.horizontalLayout_3.addWidget(_make_group_separator())
-        # 整理系グループ
+        # 整理
         self.ui.horizontalLayout_3.addWidget(self.auto_color_button)
         self.ui.horizontalLayout_3.addWidget(self.new_folder_button)
 
         self.ui.horizontalLayout_3.addStretch()
 
-        # オーバーフローメニュー(「…」): 頻度の低い操作をここにまとめる
+        # 「⋯」: たまにしか使わない操作
         self.dataset_overflow_button = QToolButton()
-        self.dataset_overflow_button.setText("⋯")  # ⋯ (三点リーダー)
+        self.dataset_overflow_button.setText("⋯")
         self.dataset_overflow_button.setToolTip(tr("その他の操作"))
         self.dataset_overflow_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.dataset_overflow_button.setFixedSize(34, 34)  # 他のアイコン専用ボタンと正方形サイズを揃える
+        self.dataset_overflow_button.setFixedSize(34, 34)
         overflow_menu = QMenu(self.dataset_overflow_button)
         self.manage_palette_action = overflow_menu.addAction(
             _svg_icon("palette", size=16), tr("パレット管理...")
         )
-        # カラーマップから自動配色(項目C-805): 離散パレットの自動配色ボタンとは別に、
-        # 連続カラーマップから選択数ぶんを均等サンプリングして割り当てる。
         self.colormap_assign_action = overflow_menu.addAction(
             _svg_icon("palette", size=16), tr("カラーマップから自動配色...")
         )
-        # 登録した色(core/named_colors.py)を選択中のデータセットへまとめて適用する。
-        # 「複数の種類のデータで、同じ物質に同じ色を使いたい」という用途そのもの。
-        # ★ 登録内容は「色名の管理」からいつでも変わるため、開くたびに詰め直す。
-        #   QMenu と menuAction() の両方を永続参照で持つ(CLAUDE.md、shibokenの癖)。
+        # 登録はいつでも変わるので開くたびに作り直す。QMenu と menuAction() の両方を持つ(持たないと回収される)
         self._named_color_apply_menu = overflow_menu.addMenu(
             _svg_icon("color-swatch", size=16), tr("登録した色を適用"))
         self._named_color_apply_menu_action = self._named_color_apply_menu.menuAction()
@@ -1102,26 +960,21 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.dataset_overflow_button.setMenu(overflow_menu)
         self.ui.horizontalLayout_3.addWidget(self.dataset_overflow_button)
 
-        # 1z. 「データセットのプロパティ」を7つの折りたたみサブセクションに分割する
-        #     (改善ボード C-1)。以降の行追加は全て self._prop_form(<キー>) 経由で、
-        #     追加した順にそのセクションの末尾へ並ぶ。Designer 生成の8行もここで
-        #     移設されるため、この呼び出しより前に formLayout_4 を触るコード
-        #     (色ピッカーの replaceWidget) との順序は変えないこと。
+        # データセットのプロパティ欄を7つの節に分ける。Designer の行もここで移すので、formLayout_4 を触る
+        # 色欄の差し替え(_build_dataset_color_picker)より後であること。以降の行は self._prop_form(キー) に足す
         self._build_dataset_property_sections()
 
-        # 2. X/Y軸 列選択コンボボックスをコードで作成
+    def _build_dataset_style_controls(self):
         self.x_col_combo = QComboBox()
         self.y_col_combo = QComboBox()
         self._prop_form('data').addRow("X軸の列", self.x_col_combo)
         self._prop_form('data').addRow("Y軸の列", self.y_col_combo)
 
-        # 2b. エラーバー用の誤差列選択コンボボックス ("(なし)" を選ぶとエラーバー非表示)
         self.x_err_col_combo = QComboBox()
         self.y_err_col_combo = QComboBox()
         self._prop_form('data').addRow("X誤差列", self.x_err_col_combo)
         self._prop_form('data').addRow("Y誤差列", self.y_err_col_combo)
 
-        # 2c. 透明度(アルファ)スピンボックスを追加 (0.0=完全に透明 ～ 1.0=不透明)
         self.alpha_label = QLabel("透明度")
         self.alpha_spinbox = QDoubleSpinBox()
         self.alpha_spinbox.setRange(0.0, 1.0)
@@ -1130,12 +983,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.alpha_spinbox.setValue(1.0)
         self._prop_form('style').addRow(self.alpha_label, self.alpha_spinbox)
 
-        # 2c-2. プロットへのグラデーション適用(項目79): 線ストロークグラデーション
-        # (線の色を開始色→終端色へ連続的に変化させる)と、塗りグラデーション
-        # (Areaプロットの塗り領域をグラデーションにする)の2種類。
-        # チェックボックスで有効/無効を切り替え、終端色は既存のColorPickerWidget
-        # (項目65)を再利用し、対象(線/塗り/両方)はプロットタイプに応じて
-        # 関連する選択肢だけを見せる(property_panel.update_gradient_controls_visibility で制御)。
+        # グラデーション(線・面の塗り)。出し入れは property_panel.update_gradient_controls_visibility
         self.gradient_checkbox = QCheckBox(tr("グラデーションを適用"))
         self._prop_form('gradient').addRow(self.gradient_checkbox)
 
@@ -1150,16 +998,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.gradient_target_combo.addItem(tr("両方"), "both")
         self._prop_form('gradient').addRow(self.gradient_target_label, self.gradient_target_combo)
 
-        # 2c-3. ウォーターフォールプロット(項目80、項目109で独立したプロット種別
-        # から「積み重ねオプション」に変更): plot_typeとは独立したチェックボックス
-        # にすることで、Line/Scatter/Line+Scatter/Area/Barのどの見た目とも
-        # 組み合わせられるようにした(専用の"Waterfall"種別だと、線種/マーカー等の
-        # 通常のスタイル選択肢と排他的になり使いにくいというフィードバックを受けて変更)。
-        # 有効時は、隣接するデータセット1件あたりのX/Yオフセット量
-        # (waterfall_offset_x/waterfall_offset_y) をスピンボックスで指定する。
-        # 項目66でスライダーからスピンボックスへ統一済みの方針に合わせる。
-        # 表示/非表示は property_panel.update_gradient_controls_visibility と同じパターンで
-        # property_panel.update_waterfall_controls_visibility が行う(dataset_mixin.py)。
+        # ウォーターフォールは種類ではなく、どの種類とも組み合わせられるオプション。
+        # 出し入れは property_panel.update_waterfall_controls_visibility
         self.waterfall_checkbox = QCheckBox(tr("ウォーターフォール表示(積み重ね)"))
         self._prop_form('waterfall').addRow(self.waterfall_checkbox)
 
@@ -1179,16 +1019,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_offset_y_spinbox.setValue(1.0)
         self._prop_form('waterfall').addRow(self.waterfall_offset_y_label, self.waterfall_offset_y_spinbox)
 
-        # ★ 実機フィードバック: 「手前が奥を隠す(オクルージョン)はon/off切り替え
-        #   可能にして」。既定はTrue(従来通りの見た目)。
         self.waterfall_occlusion_checkbox = QCheckBox(tr("背面のトレースを隠す(オクルージョン)"))
         self.waterfall_occlusion_checkbox.setChecked(True)
         self._prop_form('waterfall').addRow(self.waterfall_occlusion_checkbox)
 
-        # ウォーターフォールの斜向/立体風トグル(項目120、C-514)。奥の
-        # トレースほどY振幅をわずかに縮小して描画し、疑似的な奥行きを出す
-        # (既定はFalse=従来通り等倍描画)。縮小率自体はwaterfall_offset_x/y
-        # と同じくスピンボックスで直接指定できる。
+        # 奥の段ほど Y をわずかに縮めて立体風にする
         self.waterfall_depth_checkbox = QCheckBox(tr("奥行き効果(奥のトレースをわずかに縮小)"))
         self.waterfall_depth_checkbox.setChecked(False)
         self._prop_form('waterfall').addRow(self.waterfall_depth_checkbox)
@@ -1201,12 +1036,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.waterfall_depth_ratio_spinbox.setValue(0.03)
         self._prop_form('waterfall').addRow(self.waterfall_depth_ratio_label, self.waterfall_depth_ratio_spinbox)
 
-        # 2d. データポイントラベル表示 (各データ点の脇にY値または任意の列の値を表示)
         self.point_labels_checkbox = QCheckBox("データ点にラベルを表示")
         self._prop_form('extra').addRow(self.point_labels_checkbox)
-        # 点数が表示上限を超えてラベルが描かれないときの説明(v1.4.2)。以前は有効化時に
-        # 「表示しますか?」と確認していたが、はいを選んでも描画側の上限で表示されず、
-        # 何が起きたか分からなかった。上限超過時は確認を出さずに理由をここに表示する。
+        # 点が上限を超えてラベルを描かないときに、その理由を出す
         self.point_labels_limit_note = QLabel()
         self.point_labels_limit_note.setObjectName("point_labels_limit_note")
         self.point_labels_limit_note.setWordWrap(True)
@@ -1216,9 +1048,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.point_label_col_combo = QComboBox()
         self._prop_form('extra').addRow(self.point_label_col_label, self.point_label_col_combo)
 
-        # 2e. 誤差の表示形式(項目C-502): エラーバー('bar')・誤差バンド('band',
-        # fill_between)・両方('both')から選択する。X/Y誤差列が未設定なら
-        # どの設定でも何も描画されない。
+        # 誤差の表し方。誤差列が無ければどれを選んでも描かれない
         self.error_display_label = QLabel(tr("誤差の表示形式"))
         self.error_display_combo = QComboBox()
         self.error_display_combo.addItem(tr("エラーバー"), "bar")
@@ -1226,12 +1056,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.error_display_combo.addItem(tr("両方"), "both")
         self._prop_form('extra').addRow(self.error_display_label, self.error_display_combo)
 
-        # 2f. 2Dグリッドデータ(ヒートマップ、項目C-508): 有効にすると、通常の
-        # 点列描画(plot_type)ではなく、X/Y/Z列を持つ長形式のdfをヒートマップ
-        # として描画する(core/dataset.pyのDataset.z_gridが実際のグリッド化/
-        # 補間を担う)。関連コントロール(Z列・カラーマップ・値域・補間方法)は
-        # data_2d_checkboxがONの時だけ表示する(property_panel.update_2d_controls_visibility、
-        # gui/mixins/dataset_mixin.py)。
+        # X/Y/Z 列の長形式を2Dマップとして描く。関係する欄の出し入れは property_panel.update_2d_controls_visibility
         self.data_2d_checkbox = QCheckBox(tr("2Dグリッドデータとして扱う(ヒートマップ)"))
         self._prop_form('map').addRow(self.data_2d_checkbox)
 
@@ -1244,8 +1069,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.colormap_combo.addItems(COLORMAP_CHOICES)
         self._prop_form('map').addRow(self.colormap_label, self.colormap_combo)
 
-        # 2Dマップの描画方式(項目C-509)。'heatmap'(既定)/'contour'(線のみ)/
-        # 'contour_filled'(塗りつぶし等高線)/'heatmap_contour'(重ね描き)。
         self.map_display_mode_label = QLabel(tr("表示方式"))
         self.map_display_mode_combo = QComboBox()
         self.map_display_mode_combo.addItem(tr("ヒートマップ"), "heatmap")
@@ -1284,14 +1107,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.vmax_spinbox.setEnabled(False)
         self._prop_form('map').addRow(self.vmax_label, self.vmax_spinbox)
 
-        # 2g. 欠損値(NaN)の方針設定(項目C-201): プロット描画時のみに効く表示上の
-        # 設定で、Dataset.x_data/y_data(フィット・エクスポート等の他の消費者が使う
-        # 生データ)自体は変更しない(gui/canvas.pyの_draw_dataが描画直前に適用)。
-        # 既定'gap'は導入前からの挙動(matplotlibが自然にNaNで線を切る)そのものの
-        # ため、既存プロジェクトファイルを読み込んでも見た目は変わらない。
-        # ★ ラベル列は全セクションで共有(_align_form_label_columns)するため、
-        #   ここが最長だとパネル全体の入力欄が狭まる。「(NaN)」はツールチップへ
-        #   逃がして、表示上は短くする。
+        # 欠損値の扱いは描くときだけに効く(データ自体は変えない)。
+        # ラベルの列幅は全部の節で揃えるので、ここが一番長いと全体の入力欄が狭まる。「(NaN)」はツールチップに回す
         self.nan_policy_label = QLabel(tr("欠損値の扱い"))
         self.nan_policy_label.setToolTip(tr("欠損値(NaN)を含む点の描画方法"))
         self.nan_policy_combo = QComboBox()
@@ -1300,51 +1117,42 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.nan_policy_combo.addItem(tr("無視してつなぐ"), "drop")
         self._prop_form('data').addRow(self.nan_policy_label, self.nan_policy_combo)
 
-        # 2h. 平滑化の手法(項目C-304): 既存の「平滑化」チェックボックス
-        # (smoothing_checkbox、Designer生成)は on/off のみを制御し、こちらの
-        # コンボで手法を選ぶ(smoothing_method)。既定'cubic_spline'は
-        # smoothing_methodフィールド追加前からの唯一の挙動そのものなので、
-        # 既存プロジェクトを読み込んでも見た目は変わらない。表示/有効state
-        # は_update_smoothing_control_visibility側でsmoothing_checkboxと
-        # 連動して切り替える。
+        # 平滑化の手法。オン/オフは Designer の smoothing_checkbox
         self.smoothing_method_label = QLabel(tr("平滑化の手法"))
         self.smoothing_method_combo = QComboBox()
         self.smoothing_method_combo.addItem(tr("CubicSpline(既定)"), "cubic_spline")
         self.smoothing_method_combo.addItem(tr("移動平均"), "moving_average")
         self.smoothing_method_combo.addItem(tr("中央値フィルタ"), "median")
         self.smoothing_method_combo.addItem(tr("ガウシアンフィルタ"), "gaussian")
-        # ★ C-1: Designer生成の「平滑化」チェックボックスは、この手法コンボと
-        #   必ず一緒に出入りする対なので、_build_dataset_property_sections() では
-        #   移設を保留しておき、ここで手法コンボの直前に置く(そうしないと
-        #   「平滑化」と「平滑化の手法」の間に「透明度」が挟まる)。
+        # 「平滑化」のチェックは手法と対なので、_build_dataset_property_sections では移さずここで手法の直前に置く
+        # (そうしないと間に「透明度」が挟まる)
         self._prop_form('style').addRow(self.ui.smoothing_checkbox)
         self._prop_form('style').addRow(self.smoothing_method_label, self.smoothing_method_combo)
 
-        # 3. 凡例の位置を選択するUIをコードで作成
+    def _build_legend_location_control(self):
         self.legend_loc_label = QLabel("凡例の位置")
         self.legend_loc_combo = QComboBox()
         self.legend_loc_combo.addItems([
             "best", "upper right", "upper left", "lower left", "lower right", "center"
         ])
-        # Designer 上の既存のフォームレイアウト (formLayout_3) の7行目に挿入
-        self.ui.formLayout_3.insertRow(7, self.legend_loc_label, self.legend_loc_combo)
+        _insert_form_row_after(self.ui.formLayout_3, self.ui.legend_visible_checkbox,
+                               self.legend_loc_label, self.legend_loc_combo)
 
-        # (凡例フォント・色ボタンも同様に追加)
         self.legend_font_label = QLabel("凡例フォント")
         self.legend_font_button = QPushButton("フォント選択...")
-        self.ui.formLayout_3.insertRow(8, self.legend_font_label, self.legend_font_button)
+        _insert_form_row_after(self.ui.formLayout_3, self.legend_loc_combo,
+                               self.legend_font_label, self.legend_font_button)
 
         self.legend_color_label = QLabel("凡例 文字色")
         self.legend_color_button = QPushButton("色選択...")
-        self.ui.formLayout_3.insertRow(9, self.legend_color_label, self.legend_color_button)
+        _insert_form_row_after(self.ui.formLayout_3, self.legend_font_button,
+                               self.legend_color_label, self.legend_color_button)
 
-        # (凡例の表示順序: 描画順とは独立にドラッグで並べ替えできるようにする)
+        # 凡例の並びは描画順とは別に決められる
         self.legend_order_button = QPushButton("凡例の順序...")
-        self.ui.formLayout_3.insertRow(10, self.legend_order_button)
+        _insert_form_row_after(self.ui.formLayout_3, self.legend_color_button, self.legend_order_button)
 
-        # フォント選択/色選択ボタン群にアイコンを追加(ユーザーフィードバックを受けて)
-        # ★ 項目H-4: インスタンス属性として保持し、_refresh_custom_svg_iconsから
-        #   再読み込みできるようにする。
+        # ダークモードの切り替えで作り直すので(_refresh_custom_svg_icons)、対応を持っておく
         self._field_icon_buttons = {
             self.ui.tick_font_button: "typography",
             self.ui.tick_color_button: "color-swatch",
@@ -1357,21 +1165,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         for button, icon_name in self._field_icon_buttons.items():
             button.setIcon(_svg_icon(icon_name, size=16))
 
-        # 4. フィット情報表示用のUI (非表示で) 追加
+    def _build_fit_info_and_stats(self):
         self.fit_info_label = QLabel("フィット情報")
         self.fit_info_textedit = QTextEdit()
         self.fit_info_textedit.setReadOnly(True)
-        self.fit_info_textedit.setFixedHeight(100) # 高さを固定
-        # ★ C-1: レイアウトへの追加は「配置・情報」セクションの最後 (描画先プロットの
-        #   後ろ) で行う。フィットが無いときは隠れる100px高の読み取り専用欄なので、
-        #   セクションの先頭に置くと、フィットするたびに下の2項目が押し下げられる。
+        self.fit_info_textedit.setFixedHeight(100)
+        # 節の最後(描画先の後ろ)に置く(_add_subplot_target_row)。フィットが無いと隠れる欄なので、
+        # 先頭に置くとフィットのたびに下の項目が押し下げられる
 
-        # 4b. 統計サマリー表示用のUI (項目106: 以前は「データセットのプロパティ」に
-        #     常時1行を占有していたが、常に使う情報ではないため、ツールバーの
-        #     アイコンボタンから必要な時だけポップアップで参照できる方式に変更した。
-        #     property_panel.update_stats_summary_label (dataset_mixin.py) は選択中データセットが
-        #     変わるたびにこのラベルのテキストを更新し続ける(ポップアップが
-        #     閉じている間も)。
+        # 統計値はいつも見るものではないので、ツールバーのボタンから開く小窓に出す。
+        # 中身は選択が変わるたびに property_panel.update_stats_summary_label が更新する(閉じている間も)
         self.stats_summary_label = QLabel("-")
         self.stats_summary_label.setWordWrap(True)
         self.stats_summary_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -1397,20 +1200,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         stats_widget_action.setDefaultWidget(stats_popup)
         stats_menu.addAction(stats_widget_action)
         self.stats_toolbar_button.setMenu(stats_menu)
-        toolbar.addSeparator()
-        toolbar.addWidget(self.stats_toolbar_button)
+        self.mpl_toolbar.addSeparator()
+        self.mpl_toolbar.addWidget(self.stats_toolbar_button)
 
-
-        # 5. 第2Y軸チェックボックスを追加
+    def _build_secondary_y_controls(self):
         self.use_secondary_y_checkbox = QCheckBox("第2Y軸 (右側) を使用")
         self._prop_form('place').addRow(self.use_secondary_y_checkbox)
 
-        # 6. 第2Y軸ラベル用のUI (非表示で) 追加
         self.y2_label_text_label = QLabel("第2Y軸ラベル")
         self.y2_label_text_edit = QLineEdit()
-        self.ui.formLayout_3.insertRow(3, self.y2_label_text_label, self.y2_label_text_edit)
+        _insert_form_row_after(self.ui.formLayout_3, self.ui.y_label_text_edit,
+                               self.y2_label_text_label, self.y2_label_text_edit)
 
-        # 7. 目盛り方向UIを追加
+    def _build_tick_grid_and_colorbar_controls(self):
         self.tick_direction_label = QLabel("主軸目盛(主/補助)")
         self.major_tick_direction_combo = QComboBox()
         self.major_tick_direction_combo.addItems(["out", "in", "inout"])
@@ -1429,17 +1231,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         dir_y2_layout.addWidget(self.major_tick_direction_y2_combo)
         dir_y2_layout.addWidget(self.minor_tick_direction_y2_combo)
 
-        self.ui.formLayout_3.insertRow(5, self.tick_direction_label, dir_layout)
-        self.ui.formLayout_3.insertRow(6, self.tick_direction_y2_label, dir_y2_layout)
+        _insert_form_row_after(self.ui.formLayout_3, self.ui.tick_format_label, self.tick_direction_label, dir_layout)
+        _insert_form_row_after(self.ui.formLayout_3, self.tick_direction_label, self.tick_direction_y2_label, dir_y2_layout)
 
-        # 7b. グリッド線の詳細カスタマイズ(項目82): X軸/Y軸・主目盛/補助目盛の
-        #     それぞれに独立した線種(実線/破線/点線/一点鎖線)・太さ・透過度を
-        #     設定できるようにする。「グリッドを表示」「補助グリッドの表示」の
-        #     チェックボックスのすぐ下に置きたいので、ハードコードした行番号では
-        #     なく minor_grid_visible_checkbox が実際に置かれている行を
-        #     getWidgetPosition() で動的に取得し、その直後へ insertRow する
-        #     (formLayout_3 への他の insertRow 呼び出しの並び順が将来変わっても
-        #     壊れないようにするため)。
+        # グリッド線の線種・太さ・透明度(X/Y × 主/補助)。「補助グリッドの表示」のすぐ下に置く
         self.grid_linestyle_choices = [
             (tr("実線"), '-'), (tr("破線"), '--'), (tr("点線"), ':'), (tr("一点鎖線"), '-.'),
         ]
@@ -1462,9 +1257,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             width_spinbox.setDecimals(1)
             width_spinbox.setValue(default_width)
             width_spinbox.setToolTip(tr("太さ"))
-            # ★ 実機フィードバック: 「グリッド設定のスピンボックスの数字が
-            #   見切れてる」。65pxだと上下矢印ボタンと数字表示が競合し、
-            #   "10.0"のような4桁の値が見切れていたため広げる。
+            # これより狭いと矢印ボタンと重なって "10.0" のような値が見切れる
             width_spinbox.setMinimumWidth(60)
             width_spinbox.setMaximumWidth(78)
 
@@ -1497,25 +1290,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_major_grid_style_label = QLabel(tr("Y軸主目盛"))
         self.y_minor_grid_style_label = QLabel(tr("Y軸補助目盛"))
 
-        _minor_grid_row, _minor_grid_role = self.ui.formLayout_3.getWidgetPosition(
-            self.ui.minor_grid_visible_checkbox
-        )
-        _grid_style_insert_at = _minor_grid_row + 1
+        _grid_style_anchor = self.ui.minor_grid_visible_checkbox
         for _grid_style_label, _grid_style_layout in (
             (self.x_major_grid_style_label, x_major_grid_layout),
             (self.x_minor_grid_style_label, x_minor_grid_layout),
             (self.y_major_grid_style_label, y_major_grid_layout),
             (self.y_minor_grid_style_label, y_minor_grid_layout),
         ):
-            self.ui.formLayout_3.insertRow(_grid_style_insert_at, _grid_style_label, _grid_style_layout)
-            _grid_style_insert_at += 1
+            _insert_form_row_after(self.ui.formLayout_3, _grid_style_anchor, _grid_style_label, _grid_style_layout)
+            _grid_style_anchor = _grid_style_label
 
-        # 7c. 目盛線の長さ(pt、実機フィードバック): 主目盛/補助目盛。
-        #     「目盛の太さ」の直後に置く。上のグリッド線と同じく行番号を
-        #     ハードコードせず、目盛の太さの行を実行時に探して挿入する。
-        #     補助目盛は最小値(-0.5)を「自動」とし、主目盛の長さ ×
-        #     canvas.MINOR_TICK_LENGTH_RATIO で決める(既定の組み合わせは
-        #     matplotlib 既定の 3.5 / 2.0 と一致し、既存プロジェクトの見た目は不変)。
+        # 目盛線の長さ(pt)。「目盛の太さ」の直後。補助目盛の最小値(-0.5)は「自動」(主目盛 × MINOR_TICK_LENGTH_RATIO)
         self.tick_length_label = QLabel(tr("目盛の長さ(主/補助)"))
         self.major_tick_length_spinbox = QDoubleSpinBox()
         self.major_tick_length_spinbox.setRange(0.0, 20.0)
@@ -1533,25 +1318,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.minor_tick_length_spinbox.setValue(MINOR_TICK_LENGTH_AUTO)
         self.minor_tick_length_spinbox.setToolTip(
             tr("補助目盛の線の長さ(pt)。「自動」は主目盛の長さの約0.57倍"))
-        # ★ QDoubleSpinBox の最小幅ヒントは2つ並べると約306pxになり、フォーム
-        #   全体の列幅を押し広げてプロパティドックに横スクロールバーを出す
-        #   (tests/test_main_window.py が検出)。すぐ上の「主軸目盛(主/補助)」行の
-        #   コンボボックスと同じ最小幅に揃え、行の幅をその行と一致させる。
+        # QDoubleSpinBox を2つ並べると最小幅が約306pxになり、フォームの列幅を広げてドックに横スクロールが出る
+        # (tests/test_main_window.py が検出)。すぐ上の目盛方向の欄と同じ幅に揃える
         for _tick_length_spin in (self.major_tick_length_spinbox, self.minor_tick_length_spinbox):
             _tick_length_spin.setMinimumWidth(self.major_tick_direction_combo.minimumSizeHint().width())
         tick_length_layout = QHBoxLayout()
         tick_length_layout.addWidget(self.major_tick_length_spinbox)
         tick_length_layout.addWidget(self.minor_tick_length_spinbox)
-        _tick_width_row, _tick_width_role = self.ui.formLayout_3.getWidgetPosition(
-            self.ui.tick_width_spinbox
-        )
-        self.ui.formLayout_3.insertRow(_tick_width_row + 1, self.tick_length_label, tick_length_layout)
+        _insert_form_row_after(self.ui.formLayout_3, self.ui.tick_width_spinbox,
+                               self.tick_length_label, tick_length_layout)
 
-        # 7b. カラーバー(ヒートマップ用、項目C-501): このサブプロットに2Dマップ
-        # (項目C-508)が描画されている場合のみ意味を持つ(gui/canvas.pyの
-        # _apply_appearanceが_axis_2d_mappablesを見て実際に付けるかを判断する)。
-        # addRow()で末尾に追加する(既存のformLayout_3への数字指定insertRow群は
-        # 呼び出し順に依存するため、ここでは絶対位置を指定しない安全な追加方法を使う)。
+        # カラーバーは2Dマップ(か値で色分けした散布図)がある軸でだけ効く
         self.colorbar_enabled_checkbox = QCheckBox(tr("カラーバーを表示"))
         self.colorbar_enabled_checkbox.setChecked(True)
         self.ui.formLayout_3.addRow(self.colorbar_enabled_checkbox)
@@ -1576,8 +1353,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.colorbar_label_edit = QLineEdit()
         self.ui.formLayout_3.addRow(self.colorbar_label_label, self.colorbar_label_edit)
 
-        # 8. 目盛りの指数表記フォーマット切り替え(項目62)
-        #    自動/軸端にまとめて指数表記/目盛りごとに指数表記/常に小数表記 から選択
+    def _build_tick_format_controls(self):
         tick_format_choices = [
             tr("自動"),
             tr("軸端にまとめて指数表記 (×10ⁿ)"),
@@ -1589,12 +1365,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.x_tick_format_combo.addItems(tick_format_choices)
         self.ui.formLayout.addRow(self.x_tick_format_label, self.x_tick_format_combo)
 
-        # 目盛(目盛線本体)・目盛数値の表示/非表示切り替え(実機フィードバック):
-        # グリッド線(格子)とは別に、軸の目盛マーク自体と、その数値ラベルを
-        # 個別にON/OFFできるようにする。「X軸Y軸一括じゃなくてそれぞれで
-        # 設定できるように」との追加フィードバックを受け、ラベル/書式タブでは
-        # なくX軸/Y軸それぞれのタブに(x_minor_ticks_visible_checkbox等の
-        # 既存の目盛関連設定と同じ場所に)配置する。
+        # 目盛線と目盛数値の表示は X/Y で別々なので、それぞれの軸のタブに置く
         self.x_ticks_visible_checkbox = QCheckBox(tr("目盛を表示"))
         self.x_ticks_visible_checkbox.setChecked(True)
         self.ui.formLayout.addRow(self.x_ticks_visible_checkbox)
@@ -1602,10 +1373,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.x_tick_labels_visible_checkbox.setChecked(True)
         self.ui.formLayout.addRow(self.x_tick_labels_visible_checkbox)
 
-        # 目盛りの数値を小数点以下何桁まで表示するか(実機フィードバック)。
-        # X軸/Y軸それぞれ独立して設定できるようにする。-1(最小値)は
-        # 「自動」を表し、既存の指数表記モード設定(上のx_tick_format_combo)を
-        # そのまま使う(=既存プロジェクトの見た目を変えない既定値)。
+        # 目盛数値の小数点以下の桁数。-1(最小値)は「自動」で、指数表記の設定に任せる
         self.x_tick_decimals_spinbox = QSpinBox()
         self.x_tick_decimals_spinbox.setRange(-1, 10)
         self.x_tick_decimals_spinbox.setSpecialValueText(tr("自動"))
@@ -1614,15 +1382,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
         self.ui.formLayout.addRow(QLabel(tr("小数桁数")), self.x_tick_decimals_spinbox)
 
-        # 対数軸の補助目盛り高度制御(項目C-604): x_log_checkbox(対数表示)と
-        # x_minor_ticks_visible_checkbox(補助目盛を表示)の両方がONのときのみ
-        # 意味を持つため、既定では非表示(gui/mixins/settings_mixin.pyの
-        # _on_x_minor_tick_visibility_changedが表示/有効状態を切り替える)。
-        # gui/canvas.pyの_apply_appearanceがticker.LogLocator(subs=...)へ渡す。
-        # ★ ラベル列はX軸/Y軸タブで共有(_align_form_label_columns)するため、
-        #   ここが最長だと両タブの入力欄が一斉に狭まる。対数表示がONの
-        #   ときしか出ない行なので「軸の」は省いて短くし、正式な説明は
-        #   ツールチップへ逃がす。
+        # 対数軸で補助目盛を出すときだけ使う(出し入れは _on_x_minor_tick_visibility_changed)。
+        # ラベルの列幅は X/Y のタブで揃えるので、長いと両方の入力欄が狭まる。説明はツールチップに回す
         self.x_log_minor_subs_label = QLabel(tr("対数補助目盛"))
         self.x_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛りをどこに打つか"))
         self.x_log_minor_subs_combo = QComboBox()
@@ -1637,15 +1398,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.x_log_minor_subs_combo.setVisible(False)
         self.x_log_minor_labels_checkbox.setVisible(False)
 
-        # 単位変換の第2X軸(項目C-602): X軸データの単位(source)と第2X軸に
-        # 表示したい単位(target)を選び、双方が「なし」以外かつ異なる場合のみ
-        # 上部にnm<->eV<->cm^-1<->Hz変換済みの第2X軸を表示する
-        # (gui/canvas.pyの_apply_appearance参照)。既定は両方「なし」で、
-        # この機能を使わない既存プロジェクトの見た目は変わらない。
-        # ★ ラベルは短く保つこと: formLayoutは全行でラベル列幅を共有するため、
-        #   長いラベル1つでもCONTROL_DOCK_WIDTH(main_window.py先頭)の横スクロール
-        #   バー回避マージンを圧迫し、test_properties_dock_has_no_horizontal_scrollbar
-        #   を壊しうる(詳細な説明はラベルではなくツールチップに置く)。
+        # X の単位と上に出したい単位が別々に選ばれていれば、単位を変換した第2X軸を上に付ける。
+        # ラベルは短く保つ(フォームの全行でラベルの列幅を共有するので、長いとドックに横スクロールが出る。
+        # test_properties_dock_has_no_horizontal_scrollbar)。説明はツールチップに置く
         unit_combo_choices = [X_AXIS_UNIT_LABELS[u] for u in X_AXIS_UNIT_CHOICES]
         self.x_secondary_axis_source_unit_label = QLabel(tr("X軸単位"))
         self.x_secondary_axis_source_unit_combo = QComboBox()
@@ -1681,11 +1436,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
         self.ui.formLayout_2.addRow(QLabel(tr("小数桁数")), self.y_tick_decimals_spinbox)
 
-        # 対数軸の補助目盛り高度制御(項目C-604)、Y軸版
-        # ★ ラベル列はX軸/Y軸タブで共有(_align_form_label_columns)するため、
-        #   ここが最長だと両タブの入力欄が一斉に狭まる。対数表示がONの
-        #   ときしか出ない行なので「軸の」は省いて短くし、正式な説明は
-        #   ツールチップへ逃がす。
+        # X 軸と同じく、ラベルは短くして説明はツールチップへ
         self.y_log_minor_subs_label = QLabel(tr("対数補助目盛"))
         self.y_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛りをどこに打つか"))
         self.y_log_minor_subs_combo = QComboBox()
@@ -1700,21 +1451,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.y_log_minor_subs_combo.setVisible(False)
         self.y_log_minor_labels_checkbox.setVisible(False)
 
-        # 9. タイトル/軸ラベル入力欄を、クリックで編集ダイアログを開く
-        #    mathtextプレビューラベルに差し替える(項目61/H-2-4追加分)。
-        #    ★ ポップアップウィンドウ化(実機フィードバック、レイアウト画像の
-        #      提示を受けて): 以前は「Aa」ボタンがQMenu(太字/イタリック/上付き/
-        #      下付きのアイコンボタン+ギリシャ文字/記号パレットをネストした
-        #      ポップアップパネル)を開く形だったが、独立したダイアログ
-        #      (LabelEditDialog、gui/dialogs.py)を開く形に変更した。
-        #    ★ さらなる実機フィードバック: 「画像のテキスト欄をクリックしたら
-        #      ポップアップが展開するように」「mathtextを翻訳した形式を
-        #      プレビューしといて」を受け、元のQLineEdit(line_edit)は実データの
-        #      保持と`textChanged`シグナルの発信源として非表示のまま裏に残し、
-        #      見た目は_ClickableMathPreviewLabelに置き換えた。このラベルは
-        #      クリックでLabelEditDialogを開くトリガーを兼ね、現在のテキストを
-        #      matplotlibで実際にレンダリングした見た目(gui/mathtext_preview.py)
-        #      をプレビュー表示する。
+    def _build_label_editors(self):
+        # タイトルと軸ラベルは、mathtext を描いたプレビューに差し替え、クリックで編集ダイアログを開く。
+        # 元の QLineEdit は値の置き場と textChanged の発信元として、見えないまま残す
         self._label_preview_widgets = []  # [(preview_label, line_edit, placeholder), ...]
         for field_key, line_edit, dialog_title, placeholder in (
             ('title', self.ui.title_text_edit, tr("タイトルを編集"), tr("タイトルを入力")),
@@ -1726,14 +1465,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             wrapper_layout.setContentsMargins(0, 0, 0, 0)
             wrapper_layout.setSpacing(4)
 
-            # ★ replaceWidget: 既存のline_editをformLayout_3上の同じ位置に残したまま、
-            #   [プレビューラベル + ボタン] の複合ウィジェットに差し替える(項目65の
-            #   ColorPickerWidget差し替えと同じ手法。行番号がずれないため安全)。
+            # 同じ位置に差し替える(行の位置がずれない)
             self.ui.formLayout_3.replaceWidget(line_edit, wrapper)
-            # ★ line_editは実データの保持/textChangedシグナルの発信源として
-            #   残すが、見た目はプレビューラベルに任せるため非表示にする
-            #   (レイアウトには追加しない: 追加すると非表示でも余白計算に
-            #   関与することがあるため、親をwrapperにするだけに留める)。
+            # レイアウトには入れない(隠れていても余白の計算に関わることがある)。親を wrapper にするだけ
             line_edit.setParent(wrapper)
             line_edit.hide()
 
@@ -1749,12 +1483,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             )
             self._refresh_label_preview(preview_label, line_edit.text(), placeholder)
 
-            # 軸ラベルの表示/非表示トグル(項目127追加分の実機フィードバック:
-            # 「軸ラベルは入力の有無だけじゃなくて表示のオンオフの切り替えを
-            # 追加して」)。タイトルには適用しない(タイトルは元々「入力の有無」
-            # だけで十分という要望は無かったため、既存の挙動のまま)。
-            # テキスト自体は消さずに保持したまま非表示にできるようにすることで、
-            # 一時的にラベルだけ隠して図を出力する、といった使い方ができる。
+            # 軸ラベルだけ、文字を残したまま隠せる(タイトルには付けない)
             if field_key in ('x_label', 'y_label'):
                 visible_checkbox = QCheckBox()
                 visible_checkbox.setChecked(True)
@@ -1766,8 +1495,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             format_button.setText("Aa")
             format_button.setToolTip(tr("タイトル/ラベルを編集(書式・記号入力)"))
             format_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            # ★ 右側パネルの幅は限られているため、ボタンはできるだけ小さく保ち、
-            #   タイトル/軸ラベル入力欄自体の幅を圧迫しないようにする。
+            # パネルの幅が狭いので、ボタンは小さくして欄の幅を取らない
             format_button.setFixedSize(26, 22)
             small_font = QFont(format_button.font())
             small_font.setPointSize(max(7, small_font.pointSize() - 2))
@@ -1778,32 +1506,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     self._open_label_edit_dialog(le, dt)
             )
 
-        # --- 7. UIの「動的リファクタリング」 (Designer のUI構造をコードで変更) ---
-
-        # 1. 「描画先」コンボボックスを "プロパティ" 欄に追加
+    def _add_subplot_target_row(self):
         self.subplot_target_label = QLabel("描画先プロット")
         self.subplot_target_combo = QComboBox()
         self._prop_form('place').addRow(self.subplot_target_label, self.subplot_target_combo)
         # フィット情報欄 (上で構築済み) は、このセクションの最後に置く
         self._prop_form('place').addRow(self.fit_info_label, self.fit_info_textedit)
 
-        # 2. ★ GUI洗練: 「プロットのプロパティ」(control_dock_widget) と
-        #    「データセットのプロパティ」(properties_groupbox) は、以前は別々の
-        #    QDockWidgetとして右側に縦積みされていた。それぞれが独自のOS標準
-        #    タイトルバー(フロート/閉じるアイコン付き)を持つため、右パネルが
-        #    「継ぎ目のある2枚の箱」に見えてしまっていた。
-        #    1つのドックの中に、見出し付きグループボックス2つを縦に並べる形に
-        #    まとめることで、1枚のカードのように見せる
-        #    (QDockWidget内のQGroupBoxは、theme.pyで枠なし・プレーンな見出しに
-        #    スタイルされている)。
-        #
-        #    self.properties_dock_widget は control_dock_widget のエイリアスとして
-        #    残す (表示メニュー等、他のコードから同名で参照される箇所があるため)。
+    def _arrange_property_docks(self):
+        # 「プロットのプロパティ」と「データセットのプロパティ」を1つのドックに縦に並べ、1枚のパネルに見せる。
+        # properties_dock_widget は control_dock_widget の別名(表示メニューなどがこの名前で使う)
         self.properties_dock_widget = self.ui.control_dock_widget
         self.ui.control_dock_widget.setWindowTitle(tr("プロパティ"))
 
-        # 2a. 「プロットのプロパティ」セクション: 既存のdockWidgetContents
-        #     (目盛/書式/ラベルタブなど) を、見出し付きグループボックスで包み直す
         original_control_widget = self.ui.control_dock_widget.widget()
         plot_properties_group = QGroupBox(tr("プロットのプロパティ"))
         plot_properties_layout = QVBoxLayout(plot_properties_group)
@@ -1813,29 +1528,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         else:
             logger.warning("control_dock_widget の中身が見つかりません。")
 
-        # 2b. 「データセットのプロパティ」セクション: properties_groupbox は
-        #     すでに自身のタイトルを持つグループボックスなので、そのまま使う
         self.ui.properties_groupbox.setTitle(tr("データセットのプロパティ"))
 
-        # 2c. 折りたたみ可能に(項目102): 「データセットのプロパティ」「プロット
-        #     のプロパティ」はどちらも項目数が多く縦に長くなりがちなため、
-        #     アコーディオン形式(クリックで開閉)にする。
-        #     ★ properties_groupbox はDesigner生成のgridLayout_4を直接持つため、
-        #     内部の子ウィジェットを1つずつ数えて表示/非表示するのは(ネストした
-        #     レイアウト項目を取りこぼす恐れがあり)壊れやすい。代わりに、
-        #     QGroupBox自体(枠・タイトルごと)は一切変更せず、外側に新しい
-        #     開閉トグルボタンを1つ追加してQGroupBox全体の表示/非表示を
-        #     切り替える方式にする(タイトルの二重表示を避けるため、
-        #     QGroupBox自身のタイトルは空にし、トグルボタン側にだけ表示する)。
+        # どちらも長いので開閉できるようにする。中身を1つずつ隠すと入れ子のレイアウトを取りこぼすので、
+        # グループボックスごと出し入れする開閉ボタンを外に付ける(見出しはボタン側だけに出す)
         dataset_section = self._wrap_in_collapsible_section(
             self.ui.properties_groupbox, tr("データセットのプロパティ"))
         plot_section = self._wrap_in_collapsible_section(
             plot_properties_group, tr("プロットのプロパティ"))
 
-        # 2d. 2つのセクションを1本の縦スクロールにまとめ、1つのドックに収める
-        # ★ バグ修正: 既定のレイアウト余白のままだと、縦スクロールバー分を差し引いた
-        #   ビューポート幅に対して中身がわずかに(数十px)はみ出し、意図しない横スクロール
-        #   バーが常時表示されてしまっていた。左右の余白を切り詰めて幅の余裕を作る。
+        # 既定の余白だと縦スクロールバーの分だけ中身がはみ出し、横スクロールバーが出るので左右を詰める
         merged_properties_container = QWidget()
         merged_properties_layout = QVBoxLayout(merged_properties_container)
         merged_properties_layout.setContentsMargins(2, 4, 2, 4)
@@ -1849,20 +1551,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         merged_scroll_area.setWidget(merged_properties_container)
         self.ui.control_dock_widget.setWidget(merged_scroll_area)
 
-        # 2b. ★ 常時表示のエクスポートプレビューパネル (右側ドックに3つ目のタブとして追加)
-        #    設定(サイズ・DPI)を変更するたびに自動でプレビューを更新し、
-        #    全サブプロットをまとめた完成形をその場で確認しながら保存/コピーできる。
-        #    デフォルトでは非表示にしておき (常時描画による負荷を避けるため)、
-        #    表示メニューから必要な時だけ開く。
+        # エクスポートのプレビュー。描き続けると重いので既定では隠し、表示メニューから開く
         self.export_preview_panel = ExportPreviewPanel(self)
         self.export_preview_dock_widget = QDockWidget(tr("エクスポートプレビュー"), self)
         self.export_preview_dock_widget.setObjectName("ExportPreviewDockWidget")
         self.export_preview_dock_widget.setWidget(self.export_preview_panel)
-        # ★ GUI改善: 「プロットのプロパティ」「データセットのプロパティ」のような
-        #   常設パネルとは性質が異なる(必要な時だけ開く「確認用」の存在)ため、
-        #   右列や下部にドッキングしてメインのキャンバス領域を圧迫するのではなく、
-        #   既定でフローティングの独立ウィンドウとして開く。ドラッグして本体に
-        #   ドッキングすることも引き続き可能(QDockWidgetの標準機能のまま)。
+        # 必要なときだけ見るものなので、キャンバスを狭めないよう独立した窓で開く(ドッキングもできる)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.export_preview_dock_widget)
         self.export_preview_dock_widget.setFloating(True)
         self.export_preview_dock_widget.hide()
@@ -1871,9 +1565,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         def _on_export_preview_visibility_changed(visible):
             if not visible:
                 return
-            # 初回表示時のみ、見やすいサイズ・位置に整える
-            # (フローティングDockWidgetは表示されるまで実際のジオメトリを
-            #  持たないことがあるため、初回のshowのタイミングで設定する)
+            # 浮いたドックは表示されるまで大きさを持たないことがあるので、最初に表示したときに整える
             if self._export_preview_first_show and self.export_preview_dock_widget.isFloating():
                 self._export_preview_first_show = False
                 preview_width, preview_height = 820, 680
@@ -1884,13 +1576,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 )
             self.export_preview_panel.refresh_preview()
 
-        # 2c. ★ 残差プロットの専用パネル(項目C-406)。選択中のデータセットが
-        #    曲線フィットの結果(fit_result、項目C-401)を持っていれば、その
-        #    残差(実測値-フィット値)を表示する。エクスポートプレビューと同じ
-        #    理由(常時描画の負荷回避、必要な時だけ開く「確認用」の性質)で
-        #    既定は非表示。プロット下部と関連が深いため、フローティングでは
-        #    なく下部ドックとして開く(ユーザーがドラッグして移動/フロート化は
-        #    引き続き可能)。
+        # 選んだデータセットのフィットの残差。既定では隠し、開くときはキャンバスの下に付ける
         self.residual_panel = ResidualPanel(self)
         self.residual_dock_widget = QDockWidget(tr("残差プロット"), self)
         self.residual_dock_widget.setObjectName("ResidualDockWidget")
@@ -1898,9 +1584,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.residual_dock_widget)
         self.residual_dock_widget.hide()
 
-        # 2d. ★ 処理履歴(provenance)ツリーの専用パネル(項目C-1101)。
-        #    残差プロットと同じ「選択状態に連動する常設パネル」方針、既定は
-        #    非表示(常時表示するほど確認頻度が高くないため)。
+        # 選んだデータセットの処理の履歴。既定では隠す
         self.provenance_panel = ProvenancePanel(self)
         self.provenance_dock_widget = QDockWidget(tr("処理履歴"), self)
         self.provenance_dock_widget.setObjectName("ProvenanceDockWidget")
@@ -1910,11 +1594,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         self.export_preview_dock_widget.visibilityChanged.connect(_on_export_preview_visibility_changed)
 
-        # 5. ★ 「ラベル/書式」タブのレイアウトを「手術」する
-        #    (サブプロット設定用のUIを先頭に挿入するため)
+    def _rebuild_label_tab(self):
+        # 「ラベル/書式」タブの先頭に、グラフ全体のレイアウトと編集対象の軸の欄を入れる
         layout_group = QGroupBox(tr("グラフ全体レイアウト"))
         layout_form = QFormLayout()
-        # (サイズポリシーを設定し、垂直方向に伸びすぎないようにする)
         sizePolicy = layout_group.sizePolicy()
         sizePolicy.setVerticalPolicy(QSizePolicy.Policy.Fixed)
         layout_group.setSizePolicy(sizePolicy)
@@ -1927,16 +1610,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         layout_form.addRow(tr("行数"), self.subplot_rows_spinbox)
         layout_form.addRow(tr("列数"), self.subplot_cols_spinbox)
 
-        # 軸共有(項目C-601): グリッドレイアウトの全サブプロットでX/Y軸範囲を
-        # 揃える(matplotlibのsharex/shareyそのもの)。自由配置レイアウトには
-        # 意味を持たないため、_on_toggle_free_layoutで有効/無効を連動させる。
+        # 軸の共有は自由配置では意味が無いので、_on_toggle_free_layout で有効/無効を合わせる
         self.share_x_checkbox = QCheckBox(tr("X軸を共有(グリッドレイアウト時)"))
         self.share_y_checkbox = QCheckBox(tr("Y軸を共有(グリッドレイアウト時)"))
         layout_form.addRow(self.share_x_checkbox)
         layout_form.addRow(self.share_y_checkbox)
 
-        # (自由配置レイアウト: 均等グリッドでなく、サブプロットをドラッグで
-        #  自由な位置・サイズに配置できるモード。既定はOFF(従来のグリッド))
         self.free_layout_checkbox = QCheckBox(tr("自由配置レイアウト(ドラッグで配置)"))
         layout_form.addRow(self.free_layout_checkbox)
 
@@ -1949,10 +1628,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         free_layout_button_row.addWidget(self.remove_free_subplot_button)
         layout_form.addRow(free_layout_button_row)
 
-        # 項目85: 自由配置レイアウトで選択中のサブプロットの位置・サイズを、
-        # マウスドラッグだけでなく数値入力でも編集できるようにするコントロール。
-        # Figure正規化座標(0〜1、ax.set_positionと同じ規約)をそのまま公開しつつ、
-        # ドラッグ同様に範囲外(負値/1超)もある程度許容して自由度を保つ。
+        # 自由配置で選んだ軸の位置と大きさを数値でも入れられる。値は Figure に対する割合(ax.set_position と同じ)で、
+        # ドラッグと同じく少しなら範囲外も許す
         self.free_layout_position_group = QGroupBox(tr("選択中のサブプロットの位置・サイズ"))
         free_layout_position_form = QFormLayout()
         self.free_layout_x_spinbox = QDoubleSpinBox()
@@ -1987,53 +1664,37 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         active_axis_layout.addWidget(self.active_axis_combo)
         active_axis_group.setLayout(active_axis_layout)
 
-        # 6. Designer の「ラベル/書式」タブ (tab_3) のレイアウトを取得
-        grid_layout = self.ui.tab_3.layout() # (これは QGridLayout であると仮定)
+        grid_layout = self.ui.tab_3.layout()  # QGridLayout
 
-        # 7. 既存のレイアウト (formLayout_3) を (0, 0) から一時的に取得
+        # 既存の formLayout_3 を (0, 0) から外し、新しい2つの下(2行目)に入れ直す
         existing_layout_item = grid_layout.itemAtPosition(0, 0)
 
         if existing_layout_item:
-            # (0, 0) から一時的に削除
             grid_layout.removeItem(existing_layout_item)
 
-        # 8. 0行目, 1行目に新しいウィジェットを追加
         grid_layout.addWidget(layout_group, 0, 0)
         grid_layout.addWidget(active_axis_group, 1, 0)
 
         if existing_layout_item:
-            # 9. 既存のレイアウトを 2行目 に追加し直す
             grid_layout.addItem(existing_layout_item, 2, 0)
 
-        # --- 8. イベント接続と初期化の呼び出し ---
+    def _connect_and_initialize(self):
 
-        # Matplotlib のマウス移動イベント -> ステータスバー座標更新
         self.canvas.mpl_connect('motion_notify_event', self._on_mouse_move)
 
-        # グラフ要素の直接クリック選択(項目35): データカーソル/注釈モードのON/OFFに
-        # 関わらず常時有効な、独立したpick_event接続 (詳細は _on_element_pick を参照)
+        # グラフの要素のクリックでの選択は、どのモードでも常に有効
         self.canvas.mpl_connect('pick_event', self._on_element_pick)
 
-        # マウス操作拡充(項目C-908): ホイールズーム + 中ボタンドラッグパン。
-        # 他のモード(データカーソル/注釈/自由配置編集)と同じ左クリックを
-        # 使わないため、専用のON/OFF切り替えなしに常時有効にする
-        # (motion_notify_eventは_on_mouse_moveと同じイベント種別に対する
-        # 2つ目の独立した接続で、mpl_connectは複数ハンドラの登録に対応している)。
+        # ホイールでのズームと中ボタンでのパンは、各モードの左クリックとぶつからないので常に有効
         self.canvas.mpl_connect('scroll_event', self._on_scroll_zoom)
         self.canvas.mpl_connect('button_press_event', self._on_middle_button_press_pan)
         self.canvas.mpl_connect('motion_notify_event', self._on_middle_button_motion_pan)
         self.canvas.mpl_connect('button_release_event', self._on_middle_button_release_pan)
-        # 凡例をドラッグで動かした位置を設定へ保存する(v1.4.2)
+        # 凡例をドラッグした位置を設定へ保存する
         self.canvas.mpl_connect('button_release_event', self._on_legend_drag_release)
 
-        # プラグインの読み込み (メニューバー作成より前に行う必要がある:
-        # プラグインが register_menu_action() で追加したメニュー項目を
-        # _create_menu_bar() が読むため)。
-        # ★ 複数プロジェクトタブ(項目40)ではPlotterAppがタブごとに作られるが、
-        # プラグインの読み込み・登録(フィット関数レジストリへの登録等)は
-        # プロセス全体で1度だけ行う(load_plugins_once がキャッシュする)。
-        # メニューへのアクション追加自体は、タブごとに自分の menuBar() へ
-        # 個別に行う必要があるため、_create_menu_bar() 側で行う。
+        # プラグインの登録はメニューを作る(_create_menu_bar)より前に。読み込みはアプリ全体で1回
+        # (load_plugins_once)、メニューへの追加はタブごとに _create_menu_bar が行う
         self.plugin_api = load_plugins_once(
             plugin_search_paths(), disabled_names=disabled_plugin_names(self.settings)
         )
@@ -2059,150 +1720,81 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             dock.setObjectName(f"PluginPanel_{panel.name}")
             dock.setWidget(widget)
             self.addDockWidget(_PLUGIN_PANEL_AREA_MAP.get(panel.area, Qt.DockWidgetArea.RightDockWidgetArea), dock)
-            dock.hide()  # 既定は非表示。表示状態はQSettingsのドックレイアウト復元に任せる
+            dock.hide()  # 表示するかはドック配置の復元に任せる
             self._plugin_panel_docks[panel.name] = dock
 
-        # ★ 項目H-2-3: ドックのフォーカス時強調(枠線をアクセント色に)。
-        #   祖先をたどってQDockWidgetを特定する方式のため、上のプラグイン製
-        #   パネルも含め、このタブが持つ全てのQDockWidgetを個別登録なしで
-        #   自動的にカバーする(詳細はtheme.install_dock_focus_highlight()の
-        #   docstringを参照)。
+        # フォーカスのあるドックの枠を強調する(プラグインのドックも含め、全部に効く)
         theme.install_dock_focus_highlight(self)
 
-        # プラグイン製プロット種別 (項目D-2、register_plot_type) を、既存の
-        # 5種類 (Area/Barと同じく実行時追加) に続けてコンボボックスへ追加する。
-        # 実際の描画分岐は gui/canvas.py の _draw_data 側でフォールバックとして処理する。
+        # プラグインの plot_type を種類の欄の最後に足す(描き方は canvas._draw_plot_type が探す)
         for plot_type in self.plugin_api.get_plot_types():
             self.ui.plot_type_combo.addItem(plot_type.type_name)
 
-        # UIコントロールのシグナル接続を _connect_signals ヘルパーメソッドで実行
         self._connect_signals()
 
-        # メニューバー (ファイル, ヘルプなど) を作成
         self._create_menu_bar()
 
-        # 項目87: クイックアクセスツールバーへ、前回までにピン留めされた
-        # アクションを復元し、メニュー項目の右クリックでのピン留め/解除を
-        # 有効にする。「プラグイン」メニューを含む全メニューが構築し終わった
-        # 直後(=_create_menu_bar()の後)である必要がある。
+        # クイックアクセスのピン留めを戻す。プラグインのものを含めて全メニューができた後であること
         self._restore_quick_access_actions()
         self._install_quick_access_context_menus()
 
-        # ★★★ 重要な初期化プロセス ★★★
-        # 1. 現在のUI (デフォルト状態) から設定を辞書として収集
+        # 画面の既定の状態を最初の軸の設定にする
         default_settings = self._gather_settings_from_ui()
-        # 2. これを「0番目のプロット」の設定としてリストに追加
         self.project.all_plot_settings.append(default_settings)
-        # 3. 不要なUI (第2Y軸ラベルなど) を非表示にする
         self._set_initial_ui_state()
-        # ★ GUI洗練(実機フィードバック): 「各設定項目のあとの：はなくして」。
-        #   ui_main_window.py(Qt Designer/pyside6-uic生成物、手で編集しない
-        #   方針)のretranslateUi()には、多くのフォームラベルに全角コロン
-        #   「：」が焼き込まれている(例: 凡例名：、種別：、色：)。.uiソース
-        #   ファイル自体はこのリポジトリに存在しないため再生成もできず、
-        #   Designerファイルを直接書き換えるわけにもいかないので、構築完了後の
-        #   ここでQLabelのtext()を上書きして末尾の「：」だけを取り除く
-        #   (動的に追加されたラベルも、この時点までに全て構築済みのため
-        #   同様にカバーされる)。
+        # 生成物の ui_main_window.py のラベルには末尾に「：」が付いている。.ui が無く作り直せないので、ここで取る
         _strip_trailing_colon_from_labels(self)
-        # 項目69: ミニ統計ラベル分の高さを見込んで、リスト自体の上限は少し控えめにする
+        # 下の1行の統計値の分だけ、一覧の高さの上限を控えめにする
         self.ui.dataset_list_widget.setMaximumHeight(175)
-        # (複数選択・ドラッグ&ドロップの設定は _replace_dataset_list_with_tree で設定済み)
 
         spacing_value = 6
         if self.ui.formLayout_3: self.ui.formLayout_3.setSpacing(spacing_value)
-        # C-1: formLayout_4 は空になったので、各サブセクションの QFormLayout に掛ける
+        # formLayout_4 は空なので、各節の QFormLayout に掛ける
         for key, _title in DATASET_PROPERTY_SECTIONS:
             self._prop_form(key).setSpacing(spacing_value)
 
-        # 入力欄の左端を揃える(実機フィードバック)。全ラベルが構築し終わった
-        # この時点で行う必要がある。プロパティパネルの7セクション同士、
-        # X軸タブとY軸タブ同士でそれぞれ列幅を共有させる
-        # (「ラベル/書式」タブは単独のフォームなので元から内部で揃っている)。
+        # 入力欄の左端を揃える(プロパティ欄の7節どうし、X/Y 軸のタブどうし)。ラベルが全部できた後で
         self._align_form_label_columns(
             [self._prop_form(key) for key, _title in DATASET_PROPERTY_SECTIONS])
         self._align_form_label_columns([self.ui.formLayout, self.ui.formLayout_2])
 
 
-        # X/Y軸の最小値・最大値: 負の値も含めて指数表記で入力できるようにする
+        # 軸の範囲と目盛りの間隔は、指数表記でも入力できるようにする
         for spin_box in [self.ui.x_min_spinbox, self.ui.x_max_spinbox,
                           self.ui.y_min_spinbox, self.ui.y_max_spinbox]:
             _enable_scientific_notation_input(spin_box, minimum=-np.inf, maximum=np.inf)
 
-        # 目盛り間隔 (主目盛/補助目盛): 0以上の値のみだが、同様に指数表記で入力できるようにする
-        # (これにより、非常に細かい/広いデータ範囲でも間隔を正確に指定できる)
         for spin_box in [self.ui.x_major_tick_interval_spinbox, self.ui.y_major_tick_interval_spinbox,
                           self.ui.x_minor_tick_interval_spinbox, self.ui.y_minor_tick_interval_spinbox]:
             _enable_scientific_notation_input(spin_box, minimum=0, maximum=np.inf)
 
-        # 4. 最初のプロット描画を実行
         self._update_plot()
 
-        # ドックの配置は、前回終了時の状態をQSettingsから復元する。保存されたものが
-        # 無い(初回起動)場合のみ、デフォルトのドック比率(resizeDocks)を使う。
-        # ★ ウィンドウ全体のサイズ・位置(saveGeometry/restoreGeometry)は、複数プロジェクト
-        # タブ(項目40)ではこのウィンドウ自体が最上位ウィンドウではなくなった
-        # (MainAppWindowに埋め込まれるタブの1つになる)ため、そちらの責務に移した。
-        # また、複数タブが同じQSettingsキーを取り合わないよう、ここでの
-        # ドック状態の保存/復元自体も最初のタブ(run_startup_checks=True)に限定する。
-        # ★ デフォルトのドック配置(DOCK_LAYOUT_VERSION)自体を変更した場合、
-        #   保存済みのバージョンと異なればあえて restoreState() を使わない
-        #   (そうしないと、旧バージョンの配置が復元され続けてしまい、
-        #   コード側でデフォルト配置を変えても既存ユーザーに反映されない)。
-        # ★ バグ修正: restoreState() はここ(__init__の途中)ではまだ
-        #   このウィンドウがMainAppWindowのタブとして実際の最終サイズに
-        #   埋め込まれる前(単独のQMainWindowとしてDesigner既定サイズのまま)
-        #   に呼ばれてしまい、ドック/ツールバーのスプリッター位置が誤ったサイズ
-        #   基準で復元される。この結果、ウィンドウを前回リサイズしてから終了→
-        #   再起動した場合にのみ、ボタン等の見た目の描画位置と実際のクリック
-        #   判定位置がずれる不具合が発生していた(最大化起動や、起動後の
-        #   手動リサイズでは正しい最終サイズで再レイアウトされるため発生しない)。
-        #   イベントループが一巡してウィンドウが実際の最終サイズで表示された
-        #   後に復元することで解消する。
-        # ドックレイアウトの手動リセット(項目152、C-911)用に、まだ何も
-        # restoreState()していない、Designer/コード構築直後の「素の」レイアウトを
-        # スナップショットしておく。_restore_dock_layout(下のQTimer経由)より
-        # 前にここで取ることが重要(先にrestoreStateされてしまうと、保存済みの
-        # 状態が「素の」状態として記録されてしまう)。
+        # ドックの配置は前回の状態を戻す(最初のタブだけ。窓の大きさと位置は MainAppWindow が扱う)。
+        # 既定の配置の版(DOCK_LAYOUT_VERSION)が保存時と違えば戻さない(戻すと新しい既定が既存の利用者に届かない)。
+        # 戻すのはイベントループが一巡してタブが最終の大きさになってから。ここで戻すと仮の大きさで
+        # スプリッターの位置が決まり、見た目とクリックの位置がずれる。
+        # 「リセット」用の素の配置は、戻す前のここで控える
         self._pristine_dock_state = self.saveState()
 
         QTimer.singleShot(0, self._restore_dock_layout)
 
-        # 項目86: 前回終了時にキャンバスを別ウィンドウへ切り離した状態のまま
-        # 終了していた場合、次回起動時も同じ状態(同じサイズ・位置)で復元する。
-        # ★ ドックのレイアウト(window_state)とは異なり、この設定はミニマップの
-        # 表示/非表示やダークモードと同じ「軽量なUI設定」の性質のものなので、
-        # 最初のタブ(run_startup_checks=True)に限定せず、常にQSettingsから
-        # 復元する(複数タブを開いていても、直近の状態を新しいタブにも
-        # 引き継ぐという設計)。ウィンドウが実際の最終サイズで表示された後
-        # (イベントループが一巡した後)に行う。
+        # キャンバスを切り離したまま閉じていれば同じ状態に戻す。ダークモードなどと同じ軽い設定なので、どのタブでも戻す
         if self.settings.value(CANVAS_WAS_DETACHED_KEY, False, type=bool):
             QTimer.singleShot(0, lambda: self._detach_canvas(restore_geometry=True))
 
         self.setAcceptDrops(True)
 
-        # 起動直後に一度だけ、オートセーブからの復元が必要か確認する。
-        # ウィンドウ表示前だとQMessageBoxが親を持てず不自然な位置に出るため、
-        # イベントループが一巡した後 (ウィンドウ表示後) に実行されるよう遅延させる。
-        # ★ 複数プロジェクトタブ(項目40)では、これらは最初のタブでのみ行う
-        # (2つ目以降のタブは新規の空プロジェクトであり、復元/ウェルカム表示の対象外)。
+        # 起動時の確認は最初のタブだけ。窓が表示される前だとダイアログが変な位置に出るので、一巡してから
         if self._run_startup_checks:
             QTimer.singleShot(0, self._check_autosave_recovery)
-            # 初回起動時のみ、ウェルカムダイアログ(簡単な操作ガイド+サンプルデータ)を表示する。
-            # オートセーブ復元の確認より後に登録することで、万一両方表示される場合でも
-            # データの安全性に関わる確認(復元)を先に済ませてから案内できるようにする。
+            # 初回の案内は復元の確認の後(データに関わる確認を先に)
             QTimer.singleShot(0, self._check_first_launch)
-            # アップデート通知(項目161、C-1203)。上記2つの確認ダイアログの
-            # 邪魔にならないよう少し遅らせて起動する。「取得のみ・送信なし」
-            # (公開のGitHub REST APIへの匿名GET1回のみ)、新版がある場合のみ
-            # 通知し、失敗時は静かに諦める(_on_startup_update_check_succeeded
-            # 参照、手動確認の_on_check_for_updateとは異なりエラーダイアログを
-            # 出さない)。
+            # 新しい版の確認は上の2つの邪魔をしないよう少し遅らせる。公開 API への匿名の GET 1回だけで、
+            # 新しい版があるときだけ知らせ、失敗しても何も出さない
             QTimer.singleShot(1500, self._start_startup_update_check)
 
-        # 設定項目間の余白を広げる(ユーザーフィードバックを受けて)。
-        # この時点までに Designer 生成/動的生成の QFormLayout はすべて構築済みのため、
-        # __init__ の最後でまとめて適用する。
+        # 項目の間の余白を広げる。フォームが全部できた最後に
         apply_form_spacing(self)
 
     def _restore_dock_layout(self):
