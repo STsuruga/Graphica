@@ -1,21 +1,6 @@
-"""
-gui/minimap_widget.py
+"""グラフの下の小さな全体図。ドラッグで選んだ範囲を range_selected で知らせる(軸に当てるのは呼び出し側)。
 
-項目83「レンジスライダー(ミニマップ)」: グラフ下部に表示する、全体像の
-小さな概観(ミニマップ)。matplotlib.widgets.SpanSelector を使って、
-ドラッグで選択した範囲を range_selected シグナルとして通知する。
-
-★ 設計方針(main_window.py 側の実装コメントも参照):
-  - メインの MplCanvas (gui/canvas.py) とは完全に別の、小さな独立した
-    matplotlib Figure/Axes を持つ FigureCanvasQTAgg のサブクラスにする。
-    メインキャンバスの redraw_all() は fig.clf() で Figure を作り直すが、
-    このウィジェットは別インスタンスの Figure なので影響を受けない。
-    ただし表示中のデータセットが変わった場合は refresh() を呼んで
-    明示的に描き直す必要がある(呼び出し側の責務、main_window.py の
-    _update_plot() 末尾から _refresh_minimap() 経由で呼ばれる)。
-  - このウィジェット自身は「選択範囲を通知する」だけで、実際にメイン
-    キャンバスへズーム範囲を適用する処理は持たない(疎結合にするため)。
-    適用側は呼び出し元(main_window.py の _on_minimap_range_selected)。
+メインのキャンバスとは別の Figure なので、redraw_all() では描き直されない。データが変わったら refresh() を呼ぶこと。
 """
 import logging
 
@@ -30,35 +15,19 @@ from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 
 logger = logging.getLogger(__name__)
 
-# 線ではなく点で概観を描く plot_type。Line+Scatter は線が主なので含めない。
+# 点で描く種類。Line+Scatter は線が主なので含めない
 MINIMAP_POINT_PLOT_TYPES = frozenset({'Scatter', 'Density Scatter', COLOR_BY_COLUMN_PLOT_TYPE})
 
-# ミニマップの高さ(px)。「小さな概観」であることが一目でわかる程度に抑える。
 MINIMAP_HEIGHT_PX = 70
 
-# 実機不具合対応:「プロットを処理した後にミニマップを動かそうとすると異常に重くなる」。
-# ★ 根本原因: refresh()は各データセットのx_data/y_dataを間引かずそのままax.plot()
-#   していた。SpanSelectorはuseblit=Trueでドラッグ中の再描画自体は軽量(blit)だが、
-#   その裏で使う背景画像(canvas.copy_from_bbox)は「ミニマップFigure全体をフル描画
-#   した結果」であり、refresh()のたびに_create_span_selector()が新しいSpanSelector
-#   を作り直してbackgroundキャッシュを破棄する(=プロットを1回処理するたびに、
-#   直後のドラッグ操作で必ずこのフル描画が起きる)。データ点数が数十万〜数百万点
-#   あるデータセットでは、この「間引かれていない折れ線」のフル描画コストがそのまま
-#   ミニマップ操作の重さとして体感される。gui/canvas.pyのLTTB間引き
-#   (LTTB_DOWNSAMPLE_THRESHOLD/LTTB_DOWNSAMPLE_TARGET_POINTS)と同じ考え方だが、
-#   ミニマップは表示幅が数百pxしかない概観表示のため、より小さい目標点数で十分。
+# 間引く。SpanSelector の背景は全体を描いた画像で、refresh() のたびに作り直すので、点が多いとドラッグが重くなる。
+# 幅が数百 px しかないので、canvas の LTTB より少ない点でよい
 MINIMAP_DOWNSAMPLE_THRESHOLD = 2000
 MINIMAP_DOWNSAMPLE_TARGET_POINTS = 500
 
-# gui/canvas.py の配色定数と揃える(ダーク/ライト両テーマで浮かないように)
+# gui/canvas.py の配色と揃える
 DARK_FIGURE_FACECOLOR = '#2b2b2b'
-# ★ 実機フィードバック: 「ミニマップの灰色も他の所の背景と色のテイストを
-#   そろえて、同じ色にはしないで少しだけ暗い色にして」。以前はフラットな
-#   無彩色グレー(#f2f2f2 / #1e1e1e)で、gui/theme.pyのトークン(寒色寄りの
-#   グレー、bg=#F6F7F9/surface_2=#EEF0F3、ダークはbg=#14171A/surface_2=
-#   #21262A)と色味が揃っていなかった。同じ色相(寒色寄り、R<G<Bの傾向)を
-#   保ちつつ、周囲のパネル背景そのものと同一にはせず、ミニマップが「一段
-#   窪んだ」独立領域だと分かる程度にわずかに暗くしている。
+# 周りのパネルと同じ寒色寄りの色味で、少しだけ暗くして一段くぼんだ領域に見せる
 DARK_AXES_FACECOLOR = '#0E1114'
 DARK_LINE_COLOR = '#8ab4f8'
 DARK_SPAN_COLOR = '#8ab4f8'
@@ -69,13 +38,6 @@ LIGHT_SPAN_COLOR = '#1a73e8'
 
 
 class MinimapWidget(FigureCanvas):
-    """
-    グラフ下部の全体像ミニマップ(項目83)。
-
-    refresh(datasets, dark_mode) で現在のデータセットの概観(簡略化した
-    折れ線)を描き直し、matplotlib標準の SpanSelector でユーザーがドラッグ
-    選択した範囲を range_selected(xmin, xmax) シグナルで通知する。
-    """
     range_selected = Signal(float, float)
 
     def __init__(self, parent=None, dpi=100):
@@ -92,10 +54,8 @@ class MinimapWidget(FigureCanvas):
         self._create_span_selector()
         self._apply_theme_colors()
 
-    # --- 内部ヘルパー ---
 
     def _configure_axes_style(self):
-        """概観であることを強調するため、Y軸目盛りなど不要な装飾を消す"""
         self.ax.set_yticks([])
         self.ax.tick_params(axis='x', labelsize=6)
         for spine in ('top', 'right', 'left'):
@@ -103,19 +63,9 @@ class MinimapWidget(FigureCanvas):
         self.fig.subplots_adjust(left=0.02, right=0.98, top=0.92, bottom=0.28)
 
     def _create_span_selector(self):
-        """
-        SpanSelector を(再)生成する。ax.cla() は既存のSpanSelectorが
-        axへ追加していたArtist(選択範囲を示す矩形)も一緒に消してしまうため、
-        refresh() で ax.cla() した後は毎回作り直す必要がある。
+        """SpanSelector を作り直す(ax.cla() が選択の矩形も消すので、refresh() のたびに)。
 
-        ★ バグ修正: 古いSpanSelectorのイベント接続(press/motion/release)を
-        切断せずに上書きしていたため、refresh()が呼ばれるたび(データセット
-        追加やプロット設定変更のたびに毎回)に前のSpanSelectorがcanvasの
-        コールバック登録に生き残ったまま蓄積し、際限なくリークしていた
-        (matplotlibはcla()やGCで自動的に接続を切ってくれない)。1回の
-        ドラッグ操作のたびに、リークした数だけrange_selectedが重複発火
-        したり、ax.cla()で既に消えたArtistをuseblit=Trueの古いSelectorが
-        参照し続けて残像(ゴースト矩形)が出たりする実害があった。
+        古いものの接続は切る。matplotlib は cla() でも切らないので、残すと溜まって range_selected が重複して出る。
         """
         if getattr(self, '_span_selector', None) is not None:
             self._span_selector.disconnect_events()
@@ -137,21 +87,14 @@ class MinimapWidget(FigureCanvas):
         self.ax.set_facecolor(axes_face)
 
     def _on_select(self, xmin, xmax):
-        """SpanSelectorのドラッグ選択が確定したときに呼ばれる"""
         if xmin == xmax:
-            # クリックのみ(ドラッグなし)は範囲選択とみなさない
+            # クリックだけ(ドラッグなし)は選択とみなさない
             return
         self.range_selected.emit(xmin, xmax)
 
     @staticmethod
     def _downsample_for_overview(x, y):
-        """
-        概観描画用に点数を MINIMAP_DOWNSAMPLE_TARGET_POINTS 程度まで間引く。
-        LTTB(calculate_lttb_downsample)はXが昇順ソート済みであることを前提と
-        するため、gui/canvas.pyのLTTB適用条件と同様にXの昇順を確認してから
-        使う。Xが昇順でない(Scatterの取り込み順序等)場合は形状保持の意味が
-        薄いため、単純な等間隔間引きで点数だけ落とす。
-        """
+        """点を減らす。X が昇順なら LTTB、そうでなければ等間隔に間引く(LTTB は昇順が前提)。"""
         n = len(x)
         if n <= MINIMAP_DOWNSAMPLE_THRESHOLD:
             return x, y
@@ -162,15 +105,9 @@ class MinimapWidget(FigureCanvas):
             idx = np.arange(0, n, step)
         return x[idx], y[idx]
 
-    # --- 公開API ---
 
     def refresh(self, datasets, dark_mode=False):
-        """
-        現在のデータセット一覧をもとに、ミニマップの概観を描き直す。
-        ナビゲーション用の補助表示であるため、複雑な描画(エラーバー・
-        マーカー種別・二次軸など)は再現せず、各データセットのX/Y値を
-        薄い折れ線として重ね描きするだけの簡易表示にとどめる(シンプルさ優先)。
-        """
+        """各データセットの X/Y を薄い線か点で重ねるだけの簡単な全体図にする。"""
         self.dark_mode = dark_mode
         self.ax.cla()
         self._configure_axes_style()
@@ -179,15 +116,10 @@ class MinimapWidget(FigureCanvas):
         line_color = DARK_LINE_COLOR if dark_mode else LIGHT_LINE_COLOR
         has_data = False
         for ds in datasets:
-            # データセットの表示/非表示トグル(項目C-907): メインキャンバスの
-            # redraw_all()と同様、非表示のデータセットはミニマップの概観からも除外する
-            # (概観に非表示分の線が残ると、メイン表示と食い違って見えるため)。
+            # メインと同じく隠した系列は出さない
             if not getattr(ds, 'visible', True):
                 continue
-            # 2Dグリッドデータ(ヒートマップ、項目C-508)はx_data/y_dataが長形式の
-            # 生の列(1行=1測定点)であり、そのままplot()すると測定順に線を引く
-            # 意味のない折れ線になる。ミニマップは概観表示に留める設計のため、
-            # 対応(縮小ヒートマップ等)は行わず単純にスキップする。
+            # 2D マップの x/y は測定点の列なので、線にすると意味が無い。描かない
             if getattr(ds, 'data_kind', '1d') == '2d_grid':
                 continue
             try:
@@ -201,23 +133,19 @@ class MinimapWidget(FigureCanvas):
             try:
                 x, y = self._downsample_for_overview(x, y)
                 if getattr(ds, 'plot_type', 'Line') in MINIMAP_POINT_PLOT_TYPES:
-                    # ★ 点で描く種別(散布図、ピーク検出の結果など)は、点のまま描く。
-                    #   以前は全データセットを折れ線にしていたため、ピーク検出の結果
-                    #   (数点の散布図)がピーク同士を結ぶ線になり、元データの形と
-                    #   紛らわしかった。X が並んでいない散布図もジグザグの線になっていた。
+                    # 点の種類は点で描く(線にするとピーク検出の結果がピーク同士を結ぶ線になる)
                     self.ax.plot(x, y, linestyle='None', marker='o', markersize=1.8,
                                  color=line_color, alpha=0.8)
                 else:
                     self.ax.plot(x, y, color=line_color, linewidth=0.7, alpha=0.6)
                 has_data = True
             except Exception:
-                # 概観表示に失敗しても致命的ではないため、ログのみ残してスキップ
+                # 全体図なので、描けなくても止めない
                 logger.debug("ミニマップへのデータセット描画に失敗しました", exc_info=True)
 
         if has_data:
             self.ax.relim()
             self.ax.autoscale_view()
 
-        # cla() で古いSpanSelectorのArtistも消えているため作り直す
         self._create_span_selector()
         self.draw_idle()

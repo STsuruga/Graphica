@@ -1,19 +1,6 @@
-# gui/main_app_window.py
-"""
-複数プロジェクトのタブ化(項目40)。
+"""最上位のウィンドウ。各タブは独立した PlotterApp(QMainWindow)で、Undo もメニューもドックも別々に持つ。
 
-アプリケーションの実際の最上位ウィンドウ。中央に QTabWidget を持ち、
-各タブには完全に独立した PlotterApp インスタンス(自身のUndoスタック・
-データセット一覧・キャンバス・メニューバー・ドック配置などをすべて
-個別に持つ、それ自体が元々の単独アプリと同じQMainWindow)を埋め込む。
-
-「完全に独立」であることを保証するため、既存の PlotterApp / 各Mixin の
-実装には一切手を加えず(すべて self.xxx のインスタンス属性を前提とした
-コードのまま)、QMainWindowを子ウィジェットとして埋め込めるというQtの
-性質をそのまま利用している。共有すべきでない状態(オートセーブ復元確認・
-初回起動ウェルカム・ウィンドウのドック配置の永続化・clean_exitフラグ)は
-最初のタブだけが担当するよう PlotterApp 側に run_startup_checks フラグを
-渡して制御し、オートセーブファイル名はタブごとに重複しないようにしている。
+アプリ全体で1回だけの処理(オートセーブの復元確認、初回の案内、ドック配置の保存、clean_exit)は最初のタブだけが行う。
 """
 import logging
 
@@ -35,36 +22,23 @@ DEFAULT_WINDOW_HEIGHT = 850
 
 
 class MainAppWindow(QMainWindow):
-    """複数の PlotterApp インスタンスをタブとして保持する最上位ウィンドウ。"""
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} {__version__}")
         icon_path = resource_path("Graphica.ico")
         self.setWindowIcon(QIcon(icon_path))
 
-        # ★ ウィンドウ全体のサイズ・位置(項目56)は、複数タブ化に伴い
-        # このクラスが最上位ウィンドウの責務を持つようになったため、ここで管理する。
+        # ウィンドウ全体の大きさと位置はここで持つ
         self._settings = QSettings("Graphica", "Graphica")
 
-        # タブをまたいで共有されるグローバル状態(QSettings/最近使ったファイル/
-        # プラグインレジストリ)の集約点(項目C-006)。プロセスにつき1つ、
-        # ここで生成して以後使い回す。
+        # タブをまたいで共有する状態(QSettings、最近使ったファイル、プラグイン)。プロセスに1つ
         self.app_context = AppContext(self)
 
-        # タブ横断のUndo一元化(項目C-007)。各タブ(PlotterApp)は従来通り
-        # 自分自身の QUndoStack を持ち続ける(PlotterApp側は無改修)が、
-        # ここでそれらをQUndoGroupに登録し、タブ切り替え時に
-        # setActiveStack()でアクティブなスタックを追従させる。
-        # Undo履歴パネル(項目C-901、下のQUndoView)はこのグループ経由で
-        # 常にアクティブなタブの履歴を表示する。
+        # 各タブは自分の QUndoStack を持ち、ここでグループにまとめて、表示中のタブのものを有効にする
+        # (履歴パネルはグループを通して表示中のタブの履歴を出す)
         self.undo_group = QUndoGroup(self)
         self._create_undo_history_dock()
-        # ★ 項目H-2-3: ドックのフォーカス時強調(枠線をアクセント色に)。
-        #   undo_history_dockはPlotterApp(各タブ)ではなくこのウィンドウ自身が
-        #   持つドックのため、gui/main_window.py側の呼び出しとは別に、
-        #   ここでも個別に組み込む必要がある(詳細はtheme.
-        #   install_dock_focus_highlight()のdocstringを参照)。
+        # 履歴パネルはこのウィンドウのドックなので、タブとは別にここでもフォーカスの強調を付ける
         theme.install_dock_focus_highlight(self)
 
         self._next_tab_id = 1
@@ -76,9 +50,6 @@ class MainAppWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self._on_current_tab_changed)
         self.setCentralWidget(self.tab_widget)
 
-        # タブバー右端の「+」ボタン (新しいプロジェクトタブを開く)
-        # ★ GUI洗練: プレーンな文字ボタンではなく、他のツールバー類と同じ
-        #   Tabler Iconsのトーンに揃えたアイコンボタンにする。
         add_tab_button = QToolButton()
         add_tab_button.setObjectName("add_tab_button")
         add_tab_button.setIcon(svg_icon("file-plus", size=18))
@@ -88,13 +59,7 @@ class MainAppWindow(QMainWindow):
         add_tab_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         add_tab_button.clicked.connect(lambda: self.add_new_project_tab())
 
-        # Undo履歴パネルの表示/非表示切り替えボタン(項目C-901)。他のツールバー
-        # 類と統一感を持たせるため、Tabler Iconsの"history"アイコンを使う。
-        # ★ setDefaultAction()はボタンのアイコン/ツールチップ/チェック状態を
-        #   紐付けたQAction側のものに同期させる(=後からボタン側にsetIcon()/
-        #   setToolTip()しても上書きされて消える)ため、アイコン/ツールチップは
-        #   必ずQAction(toggleViewAction()の戻り値)側に設定してから
-        #   setDefaultAction()に渡す。
+        # setDefaultAction() はボタンのアイコンとツールチップを QAction のもので上書きするので、先に QAction に設定する
         undo_history_action = self.undo_history_dock.toggleViewAction()
         undo_history_action.setIcon(svg_icon("history", size=18))
         undo_history_action.setToolTip("Undo履歴パネルの表示/非表示")
@@ -116,33 +81,18 @@ class MainAppWindow(QMainWindow):
 
         saved_geometry = self._settings.value("window_geometry")
         if saved_geometry is not None:
-            # ★ バグ修正: restoreGeometry() を show() より前(=ウィンドウがまだ
-            #   一度もOSに実体化されていない段階)で呼ぶと、Windowsのウィンドウ枠
-            #   (タイトルバー等)の実寸がまだ確定しておらず、Qtが不正確な枠幅を
-            #   前提にジオメトリを復元してしまう。この結果、ウィンドウ自身の画面
-            #   上の位置についてQtが持つ内部認識が実際とズレたままになり、以降
-            #   ポップアップ位置・クリック判定・matplotlibのマウス座標など、
-            #   画面座標変換を伴うものすべてが一律にズレて見える不具合が起きていた
-            #   (最大化はこの枠幅計算に依存しない別経路のため影響を受けない)。
-            #   winId() でネイティブウィンドウハンドルだけを先に生成させることで、
-            #   画面に表示せずに正確な枠幅をQtに確定させてから復元する。
+            # 先にネイティブのハンドルを作る。窓が実体化する前に restoreGeometry() すると枠の幅が確定しておらず、
+            # 画面上の位置の認識がずれて、ポップアップやクリックの位置が全部ずれる
             self.winId()
             self.restoreGeometry(saved_geometry)
         else:
             self.resize(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
 
-        # 起動時は必ず1つ、最初のタブ(従来通りのオートセーブ復元確認・
-        # ウェルカム表示・ドック配置復元を行う「本体」)を開く。
+        # 最初のタブは起動時の確認をするタブ
         self.add_new_project_tab(run_startup_checks=True)
 
     def _create_undo_history_dock(self):
-        """
-        Undo履歴パネル(項目C-901)。QUndoGroupに登録された、現在アクティブな
-        タブのUndoスタックの操作履歴をQUndoView(Qt標準ウィジェット)で
-        リスト表示する。タブが切り替わると _on_current_tab_changed が
-        undo_group.setActiveStack() を呼ぶため、表示内容も自動的に追従する。
-        既定では非表示(必要な人だけ「履歴」ボタンで開く低頻度機能のため)。
-        """
+        """表示中のタブの Undo 履歴(既定では隠す)。"""
         self.undo_history_dock = QDockWidget("Undo履歴", self)
         self.undo_history_dock.setObjectName("undo_history_dock")
         undo_view = QUndoView(self.undo_group, self.undo_history_dock)
@@ -151,7 +101,6 @@ class MainAppWindow(QMainWindow):
         self.undo_history_dock.setVisible(False)
 
     def add_new_project_tab(self, run_startup_checks=False):
-        """新しいプロジェクトタブ(独立した PlotterApp インスタンス)を開く。"""
         tab_id = self._next_tab_id
         self._next_tab_id += 1
 
@@ -163,25 +112,10 @@ class MainAppWindow(QMainWindow):
             lambda pw=project_window: self._refresh_tab_title(pw)
         )
 
-        # タブ横断Undo一元化(項目C-007): このタブ自身のQUndoStack(既存の
-        # project_window.undo_stack、PlotterApp側は無改修)をグループに登録する。
         self.undo_group.addStack(project_window.undo_stack)
 
-        # ★ 実機フィードバック(Mac): 「タブを増やしたときに増やしたタブが
-        #   何も操作できない」。QMainWindowを子ウィジェットとして埋め込む際、
-        #   既定のウィンドウフラグのままだと最上位ウィンドウとして扱われて
-        #   しまうことがあるため、明示的に通常ウィジェット化する必要がある
-        #   (Qtのドキュメント通り、親を変えるだけではウィンドウフラグは
-        #   自動的にはクリアされない)。
-        #   以前はこの明示的なフラグ変更をaddTab()より前(=まだ親を持たない
-        #   状態)で行っていたが、「フラグ変更→別の親へ再度reparent」という
-        #   2段階の遷移になり、ネイティブウィンドウハンドルの生成・破棄が
-        #   余分に発生する。Windowsでは問題が表面化しなかったが、
-        #   macOS(Cocoa)のウィンドウ/ビュー管理はこの種の遷移により敏感な
-        #   ことが知られており、この2段階遷移が「タブは表示されるが入力を
-        #   一切受け付けない」不具合の原因になっている可能性が高い。
-        #   まず最終的な親(タブウィジェット内部のQStackedWidget)を確定させて
-        #   から1回だけフラグを変更する順序に統一し、余分な遷移を無くす。
+        # 埋め込んだ QMainWindow は最上位ウィンドウのフラグが残るので外す。親を確定させてから1回だけ変える
+        # (変更と付け替えの2段階にすると、macOS でタブが入力を受け付けなくなる)
         index = self.tab_widget.addTab(project_window, self._tab_title_for(project_window))
         project_window.setWindowFlags(Qt.WindowType.Widget)
         self.tab_widget.setCurrentIndex(index)
@@ -207,12 +141,10 @@ class MainAppWindow(QMainWindow):
         project_window = self.tab_widget.widget(index)
         if project_window is not None:
             self._update_window_title(project_window)
-            # タブ横断Undo一元化(項目C-007): アクティブなタブのスタックに
-            # 追従させる。Undo履歴パネル(QUndoView)もこれを通じて連動する。
             self.undo_group.setActiveStack(project_window.undo_stack)
 
     def _on_tab_close_requested(self, index):
-        """タブの「×」ボタンが押されたときの処理。タブを1つも無くすことはできない。"""
+        """最後の1つは閉じられない。"""
         if self.tab_widget.count() <= 1:
             QMessageBox.information(
                 self, "タブを閉じる", "最後の1つのタブは閉じられません。"
@@ -220,24 +152,18 @@ class MainAppWindow(QMainWindow):
             return
 
         project_window = self.tab_widget.widget(index)
-        # 未保存の変更があれば閉じる前に確認する(v1.4.2)
         if project_window is not None and not project_window.confirm_unsaved_changes("タブを閉じる"):
             return
         self.tab_widget.removeTab(index)
         if project_window is not None:
-            # タブ横断Undo一元化(項目C-007): 閉じるタブのスタックをグループから
-            # 明示的に外す(project_window.deleteLater()によるQt側の自動的な
-            # 後始末に頼らず、閉じた直後からQUndoView/undo_groupの対象に
-            # 残らないようにするため)。
+            # 閉じた直後から履歴パネルの対象に残らないよう、明示的に外す
             self.undo_group.removeStack(project_window.undo_stack)
             project_window.close()
             project_window.deleteLater()
 
     def closeEvent(self, event):
-        """アプリ全体が閉じられるとき、開いている全タブに正常終了処理をさせてから閉じる。"""
-        # 未保存の変更の確認(v1.4.2)。どのタブのことか分かるよう、そのタブを
-        # 前面に出してから尋ねる。1つでもキャンセルされたら、どのタブも閉じない
-        # (確認を全部済ませてから閉じ始めるので、途中まで閉じた状態にはならない)。
+        """全部のタブに正常終了の処理をさせてから閉じる。"""
+        # 未保存の変更は、そのタブを前に出して尋ねる。全部尋ねてから閉じ始めるので、1つでもキャンセルなら何も閉じない
         for index in range(self.tab_widget.count()):
             project_window = self.tab_widget.widget(index)
             if project_window is None or not project_window.has_unsaved_changes():

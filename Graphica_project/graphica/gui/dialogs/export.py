@@ -1,11 +1,4 @@
-# gui/dialogs/export.py
-"""
-エクスポート・出力のダイアログ。
-
-gui/dialogs.py(5,560行・47ダイアログ)を機能群ごとに分割したもの
-(改善ボード B-2)。呼び出し側は従来どおり `from gui.dialogs import X` で
-参照できる(gui/dialogs/__init__.py が再エクスポートしている)。
-"""
+"""書き出しと出力のダイアログ。呼び出し側は `from graphica.gui.dialogs import X` で参照する。"""
 
 import os
 from PySide6.QtWidgets import (
@@ -36,35 +29,14 @@ from graphica.core.cvd_simulation import CVD_TYPE_LABELS
 from graphica.gui.cvd_preview import simulate_qimage
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (6)
-#==============================================================================
 class ExportDialog(QDialog):
-    """
-    プロット（Matplotlib の Figure）を画像ファイルとしてエクスポートする際に、
-    出力サイズ、単位、解像度(DPI)を指定するためのカスタムダイアログクラスです。
-    
-    プレビュー表示用のUIも持ちますが、プレビューの生成ロジック自体は
-    呼び出し側 (PlotterApp._generate_preview) が担当します。
-    """
+    """書き出しの大きさ・単位・解像度。プレビューを作るのは呼び出し側(PlotterApp._generate_preview)。"""
     def __init__(self, parent=None):
-        """
-        ダイアログのUIコンポーネントを初期化します。
-        
-        Args:
-            parent (QWidget, optional): 親ウィジェット。
-        """
         super().__init__(parent)
         self.setWindowTitle("プロットのエクスポート")
 
-        # --- UIコンポーネントの作成 ---
 
-        # 図面サイズプリセット(項目139、C-802): 学術誌でよく使われる段組幅
-        # (単段85mm/1.5段114mm/2段170mm)を選ぶと、幅を自動的にミリメートル
-        # 単位で埋める(高さはアスペクト比が図ごとに異なるため自動設定しない、
-        # ユーザーが別途指定する)。
+        # 学術誌の段組の幅(単段 85mm / 1.5段 114mm / 2段 170mm)。高さは図ごとに違うので決めない
         self.JOURNAL_PRESET_CUSTOM = "カスタム"
         self.JOURNAL_PRESETS = {
             "学術誌 単段 (85mm)": 85.0,
@@ -76,37 +48,29 @@ class ExportDialog(QDialog):
         self.journal_preset_combo.addItems(self.JOURNAL_PRESETS.keys())
         self.journal_preset_combo.currentTextChanged.connect(self._on_journal_preset_changed)
 
-        # 幅 (Width)
         self.width_spinbox = QDoubleSpinBox()
-        self.width_spinbox.setRange(1, 10000) # 1から10000の範囲
-        self.width_spinbox.setValue(800)      # デフォルト値 800
-        self.width_spinbox.setDecimals(1)     # ★ 小数点以下1桁まで許可 (インチ指定などのため)
+        self.width_spinbox.setRange(1, 10000)
+        self.width_spinbox.setValue(800)
+        self.width_spinbox.setDecimals(1)     # インチ指定のため小数を許す
 
-        # 高さ (Height)
         self.height_spinbox = QDoubleSpinBox()
         self.height_spinbox.setRange(1, 10000)
         self.height_spinbox.setValue(600)
-        self.height_spinbox.setDecimals(1)     # ★ 小数点以下1桁まで許可
+        self.height_spinbox.setDecimals(1)
 
-        # 単位 (Unit)。ミリメートル(項目139、C-802)は上記の学術誌プリセット選択時に
-        # 自動的に切り替わる(mm指定は学術誌の投稿規定でよく使われる単位のため)。
+        # 学術誌のプリセットを選ぶとミリメートルに切り替わる
         self.unit_combo = QComboBox()
         self.unit_combo.addItems(["ピクセル (px)", "インチ (in)", "センチメートル (cm)", "ミリメートル (mm)"])
 
-        # 解像度 (DPI)
-        self.dpi_spinbox = QSpinBox() # DPIは整数値なので QSpinBox
-        self.dpi_spinbox.setRange(50, 1200) # 50から1200 DPI
-        self.dpi_spinbox.setValue(300)      # デフォルト値 300 (印刷用途を想定)
-        self.dpi_spinbox.setSuffix(" dpi")  # " dpi" という接尾辞を表示
+        self.dpi_spinbox = QSpinBox()
+        self.dpi_spinbox.setRange(50, 1200)
+        self.dpi_spinbox.setValue(300)
+        self.dpi_spinbox.setSuffix(" dpi")
 
-        # 背景の透過(項目108): 以前は常にtransparent=Trueで固定していたが、
-        # スライド資料等で背景色を保ちたい場合もあるため選択可能にする
         self.transparent_checkbox = QCheckBox("背景を透過")
         self.transparent_checkbox.setChecked(True)
 
-        # SVG出力時の文字の扱い(項目88): 既定はテキスト要素として保持(検索・
-        # 再編集がしやすい)。フォントが無い環境での文字化けを避けたい場合のみ
-        # チェックしてアウトライン化(パス化)する。PNG/PDFには影響しない。
+        # 既定は文字のまま(検索や編集ができる)。フォントの無い環境で化けるのを避けたいときだけパスにする。SVG だけに効く
         self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
         self.svg_text_as_path_checkbox.setToolTip(
             "SVG出力時、目盛りの数字やラベルの文字をテキスト要素ではなく"
@@ -114,11 +78,7 @@ class ExportDialog(QDialog):
             "崩れませんが、テキストとしての検索・編集はできなくなります。"
         )
 
-        # フル解像度エクスポート: 表示用ダウンサンプリング(LTTB、項目C-1001)は
-        # Line(連続曲線)が20,000点を超えた場合のみ画面表示を軽量化するが、
-        # 出版・印刷用など間引き無しのデータが必要な場合はこれを有効にする。
-        # 2Dマップ(ヒートマップ/等高線)のグリッド間引き(1軸500点超で発動)も
-        # 同じチェックボックスで無効化される。
+        # 表示用の間引き(線は 20,000 点超、2D マップは1軸 500 点超)をしない
         self.full_resolution_checkbox = QCheckBox("フル解像度でエクスポート(間引きなし)")
         self.full_resolution_checkbox.setToolTip(
             "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/"
@@ -128,25 +88,20 @@ class ExportDialog(QDialog):
             "この設定に関わらず常に全点描画されます。"
         )
 
-        # --- プレビュー関連 ---
         self.preview_button = QPushButton("プレビュー更新")
         self.preview_button.setToolTip("現在の設定でプレビュー画像を生成します。")
         
         self.preview_label = QLabel("プレビューがここに表示されます")
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter) # 中央揃え
-        self.preview_label.setFixedSize(400, 300) # プレビュー表示エリアのサイズを固定
-        self.preview_label.setFrameShape(QLabel.Shape.StyledPanel) # 枠線を表示
+        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_label.setFixedSize(400, 300)
+        self.preview_label.setFrameShape(QLabel.Shape.StyledPanel)
 
-        # --- ボタン ---
-        # QDialogButtonBox.Save は "保存" ボタンを表示します。
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | 
                                     QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        
-        # --- レイアウト ---
-        
-        # 1. 入力欄用のフォームレイアウト (ラベル: [入力欄])
+
+
         form_layout = QFormLayout()
         form_layout.addRow("サイズプリセット", self.journal_preset_combo)
         form_layout.addRow("幅", self.width_spinbox)
@@ -157,34 +112,24 @@ class ExportDialog(QDialog):
         form_layout.addRow(self.svg_text_as_path_checkbox)
         form_layout.addRow(self.full_resolution_checkbox)
 
-        # 2. 全体をまとめる垂直レイアウト
         main_layout = QVBoxLayout()
-        main_layout.addLayout(form_layout)      # フォームレイアウトを追加
-        main_layout.addWidget(self.preview_button) # プレビューボタンを追加
-        main_layout.addWidget(self.preview_label)  # プレビュー表示エリアを追加
-        main_layout.addWidget(button_box)       # 保存/Cancelボタンを追加
+        main_layout.addLayout(form_layout)
+        main_layout.addWidget(self.preview_button)
+        main_layout.addWidget(self.preview_label)
+        main_layout.addWidget(button_box)
         
         self.setLayout(main_layout)
 
         apply_form_spacing(self)
 
     def _on_journal_preset_changed(self, preset_name):
-        """
-        図面サイズプリセット(項目139、C-802)が選ばれたときの処理。
-        「カスタム」ではユーザーが自由に入力した値をそのまま残す(何もしない)。
-        """
+        """「カスタム」なら入力した値をそのまま残す。"""
         if preset_name == self.JOURNAL_PRESET_CUSTOM:
             return
         self.unit_combo.setCurrentText("ミリメートル (mm)")
         self.width_spinbox.setValue(self.JOURNAL_PRESETS[preset_name])
 
     def get_options(self):
-        """
-        ダイアログで入力された設定値を辞書として返します。
-
-        Returns:
-            dict: ユーザーが入力したエクスポート設定。
-        """
         return {
             "width": self.width_spinbox.value(),
             "height": self.height_spinbox.value(),
@@ -196,27 +141,11 @@ class ExportDialog(QDialog):
         }
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: バッチエクスポート
-#==============================================================================
 class BatchExportDialog(QDialog):
-    """
-    複数の画像をまとめて一括書き出しするための設定ダイアログ。
-    2つのモードを切り替えられる:
-      1. 現在のプロジェクトの各サブプロットを、個別の画像として書き出す
-      2. 複数のプロジェクトファイル(.graphica/.pkl)を選び、それぞれの完成図を書き出す
-    実際の書き出し処理自体はこのダイアログの責務ではなく、呼び出し側が
-    get_*() で取得した設定を使って行う。
-    """
+    """サブプロットごと、または複数のプロジェクトファイルをまとめて書き出す設定。書き出しは呼び出し側。"""
 
     def __init__(self, subplot_count, parent=None, extra_formats=None):
-        """
-        Args:
-            extra_formats (list[str] | None): プラグインが register_exporter()
-                (項目B-2) で登録した形式名を、既存のPNG/PDF/SVGに追加する。
-        """
+        """extra_formats はプラグインの書き出し形式の名前(PNG / PDF / SVG に足す)。"""
         super().__init__(parent)
         self.setWindowTitle("バッチエクスポート")
         self.resize(480, 480)
@@ -233,7 +162,6 @@ class BatchExportDialog(QDialog):
         self.stack = QStackedWidget()
         layout.addWidget(self.stack, 1)
 
-        # --- モード1: サブプロット選択 ---
         subplot_page = QWidget()
         subplot_page_layout = QVBoxLayout(subplot_page)
         subplot_page_layout.addWidget(QLabel("書き出すサブプロットを選択してください:"))
@@ -247,7 +175,6 @@ class BatchExportDialog(QDialog):
         subplot_page_layout.addWidget(self.subplot_list)
         self.stack.addWidget(subplot_page)
 
-        # --- モード2: プロジェクトファイル選択 ---
         files_page = QWidget()
         files_page_layout = QVBoxLayout(files_page)
         files_page_layout.addWidget(QLabel("書き出すプロジェクトファイル(.graphica/.pkl)を追加してください:"))
@@ -266,7 +193,6 @@ class BatchExportDialog(QDialog):
 
         self.mode_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
 
-        # --- 共通設定 ---
         form = QFormLayout()
 
         output_dir_row = QHBoxLayout()
@@ -297,7 +223,6 @@ class BatchExportDialog(QDialog):
         self.transparent_checkbox.setChecked(True)
         form.addRow(self.transparent_checkbox)
 
-        # SVG出力時の文字の扱い(項目88): ExportDialogと同じオプション
         self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
         self.svg_text_as_path_checkbox.setToolTip(
             "SVG出力時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
@@ -305,7 +230,6 @@ class BatchExportDialog(QDialog):
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
-        # フル解像度エクスポート: ExportDialogと同じオプション
         self.full_resolution_checkbox = QCheckBox("フル解像度でエクスポート(間引きなし)")
         self.full_resolution_checkbox.setToolTip(
             "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/"
@@ -344,7 +268,7 @@ class BatchExportDialog(QDialog):
             self.output_dir_edit.setText(directory)
 
     def get_mode(self):
-        """'subplots' または 'project_files' を返す"""
+        """'subplots' か 'project_files'。"""
         return "subplots" if self.mode_combo.currentIndex() == 0 else "project_files"
 
     def get_selected_subplot_indices(self):
@@ -368,19 +292,8 @@ class BatchExportDialog(QDialog):
         }
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: LaTeX/Word用キャプション自動生成(項目142、C-807)
-#==============================================================================
 class CaptionGeneratorDialog(QDialog):
-    """
-    グラフを論文に貼り込む際の定型作業(LaTeXの\\includegraphics一式、
-    Word用のキャプション文)を自動生成し、クリップボードにコピーできるように
-    するダイアログ。入力欄を変更するたびにLaTeXプレビューをライブ更新する。
-    実際のファイル書き出しは行わない(画像ファイル名は自由入力のプレースホルダ
-    として扱う、既にエクスポート済みの画像に後から差し替える運用を想定)。
-    """
+    """論文用の LaTeX の \\includegraphics 一式と Word 用のキャプションを作ってコピーする。画像ファイル名は自由入力。"""
 
     WIDTH_OPTIONS = [r'\linewidth', r'0.8\linewidth', r'0.5\linewidth', r'\textwidth']
 
@@ -462,19 +375,8 @@ class CaptionGeneratorDialog(QDialog):
         QApplication.clipboard().setText(self.caption_edit.text())
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 色覚シミュレーションプレビュー(項目140、C-803)
-#==============================================================================
 class CVDSimulationDialog(QDialog):
-    """
-    現在のグラフのスナップショット画像に、色覚多様性(色覚異常)のシミュレーション
-    変換(core/cvd_simulation.py)を適用して表示するプレビューダイアログ。
-    元画像は呼び出し側(gui/mixins/export_mixin.pyの_on_show_cvd_simulation)が
-    1回だけキャプチャして渡し、ここではモード切替のたびにそのコピーへ変換を
-    適用するだけで、実際のグラフの再描画は一切行わない。
-    """
+    """色覚シミュレーションのプレビュー。呼び出し側が1回撮った画像を、モードごとに変換して見せる(グラフは描き直さない)。"""
 
     MODE_NORMAL = "通常(変換なし)"
 
