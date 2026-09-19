@@ -757,20 +757,12 @@ class SettingsMixin:
         return result
 
     def _gather_settings_from_ui(self) -> dict:
-        """
-        現在のUIコントロール（スピンボックス、テキスト、内部変数）の状態を
-        「すべて」収集し、1つの辞書として返します。
-
-        Returns:
-            dict: 現在のUI設定のスナップショット。
-        """
+        """今の軸の設定を、画面の欄から集めた辞書(保存形式そのもの)で返す。キーは AXIS_SETTING_DEFAULTS と同じ。"""
         settings = {
             # ラベル/書式タブ
             'title': self.ui.title_text_edit.text(),
             'x_label': self.ui.x_label_text_edit.text(),
             'y_label': self.ui.y_label_text_edit.text(),
-            # 軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分):
-            # テキスト自体とは独立に、表示するかどうかだけを切り替えられる。
             'x_label_visible': self.x_label_visible_checkbox.isChecked(),
             'y_label_visible': self.y_label_visible_checkbox.isChecked(),
             'y2_label': self.y2_label_text_edit.text(),
@@ -785,7 +777,7 @@ class SettingsMixin:
             'x_major_tick_interval': self.ui.x_major_tick_interval_spinbox.value(),
             'x_minor_ticks_visible': self.ui.x_minor_ticks_visible_checkbox.isChecked(),
             'x_minor_tick_interval': self.ui.x_minor_tick_interval_spinbox.value(),
-            # 対数軸の補助目盛り高度制御(項目C-604): x_logがTrueのときのみ意味を持つ
+            # 対数軸のときだけ効く
             'x_log_minor_subs': self.x_log_minor_subs_combo.currentData(),
             'x_log_minor_labels': self.x_log_minor_labels_checkbox.isChecked(),
             'x_tick_format_mode': self.x_tick_format_combo.currentIndex(),
@@ -816,7 +808,6 @@ class SettingsMixin:
             'grid_visible': self.ui.grid_visible_checkbox.isChecked(),
             'minor_grid_visible': self.ui.minor_grid_visible_checkbox.isChecked(),
 
-            # グリッド線の詳細カスタマイズ(項目82): X/Y軸 × 主/補助目盛 それぞれ独立
             'x_major_grid_linestyle': self._grid_linestyle_code(self.x_major_grid_linestyle_combo.currentIndex()),
             'x_major_grid_width': self.x_major_grid_width_spinbox.value(),
             'x_major_grid_alpha': self.x_major_grid_alpha_spinbox.value(),
@@ -833,14 +824,11 @@ class SettingsMixin:
             'minor_tick_direction': self.minor_tick_direction_combo.currentText(),
             'major_tick_direction_y2': self.major_tick_direction_y2_combo.currentText(),
             'minor_tick_direction_y2': self.minor_tick_direction_y2_combo.currentText(),
-            # 目盛(目盛線本体)・目盛数値の表示/非表示(実機フィードバック:
-            # X軸/Y軸それぞれ独立して設定できるように分割済み)。
             'x_ticks_visible': self.x_ticks_visible_checkbox.isChecked(),
             'x_tick_labels_visible': self.x_tick_labels_visible_checkbox.isChecked(),
             'y_ticks_visible': self.y_ticks_visible_checkbox.isChecked(),
             'y_tick_labels_visible': self.y_tick_labels_visible_checkbox.isChecked(),
 
-            # 内部の (self._...) 変数
             'tick_font': self._font_props_to_dict(self._tick_font),
             'tick_color': self._tick_color,
             'tick_width': self.ui.tick_width_spinbox.value(),
@@ -855,26 +843,19 @@ class SettingsMixin:
             'spine_width': self.ui.spine_width_spinbox.value(),
             'spine_color': self._spine_color,
 
-            # カラーバー(ヒートマップ用、項目C-501)。2Dマップが描画されていない
-            # サブプロットでは何の効果も持たない(gui/canvas.pyの_apply_appearance参照)。
+            # 2Dマップが無い軸では効かない
             'colorbar_enabled': self.colorbar_enabled_checkbox.isChecked(),
             'colorbar_position': self.colorbar_position_combo.currentData(),
             'colorbar_width_fraction': self.colorbar_width_spinbox.value(),
             'colorbar_label': self.colorbar_label_edit.text(),
         }
 
-        # ★ 注釈(テキスト・矢印)はUIコントロールを持たず、_add_annotation等から
-        # 直接 all_plot_settings[index]['annotations'] へ追記される。
-        # このメソッドは呼ばれるたびに辞書を「総入れ替え」するため、ここで
-        # 明示的に引き継がないと、他の軸設定を変更しただけで注釈が消えてしまう。
-        # ★ 自由配置レイアウト(項目37)の各サブプロットの矩形(free_rect)も同様に、
-        # UIコントロールを持たずドラッグ操作から直接書き込まれるため、ここで引き継ぐ。
+        # 欄を持たず操作から直接書き込まれるもの。辞書は丸ごと入れ替わるので、引き継がないと消える。
         if self.project.active_axis_index < len(self.project.all_plot_settings):
             current = self.project.all_plot_settings[self.project.active_axis_index]
             settings['annotations'] = axis_setting(current, 'annotations')
             settings['legend_order'] = axis_setting(current, 'legend_order')
             settings['free_rect'] = axis_setting(current, 'free_rect')
-            # ドラッグで動かした凡例の位置(v1.4.2)も UI コントロールを持たない
             settings['legend_position'] = axis_setting(current, 'legend_position')
         else:
             settings['annotations'] = []
@@ -884,23 +865,11 @@ class SettingsMixin:
         return settings
 
     def _apply_settings_to_ui_controls(self, settings: dict):
-        """
-        settings 辞書を受け取り、その内容をUIコントロール
-        (スピンボックス、チェックボックス、内部変数など) に「適用」します。
-
-        Args:
-            settings (dict): _gather_settings_from_ui() で作成された形式の辞書。
-        """
+        """設定の辞書を画面の欄に戻す。無いキーは AXIS_SETTING_DEFAULTS の既定値になる。"""
         try:
-            # 1. ★★★ 必須 ★★★
-            #    これからUIの値をコードで一括変更するため、
-            #    シグナルが発火しないようにすべてブロックする
+            # 欄に値を入れる間は、変更の通知で設定を書き換えないようにする
             self._block_all_signals(True)
 
-            # 2. settings 辞書から値を取得し、UIにセット
-            #    .get(key, default) を使い、キーが存在しなくてもエラーにならないようにする
-
-            # ラベル/書式
             self.ui.title_text_edit.setText(axis_setting(settings, 'title'))
             self.ui.x_label_text_edit.setText(axis_setting(settings, 'x_label'))
             self.ui.y_label_text_edit.setText(axis_setting(settings, 'y_label'))
@@ -908,7 +877,6 @@ class SettingsMixin:
             self.y_label_visible_checkbox.setChecked(axis_setting(settings, 'y_label_visible'))
             self.y2_label_text_edit.setText(axis_setting(settings, 'y2_label'))
 
-            # X軸
             self.ui.x_autoscale_checkbox.setChecked(axis_setting(settings, 'x_autoscale'))
             self.ui.x_min_spinbox.setValue(axis_setting(settings, 'x_min'))
             self.ui.x_max_spinbox.setValue(axis_setting(settings, 'x_max'))
@@ -930,7 +898,6 @@ class SettingsMixin:
             self.x_secondary_axis_target_unit_combo.setCurrentIndex(
                 X_AXIS_UNIT_CHOICES.index(_target_unit) if _target_unit in X_AXIS_UNIT_CHOICES else 0)
 
-            # Y軸
             self.ui.y_autoscale_checkbox.setChecked(axis_setting(settings, 'y_autoscale'))
             self.ui.y_min_spinbox.setValue(axis_setting(settings, 'y_min'))
             self.ui.y_max_spinbox.setValue(axis_setting(settings, 'y_max'))
@@ -946,15 +913,11 @@ class SettingsMixin:
             self.y_tick_format_combo.setCurrentIndex(axis_setting(settings, 'y_tick_format_mode'))
             self.y_tick_decimals_spinbox.setValue(axis_setting(settings, 'y_tick_decimals'))
 
-            # ラベル/書式 (続き)
             self.ui.legend_visible_checkbox.setChecked(axis_setting(settings, 'legend_visible'))
             self.legend_loc_combo.setCurrentText(axis_setting(settings, 'legend_loc'))
             self.ui.grid_visible_checkbox.setChecked(axis_setting(settings, 'grid_visible'))
             self.ui.minor_grid_visible_checkbox.setChecked(axis_setting(settings, 'minor_grid_visible'))
 
-            # グリッド線の詳細カスタマイズ(項目82)。旧プロジェクト(このキー群が
-            # 存在しない)を読み込んだ場合は、canvas.py 側と同じデフォルト値
-            # (主目盛: 実線・太さ0.8 / 補助目盛: 破線・太さ0.5、共にalpha=1.0)にする。
             self.x_major_grid_linestyle_combo.setCurrentIndex(
                 self._grid_linestyle_index(axis_setting(settings, 'x_major_grid_linestyle')))
             self.x_major_grid_width_spinbox.setValue(axis_setting(settings, 'x_major_grid_width'))
@@ -982,9 +945,6 @@ class SettingsMixin:
             self.y_tick_labels_visible_checkbox.setChecked(
                 axis_setting(settings, 'y_tick_labels_visible'))
 
-            # 3. 内部の (self._...) 変数を辞書から復元
-
-            # (フォントの復元)
             tick_font_props = axis_setting(settings, 'tick_font')
             self._tick_font = _qfont_from_family_props(tick_font_props)
             self._tick_font.setPointSize(tick_font_props.get('size', 10))
@@ -1004,11 +964,9 @@ class SettingsMixin:
             self._legend_font.setBold(legend_font_props.get('weight') == 'bold')
             self._legend_font.setItalic(legend_font_props.get('style') == 'italic')
 
-            # (色と太さの復元)
             self._tick_color = axis_setting(settings, 'tick_color')
             self._tick_width = axis_setting(settings, 'tick_width')
-            self.ui.tick_width_spinbox.setValue(self._tick_width) # ★ UIにも反映
-            # 目盛線の長さ。キーを持たない既存プロジェクトは matplotlib 既定(3.5pt / 自動)
+            self.ui.tick_width_spinbox.setValue(self._tick_width)
             self.major_tick_length_spinbox.setValue(axis_setting(settings, 'major_tick_length'))
             minor_tick_length = axis_setting(settings, 'minor_tick_length')
             self.minor_tick_length_spinbox.setValue(
@@ -1018,10 +976,9 @@ class SettingsMixin:
             self._legend_color = axis_setting(settings, 'legend_color')
 
             self._spine_width = axis_setting(settings, 'spine_width')
-            self.ui.spine_width_spinbox.setValue(self._spine_width) # ★ UIにも反映
+            self.ui.spine_width_spinbox.setValue(self._spine_width)
             self._spine_color = axis_setting(settings, 'spine_color')
 
-            # カラーバー(項目C-501)
             self.colorbar_enabled_checkbox.setChecked(axis_setting(settings, 'colorbar_enabled'))
             _cb_position = axis_setting(settings, 'colorbar_position')
             _cb_position_index = self.colorbar_position_combo.findData(_cb_position)
@@ -1029,18 +986,8 @@ class SettingsMixin:
             self.colorbar_width_spinbox.setValue(axis_setting(settings, 'colorbar_width_fraction'))
             self.colorbar_label_edit.setText(axis_setting(settings, 'colorbar_label'))
 
-            # 4. UIの状態を更新 (スピンボックスの有効/無効など)
-            #    (★ _connect_signals での接続修正が前提)
-            # ★ 改善ボード B-4: ここは「保存済みの設定を復元する」経路なので、
-            # _on_x_autoscale_changed()(ユーザーがチェックを外した瞬間用。
-            # 現在表示中の軸範囲をスピンボックスへシードする)ではなく、
-            # 有効/無効の更新だけを行う版を呼ぶ。以前はシードする方を呼んで
-            # いたため、**オートスケールOFFで保存した軸範囲が、復元のたびに
-            # いま画面に出ている範囲で上書きされて失われていた**
-            # (X側だけが壊れ、Y側は無事という順序依存の分かりにくい壊れ方:
-            # 先に走るX側のハンドラが再描画を起こし、その時点で軸には
-            # まだ復元前の範囲が入っているため。Y側はその再描画で既に
-            # 復元後の値が軸へ反映済みなのでシードしても値が変わらなかった)。
+            # 復元では _on_x_autoscale_changed(今の表示範囲を欄に入れる)を呼ばない。
+            # 呼ぶと、オートスケールを切って保存した範囲が今の表示範囲で上書きされる。
             self._refresh_x_autoscale_enabled_state()
             self._refresh_y_autoscale_enabled_state()
             self._on_x_tick_mode_changed()
