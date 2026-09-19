@@ -13,7 +13,7 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-18)
+## 現在地(2026-09-19)
 
 **保守性ボードを公開(2026-09-18)**: https://claude.ai/artifact/SQ8zoWEC7SBnxEJNL7GDtU
 (ソース `docs/dev/maintenance_board.html`、db の `status` コレクションが状態の正)。
@@ -42,7 +42,14 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   1パッケージ。旧名の別名は残さない。旧形式 .pkl の "core.dataset" だけ読み替える。起動は python -m graphica
   (main.py は薄い入口)。master のコード変更の停止は解除してよい。
 - K-14(pip 版で site-packages に plugins フォルダを作ろうとする)を c085c43 で修正。
-- 次: H-1(dataset_mixin の分割、方針確認)。
+- H-1 完了(ブランチ上、PR 待ち): DatasetMixin(4,222行)を graphica/gui/datasets/ の機能クラスに分けた。
+  タブが self.peaks / fitting / processing / colors / transfer / overlays / plugin_runs / property_panel を持ち、
+  プロパティ欄以外は DatasetHost(host.py)だけを通して本体に触る。右クリック/メニューバーのデータセット
+  メニューは actions_menu.py。DatasetMixin に残したのはツリーの管理(追加・削除・複製・フォルダ・表示/非表示・
+  並べ替え)と、プロパティ変更後の再描画だけ(約400行)。途中で見つけた「機能クラスが自分をダイアログの親に
+  渡して TypeError」の取りこぼし 19 か所は fix コミット2件で修正(このブランチ内の退行で master には無い)。
+  tests/test_dataset_controllers.py が再発を静的に防ぐ。CLAUDE.md に gui/datasets/ の説明を追加。
+- 次: H-1 の PR(マージは了承を得てから)。その後はボードの推奨順(H-5 → H-2 → H-3 → H-4 → I-2 …)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
