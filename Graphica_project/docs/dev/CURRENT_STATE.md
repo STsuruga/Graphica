@@ -49,15 +49,15 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   並べ替え)と、プロパティ変更後の再描画だけ(約400行)。途中で見つけた「機能クラスが自分をダイアログの親に
   渡して TypeError」の取りこぼし 19 か所は fix コミット2件で修正(このブランチ内の退行で master には無い)。
   tests/test_dataset_controllers.py が再発を静的に防ぐ。CLAUDE.md に gui/datasets/ の説明を追加。
-- H-5 完了(ブランチ上、PR 待ち): 軸の設定(約80キー)の既定値を graphica/core/axis_settings.py の
+- H-5 完了、PR #18 で master に取り込み済み(マージコミット 5c4e249): 軸の設定(約80キー)の既定値を graphica/core/axis_settings.py の
   AXIS_SETTING_DEFAULTS に集め、読むのは axis_setting(settings, key) だけ(画面・描画・スクリプト書き出しの
   181か所)。古い共通キー ticks_visible 等の読み替えもここ。挙動と保存形式は不変。tests/test_axis_settings.py。
-- H-2 完了(ブランチ上、PR 待ち): canvas の _draw_data(517行)を軸ごとの処理と _draw_1d_dataset の段階
+- H-2 完了、PR #18 で master に取り込み済み(同上): canvas の _draw_data(517行)を軸ごとの処理と _draw_1d_dataset の段階
   (ずらし・欠損値・間引き・平滑化/種類ごとの描画・背景・誤差・帯・ラベル)に、_apply_appearance(348行)を
   _apply_* の並びに分けた。組み込みの plot_type は gui/plot_type_drawers.py の表(プラグインの種類と同じ引き方)。
   632通りの描画(全種類×各オプション×ライト/ダーク×解像度)で画素と描画後の状態が分割前と一致することを確認。
   canvas.py のコメントも整理(2,309行→1,597行)。
-- 次: H-5 と H-2 の PR(マージは了承を得てから)。その後 H-3(main_window.__init__ の分割)。
+- 次: H-3(main_window.__init__ の分割)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
