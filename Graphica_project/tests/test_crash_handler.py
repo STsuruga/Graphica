@@ -4,9 +4,9 @@ import sys
 
 import pytest
 
-import core.plugin_api as plugin_api_module
-import gui.crash_handler as crash_handler_module
-from gui.crash_handler import (
+import graphica.core.plugin_api as plugin_api_module
+import graphica.gui.crash_handler as crash_handler_module
+from graphica.gui.crash_handler import (
     install_crash_handler,
     prompt_safe_mode_and_apply,
     should_prompt_safe_mode,

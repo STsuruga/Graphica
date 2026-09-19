@@ -7,9 +7,9 @@ import os
 import shutil
 import tempfile
 
-from core.plugin_api import GraphicaPluginAPI, PluginManager
-from core.plugin_install import PluginInstallError, install_plugin_zip
-from core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
+from graphica.core.plugin_api import GraphicaPluginAPI, PluginManager
+from graphica.core.plugin_install import PluginInstallError, install_plugin_zip
+from graphica.core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
 
 __all__ = [
     "FakeGraphicaPluginAPI",

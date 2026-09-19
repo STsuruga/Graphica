@@ -1,8 +1,5 @@
-# sdist (ソース配布物) に、パッケージ発見の対象外だが実行に必要な
-# ファイルを確実に含めるための設定。wheel 側は pyproject.toml の
-# [tool.setuptools.package-data] / py-modules 側で完結する。
-include Graphica.ico
-include ui_main_window.py
+# sdist に、パッケージの検出では拾われないが実行に要るファイルを入れる(wheel は package-data で入る)。
 include requirements.txt
-recursive-include assets/icons *.svg
-recursive-include sample_data *.csv
+include graphica/Graphica.ico
+recursive-include graphica/assets/icons *.svg
+recursive-include graphica/sample_data *.csv

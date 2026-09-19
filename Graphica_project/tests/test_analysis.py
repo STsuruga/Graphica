@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-import core.analysis as analysis_module
-from core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgol,
+import graphica.core.analysis as analysis_module
+from graphica.core.analysis import (calculate_curve_fit, calculate_peaks, calculate_savgol,
                             calculate_peak_quantification,
                             get_plugin_fit_type_names, register_fit_function,
                             calculate_baseline_als, calculate_baseline_polynomial,

@@ -8,8 +8,8 @@ tests/test_workers.py、書き出し配線は本ファイル下部のexport_mixi
 import pandas as pd
 import pytest
 
-import core.plugin_api as plugin_api_module
-from core.plugin_api import (
+import graphica.core.plugin_api as plugin_api_module
+from graphica.core.plugin_api import (
     GraphicaPluginAPI, get_plugin_api, get_registered_exporters, get_registered_importer_extensions,
 )
 

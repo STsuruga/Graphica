@@ -4,8 +4,8 @@ import matplotlib
 matplotlib.use("Agg")
 import pytest
 
-from gui.residual_panel import ResidualPanel
-from core.dataset import Dataset
+from graphica.gui.residual_panel import ResidualPanel
+from graphica.core.dataset import Dataset
 import pandas as pd
 
 

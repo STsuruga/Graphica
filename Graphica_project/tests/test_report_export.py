@@ -2,9 +2,9 @@
 """core/report_export.py(項目157、C-1104: PDF/HTML実験レポート自動ビルド)のテスト。"""
 import pandas as pd
 
-from core.dataset import Dataset
-from core.report_export import collect_methods_sections, generate_html_report
-from models.project import ProjectModel
+from graphica.core.dataset import Dataset
+from graphica.core.report_export import collect_methods_sections, generate_html_report
+from graphica.models.project import ProjectModel
 
 
 def _make_dataset(name, provenance=None):

@@ -11,7 +11,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox, QInputDialog, QColorDialog, QApplication
 
-from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
+from graphica.gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, BatchExportDialog,
                          FitDialog, SavGolDialog, PluginParamDialog, LabelEditDialog,
                          ColorPaletteDialog, HelpDialog, CalcHelpDialog, ResultDialog,
                          AboutDialog, WelcomeDialog, PeakSettingsDialog, ColumnCalculatorDialog,
@@ -25,9 +25,9 @@ from gui.dialogs import (NewDatasetDialog, PreferencesDialog, ExportDialog, Batc
                          FolderImportDialog, AutosaveHistoryDialog,
                          HistogramKDEDialog, XAxisAlignmentDialog, CaptionGeneratorDialog,
                          CVDSimulationDialog, InsetDialog)
-import core.plugin_install as plugin_install_module
-from core.plugin_install import PluginInstallError
-from core.plugin_types import PluginHookKind, PluginRegistrationError
+import graphica.core.plugin_install as plugin_install_module
+from graphica.core.plugin_install import PluginInstallError
+from graphica.core.plugin_types import PluginHookKind, PluginRegistrationError
 
 
 # --- NewDatasetDialog (項目63: 空のテーブルから新規データセットを作成) ---
@@ -903,9 +903,9 @@ def test_preferences_dialog_open_plugins_folder_button_calls_desktop_services(mo
     #   PreferencesDialog が取り込んでいる QDesktopServices の置き場所は
     #   gui.dialogs.app になった(gui.dialogs は再エクスポートするだけの
     #   パッケージなので、そこに差し替えてもダイアログ側からは見えない)。
-    monkeypatch.setattr("gui.dialogs.app.QDesktopServices.openUrl",
+    monkeypatch.setattr("graphica.gui.dialogs.app.QDesktopServices.openUrl",
                         staticmethod(lambda url: calls.append(url)))
-    monkeypatch.setattr("core.app_paths.get_user_plugins_dir", lambda: str(tmp_path))
+    monkeypatch.setattr("graphica.core.app_paths.get_user_plugins_dir", lambda: str(tmp_path))
 
     dlg = PreferencesDialog(dark_mode=False, autosave_minutes=5)
     dlg._on_open_plugins_folder()
@@ -920,7 +920,7 @@ def test_preferences_dialog_shows_error_for_intentionally_broken_plugin_end_to_e
     プラグインを置いた状態でロードし、その結果(get_loaded_plugin_records())を
     そのままPreferencesDialogに渡すと、管理UIにエラー理由が表示されること。
     """
-    import core.plugin_api as plugin_api_module
+    import graphica.core.plugin_api as plugin_api_module
 
     # _singleton_api はプロセス全体で共有されるため、他のテストが既にロード
     # 済みだとload_plugins_once()が何もせずキャッシュを返してしまう。
@@ -1017,7 +1017,7 @@ def test_color_palette_dialog_default_palette_uses_matplotlib_cycle(qapp):
 # --- ColorPaletteDialog: 組み込みの論文向けパレット(項目141、C-804) ---
 
 def test_color_palette_dialog_combo_includes_builtin_palettes(qapp):
-    from core.color_palettes import BUILTIN_PALETTES
+    from graphica.core.color_palettes import BUILTIN_PALETTES
     dlg = ColorPaletteDialog({}, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
     items = [dlg.palette_combo.itemText(i) for i in range(dlg.palette_combo.count())]
     for name in BUILTIN_PALETTES:
@@ -1025,7 +1025,7 @@ def test_color_palette_dialog_combo_includes_builtin_palettes(qapp):
 
 
 def test_color_palette_dialog_builtin_palette_shows_its_own_colors(qapp):
-    from core.color_palettes import BUILTIN_PALETTES
+    from graphica.core.color_palettes import BUILTIN_PALETTES
     dlg = ColorPaletteDialog({}, "Tableau 10")
     assert dlg.color_list.count() == len(BUILTIN_PALETTES["Tableau 10"])
 
@@ -1076,7 +1076,7 @@ def test_help_dialog_does_not_hardcode_header_row_background(qapp):
 
 
 def test_help_dialog_header_row_stylesheet_uses_dark_tokens_in_dark_mode(qapp):
-    from gui import theme
+    from graphica.gui import theme
 
     theme.apply_theme(qapp, dark=True)
     dlg = HelpDialog()
@@ -1097,7 +1097,7 @@ def test_calc_help_dialog_does_not_hardcode_header_row_background(qapp):
 
 
 def test_calc_help_dialog_header_row_stylesheet_uses_light_tokens_in_light_mode(qapp):
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtWidgets import QTextBrowser
 
     theme.apply_theme(qapp, dark=False)
@@ -1116,7 +1116,7 @@ def test_help_dialog_refresh_theme_updates_stylesheet_after_live_toggle(qapp):
     ままになっていた。refresh_theme()を呼べば現在のテーマに追従することを
     確認する。
     """
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtWidgets import QTextBrowser
 
     theme.apply_theme(qapp, dark=False)
@@ -1131,7 +1131,7 @@ def test_help_dialog_refresh_theme_updates_stylesheet_after_live_toggle(qapp):
 
 
 def test_calc_help_dialog_refresh_theme_updates_stylesheet_after_live_toggle(qapp):
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtWidgets import QTextBrowser
 
     theme.apply_theme(qapp, dark=False)
@@ -1154,7 +1154,7 @@ def test_result_dialog_residual_plot_uses_dark_theme_facecolor(qapp):
     残差プロットだけ白いまま浮いて見えていた)。
     """
     import matplotlib.colors as mcolors
-    from gui import theme
+    from graphica.gui import theme
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 
     theme.apply_theme(qapp, dark=True)
@@ -1174,7 +1174,7 @@ def test_result_dialog_residual_plot_uses_dark_theme_facecolor(qapp):
 # --- AboutDialog ---
 
 def test_about_dialog_shows_version_and_app_name(qapp):
-    from core.version import APP_NAME, __version__
+    from graphica.core.version import APP_NAME, __version__
 
     dlg = AboutDialog()
     assert APP_NAME in dlg.windowTitle()
@@ -1659,7 +1659,7 @@ def test_multi_peak_fit_dialog_auto_detect_appends_rows_from_peak_quantification
 
 def test_multi_peak_fit_dialog_auto_detect_cancelled_leaves_table_unchanged():
     dlg = MultiPeakFitDialog(x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]))
-    import gui.dialogs as dialogs_module
+    import graphica.gui.dialogs as dialogs_module
     orig = dialogs_module.PeakSettingsDialog.get_peak_settings
     dialogs_module.PeakSettingsDialog.get_peak_settings = staticmethod(lambda parent=None: None)
     try:
@@ -2902,7 +2902,7 @@ def test_cvd_simulation_dialog_defaults_to_normal_mode(qapp):
 
 
 def test_cvd_simulation_dialog_lists_all_three_cvd_types(qapp):
-    from core.cvd_simulation import CVD_TYPE_LABELS
+    from graphica.core.cvd_simulation import CVD_TYPE_LABELS
     dlg = CVDSimulationDialog(_make_solid_image())
     items = [dlg.mode_combo.itemText(i) for i in range(dlg.mode_combo.count())]
     for label in CVD_TYPE_LABELS.values():

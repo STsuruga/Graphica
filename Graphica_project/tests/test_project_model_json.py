@@ -11,8 +11,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from core.dataset import Dataset
-from models.project import CURRENT_FORMAT_VERSION, ProjectModel
+from graphica.core.dataset import Dataset
+from graphica.models.project import CURRENT_FORMAT_VERSION, ProjectModel
 
 
 def make_dataset(**overrides):

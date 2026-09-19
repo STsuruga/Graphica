@@ -5,10 +5,10 @@ import sys
 
 import pytest
 
-import core.analysis as analysis_module
-from core.plugin_api import GraphicaPluginAPI, PluginManager, load_plugins_once
-from core.plugin_manifest import PLUGIN_API_VERSION
-import core.plugin_api as plugin_api_module
+import graphica.core.analysis as analysis_module
+from graphica.core.plugin_api import GraphicaPluginAPI, PluginManager, load_plugins_once
+from graphica.core.plugin_manifest import PLUGIN_API_VERSION
+import graphica.core.plugin_api as plugin_api_module
 
 
 @pytest.fixture(autouse=True)
@@ -147,7 +147,7 @@ def test_load_all_logs_traceback_not_just_a_one_line_message(tmp_path, caplog):
 
     api = GraphicaPluginAPI()
     manager = PluginManager(str(tmp_path))
-    with caplog.at_level(logging.WARNING, logger="core.plugin_api"):
+    with caplog.at_level(logging.WARNING, logger="graphica.core.plugin_api"):
         manager.load_all(api)
 
     matching = [r for r in caplog.records if "raises_plugin" in r.getMessage()]

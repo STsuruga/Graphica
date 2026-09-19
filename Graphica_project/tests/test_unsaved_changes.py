@@ -17,10 +17,10 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset
-from gui.main_window import PlotterApp, UNSAVED_CHANGES_PROMPT_ENV
-from models.project import ProjectModel
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset
+from graphica.gui.main_window import PlotterApp, UNSAVED_CHANGES_PROMPT_ENV
+from graphica.models.project import ProjectModel
 
 from tests.test_main_app_window import _make_isolated_main_app_window
 

@@ -13,9 +13,9 @@ from PySide6.QtCore import QSettings, Qt, QUrl, QPoint, QPointF, QMimeData
 from PySide6.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset
-from gui.main_window import PlotterApp
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset
+from graphica.gui.main_window import PlotterApp
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -178,7 +178,7 @@ def test_close_event_waits_for_in_flight_data_load_task_runner_instead_of_crashi
     閉じることを確認する。
     """
     import pandas as pd
-    import gui.workers as workers_module
+    import graphica.gui.workers as workers_module
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
@@ -442,14 +442,14 @@ def test_disabled_plugin_names_handles_single_item_stored_as_string(tmp_path):
 def test_all_supported_data_file_extensions_without_plugins():
     """_all_supported_data_file_extensionsはself.*を参照しないため、
     PlotterAppを組み立てずに直接呼び出せる。"""
-    from gui.main_window import PlotterApp, SUPPORTED_DATA_FILE_EXTENSIONS
+    from graphica.gui.main_window import PlotterApp, SUPPORTED_DATA_FILE_EXTENSIONS
     assert PlotterApp._all_supported_data_file_extensions(None) == SUPPORTED_DATA_FILE_EXTENSIONS
 
 
 def test_all_supported_data_file_extensions_includes_plugin_extensions(monkeypatch):
-    import core.plugin_api as plugin_api_module
-    from core.plugin_api import GraphicaPluginAPI
-    from gui.main_window import PlotterApp, SUPPORTED_DATA_FILE_EXTENSIONS
+    import graphica.core.plugin_api as plugin_api_module
+    from graphica.core.plugin_api import GraphicaPluginAPI
+    from graphica.gui.main_window import PlotterApp, SUPPORTED_DATA_FILE_EXTENSIONS
 
     api = GraphicaPluginAPI()
     api.register_importer([".testfmt"], lambda fp: None, name="X")
@@ -462,8 +462,8 @@ def test_all_supported_data_file_extensions_includes_plugin_extensions(monkeypat
 def test_drop_event_loads_file_with_plugin_registered_extension(tmp_path, monkeypatch):
     """D&D一括取込(項目77)の対応拡張子判定が、register_importer()で
     登録した拡張子でも動くこと(項目B-1)。"""
-    import core.plugin_api as plugin_api_module
-    from core.plugin_api import GraphicaPluginAPI
+    import graphica.core.plugin_api as plugin_api_module
+    from graphica.core.plugin_api import GraphicaPluginAPI
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -637,7 +637,7 @@ def test_dataset_tree_selection_delegate_paint_does_not_raise_when_selected(qapp
     from PySide6.QtGui import QPainter, QPixmap
     from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem
 
-    from gui import theme
+    from graphica.gui import theme
     theme.apply_theme(qapp, dark=False)
 
     tree = QTreeWidget()
@@ -668,7 +668,7 @@ def test_open_label_edit_dialog_writes_back_accepted_text(tmp_path, monkeypatch)
     実際のline_editへ書き戻すことを確認する(ダイアログのexec()は実際には
     モーダルループを回してしまうため、LabelEditDialog.execを差し替えてテストする)。
     """
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
     from PySide6.QtWidgets import QDialog
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -686,7 +686,7 @@ def test_open_label_edit_dialog_writes_back_accepted_text(tmp_path, monkeypatch)
 
 
 def test_open_label_edit_dialog_leaves_text_unchanged_when_cancelled(tmp_path, monkeypatch):
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
     from PySide6.QtWidgets import QDialog
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -704,7 +704,7 @@ def test_open_label_edit_dialog_leaves_text_unchanged_when_cancelled(tmp_path, m
 
 
 def test_label_edit_dialog_symbol_click_inserts_at_cursor_when_no_selection(qapp):
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("VT", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setCursorPosition(1)  # "V|T"
@@ -717,7 +717,7 @@ def test_label_edit_dialog_symbol_click_inserts_at_cursor_when_no_selection(qapp
 
 def test_label_edit_dialog_symbol_click_inserts_raw_glyph_for_macroless_entry(qapp):
     """項目60: マイナス記号(macro=None)はmathtextで包まず生の文字を挿入する。"""
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("y=x", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setCursorPosition(1)  # "y|=x"
@@ -729,7 +729,7 @@ def test_label_edit_dialog_symbol_click_inserts_raw_glyph_for_macroless_entry(qa
 
 
 def test_label_edit_dialog_symbol_click_replaces_selection(qapp):
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setSelection(5, 3)  # "XYZ"
@@ -741,7 +741,7 @@ def test_label_edit_dialog_symbol_click_replaces_selection(qapp):
 
 
 def test_label_edit_dialog_bold_wraps_selection(qapp):
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setSelection(0, 4)  # "Peak"
@@ -758,7 +758,7 @@ def test_label_edit_dialog_reapplying_same_style_toggles_it_off(qapp):
     連打すると以前は\\mathbf{\\mathbf{Peak}}のように無意味な入れ子が積み
     重なっていたが、既に同じ種類の装飾がかかっている場合はトグルオフする。
     """
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setSelection(0, 4)  # "Peak"
@@ -775,7 +775,7 @@ def test_label_edit_dialog_reapplying_same_style_toggles_it_off(qapp):
 
 def test_label_edit_dialog_bold_then_italic_combines_to_boldsymbol(qapp):
     """太字→イタリックの組み合わせは、従来通り\\boldsymbolへ合成される。"""
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setSelection(0, 4)
@@ -790,7 +790,7 @@ def test_label_edit_dialog_bold_then_italic_combines_to_boldsymbol(qapp):
 
 def test_label_edit_dialog_bold_then_superscript_nests_and_toggles_independently(qapp):
     """太字+上付きのような異なる種類の重ねがけは、従来通り入れ子で組み合わせられる。"""
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setSelection(0, 4)
@@ -809,7 +809,7 @@ def test_label_edit_dialog_bold_then_superscript_nests_and_toggles_independently
 
 def test_label_edit_dialog_toggling_off_boldsymbol_step_by_step_returns_to_plain_text(qapp):
     """太字+イタリック(boldsymbol)を1つずつトグルオフすると、最終的に完全な生テキストへ戻る。"""
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setSelection(0, 4)
@@ -837,7 +837,7 @@ def test_label_edit_dialog_wrap_without_selection_does_nothing_silently(qapp, mo
     ただ変更を適用しないだけでいい」)を受けて、ポップアップを出さず
     単に何もしないだけにした。
     """
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     shown = []
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: shown.append(True)))
@@ -859,7 +859,7 @@ def test_label_edit_dialog_pressed_signal_captures_selection_before_focus_moves(
     (_capture_pending_selectionを手動で呼ぶ他のテストと異なり、配線自体の
     誤りも検出できる)。
     """
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
 
     dialog = LabelEditDialog("Peak XYZ", "タイトルを編集", main_window_module.LABEL_SYMBOL_PALETTE)
     dialog.text_edit.setSelection(0, 4)  # "Peak"
@@ -912,7 +912,7 @@ def test_label_preview_widget_visible_while_backing_line_edit_is_hidden(tmp_path
 
 
 def test_clicking_label_preview_opens_label_edit_dialog(tmp_path, monkeypatch):
-    from gui.dialogs import LabelEditDialog
+    from graphica.gui.dialogs import LabelEditDialog
     from PySide6.QtWidgets import QDialog
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -968,7 +968,7 @@ def test_refresh_all_label_previews_updates_every_registered_widget(tmp_path, mo
 def test_clickable_math_preview_label_emits_clicked_on_left_click(qapp):
     from PySide6.QtCore import QPoint, Qt
     from PySide6.QtGui import QMouseEvent
-    from gui.main_window import _ClickableMathPreviewLabel
+    from graphica.gui.main_window import _ClickableMathPreviewLabel
 
     label = _ClickableMathPreviewLabel()
     received = []
@@ -998,7 +998,7 @@ def test_dataset_action_buttons_do_not_retain_focus(tmp_path, monkeypatch):
 
 def test_clickable_math_preview_label_has_hover_attribute_enabled(qapp):
     from PySide6.QtCore import Qt
-    from gui.main_window import _ClickableMathPreviewLabel
+    from graphica.gui.main_window import _ClickableMathPreviewLabel
 
     label = _ClickableMathPreviewLabel()
     assert label.testAttribute(Qt.WidgetAttribute.WA_Hover)
@@ -1018,7 +1018,7 @@ def test_properties_dock_content_actually_renders_bg_token_color(tmp_path, monke
     描画させ、ピクセル色がbgトークンと一致することを直接確認する。
     """
     from PySide6.QtGui import QColor
-    from gui import theme
+    from graphica.gui import theme
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     theme.apply_theme(QApplication.instance(), dark=False)
@@ -1108,7 +1108,7 @@ def test_navigation_toolbar_tooltips_are_localized_to_japanese(tmp_path, monkeyp
 
 
 def test_refresh_mpl_toolbar_icons_updates_action_icons_without_raising(tmp_path, monkeypatch):
-    from gui import theme
+    from graphica.gui import theme
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
@@ -1125,7 +1125,7 @@ def test_refresh_mpl_toolbar_icons_updates_action_icons_without_raising(tmp_path
 
 
 def test_refresh_custom_svg_icons_updates_tracked_widgets_without_raising(tmp_path, monkeypatch):
-    from gui import theme
+    from graphica.gui import theme
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
@@ -1149,7 +1149,7 @@ def test_constructing_with_dark_mode_already_saved_uses_dark_icon_colors_from_th
     早い段階で既にダーク用の色になっていることを確認する
     (_on_toggle_dark_modeで手動に切り替え直す必要がないこと)。
     """
-    from gui import theme
+    from graphica.gui import theme
 
     settings_path = str(tmp_path / "test_settings.ini")
 
@@ -1193,7 +1193,7 @@ def test_turning_off_cursor_mode_does_not_disable_click_to_select(tmp_path, monk
     データカーソルをON→OFFしても、線のpickerが有効(truthy)なまま残る
     ことを確認する。
     """
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -1223,7 +1223,7 @@ def test_reopening_data_editor_deletes_the_previous_dialog_instance(tmp_path, mo
     (開き直すたびに蓄積するメモリリーク)。deleteLater()により、次のイベント
     ループで実際に破棄されることを確認する。
     """
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -1262,7 +1262,7 @@ def test_shrinking_subplot_grid_reassigns_datasets_instead_of_hiding_them(tmp_pa
     存在しなくなった番号のデータセットは最後のサブプロットへ
     割り当て直されることを確認する。
     """
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -1282,7 +1282,7 @@ def test_shrinking_subplot_grid_reassigns_datasets_instead_of_hiding_them(tmp_pa
 
 
 def test_refresh_custom_svg_icons_updates_collapsible_toggle_buttons(tmp_path, monkeypatch):
-    from gui import theme
+    from graphica.gui import theme
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
@@ -2279,7 +2279,7 @@ def test_update_plot_light_true_uses_lightweight_canvas_method_and_preserves_axe
     canvas.update_all_axes_appearance_and_data()(既存Axesのまま)を呼ぶこと。
     Axesオブジェクトのアイデンティティが保たれることで間接的に確認する。
     """
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -2297,7 +2297,7 @@ def test_update_plot_light_true_uses_lightweight_canvas_method_and_preserves_axe
 def test_update_plot_default_is_full_redraw_and_recreates_axes(tmp_path, monkeypatch):
     """light引数を省略した従来通りの呼び出しは、フルの再描画(canvas.redraw_all())
     のままであること(Axesオブジェクトが作り直される)を確認する回帰テスト。"""
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -2517,8 +2517,8 @@ def test_queue_data_files_all_invalid_extensions_returns_without_queuing(tmp_pat
 
 
 def test_load_data_while_already_loading_shows_information_and_returns(tmp_path, monkeypatch):
-    from gui.task_runner import TaskRunner
-    from gui.workers import load_data_file_task
+    from graphica.gui.task_runner import TaskRunner
+    from graphica.gui.workers import load_data_file_task
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     dummy_runner = TaskRunner(load_data_file_task, "dummy.csv", parent=window)
@@ -2822,8 +2822,8 @@ def test_paste_from_clipboard_auto_detects_semicolon_delimiter(tmp_path, monkeyp
 # --- _on_data_load_failed() ---
 
 def test_on_data_load_failed_shows_critical_and_processes_next_queued_file(tmp_path, monkeypatch):
-    from gui.task_runner import TaskRunner
-    from gui.workers import load_data_file_task
+    from graphica.gui.task_runner import TaskRunner
+    from graphica.gui.workers import load_data_file_task
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     runner = TaskRunner(load_data_file_task, "dummy.csv", parent=window)
@@ -2929,3 +2929,19 @@ def test_project_notify_changed_triggers_update_plot(tmp_path, monkeypatch):
     window.project.notify_changed()
 
     assert len(calls) == 1
+
+
+def test_plugin_search_paths_skip_a_missing_bundled_folder(tmp_path, monkeypatch):
+    """pip で入れた環境には同梱の plugins フォルダが無い。無いものは探索先に入れない
+    (入れると起動時に site-packages の中へフォルダを作ろうとして、権限で失敗しうる)。"""
+    user_dir = str(tmp_path / "user_plugins")
+    monkeypatch.setattr(main_window_module, "get_user_plugins_dir", lambda: user_dir)
+    monkeypatch.setattr(main_window_module, "is_frozen", lambda: False)
+
+    monkeypatch.setattr(main_window_module, "resource_path", lambda rel: str(tmp_path / "no_such" / rel))
+    assert main_window_module.plugin_search_paths() == [user_dir]
+
+    bundled = tmp_path / "pkg" / "plugins"
+    bundled.mkdir(parents=True)
+    monkeypatch.setattr(main_window_module, "resource_path", lambda rel: str(tmp_path / "pkg" / rel))
+    assert main_window_module.plugin_search_paths() == [str(bundled), user_dir]

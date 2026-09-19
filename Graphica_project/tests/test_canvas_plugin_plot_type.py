@@ -12,10 +12,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pytest
 
-import core.plugin_api as plugin_api_module
-from core.plugin_api import GraphicaPluginAPI
-from gui.canvas import MplCanvas
-from core.dataset import Dataset
+import graphica.core.plugin_api as plugin_api_module
+from graphica.core.plugin_api import GraphicaPluginAPI
+from graphica.gui.canvas import MplCanvas
+from graphica.core.dataset import Dataset
 
 
 @pytest.fixture(autouse=True)

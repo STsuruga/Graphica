@@ -11,26 +11,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 ALLOWED = {
-    "core/analysis.py": 1,
-    "core/diagnostics.py": 1,
-    "core/excel_utils.py": 1,
-    "core/plugin_api.py": 3,
-    "gui/canvas.py": 4,
-    "gui/crash_handler.py": 1,
-    "gui/data_editor.py": 8,
-    "gui/dialogs/analysis.py": 2,
-    "gui/dialogs/data_import.py": 6,
-    "gui/export_preview_panel.py": 3,
-    "gui/main_window.py": 9,
-    "gui/minimap_widget.py": 2,
-    "gui/mixins/dataset_mixin.py": 11,
-    "gui/mixins/export_mixin.py": 11,
-    "gui/mixins/help_mixin.py": 1,
-    "gui/mixins/project_io_mixin.py": 4,
-    "gui/mixins/settings_mixin.py": 1,
-    "gui/plugin_context.py": 1,
-    "gui/task_runner.py": 1,
-    "gui/workers.py": 1,
+    "graphica/core/analysis.py": 1,
+    "graphica/core/diagnostics.py": 1,
+    "graphica/core/excel_utils.py": 1,
+    "graphica/core/plugin_api.py": 3,
+    "graphica/gui/canvas.py": 4,
+    "graphica/gui/crash_handler.py": 1,
+    "graphica/gui/data_editor.py": 8,
+    "graphica/gui/dialogs/analysis.py": 2,
+    "graphica/gui/dialogs/data_import.py": 6,
+    "graphica/gui/export_preview_panel.py": 3,
+    "graphica/gui/main_window.py": 9,
+    "graphica/gui/minimap_widget.py": 2,
+    "graphica/gui/mixins/dataset_mixin.py": 11,
+    "graphica/gui/mixins/export_mixin.py": 11,
+    "graphica/gui/mixins/help_mixin.py": 1,
+    "graphica/gui/mixins/project_io_mixin.py": 4,
+    "graphica/gui/mixins/settings_mixin.py": 1,
+    "graphica/gui/plugin_context.py": 1,
+    "graphica/gui/task_runner.py": 1,
+    "graphica/gui/workers.py": 1,
 }
 
 _BROAD = {"Exception", "BaseException"}
@@ -45,7 +45,7 @@ def _is_broad(handler):
 
 def _count_broad_handlers():
     counts = {}
-    for package in ("core", "gui", "models"):
+    for package in ("graphica/core", "graphica/gui", "graphica/models"):
         for path in sorted((ROOT / package).rglob("*.py")):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             n = sum(1 for node in ast.walk(tree) if isinstance(node, ast.ExceptHandler) and _is_broad(node))

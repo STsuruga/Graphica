@@ -2,7 +2,7 @@
 """gui/mathtext_preview.py のテスト(項目H-2-4追加分)。"""
 from PySide6.QtGui import QPixmap
 
-from gui.mathtext_preview import render_mathtext_to_pixmap, FitWidthPixmapLabel
+from graphica.gui.mathtext_preview import render_mathtext_to_pixmap, FitWidthPixmapLabel
 
 
 def test_render_mathtext_to_pixmap_returns_nonempty_pixmap_for_plain_text():

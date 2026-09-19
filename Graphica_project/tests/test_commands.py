@@ -3,8 +3,8 @@
 import numpy as np
 import pandas as pd
 
-from core.dataset import Dataset
-from core.commands import (
+from graphica.core.dataset import Dataset
+from graphica.core.commands import (
     EditCellCommand, AddRowCommand, DeleteRowsCommand,
     AddColumnCommand, DeleteColumnCommand,
     SetDatasetPropertiesCommand, ReorderDatasetsCommand,

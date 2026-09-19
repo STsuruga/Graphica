@@ -13,12 +13,12 @@ import pandas as pd
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-import gui.main_app_window as main_app_window_module
-import gui.main_window as main_window_module
-import gui.app_context as app_context_module
-import gui.mixins.dataset_mixin as dataset_mixin_module
-from gui.main_app_window import MainAppWindow
-from core.dataset import Dataset
+import graphica.gui.main_app_window as main_app_window_module
+import graphica.gui.main_window as main_window_module
+import graphica.gui.app_context as app_context_module
+import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
+from graphica.gui.main_app_window import MainAppWindow
+from graphica.core.dataset import Dataset
 
 
 def _make_isolated_main_app_window(tmp_path, monkeypatch):
@@ -71,7 +71,7 @@ def _add_and_select(tab, dataset):
 
 def test_get_sibling_tabs_standalone_plotter_app_returns_empty(tmp_path, monkeypatch):
     """MainAppWindow無しの単体PlotterApp(主にテスト環境)では空リストになる"""
-    from gui.main_window import PlotterApp
+    from graphica.gui.main_window import PlotterApp
 
     settings_path = str(tmp_path / "settings.ini")
 

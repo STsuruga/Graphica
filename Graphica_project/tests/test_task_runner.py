@@ -13,7 +13,7 @@ import time
 
 from PySide6.QtWidgets import QApplication
 
-from gui.task_runner import TaskRunner
+from graphica.gui.task_runner import TaskRunner
 
 
 def _ok_task(x, y, report_progress=None, is_cancelled=None):
@@ -183,8 +183,8 @@ def test_close_event_waits_for_in_flight_data_load_task_runner_instead_of_crashi
     (gui/main_window.pyのPlotterAppを介さない、load_data_file_task単体の
     スレッド安全性の確認)。
     """
-    import gui.workers as workers_module
-    from gui.workers import load_data_file_task
+    import graphica.gui.workers as workers_module
+    from graphica.gui.workers import load_data_file_task
 
     csv_path = tmp_path / "slow.csv"
     csv_path.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")

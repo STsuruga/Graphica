@@ -23,7 +23,7 @@ import os
 import pandas as pd
 import pytest
 
-from models.project import CURRENT_FORMAT_VERSION, ProjectModel
+from graphica.models.project import CURRENT_FORMAT_VERSION, ProjectModel
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), 'fixtures', 'legacy_projects')
 

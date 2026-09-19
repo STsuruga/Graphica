@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 from types import SimpleNamespace
 
-from core.dataset import Dataset
-from core.methods_text import describe_operation, generate_methods_text
+from graphica.core.dataset import Dataset
+from graphica.core.methods_text import describe_operation, generate_methods_text
 
 
 def _make_dataset(name, provenance=None):

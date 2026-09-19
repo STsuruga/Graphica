@@ -250,7 +250,7 @@ pytest</code></pre>
           </div></li>
           <li><div>
             <h3>実装とテスト</h3>
-            <p>計算処理は GUI にも本体にも依存しないモジュール(例: <code>analysis.py</code>)に分け、純粋な関数として単体テストします。<code>register(api)</code> の配線は <code>FakeGraphicaPluginAPI</code> で、<strong>実際の読み込み経路は本物の <code>PluginManager</code> にリポジトリのフォルダを渡すスモークテスト</strong>で確認します(相対 import の誤りはこのテストでしか見つかりません)。</p>
+            <p>計算処理は GUI にも本体にも依存しないモジュール(例: <code>analysis.py</code>)に分け、純粋な関数として単体テストします。<code>register(api)</code> の配線と窓口を使う処理は <code>FakeGraphicaPluginAPI</code> / <code>FakePluginContext</code> で、<strong>実際の読み込み経路は <code>load_plugin_like_graphica</code>(本体と同じ読み込み処理)</strong>で確認します(相対 import の誤りや <code>api_version</code> の不一致はこのテストでしか見つかりません)。どれも <code>graphica.plugin.testing</code> にあります。</p>
           </div></li>
           <li><div>
             <h3>本体に入れて動かす</h3>
@@ -694,10 +694,9 @@ const DETAIL = {
       "UI の置き場所: 独立ウィンドウ / ドックパネル / 両方。",
     ],
     notes: [
-      "本体の登録色(core/named_colors)と配色パレット(QSettings の custom_color_palettes_json / active_color_palette)は、プラグイン API として公開されたものではなく本体の内部の保存形式。形式が変わると壊れるので、書き込み処理は1つのモジュールにまとめ、テストで本体の関数(core.named_colors.load_named_colors、本体の _load_color_palettes と同じ JSON 形式)を使って読み戻して確認する。本来は公式のフック(例: register_color_source)があるべきなので、本体の Issue に要望として書くかユーザーに確認する。",
+      "登録色と配色パレットは、プラグイン API 2.0 の窓口(ctx.named_colors / set_named_colors / color_palettes / set_color_palettes / active_color_cycle)で読み書きする。本体の保存形式(QSettings のキー)には触らない。テストは FakePluginContext で行える。",
       "登録色と配色パレットは別物(本体の CLAUDE.md の注意)。登録色 = 名前と1色の対応(同じ物質に同じ色)、配色パレット = 系列に順に割り当てる色のリスト。受け渡しの UI でもこの違いが分かるように書き分ける。",
       "本体の色見本メニューは開くたびに登録色を読み直すので、追加は即座に反映される。配色パレットは「パレット管理」ダイアログを開き直すと反映される。",
-      "書き込むのは QSettings(\"Graphica\", \"Graphica\")。テストでは本体のテストと同じく一時 ini に差し替え、利用者の実際の設定を汚さない。",
       "カラーホイールは QPainter と QConicalGradient で自前描画する QWidget。色の計算(色空間変換、配色ルール、ΔE、k-means)は GUI 非依存の colors.py などに分けて単体テストする。",
     ],
   },
@@ -758,7 +757,7 @@ function promptFor(p) {
     lines.push("2. 実装の前に、v1.0 に入れる範囲を選択肢と推奨を添えてユーザーに確認する。");
   }
   lines.push("3. リポジトリの作成と push はユーザーの了承を得てから行う。雛形から conftest.py / build_zip.py などをコピーし、LICENSE(MIT)と CLAUDE.md(ハブの雛形)を置く。");
-  lines.push("4. 計算は本体非依存のモジュールに分けて単体テスト、register() は FakeGraphicaPluginAPI、本番の読み込み経路は本物の PluginManager でテストする。");
+  lines.push("4. 計算は本体非依存のモジュールに分けて単体テスト、register() と窓口(ctx)を使う処理は FakeGraphicaPluginAPI / FakePluginContext、本番の読み込み経路は load_plugin_like_graphica でテストする(どれも graphica.plugin.testing)。");
   lines.push("5. zip をビルドし、ソース版 Graphica にインストールして動作を確認。画面を伴う機能はユーザーにも確認してもらう。");
   lines.push("6. GitHub Release に zip を添付し、ハブの db を state \"done\" / repo / version / release_url / note で更新して、更新後の状態を表で報告する。本体の docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表にも1行追記する。");
   lines.push("");
@@ -767,6 +766,7 @@ function promptFor(p) {
   lines.push("- 使えるのは本体が同梱しているパッケージだけ(PySide6 / matplotlib / numpy / pandas / scipy / openpyxl / xlrd と標準ライブラリ)。");
   lines.push("- プラグイン内の import は相対 import。プラグイン同士は import できない。");
   lines.push("- 受け取った Dataset は書き換えず、新しい Dataset を返す(name / df / x_col_name / y_col_name は必須)。");
+  lines.push("- 本体から import してよいのは graphica.plugin と graphica.plugin.testing だけ。本体とのやりとりは窓口 ctx(PluginContext)を通す。plugin.json の api_version は \"2.0\"。");
   return lines.join("\n");
 }
 
@@ -942,6 +942,7 @@ python scripts/build_zip.py --all      # dist/<plugin_name>-<version>.zip
 - 依存は本体同梱のパッケージのみ(PySide6 / matplotlib / numpy / pandas / scipy / openpyxl / xlrd)。
 - プラグイン内は相対 import。他プラグインは import できない。
 - 受け取った Dataset は書き換えない。新しい Dataset は name / df / x_col_name / y_col_name 必須。
+- 本体から import するのは graphica.plugin / graphica.plugin.testing だけ。本体の操作は窓口 ctx(PluginContext)で行う。
 - リリースしたら plugin.json の version とタグを揃え、ハブの db(collection "plugins", doc_id "<P-xxx>")を更新する。
 
 ## 現状

@@ -129,11 +129,11 @@ jobs:
           path: Graphica_project/_site
 
       - name: Generate macOS icon (.icns) from Graphica.ico
-        # .icns はリポジトリに置かず、Graphica.ico の最大フレームから都度生成する。
+        # .icns はリポジトリに置かず、graphica/Graphica.ico の最大フレームから都度生成する。
         run: |
           python3 - <<'PY'
           from PIL import Image
-          im = Image.open("Graphica.ico")
+          im = Image.open("graphica/Graphica.ico")
           sizes = im.info.get("sizes", [im.size])
           best = max(sizes, key=lambda s: s[0])
           im.size = best

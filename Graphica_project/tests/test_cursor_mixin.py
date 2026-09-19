@@ -20,11 +20,11 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
-from gui.canvas import LTTB_DOWNSAMPLE_THRESHOLD
-from gui.data_editor import DataEditorDialog
-from core.dataset import Dataset
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.canvas import LTTB_DOWNSAMPLE_THRESHOLD
+from graphica.gui.data_editor import DataEditorDialog
+from graphica.core.dataset import Dataset
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -121,7 +121,7 @@ def test_toggle_cursor_mode_on_swallows_set_picker_attribute_error(tmp_path, mon
 
     monkeypatch.setattr(line, "set_picker", _raise_attribute_error)
 
-    with caplog.at_level("WARNING", logger="gui.mixins.cursor_mixin"):
+    with caplog.at_level("WARNING", logger="graphica.gui.mixins.cursor_mixin"):
         window._toggle_cursor_mode(True)  # 例外が伝播しないこと
 
     assert window.cursor_connection_id is not None

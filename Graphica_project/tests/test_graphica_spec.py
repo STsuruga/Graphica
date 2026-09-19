@@ -79,7 +79,7 @@ def test_datas_bundles_sample_data_directory_referenced_by_resource_path():
     """
     text = SPEC_PATH.read_text(encoding="utf-8")
     assert '"sample_data"' in text
-    sample_data_dir = SPEC_PATH.parent / "sample_data"
+    sample_data_dir = SPEC_PATH.parent / "graphica" / "sample_data"
     assert (sample_data_dir / "cooling_curve_sample.csv").exists()
 
 
@@ -90,6 +90,6 @@ def test_datas_bundles_icons_directory_referenced_by_resource_path():
     """
     text = SPEC_PATH.read_text(encoding="utf-8")
     assert '"icons"' in text
-    icons_dir = SPEC_PATH.parent / "assets" / "icons"
+    icons_dir = SPEC_PATH.parent / "graphica" / "assets" / "icons"
     assert icons_dir.is_dir()
     assert len(list(icons_dir.glob("*.svg"))) > 0

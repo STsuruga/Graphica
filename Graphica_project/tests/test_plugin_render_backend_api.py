@@ -11,8 +11,8 @@ gui/canvas.py のレンダリング経路への実際の組み込みはスコー
 """
 import pytest
 
-import core.plugin_api as plugin_api_module
-from core.plugin_api import GraphicaPluginAPI, get_registered_render_backends
+import graphica.core.plugin_api as plugin_api_module
+from graphica.core.plugin_api import GraphicaPluginAPI, get_registered_render_backends
 
 
 @pytest.fixture(autouse=True)

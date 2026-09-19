@@ -7,9 +7,9 @@ PlotterApp のインスタンス化パターンは tests/test_main_window.py と
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import gui.main_window as main_window_module
-from gui.main_window import PlotterApp
-from core.unit_conversion import X_AXIS_UNIT_CHOICES
+import graphica.gui.main_window as main_window_module
+from graphica.gui.main_window import PlotterApp
+from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):

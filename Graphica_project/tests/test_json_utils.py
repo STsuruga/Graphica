@@ -5,7 +5,7 @@ import json
 import numpy as np
 import pytest
 
-from core.json_utils import GraphicaJSONEncoder
+from graphica.core.json_utils import GraphicaJSONEncoder
 
 
 def test_encodes_numpy_integer_as_int():

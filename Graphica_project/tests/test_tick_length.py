@@ -14,16 +14,16 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QFormLayout
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset
-from gui.canvas import (
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset
+from graphica.gui.canvas import (
     DEFAULT_MAJOR_TICK_LENGTH,
     MINOR_TICK_LENGTH_AUTO,
     MINOR_TICK_LENGTH_RATIO,
     MplCanvas,
     _resolve_tick_lengths,
 )
-from gui.main_window import PlotterApp
+from graphica.gui.main_window import PlotterApp
 
 
 def _dataset(**kwargs):

@@ -14,13 +14,13 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QInputDialog, QMessageBox
 
-import gui.main_window as main_window_module
-import gui.mixins.annotation_mixin as annotation_mixin_module
-from gui.main_window import PlotterApp
-from gui.mixins.annotation_mixin import (
+import graphica.gui.main_window as main_window_module
+import graphica.gui.mixins.annotation_mixin as annotation_mixin_module
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.mixins.annotation_mixin import (
     AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX,
 )
-from gui.dialogs import ArrowAnnotationDialog
+from graphica.gui.dialogs import ArrowAnnotationDialog
 
 
 def _patch_arrow_dialog(monkeypatch, text="", style="single", curvature=0.0, accepted=True):
@@ -295,7 +295,7 @@ def test_toggle_annotation_mode_off_disconnects_and_clears_drag_state(tmp_path, 
 # --------------------------------------------------------------------
 
 def test_find_axis_index_returns_secondary_axis_position(tmp_path, monkeypatch):
-    from core.dataset import Dataset
+    from graphica.core.dataset import Dataset
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)

@@ -5,8 +5,8 @@ import sys
 
 import pytest
 
-import core.i18n as i18n_module
-from core.i18n import (
+import graphica.core.i18n as i18n_module
+from graphica.core.i18n import (
     DEFAULT_LANGUAGE,
     get_language,
     register_translations,
@@ -70,10 +70,10 @@ def test_english_translations_module_is_registered_on_import():
 def test_import_error_fallback_when_translations_en_unavailable(caplog):
     """core.translations_en の読み込みに失敗した場合でも、モジュール自体は
     例外を出さずに読み込め、警告ログのみ出力される(except ImportErrorパス)。"""
-    sys.modules.pop("core.translations_en", None)
+    sys.modules.pop("graphica.core.translations_en", None)
     sentinel_removed = False
     try:
-        sys.modules["core.translations_en"] = None  # importをImportErrorにさせる
+        sys.modules["graphica.core.translations_en"] = None  # importをImportErrorにさせる
         sentinel_removed = True
         with caplog.at_level("WARNING"):
             importlib.reload(i18n_module)
@@ -81,5 +81,5 @@ def test_import_error_fallback_when_translations_en_unavailable(caplog):
         assert any("翻訳辞書" in record.message for record in caplog.records)
     finally:
         if sentinel_removed:
-            sys.modules.pop("core.translations_en", None)
+            sys.modules.pop("graphica.core.translations_en", None)
         importlib.reload(i18n_module)  # 実物のtranslations_enで正常な状態に復元

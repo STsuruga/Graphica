@@ -13,11 +13,11 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-import gui.main_window as main_window_module
-import gui.mixins.dataset_mixin as dataset_mixin_module
-from gui.main_window import PlotterApp
-from core.dataset import Dataset
-from core.analysis import split_dataframe_by_column
+import graphica.gui.main_window as main_window_module
+import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
+from graphica.gui.main_window import PlotterApp
+from graphica.core.dataset import Dataset
+from graphica.core.analysis import split_dataframe_by_column
 
 
 # =============================================================================

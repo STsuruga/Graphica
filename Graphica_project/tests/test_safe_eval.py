@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from core.safe_eval import SafeEvalError, safe_eval_column_formula, safe_eval_formula
+from graphica.core.safe_eval import SafeEvalError, safe_eval_column_formula, safe_eval_formula
 
 
 # --- safe_eval_formula (カーブフィット用: 属性アクセス一切不可) ---

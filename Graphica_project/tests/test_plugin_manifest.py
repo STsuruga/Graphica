@@ -16,7 +16,7 @@ import os
 
 import pytest
 
-from core.plugin_manifest import (
+from graphica.core.plugin_manifest import (
     PLUGIN_API_VERSION, PLUGIN_MANIFEST_FILENAME,
     PluginManifestError, is_compatible_api_version, load_plugin_manifest,
 )
@@ -178,7 +178,7 @@ def test_the_bundled_example_plugin_manifest_is_valid():
     """★ 同梱サンプルが現行のバリデーションを通ること。PLUGIN_API_VERSION を
     上げたときに、サンプルの plugin.json の更新漏れをここで検出する。"""
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    plugin_dir = os.path.join(project_root, "plugins", "example_plugin")
+    plugin_dir = os.path.join(project_root, "graphica", "plugins", "example_plugin")
 
     manifest = load_plugin_manifest(plugin_dir)
 

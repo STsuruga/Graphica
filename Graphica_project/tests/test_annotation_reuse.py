@@ -28,8 +28,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from core.dataset import Dataset
-from gui.canvas import MplCanvas
+from graphica.core.dataset import Dataset
+from graphica.gui.canvas import MplCanvas
 
 
 @pytest.fixture

@@ -4,8 +4,8 @@ import pandas as pd
 import pytest
 from types import SimpleNamespace
 
-from gui.provenance_panel import ProvenancePanel
-from core.dataset import Dataset
+from graphica.gui.provenance_panel import ProvenancePanel
+from graphica.core.dataset import Dataset
 
 
 def _make_dataset(name, provenance=None):

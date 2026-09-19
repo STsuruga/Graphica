@@ -11,11 +11,11 @@ import inspect
 
 import graphica.plugin as public
 import graphica.plugin.testing as public_testing
-from core.dataset import Dataset
-from core.plugin_api import GraphicaPluginAPI
-from core.plugin_context import PluginContext
-from core.plugin_manifest import PLUGIN_API_VERSION
-from core.plugin_types import AnalysisResult, PluginMenuAction
+from graphica.core.dataset import Dataset
+from graphica.core.plugin_api import GraphicaPluginAPI
+from graphica.core.plugin_context import PluginContext
+from graphica.core.plugin_manifest import PLUGIN_API_VERSION
+from graphica.core.plugin_types import AnalysisResult, PluginMenuAction
 
 SNAPSHOT = {
     "version": "2.0",

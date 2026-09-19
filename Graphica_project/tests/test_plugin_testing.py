@@ -2,10 +2,10 @@
 import pandas as pd
 import pytest
 
-from core.dataset import Dataset
-from core.named_colors import NamedColorError
-from core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
-from core.plugin_types import PluginMenuAction
+from graphica.core.dataset import Dataset
+from graphica.core.named_colors import NamedColorError
+from graphica.core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
+from graphica.core.plugin_types import PluginMenuAction
 
 
 def test_register_fit_function_stores_call():

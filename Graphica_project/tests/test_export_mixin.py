@@ -16,16 +16,16 @@ from PySide6.QtWidgets import QApplication, QDialog
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 
-import core.plugin_api as plugin_api_module
-import gui.main_window as main_window_module
-import gui.mixins.export_mixin as export_mixin_module
-from core.dataset import Dataset
-from models.project import ProjectModel
-from core.plugin_api import GraphicaPluginAPI
-from core.plugin_types import PluginExecutionError
-from gui.main_window import PlotterApp
-from gui.mixins.export_mixin import ExportMixin
-from gui.dialogs import ExportDialog, BatchExportDialog
+import graphica.core.plugin_api as plugin_api_module
+import graphica.gui.main_window as main_window_module
+import graphica.gui.mixins.export_mixin as export_mixin_module
+from graphica.core.dataset import Dataset
+from graphica.models.project import ProjectModel
+from graphica.core.plugin_api import GraphicaPluginAPI
+from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.mixins.export_mixin import ExportMixin
+from graphica.gui.dialogs import ExportDialog, BatchExportDialog
 
 
 @pytest.fixture(autouse=True)

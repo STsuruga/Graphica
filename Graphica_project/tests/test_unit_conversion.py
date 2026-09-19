@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from core.unit_conversion import (
+from graphica.core.unit_conversion import (
     convert_x_axis_unit,
     X_AXIS_UNIT_NM, X_AXIS_UNIT_EV, X_AXIS_UNIT_CM1, X_AXIS_UNIT_HZ,
     X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS,

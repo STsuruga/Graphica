@@ -1,6 +1,6 @@
 # tests/test_plugin_types.py
 """core/plugin_types.py (トラック1 フェーズA-1、C-1/C-2) に対する軽量なテスト。"""
-from core.plugin_types import (
+from graphica.core.plugin_types import (
     AnalysisResult, PluginAnalyzer, PluginHookKind, PluginProcessor, PluginRegistrationError,
 )
 

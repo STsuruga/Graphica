@@ -9,9 +9,9 @@ FakeGraphicaPluginAPI(core/plugin_testing.py)と本物のGraphicaPluginAPI
 """
 import inspect
 
-from core.plugin_api import GraphicaPluginAPI
-from core.plugin_context import PluginContext
-from core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
+from graphica.core.plugin_api import GraphicaPluginAPI
+from graphica.core.plugin_context import PluginContext
+from graphica.core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
 
 
 def _register_method_names(cls):
@@ -38,7 +38,7 @@ def test_fake_api_register_method_signatures_match_the_real_api():
 
 
 def test_both_contexts_implement_every_member_of_the_contract():
-    from gui.plugin_context import TabPluginContext
+    from graphica.gui.plugin_context import TabPluginContext
 
     contract = {n for n in dir(PluginContext) if not n.startswith("_")}
     for cls in (TabPluginContext, FakePluginContext):

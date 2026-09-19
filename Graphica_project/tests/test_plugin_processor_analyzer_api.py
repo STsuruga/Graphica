@@ -6,8 +6,8 @@ AddDatasetCommand)は tests/test_dataset_mixin.py 側で検証する。
 """
 import pytest
 
-import core.plugin_api as plugin_api_module
-from core.plugin_api import GraphicaPluginAPI, get_registered_analyzers, get_registered_processors
+import graphica.core.plugin_api as plugin_api_module
+from graphica.core.plugin_api import GraphicaPluginAPI, get_registered_analyzers, get_registered_processors
 
 
 @pytest.fixture(autouse=True)

@@ -3,7 +3,7 @@
 import openpyxl
 import pandas as pd
 
-from core.excel_utils import find_unevaluated_formula_cells
+from graphica.core.excel_utils import find_unevaluated_formula_cells
 
 
 def test_detects_formula_cell_without_cached_value(tmp_path):

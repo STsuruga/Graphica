@@ -16,12 +16,12 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QFileDialog
 
-import gui.main_window as main_window_module
-from core.dataset import Dataset
-from core.excel_utils import find_unevaluated_formula_cells
-from gui.dialogs import ColumnPreviewDialog
-from gui.main_window import PlotterApp, SUPPORTED_DATA_FILE_EXTENSIONS
-from gui.workers import (
+import graphica.gui.main_window as main_window_module
+from graphica.core.dataset import Dataset
+from graphica.core.excel_utils import find_unevaluated_formula_cells
+from graphica.gui.dialogs import ColumnPreviewDialog
+from graphica.gui.main_window import PlotterApp, SUPPORTED_DATA_FILE_EXTENSIONS
+from graphica.gui.workers import (
     BUILTIN_DATA_FILE_EXTENSIONS,
     excel_engine_for,
     load_data_file_task,

@@ -7,9 +7,9 @@ import pandas as pd
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QFileDialog, QInputDialog, QMessageBox
 
-from core.dataset import Dataset
-from gui.data_editor import DataEditorDialog
-from gui.dialogs import (ColumnCalculatorDialog, ReplicateErrorDialog, ColumnStringOpsDialog,
+from graphica.core.dataset import Dataset
+from graphica.gui.data_editor import DataEditorDialog
+from graphica.gui.dialogs import (ColumnCalculatorDialog, ReplicateErrorDialog, ColumnStringOpsDialog,
                          ColumnVisibilityDialog)
 
 
@@ -96,7 +96,7 @@ def test_masked_row_background_follows_current_theme_instead_of_fixed_light_gray
     (surfaceが暗色)では逆に浮いて見えていた。現在のテーマの
     surface_2トークンを反映していることを確認する。
     """
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtGui import QColor
 
     df = pd.DataFrame({'x': [1.0, 2.0], 'y': [10.0, 20.0]})
@@ -117,7 +117,7 @@ def test_masked_row_background_follows_current_theme_instead_of_fixed_light_gray
 # --- 欠損値(NaN)の可視化(項目C-201) ---
 
 def test_nan_cell_gets_warning_soft_background(qapp):
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtGui import QColor
 
     df = pd.DataFrame({'x': [1.0, 2.0], 'y': [10.0, np.nan]})
@@ -134,7 +134,7 @@ def test_nan_cell_gets_warning_soft_background(qapp):
 
 
 def test_nan_cell_background_follows_current_theme(qapp):
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtGui import QColor
 
     df = pd.DataFrame({'x': [1.0, np.nan], 'y': [10.0, 20.0]})
@@ -155,7 +155,7 @@ def test_nan_cell_background_follows_current_theme(qapp):
 def test_masked_row_background_takes_priority_over_nan_highlight(qapp):
     """マスク済み行(行全体の背景)とNaNセルの可視化が同じセルで重なる場合、
     マスク済みの背景色が優先され、二重に色が重ならないこと。"""
-    from gui import theme
+    from graphica.gui import theme
     from PySide6.QtGui import QColor
 
     df = pd.DataFrame({'x': [1.0, 2.0], 'y': [np.nan, 20.0]})
@@ -277,7 +277,7 @@ def test_on_cell_changed_recovers_display_when_command_construction_fails(qapp, 
     行/列自体は正当だが、コマンド作成中に予期しない例外が起きた場合
     (外側except -> 復元は成功する経路、415-419行)を確認する。
     """
-    import gui.data_editor as data_editor_module
+    import graphica.gui.data_editor as data_editor_module
 
     def _raise(*args, **kwargs):
         raise RuntimeError("コマンド作成失敗(テスト用)")

@@ -10,9 +10,9 @@ import json
 
 import pandas as pd
 
-import core.plugin_api as plugin_api_module
-from core.dataset import Dataset
-from models.project import ProjectModel
+import graphica.core.plugin_api as plugin_api_module
+from graphica.core.dataset import Dataset
+from graphica.models.project import ProjectModel
 
 
 def _make_project_with_plugin_generated_dataset():

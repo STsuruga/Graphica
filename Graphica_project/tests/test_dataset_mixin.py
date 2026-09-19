@@ -21,20 +21,20 @@ from PySide6.QtCore import QSettings, QPoint, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox
 
-import gui.main_window as main_window_module
-import gui.mixins.dataset_mixin as dataset_mixin_module
-import gui.mixins.settings_mixin as settings_mixin_module
-from gui.main_window import PlotterApp
-from gui.dialogs import (
+import graphica.gui.main_window as main_window_module
+import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
+import graphica.gui.mixins.settings_mixin as settings_mixin_module
+from graphica.gui.main_window import PlotterApp
+from graphica.gui.dialogs import (
     NormalizeDatasetDialog, PluginParamDialog, DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
     NewDatasetDialog, BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
     ResampleDatasetDialog, DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
     HistogramKDEDialog, XAxisAlignmentDialog, InsetDialog,
 )
-from core.color_palettes import BUILTIN_PALETTES
-from core.dataset import Dataset
-from core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
-from gui.dataset_style_icon import DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN
+from graphica.core.color_palettes import BUILTIN_PALETTES
+from graphica.core.dataset import Dataset
+from graphica.core.plugin_types import PluginProcessor, PluginAnalyzer, AnalysisResult
+from graphica.gui.dataset_style_icon import DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):

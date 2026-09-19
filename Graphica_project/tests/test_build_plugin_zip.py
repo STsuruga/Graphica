@@ -20,7 +20,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
 import build_plugin_zip  # noqa: E402
 
-from core.plugin_install import install_plugin_zip  # noqa: E402
+from graphica.core.plugin_install import install_plugin_zip  # noqa: E402
 
 
 def _make_plugin(root, name, version="1.0", extra_files=None):

@@ -1,6 +1,6 @@
 # tests/test_caption_export.py
 """core/caption_export.py(項目142、C-807: LaTeX/Word用キャプション自動生成)のテスト。"""
-from core.caption_export import escape_latex, sanitize_label, generate_latex_figure
+from graphica.core.caption_export import escape_latex, sanitize_label, generate_latex_figure
 
 
 # --- escape_latex ---
