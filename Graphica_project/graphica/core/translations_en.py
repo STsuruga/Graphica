@@ -1,10 +1,4 @@
-# core/translations_en.py
-"""
-英語UI翻訳(項目41)。core/i18n.py の register_translations() 経由で登録される。
-対象範囲は「主要UI」(メニューバー・主要ボタン・代表的なダイアログ)であり、
-データエディタの細かいツールチップ等、露出の少ない文言は未収録(原文の日本語の
-まま表示される)。原文(日本語)をキーとした辞書。
-"""
+"""英語の訳。原文(日本語)をキーにした辞書で、core/i18n.py が読み込む。載っていない文字列は日本語のまま出る。"""
 
 TRANSLATIONS = {
     # --- メニューバー: ファイル ---
@@ -51,7 +45,7 @@ TRANSLATIONS = {
     "表示言語の変更": "Language Changed",
     "表示言語の変更は、次回起動時に反映されます。": "The new display language will take effect the next time you start the app.",
 
-    # --- メインウィンドウ: matplotlibナビゲーションツールバー(項目62) ---
+    # --- メインウィンドウ: matplotlib のツールバー ---
     "元の表示に戻す": "Reset to Original View",
     "最初の表示範囲にリセットします": "Reset to the initial view",
     "前の表示に戻る": "Back to Previous View",
