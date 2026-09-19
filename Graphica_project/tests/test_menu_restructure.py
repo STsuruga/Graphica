@@ -23,6 +23,7 @@ from PySide6.QtWidgets import QApplication
 import graphica.gui.main_window as main_window_module
 from graphica.gui.main_window import PlotterApp
 from graphica.core.dataset import Dataset
+from graphica.gui.datasets.actions_menu import populate_dataset_actions_menu
 from graphica.gui.mixins.quick_access_mixin import (
     QUICK_ACCESS_SETTINGS_KEY, quick_access_action_identifier,
 )
@@ -567,10 +568,10 @@ def test_dataset_menu_matches_the_right_click_menu(tmp_path, monkeypatch):
 
         from PySide6.QtWidgets import QMenu
         right_click = QMenu(window)
-        window._populate_dataset_actions_menu(right_click)
+        populate_dataset_actions_menu(window, right_click)
 
         menu_bar_menu = window._dataset_menu
-        window._populate_dataset_actions_menu(menu_bar_menu)
+        populate_dataset_actions_menu(window, menu_bar_menu)
 
         assert _menu_item_texts(menu_bar_menu) == _menu_item_texts(right_click)
     finally:
@@ -586,18 +587,18 @@ def test_dataset_menu_follows_the_current_selection(tmp_path, monkeypatch):
     try:
         menu = window._dataset_menu
 
-        window._populate_dataset_actions_menu(menu)
+        populate_dataset_actions_menu(window, menu)
         assert _submenu(menu, "データ処理") is None  # 選択が無ければサブメニューは出ない
 
         _add_datasets(window, 2)
         window.ui.dataset_list_widget.selectAll()
-        window._populate_dataset_actions_menu(menu)
+        populate_dataset_actions_menu(window, menu)
         assert _submenu(menu, "複数データセット") is not None
 
         window.ui.dataset_list_widget.clearSelection()
         window.ui.dataset_list_widget.setCurrentItem(
             window.ui.dataset_list_widget.topLevelItem(0))
-        window._populate_dataset_actions_menu(menu)
+        populate_dataset_actions_menu(window, menu)
         assert _submenu(menu, "データ処理") is not None
         assert _submenu(menu, "複数データセット") is None
     finally:

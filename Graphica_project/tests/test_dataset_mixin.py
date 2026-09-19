@@ -26,6 +26,7 @@ import graphica.gui.datasets.processing as processing_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.datasets.fitting as fitting_module
 import graphica.gui.datasets.transfer as transfer_module
+import graphica.gui.datasets.actions_menu as actions_menu_module
 import graphica.gui.datasets.overlays as overlays_module
 import graphica.gui.datasets.plugin_runs as plugin_runs_module
 import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
@@ -1122,7 +1123,7 @@ def test_dataset_tree_context_menu_omits_global_visibility_actions_when_project_
     window._on_dataset_tree_context_menu(QPoint(0, 0))
 
     assert _RecordingMenu.last_instance.added_texts == ["新しいフォルダ"]
-# データセットツリーの右クリックメニュー (_on_dataset_tree_context_menu)
+# データセットツリーの右クリックメニュー (populate_dataset_actions_menu)
 # =============================================================================
 
 class _RecordingMenu(QMenu):
@@ -1184,6 +1185,7 @@ class _RecordingMenu(QMenu):
 
 def _patch_recording_menu(monkeypatch):
     monkeypatch.setattr(dataset_mixin_module, "QMenu", _RecordingMenu)
+    monkeypatch.setattr(actions_menu_module, "QMenu", _RecordingMenu)
 
 
 def test_context_menu_no_selection_shows_only_new_folder(tmp_path, monkeypatch):

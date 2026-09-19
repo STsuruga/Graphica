@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from graphica.gui.theme import apply_theme
 from graphica.gui.dialogs import CommandPaletteDialog
+from graphica.gui.datasets.actions_menu import populate_dataset_actions_menu
 from graphica.core.version import APP_NAME
 from graphica.core.i18n import tr
 
@@ -475,18 +476,14 @@ class UISetupMixin:
             edit_menu.addAction(self.command_palette_action)
 
             # --- 2b. 「データセット」メニュー ---
-            # ★ 実機フィードバック: C-2 で整理したデータセット右クリックメニューは
-            #   中身が豊富なのに、リストを右クリックしないと辿り着けず気づかれ
-            #   にくい。メニューバーからも同じものを開けるようにする。
-            #   中身の構築は dataset_mixin._populate_dataset_actions_menu() が
-            #   右クリック側と共有する(片方だけに項目を足す壊れ方を防ぐ)。
+            # 右クリックと同じ中身を populate_dataset_actions_menu で作る(片方だけに項目を足さないため)。
             dataset_menu = menu_bar.addMenu(tr("データセット(&D)"))
             self._dataset_menu = dataset_menu           # 破棄されないよう保持
             self._dataset_menu_action = dataset_menu.menuAction()  # 開閉用アクションも(CLAUDE.md)
             # 選択状態によって出し入れされる項目があるので、開くたびに詰め直す。
             dataset_menu.aboutToShow.connect(
-                lambda: self._populate_dataset_actions_menu(dataset_menu))
-            self._populate_dataset_actions_menu(dataset_menu)
+                lambda: populate_dataset_actions_menu(self, dataset_menu))
+            populate_dataset_actions_menu(self, dataset_menu)
 
             # --- 3. 「表示」メニュー ---
             view_menu = menu_bar.addMenu(tr("表示(&V)"))

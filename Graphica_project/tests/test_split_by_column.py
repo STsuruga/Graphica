@@ -15,7 +15,6 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 import graphica.gui.datasets.processing as processing_module
 import graphica.gui.main_window as main_window_module
-import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
 from graphica.gui.main_window import PlotterApp
 from graphica.core.dataset import Dataset
 from graphica.core.analysis import split_dataframe_by_column
@@ -142,23 +141,23 @@ def _choose_column(monkeypatch, column, accepted=True):
     踏んでいる。docs/dev/CURRENT_STATE.md の C-407 の記述参照)。
     """
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        processing_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (column, accepted)),
     )
 
 
 def _silence_message_boxes(monkeypatch, question_answer=None):
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        processing_module.QMessageBox, "information",
         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Ok),
     )
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "warning",
+        processing_module.QMessageBox, "warning",
         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Ok),
     )
     if question_answer is not None:
         monkeypatch.setattr(
-            dataset_mixin_module.QMessageBox, "question",
+            processing_module.QMessageBox, "question",
             staticmethod(lambda *a, **k: question_answer),
         )
 
@@ -318,7 +317,7 @@ def test_single_valued_column_adds_nothing_and_explains_why(tmp_path, monkeypatc
         _choose_column(monkeypatch, "c")
         shown = []
         monkeypatch.setattr(
-            dataset_mixin_module.QMessageBox, "information",
+            processing_module.QMessageBox, "information",
             staticmethod(lambda *a, **k: shown.append(a) or QMessageBox.StandardButton.Ok),
         )
 
