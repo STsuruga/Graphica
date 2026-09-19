@@ -1,6 +1,7 @@
 """機能ごとのクラスが本体(PlotterApp の1タブ)に頼むことの窓口。"""
 from contextlib import contextmanager
 
+from graphica.core.axis_settings import axis_setting
 from graphica.core.commands import SetAnnotationsCommand
 
 
@@ -44,7 +45,7 @@ class DatasetHost:
 
     def annotations(self, axis_index):
         """その軸の注釈(リストはコピー)。"""
-        return list(self._app.project.all_plot_settings[axis_index].get('annotations', []))
+        return list(axis_setting(self._app.project.all_plot_settings[axis_index], 'annotations'))
 
     def add_annotations_to_active_axis(self, annotations, description):
         """今の軸に注釈をまとめて足す(Undo 1回分)。"""

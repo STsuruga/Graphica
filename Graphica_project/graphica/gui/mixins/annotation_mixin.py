@@ -19,6 +19,7 @@ import logging
 
 from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
 
+from graphica.core.axis_settings import axis_setting
 from graphica.core.commands import SetAnnotationsCommand
 from graphica.gui.dialogs import ArrowAnnotationDialog
 
@@ -175,7 +176,7 @@ class AnnotationMixin:
         annotation['id'] = uuid.uuid4().hex
 
         settings = self.project.all_plot_settings[axis_index]
-        old_annotations = list(settings.get('annotations', []))
+        old_annotations = list(axis_setting(settings, 'annotations'))
         new_annotations = old_annotations + [annotation]
 
         command = SetAnnotationsCommand(
@@ -191,7 +192,7 @@ class AnnotationMixin:
             return
 
         settings = self.project.all_plot_settings[axis_index]
-        annotations = settings.get('annotations', [])
+        annotations = axis_setting(settings, 'annotations')
         if not annotations:
             return
 

@@ -12,9 +12,10 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFontDialog, QMessageBox
 
-from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_NONE
+from graphica.core.axis_settings import axis_setting
+from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES
 from graphica.gui import theme
-from graphica.gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
+from graphica.gui.canvas import MINOR_TICK_LENGTH_AUTO
 from graphica.gui.color_history import get_color_with_history
 from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
 
@@ -671,7 +672,7 @@ class SettingsMixin:
             if not isinstance(loc, tuple) or len(loc) != 2:
                 continue  # 'best' 等の既定位置のまま(ドラッグされていない)
             position = [round(float(loc[0]), 4), round(float(loc[1]), 4)]
-            if settings_list[index].get('legend_position') != position:
+            if axis_setting(settings_list[index], 'legend_position') != position:
                 settings_list[index]['legend_position'] = position
                 changed = True
         return changed
@@ -695,7 +696,7 @@ class SettingsMixin:
             QMessageBox.information(self, "凡例の順序", "この軸には凡例に表示するデータセットがありません。")
             return
 
-        current_order = self.project.all_plot_settings[axis_index].get('legend_order') or []
+        current_order = axis_setting(self.project.all_plot_settings[axis_index], 'legend_order') or []
         dialog = LegendOrderDialog(_order_labels(labels, current_order), self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -870,11 +871,11 @@ class SettingsMixin:
         # UIコントロールを持たずドラッグ操作から直接書き込まれるため、ここで引き継ぐ。
         if self.project.active_axis_index < len(self.project.all_plot_settings):
             current = self.project.all_plot_settings[self.project.active_axis_index]
-            settings['annotations'] = current.get('annotations', [])
-            settings['legend_order'] = current.get('legend_order', [])
-            settings['free_rect'] = current.get('free_rect')
+            settings['annotations'] = axis_setting(current, 'annotations')
+            settings['legend_order'] = axis_setting(current, 'legend_order')
+            settings['free_rect'] = axis_setting(current, 'free_rect')
             # ドラッグで動かした凡例の位置(v1.4.2)も UI コントロールを持たない
-            settings['legend_position'] = current.get('legend_position')
+            settings['legend_position'] = axis_setting(current, 'legend_position')
         else:
             settings['annotations'] = []
             settings['legend_order'] = []
@@ -900,109 +901,103 @@ class SettingsMixin:
             #    .get(key, default) を使い、キーが存在しなくてもエラーにならないようにする
 
             # ラベル/書式
-            self.ui.title_text_edit.setText(settings.get('title', ''))
-            self.ui.x_label_text_edit.setText(settings.get('x_label', ''))
-            self.ui.y_label_text_edit.setText(settings.get('y_label', ''))
-            self.x_label_visible_checkbox.setChecked(settings.get('x_label_visible', True))
-            self.y_label_visible_checkbox.setChecked(settings.get('y_label_visible', True))
-            self.y2_label_text_edit.setText(settings.get('y2_label', ''))
+            self.ui.title_text_edit.setText(axis_setting(settings, 'title'))
+            self.ui.x_label_text_edit.setText(axis_setting(settings, 'x_label'))
+            self.ui.y_label_text_edit.setText(axis_setting(settings, 'y_label'))
+            self.x_label_visible_checkbox.setChecked(axis_setting(settings, 'x_label_visible'))
+            self.y_label_visible_checkbox.setChecked(axis_setting(settings, 'y_label_visible'))
+            self.y2_label_text_edit.setText(axis_setting(settings, 'y2_label'))
 
             # X軸
-            self.ui.x_autoscale_checkbox.setChecked(settings.get('x_autoscale', True))
-            self.ui.x_min_spinbox.setValue(settings.get('x_min', 0))
-            self.ui.x_max_spinbox.setValue(settings.get('x_max', 1))
-            self.ui.x_log_checkbox.setChecked(settings.get('x_log', False))
-            self.ui.x_invert_checkbox.setChecked(settings.get('x_invert', False))
-            self.ui.x_major_tick_mode_combo.setCurrentIndex(settings.get('x_major_tick_mode', 0))
-            self.ui.x_major_tick_interval_spinbox.setValue(settings.get('x_major_tick_interval', 1))
-            self.ui.x_minor_ticks_visible_checkbox.setChecked(settings.get('x_minor_ticks_visible', False))
-            self.ui.x_minor_tick_interval_spinbox.setValue(settings.get('x_minor_tick_interval', 0.5))
-            _x_log_minor_subs_idx = self.x_log_minor_subs_combo.findData(settings.get('x_log_minor_subs', 'auto'))
+            self.ui.x_autoscale_checkbox.setChecked(axis_setting(settings, 'x_autoscale'))
+            self.ui.x_min_spinbox.setValue(axis_setting(settings, 'x_min'))
+            self.ui.x_max_spinbox.setValue(axis_setting(settings, 'x_max'))
+            self.ui.x_log_checkbox.setChecked(axis_setting(settings, 'x_log'))
+            self.ui.x_invert_checkbox.setChecked(axis_setting(settings, 'x_invert'))
+            self.ui.x_major_tick_mode_combo.setCurrentIndex(axis_setting(settings, 'x_major_tick_mode'))
+            self.ui.x_major_tick_interval_spinbox.setValue(axis_setting(settings, 'x_major_tick_interval'))
+            self.ui.x_minor_ticks_visible_checkbox.setChecked(axis_setting(settings, 'x_minor_ticks_visible'))
+            self.ui.x_minor_tick_interval_spinbox.setValue(axis_setting(settings, 'x_minor_tick_interval'))
+            _x_log_minor_subs_idx = self.x_log_minor_subs_combo.findData(axis_setting(settings, 'x_log_minor_subs'))
             self.x_log_minor_subs_combo.setCurrentIndex(_x_log_minor_subs_idx if _x_log_minor_subs_idx != -1 else 0)
-            self.x_log_minor_labels_checkbox.setChecked(settings.get('x_log_minor_labels', False))
-            self.x_tick_format_combo.setCurrentIndex(settings.get('x_tick_format_mode', 0))
-            self.x_tick_decimals_spinbox.setValue(settings.get('x_tick_decimals', -1))
-            _source_unit = settings.get('x_secondary_axis_source_unit', X_AXIS_UNIT_NONE)
+            self.x_log_minor_labels_checkbox.setChecked(axis_setting(settings, 'x_log_minor_labels'))
+            self.x_tick_format_combo.setCurrentIndex(axis_setting(settings, 'x_tick_format_mode'))
+            self.x_tick_decimals_spinbox.setValue(axis_setting(settings, 'x_tick_decimals'))
+            _source_unit = axis_setting(settings, 'x_secondary_axis_source_unit')
             self.x_secondary_axis_source_unit_combo.setCurrentIndex(
                 X_AXIS_UNIT_CHOICES.index(_source_unit) if _source_unit in X_AXIS_UNIT_CHOICES else 0)
-            _target_unit = settings.get('x_secondary_axis_target_unit', X_AXIS_UNIT_NONE)
+            _target_unit = axis_setting(settings, 'x_secondary_axis_target_unit')
             self.x_secondary_axis_target_unit_combo.setCurrentIndex(
                 X_AXIS_UNIT_CHOICES.index(_target_unit) if _target_unit in X_AXIS_UNIT_CHOICES else 0)
 
             # Y軸
-            self.ui.y_autoscale_checkbox.setChecked(settings.get('y_autoscale', True))
-            self.ui.y_min_spinbox.setValue(settings.get('y_min', 0))
-            self.ui.y_max_spinbox.setValue(settings.get('y_max', 1))
-            self.ui.y_log_checkbox.setChecked(settings.get('y_log', False))
-            self.ui.y_invert_checkbox.setChecked(settings.get('y_invert', False))
-            self.ui.y_major_tick_mode_combo.setCurrentIndex(settings.get('y_major_tick_mode', 0))
-            self.ui.y_major_tick_interval_spinbox.setValue(settings.get('y_major_tick_interval', 1))
-            self.ui.y_minor_ticks_visible_checkbox.setChecked(settings.get('y_minor_ticks_visible', False))
-            self.ui.y_minor_tick_interval_spinbox.setValue(settings.get('y_minor_tick_interval', 0.5))
-            _y_log_minor_subs_idx = self.y_log_minor_subs_combo.findData(settings.get('y_log_minor_subs', 'auto'))
+            self.ui.y_autoscale_checkbox.setChecked(axis_setting(settings, 'y_autoscale'))
+            self.ui.y_min_spinbox.setValue(axis_setting(settings, 'y_min'))
+            self.ui.y_max_spinbox.setValue(axis_setting(settings, 'y_max'))
+            self.ui.y_log_checkbox.setChecked(axis_setting(settings, 'y_log'))
+            self.ui.y_invert_checkbox.setChecked(axis_setting(settings, 'y_invert'))
+            self.ui.y_major_tick_mode_combo.setCurrentIndex(axis_setting(settings, 'y_major_tick_mode'))
+            self.ui.y_major_tick_interval_spinbox.setValue(axis_setting(settings, 'y_major_tick_interval'))
+            self.ui.y_minor_ticks_visible_checkbox.setChecked(axis_setting(settings, 'y_minor_ticks_visible'))
+            self.ui.y_minor_tick_interval_spinbox.setValue(axis_setting(settings, 'y_minor_tick_interval'))
+            _y_log_minor_subs_idx = self.y_log_minor_subs_combo.findData(axis_setting(settings, 'y_log_minor_subs'))
             self.y_log_minor_subs_combo.setCurrentIndex(_y_log_minor_subs_idx if _y_log_minor_subs_idx != -1 else 0)
-            self.y_log_minor_labels_checkbox.setChecked(settings.get('y_log_minor_labels', False))
-            self.y_tick_format_combo.setCurrentIndex(settings.get('y_tick_format_mode', 0))
-            self.y_tick_decimals_spinbox.setValue(settings.get('y_tick_decimals', -1))
+            self.y_log_minor_labels_checkbox.setChecked(axis_setting(settings, 'y_log_minor_labels'))
+            self.y_tick_format_combo.setCurrentIndex(axis_setting(settings, 'y_tick_format_mode'))
+            self.y_tick_decimals_spinbox.setValue(axis_setting(settings, 'y_tick_decimals'))
 
             # ラベル/書式 (続き)
-            self.ui.legend_visible_checkbox.setChecked(settings.get('legend_visible', True))
-            self.legend_loc_combo.setCurrentText(settings.get('legend_loc', 'best'))
-            self.ui.grid_visible_checkbox.setChecked(settings.get('grid_visible', False))
-            self.ui.minor_grid_visible_checkbox.setChecked(settings.get('minor_grid_visible', False))
+            self.ui.legend_visible_checkbox.setChecked(axis_setting(settings, 'legend_visible'))
+            self.legend_loc_combo.setCurrentText(axis_setting(settings, 'legend_loc'))
+            self.ui.grid_visible_checkbox.setChecked(axis_setting(settings, 'grid_visible'))
+            self.ui.minor_grid_visible_checkbox.setChecked(axis_setting(settings, 'minor_grid_visible'))
 
             # グリッド線の詳細カスタマイズ(項目82)。旧プロジェクト(このキー群が
             # 存在しない)を読み込んだ場合は、canvas.py 側と同じデフォルト値
             # (主目盛: 実線・太さ0.8 / 補助目盛: 破線・太さ0.5、共にalpha=1.0)にする。
             self.x_major_grid_linestyle_combo.setCurrentIndex(
-                self._grid_linestyle_index(settings.get('x_major_grid_linestyle', '-')))
-            self.x_major_grid_width_spinbox.setValue(settings.get('x_major_grid_width', 0.8))
-            self.x_major_grid_alpha_spinbox.setValue(settings.get('x_major_grid_alpha', 1.0))
+                self._grid_linestyle_index(axis_setting(settings, 'x_major_grid_linestyle')))
+            self.x_major_grid_width_spinbox.setValue(axis_setting(settings, 'x_major_grid_width'))
+            self.x_major_grid_alpha_spinbox.setValue(axis_setting(settings, 'x_major_grid_alpha'))
             self.x_minor_grid_linestyle_combo.setCurrentIndex(
-                self._grid_linestyle_index(settings.get('x_minor_grid_linestyle', '--')))
-            self.x_minor_grid_width_spinbox.setValue(settings.get('x_minor_grid_width', 0.5))
-            self.x_minor_grid_alpha_spinbox.setValue(settings.get('x_minor_grid_alpha', 1.0))
+                self._grid_linestyle_index(axis_setting(settings, 'x_minor_grid_linestyle')))
+            self.x_minor_grid_width_spinbox.setValue(axis_setting(settings, 'x_minor_grid_width'))
+            self.x_minor_grid_alpha_spinbox.setValue(axis_setting(settings, 'x_minor_grid_alpha'))
             self.y_major_grid_linestyle_combo.setCurrentIndex(
-                self._grid_linestyle_index(settings.get('y_major_grid_linestyle', '-')))
-            self.y_major_grid_width_spinbox.setValue(settings.get('y_major_grid_width', 0.8))
-            self.y_major_grid_alpha_spinbox.setValue(settings.get('y_major_grid_alpha', 1.0))
+                self._grid_linestyle_index(axis_setting(settings, 'y_major_grid_linestyle')))
+            self.y_major_grid_width_spinbox.setValue(axis_setting(settings, 'y_major_grid_width'))
+            self.y_major_grid_alpha_spinbox.setValue(axis_setting(settings, 'y_major_grid_alpha'))
             self.y_minor_grid_linestyle_combo.setCurrentIndex(
-                self._grid_linestyle_index(settings.get('y_minor_grid_linestyle', '--')))
-            self.y_minor_grid_width_spinbox.setValue(settings.get('y_minor_grid_width', 0.5))
-            self.y_minor_grid_alpha_spinbox.setValue(settings.get('y_minor_grid_alpha', 1.0))
-            self.major_tick_direction_combo.setCurrentText(settings.get('major_tick_direction', 'out'))
-            self.minor_tick_direction_combo.setCurrentText(settings.get('minor_tick_direction', 'out'))
-            self.major_tick_direction_y2_combo.setCurrentText(settings.get('major_tick_direction_y2', 'out'))
-            self.minor_tick_direction_y2_combo.setCurrentText(settings.get('minor_tick_direction_y2', 'out'))
-            # ★ 後方互換: v1.3.2で導入した軸共通のticks_visible/
-            #   tick_labels_visibleキーのみを持つ既存プロジェクトでは、
-            #   その値をX/Y両方の既定値として使う(gui/canvas.pyの
-            #   _apply_appearance()と同じフォールバック方針)。
-            legacy_ticks_visible = settings.get('ticks_visible', True)
-            legacy_tick_labels_visible = settings.get('tick_labels_visible', True)
-            self.x_ticks_visible_checkbox.setChecked(settings.get('x_ticks_visible', legacy_ticks_visible))
+                self._grid_linestyle_index(axis_setting(settings, 'y_minor_grid_linestyle')))
+            self.y_minor_grid_width_spinbox.setValue(axis_setting(settings, 'y_minor_grid_width'))
+            self.y_minor_grid_alpha_spinbox.setValue(axis_setting(settings, 'y_minor_grid_alpha'))
+            self.major_tick_direction_combo.setCurrentText(axis_setting(settings, 'major_tick_direction'))
+            self.minor_tick_direction_combo.setCurrentText(axis_setting(settings, 'minor_tick_direction'))
+            self.major_tick_direction_y2_combo.setCurrentText(axis_setting(settings, 'major_tick_direction_y2'))
+            self.minor_tick_direction_y2_combo.setCurrentText(axis_setting(settings, 'minor_tick_direction_y2'))
+            self.x_ticks_visible_checkbox.setChecked(axis_setting(settings, 'x_ticks_visible'))
             self.x_tick_labels_visible_checkbox.setChecked(
-                settings.get('x_tick_labels_visible', legacy_tick_labels_visible))
-            self.y_ticks_visible_checkbox.setChecked(settings.get('y_ticks_visible', legacy_ticks_visible))
+                axis_setting(settings, 'x_tick_labels_visible'))
+            self.y_ticks_visible_checkbox.setChecked(axis_setting(settings, 'y_ticks_visible'))
             self.y_tick_labels_visible_checkbox.setChecked(
-                settings.get('y_tick_labels_visible', legacy_tick_labels_visible))
+                axis_setting(settings, 'y_tick_labels_visible'))
 
             # 3. 内部の (self._...) 変数を辞書から復元
 
             # (フォントの復元)
-            tick_font_props = settings.get('tick_font', {})
+            tick_font_props = axis_setting(settings, 'tick_font')
             self._tick_font = _qfont_from_family_props(tick_font_props)
             self._tick_font.setPointSize(tick_font_props.get('size', 10))
             self._tick_font.setBold(tick_font_props.get('weight') == 'bold')
             self._tick_font.setItalic(tick_font_props.get('style') == 'italic')
 
-            label_font_props = settings.get('axis_label_font', {})
+            label_font_props = axis_setting(settings, 'axis_label_font')
             self._axis_label_font = _qfont_from_family_props(label_font_props)
             self._axis_label_font.setPointSize(label_font_props.get('size', 10))
             self._axis_label_font.setBold(label_font_props.get('weight') == 'bold')
             self._axis_label_font.setItalic(label_font_props.get('style') == 'italic')
 
-            legend_font_props = settings.get('legend_font', {})
+            legend_font_props = axis_setting(settings, 'legend_font')
             self._legend_font = _qfont_from_family_props(legend_font_props)
             if 'size' in legend_font_props:
                 self._legend_font.setPointSize(legend_font_props.get('size', 10))
@@ -1010,29 +1005,29 @@ class SettingsMixin:
             self._legend_font.setItalic(legend_font_props.get('style') == 'italic')
 
             # (色と太さの復元)
-            self._tick_color = settings.get('tick_color', '#000000')
-            self._tick_width = settings.get('tick_width', 0.8)
+            self._tick_color = axis_setting(settings, 'tick_color')
+            self._tick_width = axis_setting(settings, 'tick_width')
             self.ui.tick_width_spinbox.setValue(self._tick_width) # ★ UIにも反映
             # 目盛線の長さ。キーを持たない既存プロジェクトは matplotlib 既定(3.5pt / 自動)
-            self.major_tick_length_spinbox.setValue(settings.get('major_tick_length', DEFAULT_MAJOR_TICK_LENGTH))
-            minor_tick_length = settings.get('minor_tick_length', -1)
+            self.major_tick_length_spinbox.setValue(axis_setting(settings, 'major_tick_length'))
+            minor_tick_length = axis_setting(settings, 'minor_tick_length')
             self.minor_tick_length_spinbox.setValue(
                 MINOR_TICK_LENGTH_AUTO if minor_tick_length is None or minor_tick_length < 0 else minor_tick_length)
 
-            self._axis_label_color = settings.get('axis_label_color', '#000000')
-            self._legend_color = settings.get('legend_color', '#000000')
+            self._axis_label_color = axis_setting(settings, 'axis_label_color')
+            self._legend_color = axis_setting(settings, 'legend_color')
 
-            self._spine_width = settings.get('spine_width', 1.0)
+            self._spine_width = axis_setting(settings, 'spine_width')
             self.ui.spine_width_spinbox.setValue(self._spine_width) # ★ UIにも反映
-            self._spine_color = settings.get('spine_color', '#000000')
+            self._spine_color = axis_setting(settings, 'spine_color')
 
             # カラーバー(項目C-501)
-            self.colorbar_enabled_checkbox.setChecked(settings.get('colorbar_enabled', True))
-            _cb_position = settings.get('colorbar_position', 'right')
+            self.colorbar_enabled_checkbox.setChecked(axis_setting(settings, 'colorbar_enabled'))
+            _cb_position = axis_setting(settings, 'colorbar_position')
             _cb_position_index = self.colorbar_position_combo.findData(_cb_position)
             self.colorbar_position_combo.setCurrentIndex(_cb_position_index if _cb_position_index != -1 else 0)
-            self.colorbar_width_spinbox.setValue(settings.get('colorbar_width_fraction', 0.05))
-            self.colorbar_label_edit.setText(settings.get('colorbar_label', ''))
+            self.colorbar_width_spinbox.setValue(axis_setting(settings, 'colorbar_width_fraction'))
+            self.colorbar_label_edit.setText(axis_setting(settings, 'colorbar_label'))
 
             # 4. UIの状態を更新 (スピンボックスの有効/無効など)
             #    (★ _connect_signals での接続修正が前提)

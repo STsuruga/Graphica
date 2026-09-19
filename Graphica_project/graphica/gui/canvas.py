@@ -15,6 +15,7 @@ from matplotlib.patches import Polygon
 import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
+from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
 from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
@@ -188,7 +189,7 @@ def _legend_position_from_settings(settings):
     settings['legend_position'](ドラッグで動かした凡例の位置、[x, y])を
     legend の loc に渡せるタプルにする。未設定・壊れた値は None。
     """
-    position = settings.get('legend_position')
+    position = axis_setting(settings, 'legend_position')
     if not isinstance(position, (list, tuple)) or len(position) != 2:
         return None
     try:
@@ -310,7 +311,7 @@ def _apply_tick_decimal_places(axis, decimals):
 #   線の太さも pt 固定なので、目盛りだけ相対値にすると大きいサイズで
 #   エクスポートしたときに「長い目盛りの横に小さい数字」とちぐはぐになり、
 #   多パネル図ではパネルの大きさごとに長さが揃わなくなる(ユーザーと合意済み)。
-DEFAULT_MAJOR_TICK_LENGTH = 3.5
+DEFAULT_MAJOR_TICK_LENGTH = AXIS_SETTING_DEFAULTS['major_tick_length']
 # 補助目盛の長さが「自動」(負値)のときに主目盛へ掛ける倍率。matplotlib の
 # 既定の比率(2.0 / 3.5 ≈ 0.57)をそのまま使う: 主目盛と見分けがつく程度に
 # 短く、かつ細い線でも潰れない長さで、既定値どうしの組み合わせが従来の
@@ -327,10 +328,10 @@ def _resolve_tick_lengths(settings):
     minor_tick_length が未指定または負値なら「自動」とし、
     主目盛の長さ × MINOR_TICK_LENGTH_RATIO を使う。
     """
-    major = settings.get('major_tick_length', DEFAULT_MAJOR_TICK_LENGTH)
+    major = axis_setting(settings, 'major_tick_length')
     if major is None or major < 0:
         major = DEFAULT_MAJOR_TICK_LENGTH
-    minor = settings.get('minor_tick_length', -1)
+    minor = axis_setting(settings, 'minor_tick_length')
     if minor is None or minor < 0:
         minor = major * MINOR_TICK_LENGTH_RATIO
     return major, minor
@@ -595,7 +596,7 @@ class _CanvasDrawingMixin:
             # 自由配置レイアウト: 均等グリッドではなく、各サブプロットごとに
             # 保存済み(またはデフォルトの)矩形を使って個別に配置する。
             for i in range(subplot_count):
-                rect = all_plot_settings[i].get('free_rect') or self._default_free_rect(i)
+                rect = axis_setting(all_plot_settings[i], 'free_rect') or self._default_free_rect(i)
                 ax = self.fig.add_axes(rect)
                 self.all_axes.append(ax)
                 self.all_secondary_axes.append(None)
@@ -782,7 +783,7 @@ class _CanvasDrawingMixin:
         「既存Axesの中身を差し替える」のではなく「新しいAxesを1つ増やす」
         操作であることに注意)。
         """
-        rect = settings.get('free_rect') or self._default_free_rect(len(self.all_axes))
+        rect = axis_setting(settings, 'free_rect') or self._default_free_rect(len(self.all_axes))
         ax = self.fig.add_axes(rect)
         self.all_axes.append(ax)
         self.all_secondary_axes.append(None)
@@ -974,7 +975,7 @@ class _CanvasDrawingMixin:
         インセットだけ別の前提を置く必要がないから(データが変わる操作は
         `ax.cla()` を伴う別の経路を通り、そこでは再利用しない)。
         """
-        annotations = settings.get('annotations', [])
+        annotations = axis_setting(settings, 'annotations')
         parts = [bool(self.dark_mode), bool(full_resolution), len(annotations)]
         if not annotations:
             return json.dumps(parts, default=str)
@@ -1035,7 +1036,7 @@ class _CanvasDrawingMixin:
         datasets_by_id = {ds.dataset_id: ds for ds in (datasets or ())}
 
         new_artists = []
-        for ann in settings.get('annotations', []):
+        for ann in axis_setting(settings, 'annotations'):
             ann_type = ann.get('type')
             text = ann.get('text', '')
             try:
@@ -1947,14 +1948,14 @@ class _CanvasDrawingMixin:
         # (指定してもmatplotlibのカテゴリ位置と噛み合わず表示が壊れる)ため無視する。
         is_category_x = axis_index < len(self.axis_is_category_x) and self.axis_is_category_x[axis_index]
 
-        if is_category_x or settings.get('x_autoscale', True): ax.autoscale(enable=True, axis='x', tight=True)
+        if is_category_x or axis_setting(settings, 'x_autoscale'): ax.autoscale(enable=True, axis='x', tight=True)
         else:
-            min_val, max_val = settings.get('x_min', 0), settings.get('x_max', 1)
+            min_val, max_val = axis_setting(settings, 'x_min'), axis_setting(settings, 'x_max')
             if min_val < max_val: ax.set_xlim(min_val, max_val)
 
-        if settings.get('y_autoscale', True): ax.autoscale(enable=True, axis='y', tight=True)
+        if axis_setting(settings, 'y_autoscale'): ax.autoscale(enable=True, axis='y', tight=True)
         else:
-            min_val, max_val = settings.get('y_min', 0), settings.get('y_max', 1)
+            min_val, max_val = axis_setting(settings, 'y_min'), axis_setting(settings, 'y_max')
             if min_val < max_val: ax.set_ylim(min_val, max_val)
 
         if not is_category_x:
@@ -1963,10 +1964,10 @@ class _CanvasDrawingMixin:
             # リセットしてしまう。文字列カテゴリ軸ではbar()/plot()呼び出し時に
             # matplotlib自身が設定したカテゴリ用のLocator/Formatterを保ちたいため、
             # このAxesでは(スケール自体はどのみち常にlinearなので)呼び出さない。
-            ax.set_xscale('log' if settings.get('x_log', False) else 'linear')
-        ax.xaxis.set_inverted(settings.get('x_invert', False))
-        ax.set_yscale('log' if settings.get('y_log', False) else 'linear')
-        ax.yaxis.set_inverted(settings.get('y_invert', False))
+            ax.set_xscale('log' if axis_setting(settings, 'x_log') else 'linear')
+        ax.xaxis.set_inverted(axis_setting(settings, 'x_invert'))
+        ax.set_yscale('log' if axis_setting(settings, 'y_log') else 'linear')
+        ax.yaxis.set_inverted(axis_setting(settings, 'y_invert'))
 
         x_min_lim, x_max_lim = ax.get_xlim()
         y_min_lim, y_max_lim = ax.get_ylim()
@@ -1982,71 +1983,71 @@ class _CanvasDrawingMixin:
             # (各カテゴリ位置に1つずつラベルを表示) をそのまま使う。数値軸向けの
             # AutoLocator等で上書きすると目盛りラベルが崩れるため触らない。
             pass
-        elif settings.get('x_major_tick_mode', 0) == 0: ax.xaxis.set_major_locator(ticker.AutoLocator())
+        elif axis_setting(settings, 'x_major_tick_mode') == 0: ax.xaxis.set_major_locator(ticker.AutoLocator())
         else:
-            interval = settings.get('x_major_tick_interval', 1)
+            interval = axis_setting(settings, 'x_major_tick_interval')
             if interval > 0: ax.xaxis.set_major_locator(_safe_multiple_locator(interval, x_min_lim, x_max_lim))
 
-        if settings.get('y_major_tick_mode', 0) == 0: ax.yaxis.set_major_locator(ticker.AutoLocator())
+        if axis_setting(settings, 'y_major_tick_mode') == 0: ax.yaxis.set_major_locator(ticker.AutoLocator())
         else:
-            interval = settings.get('y_major_tick_interval', 1)
+            interval = axis_setting(settings, 'y_major_tick_interval')
             if interval > 0: ax.yaxis.set_major_locator(_safe_multiple_locator(interval, y_min_lim, y_max_lim))
 
         if is_date_x or is_category_x:
             # 日付軸/カテゴリ軸では数値の補助目盛り間隔は意味を持たないため表示しない
             ax.xaxis.set_minor_locator(ticker.NullLocator())
-        elif settings.get('x_minor_ticks_visible', False):
-            if settings.get('x_log', False):
+        elif axis_setting(settings, 'x_minor_ticks_visible'):
+            if axis_setting(settings, 'x_log'):
                 # 対数軸の補助目盛り高度制御(項目C-604)。set_xscale('log')の
                 # 既定Locator/Formatterをそのまま使わず明示的に設定し直す
                 # (このAxesでは既にset_minor_locatorを必ず呼ぶ設計のため、
                 # x_log分岐を追加しないと従来のMultipleLocatorが対数軸にも
                 # 誤って適用されてしまう)。
-                subs = _LOG_MINOR_SUBS_PRESETS.get(settings.get('x_log_minor_subs', 'auto'), 'auto')
+                subs = _LOG_MINOR_SUBS_PRESETS.get(axis_setting(settings, 'x_log_minor_subs'), 'auto')
                 ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=subs))
                 ax.xaxis.set_minor_formatter(
                     ticker.LogFormatterSciNotation(base=10.0, labelOnlyBase=False)
-                    if settings.get('x_log_minor_labels', False) else ticker.NullFormatter()
+                    if axis_setting(settings, 'x_log_minor_labels') else ticker.NullFormatter()
                 )
             else:
-                interval = settings.get('x_minor_tick_interval', 0.5)
+                interval = axis_setting(settings, 'x_minor_tick_interval')
                 if interval > 0: ax.xaxis.set_minor_locator(_safe_multiple_locator(interval, x_min_lim, x_max_lim))
         else: ax.xaxis.set_minor_locator(ticker.NullLocator())
 
-        if settings.get('y_minor_ticks_visible', False):
-            if settings.get('y_log', False):
-                subs = _LOG_MINOR_SUBS_PRESETS.get(settings.get('y_log_minor_subs', 'auto'), 'auto')
+        if axis_setting(settings, 'y_minor_ticks_visible'):
+            if axis_setting(settings, 'y_log'):
+                subs = _LOG_MINOR_SUBS_PRESETS.get(axis_setting(settings, 'y_log_minor_subs'), 'auto')
                 ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=subs))
                 ax.yaxis.set_minor_formatter(
                     ticker.LogFormatterSciNotation(base=10.0, labelOnlyBase=False)
-                    if settings.get('y_log_minor_labels', False) else ticker.NullFormatter()
+                    if axis_setting(settings, 'y_log_minor_labels') else ticker.NullFormatter()
                 )
             else:
-                interval = settings.get('y_minor_tick_interval', 0.5)
+                interval = axis_setting(settings, 'y_minor_tick_interval')
                 if interval > 0: ax.yaxis.set_minor_locator(_safe_multiple_locator(interval, y_min_lim, y_max_lim))
         else: ax.yaxis.set_minor_locator(ticker.NullLocator())
 
         # 目盛りの指数表記フォーマット切り替え(項目62)。日付軸/カテゴリ軸は
         # 専用のFormatterを既に設定済みのため、数値軸のX軸(および常に数値のY軸)のみ適用する。
         if not is_date_x and not is_category_x:
-            _apply_tick_format_mode(ax.xaxis, settings.get('x_tick_format_mode', 0))
-            _apply_tick_decimal_places(ax.xaxis, settings.get('x_tick_decimals', -1))
-        _apply_tick_format_mode(ax.yaxis, settings.get('y_tick_format_mode', 0))
-        _apply_tick_decimal_places(ax.yaxis, settings.get('y_tick_decimals', -1))
+            _apply_tick_format_mode(ax.xaxis, axis_setting(settings, 'x_tick_format_mode'))
+            _apply_tick_decimal_places(ax.xaxis, axis_setting(settings, 'x_tick_decimals'))
+        _apply_tick_format_mode(ax.yaxis, axis_setting(settings, 'y_tick_format_mode'))
+        _apply_tick_decimal_places(ax.yaxis, axis_setting(settings, 'y_tick_decimals'))
 
-        tick_font_dict = settings.get('tick_font', {})
-        label_font_dict = settings.get('axis_label_font', {})
-        tick_color = self._effective_text_color(settings.get('tick_color', '#000000'))
-        label_color = self._effective_text_color(settings.get('axis_label_color', '#000000'))
+        tick_font_dict = axis_setting(settings, 'tick_font')
+        label_font_dict = axis_setting(settings, 'axis_label_font')
+        tick_color = self._effective_text_color(axis_setting(settings, 'tick_color'))
+        label_color = self._effective_text_color(axis_setting(settings, 'axis_label_color'))
 
-        ax.set_title(settings.get('title', ''), **label_font_dict, color=label_color)
+        ax.set_title(axis_setting(settings, 'title'), **label_font_dict, color=label_color)
         # 軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分):
         # settings['x_label']/['y_label']自体は(非表示にしても)消さずに保持し、
         # 描画時にx_label_visible/y_label_visible(既定True、後方互換)が
         # Falseの場合だけ空文字で描画する。テキスト入力欄を空にする実装だと
         # 再表示のたびに再入力が必要になってしまうため、別のフラグにしている。
-        x_label_text = settings.get('x_label', '') if settings.get('x_label_visible', True) else ''
-        y_label_text = settings.get('y_label', '') if settings.get('y_label_visible', True) else ''
+        x_label_text = axis_setting(settings, 'x_label') if axis_setting(settings, 'x_label_visible') else ''
+        y_label_text = axis_setting(settings, 'y_label') if axis_setting(settings, 'y_label_visible') else ''
         ax.set_xlabel(x_label_text, **label_font_dict, color=label_color)
         ax.set_ylabel(y_label_text, **label_font_dict, color=label_color)
         # ★ グラフ要素の直接クリック選択(項目35): タイトルをクリックすると、
@@ -2057,11 +2058,11 @@ class _CanvasDrawingMixin:
             label.set(**tick_font_dict)
             label.set_color(tick_color)
 
-        spine_width = settings.get('spine_width', 1.0)
-        spine_color = self._effective_text_color(settings.get('spine_color', '#000000'))
-        tick_width = settings.get('tick_width', 0.8)
-        major_dir = settings.get('major_tick_direction', 'out')
-        minor_dir = settings.get('minor_tick_direction', 'out')
+        spine_width = axis_setting(settings, 'spine_width')
+        spine_color = self._effective_text_color(axis_setting(settings, 'spine_color'))
+        tick_width = axis_setting(settings, 'tick_width')
+        major_dir = axis_setting(settings, 'major_tick_direction')
+        minor_dir = axis_setting(settings, 'minor_tick_direction')
         major_tick_length, minor_tick_length = _resolve_tick_lengths(settings)
 
         for spine in ax.spines.values():
@@ -2076,18 +2077,14 @@ class _CanvasDrawingMixin:
         #   一度非表示にしてから再度表示に戻しても反映されないバグがあった。
         #   常にTrue/Falseを明示的に指定することで確実に反映されるようにし、
         #   同時にX軸/Y軸をそれぞれ独立して設定できるよう分離する。
-        #   後方互換: v1.3.2で導入した軸共通のticks_visible/tick_labels_visible
-        #   キーのみを持つ既存プロジェクトでは、その値をX/Y両方の既定値として使う。
         #   ★ 軸共有(_apply_shared_axis_tick_visibility)による内側の目盛数値
         #   抑制は、このメソッドの呼び出し後に別途適用される(呼び出し側の
         #   redraw_all()/update_appearance_only()/_redraw_single_axis_no_draw()
         #   参照)ため、ここで軸共有を意識する必要はない。
-        legacy_ticks_visible = settings.get('ticks_visible', True)
-        legacy_tick_labels_visible = settings.get('tick_labels_visible', True)
-        x_ticks_visible = settings.get('x_ticks_visible', legacy_ticks_visible)
-        y_ticks_visible = settings.get('y_ticks_visible', legacy_ticks_visible)
-        x_tick_labels_visible = settings.get('x_tick_labels_visible', legacy_tick_labels_visible)
-        y_tick_labels_visible = settings.get('y_tick_labels_visible', legacy_tick_labels_visible)
+        x_ticks_visible = axis_setting(settings, 'x_ticks_visible')
+        y_ticks_visible = axis_setting(settings, 'y_ticks_visible')
+        x_tick_labels_visible = axis_setting(settings, 'x_tick_labels_visible')
+        y_tick_labels_visible = axis_setting(settings, 'y_tick_labels_visible')
 
         ax.tick_params(axis='x', which='major', width=tick_width, length=major_tick_length, color=spine_color, labelcolor=tick_color,
                         direction=major_dir, bottom=x_ticks_visible, labelbottom=x_tick_labels_visible)
@@ -2098,7 +2095,7 @@ class _CanvasDrawingMixin:
         ax.tick_params(axis='y', which='minor', width=tick_width * 0.75, length=minor_tick_length, color=spine_color,
                         direction=minor_dir, left=y_ticks_visible, labelleft=y_tick_labels_visible)
 
-        if settings.get('legend_visible', True):
+        if axis_setting(settings, 'legend_visible'):
             lines_primary, labels_primary = ax.get_legend_handles_labels()
             has_primary_data = bool(lines_primary)
             has_secondary_data = False
@@ -2108,14 +2105,14 @@ class _CanvasDrawingMixin:
                 has_secondary_data = bool(lines_secondary)
 
             if has_primary_data or has_secondary_data:
-                loc_code = settings.get('legend_loc', 'best')
+                loc_code = axis_setting(settings, 'legend_loc')
                 # ドラッグで動かした位置(v1.4.2)。軸の左下を(0, 0)、右上を(1, 1)とする
                 # 凡例の左下の座標で、あれば「凡例の位置」の選択より優先する。
                 dragged_position = _legend_position_from_settings(settings)
                 if dragged_position is not None:
                     loc_code = dragged_position
-                legend_font_dict = settings.get('legend_font', {})
-                legend_color = self._effective_text_color(settings.get('legend_color', '#000000'))
+                legend_font_dict = axis_setting(settings, 'legend_font')
+                legend_color = self._effective_text_color(axis_setting(settings, 'legend_color'))
                 legend_font_prop = FontProperties(
                     family=legend_font_dict.get('family'),
                     size=legend_font_dict.get('size'),
@@ -2124,7 +2121,7 @@ class _CanvasDrawingMixin:
                     stretch=legend_font_dict.get('stretch')
                 )
                 # 凡例の並び順(ドラッグで並べ替え可能): 描画順とは独立に指定できる
-                legend_order = settings.get('legend_order')
+                legend_order = axis_setting(settings, 'legend_order')
                 legend_obj = None
                 if secondary_ax and has_primary_data and has_secondary_data:
                     combined_lines, combined_labels = _apply_legend_order(
@@ -2170,7 +2167,7 @@ class _CanvasDrawingMixin:
         # そのままデフォルトとして使い、既存プロジェクトの見た目を変えない。
         # 1回の ax.grid() 呼び出しは指定した which/axis の組み合わせにしか効かないため、
         # X/Y × 主/補助 の4通りを個別に呼び分ける。
-        if settings.get('grid_visible', False):
+        if axis_setting(settings, 'grid_visible'):
             # ★ 項目H-3: グリッド線の色は以前matplotlibの既定値(rcParams、
             #   テーマと無関係な固定の薄灰色)に任せきりだったため、
             #   ダークモードでライトモードと同じ薄灰色が使われ、背景色との
@@ -2179,17 +2176,17 @@ class _CanvasDrawingMixin:
             for grid_axis in ('x', 'y'):
                 ax.grid(
                     True, which='major', axis=grid_axis,
-                    linestyle=settings.get(f'{grid_axis}_major_grid_linestyle', '-'),
-                    linewidth=settings.get(f'{grid_axis}_major_grid_width', 0.8),
-                    alpha=settings.get(f'{grid_axis}_major_grid_alpha', 1.0),
+                    linestyle=axis_setting(settings, f'{grid_axis}_major_grid_linestyle'),
+                    linewidth=axis_setting(settings, f'{grid_axis}_major_grid_width'),
+                    alpha=axis_setting(settings, f'{grid_axis}_major_grid_alpha'),
                     color=grid_color,
                 )
-                if settings.get('minor_grid_visible', False):
+                if axis_setting(settings, 'minor_grid_visible'):
                     ax.grid(
                         True, which='minor', axis=grid_axis,
-                        linestyle=settings.get(f'{grid_axis}_minor_grid_linestyle', '--'),
-                        linewidth=settings.get(f'{grid_axis}_minor_grid_width', 0.5),
-                        alpha=settings.get(f'{grid_axis}_minor_grid_alpha', 1.0),
+                        linestyle=axis_setting(settings, f'{grid_axis}_minor_grid_linestyle'),
+                        linewidth=axis_setting(settings, f'{grid_axis}_minor_grid_width'),
+                        alpha=axis_setting(settings, f'{grid_axis}_minor_grid_alpha'),
                         color=grid_color,
                     )
                 else:
@@ -2199,9 +2196,9 @@ class _CanvasDrawingMixin:
 
         if secondary_ax:
             secondary_ax.autoscale(enable=True, axis='y', tight=True)
-            secondary_ax.set_ylabel(settings.get('y2_label', ''), **label_font_dict, color=label_color)
-            major_dir_y2 = settings.get('major_tick_direction_y2', 'out')
-            minor_dir_y2 = settings.get('minor_tick_direction_y2', 'out')
+            secondary_ax.set_ylabel(axis_setting(settings, 'y2_label'), **label_font_dict, color=label_color)
+            major_dir_y2 = axis_setting(settings, 'major_tick_direction_y2')
+            minor_dir_y2 = axis_setting(settings, 'minor_tick_direction_y2')
             for label in secondary_ax.get_yticklabels():
                 label.set(**tick_font_dict)
                 label.set_color(tick_color)
@@ -2224,8 +2221,8 @@ class _CanvasDrawingMixin:
         # (functions=(forward, inverse))で上部に変換後の第2X軸を追加する。
         # 日付軸/カテゴリ軸は数値変換の対象外(nm/eV/cm^-1/Hzという物理量の
         # 変換とは無関係)なので何もしない。
-        source_unit = settings.get('x_secondary_axis_source_unit', X_AXIS_UNIT_NONE)
-        target_unit = settings.get('x_secondary_axis_target_unit', X_AXIS_UNIT_NONE)
+        source_unit = axis_setting(settings, 'x_secondary_axis_source_unit')
+        target_unit = axis_setting(settings, 'x_secondary_axis_target_unit')
         if (not is_date_x and not is_category_x
                 and source_unit != X_AXIS_UNIT_NONE and target_unit != X_AXIS_UNIT_NONE
                 and source_unit != target_unit
@@ -2269,18 +2266,18 @@ class _CanvasDrawingMixin:
         # matplotlibが向き(vertical/horizontal)を自動的に決めるため、orientationは
         # 明示的に渡さない(両方渡すと衝突しうる)。
         mappable = self._axis_2d_mappables.get(axis_index)
-        if mappable is not None and settings.get('colorbar_enabled', True):
-            position = settings.get('colorbar_position', 'right')
+        if mappable is not None and axis_setting(settings, 'colorbar_enabled'):
+            position = axis_setting(settings, 'colorbar_position')
             if position not in ('right', 'left', 'top', 'bottom'):
                 position = 'right'
             try:
-                fraction = float(settings.get('colorbar_width_fraction', 0.05))
+                fraction = float(axis_setting(settings, 'colorbar_width_fraction'))
             except (TypeError, ValueError):
                 fraction = 0.05
             if fraction <= 0:
                 fraction = 0.05
             cbar = self.fig.colorbar(mappable, ax=ax, location=position, fraction=fraction, pad=0.04)
-            colorbar_label = settings.get('colorbar_label', '')
+            colorbar_label = axis_setting(settings, 'colorbar_label')
             if colorbar_label:
                 cbar.set_label(colorbar_label, **label_font_dict, color=label_color)
             for tick_label in cbar.ax.get_yticklabels() + cbar.ax.get_xticklabels():

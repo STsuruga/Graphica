@@ -19,6 +19,7 @@ import logging
 from matplotlib.patches import Rectangle
 from PySide6.QtWidgets import QMessageBox
 
+from graphica.core.axis_settings import axis_setting
 from graphica.core.commands import SetAnnotationsCommand
 
 logger = logging.getLogger(__name__)
@@ -191,7 +192,7 @@ class RegionHighlightMixin:
             return
 
         settings = self.project.all_plot_settings[axis_index]
-        annotations = settings.get('annotations', [])
+        annotations = axis_setting(settings, 'annotations')
 
         target_index = None
         for i, ann in enumerate(annotations):
