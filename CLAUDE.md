@@ -40,7 +40,7 @@ That `pyproject.toml` does make the app pip-installable (`pip install -e Graphic
 
 `gui/main_window.py`'s `PlotterApp(QMainWindow, ...)` composes its behavior from **15 mixins** under `gui/mixins/`, each owning one concern:
 
-- `UISetupMixin` — one-time signal wiring (`_connect_signals`), menu bar construction, and `_collect_menu_actions()` (backs the command palette / quick access / shortcuts list)
+- `UISetupMixin` — one-time signal wiring (`_connect_signals`, split into layout / axis-setting / dataset parts; several slots on one signal run in connection order), dark-mode switching, and `_collect_menu_actions()` (backs the command palette / quick access / shortcuts list). **The menu bar itself is a table** in `gui/menu_bar.py` (item H-4): `FILE_MENU` … `HELP_MENU` are tuples of `Item(text, slot, shortcut, attr=, checked=)` / `Submenu` / `DockToggle` / `SEPARATOR` naming `PlotterApp` methods, and `build_menu_bar(app)` builds them. Add a menu item by adding a row. The item texts are the quick-access pin identifiers (the menu path), so renaming one silently unpins it — `tests/test_menu_bar.py` pins a few and checks every method name in the table exists.
 - `SettingsMixin` — collecting/applying the UI ↔ per-axis settings dict, font/color pickers, axis behavior
 - `DatasetMixin` — the dataset tree only: add/remove/duplicate, folders, visibility, drag-reordering, and the redraw after a dataset property change (`_push_dataset_property_command` / `_refresh_after_dataset_property_change`). Everything else done *to* datasets lives in `gui/datasets/` (see below)
 - `ExportMixin` — image/PDF/SVG export, batch export, the live export-preview panel, CVD preview, LaTeX captions, HTML/PDF reports
@@ -143,7 +143,7 @@ The app's 47 dialogs live in a **package**, not one module (item B-2 split the f
 
 Traversing `self.menuBar().actions()` and then calling `.menu()` on each top-level action to reach a `QMenu` — even when the result is used immediately, in the same call — can cause that `QMenu` and its child `QAction`s to become invalid ("Internal C++ object already deleted") sometime after the traversal, for reasons not fully understood at the shiboken level. The fix used throughout this codebase is to cache top-level menus as persistent `self._file_menu` / `self._edit_menu` / etc. attributes at menu-creation time, and always traverse from those cached references rather than re-deriving them via `menuBar().actions()`. The command palette, quick-access manager, and shortcuts-list dialog all depend on this pattern (`_collect_menu_actions()` in `gui/mixins/ui_setup_mixin.py`).
 
-**Caching the `QMenu` is not enough for a submenu — cache its `menuAction()` too.** When `_collect_menu_actions()` recursed into the "ドックレイアウト" submenu (the first real submenu it ever walked; "最近使ったファイル" is explicitly excluded, and the plugin submenus only exist when a plugin registers one), a single call was enough to destroy that submenu permanently: every later access raised "Internal C++ object already deleted", so opening the command palette once broke the menu for the rest of the session. Holding `self._dock_layout_menu` did **not** prevent it — the object that gets collected is the `QAction` that `addMenu()` returns/attaches (`QMenu.menuAction()`), and destroying it takes its `QMenu` and all children with it. **When adding any submenu, store both**:
+**Caching the `QMenu` is not enough for a submenu — cache its `menuAction()` too.** When `_collect_menu_actions()` recursed into the "ドックレイアウト" submenu (the first real submenu it ever walked; "最近使ったファイル" is explicitly excluded, and the plugin submenus only exist when a plugin registers one), a single call was enough to destroy that submenu permanently: every later access raised "Internal C++ object already deleted", so opening the command palette once broke the menu for the rest of the session. Holding `self._dock_layout_menu` did **not** prevent it — the object that gets collected is the `QAction` that `addMenu()` returns/attaches (`QMenu.menuAction()`), and destroying it takes its `QMenu` and all children with it. **Every submenu needs both kept alive.** `build_menu_bar()` does this for everything it creates — each `QMenu`, its `menuAction()` and every `QAction` go into `app._menu_keepalive` — so a `Submenu` row is safe as is. Code that builds a menu by hand (the dataset context menu, anything outside the table) must still store both:
 
 ```python
 sub = parent_menu.addMenu(tr("..."))
@@ -151,7 +151,7 @@ self._sub_menu = sub                    # the QMenu
 self._sub_menu_action = sub.menuAction()  # and its opener action
 ```
 
-This matters most for the dataset context menu and the File menu, both of which are candidates for submenu grouping. Note also the pre-existing limitation that menu items nested two or more levels deep cannot be pinned via the quick-access right-click.
+Note also the pre-existing limitation that menu items nested two or more levels deep cannot be pinned via the quick-access right-click.
 
 ### Unsaved changes, file formats and export settings (v1.4.2)
 
