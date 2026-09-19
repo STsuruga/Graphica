@@ -57,11 +57,15 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   _apply_* の並びに分けた。組み込みの plot_type は gui/plot_type_drawers.py の表(プラグインの種類と同じ引き方)。
   632通りの描画(全種類×各オプション×ライト/ダーク×解像度)で画素と描画後の状態が分割前と一致することを確認。
   canvas.py のコメントも整理(2,309行→1,597行)。
-- H-3 完了(ブランチ上、PR 待ち): PlotterApp.__init__(1,667行)を、呼ぶ順番どおりの18個の組み立てメソッド
+- H-3 完了、PR #19 で master に取り込み済み(マージコミット 33aadc5): PlotterApp.__init__(1,667行)を、呼ぶ順番どおりの18個の組み立てメソッド
   (_load_designer_ui … _connect_and_initialize)の呼び出しだけにした。formLayout_3 への番号指定の insertRow
   7か所は _insert_form_row_after(form, 基準のウィジェット, …) に置き換え。組み立て結果(ウィジェット789個の木・
   位置・文字・表示・シグナル接続数、メニュー、ツールバー、属性)が分割前と一致することを確認。コメント 554→130行。
-- 次: H-3 の PR(マージは了承を得てから)。その後 H-4(メニューを一覧表から組み立てる)。
+- H-4 完了(ブランチ上、PR 待ち): メニューバー(_create_menu_bar 414行)を graphica/gui/menu_bar.py の一覧表
+  (Item / Submenu / DockToggle / 区切り線、呼び先は PlotterApp のメソッド名)と組み立て関数 build_menu_bar に
+  置き換え。作った QMenu・menuAction・QAction はすべて app._menu_keepalive が持つ(PySide6 の回収対策を1か所に)。
+  _connect_signals はサブプロット・軸の設定・データセットの3つに分割(つなぐ順は同じ)。組み立て結果が変更前と一致。
+- 次: H-4 の PR(マージは了承を得てから)。H はこれで全部。その後は推奨順で I-2(pip 配布の仕上げ)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
