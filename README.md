@@ -141,7 +141,7 @@ Graphica は、CSV/Excel などのファイルからデータを読み込み、�
 * **インストール**: **編集 ▸ 環境設定** の「プラグイン」タブで「プラグインをインストール...」を押し、プラグインの zip ファイルを選びます。プラグインはユーザーごとのフォルダ(Windows では `%LOCALAPPDATA%\Graphica\plugins`)に展開されます。インストール後は Graphica を再起動してください。
 * **管理**: 同じタブで、読み込まれているプラグインの一覧・有効/無効の切り替え・エラー内容の確認ができます。
 * **トラブル時**: `--safe-mode` を付けて起動すると、プラグインを読み込まずに起動します(7.2 参照)。
-* **プラグイン開発**: 作り方は [`Graphica_project/docs/plugin_development.md`](Graphica_project/docs/plugin_development.md) を参照してください。
+* **プラグイン開発**: 作り方は [`Graphica_project/docs/plugin_development.md`](https://github.com/STsuruga/Graphica/blob/master/Graphica_project/docs/plugin_development.md) を参照してください。
 
 ---
 
@@ -197,16 +197,20 @@ Graphica は、CSV/Excel などのファイルからデータを読み込み、�
 
 ### 7.2 pip で入れる
 
-Python 3.10 以降があれば、GitHub から直接インストールできます。依存するライブラリも一緒に入ります
+Python 3.10 以降があれば、PyPI からインストールできます。依存するライブラリも一緒に入ります
 (ほかのソフトとぶつかりにくいよう、仮想環境に入れることをおすすめします)。
 
 ```
-pip install "git+https://github.com/STsuruga/Graphica.git#subdirectory=Graphica_project"
+pip install graphica-plot
 graphica
 ```
 
 `graphica` はコンソール(黒い画面)を開かずに起動します。ログを画面で見たいときは `python -m graphica` で起動してください。
-更新は同じコマンドに `--upgrade` を付けて、アンインストールは `pip uninstall graphica` です。
+更新は同じコマンドに `--upgrade` を付けて、アンインストールは `pip uninstall graphica-plot` です。
+PyPI の `graphica`(名前が同じ別のソフト)とは同じ環境に入れられません。
+
+リリース前の最新版は GitHub から入れられます:
+`pip install "git+https://github.com/STsuruga/Graphica.git#subdirectory=Graphica_project"`
 
 ### 7.3 ソースから実行する
 

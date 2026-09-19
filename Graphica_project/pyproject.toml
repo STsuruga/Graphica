@@ -3,7 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "graphica"
+# PyPI の graphica は別人のツールなので配布名だけ変える。import 名と起動コマンドは graphica。
+name = "graphica-plot"
 # バージョンは core/version.py の __version__ が唯一の情報源。
 dynamic = ["version"]
 description = "PySide6 + matplotlib によるデータプロット・解析デスクトップアプリケーション"
@@ -29,7 +30,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Visualization",
     "Environment :: X11 Applications :: Qt",
-    "Private :: Do Not Upload",
 ]
 # 利用者の環境とぶつからないよう範囲で指定する。下限は requires-python の 3.10 でも入る版。
 # 上限は、フルスイートで確かめた範囲まで。PySide6 と matplotlib は minor 版で挙動が変わる
@@ -44,6 +44,11 @@ dependencies = [
     "openpyxl>=3.1,<4",
     "xlrd>=2.0,<3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/STsuruga/Graphica"
+Changelog = "https://github.com/STsuruga/Graphica/blob/master/CHANGELOG.md"
+Issues = "https://github.com/STsuruga/Graphica/issues"
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1", "ruff==0.16.8"]

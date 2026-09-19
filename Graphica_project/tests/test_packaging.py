@@ -1,4 +1,5 @@
 """pip で配る形(pyproject.toml)の約束事。"""
+import re
 import sys
 from pathlib import Path
 
@@ -50,3 +51,21 @@ def test_bundled_mit_icons_carry_their_notice():
 
     assert "Copyright (c) 2020-2026 Paweł Kuna" in text
     assert "The above copyright notice and this permission notice shall be included in all" in text
+
+
+def test_readme_links_work_on_pypi():
+    """PyPI は README をリポジトリの外で表示するので、相対リンクは切れる。"""
+    text = (PROJECT_ROOT / "README.md").read_text(encoding="utf-8")
+    targets = re.findall(r"\]\(([^)]+)\)", text)
+
+    assert [t for t in targets if not t.startswith(("https://", "http://", "#"))] == []
+
+
+@pytest.mark.parametrize("workflow", ["build.yml", "publish.yml"])
+def test_workflows_install_the_wheel_by_its_file_name(workflow):
+    """wheel のファイル名は配布名から作られる。配布名を変えたら CI の glob も変える。"""
+    wheel_prefix = re.sub(r"[-_.]+", "_", PYPROJECT["project"]["name"]).lower() + "-"
+    text = (REPO_ROOT / ".github" / "workflows" / workflow).read_text(encoding="utf-8")
+    globs = re.findall(r"([\w.]+-)\*\.whl", text)
+
+    assert globs and set(globs) == {wheel_prefix}
