@@ -4,7 +4,7 @@
 gui/residual_panel.py(項目C-406)と同じ「メインキャンバスとは別の、選択状態に
 連動する小さな独立パネル」という確立されたパターンを踏襲する。選択中の
 データセットが切り替わるたびに refresh(dataset, project) が呼ばれる
-(gui/mixins/dataset_mixin.py の _update_ui_state 内)。
+(gui/mixins/dataset_mixin.py の property_panel.update_ui_state 内)。
 
 ツリー構造: ルート=選択中のデータセット名。その下に「操作内容」ノード
 (describe_operationで日本語化)、さらにその下に「その操作の元になった

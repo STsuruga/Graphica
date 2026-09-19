@@ -404,7 +404,7 @@ def test_waterfall_section_is_hidden_entirely_for_a_2d_grid_dataset(window):
 
     dataset.data_kind = '2d_grid'
     dataset.z_col_name = 'z'
-    window._update_ui_state()
+    window.property_panel.update_ui_state()
     _pump()
 
     assert window._prop_sections['waterfall']['section'].isHidden() is True
@@ -414,12 +414,12 @@ def test_waterfall_section_is_hidden_entirely_for_a_2d_grid_dataset(window):
 def test_waterfall_section_comes_back_when_the_dataset_is_1d_again(window):
     dataset = _make_dataset(window)
     dataset.data_kind = '2d_grid'
-    window._update_ui_state()
+    window.property_panel.update_ui_state()
     _pump()
     assert window._prop_sections['waterfall']['section'].isHidden() is True
 
     dataset.data_kind = '1d'
-    window._update_ui_state()
+    window.property_panel.update_ui_state()
     _pump()
     assert window._prop_sections['waterfall']['section'].isHidden() is False
 
@@ -428,12 +428,12 @@ def test_gradient_section_is_hidden_for_plot_types_that_cannot_use_it(window):
     """グラデーションは Line / Line+Scatter / Area でのみ意味を持つ。"""
     dataset = _make_dataset(window)
     dataset.plot_type = 'Line'
-    window._update_ui_state()
+    window.property_panel.update_ui_state()
     _pump()
     assert window._prop_sections['gradient']['section'].isHidden() is False
 
     dataset.plot_type = 'Scatter'
-    window._update_ui_state()
+    window.property_panel.update_ui_state()
     _pump()
     assert window._prop_sections['gradient']['section'].isHidden() is True
 
@@ -446,7 +446,7 @@ def test_map_section_shows_the_shared_rows_for_a_z_color_scatter(window):
     dataset = _make_dataset(window)
     dataset.plot_type = COLOR_BY_COLUMN_PLOT_TYPE
     dataset.z_col_name = 'z'
-    window._update_ui_state()
+    window.property_panel.update_ui_state()
     _pump()
 
     assert window._prop_sections['map']['section'].isHidden() is False
@@ -468,7 +468,7 @@ def test_switching_plot_type_no_longer_moves_rows_across_sections(window):
 
     dataset.data_kind = '2d_grid'
     dataset.z_col_name = 'z'
-    window._update_ui_state()
+    window.property_panel.update_ui_state()
     _pump()
 
     assert _visible_row_labels(window, 'data') == before_data

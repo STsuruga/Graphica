@@ -118,7 +118,7 @@ class DatasetHost:
 
     def refresh_ui_state(self):
         """選択中のデータセットに合わせてパネルとメニューの状態を更新する。"""
-        self._app._update_ui_state()
+        self._app.property_panel.update_ui_state()
 
     def active_color_cycle(self):
         return self._app.colors.active_color_cycle()

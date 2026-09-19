@@ -27,6 +27,7 @@ import graphica.gui.main_window as main_window_module
 import graphica.gui.datasets.fitting as fitting_module
 import graphica.gui.datasets.transfer as transfer_module
 import graphica.gui.datasets.actions_menu as actions_menu_module
+import graphica.gui.datasets.property_panel as property_panel_module
 import graphica.gui.datasets.overlays as overlays_module
 import graphica.gui.datasets.plugin_runs as plugin_runs_module
 import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
@@ -2855,13 +2856,13 @@ def test_non_structural_property_change_still_updates_tree_item_and_plot_visuall
 
 
 # =============================================================================
-# 描画先プロット変更 (_on_subplot_target_changed)
+# 描画先プロット変更 (property_panel.on_subplot_target_changed)
 # =============================================================================
 
 def test_subplot_target_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_subplot_target_changed(1)
+    window.property_panel.on_subplot_target_changed(1)
     assert window.undo_stack.count() == before_count
 
 
@@ -2871,7 +2872,7 @@ def test_subplot_target_changed_same_value_does_nothing(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     before_count = window.undo_stack.count()
 
-    window._on_subplot_target_changed(ds.subplot_target)
+    window.property_panel.on_subplot_target_changed(ds.subplot_target)
 
     assert window.undo_stack.count() == before_count
 
@@ -2882,7 +2883,7 @@ def test_subplot_target_changed_minus_one_does_nothing(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     before_count = window.undo_stack.count()
 
-    window._on_subplot_target_changed(-1)
+    window.property_panel.on_subplot_target_changed(-1)
 
     assert window.undo_stack.count() == before_count
 
@@ -2893,7 +2894,7 @@ def test_subplot_target_changed_updates_and_is_undoable(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     assert ds.subplot_target == 0
 
-    window._on_subplot_target_changed(1)
+    window.property_panel.on_subplot_target_changed(1)
 
     assert ds.subplot_target == 1
     window.undo_stack.undo()
@@ -2901,14 +2902,14 @@ def test_subplot_target_changed_updates_and_is_undoable(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 凡例名の変更 (_on_legend_name_changed)
+# 凡例名の変更 (property_panel.on_legend_name_changed)
 # =============================================================================
 
 def test_legend_name_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
     window.ui.legend_name_edit.setText("new name")
-    window._on_legend_name_changed()
+    window.property_panel.on_legend_name_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -2918,7 +2919,7 @@ def test_legend_name_changed_updates_dataset_and_tree_item(tmp_path, monkeypatch
     _add_and_select_dataset(window, ds)
     window.ui.legend_name_edit.setText("new_name")
 
-    window._on_legend_name_changed()
+    window.property_panel.on_legend_name_changed()
 
     assert ds.name == "new_name"
     item = window._get_dataset_tree_item(ds)
@@ -2930,7 +2931,7 @@ def test_legend_name_changed_updates_dataset_and_tree_item(tmp_path, monkeypatch
 
 
 # =============================================================================
-# データ点ラベル表示のトグル (_on_point_labels_toggled)
+# データ点ラベル表示のトグル (property_panel.on_point_labels_toggled)
 # =============================================================================
 
 def test_point_labels_toggle_off_skips_confirmation(tmp_path, monkeypatch):
@@ -3014,19 +3015,19 @@ def test_raising_the_limit_hides_the_note(tmp_path, monkeypatch):
     window.point_labels_checkbox.setChecked(True)
 
     window.canvas.point_label_max_points = 2000
-    window._update_point_labels_limit_note()
+    window.property_panel.update_point_labels_limit_note()
 
     assert window.point_labels_limit_note.isHidden()
 
 
 # =============================================================================
-# プロパティ一括変更 (_on_property_changed)
+# プロパティ一括変更 (property_panel.on_property_changed)
 # =============================================================================
 
 def test_property_changed_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_property_changed()
+    window.property_panel.on_property_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -3036,7 +3037,7 @@ def test_property_changed_unrecognized_sender_does_nothing(tmp_path, monkeypatch
     _add_and_select_dataset(window, ds)
     before_count = window.undo_stack.count()
 
-    window._on_property_changed()  # 直接呼び出しのため sender() は None
+    window.property_panel.on_property_changed()  # 直接呼び出しのため sender() は None
 
     assert window.undo_stack.count() == before_count
 
@@ -3610,7 +3611,7 @@ def test_manage_color_palettes_cancelled_does_not_save(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 統計サマリー / フィット情報表示 (_update_ui_state / _update_stats_summary_label)
+# 統計サマリー / フィット情報表示 (property_panel.update_ui_state / property_panel.update_stats_summary_label)
 # =============================================================================
 
 def test_select_dataset_with_fit_info_shows_fit_panel(tmp_path, monkeypatch):
@@ -3827,13 +3828,13 @@ def test_show_data_editor_switching_dataset_closes_old_and_creates_new_dialog(tm
 
 
 # =============================================================================
-# プロット列変更 (_on_plot_column_changed)
+# プロット列変更 (property_panel.on_plot_column_changed)
 # =============================================================================
 
 def test_plot_column_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_plot_column_changed()
+    window.property_panel.on_plot_column_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -3875,7 +3876,7 @@ def test_plot_column_changed_both_at_once_single_command(tmp_path, monkeypatch):
     window.x_col_combo.blockSignals(False)
     window.y_col_combo.blockSignals(False)
 
-    window._on_plot_column_changed()
+    window.property_panel.on_plot_column_changed()
 
     assert ds.x_col_name == 'z'
     assert ds.y_col_name == 'x'
@@ -3887,7 +3888,7 @@ def test_plot_column_changed_both_at_once_single_command(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 列の単位メタデータ→軸ラベル自動生成 (_maybe_autofill_axis_label, 項目127、C-608)
+# 列の単位メタデータ→軸ラベル自動生成 (property_panel.maybe_autofill_axis_label, 項目127、C-608)
 # =============================================================================
 
 def test_plot_column_changed_autofills_empty_x_label_from_unit_column(tmp_path, monkeypatch):
@@ -3946,13 +3947,13 @@ def test_plot_column_changed_autofills_non_active_subplot_settings_dict(tmp_path
 
 
 # =============================================================================
-# 誤差列変更 (_on_error_column_changed)
+# 誤差列変更 (property_panel.on_error_column_changed)
 # =============================================================================
 
 def test_error_column_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_error_column_changed()
+    window.property_panel.on_error_column_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -3966,18 +3967,18 @@ def test_error_column_changed_sets_and_clears_error_columns(tmp_path, monkeypatc
 
     assert ds.y_err_col_name == 'yerr'
 
-    window.y_err_col_combo.setCurrentText(dataset_mixin_module.NO_ERROR_COLUMN_LABEL)
+    window.y_err_col_combo.setCurrentText(property_panel_module.NO_ERROR_COLUMN_LABEL)
 
     assert ds.y_err_col_name is None
 
 
 # =============================================================================
-# データ構造変更の反映 (_on_data_structure_changed)
+# データ構造変更の反映 (property_panel.on_data_structure_changed)
 # =============================================================================
 
 def test_data_structure_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_data_structure_changed()  # 例外が出なければOK
+    window.property_panel.on_data_structure_changed()  # 例外が出なければOK
 
 
 def test_data_structure_changed_refreshes_column_combos(tmp_path, monkeypatch):
@@ -3986,7 +3987,7 @@ def test_data_structure_changed_refreshes_column_combos(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     ds.df['z'] = [7.0, 8.0, 9.0]
 
-    window._on_data_structure_changed()
+    window.property_panel.on_data_structure_changed()
 
     items = [window.x_col_combo.itemText(i) for i in range(window.x_col_combo.count())]
     assert 'z' in items
@@ -4517,13 +4518,13 @@ def test_export_fit_result_annotation_anchored_to_correct_subplot(tmp_path, monk
 
 
 # =============================================================================
-# 第2Y軸使用の切り替え (_on_secondary_y_changed)
+# 第2Y軸使用の切り替え (property_panel.on_secondary_y_changed)
 # =============================================================================
 
 def test_secondary_y_changed_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_secondary_y_changed()
+    window.property_panel.on_secondary_y_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -6157,7 +6158,7 @@ def test_z_column_changed_updates_dataset(tmp_path, monkeypatch):
 def test_z_column_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_z_column_changed()
+    window.property_panel.on_z_column_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -6261,7 +6262,7 @@ def test_value_range_manual_spinboxes_set_vmin_vmax(tmp_path, monkeypatch):
 def test_value_range_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_2d_value_range_changed()
+    window.property_panel.on_2d_value_range_changed()
     assert window.undo_stack.count() == before_count
 
 

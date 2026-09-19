@@ -199,6 +199,7 @@ from graphica.gui.datasets.colors import ColorController
 from graphica.gui.datasets.transfer import TransferController
 from graphica.gui.datasets.overlays import OverlayController
 from graphica.gui.datasets.plugin_runs import PluginRunController
+from graphica.gui.datasets.property_panel import DatasetPropertyPanel
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.peaks import PeakController
@@ -663,6 +664,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.transfer = TransferController(self._dataset_host)
         self.overlays = OverlayController(self._dataset_host)
         self.plugin_runs = PluginRunController(self._dataset_host)
+        self.property_panel = DatasetPropertyPanel(self)
 
         # オートセーブ用タイマーの設定 (間隔は設定から復元。0分なら無効化されたまま)
         # ★ _create_menu_bar() がメニューの初期表示テキストのために参照するため、
@@ -1133,7 +1135,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # (Areaプロットの塗り領域をグラデーションにする)の2種類。
         # チェックボックスで有効/無効を切り替え、終端色は既存のColorPickerWidget
         # (項目65)を再利用し、対象(線/塗り/両方)はプロットタイプに応じて
-        # 関連する選択肢だけを見せる(_update_gradient_controls_visibility で制御)。
+        # 関連する選択肢だけを見せる(property_panel.update_gradient_controls_visibility で制御)。
         self.gradient_checkbox = QCheckBox(tr("グラデーションを適用"))
         self._prop_form('gradient').addRow(self.gradient_checkbox)
 
@@ -1156,8 +1158,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 有効時は、隣接するデータセット1件あたりのX/Yオフセット量
         # (waterfall_offset_x/waterfall_offset_y) をスピンボックスで指定する。
         # 項目66でスライダーからスピンボックスへ統一済みの方針に合わせる。
-        # 表示/非表示は _update_gradient_controls_visibility と同じパターンで
-        # _update_waterfall_controls_visibility が行う(dataset_mixin.py)。
+        # 表示/非表示は property_panel.update_gradient_controls_visibility と同じパターンで
+        # property_panel.update_waterfall_controls_visibility が行う(dataset_mixin.py)。
         self.waterfall_checkbox = QCheckBox(tr("ウォーターフォール表示(積み重ね)"))
         self._prop_form('waterfall').addRow(self.waterfall_checkbox)
 
@@ -1228,7 +1230,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 点列描画(plot_type)ではなく、X/Y/Z列を持つ長形式のdfをヒートマップ
         # として描画する(core/dataset.pyのDataset.z_gridが実際のグリッド化/
         # 補間を担う)。関連コントロール(Z列・カラーマップ・値域・補間方法)は
-        # data_2d_checkboxがONの時だけ表示する(_update_2d_controls_visibility、
+        # data_2d_checkboxがONの時だけ表示する(property_panel.update_2d_controls_visibility、
         # gui/mixins/dataset_mixin.py)。
         self.data_2d_checkbox = QCheckBox(tr("2Dグリッドデータとして扱う(ヒートマップ)"))
         self._prop_form('map').addRow(self.data_2d_checkbox)
@@ -1367,7 +1369,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 4b. 統計サマリー表示用のUI (項目106: 以前は「データセットのプロパティ」に
         #     常時1行を占有していたが、常に使う情報ではないため、ツールバーの
         #     アイコンボタンから必要な時だけポップアップで参照できる方式に変更した。
-        #     _update_stats_summary_label (dataset_mixin.py) は選択中データセットが
+        #     property_panel.update_stats_summary_label (dataset_mixin.py) は選択中データセットが
         #     変わるたびにこのラベルのテキストを更新し続ける(ポップアップが
         #     閉じている間も)。
         self.stats_summary_label = QLabel("-")
@@ -2770,7 +2772,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.undo_stack.clear()
 
             # 画面状態とプロットの最終更新
-            self._update_ui_state()
+            self.property_panel.update_ui_state()
             self._update_plot()
 
             self.statusBar().showMessage("プロジェクトを読み込みました", 3000)
@@ -3310,7 +3312,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         中身の行が1つも表示されないセクションは、見出しごと隠す。
 
-        条件付き表示(_update_gradient_controls_visibility 等)で中身が全部消えた
+        条件付き表示(property_panel.update_gradient_controls_visibility 等)で中身が全部消えた
         セクションの見出しだけが残ると、折りたたみで減らしたぶんの場所を
         見出しが食い返してしまう。C-2 で「選択状態によって空になるサブメニューは
         出さない」としたのと同じ方針。
@@ -3504,7 +3506,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     idx = self.ui.dataset_list_widget.indexOfTopLevelItem(item)
                     if idx != -1:
                         self.ui.dataset_list_widget.takeTopLevelItem(idx)
-            self._update_ui_state()
+            self.property_panel.update_ui_state()
             self._update_plot()
 
         command = AddDatasetCommand(do_add, do_remove, description=description)
@@ -3585,7 +3587,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                             tree.takeTopLevelItem(idx)
             finally:
                 tree.blockSignals(False)
-            self._update_ui_state()
+            self.property_panel.update_ui_state()
             self._update_plot()
 
         def do_restore():
@@ -3602,7 +3604,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 self.project.datasets[:] = datasets_before
             finally:
                 tree.blockSignals(False)
-            self._update_ui_state()
+            self.property_panel.update_ui_state()
             self._update_plot()
 
         self.undo_stack.push(

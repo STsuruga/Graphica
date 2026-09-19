@@ -163,7 +163,7 @@ class ProjectIOMixin:
             self.settings.setValue("point_label_max_points", new_point_label_max)
             self.canvas.point_label_max_points = new_point_label_max
             self._update_plot()
-            self._update_point_labels_limit_note()
+            self.property_panel.update_point_labels_limit_note()
 
         # スナップ・トゥ・グリッド(項目84): 注釈モードのドラッグ確定時に参照される
         # self.snap_to_grid_enabled / self.snap_grid_interval_px をここで即座に更新する。
