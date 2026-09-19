@@ -1,21 +1,7 @@
-# gui/mixins/range_select_mixin.py
-"""
-グラフ上での範囲選択(項目C-909)。既存の「クリックでデータセットを選択」
-(項目35)と「行のマスク」(項目36、core/commands.pyのSetMaskedRowsCommand)を
-橋渡しする機能: プロット上でXの範囲をドラッグ選択すると、その範囲に入る
-カレントデータセットのデータ点を、非破壊マスク(masked_row_indices)として
-除外する。
+"""範囲選択モード: X の範囲をドラッグで選び、その範囲の点を今のデータセットのマスクに加える。
 
-★ 設計方針: matplotlib.widgets.SpanSelectorは使わない。SpanSelectorは
-特定のAxesインスタンスに束縛されるステートフルなウィジェットだが、この
-アプリのメインキャンバス(gui/canvas.py)はredraw_all()のたびにfig.clf()で
-Axesを作り直す(項目C-003で解消予定の既知の制約)ため、SpanSelectorを
-使うと再描画のたびに作り直す必要がある(gui/minimap_widget.pyは専用の
-小さな独立Figureで、fig.clf()されないため問題にならない — メインキャンバス
-とは事情が異なる)。代わりに、他のモード(データカーソル/注釈/自由配置編集、
-いずれもcanvas全体に1回だけ接続したbutton_press/motion/release_eventで
-event.inaxesを都度読む方式)と同じパターンを踏襲することで、Axes再生成の
-影響を受けない。
+SpanSelector は Axes に束縛されるので、Axes を作り直す redraw_all() のたびに作り直すことになる。ほかのモードと同じく
+キャンバス全体の button_press / motion / release で event.inaxes を読む。
 """
 import logging
 
@@ -29,16 +15,9 @@ logger = logging.getLogger(__name__)
 
 class RangeSelectMixin:
     def _toggle_range_select_mode(self, checked):
-        """
-        「範囲選択」ツールバーボタンが押されたときの処理。
-        他のクリック/ドラッグ系モード(データカーソル/注釈/自由配置編集)と
-        同時に有効だと同じ操作が競合するため排他にする。
-        """
         self.range_select_mode_enabled = checked
 
         if checked:
-            # 排他制御は登録簿(gui/mixins/mouse_mode_mixin.py の MOUSE_MODES)に
-            # 集約している。8つ目のモードを足すときもここは変更不要。
             self._deactivate_other_mouse_modes('range_select')
 
             self._range_select_press_cid = self.canvas.mpl_connect(
@@ -69,11 +48,7 @@ class RangeSelectMixin:
             self._range_select_start_x = None
 
     def _clear_range_select_preview(self):
-        """ドラッグ中のプレビュー矩形を取り除く。fig.clf()で既に破棄されて
-        いる場合(再描画がドラッグ中に割り込んだ場合)に備えてValueError/
-        NotImplementedErrorは無視する(gui/canvas.pyのset_highlighted_points
-        と同じ防御)。ブリッティング用にキャプチャしていた背景(_range_select_
-        background)もここで一緒に破棄する。"""
+        """ドラッグ中のプレビューの矩形と、blit 用の背景を捨てる。描き直しで既に消えていても例外にしない。"""
         artist = getattr(self, '_range_select_preview_artist', None)
         if artist is not None:
             try:
@@ -91,11 +66,7 @@ class RangeSelectMixin:
             return
         self._range_select_axes = event.inaxes
         self._range_select_start_x = event.xdata
-        # ブリッティング(項目154、C-1002)によるドラッグ追従の高速化: ドラッグ
-        # 開始時点の見た目(データセット等、選択矩形以外の全て)を1回だけ
-        # ビットマップとしてキャプチャしておく。以降のmotionイベントでは
-        # 図全体を再描画(draw_idle、データセット数が多いほど重い)せず、
-        # このキャプチャを復元してから選択矩形だけを描き直す(blit)。
+        # 始めに1回だけ背景を撮り、以降は選択の矩形だけを blit で描き直す(毎回全体を描くと系列が多いほど重い)
         self.canvas.draw()
         self._range_select_background = self.canvas.copy_from_bbox(event.inaxes.bbox)
 
@@ -109,11 +80,7 @@ class RangeSelectMixin:
 
         rect = getattr(self, '_range_select_preview_artist', None)
         if rect is None:
-            # ★ animated=True: 通常のdraw()/draw_idle()の描画対象から外れ、
-            #   下のblit()を通じてのみ画面に反映される(matplotlibのブリッティング
-            #   の基本パターン)。既存矩形が無い最初のmotionイベントでのみ作成し、
-            #   以降は同じ矩形の座標だけを更新する(_clear_range_select_previewとは
-            #   異なり、motionのたびに削除・再作成はしない)。
+            # animated=True の Artist は draw() では描かれず、blit だけで出る。矩形は最初に1回作り、座標だけ変える
             rect = Rectangle(
                 (x0, ymin), x1 - x0, ymax - ymin,
                 facecolor='#3948B3', alpha=0.15, edgecolor='#3948B3',
@@ -126,8 +93,7 @@ class RangeSelectMixin:
 
         background = getattr(self, '_range_select_background', None)
         if background is None:
-            # 背景キャプチャに失敗していた場合(例: 何らかの理由でpress直後に
-            # Axesが再生成された等)は、安全側として従来通りの全体再描画にフォールバックする。
+            # 背景が撮れていなければ全体を描き直す
             self.canvas.draw_idle()
             return
 
@@ -147,18 +113,13 @@ class RangeSelectMixin:
 
         end_x = event.xdata if (event.inaxes is axes and event.xdata is not None) else None
         if end_x is None or start_x is None or start_x == end_x:
-            return  # クリックのみ(ドラッグなし)は範囲選択とみなさない
+            return  # クリックだけ(ドラッグなし)は選択とみなさない
 
         x_min, x_max = sorted((start_x, end_x))
         self._apply_range_mask(axes, x_min, x_max)
 
     def _apply_range_mask(self, axes, x_min, x_max):
-        """
-        ドラッグ確定した範囲[x_min, x_max]を、カレントデータセットの
-        マスク(項目36、非破壊)へ追加する。カレントデータセットがこの
-        Axes上に描画されていない(別のサブプロットを選択中、または第2Y軸/
-        主軸の食い違い)場合は、紛らわしい誤爆を避けるため何もせず案内を出す。
-        """
+        """[x_min, x_max] の点をマスクに加える。今のデータセットがこの軸に描かれていなければ、何もせず案内を出す。"""
         dataset = self._get_current_dataset()
         if dataset is None:
             QMessageBox.information(self, "範囲選択", "マスク対象のデータセットを選択してください。")
@@ -183,12 +144,7 @@ class RangeSelectMixin:
             )
             return
 
-        # ★ 改善ボード A-1: ウォーターフォール(積み重ね)有効時、トレースは
-        # 表示X = データX + index * offset_x の位置に描かれている。ドラッグで
-        # 得られる x_min/x_max は「表示座標」なので、生の dataset.x_data と
-        # 直接比較すると積み重ね2本目以降で意図と違う行がマスクされる
-        # (あるいは1件もマスクされない)。データ座標へ逆変換してから比較する。
-        # Xオフセットは平行移動なので x_min <= x_max の大小関係は保たれる。
+        # ドラッグの x はウォーターフォールのずらしが掛かった表示座標なので、データ座標に戻して比べる
         data_x_min, _ = self.canvas.display_to_data(dataset, x_min, 0.0)
         data_x_max, _ = self.canvas.display_to_data(dataset, x_max, 0.0)
 

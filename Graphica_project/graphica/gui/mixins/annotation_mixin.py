@@ -1,18 +1,7 @@
-# gui/mixins/annotation_mixin.py
-"""
-グラフ上の任意の位置にテキスト注釈・矢印注釈を追加できる「注釈モード」をまとめた Mixin。
+"""注釈モード: クリックでテキスト、ドラッグで矢印の注釈を置き、右クリックで消す。
 
-注釈は project.all_plot_settings[軸インデックス]['annotations'] に
-{'id','type'('text'/'arrow'),'text','xy','xytext','color'} の辞書として保持される。
-矢印注釈('arrow')は追加で'arrow_style'('single'(既定)/'double'/'bracket'、
-項目C-703)・'arrow_curvature'(float、既定0.0で直線)を持つ(gui/canvas.pyの
-_draw_annotationsが参照。両キーとも省略時は既定値にフォールバックするため、
-これらのキーを持たない既存の保存済み注釈も同じ見た目のまま読み込める)。
-all_plot_settings は既にプロジェクト保存(pickle)の対象になっているため、
-注釈も自動的にプロジェクトファイルに保存/復元される(追加の永続化コードは不要)。
-
-注釈の追加/削除は SetAnnotationsCommand 経由で self.undo_stack にpushされ、
-他のデータセットプロパティ変更などと同様にUndo/Redoで元に戻せる。
+注釈は all_plot_settings[軸]['annotations'] に {'id', 'type', 'text', 'xy', 'xytext', 'color'} で持ち、プロジェクトと一緒に
+保存される。矢印は 'arrow_style' と 'arrow_curvature' も持つ(無ければ既定値)。追加と削除は SetAnnotationsCommand で Undo できる。
 """
 import uuid
 import logging
@@ -25,30 +14,19 @@ from graphica.gui.dialogs import ArrowAnnotationDialog
 
 logger = logging.getLogger(__name__)
 
-# 「クリック」と「ドラッグ」を区別するためのピクセル距離のしきい値
+# これより動かなければクリック、動けばドラッグ
 ANNOTATION_CLICK_THRESHOLD_PX = 5
-# 右クリックで削除対象とみなす、注釈位置からの許容ピクセル距離
 ANNOTATION_DELETE_TOLERANCE_PX = 15
 
-# スナップ・トゥ・グリッド(項目84)の既定値。既定では無効(=従来どおりの挙動)であり、
-# 環境設定ダイアログで有効化するとテキスト/矢印注釈の配置先がピクセル単位の
-# グリッドに吸着するようになる。
 DEFAULT_SNAP_TO_GRID_ENABLED = False
 DEFAULT_SNAP_GRID_INTERVAL_PX = 10
 
 
 class AnnotationMixin:
     def _toggle_annotation_mode(self, checked):
-        """
-        「注釈」ツールバーボタンが押されたときの処理。
-        他のマウスモードと同時に有効にすると、同じクリック/ドラッグ操作が
-        両方の機能に反応してしまうため、排他的にする。
-        """
         self.annotation_mode_enabled = checked
 
         if checked:
-            # 排他制御は登録簿(gui/mixins/mouse_mode_mixin.py の MOUSE_MODES)に
-            # 集約している。8つ目のモードを足すときもここは変更不要。
             self._deactivate_other_mouse_modes('annotation')
 
             self._annotation_press_cid = self.canvas.mpl_connect(
@@ -70,14 +48,7 @@ class AnnotationMixin:
             self._annotation_drag_start = None
 
     def _snap_point_to_grid(self, ax, x, y):
-        """
-        スナップ・トゥ・グリッド(項目84)が有効な場合、データ座標 (x, y) を
-        いったんピクセル座標へ変換し、設定されたグリッド間隔(px)の倍数に
-        丸めてからデータ座標へ戻す。「ピクセル単位で整列」という要件のため、
-        データ空間ではなく画面ピクセル空間でスナップする必要がある。
-        無効時は入力をそのまま返す(座標変換を経由しないため、従来の挙動と
-        ピクセル単位で完全に一致する)。
-        """
+        """有効なら、データ座標を画面のピクセルに直してグリッドの倍数に丸め、データ座標に戻す(整列は画面上の話なので)。"""
         if not getattr(self, 'snap_to_grid_enabled', False):
             return x, y
 
@@ -92,7 +63,7 @@ class AnnotationMixin:
         return data_x, data_y
 
     def _find_axis_index(self, ax):
-        """指定されたAxesが self.all_axes / self.all_secondary_axes の何番目かを返す(見つからなければNone)"""
+        """all_axes / all_secondary_axes での番号。無ければ None。"""
         if ax in self.all_axes:
             return self.all_axes.index(ax)
         if ax in self.all_secondary_axes:
@@ -100,25 +71,22 @@ class AnnotationMixin:
         return None
 
     def _on_annotation_press(self, event):
-        """マウスボタンが押されたときの処理(button_press_event)"""
         if not self.annotation_mode_enabled or event.inaxes is None or event.xdata is None:
             return
 
-        if event.button == 3:  # 右クリック: 既存の注釈を削除
+        if event.button == 3:  # 右クリックは削除
             self._try_delete_annotation_near(event)
             return
 
         self._annotation_drag_start = (event.inaxes, event.xdata, event.ydata)
 
     def _on_annotation_release(self, event):
-        """マウスボタンが離されたときの処理(button_release_event)"""
         if not self.annotation_mode_enabled or self._annotation_drag_start is None:
             return
 
         start_ax, start_x, start_y = self._annotation_drag_start
         self._annotation_drag_start = None
 
-        # 別のAxes上でリリースされた、またはAxesの外側でリリースされた場合は何もしない
         if event.inaxes is not start_ax or event.xdata is None:
             return
 
@@ -132,7 +100,6 @@ class AnnotationMixin:
         drag_distance_px = ((end_px[0] - start_px[0]) ** 2 + (end_px[1] - start_px[1]) ** 2) ** 0.5
 
         if drag_distance_px < ANNOTATION_CLICK_THRESHOLD_PX:
-            # ほぼ動いていない = 「クリック」とみなし、テキスト注釈を追加する
             text, ok = QInputDialog.getText(self, "テキスト注釈の追加", "表示するテキスト:")
             if not ok or not text.strip():
                 return
@@ -143,8 +110,6 @@ class AnnotationMixin:
                 'color': '#000000',
             })
         else:
-            # 一定以上動いた = 「ドラッグ」とみなし、矢印注釈を追加する
-            # (項目C-703: ラベルに加え、矢印の形状・曲率も選ばせる)
             dialog = ArrowAnnotationDialog(self)
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
@@ -160,18 +125,7 @@ class AnnotationMixin:
             })
 
     def _add_annotation(self, axis_index, annotation, description="注釈の追加"):
-        """
-        指定した軸の注釈リストに新しい注釈を追加する。
-        既存のリストを直接書き換えず新しいリストに差し替えることで、
-        _on_layout_changed 等での浅いコピーによる意図しない共有を避ける。
-        Undo/Redo可能にするため、変更はSetAnnotationsCommand経由で行う。
-
-        description はUndo/Redoメニューに表示される説明文(既定は手動追加時の
-        「注釈の追加」)。項目C-413のフィット結果焼き込みのように、呼び出し元
-        (例: dataset_mixin.py)がより具体的な説明文を渡せるようにするための
-        任意引数で、既存の呼び出し(手動クリック/ドラッグでの注釈追加)は
-        引数を渡さないため挙動は変わらない。
-        """
+        """注釈を1つ足す。リストは差し替える(浅いコピーで共有されているリストを書き換えないように)。"""
         annotation = dict(annotation)
         annotation['id'] = uuid.uuid4().hex
 
@@ -186,7 +140,6 @@ class AnnotationMixin:
         self.undo_stack.push(command)
 
     def _try_delete_annotation_near(self, event):
-        """右クリックされた位置に最も近い注釈を探し、確認の上で削除する"""
         axis_index = self._find_axis_index(event.inaxes)
         if axis_index is None:
             return
@@ -203,13 +156,10 @@ class AnnotationMixin:
         for i, ann in enumerate(annotations):
             ann_type = ann.get('type')
             if ann_type in ('vspan', 'hspan'):
-                # 領域ハイライト(項目C-701)は 'xy'/'xytext' を持たず、削除は
-                # 領域ハイライトモード側(_try_delete_region_near)が担当するため対象外。
+                # 領域の強調は領域強調モードの側で消す
                 continue
             if ann_type == 'inset':
-                # インセット(拡大図、項目138、C-711)は'xy'/'xytext'を持たず、
-                # コーナー位置+サイズ(Axes相対座標)から中心点を逆算してヒット
-                # テストの代表点にする(統計値アンカーラベルと同じtransAxes系)。
+                # 拡大図は xy を持たないので、角と大きさ(軸に対する座標)から中心を求めて当たり判定に使う
                 from graphica.gui.canvas import _INSET_CORNER_ORIGINS
                 x0, y0 = _INSET_CORNER_ORIGINS.get(ann.get('corner', '右上'), (0.55, 0.55))
                 size = ann.get('size', 0.4)
@@ -219,8 +169,7 @@ class AnnotationMixin:
                 pos = ann.get('xytext') or ann.get('xy')
                 if pos is None:
                     continue
-                # 統計値アンカーラベル(項目C-708)はAxes相対座標(0〜1)で位置を持つため、
-                # データ座標変換(transData)ではなくtransAxesでピクセル位置を求める。
+                # 統計値のラベルは軸に対する座標(0〜1)で位置を持つ
                 transform = ax.transAxes if ann_type == 'stat' else ax.transData
             pos_px = transform.transform(pos)
             distance = ((pos_px[0] - click_px[0]) ** 2 + (pos_px[1] - click_px[1]) ** 2) ** 0.5
