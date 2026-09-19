@@ -1,10 +1,4 @@
-# core/unit_conversion.py
-"""X軸の単位変換(項目C-602: 単位変換の第2X軸 nm<->eV<->cm^-1<->Hz)。
-
-波長(nm)以外の3単位(eV/cm^-1/Hz)は、いずれも波長に反比例する量
-(value = 定数 / wavelength_nm)であるため、任意の単位ペア間の変換は
-「波長(nm)を経由する」ことで統一的に扱える。
-"""
+"""X 軸の単位の変換(nm / eV / cm^-1 / Hz)。nm 以外は波長に反比例するので、どの組も nm を経由して変換する。"""
 import numpy as np
 
 X_AXIS_UNIT_NONE = 'none'
@@ -23,11 +17,10 @@ X_AXIS_UNIT_LABELS = {
     X_AXIS_UNIT_HZ: 'Hz(周波数)',
 }
 
-# hc [eV*nm] (CODATA近似)
+# hc [eV·nm]
 _EV_NM_CONSTANT = 1239.8419843320025
-# 1cm を nm に換算した値(cm^-1 <-> nm の変換定数)
 _WAVENUMBER_NM_CONSTANT = 1.0e7
-# 光速 [m/s] * 1e9 (Hz <-> nm の変換定数)
+# 光速 [m/s] × 1e9
 _FREQUENCY_NM_CONSTANT = 2.99792458e17
 
 _UNIT_TO_NM_CONSTANT = {
@@ -38,12 +31,9 @@ _UNIT_TO_NM_CONSTANT = {
 
 
 def convert_x_axis_unit(value, from_unit, to_unit):
-    """valueをfrom_unitからto_unitへ変換する(nm/eV/cm-1/Hzのみ対応)。
+    """from_unit から to_unit へ変換する。
 
-    from_unit == to_unit の場合はそのまま返す。0除算(波長0nm相当)は
-    物理的に無意味な入力のため例外にはせず、numpyのinf/nanへフォールバックする
-    (ax.secondary_xaxis()に渡すforward/inverse関数として使う都合上、
-    警告で埋もれないようdivide/invalidの実行時警告は抑制する)。
+    波長 0 は例外にせず inf / nan にする(secondary_xaxis の関数に使うので、ゼロ除算の警告も抑える)。
     """
     value = np.asarray(value, dtype=float)
     if from_unit == to_unit:

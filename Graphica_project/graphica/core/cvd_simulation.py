@@ -1,19 +1,10 @@
-# core/cvd_simulation.py
-"""
-色覚多様性対応・CUDシミュレータ(項目140、C-803)。
+"""色覚のシミュレーション。GUI には依存しない。
 
-GUIに一切依存しない純粋関数のみを置く(gui/dialogs.pyのCVDSimulationDialogが
-描画済みのウィンドウのスクリーンショット(QImage)にこの変換を適用する想定)。
-
-シミュレーション行列は、Web上の色覚シミュレーションツールで広く使われている
-sRGB直接変換の近似行列(Brettel/Viénotのアルゴリズムを単純化したもの)を採用した。
-線形RGB空間での厳密な変換ではなく、あくまでプレビュー用途の近似である
-(各行の合計が1になる正規化された係数のため、白/黒/グレーは変化しない)。
+sRGB に直接掛ける近似の行列(Brettel / Viénot を簡略化したもの)で、プレビュー用。各行の和が 1 なので白・黒・灰は変わらない。
 """
 import numpy as np
 
-# 1型(P型、赤色覚異常)・2型(D型、緑色覚異常)・3型(T型、青色覚異常)。
-# 各行の合計が1になっている(sRGB値に対して直接乗算できる、簡易近似)。
+# 1型(赤)・2型(緑)・3型(青)
 CVD_MATRICES = {
     'protanopia': np.array([
         [0.567, 0.433, 0.000],
@@ -40,22 +31,7 @@ CVD_TYPE_LABELS = {
 
 
 def simulate_rgb_array(rgb_array, cvd_type):
-    """
-    RGB値の配列にCVDシミュレーション行列を適用する。
-
-    Args:
-        rgb_array (np.ndarray): 形状(..., 3)、0〜255のuint8またはfloat配列
-            (0〜1に正規化されている必要はない、行列の各行の合計が1のため
-            スケールをそのまま保てる)。
-        cvd_type (str): CVD_MATRICESのキーのいずれか。
-
-    Returns:
-        np.ndarray: 入力と同じ形状・同じスケールのfloat配列(0〜255相当)。
-            呼び出し側で必要ならクリップ+dtype変換すること。
-
-    Raises:
-        ValueError: cvd_typeが未知の場合。
-    """
+    """形が (..., 3) の RGB に行列を掛ける。0〜255 のままでよい(スケールは保たれる)。クリップと型の変換は呼び出し側。"""
     if cvd_type not in CVD_MATRICES:
         raise ValueError(f"未知の色覚タイプです: {cvd_type}")
     matrix = CVD_MATRICES[cvd_type]
@@ -66,8 +42,7 @@ def simulate_rgb_array(rgb_array, cvd_type):
 
 
 def simulate_hex_color(hex_color, cvd_type):
-    """1つの#RRGGBB文字列をシミュレーションし、#RRGGBB文字列で返す(パレット
-    プレビュー等、画像を介さず単色を変換したい場合に使う)。"""
+    """#RRGGBB を1つ変換する(画像を介さない単色用)。"""
     hex_color = hex_color.lstrip('#')
     rgb = np.array([int(hex_color[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float64)
     simulated = np.clip(simulate_rgb_array(rgb, cvd_type), 0, 255).astype(np.uint8)

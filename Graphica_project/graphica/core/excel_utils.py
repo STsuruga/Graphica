@@ -1,14 +1,7 @@
-# core/excel_utils.py
-"""
-Excelファイル読み込みまわりの補助的なチェック処理をまとめたモジュール。
+"""Excel の読み込みの補助。
 
-pandas.read_excel (openpyxlエンジン) は、数式セルについては原則として
-Excel自身が最後に保存した「計算済みキャッシュ値」を読み取る。
-そのため、Excel以外のツールで数式だけを書き込んで保存したファイルや、
-手動計算モードのまま保存されたファイルでは、キャッシュ値が存在せず
-セルが空 (None/NaN) として読み込まれてしまうことがある。
-これは見た目には「データが欠損している」ようにしか見えず気づきにくいため、
-読み込み前に検出して警告できるようにする。
+pandas は数式セルの計算済みの値を読むので、Excel 以外で書いたファイルや手動計算のまま保存したファイルでは
+値が無く空になる。欠損に見えて気づきにくいので、読む前に見つけて知らせる。
 """
 import logging
 
@@ -18,34 +11,18 @@ logger = logging.getLogger(__name__)
 
 
 def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, max_scan_cells=200_000):
+    """数式なのに計算済みの値を持たないセルを探す。(見つかったか, 例のリスト, 全部を見たか)。
+
+    大きなファイルで重くならないよう max_scan_cells で打ち切る。
     """
-    指定したExcelファイル(のシート)内で、数式セルであるにもかかわらず
-    計算済みの値を持たない(data_only=Trueで読んでも None になる)セルを探す。
-
-    大きなファイルでの負荷を避けるため、走査するセル数に上限を設けており、
-    上限に達した時点でその時点までの結果を返す(scanned_all=False)。
-
-    Args:
-        file_path (str): Excelファイルのパス。
-        sheet_name (str, optional): 対象シート名。Noneなら全シートを対象にする。
-        max_examples (int): 収集する具体例(シート名!セル番地)の最大数。
-        max_scan_cells (int): 走査するセルの最大数。
-
-    Returns:
-        tuple (bool, list[str], bool): (見つかったか, 具体例のリスト, 全体を走査しきったか)
-    """
-    # 旧形式の .xls(BIFF)は openpyxl で開けず、xlrd は計算済みの値しか
-    # 持たない形式なので「値の無い数式セル」という状態自体を確認できない。
-    # 検査しようとすると毎回例外ログが出るだけなので、最初から対象外にする。
+    # .xls は openpyxl で開けず、xlrd は計算済みの値しか持たないので確かめようがない
     if not str(file_path).lower().endswith('.xlsx'):
         return False, [], True
 
     wb_formulas = None
     wb_values = None
     try:
-        # ★ ファイルが存在しない/壊れている場合、load_workbook自体が例外を送出しうる。
-        # この関数は「検査に失敗したら安全側 (見つからなかった扱い) に倒れる」契約
-        # なので、読み込み自体もtry節の中に含める。
+        # 検査に失敗したら「見つからなかった」扱いにする約束なので、開くところから try に入れる
         wb_formulas = openpyxl.load_workbook(file_path, data_only=False, read_only=True)
         wb_values = openpyxl.load_workbook(file_path, data_only=True, read_only=True)
 
