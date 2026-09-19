@@ -205,7 +205,7 @@ class ColorController:
             return
 
         cmap_name, ok = QInputDialog.getItem(
-            self, "カラーマップから自動配色", "使用するカラーマップを選択してください:",
+            self._host.parent_widget, "カラーマップから自動配色", "使用するカラーマップを選択してください:",
             RECOMMENDED_COLORMAPS, 0, False
         )
         if not ok:

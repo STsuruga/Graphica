@@ -221,7 +221,7 @@ class ProcessingController:
             x, y = x[valid], y[valid]
             if len(x) < 2:
                 QMessageBox.warning(
-                    self, "平均±SD生成",
+                    self._host.parent_widget, "平均±SD生成",
                     f"「{ds.name}」に有効なデータ点が不足しています(最低2点必要)。"
                 )
                 return
@@ -306,7 +306,7 @@ class ProcessingController:
         else:
             if reference_x < x_min or reference_x > x_max:
                 QMessageBox.warning(
-                    self, "規格化(ノーマライズ)",
+                    self._host.parent_widget, "規格化(ノーマライズ)",
                     f"指定されたX値 ({reference_x}) がデータセットのX軸範囲 "
                     f"({x_min} 〜 {x_max}) の外にあるため、規格化できません。"
                 )
@@ -586,7 +586,7 @@ class ProcessingController:
             return
 
         split_col, ok = QInputDialog.getItem(
-            self, "列の値で系列に分割",
+            self._host.parent_widget, "列の値で系列に分割",
             "分割に使う列(この列の値ごとに別々の系列になります):",
             columns, 0, False,
         )
@@ -602,7 +602,7 @@ class ProcessingController:
         groups = result['groups']
         if len(groups) < 2:
             QMessageBox.information(
-                self, "系列に分割",
+                self._host.parent_widget, "系列に分割",
                 f"列「{split_col}」の値は{len(groups)}種類しかないため、"
                 "分割しても系列は増えません。",
             )
@@ -610,7 +610,7 @@ class ProcessingController:
 
         if len(groups) > SPLIT_BY_COLUMN_CONFIRM_THRESHOLD:
             answer = QMessageBox.question(
-                self, "系列に分割",
+                self._host.parent_widget, "系列に分割",
                 f"列「{split_col}」の値は{len(groups)}種類あります。\n"
                 f"同じ数({len(groups)}件)のデータセットを追加しますが、よろしいですか?\n\n"
                 "(連続値の列を選んでいる場合は、意図しない大量の系列になります)",
@@ -703,7 +703,7 @@ class ProcessingController:
             )
             if target_dataset is None:
                 QMessageBox.warning(
-                    self, "共通X格子へのリサンプリング/補間",
+                    self._host.parent_widget, "共通X格子へのリサンプリング/補間",
                     "リサンプリング先のデータセットを選択してください。"
                 )
                 return
@@ -711,7 +711,7 @@ class ProcessingController:
             target_x = target_x[~np.isnan(target_x)]
             if len(target_x) == 0:
                 QMessageBox.warning(
-                    self, "共通X格子へのリサンプリング/補間",
+                    self._host.parent_widget, "共通X格子へのリサンプリング/補間",
                     f"「{target_dataset_name}」に有効なX値がありません。"
                 )
                 return
@@ -719,7 +719,7 @@ class ProcessingController:
             start, stop, num_points = params["start"], params["stop"], params["num_points"]
             if start == stop:
                 QMessageBox.warning(
-                    self, "共通X格子へのリサンプリング/補間", "開始Xと終了Xが同じ値です。"
+                    self._host.parent_widget, "共通X格子へのリサンプリング/補間", "開始Xと終了Xが同じ値です。"
                 )
                 return
             target_x = np.linspace(start, stop, num_points)
