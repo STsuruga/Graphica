@@ -42,14 +42,17 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   1パッケージ。旧名の別名は残さない。旧形式 .pkl の "core.dataset" だけ読み替える。起動は python -m graphica
   (main.py は薄い入口)。master のコード変更の停止は解除してよい。
 - K-14(pip 版で site-packages に plugins フォルダを作ろうとする)を c085c43 で修正。
-- H-1 完了(ブランチ上、PR 待ち): DatasetMixin(4,222行)を graphica/gui/datasets/ の機能クラスに分けた。
+- H-1 完了、PR #17 で master に取り込み済み(マージコミット a5e8b61、2026-09-19): DatasetMixin(4,222行)を graphica/gui/datasets/ の機能クラスに分けた。
   タブが self.peaks / fitting / processing / colors / transfer / overlays / plugin_runs / property_panel を持ち、
   プロパティ欄以外は DatasetHost(host.py)だけを通して本体に触る。右クリック/メニューバーのデータセット
   メニューは actions_menu.py。DatasetMixin に残したのはツリーの管理(追加・削除・複製・フォルダ・表示/非表示・
   並べ替え)と、プロパティ変更後の再描画だけ(約400行)。途中で見つけた「機能クラスが自分をダイアログの親に
   渡して TypeError」の取りこぼし 19 か所は fix コミット2件で修正(このブランチ内の退行で master には無い)。
   tests/test_dataset_controllers.py が再発を静的に防ぐ。CLAUDE.md に gui/datasets/ の説明を追加。
-- 次: H-1 の PR(マージは了承を得てから)。その後はボードの推奨順(H-5 → H-2 → H-3 → H-4 → I-2 …)。
+- H-5 完了(ブランチ上、PR 待ち): 軸の設定(約80キー)の既定値を graphica/core/axis_settings.py の
+  AXIS_SETTING_DEFAULTS に集め、読むのは axis_setting(settings, key) だけ(画面・描画・スクリプト書き出しの
+  181か所)。古い共通キー ticks_visible 等の読み替えもここ。挙動と保存形式は不変。tests/test_axis_settings.py。
+- 次: H-2(描画の _draw_data / _apply_appearance の分割)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
