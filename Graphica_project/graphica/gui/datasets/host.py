@@ -84,3 +84,24 @@ class DatasetHost:
         if getattr(self._app, 'peak_placement_mode_enabled', False):
             self._app.peak_placement_action.setChecked(False)
             self._app._toggle_peak_placement_mode(False)
+
+    def datasets(self):
+        """タブの全データセット(リストはコピー)。"""
+        return list(self._app.project.datasets)
+
+    def add_dataset(self, dataset, parent_folder=None, select=True):
+        """ツリーと描画に足す(Undo の対象にはしない)。"""
+        return self._app._add_dataset(dataset, parent_folder, select=select)
+
+    def add_dataset_with_undo(self, dataset, parent_folder=None, description="データセットの追加"):
+        self._app._add_dataset_with_undo(dataset, parent_folder=parent_folder, description=description)
+
+    def redraw(self):
+        self._app._update_plot()
+
+    def refresh_ui_state(self):
+        """選択中のデータセットに合わせてパネルとメニューの状態を更新する。"""
+        self._app._update_ui_state()
+
+    def active_color_cycle(self):
+        return self._app._get_active_color_cycle()

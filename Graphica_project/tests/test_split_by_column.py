@@ -13,6 +13,7 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+import graphica.gui.datasets.processing as processing_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
 from graphica.gui.main_window import PlotterApp
@@ -180,7 +181,7 @@ def test_split_adds_one_dataset_per_group(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "sample")
         _silence_message_boxes(monkeypatch)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         assert _names(window) == [
             "measurements",
@@ -201,7 +202,7 @@ def test_split_keeps_the_original_dataset(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "sample")
         _silence_message_boxes(monkeypatch)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         assert window.project.datasets[0] is source
         assert len(source.df) == 6
@@ -216,7 +217,7 @@ def test_split_inherits_the_x_and_y_columns(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "sample")
         _silence_message_boxes(monkeypatch)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         for ds in window.project.datasets[1:]:
             assert ds.x_col_name == "x"
@@ -233,7 +234,7 @@ def test_split_assigns_distinct_colours(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "sample")
         _silence_message_boxes(monkeypatch)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         colours = [ds.color for ds in window.project.datasets[1:]]
         assert len(set(colours)) == 3
@@ -248,7 +249,7 @@ def test_split_records_provenance(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "sample")
         _silence_message_boxes(monkeypatch)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         prov = window.project.datasets[1].provenance
         assert prov['operation'] == 'split_by_column'
@@ -267,7 +268,7 @@ def test_the_whole_split_undoes_in_one_step(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "sample")
         _silence_message_boxes(monkeypatch)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
         assert len(window.project.datasets) == 4
 
         window.undo_stack.undo()
@@ -284,7 +285,7 @@ def test_redo_restores_every_split_series(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "sample")
         _silence_message_boxes(monkeypatch)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
         window.undo_stack.undo()
         window.undo_stack.redo()
 
@@ -301,7 +302,7 @@ def test_cancelling_the_column_dialog_changes_nothing(tmp_path, monkeypatch):
         _silence_message_boxes(monkeypatch)
         before = window.undo_stack.count()
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         assert _names(window) == ["measurements"]
         assert window.undo_stack.count() == before
@@ -321,7 +322,7 @@ def test_single_valued_column_adds_nothing_and_explains_why(tmp_path, monkeypatc
             staticmethod(lambda *a, **k: shown.append(a) or QMessageBox.StandardButton.Ok),
         )
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         assert _names(window) == ["measurements"]
         assert shown, "1種類しかない場合は理由を案内すること"
@@ -333,7 +334,7 @@ def test_many_groups_asks_for_confirmation_first(tmp_path, monkeypatch):
     """連続値の列を誤って選ぶと大量の系列ができてしまうため、作る前に確認する。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     try:
-        n = window.SPLIT_BY_COLUMN_CONFIRM_THRESHOLD + 5
+        n = processing_module.SPLIT_BY_COLUMN_CONFIRM_THRESHOLD + 5
         df = pd.DataFrame({
             "x": list(range(n)), "y": list(range(n)),
             "value": [float(i) for i in range(n)],
@@ -342,7 +343,7 @@ def test_many_groups_asks_for_confirmation_first(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "value")
         _silence_message_boxes(monkeypatch, question_answer=QMessageBox.StandardButton.No)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         assert _names(window) == ["measurements"]
     finally:
@@ -352,7 +353,7 @@ def test_many_groups_asks_for_confirmation_first(tmp_path, monkeypatch):
 def test_many_groups_proceeds_when_confirmed(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     try:
-        n = window.SPLIT_BY_COLUMN_CONFIRM_THRESHOLD + 5
+        n = processing_module.SPLIT_BY_COLUMN_CONFIRM_THRESHOLD + 5
         df = pd.DataFrame({
             "x": list(range(n)), "y": list(range(n)),
             "value": [float(i) for i in range(n)],
@@ -361,7 +362,7 @@ def test_many_groups_proceeds_when_confirmed(tmp_path, monkeypatch):
         _choose_column(monkeypatch, "value")
         _silence_message_boxes(monkeypatch, question_answer=QMessageBox.StandardButton.Yes)
 
-        window._on_split_dataset_by_column()
+        window.processing.split_by_column()
 
         assert len(window.project.datasets) == 1 + n
     finally:

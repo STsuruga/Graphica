@@ -21,6 +21,7 @@ from PySide6.QtCore import QSettings, QPoint, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox
 
+import graphica.gui.datasets.processing as processing_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.datasets.fitting as fitting_module
 import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
@@ -105,7 +106,7 @@ def _patch_normalize_dialog(monkeypatch, mode, reference_x, output_name, accepte
         def get_settings(self):
             return mode, reference_x, output_name
 
-    monkeypatch.setattr(dataset_mixin_module, "NormalizeDatasetDialog", FakeNormalizeDialog)
+    monkeypatch.setattr(processing_module, "NormalizeDatasetDialog", FakeNormalizeDialog)
 
 
 def _patch_warning_capture(monkeypatch):
@@ -135,8 +136,16 @@ def _patch_dialog_result(monkeypatch, module_attr_name, base_cls, method_name, v
             return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
 
     setattr(FakeDialog, method_name, lambda self: value)
-    monkeypatch.setattr(dataset_mixin_module, module_attr_name, FakeDialog)
+    monkeypatch.setattr(_module_that_uses(module_attr_name), module_attr_name, FakeDialog)
     return FakeDialog
+
+
+def _module_that_uses(name):
+    """DatasetMixin から機能ごとのクラスへ移したコードは、そのモジュールで名前を引く。"""
+    for module in (processing_module, fitting_module, dataset_mixin_module):
+        if hasattr(module, name):
+            return module
+    raise AttributeError(name)
 
 
 def _patch_new_dataset_dialog(monkeypatch, name, column_names, row_count, accepted=True):
@@ -216,7 +225,7 @@ def test_normalize_max_mode_peak_becomes_one(tmp_path, monkeypatch):
     before_count = len(window.project.datasets)
     _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(window.project.datasets) == before_count + 1
     new_dataset = window.project.datasets[-1]
@@ -239,7 +248,7 @@ def test_normalize_x_value_mode_interpolates(tmp_path, monkeypatch):
         monkeypatch, NormalizeDatasetDialog.MODE_X_VALUE, 1.5, "sample_normalized"
     )
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     new_dataset = window.project.datasets[-1]
     np.testing.assert_allclose(new_dataset.y_data, np.array([0.4, 0.8, 1.2, 1.6]))
@@ -259,7 +268,7 @@ def test_normalize_max_mode_excludes_masked_rows(tmp_path, monkeypatch):
 
     _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     new_dataset = window.project.datasets[-1]
     # マスク除外後の可視データは y=[1,2,3] なので、最大値は3のはず
@@ -280,7 +289,7 @@ def test_normalize_out_of_range_reference_x_warns_and_aborts(tmp_path, monkeypat
         monkeypatch, NormalizeDatasetDialog.MODE_X_VALUE, 999.0, "sample_normalized"
     )
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -297,7 +306,7 @@ def test_normalize_near_zero_reference_guards(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -315,7 +324,7 @@ def test_normalize_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
         monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized", accepted=False
     )
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(window.project.datasets) == before_count
 
@@ -1616,7 +1625,7 @@ def test_arithmetic_requires_exactly_two_selected(tmp_path, monkeypatch):
     before_count = len(window.project.datasets)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(info_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -1642,7 +1651,7 @@ def test_arithmetic_a_minus_b_success(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -1661,7 +1670,7 @@ def test_arithmetic_a_divide_b(tmp_path, monkeypatch):
         "get_settings", ("A ÷ B", "ratio")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     new_ds = window.project.datasets[-1]
     np.testing.assert_allclose(new_ds.y_data, [0.0, 2.0, 4.0, 6.0])
@@ -1679,7 +1688,7 @@ def test_arithmetic_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(window.project.datasets) == before_count
 
@@ -1697,7 +1706,7 @@ def test_arithmetic_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -1718,7 +1727,7 @@ def test_arithmetic_all_nan_data_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(warnings) == 1
 
@@ -1738,7 +1747,7 @@ def test_arithmetic_non_overlapping_ranges_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(warnings) == 1
 
@@ -1764,7 +1773,7 @@ def test_arithmetic_propagates_error_when_both_datasets_have_error_columns(tmp_p
         "get_settings", ("A - B", "diff")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.y_err_col_name == 'y_err'
@@ -1785,7 +1794,7 @@ def test_arithmetic_no_error_column_when_only_one_dataset_has_errors(tmp_path, m
         "get_settings", ("A - B", "diff")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.y_err_col_name is None
@@ -1803,7 +1812,7 @@ def test_arithmetic_no_error_columns_unaffected(tmp_path, monkeypatch):
         "get_settings", ("A - B", "diff")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.y_err_col_name is None
@@ -1834,7 +1843,7 @@ def test_align_datasets_requires_exactly_two_selected(tmp_path, monkeypatch):
     before_count = len(window.project.datasets)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(info_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -1852,7 +1861,7 @@ def test_align_datasets_shifts_b_to_match_a(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -1873,7 +1882,7 @@ def test_align_datasets_does_not_modify_originals(tmp_path, monkeypatch):
         "get_settings", "B_aligned"
     )
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     np.testing.assert_array_equal(ds_b.x_data, original_b_x)  # 元のBは非破壊
 
@@ -1890,7 +1899,7 @@ def test_align_datasets_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(window.project.datasets) == before_count
 
@@ -1908,7 +1917,7 @@ def test_align_datasets_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -1929,7 +1938,7 @@ def test_align_datasets_insufficient_points_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(warnings) == 1
 
@@ -1945,7 +1954,7 @@ def test_align_datasets_records_provenance_with_both_source_datasets(tmp_path, m
         "get_settings", "B_aligned"
     )
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     prov = window.project.datasets[-1].provenance
     assert prov is not None
@@ -1961,7 +1970,7 @@ def test_align_datasets_records_provenance_with_both_source_datasets(tmp_path, m
 def test_normalize_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_normalize_dataset()
+    window.processing.normalize()
     assert len(window.project.datasets) == before_count
 
 
@@ -1972,7 +1981,7 @@ def test_normalize_all_nan_data_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(warnings) == 1
 
@@ -1985,7 +1994,7 @@ def test_normalize_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2005,7 +2014,7 @@ def _make_savgol_dataset(n=11):
 def test_savgol_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
     assert len(window.project.datasets) == before_count
 
 
@@ -2016,7 +2025,7 @@ def test_savgol_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(warnings) == 1
 
@@ -2031,7 +2040,7 @@ def test_savgol_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(window.project.datasets) == before_count
 
@@ -2047,7 +2056,7 @@ def test_savgol_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2065,11 +2074,11 @@ def test_savgol_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("窓幅が不正です")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_savgol", raiser)
+    monkeypatch.setattr(processing_module, "calculate_savgol", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2085,7 +2094,7 @@ def test_savgol_success_smoothing_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -2102,7 +2111,7 @@ def test_savgol_success_derivative_adds_dataset(tmp_path, monkeypatch):
         (5, 2, 1, "curve_deriv1")
     )
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.name == "curve_deriv1"
@@ -2122,7 +2131,7 @@ def _make_baseline_dataset(n=50):
 def test_baseline_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
     assert len(window.project.datasets) == before_count
 
 
@@ -2133,7 +2142,7 @@ def test_baseline_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(warnings) == 1
 
@@ -2149,7 +2158,7 @@ def test_baseline_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count
 
@@ -2165,7 +2174,7 @@ def test_baseline_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2183,11 +2192,11 @@ def test_baseline_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("lamは正の値である必要があります")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_baseline_als", raiser)
+    monkeypatch.setattr(processing_module, "calculate_baseline_als", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2203,7 +2212,7 @@ def test_baseline_als_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -2221,7 +2230,7 @@ def test_baseline_polynomial_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 1
     assert window.project.datasets[-1].name == "spectrum_poly"
@@ -2237,7 +2246,7 @@ def test_baseline_rubberband_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 1
     assert window.project.datasets[-1].name == "spectrum_rubberband"
@@ -2253,7 +2262,7 @@ def test_baseline_manual_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 1
     assert window.project.datasets[-1].name == "spectrum_manual"
@@ -2270,7 +2279,7 @@ def test_baseline_manual_invalid_anchor_text_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2286,7 +2295,7 @@ def test_baseline_add_baseline_curve_checkbox_adds_two_datasets(tmp_path, monkey
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 2
     names = [d.name for d in window.project.datasets[-2:]]
@@ -2304,7 +2313,7 @@ def test_batch_column_calculate_requires_at_least_two_selected(tmp_path, monkeyp
     _add_and_select_dataset(window, ds)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     assert len(info_calls) == 1
 
@@ -2320,7 +2329,7 @@ def test_batch_column_calculate_dialog_cancelled_changes_nothing(tmp_path, monke
         "get_formula", ("y2", "y*2"), accepted=False
     )
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     assert all("y2" not in ds.df.columns for ds in datasets)
 
@@ -2337,7 +2346,7 @@ def test_batch_column_calculate_empty_formula_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     assert len(warnings) == 1
 
@@ -2354,7 +2363,7 @@ def test_batch_column_calculate_applies_formula_to_all_selected(tmp_path, monkey
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     for ds in datasets:
         np.testing.assert_allclose(ds.df["y2"].values, ds.df["y"].values * 2)
@@ -2373,17 +2382,17 @@ def test_batch_column_calculate_partial_failure_reports_both(tmp_path, monkeypat
         "get_formula", ("y2", "y*2")
     )
 
-    original = dataset_mixin_module.safe_eval_column_formula
+    original = processing_module.safe_eval_column_formula
 
     def flaky(df, formula):
         if df is ds2.df:
             raise ValueError("bad formula")
         return original(df, formula)
 
-    monkeypatch.setattr(dataset_mixin_module, "safe_eval_column_formula", flaky)
+    monkeypatch.setattr(processing_module, "safe_eval_column_formula", flaky)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     assert "y2" in ds1.df.columns
     assert "y2" not in ds2.df.columns
@@ -4675,8 +4684,8 @@ def _make_integral_dataset(n=50):
 
 def test_interval_integral_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_interval_integral_dataset()
-    assert window.integral_result_dialog is None
+    window.processing.interval_integral()
+    assert window.processing.integral_result_dialog is None
 
 
 def test_interval_integral_insufficient_points_warns(tmp_path, monkeypatch):
@@ -4686,10 +4695,10 @@ def test_interval_integral_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
     assert len(warnings) == 1
-    assert window.integral_result_dialog is None
+    assert window.processing.integral_result_dialog is None
 
 
 def test_interval_integral_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
@@ -4701,9 +4710,9 @@ def test_interval_integral_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         ("trapezoid", (0.0, 10.0), False), accepted=False
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    assert window.integral_result_dialog is None
+    assert window.processing.integral_result_dialog is None
 
 
 def test_interval_integral_calculation_error_warns(tmp_path, monkeypatch):
@@ -4718,10 +4727,10 @@ def test_interval_integral_calculation_error_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
     assert len(warnings) == 1
-    assert window.integral_result_dialog is None
+    assert window.processing.integral_result_dialog is None
 
 
 def test_interval_integral_trapezoid_success_shows_result_dialog(tmp_path, monkeypatch):
@@ -4734,16 +4743,16 @@ def test_interval_integral_trapezoid_success_shows_result_dialog(tmp_path, monke
         ("trapezoid", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
     # スカラー結果のみを返す機能のため、_on_savgol_dataset等と異なり
     # 新しいデータセットは追加されない
     assert len(window.project.datasets) == before_count
-    assert window.integral_result_dialog is not None
-    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    assert window.processing.integral_result_dialog is not None
+    result_text = window.processing.integral_result_dialog.text_edit.toPlainText()
     assert "50" in result_text
     assert "台形則" in result_text
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_simpson_success_shows_result_dialog(tmp_path, monkeypatch):
@@ -4755,12 +4764,12 @@ def test_interval_integral_simpson_success_shows_result_dialog(tmp_path, monkeyp
         ("simpson", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    assert window.integral_result_dialog is not None
-    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    assert window.processing.integral_result_dialog is not None
+    result_text = window.processing.integral_result_dialog.text_edit.toPlainText()
     assert "Simpson" in result_text
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_result_csv_data_has_expected_columns(tmp_path, monkeypatch):
@@ -4772,12 +4781,12 @@ def test_interval_integral_result_csv_data_has_expected_columns(tmp_path, monkey
         ("trapezoid", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    csv_data = window.integral_result_dialog.csv_data
+    csv_data = window.processing.integral_result_dialog.csv_data
     assert list(csv_data.columns) == ['X', 'Y(元データ)', 'Y(積分に使用)']
     assert len(csv_data) > 0
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_subtract_baseline_option_reflected_in_result(tmp_path, monkeypatch):
@@ -4793,15 +4802,15 @@ def test_interval_integral_subtract_baseline_option_reflected_in_result(tmp_path
         ("simpson", (0.0, 10.0), True)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    result_text = window.processing.integral_result_dialog.text_edit.toPlainText()
     assert "ベースライン差し引き: あり" in result_text
     expected_peak_area = 5 * 0.5 * np.sqrt(2 * np.pi)
     match = re.search(r"積分値\s*=\s*([\-0-9.eE+]+)", result_text)
     assert match is not None
     assert float(match.group(1)) == pytest.approx(expected_peak_area, rel=1e-2)
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_no_baseline_option_reflected_in_result(tmp_path, monkeypatch):
@@ -4813,11 +4822,11 @@ def test_interval_integral_no_baseline_option_reflected_in_result(tmp_path, monk
         ("trapezoid", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    result_text = window.processing.integral_result_dialog.text_edit.toPlainText()
     assert "ベースライン差し引き: なし" in result_text
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_replaces_previous_result_dialog(tmp_path, monkeypatch):
@@ -4829,10 +4838,10 @@ def test_interval_integral_replaces_previous_result_dialog(tmp_path, monkeypatch
         ("trapezoid", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
-    first = window.integral_result_dialog
-    window._on_interval_integral_dataset()
-    second = window.integral_result_dialog
+    window.processing.interval_integral()
+    first = window.processing.integral_result_dialog
+    window.processing.interval_integral()
+    second = window.processing.integral_result_dialog
 
     assert second is not first
     second.close()
@@ -4845,7 +4854,7 @@ def test_interval_integral_replaces_previous_result_dialog(tmp_path, monkeypatch
 def test_cumulative_integral_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
     assert len(window.project.datasets) == before_count
 
 
@@ -4856,7 +4865,7 @@ def test_cumulative_integral_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(warnings) == 1
 
@@ -4871,7 +4880,7 @@ def test_cumulative_integral_dialog_cancelled_adds_nothing(tmp_path, monkeypatch
     )
     before_count = len(window.project.datasets)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(window.project.datasets) == before_count
 
@@ -4887,7 +4896,7 @@ def test_cumulative_integral_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -4905,11 +4914,11 @@ def test_cumulative_integral_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("未知の積分方法です")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_cumulative_integral", raiser)
+    monkeypatch.setattr(processing_module, "calculate_cumulative_integral", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -4925,7 +4934,7 @@ def test_cumulative_integral_trapezoid_success_adds_dataset(tmp_path, monkeypatc
     )
     before_count = len(window.project.datasets)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -4946,7 +4955,7 @@ def test_cumulative_integral_simpson_success_adds_dataset(tmp_path, monkeypatch)
         ("simpson", "d0_cumsum")
     )
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.provenance['params']['method'] == 'simpson'
@@ -4961,7 +4970,7 @@ def test_cumulative_integral_records_provenance(tmp_path, monkeypatch):
         ("trapezoid", "d0_cumsum")
     )
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.provenance['operation'] == 'cumulative_integral'
@@ -4981,7 +4990,7 @@ def _make_duplicate_x_dataset():
 def test_detect_duplicate_x_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
     assert len(window.project.datasets) == before_count
 
 
@@ -4995,7 +5004,7 @@ def test_detect_duplicate_x_no_duplicates_shows_info(tmp_path, monkeypatch):
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(info_calls) == 1
 
@@ -5010,7 +5019,7 @@ def test_detect_duplicate_x_dialog_cancelled_does_nothing(tmp_path, monkeypatch)
     )
     before_count = len(window.project.datasets)
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(window.project.datasets) == before_count
     assert ds.masked_row_indices == []
@@ -5026,7 +5035,7 @@ def test_detect_duplicate_x_average_mode_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -5047,7 +5056,7 @@ def test_detect_duplicate_x_average_mode_empty_output_name_warns(tmp_path, monke
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5062,7 +5071,7 @@ def test_detect_duplicate_x_remove_mode_masks_non_first_duplicates(tmp_path, mon
         ("remove", "")
     )
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     # df.index: 0(x=1), 1(x=2), 2(x=2), 3(x=3), 4(x=1) のうち、各X値グループの
     # 2件目以降(index 2, 4)がマスクされるはず
@@ -5078,7 +5087,7 @@ def test_detect_duplicate_x_remove_mode_is_undoable(tmp_path, monkeypatch):
         ("remove", "")
     )
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
     assert ds.masked_row_indices != []
     window.undo_stack.undo()
     assert ds.masked_row_indices == []
@@ -5099,7 +5108,7 @@ def test_detect_duplicate_x_remove_mode_already_masked_shows_info(tmp_path, monk
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(info_calls) == 1
 
@@ -5115,7 +5124,7 @@ def _make_row_filter_dataset():
 
 def test_filter_rows_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_filter_rows()  # 例外にならないこと
+    window.processing.filter_rows()  # 例外にならないこと
 
 
 def test_filter_rows_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
@@ -5127,7 +5136,7 @@ def test_filter_rows_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         "y > 0.5", accepted=False
     )
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert ds.masked_row_indices == []
 
@@ -5139,7 +5148,7 @@ def test_filter_rows_empty_formula_warns(tmp_path, monkeypatch):
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "")
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert len(warnings) == 1
     assert ds.masked_row_indices == []
@@ -5151,7 +5160,7 @@ def test_filter_rows_masks_non_matching_rows(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     # y=0.1(index 0)とy=0.2(index 3)がy>0.5を満たさずマスクされるはず
     assert set(ds.masked_row_indices) == {0, 3}
@@ -5165,7 +5174,7 @@ def test_filter_rows_invalid_formula_warns_without_crashing(tmp_path, monkeypatc
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y >")
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert len(warnings) == 1
     assert ds.masked_row_indices == []
@@ -5177,7 +5186,7 @@ def test_filter_rows_is_undoable(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
     assert ds.masked_row_indices != []
     window.undo_stack.undo()
     assert ds.masked_row_indices == []
@@ -5190,7 +5199,7 @@ def test_filter_rows_union_with_existing_mask(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert set(ds.masked_row_indices) == {0, 2, 3}
 
@@ -5206,7 +5215,7 @@ def test_filter_rows_no_new_matches_shows_info(tmp_path, monkeypatch):
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert len(info_calls) == 1
     assert ds.masked_row_indices == []
@@ -5225,8 +5234,8 @@ def _make_outlier_dataset():
 
 def test_detect_outliers_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_detect_outliers()  # 例外にならないこと
-    assert window.outlier_result_dialog is None
+    window.processing.detect_outliers()  # 例外にならないこと
+    assert window.processing.outlier_result_dialog is None
 
 
 def test_detect_outliers_insufficient_points_warns(tmp_path, monkeypatch):
@@ -5236,7 +5245,7 @@ def test_detect_outliers_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
     assert len(warnings) == 1
 
@@ -5250,10 +5259,10 @@ def test_detect_outliers_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         ("zscore", 3.0, True), accepted=False
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
     assert ds.masked_row_indices == []
-    assert window.outlier_result_dialog is None
+    assert window.processing.outlier_result_dialog is None
 
 
 def test_detect_outliers_preview_only_does_not_mask(tmp_path, monkeypatch):
@@ -5265,13 +5274,13 @@ def test_detect_outliers_preview_only_does_not_mask(tmp_path, monkeypatch):
         ("zscore", 3.0, False)
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
     assert ds.masked_row_indices == []
-    assert window.outlier_result_dialog is not None
-    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    assert window.processing.outlier_result_dialog is not None
+    result_text = window.processing.outlier_result_dialog.text_edit.toPlainText()
     assert "プレビューのみ" in result_text
-    window.outlier_result_dialog.close()
+    window.processing.outlier_result_dialog.close()
 
 
 def test_detect_outliers_apply_to_mask_masks_detected_rows(tmp_path, monkeypatch):
@@ -5283,13 +5292,13 @@ def test_detect_outliers_apply_to_mask_masks_detected_rows(tmp_path, monkeypatch
         ("zscore", 3.0, True)
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
     assert 20 in ds.masked_row_indices  # 100.0の外れ値(index 20)
-    assert window.outlier_result_dialog is not None
-    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    assert window.processing.outlier_result_dialog is not None
+    result_text = window.processing.outlier_result_dialog.text_edit.toPlainText()
     assert "マスクに追加しました" in result_text
-    window.outlier_result_dialog.close()
+    window.processing.outlier_result_dialog.close()
 
 
 def test_detect_outliers_apply_to_mask_is_undoable(tmp_path, monkeypatch):
@@ -5301,11 +5310,11 @@ def test_detect_outliers_apply_to_mask_is_undoable(tmp_path, monkeypatch):
         ("zscore", 3.0, True)
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
     assert ds.masked_row_indices != []
     window.undo_stack.undo()
     assert ds.masked_row_indices == []
-    window.outlier_result_dialog.close()
+    window.processing.outlier_result_dialog.close()
 
 
 def test_detect_outliers_iqr_method_used_when_selected(tmp_path, monkeypatch):
@@ -5317,11 +5326,11 @@ def test_detect_outliers_iqr_method_used_when_selected(tmp_path, monkeypatch):
         ("iqr", 1.5, False)
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
-    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    result_text = window.processing.outlier_result_dialog.text_edit.toPlainText()
     assert "IQR" in result_text
-    window.outlier_result_dialog.close()
+    window.processing.outlier_result_dialog.close()
 
 
 def test_detect_outliers_replaces_previous_result_dialog(tmp_path, monkeypatch):
@@ -5333,10 +5342,10 @@ def test_detect_outliers_replaces_previous_result_dialog(tmp_path, monkeypatch):
         ("zscore", 3.0, False)
     )
 
-    window._on_detect_outliers()
-    first = window.outlier_result_dialog
-    window._on_detect_outliers()
-    second = window.outlier_result_dialog
+    window.processing.detect_outliers()
+    first = window.processing.outlier_result_dialog
+    window.processing.detect_outliers()
+    second = window.processing.outlier_result_dialog
 
     assert second is not first
     second.close()
@@ -5356,7 +5365,7 @@ def _make_histogram_dataset():
 
 def test_generate_histogram_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_generate_histogram_or_kde()  # 例外にならないこと
+    window.processing.histogram_or_kde()  # 例外にならないこと
     assert len(window.project.datasets) == 0
 
 
@@ -5370,7 +5379,7 @@ def test_generate_histogram_dialog_cancelled_does_nothing(tmp_path, monkeypatch)
         accepted=False,
     )
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     assert len(window.project.datasets) == 1  # 元のデータセットのみ
 
@@ -5384,7 +5393,7 @@ def test_generate_histogram_creates_bar_dataset(tmp_path, monkeypatch):
         {'mode': 'histogram', 'column': 'y', 'output_name': 'hist_ds_hist', 'bins': 10, 'density': False},
     )
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     assert len(window.project.datasets) == 2
     new_ds = window.project.datasets[-1]
@@ -5403,7 +5412,7 @@ def test_generate_kde_creates_line_dataset(tmp_path, monkeypatch):
         {'mode': 'kde', 'column': 'y', 'output_name': 'hist_ds_kde', 'n_points': 50},
     )
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.name == 'hist_ds_kde'
@@ -5421,7 +5430,7 @@ def test_generate_histogram_empty_output_name_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == 1
@@ -5438,7 +5447,7 @@ def test_generate_kde_respects_mask_excludes_masked_rows(tmp_path, monkeypatch):
         {'mode': 'histogram', 'column': 'y', 'output_name': 'hist_ds_hist', 'bins': 10, 'density': False},
     )
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.df['y'].sum() == 50  # マスクされた前半50件を除いた残り
@@ -5458,7 +5467,7 @@ def _make_resample_dataset(name="source", n=30):
 def test_resample_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_resample_dataset()
+    window.processing.resample()
     assert len(window.project.datasets) == before_count
 
 
@@ -5469,7 +5478,7 @@ def test_resample_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
 
@@ -5485,7 +5494,7 @@ def test_resample_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(window.project.datasets) == before_count
 
@@ -5501,7 +5510,7 @@ def test_resample_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5518,7 +5527,7 @@ def test_resample_linspace_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -5540,7 +5549,7 @@ def test_resample_linspace_same_start_stop_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5564,7 +5573,7 @@ def test_resample_onto_other_dataset_grid(tmp_path, monkeypatch):
         ("dataset", {"dataset_name": "target_grid"}, "linear", False, "source_on_target_grid")
     )
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.name == "source_on_target_grid"
@@ -5584,7 +5593,7 @@ def test_resample_missing_target_dataset_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5602,11 +5611,11 @@ def test_resample_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("3次スプライン補間には少なくとも4点のデータが必要です")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_resample_to_grid", raiser)
+    monkeypatch.setattr(processing_module, "calculate_resample_to_grid", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5622,7 +5631,7 @@ def test_resample_cubic_extrapolate_success(tmp_path, monkeypatch):
         ("linspace", {"start": -2.0, "stop": 12.0, "num_points": 10}, "cubic", True, "source_extrapolated")
     )
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     new_ds = window.project.datasets[-1]
     assert len(new_ds.y_data) == 10
@@ -5645,7 +5654,7 @@ def test_arithmetic_records_provenance_with_both_source_datasets(tmp_path, monke
         "get_settings", ("A - B", "diff")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     prov = window.project.datasets[-1].provenance
     assert prov is not None
@@ -5663,7 +5672,7 @@ def test_normalize_records_provenance_with_source_dataset(tmp_path, monkeypatch)
     _add_and_select_dataset(window, dataset)
     _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     prov = window.project.datasets[-1].provenance
     assert prov['operation'] == 'normalize'
@@ -5681,7 +5690,7 @@ def test_savgol_records_provenance_with_filter_params(tmp_path, monkeypatch):
         (5, 2, 0, "curve_smoothed")
     )
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     prov = window.project.datasets[-1].provenance
     assert prov['operation'] == 'savgol'
@@ -5698,7 +5707,7 @@ def test_baseline_correction_records_provenance_with_method_in_operation_name(tm
         ("rubberband", {}, "corrected", False)
     )
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     prov = window.project.datasets[-1].provenance
     assert prov['operation'] == 'baseline_rubberband'
@@ -5719,7 +5728,7 @@ def test_resample_records_provenance_with_source_and_target_dataset_for_dataset_
         ("dataset", {"dataset_name": "target"}, "linear", False, "resampled")
     )
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     prov = window.project.datasets[-1].provenance
     assert prov['operation'] == 'resample'
@@ -5736,7 +5745,7 @@ def test_resample_records_provenance_with_only_source_dataset_for_linspace_mode(
         ("linspace", {"start": 0.0, "stop": 10.0, "num_points": 20}, "linear", False, "resampled")
     )
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     prov = window.project.datasets[-1].provenance
     assert prov['source_dataset_ids'] == [ds.dataset_id]
@@ -6986,7 +6995,7 @@ def test_mean_sd_requires_at_least_two_selected(tmp_path, monkeypatch):
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: info_calls.append(a)))
 
     before_count = len(window.project.datasets)
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     assert len(info_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -7006,7 +7015,7 @@ def test_mean_sd_computes_mean_and_std_on_common_grid(tmp_path, monkeypatch):
     )
 
     before_count = len(window.project.datasets)
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     assert len(window.project.datasets) == before_count + 1
     new_dataset = window.project.datasets[-1]
@@ -7029,7 +7038,7 @@ def test_mean_sd_uses_overlapping_x_range_only(tmp_path, monkeypatch):
         staticmethod(lambda *a, **k: ("結果", True)),
     )
 
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     new_dataset = window.project.datasets[-1]
     assert new_dataset.x_data.min() == pytest.approx(1.0)
@@ -7048,7 +7057,7 @@ def test_mean_sd_no_overlap_shows_warning(tmp_path, monkeypatch):
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     before_count = len(window.project.datasets)
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     assert len(warn_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -7068,7 +7077,7 @@ def test_mean_sd_cancelled_name_dialog_adds_nothing(tmp_path, monkeypatch):
     )
 
     before_count = len(window.project.datasets)
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     assert len(window.project.datasets) == before_count
 
@@ -7087,7 +7096,7 @@ def test_mean_sd_three_datasets_records_provenance(tmp_path, monkeypatch):
         staticmethod(lambda *a, **k: ("結果", True)),
     )
 
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     new_dataset = window.project.datasets[-1]
     assert new_dataset.provenance['operation'] == 'mean_sd'
