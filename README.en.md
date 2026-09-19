@@ -76,9 +76,22 @@ No installation is needed.
 
 Translation currently covers the main menus, buttons and key dialogs; some less common dialogs remain in Japanese.
 
+## Install with pip
+
+With Python 3.10 or later you can install straight from GitHub; the dependencies come along (a virtual environment is
+recommended so they do not clash with other software).
+
+```
+pip install "git+https://github.com/STsuruga/Graphica.git#subdirectory=Graphica_project"
+graphica
+```
+
+`graphica` starts without a console window. Use `python -m graphica` to see the log in a console. Add `--upgrade` to
+update; `pip uninstall graphica` removes it.
+
 ## Run from source
 
-Python 3.10 or later is required.
+Python 3.11 or later is required (`requirements.txt` pins the versions Graphica is tested with).
 
 ```
 git clone https://github.com/STsuruga/Graphica.git

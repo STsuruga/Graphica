@@ -160,6 +160,41 @@ jobs:
           path: Graphica_project/dist/Graphica-macos.zip
           if-no-files-found: error
 
+  install-check:
+    # pip で入れた版(範囲指定の依存)が、まっさらな環境で起動するか。3.10 では範囲の下の方の版、
+    # 3.13 では最新の版が入る。テストの本体は固定版の build-* が回すので、ここは起動の確認だけ。
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+
+    defaults:
+      run:
+        working-directory: Graphica_project
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Build and install the wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip wheel . --no-deps -w dist
+          python -m pip install dist/graphica-*.whl
+          python -m pip list
+
+      - name: Start the installed app
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python scripts/check_installed_app.py
+
   deploy-coverage:
     # テストが緑の master だけ公開する(公開中のレポートは最後に緑だった master)。
     needs: build-macos

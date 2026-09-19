@@ -14,8 +14,10 @@ authors = [
     { name = "STsuruga" },
 ]
 # License:: 分類子との併用は setuptools 77+ でエラーになる。
-# LICENSE はプロジェクトルートの外にあるので license-files は指定できない。
+# setuptools はプロジェクトの外を参照できないので、リポジトリ直下の LICENSE と THIRD_PARTY_LICENSES.md の複製を置く
+# (tests/test_packaging.py が直下のものと同じ中身か確かめる)。同梱のアイコン(Tabler Icons, MIT)の表示もここに入る。
 license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_LICENSES.md"]
 keywords = ["plotting", "matplotlib", "PySide6", "data-visualization", "curve-fitting"]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -29,22 +31,25 @@ classifiers = [
     "Environment :: X11 Applications :: Qt",
     "Private :: Do Not Upload",
 ]
-# requirements.txt の実行時依存と揃える。
+# 利用者の環境とぶつからないよう範囲で指定する。上限は次のメジャー版の手前(pandas 3 は未確認なので 3 未満)。
+# 下限は requires-python の 3.10 でも入る版。exe のビルドと CI は requirements.txt の確認済みの固定版を使う。
+# CI の install-check が 3.10(範囲の下の方)と 3.13(最新)のまっさらな環境で起動を確かめる。
 dependencies = [
-    "PySide6==6.9.1",
-    "matplotlib==3.10.7",
-    "numpy==2.3.1",
-    "pandas==2.3.1",
-    "scipy==1.16.0",
-    "openpyxl==3.1.5",
-    "xlrd==2.0.2",
+    "PySide6>=6.9,<7",
+    "matplotlib>=3.10,<4",
+    "numpy>=2.0,<3",
+    "pandas>=2.2,<3",
+    "scipy>=1.13,<2",
+    "openpyxl>=3.1,<4",
+    "xlrd>=2.0,<3",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1", "ruff==0.16.8"]
 build = ["pyinstaller==6.16.0"]
 
-[project.scripts]
+# Windows でコンソール(黒い画面)を開かない起動コマンド。ログを見たいときは python -m graphica
+[project.gui-scripts]
 graphica = "graphica.__main__:main"
 
 [tool.setuptools.dynamic]
