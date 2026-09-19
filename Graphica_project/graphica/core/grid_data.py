@@ -1,40 +1,23 @@
-# core/grid_data.py
-"""
-2Dマップ(ヒートマップ/等高線、項目C-508/C-509)のための、散布(x, y, z)データ
-→ 2Dグリッド変換ロジック。GUI(gui/canvas.py)には一切依存しない純粋関数群とし、
-core/dataset.pyのDataset.z_gridプロパティ(キャッシュ層)から呼ばれる想定。
+"""(x, y, z) の点から 2D マップの格子を作る。GUI には依存しない。
 
-測定データの(x, y)が完全な直積格子(全てのユニークなxとyの組み合わせが
-ちょうど1回ずつ存在する)であれば、pandas.pivotでそのままZグリッドを組み立てる
-(is_regular=True、実データそのまま、補間による値の改変が無い)。そうでない
-散在データ(不規則な格子、欠損の多い測定等)は、項目C-510の
-scipy.interpolate.griddataで規則格子へ補間する(is_regular=False)。
-呼び出し側(Dataset.z_grid)がこの2ケースを意識せず同じ形の戻り値を使えるように
-統一している。
+(x, y) が完全な格子なら pivot でそのまま並べ(is_regular=True、値を変えない)、そうでなければ griddata で補間する。
 """
 import numpy as np
 import pandas as pd
 from scipy.interpolate import griddata, RegularGridInterpolator
 
-# 始点/終点がほぼ水平/垂直とみなす許容誤差(各軸の範囲に対する割合)。
-# ドラッグ操作でピクセル単位の完全な水平/垂直はまず出せないため、
-# 「見た目上は水平/垂直に引いたつもり」を汲み取るための閾値。
+# ドラッグでぴったり水平・垂直には引けないので、各軸の範囲に対するこの割合までは水平・垂直とみなす
 SLICE_AXIS_ALIGNMENT_TOLERANCE = 0.01
 
-# griddataのmethod引数として有効な値(項目C-510)
 GRID_INTERP_METHODS = ('linear', 'cubic', 'nearest')
 
 
 class GridDataError(ValueError):
-    """2Dグリッドデータの構築に失敗した場合に送出する。"""
+    """2D の格子を作れない。"""
 
 
 def is_regular_grid(x, y):
-    """
-    (x, y)の組み合わせが完全な直積格子かどうかを判定する。
-    「ユニークなxの数 × ユニークなyの数 == 全体の点数」かつ「全ての(x,y)組み合わせが
-    重複なくちょうど1回ずつ存在する」の両方を満たす場合のみTrue。
-    """
+    """x と y の全部の組み合わせが、ちょうど1回ずつあるか。"""
     unique_x = np.unique(x)
     unique_y = np.unique(y)
     if len(unique_x) * len(unique_y) != len(x):
@@ -44,32 +27,9 @@ def is_regular_grid(x, y):
 
 
 def compute_z_grid(x, y, z, interp_method='linear', resolution=None):
-    """
-    散布(x, y, z)データから、pcolormesh/imshow等の2D描画にそのまま使える
-    グリッドを構築する(項目C-508、散在データは項目C-510のgriddata補間を
-    自動的に経由する)。
+    """{'x_grid', 'y_grid'(ソート済みの1次元), 'z_grid'(shape=(len(y), len(x))、データの無い所は nan), 'is_regular'}。
 
-    Args:
-        x, y, z (array-like): 同じ長さの1次元配列。
-        interp_method (str): 'linear'/'cubic'/'nearest'
-            (scipy.interpolate.griddataのmethod引数、散在データの補間時のみ使用、
-            規則格子の場合は無視される)。
-        resolution (tuple[int, int] | None): 散在データを補間する際の出力グリッドの
-            解像度(nx, ny)。Noneならデータの点数から自動決定する
-            (点数の平方根の2倍、最低10点)。
-
-    Returns:
-        dict: {
-            'x_grid': np.ndarray (1次元、ソート済みのX軸グリッド座標),
-            'y_grid': np.ndarray (1次元、ソート済みのY軸グリッド座標),
-            'z_grid': np.ndarray (2次元、shape=(len(y_grid), len(x_grid))、
-                補間grid点でデータが無い場所はnp.nan),
-            'is_regular': bool (Trueなら実測データそのままの格子、
-                Falseならgriddataによる補間結果),
-        }
-
-    Raises:
-        GridDataError: 有効なデータ点が1つも無い場合、またはinterp_methodが不明な場合。
+    resolution=(nx, ny) は補間するときだけ使う(None なら点の数から決める)。interp_method も補間のときだけ。
     """
     if interp_method not in GRID_INTERP_METHODS:
         raise GridDataError(f"不明な補間方法です: {interp_method}")
@@ -124,34 +84,9 @@ def compute_z_grid(x, y, z, interp_method='linear', resolution=None):
 
 
 def extract_slice(x_grid, y_grid, z_grid, start, end, n_points=200):
-    """
-    2Dグリッド上の任意の線分に沿って1次元の断面(スライス)を抽出する
-    (項目C-511)。x_grid/y_gridは常に規則的な1次元配列(compute_z_grid()の
-    戻り値、実測データそのまま/補間結果のどちらでも同じ形)であるため、
-    scipy.interpolate.RegularGridInterpolatorで線分上の任意の点をサンプリング
-    できる。
+    """格子上の線分に沿った断面を返す({'axis_values', 'axis_kind', 'z_values'})。
 
-    Args:
-        x_grid, y_grid (array-like): compute_z_grid()の'x_grid'/'y_grid'
-            (1次元、ソート済み)。
-        z_grid (array-like): compute_z_grid()の'z_grid'(2次元、
-            shape=(len(y_grid), len(x_grid)))。
-        start, end (tuple[float, float]): 線分の始点・終点(x, y)。
-        n_points (int): サンプリングする点数。
-
-    Returns:
-        dict: {
-            'axis_values': np.ndarray (1次元、長さn_points。線分がほぼ水平なら
-                サンプリング点のX座標、ほぼ垂直ならY座標、それ以外(斜めの線分)
-                なら始点からの距離),
-            'axis_kind': str ('x'/'y'/'distance'、axis_valuesが何を表すか。
-                呼び出し側が新規データセットのX軸ラベルを決める材料),
-            'z_values': np.ndarray (1次元、長さn_points。線分上の各点でのZ値。
-                線分がグリッド範囲外に出た区間はnp.nan),
-        }
-
-    Raises:
-        GridDataError: 始点と終点が同一の場合(線分の長さが0)。
+    axis_kind はほぼ水平なら 'x'、ほぼ垂直なら 'y'、斜めなら 'distance'(始点からの距離)。格子の外は nan。
     """
     x0, y0 = float(start[0]), float(start[1])
     x1, y1 = float(end[0]), float(end[1])
