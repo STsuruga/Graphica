@@ -1,11 +1,4 @@
-# gui/dialogs/data_import.py
-"""
-データの取り込みのダイアログ。
-
-gui/dialogs.py(5,560行・47ダイアログ)を機能群ごとに分割したもの
-(改善ボード B-2)。呼び出し側は従来どおり `from gui.dialogs import X` で
-参照できる(gui/dialogs/__init__.py が再エクスポートしている)。
-"""
+"""データの取り込みのダイアログ。呼び出し側は `from graphica.gui.dialogs import X` で参照する。"""
 
 import logging
 import re
@@ -33,33 +26,13 @@ from graphica.gui.theme import apply_form_spacing
 logger = logging.getLogger(__name__)
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (7)
-#==============================================================================
 class ColumnPreviewDialog(QDialog):
-    """
-    データファイル (CSV/Excel) 読み込み時に、内容をプレビュー表示しつつ
-    X軸・Y軸に使う列をユーザーに選択させるダイアログ。
+    """読み込む前に内容を見せて X/Y の列を選ばせる(列の多いファイルで意図しない列が選ばれないように)。
 
-    これまでは常に先頭2列を自動でX/Y軸に割り当てていたが、
-    列数の多いファイルでは意図しない列が選ばれることがあるため、
-    読み込み前に確認・選択できるようにする。
-
-    Excelファイルの場合は、シートの切り替えとヘッダー行の指定にも対応する
-    (どちらも変更するとファイルからその場で再読み込みしてプレビューを更新する)。
-
-    CSVファイルの場合は、文字コード・区切り文字の自動判定+手動上書き、
-    ヘッダー行の指定(装置が出力する説明文などの前文をスキップする用途を兼ねる)、
-    固定長フォーマットとしての読み込みに対応する(項目C-101、インポートウィザード強化)。
-    実測データはこの手の「綺麗でないCSV」であることが多いため、Excel同様
-    その場で再読み込みしてプレビューを更新する。
+    Excel はシートとヘッダー行、CSV は文字コード・区切り文字・ヘッダー行・固定長を変えられ、変えるたびにファイルから読み直す。
     """
 
-    # 区切り文字コンボの表示名 -> 実際の区切り文字(pandas read_csv の sep に渡す値)。
-    # 「空白」は空白1文字以上の連続を区切りとみなすため正規表現になる
-    # (engine='python' が必要、_reload_csv_preview 側で常にpythonエンジンを使う)。
+    # 表示名 -> read_csv の sep。「空白」は空白の連続を区切りとする正規表現なので python エンジンで読む
     _DELIMITER_CHOICES = {
         "カンマ (,)": ",",
         "タブ": "\t",
@@ -68,7 +41,6 @@ class ColumnPreviewDialog(QDialog):
     }
     _DELIMITER_CUSTOM_LABEL = "その他..."
 
-    # エンコーディングコンボの表示名 -> Python/pandasのエンコーディング名。
     _ENCODING_CHOICES = {
         "UTF-8": "utf-8",
         "UTF-8 (BOM付き)": "utf-8-sig",
@@ -79,16 +51,7 @@ class ColumnPreviewDialog(QDialog):
     _AUTO_LABEL = "自動判定"
 
     def __init__(self, df, file_name, parent=None, file_path=None):
-        """
-        Args:
-            df (pandas.DataFrame): 読み込んだファイルのデータ (プレビュー表示用、
-                先頭シート・1行目ヘッダーで読み込んだ初期状態)。
-            file_name (str): 表示用のファイル名。
-            parent (QWidget, optional): 親ウィジェット。
-            file_path (str, optional): 実ファイルパス。Excel/CSVファイルの場合、
-                シート切り替え・ヘッダー行変更・文字コード/区切り文字の上書き時の
-                再読み込みに使う。
-        """
+        """df は先頭のシート・1行目をヘッダーとして読んだもの。file_path は設定を変えたときの読み直しに使う。"""
         super().__init__(parent)
         self.setWindowTitle(f"列の選択: {file_name}")
         self.resize(600, 480)
@@ -97,12 +60,9 @@ class ColumnPreviewDialog(QDialog):
         self.current_df = df
         from graphica.gui.workers import is_delimited_text_file, is_excel_file
         self.is_excel = is_excel_file(file_path)
-        # ビルトインのCSV読み込み(gui/workers.pyのread_data_file)経由のファイルのみ
-        # 対象(プラグインインポーターが読み込んだ他形式やクリップボード貼り付けは
-        # file_path=Noneまたは非csv拡張子のため、以下の追加コントロールは表示しない)。
-        # .txt も CSV と同じ区切り文字付きテキストとして扱う(v1.4.2)。
+        # 組み込みの CSV の読み込みを通ったファイルだけ(プラグインで読んだ形式や貼り付けは対象外)。.txt も CSV と同じ
         self.is_csv = not self.is_excel and is_delimited_text_file(file_path)
-        # 「列の型を確認...」で設定された、列ごとの型上書き ({列名: "数値"/"文字列"/"日付"})
+        # {列名: "数値" / "文字列" / "日付"}
         self.type_overrides = {}
 
         self.sheet_names = []
@@ -130,7 +90,6 @@ class ColumnPreviewDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # --- Excel専用: シート選択・ヘッダー行指定 ---
         if self.is_excel:
             excel_form = QFormLayout()
             if self.sheet_names:
@@ -148,8 +107,7 @@ class ColumnPreviewDialog(QDialog):
             self.header_row_spinbox.valueChanged.connect(self._on_sheet_or_header_changed)
             excel_form.addRow("ヘッダー行", self.header_row_spinbox)
 
-            # 使用する列 (pandasのusecolsは "A,C:E" のようなExcel列表記の文字列を
-            # そのまま受け付けるため、パース処理を自前で書く必要がない)
+            # usecols は "A,C:E" のような Excel の列表記をそのまま受け付ける
             self.usecols_edit = QLineEdit()
             self.usecols_edit.setPlaceholderText("例: A,C:E (空欄で全列)")
             self.usecols_edit.setToolTip("読み込む列をExcelの列表記で指定します(空欄なら全列を読み込みます)")
@@ -175,7 +133,6 @@ class ColumnPreviewDialog(QDialog):
             self.usecols_edit = None
             self.nrows_spinbox = None
 
-        # --- CSV専用: 文字コード・区切り文字・ヘッダー行・固定長(項目C-101) ---
         if self.is_csv:
             csv_form = QFormLayout()
 
@@ -242,12 +199,10 @@ class ColumnPreviewDialog(QDialog):
         self.info_label = QLabel()
         layout.addWidget(self.info_label)
 
-        # --- プレビューテーブル (先頭最大20行、読み取り専用) ---
         self.table = QTableWidget()
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         layout.addWidget(self.table)
 
-        # --- X/Y列選択 ---
         form = QFormLayout()
         self.x_col_combo = QComboBox()
         self.y_col_combo = QComboBox()
@@ -264,28 +219,23 @@ class ColumnPreviewDialog(QDialog):
         apply_form_spacing(self)
 
         if self.is_csv:
-            # 自動判定したエンコーディング/区切り文字で初回プレビューを作る
-            # (workers.load_data_file_task が既定のカンマ区切りで読んだ初期dfは、
-            # 実際の区切り文字がカンマでない場合1列に崩れていることがあるため)。
+            # 最初に読んだ df はカンマ区切りなので、区切りが違うと1列に潰れている。判定した設定で読み直す
             self._reload_csv_preview()
         else:
             self._rebuild_preview_table()
 
     @staticmethod
     def _describe_delimiter(delimiter):
-        """区切り文字を人間が読める短いラベルにする(ツールチップ表示用)"""
         labels = {',': 'カンマ', '\t': 'タブ', ';': 'セミコロン', r'\s+': '空白'}
         return labels.get(delimiter, repr(delimiter))
 
     def _resolve_csv_encoding(self):
-        """エンコーディングコンボの選択値を、pandasに渡すエンコーディング名に変換する"""
         text = self.encoding_combo.currentText()
         if text == self._AUTO_LABEL:
             return self._detected_encoding or 'utf-8-sig'
         return self._ENCODING_CHOICES.get(text, 'utf-8-sig')
 
     def _resolve_csv_delimiter(self):
-        """区切り文字コンボの選択値を、pandasのsepに渡す実際の区切り文字に変換する"""
         text = self.delimiter_combo.currentText()
         if text == self._AUTO_LABEL:
             return self._detected_delimiter or ','
@@ -294,14 +244,12 @@ class ColumnPreviewDialog(QDialog):
         return self._DELIMITER_CHOICES.get(text, ',')
 
     def _on_delimiter_combo_changed(self, _index=None):
-        """区切り文字コンボの選択に応じて「その他」用のカスタム入力欄の表示を切り替える"""
         is_custom = self.delimiter_combo.currentText() == self._DELIMITER_CUSTOM_LABEL
         self.custom_delimiter_label.setVisible(is_custom)
         self.custom_delimiter_edit.setVisible(is_custom)
         self._reload_csv_preview()
 
     def _on_fixed_width_toggled(self, checked):
-        """固定長チェックボックスに応じて、区切り文字系コントロールと列幅入力の有効/表示を切り替える"""
         self.delimiter_combo.setEnabled(not checked)
         self.custom_delimiter_edit.setEnabled(not checked)
         self.fixed_width_label.setVisible(checked)
@@ -309,14 +257,9 @@ class ColumnPreviewDialog(QDialog):
         self._reload_csv_preview()
 
     def _reload_csv_preview(self, *_args):
-        """
-        CSV(項目C-101)の文字コード・区切り文字・ヘッダー行・固定長設定のいずれかが
-        変更されたときに呼ばれる。指定された条件でファイルから再読み込みし、
-        プレビュー全体を更新する(_on_sheet_or_header_changedのCSV版)。
-        区切り文字に「空白」等の正規表現が来ることがあるため、常にPythonエンジンで読む。
-        """
+        """CSV の設定が変わったら読み直す。区切りが正規表現のことがあるので python エンジンで読む。"""
         encoding = self._resolve_csv_encoding()
-        header_row = self.csv_header_row_spinbox.value() - 1  # UIは1始まり、pandasは0始まり
+        header_row = self.csv_header_row_spinbox.value() - 1  # 画面は1始まり
         try:
             if self.fixed_width_checkbox.isChecked():
                 widths_text = self.fixed_width_edit.text().strip()
@@ -327,8 +270,7 @@ class ColumnPreviewDialog(QDialog):
             else:
                 from graphica.gui.workers import pandas_separator
                 delimiter = self._resolve_csv_delimiter()
-                # 推測結果が「空白」のとき、初回読み込み(read_data_file)と同じく
-                # 空白の連続を1つの区切りとみなす。
+                # 推測が「空白」なら、最初の読み込みと同じく空白の連続を1つの区切りとみなす
                 sep, _engine = pandas_separator(delimiter) if delimiter == ' ' else (delimiter, 'python')
                 new_df = pd.read_csv(
                     self.file_path, sep=sep, header=header_row,
@@ -346,13 +288,9 @@ class ColumnPreviewDialog(QDialog):
         self._rebuild_preview_table()
 
     def _on_sheet_or_header_changed(self):
-        """
-        シート選択、ヘッダー行、使用する列(usecols)、最大行数(nrows) のいずれかが
-        変更されたときに呼ばれる。指定された条件でファイルから再読み込みし、
-        プレビュー全体を更新する。
-        """
+        """シート・ヘッダー行・使う列・最大行数が変わったら読み直す。"""
         sheet_name = self.sheet_combo.currentText() if self.sheet_combo else 0
-        header_row = self.header_row_spinbox.value() - 1  # UIは1始まり、pandasは0始まり
+        header_row = self.header_row_spinbox.value() - 1  # 画面は1始まり
         usecols = self.usecols_edit.text().strip() or None if self.usecols_edit else None
         nrows = (self.nrows_spinbox.value() or None) if self.nrows_spinbox else None
         try:
@@ -373,7 +311,6 @@ class ColumnPreviewDialog(QDialog):
         self._rebuild_preview_table()
 
     def _on_check_column_types(self):
-        """「列の型を確認...」ボタンの処理。ColumnTypeDialogを表示し、上書き設定を反映する"""
         dialog = ColumnTypeDialog(self.current_df, self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.type_overrides = dialog.get_overrides()
@@ -381,11 +318,7 @@ class ColumnPreviewDialog(QDialog):
             self._rebuild_preview_table()
 
     def _apply_type_overrides(self):
-        """
-        self.type_overrides に設定されている列の型上書きを self.current_df に適用する。
-        シート/ヘッダー行等の変更で current_df が新しく読み直された場合も、
-        同じ列名がまだ存在すれば上書き設定を再適用する(呼び出し元で毎回呼ばれる)。
-        """
+        """列の型の上書きを current_df に当てる。読み直した後も、同じ名前の列があれば当て直す。"""
         for col_name, override in self.type_overrides.items():
             if col_name not in self.current_df.columns:
                 continue
@@ -400,7 +333,6 @@ class ColumnPreviewDialog(QDialog):
                 logger.warning("列「%s」の型変換(%s)に失敗しました: %s", col_name, override, e)
 
     def _rebuild_preview_table(self):
-        """現在の self.current_df の内容で、情報ラベル・プレビュー表・X/Y列コンボを再構築する"""
         df = self.current_df
         columns = [str(c) for c in df.columns]
 
@@ -421,7 +353,7 @@ class ColumnPreviewDialog(QDialog):
                 self.table.setItem(r, c, QTableWidgetItem(text))
         self.table.resizeColumnsToContents()
 
-        # X/Y列の選択肢を更新 (できる限り元の選択を維持し、無ければ先頭2列にフォールバック)
+        # できるだけ前の選択を残し、無ければ先頭の2列
         prev_x = self.x_col_combo.currentText()
         prev_y = self.y_col_combo.currentText()
         self.x_col_combo.blockSignals(True)
@@ -442,34 +374,16 @@ class ColumnPreviewDialog(QDialog):
         self.y_col_combo.blockSignals(False)
 
     def get_selected_columns(self):
-        """
-        選択された (X軸の列名, Y軸の列名) をタプルで返す。
-
-        Returns:
-            tuple (str, str): (x_col_name, y_col_name)
-        """
+        """(X の列名, Y の列名)"""
         return self.x_col_combo.currentText(), self.y_col_combo.currentText()
 
     def get_dataframe(self):
-        """
-        現在プレビュー表示しているDataFrameを返す。
-        Excelでシート/ヘッダー行を変更した場合は、その内容を反映したものになる。
-        """
+        """いま見せている DataFrame(シートなどを変えていればそれを反映したもの)。"""
         return self.current_df
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: Excel列の型自動判定確認
-#==============================================================================
 class ColumnTypeDialog(QDialog):
-    """
-    読み込んだ表の各列について、pandasが自動判定した型を一覧表示し、
-    必要であれば「数値」「文字列」「日付」に強制変換できるようにするダイアログ。
-    日付列が数値(Excelのシリアル値)として誤認識される、といったケースへの対策として、
-    読み込み前にユーザー自身が気づいて修正できるようにする。
-    """
+    """自動判定した列の型を見せ、「数値」「文字列」「日付」に直せるようにする(日付が数値として読まれることがある)。"""
 
     OVERRIDE_CHOICES = ["自動 (変換しない)", "数値", "文字列", "日付"]
 
@@ -516,10 +430,7 @@ class ColumnTypeDialog(QDialog):
         layout.addWidget(button_box)
 
     def get_overrides(self):
-        """
-        「自動」以外が選択された列だけを対象に、{列名: 上書き後の型} の辞書を返す。
-        上書き後の型は "数値" / "文字列" / "日付" のいずれか。
-        """
+        """「自動」以外にした列だけの {列名: "数値" / "文字列" / "日付"}。"""
         overrides = {}
         for col_name, combo in self._override_combos.items():
             text = combo.currentText()
@@ -528,18 +439,8 @@ class ColumnTypeDialog(QDialog):
         return overrides
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: Excel複数シートの一括インポート
-#==============================================================================
 class ExcelMultiSheetDialog(QDialog):
-    """
-    複数シートを持つExcelファイルを読み込む際に、どのシートを
-    データセットとして取り込むかチェックボックスで選択させるダイアログ。
-    2つ以上チェックした場合は、シートごとに別々のデータセットとして追加される
-    (シートごとにX/Y列の選択プレビューが続けて表示される)。
-    """
+    """取り込むシートを選ぶ。複数選ぶとシートごとに別のデータセットになる。"""
 
     def __init__(self, sheet_names, parent=None):
         super().__init__(parent)
@@ -570,7 +471,7 @@ class ExcelMultiSheetDialog(QDialog):
         layout.addWidget(button_box)
 
     def get_selected_sheets(self):
-        """チェックされたシート名のリストを、シート一覧に現れる順序で返す"""
+        """チェックしたシート名(シートの順)。"""
         result = []
         for i in range(self.sheet_list.count()):
             item = self.sheet_list.item(i)
@@ -579,19 +480,8 @@ class ExcelMultiSheetDialog(QDialog):
         return result
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: フォルダから一括インポート(項目C-104)
-#==============================================================================
 class FolderImportDialog(QDialog):
-    """
-    フォルダ一括インポートの対象ファイル一覧を表示し、任意でファイル名から
-    測定条件(温度・濃度等)を抜き出す正規表現を入力させるダイアログ。
-    実際の読み込み自体は既存のドラッグ&ドロップ一括取込み機構
-    (gui/main_window.pyの_queue_data_files)をそのまま再利用するため、
-    このダイアログはファイルパスの収集と正規表現の入力だけを担当する。
-    """
+    """フォルダ一括取り込みの対象の一覧と、ファイル名から条件を取り出す正規表現。読み込みはドラッグ&ドロップと同じ待ち行列。"""
 
     def __init__(self, folder_path, file_names, parent=None):
         super().__init__(parent)
@@ -634,7 +524,7 @@ class FolderImportDialog(QDialog):
         apply_form_spacing(self)
 
     def _update_preview(self):
-        """正規表現入力欄の変更のたびに、先頭ファイル名での抽出結果をライブプレビューする"""
+        """先頭のファイル名で取り出した結果をその場で見せる。"""
         pattern = self.regex_edit.text().strip()
         if not pattern:
             self.preview_label.setText("(正規表現が未入力のため、列は追加されません)")
@@ -655,22 +545,13 @@ class FolderImportDialog(QDialog):
         self.preview_label.setText(f"「{self._first_file_name}」からの抽出例: {preview}")
 
     def get_regex_pattern(self):
-        """Returns: str | None (未入力ならNone)"""
+        """正規表現。空なら None。"""
         pattern = self.regex_edit.text().strip()
         return pattern if pattern else None
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 新規データセットを作成 (項目63)
-#==============================================================================
 class NewDatasetDialog(QDialog):
-    """
-    ファイル読み込みを介さず、名前・列名・初期行数だけを指定して空のデータセットを
-    作成するためのダイアログ(項目63)。作成後はデータエディタが自動的に開き、
-    そこでセルに直接データを打ち込んでいく運用を想定している。
-    """
+    """名前・列名・行数だけで空のデータセットを作る(作った後はデータエディタで打ち込む)。"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -715,7 +596,7 @@ class NewDatasetDialog(QDialog):
         return self.name_edit.text().strip()
 
     def get_column_names(self):
-        """カンマ区切りの入力を列名のリストに変換する(重複・空文字は除く)"""
+        """カンマ区切りを列名のリストにする(重複と空は除く)。"""
         raw = self.columns_edit.text()
         names = [c.strip() for c in raw.split(',') if c.strip()]
         unique_names = []
