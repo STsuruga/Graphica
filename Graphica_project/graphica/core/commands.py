@@ -4,29 +4,12 @@ from PySide6.QtGui import QUndoCommand
 logger = logging.getLogger(__name__)
 
 
-#==============================================================================
-# Undo/Redo コマンドクラス群
-#==============================================================================
-# 各コマンドは Dataset (core層) の公開メソッドのみを呼び出し、
-# GUI (DataEditorDialog) の内部実装には一切依存しない。
-# テーブルUIの再描画や dataChanged シグナルの発行は、
-# DataEditorDialog 側で QUndoStack.indexChanged に接続して行う。
+# コマンドは Dataset の公開メソッドだけを呼び、GUI を知らない。表の描き直しと通知は
+# DataEditorDialog が QUndoStack.indexChanged で行う。
 
 class EditCellCommand(QUndoCommand):
-    """
-    テーブル内のセル値を編集するコマンド。
-    DataEditorDialog の _on_cell_changed から発行されます。
-    """
     def __init__(self, dataset, row_idx, col_name, old_value, new_value, description="セル編集"):
-        """
-        Args:
-            dataset (Dataset): 編集対象の Dataset。
-            row_idx: マスターDataFrame (dataset.df) のインデックス (loc用)。
-            col_name (str): 編集対象の列名。
-            old_value (any): 変更前の値。
-            new_value (any): 変更後の値。
-            description (str): Undo/Redoメニューに表示されるテキスト。
-        """
+        """row_idx は dataset.df の index ラベル。"""
         super().__init__(description)
         self.dataset = dataset
         self.row_idx = row_idx
@@ -42,7 +25,6 @@ class EditCellCommand(QUndoCommand):
 
 
 class AddRowCommand(QUndoCommand):
-    """行を（末尾に）追加するコマンド"""
     def __init__(self, dataset, description="行追加"):
         super().__init__(description)
         self.dataset = dataset
@@ -55,15 +37,8 @@ class AddRowCommand(QUndoCommand):
 
 
 class DeleteRowsCommand(QUndoCommand):
-    """選択された複数の行を削除するコマンド"""
     def __init__(self, dataset, row_indices, deleted_data, description="行削除"):
-        """
-        Args:
-            dataset (Dataset): 編集対象の Dataset。
-            row_indices (list): 削除するマスターDFのインデックス (loc用) のリスト。
-            deleted_data (pd.DataFrame): 削除される行のデータ (undo用)。
-            description (str): 説明テキスト。
-        """
+        """row_indices は df の index ラベル、deleted_data は Undo 用の消した行。"""
         super().__init__(description)
         self.dataset = dataset
         self.row_indices = row_indices
@@ -77,7 +52,6 @@ class DeleteRowsCommand(QUndoCommand):
 
 
 class AddColumnCommand(QUndoCommand):
-    """（末尾に）列を追加するコマンド"""
     def __init__(self, dataset, col_name, description="列追加"):
         super().__init__(description)
         self.dataset = dataset
@@ -87,10 +61,7 @@ class AddColumnCommand(QUndoCommand):
         self.dataset.add_column(self.col_name)
 
     def undo(self):
-        # ★ 安全性チェック:
-        # もし redo (列追加) の後に、ユーザーがその列をプロット軸 (X/Y) に
-        # 設定した場合、undo (列削除) するとプロットがエラーになる。
-        # そのため、プロットに使われている場合は undo を中止する。
+        # 足した後にその列を X/Y にされていたら、消すと描画が壊れるので取り消さない
         if self.dataset.is_column_in_use(self.col_name):
             logger.warning("Undo不可: 列 '%s' はプロットに使用されています。", self.col_name)
             self.setObsolete(True)
@@ -99,24 +70,14 @@ class AddColumnCommand(QUndoCommand):
 
 
 class DeleteColumnCommand(QUndoCommand):
-    """選択された列を削除するコマンド"""
     def __init__(self, dataset, col_name, deleted_column_data, description="列削除"):
-        """
-        Args:
-            dataset (Dataset): 編集対象の Dataset。
-            col_name (str): 削除する列名。
-            deleted_column_data (pd.Series): 削除される列のデータ (undo用)。
-            description (str): 説明テキスト。
-        """
         super().__init__(description)
         self.dataset = dataset
         self.col_name = col_name
         self.deleted_column_data = deleted_column_data
 
     def redo(self):
-        # ★ 安全性チェック:
-        # (コマンド作成時にもチェックがあるが、undo -> プロット軸変更 -> redo の
-        # パターンに対応するため、ここでもチェック)
+        # 取り消し → 列を X/Y に設定 → やり直し、の順でも壊れないよう、ここでも確かめる
         if self.dataset.is_column_in_use(self.col_name):
             logger.warning("Redo不可: 列 '%s' はプロットに使用されています。", self.col_name)
             self.setObsolete(True)
@@ -128,7 +89,7 @@ class DeleteColumnCommand(QUndoCommand):
 
 
 class RenameColumnCommand(QUndoCommand):
-    """列名を変更するコマンド(項目64)。X/Y軸等の参照追従はDataset.rename_column側で行う。"""
+    """X/Y などの参照は Dataset.rename_column が新しい名前に付け替える。"""
     def __init__(self, dataset, old_name, new_name, description="列名の変更"):
         super().__init__(description)
         self.dataset = dataset
@@ -143,22 +104,9 @@ class RenameColumnCommand(QUndoCommand):
 
 
 class SetDatasetPropertiesCommand(QUndoCommand):
-    """
-    Dataset の1つ以上の属性 (色, 線種, 凡例名, 描画先など) をまとめて
-    変更するための汎用 Undo/Redo コマンド。
-    main_window (gui/mixins/dataset_mixin.py) のプロパティ変更スロットから発行される。
-    """
+    """Dataset の属性(色、線種、名前、描画先など)をまとめて変える。"""
     def __init__(self, dataset, old_values: dict, new_values: dict, on_applied, description="プロパティ変更"):
-        """
-        Args:
-            dataset (Dataset): 変更対象の Dataset。
-            old_values (dict): 変更前の {属性名: 値}。
-            new_values (dict): 変更後の {属性名: 値}。
-            on_applied (callable): redo/undo 後に呼ばれるコールバック
-                (プロット再描画やUIパネルの同期を行う。GUI側の関心事のため
-                コマンド自身はこれ以上 GUI の内部実装を知らない)。
-            description (str): Undo/Redoメニューに表示されるテキスト。
-        """
+        """old_values / new_values は {属性名: 値}。on_applied は適用後の再描画など(GUI 側の仕事)。"""
         super().__init__(description)
         self.dataset = dataset
         self.old_values = old_values
@@ -177,19 +125,9 @@ class SetDatasetPropertiesCommand(QUndoCommand):
 
 
 class SetMaskedRowsCommand(QUndoCommand):
-    """
-    行を削除せず「フィット/プロットから除外(マスク)」する/を解除するかを
-    まとめて切り替えるUndo/Redoコマンド(項目36)。
-    DataEditorDialog の「選択行を除外/解除」操作から発行される。
-    """
+    """行のマスクをまとめて切り替える。"""
     def __init__(self, dataset, old_masked_indices, new_masked_indices, description="行の除外/解除"):
-        """
-        Args:
-            dataset (Dataset): 対象の Dataset。
-            old_masked_indices (list): 変更前のマスク済み行インデックス(df.indexラベル)のリスト。
-            new_masked_indices (list): 変更後のマスク済み行インデックスのリスト。
-            description (str): Undo/Redoメニューに表示されるテキスト。
-        """
+        """マスクする行は df の index ラベルのリスト。"""
         super().__init__(description)
         self.dataset = dataset
         self.old_masked_indices = list(old_masked_indices)
@@ -203,22 +141,8 @@ class SetMaskedRowsCommand(QUndoCommand):
 
 
 class SetAnnotationsCommand(QUndoCommand):
-    """
-    指定した軸 (project.all_plot_settings[axis_index]) の注釈(テキスト・矢印)
-    リストをまとめて置き換えるUndo/Redoコマンド。追加・削除のどちらも、
-    変更前後のリスト全体を保持するシンプルな方式で統一的に扱う。
-    gui/mixins/annotation_mixin.py の注釈追加/削除処理から発行される。
-    """
+    """1つの軸の注釈のリストを丸ごと置き換える(追加も削除もこれ)。"""
     def __init__(self, project, axis_index, old_annotations, new_annotations, on_applied, description="注釈の変更"):
-        """
-        Args:
-            project (ProjectModel): 対象のプロジェクト。
-            axis_index (int): 対象の軸 (all_plot_settings) のインデックス。
-            old_annotations (list[dict]): 変更前の注釈リスト。
-            new_annotations (list[dict]): 変更後の注釈リスト。
-            on_applied (callable): redo/undo 後に呼ばれるコールバック (外観の再描画を行う)。
-            description (str): Undo/Redoメニューに表示されるテキスト。
-        """
         super().__init__(description)
         self.project = project
         self.axis_index = axis_index
@@ -236,32 +160,12 @@ class SetAnnotationsCommand(QUndoCommand):
 
 
 class AddDatasetCommand(QUndoCommand):
-    """
-    新しく生成した1件のDatasetの追加をUndo/Redo可能にするコマンド(項目C-1、
-    プラグインのregister_processor/register_analyzer向け)。
+    """データセットを1つ追加する(プラグインの処理と解析の結果用)。
 
-    データセットの追加はツリーウィジェットへのアイテム作成(フォルダ配置)を
-    伴うため、他のコマンドのように「モデルを直接触ってon_appliedで再描画」
-    という形にはできない。そのため、実際の追加/削除処理そのものを
-    add_callback/remove_callback としてGUI側(main_window._add_dataset_with_undo)
-    から受け取り、そのまま呼び出すだけの薄いラッパーにする
-    (コマンド自身はQt/project/Datasetの内部構造を一切知らない)。
-
-    ★ 既存の「データセット追加/複製」操作(規格化・Savitzky-Golay等)は
-    現状Undo非対応のまま(dataset_mixin.pyの_on_dataset_rows_movedのdocstring
-    参照、意図的な既存の設計境界)。このコマンドはプラグイン処理結果についてのみ、
-    ロードマップの完了条件に従って新たにUndo対応させるためのものであり、
-    既存の他の追加経路をUndo対応させるものではない。
-    なお「削除」は改善ボード A-3 で RemoveDatasetCommand として別途Undo対応済み。
+    追加にはツリーの項目(フォルダの中の位置)が伴うので、追加と削除の処理そのものを GUI から受け取る。
     """
     def __init__(self, add_callback, remove_callback, description="データセットの追加"):
-        """
-        Args:
-            add_callback (callable): 引数無しで呼ばれ、データセットを追加する。
-            remove_callback (callable): 引数無しで呼ばれ、直前にadd_callbackで
-                追加したデータセットを取り除く。
-            description (str): Undo/Redoメニューに表示されるテキスト。
-        """
+        """remove_callback は、直前に add_callback が足したものを取り除く。"""
         super().__init__(description)
         self.add_callback = add_callback
         self.remove_callback = remove_callback
@@ -274,29 +178,12 @@ class AddDatasetCommand(QUndoCommand):
 
 
 class RemoveDatasetCommand(QUndoCommand):
-    """
-    データセット/フォルダの削除をUndo/Redo可能にするコマンド(改善ボード A-3)。
+    """データセットやフォルダの削除。
 
-    以前は右クリック「削除」が `del self.project.datasets[row]` でモデルを直接
-    書き換えており、誤って削除するとデータ・スタイル・フィット結果・マスク・
-    注釈がまとめて復旧不能になっていた(オートセーブからの復元しか手段がなかった)。
-
-    AddDatasetCommand と同じく、実際の削除/復元処理そのものをコールバックとして
-    GUI側(main_window._remove_dataset_items_with_undo)から受け取る薄いラッパーに
-    する。データセットの削除はツリーウィジェットからのアイテム取り外し(フォルダ
-    ごと消える場合を含む)を伴い、復元時には「元の親フォルダの、元のインデックス」
-    へ戻す必要があるため、コマンド側でモデルだけを触る形にはできないため
-    (コマンド自身はQt/project/Datasetの内部構造を一切知らない)。
+    元の親フォルダの元の位置へ戻す必要があるので、削除と復元の処理そのものを GUI から受け取る。
     """
     def __init__(self, remove_callback, restore_callback, description="データセットの削除"):
-        """
-        Args:
-            remove_callback (callable): 引数無しで呼ばれ、対象を削除する。
-            restore_callback (callable): 引数無しで呼ばれ、remove_callbackで
-                削除した対象を元の位置(project.datasets上の順序と、ツリー上の
-                親フォルダ・インデックスの両方)へ復元する。
-            description (str): Undo/Redoメニューに表示されるテキスト。
-        """
+        """restore_callback は、datasets の順とツリーの親・位置の両方を元に戻す。"""
         super().__init__(description)
         self.remove_callback = remove_callback
         self.restore_callback = restore_callback
@@ -309,21 +196,9 @@ class RemoveDatasetCommand(QUndoCommand):
 
 
 class ReorderDatasetsCommand(QUndoCommand):
-    """
-    project.datasets の並び順 (=プロットの描画順/重なり順) を変更する
-    Undo/Redo コマンド。データセットリストのドラッグ&ドロップによる
-    並べ替え (gui/mixins/dataset_mixin.py の _on_dataset_rows_moved) から発行される。
-    """
+    """project.datasets の並び(描画の順と重なり)を変える。"""
     def __init__(self, project, old_order, new_order, on_applied, description="データセットの並べ替え"):
-        """
-        Args:
-            project (ProjectModel): 対象のプロジェクト。
-            old_order (list[Dataset]): 変更前の順序。
-            new_order (list[Dataset]): 変更後の順序。
-            on_applied (callable): redo/undo 後に呼ばれるコールバック
-                (リスト表示の同期とプロット再描画を行う)。
-            description (str): Undo/Redoメニューに表示されるテキスト。
-        """
+        """on_applied は一覧の同期と再描画。"""
         super().__init__(description)
         self.project = project
         self.old_order = list(old_order)
