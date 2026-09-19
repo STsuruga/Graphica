@@ -16,6 +16,7 @@ from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_pdf import PdfPages
 
+from graphica.core.axis_settings import axis_setting
 from graphica.gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
 from graphica.gui.canvas import _HeadlessRenderCanvas
 from graphica.gui.export_settings import export_rc_params
@@ -390,7 +391,7 @@ class ExportMixin:
         settings = {}
         if 0 <= self.project.active_axis_index < len(self.project.all_plot_settings):
             settings = self.project.all_plot_settings[self.project.active_axis_index]
-        default_caption = settings.get('title', '') or ''
+        default_caption = axis_setting(settings, 'title') or ''
         default_label = sanitize_label(default_caption)
 
         dialog = CaptionGeneratorDialog(default_caption, default_label, self)
@@ -407,7 +408,7 @@ class ExportMixin:
         settings = {}
         if 0 <= self.project.active_axis_index < len(self.project.all_plot_settings):
             settings = self.project.all_plot_settings[self.project.active_axis_index]
-        title = settings.get('title', '') or "実験レポート"
+        title = axis_setting(settings, 'title') or "実験レポート"
 
         file_path, _ = QFileDialog.getSaveFileName(
             self, "実験レポートを生成", "", "HTML Files (*.html);;PDF Files (*.pdf)"

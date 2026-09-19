@@ -19,6 +19,7 @@ _layout_selected_axis_index として保持し、ドラッグ操作・数値入�
 2つの入力手段が食い違わないようにしている。
 """
 import logging
+from graphica.core.axis_settings import axis_setting
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class LayoutEditMixin:
             # グリッド -> 自由配置への切り替え直後、まだ矩形を持たないサブプロットには
             # デフォルトの初期矩形を割り当てる(既に自由配置で編集済みならそれを使う)。
             for i, settings in enumerate(self.project.all_plot_settings):
-                if not settings.get('free_rect'):
+                if not axis_setting(settings, 'free_rect'):
                     settings['free_rect'] = self.canvas._default_free_rect(i)
 
         self._update_plot()

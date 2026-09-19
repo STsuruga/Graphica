@@ -18,6 +18,7 @@ Step/Z-Color Scatter)・
 スクリプト側にプラグインを持ち出せないため、コメント付きでLineとして代替出力する。
 """
 
+from graphica.core.axis_settings import axis_setting
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 
 
@@ -178,40 +179,40 @@ def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
 
 
 def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):
-    if settings.get('title'):
+    if axis_setting(settings, 'title'):
         lines.append(f"{ax_var}.set_title({settings['title']!r})")
     # 軸ラベルの表示/非表示トグル(項目127追加分): 非表示(False)の場合は
     # テキストがあっても出力しない(既定Trueで後方互換)。
-    if settings.get('x_label') and settings.get('x_label_visible', True):
+    if axis_setting(settings, 'x_label') and axis_setting(settings, 'x_label_visible'):
         lines.append(f"{ax_var}.set_xlabel({settings['x_label']!r})")
-    if settings.get('y_label') and settings.get('y_label_visible', True):
+    if axis_setting(settings, 'y_label') and axis_setting(settings, 'y_label_visible'):
         lines.append(f"{ax_var}.set_ylabel({settings['y_label']!r})")
-    if settings.get('x_log'):
+    if axis_setting(settings, 'x_log'):
         lines.append(f"{ax_var}.set_xscale('log')")
-    if settings.get('y_log'):
+    if axis_setting(settings, 'y_log'):
         lines.append(f"{ax_var}.set_yscale('log')")
-    if not settings.get('x_autoscale', True):
-        lines.append(f"{ax_var}.set_xlim({settings.get('x_min', 0)!r}, {settings.get('x_max', 1)!r})")
-    if not settings.get('y_autoscale', True):
-        lines.append(f"{ax_var}.set_ylim({settings.get('y_min', 0)!r}, {settings.get('y_max', 1)!r})")
-    if settings.get('grid_visible'):
+    if not axis_setting(settings, 'x_autoscale'):
+        lines.append(f"{ax_var}.set_xlim({axis_setting(settings, 'x_min')!r}, {axis_setting(settings, 'x_max')!r})")
+    if not axis_setting(settings, 'y_autoscale'):
+        lines.append(f"{ax_var}.set_ylim({axis_setting(settings, 'y_min')!r}, {axis_setting(settings, 'y_max')!r})")
+    if axis_setting(settings, 'grid_visible'):
         lines.append(f"{ax_var}.grid(True)")
-    if settings.get('legend_visible', True):
+    if axis_setting(settings, 'legend_visible'):
         lines.append(f"{ax_var}.legend()")
 
     # カラーバー(項目C-501): このサブプロットに2Dマップ(項目C-508)が
     # 描画されていた場合のみ(mesh_varは呼び出し側がgenerate_python_script内で
     # _emit_2d_dataset_plot_call()が成功した軸だけに渡す)。
-    if mesh_var is not None and settings.get('colorbar_enabled', True):
-        position = settings.get('colorbar_position', 'right')
+    if mesh_var is not None and axis_setting(settings, 'colorbar_enabled'):
+        position = axis_setting(settings, 'colorbar_position')
         if position not in ('right', 'left', 'top', 'bottom'):
             position = 'right'
-        fraction = settings.get('colorbar_width_fraction', 0.05)
+        fraction = axis_setting(settings, 'colorbar_width_fraction')
         lines.append(
             f"cbar = fig.colorbar({mesh_var}, ax={ax_var}, location={position!r}, "
             f"fraction={fraction!r}, pad=0.04)"
         )
-        if settings.get('colorbar_label'):
+        if axis_setting(settings, 'colorbar_label'):
             lines.append(f"cbar.set_label({settings['colorbar_label']!r})")
 
 
@@ -246,7 +247,7 @@ def generate_python_script(project) -> str:
         lines.append('fig = plt.figure(figsize=(10, 8))')
         lines.append('axes = []')
         for settings in all_plot_settings:
-            rect = settings.get('free_rect') or (0.1, 0.1, 0.8, 0.8)
+            rect = axis_setting(settings, 'free_rect') or (0.1, 0.1, 0.8, 0.8)
             lines.append(f'axes.append(fig.add_axes({tuple(rect)!r}))')
     else:
         rows = getattr(project, 'layout_rows', 1) or 1
