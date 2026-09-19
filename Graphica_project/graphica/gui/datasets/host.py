@@ -47,3 +47,40 @@ class DatasetHost:
             return None
         y_lo, y_hi = axes[axis_index].get_ylim()
         return y_hi - y_lo
+
+    def selected_datasets(self):
+        return self._app._get_selected_datasets()
+
+    def target_folder_for_new_dataset(self):
+        """ツリーで選ばれているのがフォルダならそのフォルダ(新しいデータセットの置き場所)、それ以外は None。"""
+        return self._app._get_target_folder_for_new_dataset()
+
+    def add_datasets_to_folder(self, datasets, folder):
+        """まとめて足してから1回だけ描き直す(1件ずつ描き直すと件数分のフル再描画になる)。"""
+        for dataset in datasets:
+            self._app.project.datasets.append(dataset)
+            self._app._add_dataset_list_item(dataset, folder)
+        self._app._update_plot()
+
+    def axis_count(self):
+        return len(self._app.project.all_plot_settings)
+
+    def show_status(self, text, msecs=3000):
+        self._app.statusBar().showMessage(text, msecs)
+
+    def set_fit_button_enabled(self, enabled):
+        self._app.fit_curve_button.setEnabled(enabled)
+
+    def set_multi_peak_fit_button_enabled(self, enabled):
+        self._app.multi_peak_fit_button.setEnabled(enabled)
+
+    def pending_peak_guesses(self):
+        """グラフ上のクリックで置いた多峰フィットの初期値(のコピー)。"""
+        return list(self._app._pending_peak_guesses)
+
+    def finish_peak_placement(self):
+        """置いた初期値を消し、ピーク配置モードを抜ける。"""
+        self._app._clear_pending_peak_guesses()
+        if getattr(self._app, 'peak_placement_mode_enabled', False):
+            self._app.peak_placement_action.setChecked(False)
+            self._app._toggle_peak_placement_mode(False)

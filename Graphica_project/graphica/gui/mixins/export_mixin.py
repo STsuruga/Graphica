@@ -153,7 +153,7 @@ class ExportMixin:
         ★ 項目C-004フェーズ5b: フェーズ5aで書き出し1件ごとの一時キャンバスを
         Qt非依存の_HeadlessRenderCanvas(gui/canvas.py、FigureCanvasAgg)に
         切り替えたことで、GUIスレッド外での構築・描画が安全になったため、
-        ここから実際に_batch_fit_worker(_on_batch_curve_fit)と同じ
+        ここから実際にgui/datasets/fitting.py の batch_fit_workerと同じ
         TaskRunner配線パターンでバックグラウンドスレッド化する。
         ★ 並行性の制約: _save_figure_with_optionsが使うmpl.rc_context()は
         プロセスグローバルなrcParamsを書き換えるため、複数TaskRunnerを
@@ -269,11 +269,11 @@ class ExportMixin:
         (dataclasses.replace、dfは参照共有)を渡す。
 
         ★ 項目C-004フェーズ5b: TaskRunnerからバックグラウンドスレッドで呼ばれる
-        (_on_batch_curve_fitの_batch_fit_workerと同じ配線)。Qt/GUIオブジェクトには
+        (gui/datasets/fitting.py の batch_fit_worker と同じ配線)。Qt/GUIオブジェクトには
         一切触れない(_HeadlessRenderCanvasはQWidgetのサブクラスではないため
         安全に構築できる)。is_cancelled()は項目間でのみチェックする(1件の
         redraw_all()+savefig()自体は中断できないため、キャンセルの粒度は
-        「バッチの残り未処理分をスキップする」まで、_batch_fit_workerと同じ方針)。
+        「バッチの残り未処理分をスキップする」まで、batch_fit_worker と同じ方針)。
         """
         results = []
         total = len(indices)

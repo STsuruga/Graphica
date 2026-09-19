@@ -1798,7 +1798,7 @@ class _CanvasDrawingMixin:
                     )
 
             # ★ 曲線フィットの信頼帯・予測帯(項目C-405): gui/mixins/dataset_mixin.py
-            # の_on_fit_curve/_on_batch_curve_fitがband_typeを選ばれた場合にのみ
+            # gui/datasets/fitting.py の単発・一括フィットがband_typeを選ばれた場合にのみ
             # dfへ'y_lower'/'y_upper'列を追加しているため、その存在で描画有無を判断する
             # (fit_band_displayはUI上の意図/ラベル用、実際に描画できるかは列の有無で決まる)。
             if ds.fit_band_display and 'y_lower' in ds.df.columns and 'y_upper' in ds.df.columns:

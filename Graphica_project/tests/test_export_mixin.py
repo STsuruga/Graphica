@@ -19,6 +19,7 @@ from matplotlib.figure import Figure
 import graphica.core.plugin_api as plugin_api_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.mixins.export_mixin as export_mixin_module
+from graphica.core.provenance import build_provenance
 from graphica.core.dataset import Dataset
 from graphica.models.project import ProjectModel
 from graphica.core.plugin_api import GraphicaPluginAPI
@@ -1052,7 +1053,7 @@ def test_generate_report_includes_methods_text_for_processed_dataset(tmp_path, m
     ds_source = _add_dataset(window)
     ds_processed = Dataset(
         name="processed", df=pd.DataFrame({"x": [1, 2], "y": [1.0, 2.0]}), x_col_name="x", y_col_name="y",
-        provenance=window._build_provenance('cumulative_integral', {'method': 'trapezoid'}, [ds_source]),
+        provenance=build_provenance('cumulative_integral', {'method': 'trapezoid'}, [ds_source]),
     )
     window._add_dataset(ds_processed, None, select=False)
     out_path = tmp_path / "report.html"

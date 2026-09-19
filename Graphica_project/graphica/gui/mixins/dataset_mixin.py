@@ -19,22 +19,20 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime, timezone
 import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QFileDialog, QInputDialog, QMenu,
-                               QProgressDialog)
+from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QFileDialog, QInputDialog, QMenu)
 
-from graphica.core.analysis import (calculate_curve_fit, fit_curve_task, calculate_savgol,
+from graphica.core.provenance import build_provenance
+from graphica.core.analysis import (calculate_savgol,
                            calculate_baseline_als, calculate_baseline_polynomial,
                            calculate_baseline_rubberband, calculate_baseline_manual,
                            calculate_interval_integral, calculate_cumulative_integral,
-                           calculate_confidence_band, calculate_average_duplicate_x,
+                           calculate_average_duplicate_x,
                            calculate_zscore_outliers, calculate_iqr_outliers,
-                           calculate_resample_to_grid, multi_peak_fit_task,
-                           calculate_histogram, calculate_kde, calculate_error_propagation,
+                           calculate_resample_to_grid, calculate_histogram, calculate_kde, calculate_error_propagation,
                            calculate_cross_correlation_alignment, split_dataframe_by_column,
                            sample_standard_deviation)
 from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
@@ -48,14 +46,12 @@ from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
 from graphica.core.plugin_api import get_registered_importer_extensions
 from graphica.core.plugin_types import AnalysisResult, PluginExecutionError
 from graphica.core.safe_eval import safe_eval_column_formula
-from graphica.gui.task_runner import TaskRunner
 from graphica.gui.data_editor import DataEditorDialog
-from graphica.gui.dialogs import (FitDialog, ResultDialog, ColorPaletteDialog,
+from graphica.gui.dialogs import (ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
                          BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
-                         ResampleDatasetDialog, MultiPeakFitDialog,
-                         DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
+                         ResampleDatasetDialog, DuplicateXDialog, RowFilterDialog, OutlierDetectionDialog,
                          HistogramKDEDialog, XAxisAlignmentDialog, InsetDialog)
 from graphica.gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
@@ -384,7 +380,7 @@ class DatasetMixin:
             # (万一 setEnabled が効かない呼び出し経路があっても親切な警告を出す)。
             export_fit_action = export_menu.addAction("フィット結果のエクスポート...")
             export_fit_action.setEnabled(self._get_current_dataset().fit_result is not None)
-            export_fit_action.triggered.connect(self._on_export_fit_result)
+            export_fit_action.triggered.connect(self.fitting.show_fit_result)
 
             # 共通X格子へのリサンプリング/補間(項目C-305): 上記のSavitzky-Golay/
             # ベースライン補正と同じく「カレント1件から新しいデータセットを1つ作る」操作。
@@ -463,7 +459,7 @@ class DatasetMixin:
             batch_calc_action.triggered.connect(self._on_batch_column_calculate)
 
             batch_fit_action = multi_menu.addAction("バッチカーブフィット...")
-            batch_fit_action.triggered.connect(self._on_batch_curve_fit)
+            batch_fit_action.triggered.connect(self.fitting.batch_fit_selected)
 
         if self._get_selected_datasets():
             export_data_action = export_menu.addAction("データ表をファイルに書き出す...")
@@ -890,7 +886,7 @@ class DatasetMixin:
         new_dataset = Dataset(
             name=output_name, df=result_df, x_col_name='x', y_col_name='y',
             y_err_col_name='y_err' if propagate_errors else None,
-            provenance=self._build_provenance(
+            provenance=build_provenance(
                 'arithmetic', {'operation_symbol': operation, 'error_propagated': propagate_errors}, [ds_a, ds_b],
             ),
         )
@@ -937,7 +933,7 @@ class DatasetMixin:
         result_df = pd.DataFrame({'x': xb[valid_b] + shift, 'y': yb[valid_b]})
         new_dataset = Dataset(
             name=output_name, df=result_df, x_col_name='x', y_col_name='y',
-            provenance=self._build_provenance(
+            provenance=build_provenance(
                 'xaxis_alignment', {'shift': shift, 'grid_step': result['grid_step']}, [ds_a, ds_b],
             ),
         )
@@ -1004,7 +1000,7 @@ class DatasetMixin:
         new_dataset = Dataset(
             name=output_name.strip(), df=result_df, x_col_name='x', y_col_name='y_mean',
             y_err_col_name='y_sd',
-            provenance=self._build_provenance(
+            provenance=build_provenance(
                 'mean_sd', {'method': 'linear', 'n_source': len(selected)}, selected,
             ),
         )
@@ -1019,8 +1015,8 @@ class DatasetMixin:
         追加する。元のデータセットは変更しない(非破壊)。
 
         単一/複数選択の扱いについて: データセット間演算(_on_dataset_arithmetic)は
-        「ちょうど2件」の選択を要求するが、規格化は曲線フィット(_on_fit_curve)や
-        ピーク検出(_on_find_peaks)と同じく「1つのデータセットから新しいデータセットを
+        「ちょうど2件」の選択を要求するが、規格化は曲線フィットや
+        ピーク検出と同じく「1つのデータセットから新しいデータセットを
         1つ作る」操作であるため、それらと同様に _get_selected_datasets() ではなく
         _get_current_dataset() (フォーカス中の1件)を対象にする。これにより、
         複数選択中でも常にカレントアイテム1件に対して迷いなく動作する。
@@ -1067,7 +1063,7 @@ class DatasetMixin:
         result_df = pd.DataFrame({'x': x_data, 'y': y_data / reference_value})
         new_dataset = Dataset(
             name=output_name, df=result_df, x_col_name='x', y_col_name='y',
-            provenance=self._build_provenance(
+            provenance=build_provenance(
                 'normalize',
                 {'mode': mode, 'reference_x': reference_x, 'reference_value': reference_value},
                 [original_dataset],
@@ -1113,7 +1109,7 @@ class DatasetMixin:
         result_df = pd.DataFrame({'x': x_sorted, 'y': y_result})
         new_dataset = Dataset(
             name=output_name, df=result_df, x_col_name='x', y_col_name='y',
-            provenance=self._build_provenance(
+            provenance=build_provenance(
                 'savgol',
                 {'window_length': window_length, 'polyorder': polyorder, 'deriv': deriv},
                 [original_dataset],
@@ -1184,7 +1180,7 @@ class DatasetMixin:
         result_df = pd.DataFrame({'x': x_sorted, 'y': corrected})
         new_dataset = Dataset(
             name=output_name, df=result_df, x_col_name='x', y_col_name='y',
-            provenance=self._build_provenance(f'baseline_{method}', dict(params), [original_dataset]),
+            provenance=build_provenance(f'baseline_{method}', dict(params), [original_dataset]),
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
 
@@ -1203,7 +1199,7 @@ class DatasetMixin:
         カレントの1つのデータセットについて、指定したXの範囲でYを台形則または
         Simpson則で定積分する。_on_savgol_dataset/_on_baseline_correction_dataset
         と同じ「カレント1件」パターンだが、結果は新しいデータセットではなく
-        スカラー1個(積分値)のため、ピーク検出(_on_find_peaks)と同じく
+        スカラー1個(積分値)のため、ピーク検出と同じく
         非モーダル・スクロール可能なResultDialogで結果を表示する。
         """
         original_dataset = self._get_current_dataset()
@@ -1242,7 +1238,7 @@ class DatasetMixin:
         result_text += f"  積分値 = {result['integral']: .6e}\n"
 
         # ★ グラフを見ながら結果を確認できるよう、非モーダル・スクロール可能なダイアログで表示する
-        # (_on_find_peaks/_on_fit_curveと同じ方針)
+        # (ピーク検出・曲線フィットと同じ方針)
         if self.integral_result_dialog is not None:
             self.integral_result_dialog.close()
         integral_csv_data = pd.DataFrame({
@@ -1294,7 +1290,7 @@ class DatasetMixin:
         result_df = pd.DataFrame({'x': result['x_used'], 'y': result['y_cumulative']})
         new_dataset = Dataset(
             name=output_name, df=result_df, x_col_name='x', y_col_name='y',
-            provenance=self._build_provenance(
+            provenance=build_provenance(
                 'cumulative_integral', {'method': method}, [original_dataset],
             ),
         )
@@ -1382,7 +1378,7 @@ class DatasetMixin:
                     x_col_name=original_dataset.x_col_name,
                     y_col_name=original_dataset.y_col_name,
                     color=color_cycle[i % len(color_cycle)],
-                    provenance=self._build_provenance(
+                    provenance=build_provenance(
                         'split_by_column',
                         {'split_column': split_col, 'group_value': label},
                         [original_dataset],
@@ -1490,7 +1486,7 @@ class DatasetMixin:
         provenance_sources = [original_dataset] + ([target_dataset] if source == "dataset" else [])
         new_dataset = Dataset(
             name=output_name, df=result_df, x_col_name='x', y_col_name='y',
-            provenance=self._build_provenance(
+            provenance=build_provenance(
                 'resample', {'source': source, 'method': method, 'extrapolate': extrapolate},
                 provenance_sources,
             ),
@@ -1547,7 +1543,7 @@ class DatasetMixin:
         new_dataset = Dataset(
             name=settings['output_name'], df=result_df, x_col_name='x', y_col_name='y',
             plot_type=plot_type,
-            provenance=self._build_provenance(settings['mode'], params, [original_dataset]),
+            provenance=build_provenance(settings['mode'], params, [original_dataset]),
         )
         self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
         self.statusBar().showMessage(f"「{settings['output_name']}」を追加しました", 3000)
@@ -1596,7 +1592,7 @@ class DatasetMixin:
             result_df = pd.DataFrame({'x': result['x_used'], 'y': result['y_averaged']})
             new_dataset = Dataset(
                 name=output_name, df=result_df, x_col_name='x', y_col_name='y',
-                provenance=self._build_provenance(
+                provenance=build_provenance(
                     'average_duplicate_x',
                     {'n_duplicate_groups': result['n_duplicate_groups'],
                      'n_points_in': result['n_points_in'], 'n_points_out': result['n_points_out']},
@@ -1960,173 +1956,6 @@ class DatasetMixin:
         if failed:
             message += "\n\n失敗:\n" + "\n".join(failed)
         QMessageBox.information(self, "バッチ列計算", message)
-
-    def _on_batch_curve_fit(self):
-        """
-        「バッチカーブフィット...」メニューの処理(項目C-004フェーズ2で
-        バックグラウンドスレッド化)。選択中の複数データセットそれぞれに、
-        同じフィット関数(FitDialogで1回だけ選択)を適用し、成功したものごとに
-        "Fit (元の名前)" というデータセットを追加する。
-
-        ★ 以前はループ内で1件ずつ_add_dataset()(内部で毎回_update_plot()を
-        呼ぶ)を呼んでおり、N件のフィットでN回のフル再描画が起きていた。
-        フェーズ2では全件の計算をバックグラウンドスレッド(_batch_fit_worker)
-        で行い、成功結果をメインスレッド側でまとめて追加してから
-        _update_plot()を1回だけ呼ぶことでこの問題を解消する
-        (この修正自体はC-003の有無に関係なく単独で価値がある)。
-        QProgressDialogでキャンセル可能にする(初のUI進捗表示)。
-        """
-        selected = self._get_selected_datasets()
-        if len(selected) < 2:
-            QMessageBox.information(self, "バッチカーブフィット", "2つ以上のデータセットを選択してください。")
-            return
-        if self._batch_fit_task_runner is not None:
-            QMessageBox.information(self, "実行中", "別のバッチフィット処理が実行中です。完了までお待ちください。")
-            return
-
-        # 項目C-402(重み付け)/C-404(フィット範囲)/C-403(初期値上書き・固定・
-        # 範囲拘束)/C-405(信頼帯・予測帯)は選択中の全データセットに共通の設定
-        # として1回だけ選ばせ、各データセットに同じ条件で適用する。
-        (fit_type, custom_formula, use_weighted, x_range,
-         p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(self)
-        if fit_type is None:
-            return
-
-        target_folder = self._get_target_folder_for_new_dataset()
-
-        progress_dialog = QProgressDialog("バッチカーブフィットを実行中...", "キャンセル", 0, len(selected), self)
-        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
-        progress_dialog.setMinimumDuration(0)
-        progress_dialog.setValue(0)
-
-        runner = TaskRunner(
-            self._batch_fit_worker, selected, fit_type, custom_formula, use_weighted, x_range,
-            p0_overrides, fixed_params, bounds, band_type, loss,
-        )
-        runner.progress.connect(lambda done, total, message: progress_dialog.setValue(done))
-        progress_dialog.canceled.connect(runner.requestInterruption)
-        runner.succeeded.connect(
-            lambda results: self._on_batch_curve_fit_succeeded(results, target_folder, progress_dialog)
-        )
-        runner.failed.connect(lambda msg: self._on_batch_curve_fit_failed(msg, progress_dialog))
-        self._batch_fit_task_runner = runner
-        runner.start()
-
-    def _cleanup_batch_fit_task_runner(self):
-        if self._batch_fit_task_runner is not None:
-            self._batch_fit_task_runner.wait()
-            self._batch_fit_task_runner.deleteLater()
-            self._batch_fit_task_runner = None
-
-    def _on_batch_curve_fit_failed(self, error_message, progress_dialog):
-        self._cleanup_batch_fit_task_runner()
-        progress_dialog.close()
-        QMessageBox.warning(self, "バッチカーブフィット", f"バッチフィット処理に失敗しました:\n{error_message}")
-
-    def _on_batch_curve_fit_succeeded(self, results, target_folder, progress_dialog):
-        """
-        _batch_fit_worker() の結果(dataset_name/fit_dataset/errorのdictのリスト、
-        キャンセル時は完了済み分のみ)をメインスレッド側で適用する。
-        """
-        self._cleanup_batch_fit_task_runner()
-        progress_dialog.close()
-
-        succeeded, failed = [], []
-        for result in results:
-            if result['fit_dataset'] is not None:
-                self.project.datasets.append(result['fit_dataset'])
-                self._add_dataset_list_item(result['fit_dataset'], target_folder)
-                succeeded.append(result['source_name'])
-            elif result['error'] is not None:
-                failed.append(f"{result['source_name']}: {result['error']}")
-
-        if succeeded:
-            self._update_plot()  # ★ ループの外で1回だけ(フェーズ2の主眼)
-
-        if not succeeded and not failed:
-            return  # 1件も処理されないうちにキャンセルされた場合、通知不要
-
-        message = f"{len(succeeded)}件のフィットに成功しました。"
-        if failed:
-            message += "\n\n失敗:\n" + "\n".join(failed)
-        QMessageBox.information(self, "バッチカーブフィット", message)
-
-    def _batch_fit_worker(self, datasets, fit_type, custom_formula, use_weighted, x_range,
-                           p0_overrides, fixed_params, bounds, band_type, loss='linear',
-                           report_progress=None, is_cancelled=None):
-        """
-        TaskRunnerからバックグラウンドスレッドで呼ばれる、バッチフィットの実計算部分。
-        Qt/GUIオブジェクトには一切触れない(Datasetはプレーンなdataclassのため
-        ここで安全に構築できる。_build_fit_result_dict/_add_band_columns_to_fit_df
-        もstaticmethodで同様にQt非依存)。is_cancelled()はアイテム間でのみ
-        チェックする(1件のcalculate_curve_fit自体は中断できないため、
-        キャンセルの粒度は「バッチの残り未処理分をスキップする」まで)。
-        """
-        results = []
-        total = len(datasets)
-        for i, dataset in enumerate(datasets):
-            if is_cancelled is not None and is_cancelled():
-                break
-            if report_progress is not None:
-                report_progress(i, total, dataset.name)
-
-            x_data, y_data = dataset.x_data, dataset.y_data
-            sigma = dataset.y_err_data if use_weighted else None
-            try:
-                fit = calculate_curve_fit(
-                    x_data, y_data, fit_type, custom_formula=custom_formula,
-                    sigma=sigma, x_range=x_range,
-                    p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
-                )
-            except Exception as e:
-                results.append({'source_name': dataset.name, 'fit_dataset': None, 'error': str(e)})
-                continue
-
-            popt, params_info = fit['popt'], fit['param_names']
-            x_fit, y_fit = fit['x_fit'], fit['y_fit']
-            r_squared = fit['r_squared']
-
-            fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
-            result_text = f"[{fit_label}] のフィッティング結果:\n"
-            for param_name, param_value in zip(params_info, popt):
-                result_text += f"  {param_name} = {param_value: .4e}\n"
-            result_text += f"  R^2 = {r_squared: .5f}\n"
-            if sigma is not None:
-                result_text += "  (Y誤差列を重みとして使用)\n"
-            if x_range is not None:
-                result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
-            if fixed_params:
-                result_text += f"  (固定: {fixed_params})\n"
-            if bounds:
-                result_text += f"  (範囲拘束: {bounds})\n"
-            if loss != 'linear':
-                result_text += f"  (ロバストフィット: {loss})\n"
-
-            fit_result = self._build_fit_result_dict(
-                fit_type=fit_type, custom_formula=custom_formula, fit=fit,
-                weighted=sigma is not None, x_range=x_range,
-                source_dataset=dataset,
-                p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
-            )
-
-            fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
-            applied_band_type = self._add_band_columns_to_fit_df(fit_df, fit, band_type)
-            fit_dataset = Dataset(
-                name=f"Fit ({dataset.name})",
-                df=fit_df,
-                x_col_name='x_fit', y_col_name='y_fit',
-                color=dataset.color, linestyle='--', marker='None',
-                linewidth=dataset.linewidth,
-                use_secondary_y=dataset.use_secondary_y,
-                subplot_target=dataset.subplot_target,
-                fit_info=result_text,
-                fit_result=fit_result,
-                fit_band_display=applied_band_type,
-                provenance=self._build_provenance('batch_curve_fit', fit_result, [dataset]),
-            )
-            results.append({'source_name': dataset.name, 'fit_dataset': fit_dataset, 'error': None})
-
-        return results
 
     def _top_level_selected_items(self, items):
         """
@@ -3462,409 +3291,6 @@ class DatasetMixin:
         # ★ プロットを最新のデータで更新
         self._update_plot()
 
-    def _on_fit_curve(self):
-        """
-        「曲線フィット」ボタンが押されたときの処理(項目C-004フェーズ1で
-        バックグラウンドスレッド化)。ダイアログでの入力収集まではメイン
-        スレッド上で同期的に行い、実際の計算(calculate_curve_fit)だけを
-        TaskRunner(gui/task_runner.py)経由でバックグラウンドスレッドに委ねる。
-        scipy.optimize.curve_fit自体は中断不能なため、このフェーズの主目的は
-        キャンセル機能ではなく「スレッド起動→シグナル配送→GUIスレッドでの
-        適用→closeEventでの中断待機」という配線を最もリスクの低い対象
-        (単発フィット)で検証すること。
-        """
-        original_dataset = self._get_current_dataset()
-        if original_dataset is None:
-            return
-        if self._fit_task_runner is not None:
-            QMessageBox.information(self, "実行中", "別のフィット処理が実行中です。完了までお待ちください。")
-            return
-        x_data, y_data = original_dataset.x_data, original_dataset.y_data
-
-        # ダイアログからフィットの種類を取得(カスタム数式選択時は数式文字列も一緒に返る、
-        # 項目C-402: 重み付けを使うか、項目C-404: フィット範囲、項目C-403: 初期値
-        # 上書き・パラメータ固定・範囲拘束 も併せて返る)
-        x_min = float(np.min(x_data)) if len(x_data) else None
-        x_max = float(np.max(x_data)) if len(x_data) else None
-        (fit_type, custom_formula, use_weighted, x_range,
-         p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(
-            self, x_min=x_min, x_max=x_max
-        )
-        if fit_type is None:
-            return
-
-        sigma = original_dataset.y_err_data if use_weighted else None
-
-        runner = TaskRunner(
-            fit_curve_task, x_data, y_data, fit_type, custom_formula=custom_formula,
-            sigma=sigma, x_range=x_range,
-            p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
-        )
-        runner.succeeded.connect(
-            lambda fit: self._on_fit_curve_succeeded(
-                original_dataset, fit_type, custom_formula, sigma, x_range,
-                p0_overrides, fixed_params, bounds, band_type, loss, fit,
-            )
-        )
-        runner.failed.connect(self._on_fit_curve_failed)
-        self._fit_task_runner = runner
-        self.fit_curve_button.setEnabled(False)
-        runner.start()
-
-    def _cleanup_fit_task_runner(self):
-        """
-        _fit_task_runner の後始末。gui/main_window.py の _data_load_task_runner と
-        同じ「wait()でブロッキング待機→deleteLater()→参照をNoneに戻す」手順
-        (closeEventからの再利用も想定、詳細はclose_event側のコメント参照)。
-        """
-        if self._fit_task_runner is not None:
-            self._fit_task_runner.wait()
-            self._fit_task_runner.deleteLater()
-            self._fit_task_runner = None
-        self.fit_curve_button.setEnabled(True)
-
-    def _on_fit_curve_failed(self, error_message):
-        self._cleanup_fit_task_runner()
-        QMessageBox.warning(self, "フィットエラー", f"フィッティングに失敗しました:\n{error_message}")
-
-    def _on_fit_curve_succeeded(self, original_dataset, fit_type, custom_formula, sigma, x_range,
-                                 p0_overrides, fixed_params, bounds, band_type, loss, fit):
-        """
-        バックグラウンドで完了したフィット計算(fit dict、calculate_curve_fitの
-        戻り値と同じ形)をメインスレッド側で適用する。以前は_on_fit_curve()の
-        続きとして同期的に実行していたロジックそのもの(振る舞いは無改修)。
-        """
-        self._cleanup_fit_task_runner()
-
-        popt, params_info = fit['popt'], fit['param_names']
-        x_fit, y_fit = fit['x_fit'], fit['y_fit']
-        r_squared, residuals = fit['r_squared'], fit['residuals']
-        # 残差(residuals)はNaN除外・x_range適用後の点数になるため、
-        # 残差プロット用のxもそれに揃える(ResultDialogは長さが一致している前提)。
-        residual_x = fit['x_data_used']
-
-        # 結果文字列の作成 (カスタム数式の場合は入力された数式も表示する)
-        fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
-        result_text = f"[{fit_label}] のフィッティング結果:\n"
-        for param_name, param_value in zip(params_info, popt):
-            result_text += f"  {param_name} = {param_value: .4e}\n"
-        result_text += f"  R^2 = {r_squared: .5f}\n"
-        if sigma is not None:
-            result_text += "  (Y誤差列を重みとして使用)\n"
-        if x_range is not None:
-            result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
-        if fixed_params:
-            result_text += f"  (固定: {fixed_params})\n"
-        if bounds:
-            result_text += f"  (範囲拘束: {bounds})\n"
-        if loss != 'linear':
-            result_text += f"  (ロバストフィット: {loss})\n"
-
-        # 項目C-401: 後続の機能(信頼帯・残差プロット・結果出力・provenance記録)が
-        # 再計算なしで再利用できるよう、構造化した形でも結果を保持する。
-        fit_result = self._build_fit_result_dict(
-            fit_type=fit_type, custom_formula=custom_formula, fit=fit,
-            weighted=sigma is not None, x_range=x_range,
-            source_dataset=original_dataset,
-            p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
-        )
-
-        # UI/Modelへの反映 (Datasetの追加。元のデータセットと同じフォルダに追加する)
-        fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
-        applied_band_type = self._add_band_columns_to_fit_df(fit_df, fit, band_type)
-        fit_dataset = Dataset(
-            name=f"Fit ({original_dataset.name})",
-            df=fit_df,
-            x_col_name='x_fit', y_col_name='y_fit',
-            color=original_dataset.color, linestyle='--', marker='None',
-            linewidth=original_dataset.linewidth,
-            use_secondary_y=original_dataset.use_secondary_y,
-            subplot_target=original_dataset.subplot_target,
-            fit_info=result_text,
-            fit_result=fit_result,
-            fit_band_display=applied_band_type,
-            provenance=self._build_provenance('curve_fit', fit_result, [original_dataset]),
-        )
-
-        self.project.datasets.append(fit_dataset)
-        original_item = self._get_dataset_tree_item(original_dataset)
-        self._add_dataset_list_item(fit_dataset, original_item.parent() if original_item else None)
-        self._update_plot()
-
-        # ★ グラフを見ながら結果を確認できるよう、非モーダル・スクロール可能なダイアログで表示する
-        if self.fit_result_dialog is not None:
-            self.fit_result_dialog.close()
-        fit_csv_data = pd.DataFrame({
-            'パラメータ': list(params_info) + ['R^2'],
-            '値': list(popt) + [r_squared],
-        })
-        self.fit_result_dialog = ResultDialog(
-            "フィッティング完了", result_text, self, csv_data=fit_csv_data,
-            residual_x=residual_x, residual_y=residuals
-        )
-        self.fit_result_dialog.show()
-
-    def _on_multi_peak_fit(self):
-        """
-        「多峰フィット」ボタンが押されたときの処理(項目C-409/C-410)。
-        _on_fit_curve()と同じ「ダイアログでの入力収集はメインスレッド、
-        実計算(calculate_multi_peak_fit)はTaskRunner経由でバックグラウンド」
-        という配線を踏襲する。ピーク配置クリックモード(項目C-410、
-        gui/mixins/peak_placement_mixin.py)で集めた self._pending_peak_guesses を
-        ダイアログの初期値テーブルへ引き継ぎ、ダイアログを閉じた時点(OK/Cancel
-        いずれでも)でクリアする(ダイアログ内でさらに編集・追加された内容は
-        ダイアログのテーブルにのみ残る、ペンディング状態と重複保持しない)。
-        """
-        original_dataset = self._get_current_dataset()
-        if original_dataset is None:
-            return
-        if self._multi_peak_fit_task_runner is not None:
-            QMessageBox.information(self, "実行中", "別のフィット処理が実行中です。完了までお待ちください。")
-            return
-        x_data, y_data = original_dataset.x_data, original_dataset.y_data
-
-        component_type, baseline_type, initial_guesses = MultiPeakFitDialog.get_multi_peak_fit_settings(
-            self, x_data=x_data, y_data=y_data, initial_guesses=list(self._pending_peak_guesses)
-        )
-        self._clear_pending_peak_guesses()
-        if getattr(self, 'peak_placement_mode_enabled', False):
-            self.peak_placement_action.setChecked(False)
-            self._toggle_peak_placement_mode(False)
-        if component_type is None:
-            return
-
-        runner = TaskRunner(
-            multi_peak_fit_task, x_data, y_data, component_type, initial_guesses,
-            baseline_type=baseline_type,
-        )
-        runner.succeeded.connect(
-            lambda fit: self._on_multi_peak_fit_succeeded(original_dataset, fit)
-        )
-        runner.failed.connect(self._on_multi_peak_fit_failed)
-        self._multi_peak_fit_task_runner = runner
-        self.multi_peak_fit_button.setEnabled(False)
-        runner.start()
-
-    def _cleanup_multi_peak_fit_task_runner(self):
-        """_multi_peak_fit_task_runner の後始末(_cleanup_fit_task_runnerと同じ手順)。"""
-        if self._multi_peak_fit_task_runner is not None:
-            self._multi_peak_fit_task_runner.wait()
-            self._multi_peak_fit_task_runner.deleteLater()
-            self._multi_peak_fit_task_runner = None
-        self.multi_peak_fit_button.setEnabled(True)
-
-    def _on_multi_peak_fit_failed(self, error_message):
-        self._cleanup_multi_peak_fit_task_runner()
-        QMessageBox.warning(self, "多峰分離フィットエラー", f"フィッティングに失敗しました:\n{error_message}")
-
-    def _on_multi_peak_fit_succeeded(self, original_dataset, fit):
-        """
-        バックグラウンドで完了した多峰分離フィット計算(fit dict、
-        calculate_multi_peak_fit()の戻り値と同じ形)をメインスレッド側で適用する。
-        _on_fit_curve_succeeded()と対になる処理だが、今回のスコープでは
-        C-403のp0上書き/固定/範囲拘束UI・重み付け・フィット範囲・信頼帯は
-        含めない(パラメータ名が成分数に応じて動的になるためC-403の
-        テーブルとは噛み合わず、いずれも単峰版で既にカバー済みの機能である
-        ため、多峰版での再現は将来の拡張とする)。
-        """
-        self._cleanup_multi_peak_fit_task_runner()
-
-        popt, params_info = fit['popt'], fit['param_names']
-        x_fit, y_fit = fit['x_fit'], fit['y_fit']
-        r_squared, residuals = fit['r_squared'], fit['residuals']
-        residual_x = fit['x_data_used']
-
-        component_label = dict(MultiPeakFitDialog.COMPONENT_TYPES).get(
-            fit['component_type'], fit['component_type']
-        )
-        fit_label = f"多峰分離({component_label} x{fit['n_components']})"
-        result_text = f"[{fit_label}] のフィッティング結果:\n"
-        for param_name, param_value in zip(params_info, popt):
-            result_text += f"  {param_name} = {param_value: .4e}\n"
-        result_text += f"  R^2 = {r_squared: .5f}\n"
-
-        fit_result = self._build_multi_peak_fit_result_dict(fit, source_dataset=original_dataset)
-
-        fit_df = pd.DataFrame({'x_fit': x_fit, 'y_fit': y_fit})
-        fit_dataset = Dataset(
-            name=f"MultiPeakFit ({original_dataset.name})",
-            df=fit_df,
-            x_col_name='x_fit', y_col_name='y_fit',
-            color=original_dataset.color, linestyle='--', marker='None',
-            linewidth=original_dataset.linewidth,
-            use_secondary_y=original_dataset.use_secondary_y,
-            subplot_target=original_dataset.subplot_target,
-            fit_info=result_text,
-            fit_result=fit_result,
-            provenance=self._build_provenance('multi_peak_fit', fit_result, [original_dataset]),
-        )
-
-        self.project.datasets.append(fit_dataset)
-        original_item = self._get_dataset_tree_item(original_dataset)
-        self._add_dataset_list_item(fit_dataset, original_item.parent() if original_item else None)
-        self._update_plot()
-
-        if self.fit_result_dialog is not None:
-            self.fit_result_dialog.close()
-        fit_csv_data = pd.DataFrame({
-            'パラメータ': list(params_info) + ['R^2'],
-            '値': list(popt) + [r_squared],
-        })
-        self.fit_result_dialog = ResultDialog(
-            "多峰分離フィット完了", result_text, self, csv_data=fit_csv_data,
-            residual_x=residual_x, residual_y=residuals
-        )
-        self.fit_result_dialog.show()
-
-    @staticmethod
-    def _build_multi_peak_fit_result_dict(fit, source_dataset):
-        """
-        calculate_multi_peak_fit()の戻り値から、Dataset.fit_result(項目C-401)に
-        保持するプレーンなdictを組み立てる(_build_fit_result_dictの多峰版)。
-        'component_type'/'n_components' は core/methods_text.py の
-        describe_operation() がそのままprovenance['params']経由で参照するキー名
-        のため、勝手にリネームしないこと。
-        """
-        popt, pcov, perr = fit['popt'], fit['pcov'], fit['perr']
-        return {
-            'fit_type': 'multi_peak',
-            'component_type': fit['component_type'],
-            'n_components': fit['n_components'],
-            'baseline_type': fit['baseline_type'],
-            'components': fit['components'],
-            'param_names': list(fit['param_names']),
-            'params': [float(v) for v in popt],
-            'param_errors': [float(v) for v in perr],
-            'covariance': [[float(v) for v in row] for row in pcov],
-            'r_squared': float(fit['r_squared']),
-            'residuals': [float(v) for v in fit['residuals']],
-            'residual_x': [float(v) for v in fit['x_data_used']],
-            'source_dataset_id': source_dataset.dataset_id,
-            'source_dataset_name': source_dataset.name,
-        }
-
-    @staticmethod
-    def _build_provenance(operation, params, source_datasets):
-        """
-        派生データセット生成時にDataset.provenanceへ設定する共通ヘルパー
-        (項目C-1101)。source_datasetsは親となったDatasetオブジェクトの
-        リスト(1個なら単純な派生、複数ならデータセット間演算のような
-        合成処理)。paramsは素のPython型のみで構成すること(pickle/JSON
-        双方でそのまま往復できるようにするため、Dataset.fit_result等と
-        同じ制約)。
-        """
-        return {
-            'operation': operation,
-            'params': params,
-            'source_dataset_ids': [ds.dataset_id for ds in source_datasets],
-            'source_dataset_names': [ds.name for ds in source_datasets],
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-        }
-
-    @staticmethod
-    def _build_fit_result_dict(fit_type, custom_formula, fit, weighted, x_range, source_dataset,
-                                p0_overrides=None, fixed_params=None, bounds=None, loss='linear'):
-        """
-        calculate_curve_fit() の戻り値(numpy配列を含む)から、Dataset.fit_result
-        (項目C-401)に保持する、pickle/JSON双方でそのまま往復できるプレーンな
-        dictを組み立てる(numpy.float64等はJSON非対応のため、ここで素のPython
-        型に変換しておく)。
-
-        p0_overrides/fixed_params/boundsは項目C-403(パラメータの初期値・固定・
-        範囲拘束UI)。何もカスタマイズしなかった場合は空dict/Noneのどちらでも
-        呼び出せるが、provenance(このフィットがどう設定されたか)としては
-        空dictのまま保持する(Noneに正規化しない — 「未指定」と「空dict」を
-        区別する必要はないため、単純にdict(...)へ通すだけで良い)。
-        """
-        popt, pcov, perr = fit['popt'], fit['pcov'], fit['perr']
-        return {
-            'fit_type': fit_type,
-            'custom_formula': custom_formula,
-            'param_names': list(fit['param_names']),
-            'params': [float(v) for v in popt],
-            'param_errors': [float(v) for v in perr],
-            'covariance': [[float(v) for v in row] for row in pcov],
-            'r_squared': float(fit['r_squared']),
-            'residuals': [float(v) for v in fit['residuals']],
-            'residual_x': [float(v) for v in fit['x_data_used']],
-            'weighted': bool(weighted),
-            'x_range': [float(x_range[0]), float(x_range[1])] if x_range is not None else None,
-            'source_dataset_id': source_dataset.dataset_id,
-            'source_dataset_name': source_dataset.name,
-            # 項目C-403: どのパラメータをどう上書き/固定/拘束してこの結果が
-            # 得られたかのprovenance(すべて素のPython型なので変換不要)。
-            'p0_overrides': dict(p0_overrides) if p0_overrides else {},
-            'fixed_params': dict(fixed_params) if fixed_params else {},
-            'bounds': {k: [float(v[0]), float(v[1])] for k, v in bounds.items()} if bounds else {},
-            # 項目C-407: ロバストフィットの損失関数('linear'なら通常の最小二乗)
-            'loss': loss,
-        }
-
-    @staticmethod
-    def _add_band_columns_to_fit_df(fit_df, fit, band_type):
-        """
-        項目C-405: band_type("confidence"/"prediction")が指定されていれば、
-        calculate_confidence_band()を呼んでfit_dfに'y_lower'/'y_upper'列を追加する
-        (gui/canvas.pyがDataset.fit_band_displayとあわせてfill_betweenで描画する)。
-        band_typeがNone、または自由度不足等でcalculate_confidence_band()が
-        ValueErrorを送出した場合は、列を追加せずNoneを返す(フィット自体は
-        成功しているため、信頼帯が計算できないという理由だけでフィット結果の
-        追加全体を失敗させない)。
-
-        Returns:
-            str | None: 実際に列を追加できた場合はband_typeそのまま、
-                できなかった場合はNone(呼び出し側はこれをDataset.fit_band_display
-                にそのまま渡せる)。
-        """
-        if band_type is None:
-            return None
-        try:
-            band = calculate_confidence_band(
-                fit['x_fit'], fit['fit_func'], fit['popt'], fit['pcov'], fit['residuals'],
-                band_type=band_type,
-            )
-        except ValueError:
-            return None
-        fit_df['y_lower'] = band['y_lower']
-        fit_df['y_upper'] = band['y_upper']
-        return band_type
-
-    @staticmethod
-    def _format_fit_result_text(fit_result):
-        """
-        Dataset.fit_result (項目C-401で永続化された構造化フィット結果) だけから、
-        _on_fit_curve() が表示している結果テキストと同じ体裁の文字列を組み立てる。
-
-        _on_fit_curve() 内のインライン文字列組み立てロジック(popt/params_infoなど
-        フィット直後のローカル変数を参照する)を直接extractしたものではなく、
-        fit_result辞書のキーだけを参照するよう書き直した別関数として用意した
-        (fit_resultはfit_type/params/param_names/r_squared/weighted/x_range/
-        fixed_params/boundsをすべて素のPython型で保持しているため、同じ体裁を
-        再現するのに再計算・再フィットは一切不要)。_on_fit_curve()側の
-        既存コード・既存テストには一切手を入れず、フィット直後の表示と
-        エクスポート時の再表示の両方が将来的にズレないよう、書式のロジックは
-        ここに一本化してある。
-        """
-        fit_type = fit_result.get('fit_type')
-        custom_formula = fit_result.get('custom_formula')
-        fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
-        result_text = f"[{fit_label}] のフィッティング結果:\n"
-        for param_name, param_value in zip(fit_result.get('param_names', []), fit_result.get('params', [])):
-            result_text += f"  {param_name} = {param_value: .4e}\n"
-        result_text += f"  R^2 = {fit_result.get('r_squared', float('nan')): .5f}\n"
-        if fit_result.get('weighted'):
-            result_text += "  (Y誤差列を重みとして使用)\n"
-        x_range = fit_result.get('x_range')
-        if x_range is not None:
-            result_text += f"  (フィット範囲: {x_range[0]: .4g} 〜 {x_range[1]: .4g})\n"
-        if fit_result.get('fixed_params'):
-            result_text += f"  (固定: {fit_result['fixed_params']})\n"
-        if fit_result.get('bounds'):
-            result_text += f"  (範囲拘束: {fit_result['bounds']})\n"
-        if fit_result.get('loss', 'linear') != 'linear':
-            result_text += f"  (ロバストフィット: {fit_result['loss']})\n"
-        return result_text
-
     def _on_copy_methods_text(self):
         """
         「「方法」文をコピー...」メニューの処理(項目C-1102)。
@@ -3878,128 +3304,6 @@ class DatasetMixin:
         text = generate_methods_text(dataset, self.project)
         QApplication.clipboard().setText(text)
         self.statusBar().showMessage("「方法」文をクリップボードにコピーしました", 3000)
-
-    def _on_export_fit_result(self):
-        """
-        「フィット結果のエクスポート...」メニューの処理(項目C-413)。
-
-        「曲線の新規データセット化」「表CSV」は項目C-401の時点で既に
-        _on_fit_curve() 実行直後に一度提供済みなので、このメニューが埋める
-        本当のギャップは (a) フィットをやり直さずに後から何度でも表/CSVを
-        再表示できること、(b) フィット結果の要約をグラフ上の注釈として
-        焼き込めること、の2点(項目C-413のdocstring/ロードマップ参照)。
-
-        カレントデータセットの dataset.fit_result (項目C-401で永続化済みの
-        構造化結果) だけから結果を再構成する。calculate_curve_fit() は
-        一切呼び出さない(再フィットしない)。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None:
-            return
-
-        fit_result = dataset.fit_result
-        if fit_result is None:
-            # メニュー項目はsetEnabledでグレーアウトしているが、それでも
-            # 呼び出された場合(あるいは将来別経路から呼ばれた場合)に備えた
-            # 防御的なフォールバック。
-            QMessageBox.information(
-                self, "フィット結果のエクスポート",
-                "このデータセットは曲線フィットの結果を持っていません。\n"
-                "曲線フィットで生成されたデータセット(名前が「Fit (...)」の\n"
-                "もの、またはfit_resultを保持しているもの)を選択してください。"
-            )
-            return
-
-        result_text = self._format_fit_result_text(fit_result)
-        csv_data = pd.DataFrame({
-            'パラメータ': list(fit_result.get('param_names', [])) + ['R^2'],
-            '値': list(fit_result.get('params', [])) + [fit_result.get('r_squared')],
-        })
-
-        # ★ _on_fit_curve() と同じく、非モーダル・スクロール可能なダイアログで表示する
-        # (self.fit_result_dialog を使い回すのも_on_fit_curve()と同じ挙動)
-        if self.fit_result_dialog is not None:
-            self.fit_result_dialog.close()
-        self.fit_result_dialog = ResultDialog(
-            "フィット結果のエクスポート", result_text, self, csv_data=csv_data,
-            residual_x=fit_result.get('residual_x'), residual_y=fit_result.get('residuals'),
-        )
-        self.fit_result_dialog.show()
-
-        # 「注釈焼込」(項目C-413のもう一つの柱)は、CSV再エクスポートとは
-        # 独立した任意操作として、確認ダイアログ経由で提供する
-        # (ダイアログを重ねるのではなく、この1つのメニュー操作の流れの中で
-        # 完結させることで、新しい設定ダイアログを追加しないシンプルな設計にする)。
-        reply = QMessageBox.question(
-            self, "フィット結果のエクスポート",
-            "このフィット結果の要約(パラメータ値±誤差・R^2)を、\n"
-            "グラフ上のテキスト注釈として焼き込みますか?\n"
-            "(焼き込み後は注釈モードで通常の注釈と同様に移動・編集・削除できます)",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            self._burn_fit_result_annotation(dataset, fit_result)
-
-    def _burn_fit_result_annotation(self, dataset, fit_result):
-        """
-        フィット結果の要約(フィット式・パラメータ値±誤差・R^2)を、既存の
-        注釈システム(gui/mixins/annotation_mixin.py)と全く同じデータモデル
-        (project.all_plot_settings[axis_index]['annotations'] に積む
-        {'type':'text', 'text', 'xy', 'xytext', 'color'} 辞書)へ追加する
-        (項目C-413「注釈焼込」)。手動でクリック配置する注釈と同じ
-        _add_annotation() 経由・同じ SetAnnotationsCommand 経由で追加するため、
-        Undo/Redoが効き、焼き込み後は注釈モードで通常どおり移動・編集・削除できる
-        (このハンドラ専用の特別な描画経路は一切持たない)。
-
-        アンカー位置: フィット対象データセット(dataset、フィット曲線
-        x_fit/y_fit を持つDatasetそのもの)のデータ点の中央インデックスを採用する。
-        ピーク位置(argmax)やカーブの端ではなく中央点を選んだのは、線形/指数/
-        対数など単調な形状のフィットではargmaxが曲線の端に寄ってしまい、
-        逆にグラフ全体のどのフィット形状でもそこそこ無難な位置になるのは
-        中央点だと判断したため(項目C-413の指示にある「固定オフセット」案より、
-        曲線の存在するx範囲の中で確実に曲線上に乗る点であることを優先した)。
-        """
-        axis_index = dataset.subplot_target
-        if axis_index is None or axis_index >= len(self.project.all_plot_settings):
-            QMessageBox.warning(
-                self, "フィット結果のエクスポート",
-                "注釈を追加する対象のプロットが見つかりませんでした。"
-            )
-            return
-
-        x_data, y_data = dataset.x_data, dataset.y_data
-        if len(x_data) == 0:
-            QMessageBox.warning(
-                self, "フィット結果のエクスポート",
-                "フィット曲線にデータ点が無いため、注釈を追加できませんでした。"
-            )
-            return
-        mid_index = len(x_data) // 2
-        anchor_x, anchor_y = float(x_data[mid_index]), float(y_data[mid_index])
-
-        fit_type = fit_result.get('fit_type', '')
-        summary_lines = [f"フィット: {fit_type}"]
-        param_names = fit_result.get('param_names', [])
-        params = fit_result.get('params', [])
-        param_errors = fit_result.get('param_errors', [None] * len(params))
-        for name, value, err in zip(param_names, params, param_errors):
-            if err is not None:
-                summary_lines.append(f"{name} = {value:.4g} ± {err:.4g}")
-            else:
-                summary_lines.append(f"{name} = {value:.4g}")
-        r_squared = fit_result.get('r_squared')
-        if r_squared is not None:
-            summary_lines.append(f"R^2 = {r_squared:.5f}")
-        summary_text = "\n".join(summary_lines)
-
-        annotation = {
-            'type': 'text', 'text': summary_text,
-            'xy': (anchor_x, anchor_y), 'xytext': (anchor_x, anchor_y),
-            'color': '#000000',
-        }
-        self._add_annotation(axis_index, annotation, description="フィット結果の注釈焼き込み")
-        self.statusBar().showMessage("フィット結果を注釈として焼き込みました", 3000)
 
     def _on_secondary_y_changed(self):
         """

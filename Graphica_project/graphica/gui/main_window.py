@@ -195,6 +195,7 @@ from graphica.core.version import APP_NAME, __version__
 from graphica.core.i18n import tr, set_language, DEFAULT_LANGUAGE
 from graphica.core.plugin_api import load_plugins_once, get_registered_importer_extensions
 from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.peaks import PeakController
 from graphica.gui.plugin_context import TabPluginContext
@@ -623,14 +624,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.data_editor_dialog = None # データエディタ (非モーダル) のインスタンス保持用
         self.help_dialog = None        # mathtextヘルプ (非モーダル) のインスタンス保持用
         self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
-        self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
         self.integral_result_dialog = None  # 区間積分結果(項目C-311、非モーダル)のインスタンス保持用
         self.outlier_result_dialog = None  # 外れ値検出結果(項目C-306、非モーダル)のインスタンス保持用
         self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
-        self._fit_task_runner = None   # 曲線フィット用バックグラウンドタスク(項目C-004)の保持用
-        self._batch_fit_task_runner = None  # バッチカーブフィット用バックグラウンドタスク(項目C-004フェーズ2)の保持用
-        self._multi_peak_fit_task_runner = None  # 多峰分離フィット用バックグラウンドタスク(項目C-409)の保持用
         self._batch_export_task_runner = None  # バッチエクスポート用バックグラウンドタスク(項目C-004フェーズ5b)の保持用
         self._update_check_task_runner = None  # アップデート確認用バックグラウンドタスク(項目161、C-1203)の保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
@@ -2033,6 +2030,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # データセットに対する操作を機能ごとに分けたクラス。シグナルの接続より前に作る。
         self._dataset_host = DatasetHost(self)
         self.peaks = PeakController(self._dataset_host)
+        self.fitting = FittingController(self._dataset_host)
 
         # プラグインのパネル。メニューに表示切替を足すのは _create_menu_bar() なので、
         # ドックはそれより前に作る。1つ失敗しても他のパネルとタブの起動は続ける。
@@ -2301,7 +2299,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 待機中にemitされたsucceeded/failedが、閉じている最中のウィンドウに対して
         # (キュー処理や再描画を伴う)通常のスロットを実行してしまうのも防ぐ。
         # read_data_file()自体は中断不能なため、requestInterruption()を呼んでも
-        # ここでのwait()は読み込み完了まで実際にブロックしうる(_fit_task_runner
+        # ここでのwait()は読み込み完了まで実際にブロックしうる(曲線フィットの計算
         # と同じ扱い、v1では許容)。
         if self._data_load_task_runner is not None:
             try:
@@ -2314,46 +2312,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._data_load_task_runner.deleteLater()
             self._data_load_task_runner = None
 
-        # ★ 項目C-004: 曲線フィット用のTaskRunnerも同じ理由(実行中のQThreadを
-        # 破棄するとQtがプロセスをfail-fast abortさせる)でシグナル切断→
-        # wait()→deleteLater()の順に後始末する。scipy.optimize.curve_fit自体は
-        # 中断不能なため、requestInterruption()を呼んでもここでのwait()は
-        # 計算完了まで実際にブロックしうる(v1では許容、フィットは通常短時間)。
-        if self._fit_task_runner is not None:
-            try:
-                self._fit_task_runner.succeeded.disconnect()
-                self._fit_task_runner.failed.disconnect()
-            except (RuntimeError, TypeError):
-                pass
-            self._fit_task_runner.requestInterruption()
-            self._fit_task_runner.wait()
-            self._fit_task_runner.deleteLater()
-            self._fit_task_runner = None
-
-        # ★ 項目C-004フェーズ2: バッチカーブフィット用のTaskRunnerも同じ理由で
-        # 同型のクリーンアップを行う。
-        if self._batch_fit_task_runner is not None:
-            try:
-                self._batch_fit_task_runner.succeeded.disconnect()
-                self._batch_fit_task_runner.failed.disconnect()
-            except (RuntimeError, TypeError):
-                pass
-            self._batch_fit_task_runner.requestInterruption()
-            self._batch_fit_task_runner.wait()
-            self._batch_fit_task_runner.deleteLater()
-            self._batch_fit_task_runner = None
-
-        # ★ 項目C-409: 多峰分離フィット用のTaskRunnerも同じ理由で同型のクリーンアップを行う。
-        if self._multi_peak_fit_task_runner is not None:
-            try:
-                self._multi_peak_fit_task_runner.succeeded.disconnect()
-                self._multi_peak_fit_task_runner.failed.disconnect()
-            except (RuntimeError, TypeError):
-                pass
-            self._multi_peak_fit_task_runner.requestInterruption()
-            self._multi_peak_fit_task_runner.wait()
-            self._multi_peak_fit_task_runner.deleteLater()
-            self._multi_peak_fit_task_runner = None
+        self.fitting.shutdown()
 
         # ★ 項目C-004フェーズ5b: バッチエクスポート用のTaskRunnerも同じ理由で
         # 同型のクリーンアップを行う。

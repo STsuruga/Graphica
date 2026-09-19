@@ -223,7 +223,7 @@ def load_data_file_task(file_path, report_progress=None, is_cancelled=None):
     read_data_file()自体はループを持たない単一のブロッキング呼び出しで
     自然な中断チェックポイントが存在しないため、report_progress/is_cancelled
     は(TaskRunner.run()が必ず渡してくるため)受け取るだけで使わない
-    (gui/mixins/dataset_mixin.pyのfit_curve_task/_batch_fit_workerのうち
+    (core.analysis の fit_curve_task / gui/datasets/fitting.py の batch_fit_workerのうち
     単発フィット相当の「中断不能タスク」と同じ扱い)。
     """
     df = read_data_file(file_path)

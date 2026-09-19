@@ -22,6 +22,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox
 
 import graphica.gui.main_window as main_window_module
+import graphica.gui.datasets.fitting as fitting_module
 import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
 import graphica.gui.mixins.settings_mixin as settings_mixin_module
 from graphica.gui.main_window import PlotterApp
@@ -70,7 +71,7 @@ def _pump_events_until_fit_task_done(window, max_iterations=300):
     app = QApplication.instance()
     for _ in range(max_iterations):
         app.processEvents()
-        if window._fit_task_runner is None:
+        if window.fitting.fit_runner is None:
             return
         time.sleep(0.01)
     raise AssertionError("フィット処理が時間内に完了しませんでした")
@@ -81,7 +82,7 @@ def _pump_events_until_batch_fit_task_done(window, max_iterations=300):
     app = QApplication.instance()
     for _ in range(max_iterations):
         app.processEvents()
-        if window._batch_fit_task_runner is None:
+        if window.fitting.batch_fit_runner is None:
             return
         time.sleep(0.01)
     raise AssertionError("バッチフィット処理が時間内に完了しませんでした")
@@ -172,7 +173,7 @@ def _patch_fit_dialog(monkeypatch, fit_type, custom_formula=None, use_weighted=F
         p0_overrides or {}, fixed_params or {}, bounds or {}, band_type, loss,
     )
     monkeypatch.setattr(
-        dataset_mixin_module.FitDialog, "get_fit_type",
+        fitting_module.FitDialog, "get_fit_type",
         staticmethod(lambda *a, **k: result)
     )
 
@@ -2408,7 +2409,7 @@ def test_batch_curve_fit_requires_at_least_two_selected(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
 
     assert len(info_calls) == 1
 
@@ -2422,7 +2423,7 @@ def test_batch_curve_fit_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     _patch_fit_dialog(monkeypatch, None)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
 
     assert len(window.project.datasets) == before_count
 
@@ -2437,7 +2438,7 @@ def test_batch_curve_fit_success_adds_fit_dataset_per_selected(tmp_path, monkeyp
     info_calls = _patch_info_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     assert len(window.project.datasets) == before_count + 2
@@ -2460,17 +2461,17 @@ def test_batch_curve_fit_partial_failure_reports_both(tmp_path, monkeypatch):
     _select_items(window, [ok_ds, bad_ds])
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    original = dataset_mixin_module.calculate_curve_fit
+    original = fitting_module.calculate_curve_fit
 
     def flaky(x_data, y_data, fit_type, **kwargs):
         if len(x_data) and x_data[0] > 500:
             raise RuntimeError("fit failed")
         return original(x_data, y_data, fit_type, **kwargs)
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", flaky)
+    monkeypatch.setattr(fitting_module, "calculate_curve_fit", flaky)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     names = {ds.name for ds in window.project.datasets if ds.name.startswith("Fit (")}
@@ -2496,7 +2497,7 @@ def test_batch_curve_fit_calls_update_plot_exactly_once_for_n_dataset_batch(tmp_
     update_plot_calls = []
     monkeypatch.setattr(window, "_update_plot", lambda: update_plot_calls.append(1))
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     assert update_plot_calls == [1]
@@ -2523,17 +2524,17 @@ def test_batch_curve_fit_cancellation_keeps_only_completed_items(tmp_path, monke
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     _patch_info_capture(monkeypatch)
 
-    original = dataset_mixin_module.calculate_curve_fit
+    original = fitting_module.calculate_curve_fit
 
     def slow(x_data, y_data, fit_type, **kwargs):
         time.sleep(0.2)
         return original(x_data, y_data, fit_type, **kwargs)
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", slow)
+    monkeypatch.setattr(fitting_module, "calculate_curve_fit", slow)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
-    runner = window._batch_fit_task_runner
+    window.fitting.batch_fit_selected()
+    runner = window.fitting.batch_fit_runner
     assert runner is not None
 
     app = QApplication.instance()
@@ -3982,7 +3983,7 @@ def test_data_structure_changed_refreshes_column_combos(tmp_path, monkeypatch):
 def test_fit_curve_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     assert len(window.project.datasets) == before_count
 
 
@@ -3993,11 +3994,11 @@ def test_fit_curve_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     _patch_fit_dialog(monkeypatch, None)
     before_count = len(window.project.datasets)
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
 
     # ダイアログでキャンセルした場合はTaskRunnerが起動する前にreturnするため、
     # ポンピング不要(_fit_task_runnerはNoneのまま)。
-    assert window._fit_task_runner is None
+    assert window.fitting.fit_runner is None
     assert len(window.project.datasets) == before_count
 
 
@@ -4007,10 +4008,10 @@ def test_fit_curve_success_adds_fit_dataset_and_shows_result(tmp_path, monkeypat
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     before_count = len(window.project.datasets)
-    assert window.fit_result_dialog is None
+    assert window.fitting.result_dialog is None
 
-    window._on_fit_curve()
-    assert window._fit_task_runner is not None
+    window.fitting.fit_current_dataset()
+    assert window.fitting.fit_runner is not None
     assert not window.fit_curve_button.isEnabled()
     _pump_events_until_fit_task_done(window)
     assert window.fit_curve_button.isEnabled()
@@ -4019,7 +4020,7 @@ def test_fit_curve_success_adds_fit_dataset_and_shows_result(tmp_path, monkeypat
     new_ds = window.project.datasets[-1]
     assert new_ds.name == "Fit (d0)"
     assert new_ds.fit_info is not None
-    assert window.fit_result_dialog is not None
+    assert window.fitting.result_dialog is not None
 
     # 項目C-401: fit_infoの表示文字列だけでなく、後続機能が再利用できる
     # 構造化フィット結果もあわせて保持されていること
@@ -4044,12 +4045,12 @@ def test_fit_curve_replaces_previous_result_dialog(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
-    first = window.fit_result_dialog
-    window._on_fit_curve()
+    first = window.fitting.result_dialog
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
-    second = window.fit_result_dialog
+    second = window.fitting.result_dialog
 
     assert second is not first
     second.close()
@@ -4066,7 +4067,7 @@ def test_fit_curve_with_weighted_and_x_range(tmp_path, monkeypatch):
     x_range = (x_min + 1, x_max - 1)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", use_weighted=True, x_range=x_range)
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4089,11 +4090,11 @@ def test_fit_curve_calculation_error_shows_warning(tmp_path, monkeypatch):
     # fit_curve_task(dataset_mixin_module内にimport済み)に委ねるようになった
     # ため、以前のように直接呼んでいたcalculate_curve_fitではなく、実際の
     # 呼び出し対象であるfit_curve_taskをモックする。
-    monkeypatch.setattr(dataset_mixin_module, "fit_curve_task", raiser)
+    monkeypatch.setattr(fitting_module, "fit_curve_task", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     assert len(warnings) == 1
@@ -4110,7 +4111,7 @@ def test_fit_curve_with_fixed_param_holds_value_and_is_recorded(tmp_path, monkey
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", fixed_params={"b": 1.3})
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4134,7 +4135,7 @@ def test_fit_curve_with_p0_overrides_and_bounds_recorded(tmp_path, monkeypatch):
         p0_overrides={"a": 1.0}, bounds={"a": (0.0, 10.0)},
     )
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4153,7 +4154,7 @@ def test_fit_curve_without_customization_records_empty_dicts(tmp_path, monkeypat
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4170,7 +4171,7 @@ def test_fit_curve_with_band_type_adds_band_columns_and_flag(tmp_path, monkeypat
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", band_type="confidence")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4186,7 +4187,7 @@ def test_fit_curve_without_band_type_adds_no_band_columns(tmp_path, monkeypatch)
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4203,7 +4204,7 @@ def test_fit_curve_with_robust_loss_recorded_in_fit_result_and_text(tmp_path, mo
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='soft_l1')
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4218,7 +4219,7 @@ def test_fit_curve_default_loss_omits_robust_fit_line_from_result_text(tmp_path,
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4236,13 +4237,13 @@ def test_fit_curve_robust_fit_less_affected_by_outlier_end_to_end(tmp_path, monk
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     linear_slope = window.project.datasets[-1].fit_result['params'][0]
 
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='soft_l1')
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     robust_slope = window.project.datasets[-1].fit_result['params'][0]
 
@@ -4261,7 +4262,7 @@ def test_batch_curve_fit_applies_robust_loss_to_all_datasets(tmp_path, monkeypat
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='huber')
     _patch_info_capture(monkeypatch)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     fit_datasets = window.project.datasets[len(datasets):]
@@ -4277,11 +4278,11 @@ def test_batch_curve_fit_format_fit_result_text_includes_loss_after_reload(tmp_p
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='huber')
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     fit_result = window.project.datasets[-1].fit_result
-    text = window._format_fit_result_text(fit_result)
+    text = fitting_module.format_fit_result_text(fit_result)
     assert "ロバストフィット" in text
     assert "huber" in text
 
@@ -4301,7 +4302,7 @@ def test_batch_curve_fit_applies_fixed_params_to_all_datasets(tmp_path, monkeypa
     _patch_info_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     assert len(window.project.datasets) == before_count + 2
@@ -4324,7 +4325,7 @@ def test_fit_curve_fixed_params_validation_error_shows_warning(tmp_path, monkeyp
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     assert len(warnings) == 1
@@ -4354,7 +4355,7 @@ def test_context_menu_export_fit_action_enabled_for_fit_dataset(tmp_path, monkey
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])  # 既存アイテムをカレントにする(再追加しない)
@@ -4368,8 +4369,8 @@ def test_context_menu_export_fit_action_enabled_for_fit_dataset(tmp_path, monkey
 
 def test_export_fit_result_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_export_fit_result()
-    assert window.fit_result_dialog is None
+    window.fitting.show_fit_result()
+    assert window.fitting.result_dialog is None
 
 
 def test_export_fit_result_without_fit_result_shows_info_and_no_crash(tmp_path, monkeypatch):
@@ -4380,10 +4381,10 @@ def test_export_fit_result_without_fit_result_shows_info_and_no_crash(tmp_path, 
     _add_and_select_dataset(window, ds)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_fit_result()
+    window.fitting.show_fit_result()
 
     assert len(info_calls) == 1
-    assert window.fit_result_dialog is None
+    assert window.fitting.result_dialog is None
 
 
 def test_export_fit_result_reuses_stored_result_without_recompute(tmp_path, monkeypatch):
@@ -4394,7 +4395,7 @@ def test_export_fit_result_reuses_stored_result_without_recompute(tmp_path, monk
     ds = _make_linear_dataset("d0", slope=2.0, intercept=1.0, n=20)
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     original_fit_result = fit_ds.fit_result
@@ -4403,13 +4404,13 @@ def test_export_fit_result_reuses_stored_result_without_recompute(tmp_path, monk
     def raiser(*a, **k):
         raise AssertionError("calculate_curve_fit() が再フィットのため呼び出された(再計算してはいけない)")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", raiser)
+    monkeypatch.setattr(fitting_module, "calculate_curve_fit", raiser)
     _patch_question_yes(monkeypatch, accept=False)  # 注釈焼き込みはこのテストでは対象外
 
-    window._on_export_fit_result()
+    window.fitting.show_fit_result()
 
-    assert window.fit_result_dialog is not None
-    dialog = window.fit_result_dialog
+    assert window.fitting.result_dialog is not None
+    dialog = window.fitting.result_dialog
     assert "線形 (y = ax + b)" in dialog.text_edit.toPlainText()
     for param_name in original_fit_result['param_names']:
         assert param_name in dialog.text_edit.toPlainText()
@@ -4427,7 +4428,7 @@ def test_export_fit_result_declining_annotation_adds_no_annotation(tmp_path, mon
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])
@@ -4435,8 +4436,8 @@ def test_export_fit_result_declining_annotation_adds_no_annotation(tmp_path, mon
     before_annotations = list(window.project.all_plot_settings[axis_index].get('annotations', []))
     _patch_question_yes(monkeypatch, accept=False)
 
-    window._on_export_fit_result()
-    window.fit_result_dialog.close()
+    window.fitting.show_fit_result()
+    window.fitting.result_dialog.close()
 
     assert window.project.all_plot_settings[axis_index]['annotations'] == before_annotations
 
@@ -4449,7 +4450,7 @@ def test_export_fit_result_burns_annotation_undoable(tmp_path, monkeypatch):
     ds = _make_linear_dataset("d0", slope=2.0, intercept=1.0, n=20)
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])
@@ -4457,8 +4458,8 @@ def test_export_fit_result_burns_annotation_undoable(tmp_path, monkeypatch):
     before_annotations = list(window.project.all_plot_settings[axis_index].get('annotations', []))
     _patch_question_yes(monkeypatch, accept=True)
 
-    window._on_export_fit_result()
-    window.fit_result_dialog.close()
+    window.fitting.show_fit_result()
+    window.fitting.result_dialog.close()
 
     after_annotations = window.project.all_plot_settings[axis_index]['annotations']
     assert len(after_annotations) == len(before_annotations) + 1
@@ -4486,15 +4487,15 @@ def test_export_fit_result_annotation_anchored_to_correct_subplot(tmp_path, monk
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     assert fit_ds.subplot_target == 0
     _select_items(window, [fit_ds])
     _patch_question_yes(monkeypatch, accept=True)
 
-    window._on_export_fit_result()
-    window.fit_result_dialog.close()
+    window.fitting.show_fit_result()
+    window.fitting.result_dialog.close()
 
     assert len(window.project.all_plot_settings[0]['annotations']) == 1
 
@@ -5747,7 +5748,7 @@ def test_fit_curve_records_provenance_reusing_fit_result_as_params(tmp_path, mon
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -5767,7 +5768,7 @@ def test_batch_curve_fit_records_provenance_per_result(tmp_path, monkeypatch):
     _patch_info_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     new_datasets = window.project.datasets[before_count:]
@@ -5804,7 +5805,7 @@ def test_copy_methods_text_copies_generated_text_to_clipboard(tmp_path, monkeypa
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(fit_ds))
@@ -5835,7 +5836,7 @@ def test_context_menu_copy_methods_text_action_enabled_for_derived_dataset(tmp_p
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])
@@ -5871,7 +5872,7 @@ def _patch_multi_peak_fit_dialog(monkeypatch, component_type, baseline_type='con
     result = (component_type, baseline_type, initial_guesses) if component_type is not None \
         else (None, None, None)
     monkeypatch.setattr(
-        dataset_mixin_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
+        fitting_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
         staticmethod(lambda *a, **k: result)
     )
 
@@ -5881,7 +5882,7 @@ def _pump_events_until_multi_peak_fit_task_done(window, max_iterations=300):
     app = QApplication.instance()
     for _ in range(max_iterations):
         app.processEvents()
-        if window._multi_peak_fit_task_runner is None:
+        if window.fitting.multi_peak_fit_runner is None:
             return
         time.sleep(0.01)
     raise AssertionError("多峰分離フィット処理が時間内に完了しませんでした")
@@ -5890,7 +5891,7 @@ def _pump_events_until_multi_peak_fit_task_done(window, max_iterations=300):
 def test_multi_peak_fit_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
     assert len(window.project.datasets) == before_count
 
 
@@ -5901,9 +5902,9 @@ def test_multi_peak_fit_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     _patch_multi_peak_fit_dialog(monkeypatch, None)
     before_count = len(window.project.datasets)
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
 
-    assert window._multi_peak_fit_task_runner is None
+    assert window.fitting.multi_peak_fit_runner is None
     assert len(window.project.datasets) == before_count
 
 
@@ -5919,10 +5920,10 @@ def test_multi_peak_fit_success_adds_fit_dataset_and_shows_result(tmp_path, monk
         ],
     )
     before_count = len(window.project.datasets)
-    assert window.fit_result_dialog is None
+    assert window.fitting.result_dialog is None
 
-    window._on_multi_peak_fit()
-    assert window._multi_peak_fit_task_runner is not None
+    window.fitting.multi_peak_fit_current_dataset()
+    assert window.fitting.multi_peak_fit_runner is not None
     assert not window.multi_peak_fit_button.isEnabled()
     _pump_events_until_multi_peak_fit_task_done(window)
     assert window.multi_peak_fit_button.isEnabled()
@@ -5931,7 +5932,7 @@ def test_multi_peak_fit_success_adds_fit_dataset_and_shows_result(tmp_path, monk
     new_ds = window.project.datasets[-1]
     assert new_ds.name == "MultiPeakFit (d0)"
     assert new_ds.fit_info is not None
-    assert window.fit_result_dialog is not None
+    assert window.fitting.result_dialog is not None
 
     assert new_ds.fit_result is not None
     assert new_ds.fit_result['fit_type'] == 'multi_peak'
@@ -5955,7 +5956,7 @@ def test_multi_peak_fit_records_provenance_reusing_fit_result_as_params(tmp_path
         initial_guesses=[{'center': 0.0, 'height': 5.0, 'width': 1.0}, {'center': 8.0, 'height': 3.0, 'width': 1.5}],
     )
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
     _pump_events_until_multi_peak_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -5975,7 +5976,7 @@ def test_multi_peak_fit_methods_text_uses_component_type_and_count(tmp_path, mon
         monkeypatch, "gaussian", baseline_type="constant",
         initial_guesses=[{'center': 0.0, 'height': 5.0, 'width': 1.0}, {'center': 8.0, 'height': 3.0, 'width': 1.5}],
     )
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
     _pump_events_until_multi_peak_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(fit_ds))
@@ -6004,11 +6005,11 @@ def test_multi_peak_fit_passes_and_clears_pending_peak_guesses(tmp_path, monkeyp
         return None, None, None  # キャンセル
 
     monkeypatch.setattr(
-        dataset_mixin_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
+        fitting_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
         staticmethod(fake_get_settings)
     )
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
 
     assert seen_kwargs['initial_guesses'] == [{'center': 0.0, 'height': 5.0, 'width': 1.0}]
     assert window._pending_peak_guesses == []
@@ -6030,7 +6031,7 @@ def test_multi_peak_fit_calculation_error_shows_warning(tmp_path, monkeypatch):
     warn_calls = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
     _pump_events_until_multi_peak_fit_task_done(window)
 
     assert len(window.project.datasets) == before_count
@@ -6043,12 +6044,12 @@ def test_multi_peak_fit_busy_shows_info_when_already_running(tmp_path, monkeypat
     ds = _make_two_gaussian_dataset("d0")
     _add_and_select_dataset(window, ds)
     info_calls = _patch_info_capture(monkeypatch)
-    window._multi_peak_fit_task_runner = object()  # 実行中を模擬
+    window.fitting.multi_peak_fit_runner = object()  # 実行中を模擬
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
 
     assert len(info_calls) == 1
-    window._multi_peak_fit_task_runner = None  # 後始末(他テストへの影響防止)
+    window.fitting.multi_peak_fit_runner = None  # 後始末(他テストへの影響防止)
 
 
 # =============================================================================

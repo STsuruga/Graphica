@@ -293,7 +293,7 @@ class Dataset:
 
     # フィット結果の信頼帯・予測帯を表示するか(項目C-405)。"confidence"/
     # "prediction"/None(表示しない、既定)。有効な場合、dfに'y_lower'/'y_upper'
-    # 列(gui/mixins/dataset_mixin.pyの_on_fit_curve/_on_batch_curve_fitが
+    # 列(gui/datasets/fitting.py の単発・一括フィットが
     # calculate_confidence_band()の結果から追加)が存在することを前提に、
     # gui/canvas.pyがfill_betweenで帯を描画する。
     fit_band_display: str = field(default=None)
