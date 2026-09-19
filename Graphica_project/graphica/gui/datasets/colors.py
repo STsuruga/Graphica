@@ -10,7 +10,6 @@ from graphica.gui.dialogs import (ColorPaletteDialog)
 
 logger = logging.getLogger(__name__)
 
-# カスタム配色パレットをQSettingsに保存する際のキー
 COLOR_PALETTES_SETTINGS_KEY = "custom_color_palettes_json"
 ACTIVE_PALETTE_SETTINGS_KEY = "active_color_palette"
 
@@ -25,20 +24,11 @@ class ColorController:
         self._host = host
 
     def on_color_changed(self, new_color):
-        """
-        データセットの色選択ウィジェット (color_picker_widget、項目65) で
-        色が変更されたときの処理。スウォッチのパレット展開・カラーコード欄への
-        直接入力のどちらの経路でも呼ばれる (色選択・表示更新自体はウィジェット側で
-        完結済みのため、ここでは選ばれた色をDatasetに適用するだけでよい)。
-        複数のデータセットが選択されている場合は、全てに同じ色を適用し、
-        1回のUndo/Redoでまとめて元に戻せるようにする。
-        """
+        """色欄で選んだ色を選択中のデータセットすべてに当てる(Undo 1回分)。"""
         selected_datasets = self._host.selected_datasets()
         if not selected_datasets:
             return
 
-        # Undo/Redo可能なコマンドとして発行
-        #    複数選択時は beginMacro/endMacro で1つの操作としてまとめる
         is_batch = len(selected_datasets) > 1
         if is_batch:
             self._host.undo_stack.beginMacro(f"データセットの色を一括変更 ({len(selected_datasets)}件)")
@@ -53,11 +43,7 @@ class ColorController:
             self._host.undo_stack.endMacro()
 
     def on_gradient_color2_changed(self, new_color):
-        """
-        グラデーション終端色ウィジェット (gradient_color2_picker、項目79) で
-        色が変更されたときの処理。_on_dataset_color_changed (開始色=color) と
-        同様のUndo/Redo・複数選択一括適用パターンを、gradient_color2に対して行う。
-        """
+        """グラデーションの終端色を選択中のデータセットすべてに当てる(Undo 1回分)。"""
         selected_datasets = self._host.selected_datasets()
         if not selected_datasets:
             return
@@ -76,13 +62,7 @@ class ColorController:
             self._host.undo_stack.endMacro()
 
     def auto_assign_colors(self):
-        """
-        「自動配色」ボタンが押されたときの処理。
-        選択中の(複数可)データセットに、現在アクティブなカラーパレット
-        (ユーザーが「パレット管理」で作成したもの、または既定のmatplotlibの
-        カラーサイクル) を順番に自動で割り当てる。
-        手動で1つずつ色を選ぶ手間を省くための一括操作。
-        """
+        """選択中のデータセットに、今のパレットの色を順に割り当てる。"""
         selected_datasets = self._host.selected_datasets()
         if not selected_datasets:
             return
@@ -105,12 +85,8 @@ class ColorController:
 
     def populate_named_color_menu(self):
         """
-        オーバーフローメニューの「登録した色を適用 ▶」の中身を詰め直す。
-
-        登録内容は「色名の管理」でいつでも変わるので、開くたびに作り直す
-        (データセットメニューと同じ方式)。1件も登録が無いときは、無効化した
-        案内項目を1つだけ出す — 空のサブメニューを開いて何も無いより、
-        「どこで登録するのか」が分かる方が親切なため。
+        「登録した色を適用」の中身を作り直す(登録はいつでも変わるので開くたびに)。
+        登録が無いときは、空のメニューではなく無効な案内項目を1つ出す。
         """
         menu = getattr(self._host.parent_widget, '_named_color_apply_menu', None)
         if menu is None:
@@ -144,19 +120,13 @@ class ColorController:
             self.apply_named_color_to_selection(entry["color"], entry["name"])
 
     def apply_named_color_to_selection(self, color, name):
-        """
-        登録した色を、選択中の(複数可)データセットへまとめて適用する。
-        N件の変更が Undo 1回で戻るのは「自動配色」と同じ
-        (_on_auto_assign_colors と同じ beginMacro の型)。
-        """
+        """登録した色を選択中のデータセットに当てる(Undo 1回分)。"""
         selected_datasets = self._host.selected_datasets()
         if not selected_datasets:
             self._host.show_status("データセットを選択してください。", 4000)
             return
 
-        # ★ 既にその色のものを先に除く。空のままbeginMacro/endMacroすると、
-        #   Qtは「中身ゼロのマクロ」をそのままスタックへ積むため、何も変わって
-        #   いないのにUndoが1回分増える(押しても何も起きないUndoができてしまう)。
+        # 変わらないものを先に除く。空のマクロでも Qt は Undo を1回分積んでしまう。
         targets = [ds for ds in selected_datasets if ds.color != color]
         if not targets:
             self._host.show_status(f"選択中のデータセットは既に「{name}」の色です。", 4000)
@@ -176,13 +146,7 @@ class ColorController:
             self._host.undo_stack.endMacro()
 
     def auto_assign_colors_from_colormap(self):
-        """
-        「カラーマップから自動配色...」メニューの処理(項目C-805)。
-        _on_auto_assign_colors が離散パレットを順番に割り当てるのに対し、
-        こちらは連続カラーマップ(viridis等)から選択中のデータセット数ぶんを
-        均等サンプリングして割り当てる。時系列/濃度変化など、順序に意味のある
-        系列をグラデーションで表現したい場合向け。
-        """
+        """選択中のデータセットに、カラーマップから等間隔に取った色を割り当てる(順序のある系列向け)。"""
         selected_datasets = self._host.selected_datasets()
         if not selected_datasets:
             return
@@ -196,7 +160,7 @@ class ColorController:
 
         cmap = mpl.colormaps[cmap_name]
         n = len(selected_datasets)
-        # n==1のときの0除算を避ける(1件ならカラーマップの中央値を使う)
+        # 1件ならカラーマップの中央の色
         positions = [0.5] if n == 1 else [i / (n - 1) for i in range(n)]
         new_colors = [mpl.colors.to_hex(cmap(p)) for p in positions]
 
@@ -212,7 +176,6 @@ class ColorController:
             self._host.undo_stack.endMacro()
 
     def load_palettes(self):
-        """QSettingsに保存されているカスタム配色パレット一式を辞書として読み込む"""
         raw = self._host.settings.value(COLOR_PALETTES_SETTINGS_KEY, "")
         if not raw:
             return {}
@@ -223,16 +186,10 @@ class ColorController:
             return {}
 
     def save_palettes(self, palettes: dict):
-        """カスタム配色パレット一式をQSettingsに保存する"""
         self._host.settings.setValue(COLOR_PALETTES_SETTINGS_KEY, json.dumps(palettes))
 
     def active_color_cycle(self):
-        """
-        現在アクティブなパレットの色リストを返す。
-        パレットが未設定、または空の場合はmatplotlibの既定カラーサイクルにフォールバックする。
-        組み込みの論文向けパレット(項目141、C-804、BUILTIN_PALETTES)も
-        ユーザーのカスタムパレットと同じ扱いで名前解決する。
-        """
+        """今のパレットの色。未設定や空なら matplotlib の既定の色の並び。"""
         active_name = self._host.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
         if active_name in BUILTIN_PALETTES:
             return BUILTIN_PALETTES[active_name]
@@ -242,7 +199,6 @@ class ColorController:
         return mpl.rcParams['axes.prop_cycle'].by_key()['color']
 
     def manage_palettes(self):
-        """「パレット管理...」ボタンが押されたときの処理。ダイアログで編集後、設定に保存する。"""
         palettes = self.load_palettes()
         active_name = self._host.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
 

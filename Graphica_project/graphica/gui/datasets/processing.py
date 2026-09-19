@@ -35,12 +35,7 @@ class ProcessingController:
         self.outlier_result_dialog = None
 
     def arithmetic(self):
-        """
-        「データセット間演算...」メニューの処理。
-        選択中のちょうど2つのデータセット(A, B)について、B側のY値をA側のX値に
-        線形補間してから差・和・積・商を計算し、新しいデータセットとして追加する。
-        2つのデータセットのX軸が完全には一致しないケースを想定している。
-        """
+        """選んだ2件 A・B の差・和・積・商を、B を A の X に線形補間してから計算し、新しいデータセットにする。"""
         selected = self._host.selected_datasets()
         if len(selected) != 2:
             QMessageBox.information(self._host.parent_widget, "データセット間演算", "演算対象として、データセットをちょうど2つ選択してください。")
@@ -60,11 +55,8 @@ class ProcessingController:
         xb = np.asarray(ds_b.x_data, dtype=float)
         yb = np.asarray(ds_b.y_data, dtype=float)
 
-        # 誤差伝播(項目109、C-313): A・B両方にY誤差列がある場合のみ計算する
-        # (片方だけしか無い場合は不完全な伝播になり誤解を招くため、従来どおり
-        # 誤差列なしの結果にする)。err_a_full/err_b_fullはx_data/y_dataと同じ
-        # visible_df由来で行が対応しているため、この後のxa/xbと同じ
-        # valid_a/valid_b・mask・order_bでそのまま追従させられる。
+        # 誤差は A・B の両方に誤差列があるときだけ伝播させる(片方だけだと不完全で誤解を招く)。
+        # 誤差列は x_data/y_data と行が対応しているので、同じ絞り込みをそのまま掛けられる。
         err_a_full = ds_a.y_err_data
         err_b_full = ds_b.y_err_data
         propagate_errors = err_a_full is not None and err_b_full is not None
@@ -132,15 +124,7 @@ class ProcessingController:
         self._host.show_status(f"「{output_name}」を追加しました", 3000)
 
     def align_selected(self):
-        """
-        「X軸アライメント(相互相関)...」メニューの処理(項目105、C-307)。
-        選択中のちょうど2つのデータセット(A=基準/移動しない、B=位置合わせ
-        対象/移動する、選択順)について、相互相関(calculate_cross_correlation_
-        alignment)でBに加えるべきXシフト量を推定し、Bのxをシフトした新しい
-        データセットを追加する(A自体・元のB自体は変更しない、非破壊。
-        _on_dataset_arithmeticと同じ「ちょうど2件」パターン)。複数測定を
-        重ね合わせる際のピーク位置/起点合わせを想定。
-        """
+        """選んだ2件のうち B を、A との相互相関で求めた X のずれだけ動かした新しいデータセットを作る(A が基準)。"""
         selected = self._host.selected_datasets()
         if len(selected) != 2:
             QMessageBox.information(self._host.parent_widget, "X軸アライメント", "位置合わせ対象として、データセットをちょうど2つ選択してください。")
@@ -180,13 +164,8 @@ class ProcessingController:
 
     def mean_and_sd_of_selected(self):
         """
-        「平均±SD生成...」メニューの処理(項目C-312)。選択中の2件以上の
-        データセットを、全データセットのXレンジが重なる範囲内の共通X格子
-        (点数は選択中で最も点数の多いデータセットに合わせる)へリサンプリング
-        (core.analysis.calculate_resample_to_grid、項目C-305と共有)してから、
-        行ごとの平均と標本標準偏差(ddof=1)を計算し、誤差列(SD)付きの新しい
-        データセットとして追加する。同一条件の反復測定を1本の「平均±SD」曲線に
-        まとめる、論文図の定番の表現(項目C-312、#12誤差自動計算の一般化)。
+        選んだ2件以上を、X が重なる範囲の共通の格子へ線形補間し、点ごとの平均と標本標準偏差(ddof=1)を
+        誤差列付きの新しいデータセットにする。格子の点数は最も点の多いデータセットに合わせる。
         """
         selected = self._host.selected_datasets()
         if len(selected) < 2:
@@ -246,19 +225,7 @@ class ProcessingController:
         self._host.show_status(f"「{output_name.strip()}」を追加しました", 3000)
 
     def normalize(self):
-        """
-        「規格化(ノーマライズ)...」メニューの処理(項目78)。
-        カレントの(フォーカス中の)1つのデータセットについて、Y値を
-        最大値基準または特定X値での強度基準で規格化し、新しいデータセットとして
-        追加する。元のデータセットは変更しない(非破壊)。
-
-        単一/複数選択の扱いについて: データセット間演算(_on_dataset_arithmetic)は
-        「ちょうど2件」の選択を要求するが、規格化は曲線フィットや
-        ピーク検出と同じく「1つのデータセットから新しいデータセットを
-        1つ作る」操作であるため、それらと同様に _get_selected_datasets() ではなく
-        _get_current_dataset() (フォーカス中の1件)を対象にする。これにより、
-        複数選択中でも常にカレントアイテム1件に対して迷いなく動作する。
-        """
+        """今のデータセットの Y を、最大値か指定した X での値で割った新しいデータセットを作る。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -311,12 +278,7 @@ class ProcessingController:
         self._host.show_status(f"「{output_name}」を追加しました", 3000)
 
     def savgol_smooth(self):
-        """
-        「Savitzky-Golayフィルタ(平滑化/微分)...」メニューの処理(項目C-301/C-302)。
-        カレントの1つのデータセットに対して平滑化(deriv=0)または微分
-        (deriv=1/2)を行い、新しいデータセットとして追加する(非破壊)。
-        _on_normalize_dataset と同じ「カレント1件」パターン。
-        """
+        """今のデータセットを Savitzky-Golay で平滑化(または微分)した新しいデータセットを作る。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -357,15 +319,7 @@ class ProcessingController:
         self._host.show_status(f"「{output_name}」を追加しました", 3000)
 
     def baseline_correction(self):
-        """
-        「ベースライン補正...」メニューの処理(項目C-308)。
-        カレントの1つのデータセットに対してALS/多項式/ラバーバンド/手動点の
-        いずれかの手法でベースラインを推定し、ベースライン差し引き後のデータを
-        新しいデータセットとして追加する(非破壊)。_on_savgol_dataset/
-        _on_normalize_datasetと同じ「カレント1件」パターン。
-        ダイアログで「ベースライン曲線も追加する」が有効な場合は、推定した
-        ベースライン自体も別データセットとして追加する(任意、既定は追加しない)。
-        """
+        """今のデータセットからベースラインを引いた新しいデータセットを作る(選べばベースライン自体も足す)。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -396,10 +350,7 @@ class ProcessingController:
             elif method == "rubberband":
                 x_sorted, baseline, corrected = calculate_baseline_rubberband(x_data, y_data)
             else:  # "manual"
-                # アンカー点のX座標はダイアログでは自由記入のテキストのまま
-                # 受け取っており(BaselineCorrectionDialog.get_settings参照)、
-                # ここで数値パースする。書式エラーもcalculate_baseline_manualの
-                # 入力エラーと同じ警告ダイアログにまとめて表示する。
+                # アンカー点は自由記入のテキストで来るので、ここで数に直す(書式の誤りも同じ警告で出す)
                 anchor_text = params["anchor_x_text"]
                 try:
                     anchor_x = [
@@ -432,14 +383,7 @@ class ProcessingController:
         self._host.show_status(f"「{output_name}」を追加しました", 3000)
 
     def interval_integral(self):
-        """
-        「区間積分(台形則/Simpson則)...」メニューの処理(項目C-311)。
-        カレントの1つのデータセットについて、指定したXの範囲でYを台形則または
-        Simpson則で定積分する。_on_savgol_dataset/_on_baseline_correction_dataset
-        と同じ「カレント1件」パターンだが、結果は新しいデータセットではなく
-        スカラー1個(積分値)のため、ピーク検出と同じく
-        非モーダル・スクロール可能なResultDialogで結果を表示する。
-        """
+        """今のデータセットの指定した X 範囲の積分値を、結果の窓(グラフを見ながら確かめられるよう非モーダル)に出す。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -475,8 +419,6 @@ class ProcessingController:
         result_text += f"  使用データ点数: {result['n_points']}\n"
         result_text += f"  積分値 = {result['integral']: .6e}\n"
 
-        # ★ グラフを見ながら結果を確認できるよう、非モーダル・スクロール可能なダイアログで表示する
-        # (ピーク検出・曲線フィットと同じ方針)
         if self.integral_result_dialog is not None:
             self.integral_result_dialog.close()
         integral_csv_data = pd.DataFrame({
@@ -490,14 +432,7 @@ class ProcessingController:
         self.integral_result_dialog.show()
 
     def cumulative_integral(self):
-        """
-        「累積積分(台形則/Simpson則)...」メニューの処理(項目C-303)。
-        カレントの1つのデータセットについて、Xの各点までの積分値
-        (calculate_cumulative_integral)を計算し、新しいデータセットとして
-        追加する。_on_savgol_dataset/_on_baseline_correction_datasetと同じ
-        「カレント1件から新しいデータセットを1つ作る」パターン(区間積分
-        _on_interval_integral_datasetとは異なり、結果はスカラーではなく系列)。
-        """
+        """今のデータセットの、X の各点までの積分値を新しいデータセットにする。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -537,24 +472,8 @@ class ProcessingController:
 
     def split_by_column(self):
         """
-        「列の値で系列に分割...」メニューの処理(改善ボード D-1)。
-
-        1つのファイルに「試料名」「条件」「測定日」のような区分列があり、
-        その値ごとに系列を分けたい(long形式データの取り込み)ケースに対応する。
-        従来は「行フィルタ」を条件の数だけ手作業で繰り返すしかなかった。
-
-        分割列を選ぶと groupby で分け、各グループを新しいデータセットとして
-        一括追加する。名前は「元の名前 (値)」。X/Y列の選択は元のデータセットを
-        引き継ぐ。
-
-        - 元のデータセットは**残す**(非破壊)。不要なら削除すればよく、
-          削除も改善ボード A-3 でUndo可能になっている。
-        - 色はアクティブなパレットから順に割り当てる。Dataset.colorの既定値は
-          固定の'#1f77b4'なので、そのままだと全系列が同じ色になり分割した意味が
-          ほとんど無くなるため(グラデーションにしたい場合は追加後に
-          「カラーマップから自動配色」(項目C-805)を掛ければよい)。
-        - 追加は AddDatasetCommand 経由で、全体を1つのマクロにまとめる。
-          N件の追加が Undo 1回で元に戻る。
+        区分列(試料名・条件など)の値ごとに、今のデータセットを別々のデータセットに分ける。元は残す。
+        Dataset.color の既定は全部同じ色なので、パレットから順に色を割り当てる。追加は Undo 1回分。
         """
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
@@ -631,21 +550,7 @@ class ProcessingController:
         self._host.show_status(message, 5000)
 
     def resample(self):
-        """
-        「共通X格子へのリサンプリング/補間...」メニューの処理(項目C-305)。
-
-        カレントの1つのデータセットのY値を、別のX格子(他のロード済み
-        データセットのX格子、または等間隔グリッド)へ線形/3次スプライン補間で
-        リサンプリングし、新しいデータセットとして追加する(非破壊)。
-        _on_savgol_dataset/_on_baseline_correction_datasetと同じ「カレント1件」
-        パターン。
-
-        _on_dataset_arithmetic (「データセット間演算...」) は2データセットの
-        重なる範囲のみを対象に線形補間だけを内部で行う限定版だが、これは
-        任意のtarget_x・線形/3次スプライン・外挿あり/なしを選べる一般版
-        (core.analysis.calculate_resample_to_grid)であり、_on_dataset_arithmetic
-        自体は変更しない(既存の動作・テストに触れないため)。
-        """
+        """今のデータセットを、別のデータセットの X か等間隔の格子へ補間した新しいデータセットを作る。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -712,10 +617,7 @@ class ProcessingController:
             QMessageBox.warning(self._host.parent_widget, "共通X格子へのリサンプリング/補間", str(e))
             return
 
-        # target_xは(dataset経由の場合)ソート済み・重複除去済みとは限らないため、
-        # 出力データセットのXの並びとしてはtarget_xの並び順をそのまま使う
-        # (calculate_savgol等と異なり「Xの昇順に正規化する」責務はここにはない —
-        # ユーザーが選んだ格子の並び順をそのまま尊重する)。
+        # 選んだ格子の並び順をそのまま使う(並べ替えない)
         result_df = pd.DataFrame({'x': target_x, 'y': result_y})
         provenance_sources = [original_dataset] + ([target_dataset] if source == "dataset" else [])
         new_dataset = Dataset(
@@ -729,14 +631,7 @@ class ProcessingController:
         self._host.show_status(f"「{output_name}」を追加しました", 3000)
 
     def histogram_or_kde(self):
-        """
-        「ヒストグラム / KDE...」メニューの処理(項目115、C-505)。カレントの
-        1つのデータセットについて、任意の数値列を集計し(マスクされた行は
-        visible_dfの慣例どおり除く)、ヒストグラム(区間ごとの度数/確率密度)
-        またはカーネル密度推定(KDE)のどちらかを新しいデータセットとして
-        追加する。_on_cumulative_integral_dataset等と同じ「カレント1件から
-        新しいデータセットを1つ作る」パターン。
-        """
+        """今のデータセットの数値列1つのヒストグラムかカーネル密度推定を、新しいデータセットにする。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -755,8 +650,6 @@ class ProcessingController:
             QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
-        # マスクされた行はvisible_dfの慣例(core/dataset.pyのvisible_df参照)どおり
-        # 集計対象から除く。
         column_data = original_dataset.visible_df[settings['column']]
 
         try:
@@ -784,17 +677,8 @@ class ProcessingController:
 
     def detect_duplicate_x(self):
         """
-        「重複X値の検出...」メニューの処理(項目C-203)。カレントの1つの
-        データセットについて、同じX値を持つ行を検出し、「平均化」(重複を
-        集約した新しいデータセットを追加)または「除去」(先頭以外をマスク、
-        項目36の非破壊マスク機構をそのまま使う)のどちらかを行う。
-
-        重複検出自体はdataset.dfの全行(既にマスク済みの行も含む)を対象に
-        行う(_on_filter_rows/_on_detect_outliersと違い「平均化」は
-        dataset.x_data/y_data、つまり現在有効な=マスク済みを除いたデータを
-        入力に使うが、「除去」でどの行をマスクするかの判定はdataset.df全体を
-        対象にする、既存のrange_select_mixin.pyのマスク操作と同じ「df.index
-        ラベルに対する集合演算」の考え方)。
+        同じ X の行を見つけ、平均した新しいデータセットを作るか、各 X の最初の行以外を除外(マスク)する。
+        平均は除外済みの行を除いたデータから、除外する行の判定は df 全体から行う。
         """
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
@@ -836,8 +720,6 @@ class ProcessingController:
             self._host.add_dataset(new_dataset, self._host.target_folder_for_new_dataset())
             self._host.show_status(f"「{output_name}」を追加しました", 3000)
         else:  # "remove"
-            # keep='first': 各X値グループのうち最初に出現した行だけを残し、
-            # 残りをマスクする(非破壊、いつでもDataEditorDialogから解除できる)。
             to_mask_indices = original_dataset.df.index[original_dataset.df[x_col].duplicated(keep='first')].tolist()
             old_masked = list(original_dataset.masked_row_indices)
             new_masked = sorted(set(old_masked) | set(to_mask_indices))
@@ -853,13 +735,7 @@ class ProcessingController:
             self._host.show_status(f"{len(to_mask_indices)}件をマスクしました", 3000)
 
     def filter_rows(self):
-        """
-        「行フィルタ...」メニューの処理(項目C-204)。条件式(例: "y > 0.5")を
-        core/safe_eval.pyのsafe_eval_column_formula()で評価し、条件を
-        満たさない行をマスクする(項目36、非破壊)。既存のマスクとは
-        union(和集合)で合成する(range_select_mixin.py等、他のマスク操作と
-        同じ規約)。
-        """
+        """条件式を満たさない行を除外(マスク)する。今までの除外に足す。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -879,10 +755,7 @@ class ProcessingController:
             QMessageBox.warning(self._host.parent_widget, "行フィルタ", f"条件式の評価に失敗しました:\n{e}")
             return
 
-        # 条件式が真偽値以外(数値計算式など)を返した場合、boolへのキャストで
-        # 0/NaN以外を真として扱う(pandasのbool変換規約に委ねる)。NaNはFalse
-        # 扱いになるようfillna(False)しておく(比較演算でNaNが混入した場合に
-        # 「マスクしない」側へ誤って倒れるのを防ぐ)。
+        # 真偽値以外が返ったら pandas の規約で bool にする。NaN は偽(=除外する側)に倒す。
         try:
             match_bool = match_result.astype(bool)
         except (TypeError, ValueError):
@@ -906,14 +779,7 @@ class ProcessingController:
         self._host.show_status(f"{len(new_masked) - len(old_masked)}件をマスクしました", 3000)
 
     def detect_outliers(self):
-        """
-        「外れ値検出(Z-score/IQR)...」メニューの処理(項目C-306)。Y値を
-        基準にcore.analysis.calculate_zscore_outliers/calculate_iqr_outliersで
-        外れ値候補を検出する。検出結果は常にResultDialogで表示し、ダイアログの
-        「検出した外れ値をマスクに適用する」チェックボックスがONの場合のみ
-        SetMaskedRowsCommandで実際にマスクする(自動では適用しない — ユーザー
-        からの明示的な要望による設計)。
-        """
+        """Y の外れ値を Z-score か IQR で探して結果を出す。除外(マスク)は利用者が選んだときだけ。"""
         original_dataset = self._host.current_dataset()
         if original_dataset is None:
             return
@@ -975,18 +841,13 @@ class ProcessingController:
         self.outlier_result_dialog.show()
 
     def batch_column_calculate(self):
-        """
-        「バッチ列計算...」メニューの処理。
-        選択中の複数データセットに、同じ計算式(safe_eval_column_formula)を一括で適用する。
-        列計算は既存の _on_calculate_column (data_editor.py) と同様、
-        Undo/Redoスタックを経由しない (df を直接書き換える) 点に注意。
-        """
+        """選んだデータセットすべてに同じ計算式で列を足す。データエディタの列計算と同じく Undo の対象ではない。"""
         selected = self._host.selected_datasets()
         if len(selected) < 2:
             QMessageBox.information(self._host.parent_widget, "バッチ列計算", "2つ以上のデータセットを選択してください。")
             return
 
-        # 計算式の候補として、選択中の全データセットに共通する列名を提示する
+        # 式の候補には、選んだデータセットすべてにある列だけを出す
         common_columns = set(selected[0].df.columns)
         for ds in selected[1:]:
             common_columns &= set(ds.df.columns)
