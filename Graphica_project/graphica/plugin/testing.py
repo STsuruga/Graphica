@@ -10,6 +10,7 @@ import tempfile
 from graphica.core.plugin_api import GraphicaPluginAPI, PluginManager
 from graphica.core.plugin_install import PluginInstallError, install_plugin_zip
 from graphica.core.plugin_testing import FakeGraphicaPluginAPI, FakePluginContext
+from typing import Any
 
 __all__ = [
     "FakeGraphicaPluginAPI",
@@ -20,7 +21,7 @@ __all__ = [
 ]
 
 
-def load_plugin_like_graphica(plugin_folder, work_dir=None):
+def load_plugin_like_graphica(plugin_folder: str, work_dir: str | None = None) -> tuple[GraphicaPluginAPI, dict[str, Any]]:
     """
     本体と同じ経路(manifest の検証 → import → register(api))でプラグインを読み込む。
     相対 import の誤りや api_version の不一致など、偽物の API では見つからない問題を確かめる。
@@ -44,7 +45,7 @@ def load_plugin_like_graphica(plugin_folder, work_dir=None):
     return api, records[0]
 
 
-def install_zip_like_graphica(zip_path, target_dir):
+def install_zip_like_graphica(zip_path: str, target_dir: str) -> str:
     """
     本体の「プラグインをインストール」と同じ処理で zip を target_dir に展開する。
 

@@ -25,21 +25,22 @@ from graphica.core.plugin_manifest import PLUGIN_API_VERSION, PluginManifestErro
 from graphica.core.plugin_types import (
     PluginAnalyzer, PluginExporter, PluginHookKind, PluginImporter, PluginMenuAction,
     PluginPanel, PluginPlotType, PluginProcessor, PluginRegistrationError,
-    PluginRenderBackend,
+    PluginRenderBackend, RenderBackend,
 )
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
 PLUGIN_REGISTER_FUNC = "register"
 
 
-def _normalize_extension(extension):
+def _normalize_extension(extension: str) -> str:
     """".JDX" / "jdx" を ".jdx" にそろえる。"""
     ext = extension.lower()
     return ext if ext.startswith('.') else '.' + ext
 
 
-def _check_plugin_dependencies(info):
+def _check_plugin_dependencies(info: dict[str, Any]) -> list[str]:
     """plugin.json の requires のうち、import できないモジュール名を返す。"""
     missing = []
     for module_name in info.get("requires", []) or []:
@@ -60,22 +61,22 @@ class GraphicaPluginAPI:
     PluginContext が渡る(最初に開いたタブを握り続けると、複数タブで取り違える)。
     """
 
-    def __init__(self):
-        self._menu_actions = []  # list[PluginMenuAction]
-        self._importers = {}  # 拡張子 -> list[PluginImporter](priority の高い順)
-        self._exporters = {}  # format_name.lower() -> PluginExporter
-        self._processors = {}
-        self._analyzers = {}
-        self._panels = {}
-        self._plot_types = {}
-        self._render_backends = {}
+    def __init__(self) -> None:
+        self._menu_actions: list[PluginMenuAction] = []
+        self._importers: dict[str, list[PluginImporter]] = {}  # 拡張子 -> priority の高い順
+        self._exporters: dict[str, PluginExporter] = {}  # format_name.lower() -> PluginExporter
+        self._processors: dict[str, PluginProcessor] = {}
+        self._analyzers: dict[str, PluginAnalyzer] = {}
+        self._panels: dict[str, PluginPanel] = {}
+        self._plot_types: dict[str, PluginPlotType] = {}
+        self._render_backends: dict[str, PluginRenderBackend] = {}
 
         # 1プラグインの中でもフック単位で失敗を隔離し、プラグイン管理画面に出す。
-        self._registration_errors = []  # list[PluginRegistrationError]
+        self._registration_errors: list[PluginRegistrationError] = []
         # register_xxx は呼び出し元のプラグインを知らないので、PluginManager が差し替える。
         self._current_plugin_name = "(不明なプラグイン)"
 
-    def _safe_register(self, hook_kind, fn, *args, **kwargs):
+    def _safe_register(self, hook_kind: PluginHookKind, fn: Callable[..., Any], *args: Any, **kwargs: Any) -> bool:
         """登録に失敗してもこのフック1件だけの失敗として記録し、False を返す。"""
         try:
             fn(*args, **kwargs)
@@ -90,7 +91,8 @@ class GraphicaPluginAPI:
             )
             return False
 
-    def register_fit_function(self, name, func, param_names, p0=None):
+    def register_fit_function(self, name: str, func: Callable[..., Any], param_names: list[str],
+                              p0: list[float] | Callable[..., Any] | None = None) -> bool:
         """
         曲線フィットの選択肢に関数を追加する。
 
@@ -105,7 +107,7 @@ class GraphicaPluginAPI:
             PluginHookKind.FIT_FUNCTION, register_fit_function, name, func, param_names, p0=p0
         )
 
-    def register_menu_action(self, text, callback, shortcut=None):
+    def register_menu_action(self, text: str, callback: Callable[..., Any], shortcut: str | None = None) -> bool:
         """
         「プラグイン」メニューに項目を追加する。
 
@@ -121,7 +123,8 @@ class GraphicaPluginAPI:
                              plugin_name=self._current_plugin_name),
         )
 
-    def register_importer(self, extensions, loader, *, name=None, priority=0):
+    def register_importer(self, extensions: list[str], loader: Callable[[str], Any], *, name: str | None = None,
+                          priority: int = 0) -> bool:
         """
         データファイルの読み込み形式を追加する。ファイルを開くダイアログ、ドラッグ&ドロップ、
         フォルダからの一括インポートのすべてで使われる。
@@ -137,7 +140,8 @@ class GraphicaPluginAPI:
             name=name or self._current_plugin_name, priority=priority,
         )
 
-    def _do_register_importer(self, extensions, loader, *, name, priority):
+    def _do_register_importer(self, extensions: list[str], loader: Callable[[str], Any], *, name: str,
+                              priority: int) -> None:
         for ext in extensions:
             ext = _normalize_extension(ext)
             importer = PluginImporter(extension=ext, loader=loader, name=name, priority=priority)
@@ -145,15 +149,16 @@ class GraphicaPluginAPI:
             bucket.append(importer)
             bucket.sort(key=lambda imp: -imp.priority)  # 安定ソートなので同点は登録順のまま
 
-    def get_importer_for_extension(self, extension):
+    def get_importer_for_extension(self, extension: str) -> PluginImporter | None:
         """最も優先度の高いインポーター。無ければ None。"""
         bucket = self._importers.get(_normalize_extension(extension))
         return bucket[0] if bucket else None
 
-    def get_importer_extensions(self):
+    def get_importer_extensions(self) -> list[str]:
         return sorted(self._importers.keys())
 
-    def register_exporter(self, format_name, extension, writer, *, name=None):
+    def register_exporter(self, format_name: str, extension: str, writer: Callable[[Any, str], Any], *,
+                          name: str | None = None) -> bool:
         """
         グラフの書き出し形式を追加する。エクスポートと一括エクスポートの両方で選べる。
 
@@ -168,25 +173,27 @@ class GraphicaPluginAPI:
             name=name or self._current_plugin_name,
         )
 
-    def _do_register_exporter(self, format_name, extension, writer, *, name):
+    def _do_register_exporter(self, format_name: str, extension: str, writer: Callable[[Any, str], Any], *,
+                              name: str) -> None:
         self._exporters[format_name.lower()] = PluginExporter(
             format_name=format_name, extension=_normalize_extension(extension), writer=writer, name=name
         )
 
-    def get_exporter(self, format_name):
+    def get_exporter(self, format_name: str) -> PluginExporter | None:
         return self._exporters.get(format_name.lower())
 
-    def get_exporter_for_extension(self, extension):
+    def get_exporter_for_extension(self, extension: str) -> PluginExporter | None:
         ext = _normalize_extension(extension)
         for exporter in self._exporters.values():
             if exporter.extension == ext:
                 return exporter
         return None
 
-    def get_exporters(self):
+    def get_exporters(self) -> list[PluginExporter]:
         return list(self._exporters.values())
 
-    def register_processor(self, name, fn, *, category="general", param_schema=None):
+    def register_processor(self, name: str, fn: Callable[[Any, dict[str, Any]], Any], *, category: str = "general",
+                           param_schema: list[dict[str, Any]] | None = None) -> bool:
         """
         現在のデータセットから新しいデータセットを作る処理を、「プラグイン ▸ データ処理」に追加する。
         結果は Undo できる形で追加されるので、プラグイン側で Undo を扱う必要はない。
@@ -206,7 +213,8 @@ class GraphicaPluginAPI:
             category=category, param_schema=param_schema, plugin_name=self._current_plugin_name,
         )
 
-    def _do_register_processor(self, name, fn, *, category, param_schema, plugin_name):
+    def _do_register_processor(self, name: str, fn: Callable[[Any, dict[str, Any]], Any], *, category: str,
+                               param_schema: list[dict[str, Any]] | None, plugin_name: str) -> None:
         if name in self._processors:
             raise ValueError(f"データ処理 '{name}' は既に登録されています。")
         self._processors[name] = PluginProcessor(
@@ -214,13 +222,14 @@ class GraphicaPluginAPI:
             plugin_name=plugin_name,
         )
 
-    def get_processors(self):
+    def get_processors(self) -> list[PluginProcessor]:
         return list(self._processors.values())
 
-    def get_processor_categories(self):
+    def get_processor_categories(self) -> list[str]:
         return sorted({p.category for p in self._processors.values()})
 
-    def register_analyzer(self, name, fn, *, output_kind="table", param_schema=None):
+    def register_analyzer(self, name: str, fn: Callable[[Any, dict[str, Any]], Any], *, output_kind: str = "table",
+                          param_schema: list[dict[str, Any]] | None = None) -> bool:
         """
         現在のデータセットを解析し、表・注釈・新しいデータセットを返す処理を、
         「プラグイン ▸ 解析」に追加する。
@@ -236,7 +245,8 @@ class GraphicaPluginAPI:
             output_kind=output_kind, param_schema=param_schema, plugin_name=self._current_plugin_name,
         )
 
-    def _do_register_analyzer(self, name, fn, *, output_kind, param_schema, plugin_name):
+    def _do_register_analyzer(self, name: str, fn: Callable[[Any, dict[str, Any]], Any], *, output_kind: str,
+                              param_schema: list[dict[str, Any]] | None, plugin_name: str) -> None:
         if name in self._analyzers:
             raise ValueError(f"解析 '{name}' は既に登録されています。")
         self._analyzers[name] = PluginAnalyzer(
@@ -244,10 +254,10 @@ class GraphicaPluginAPI:
             plugin_name=plugin_name,
         )
 
-    def get_analyzers(self):
+    def get_analyzers(self) -> list[PluginAnalyzer]:
         return list(self._analyzers.values())
 
-    def register_panel(self, name, widget_factory, *, area="right"):
+    def register_panel(self, name: str, widget_factory: Callable[..., Any], *, area: str = "right") -> bool:
         """
         ドックパネルを追加する。「プラグイン ▸ パネル」から表示を切り替えられる。
 
@@ -262,17 +272,17 @@ class GraphicaPluginAPI:
             area=area, plugin_name=self._current_plugin_name,
         )
 
-    def _do_register_panel(self, name, widget_factory, *, area, plugin_name):
+    def _do_register_panel(self, name: str, widget_factory: Callable[..., Any], *, area: str, plugin_name: str) -> None:
         if name in self._panels:
             raise ValueError(f"パネル '{name}' は既に登録されています。")
         self._panels[name] = PluginPanel(
             name=name, widget_factory=widget_factory, area=area, plugin_name=plugin_name,
         )
 
-    def get_panels(self):
+    def get_panels(self) -> list[PluginPanel]:
         return list(self._panels.values())
 
-    def register_plot_type(self, type_name, drawer, *, requires_2d=False):
+    def register_plot_type(self, type_name: str, drawer: Callable[..., Any], *, requires_2d: bool = False) -> bool:
         """
         データセットのプロット種別を追加する。
 
@@ -290,20 +300,21 @@ class GraphicaPluginAPI:
             requires_2d=requires_2d, plugin_name=self._current_plugin_name,
         )
 
-    def _do_register_plot_type(self, type_name, drawer, *, requires_2d, plugin_name):
+    def _do_register_plot_type(self, type_name: str, drawer: Callable[..., Any], *, requires_2d: bool,
+                               plugin_name: str) -> None:
         if type_name in self._plot_types:
             raise ValueError(f"プロット種別 '{type_name}' は既に登録されています。")
         self._plot_types[type_name] = PluginPlotType(
             type_name=type_name, drawer=drawer, requires_2d=requires_2d, plugin_name=plugin_name,
         )
 
-    def get_plot_types(self):
+    def get_plot_types(self) -> list[PluginPlotType]:
         return list(self._plot_types.values())
 
-    def get_plot_type(self, type_name):
+    def get_plot_type(self, type_name: str) -> PluginPlotType | None:
         return self._plot_types.get(type_name)
 
-    def register_render_backend(self, name, backend):
+    def register_render_backend(self, name: str, backend: RenderBackend) -> bool:
         """
         描画バックエンドの登録枠(予約)。描画にはまだ接続しておらず、登録しても何も起きない。
 
@@ -316,35 +327,35 @@ class GraphicaPluginAPI:
             plugin_name=self._current_plugin_name,
         )
 
-    def _do_register_render_backend(self, name, backend, *, plugin_name):
+    def _do_register_render_backend(self, name: str, backend: RenderBackend, *, plugin_name: str) -> None:
         if name in self._render_backends:
             raise ValueError(f"描画バックエンド '{name}' は既に登録されています。")
         self._render_backends[name] = PluginRenderBackend(
             name=name, backend=backend, plugin_name=plugin_name,
         )
 
-    def get_render_backends(self):
+    def get_render_backends(self) -> list[PluginRenderBackend]:
         return list(self._render_backends.values())
 
     @property
-    def menu_actions(self):
+    def menu_actions(self) -> list[PluginMenuAction]:
         return list(self._menu_actions)
 
     @property
-    def registration_errors(self):
+    def registration_errors(self) -> list[PluginRegistrationError]:
         return list(self._registration_errors)
 
 
 class PluginManager:
     """探索フォルダのプラグインを見つけて読み込み、register(api) を呼ぶ。"""
 
-    def __init__(self, plugins_dir):
+    def __init__(self, plugins_dir: str | list[str]) -> None:
         """plugins_dir は1つのパス、または優先順のパスのリスト。"""
         self.plugins_dirs = [plugins_dir] if isinstance(plugins_dir, str) else list(plugins_dir)
-        self.loaded_plugins = []  # list[{"name", "info", "error", "disabled"}]
-        self._plugin_locations = {}  # プラグイン名 -> 見つかった探索フォルダ
+        self.loaded_plugins: list[dict[str, Any]] = []  # {"name", "info", "error", "disabled"}
+        self._plugin_locations: dict[str, str] = {}  # プラグイン名 -> 見つかった探索フォルダ
 
-    def discover_plugin_dirs(self):
+    def discover_plugin_dirs(self) -> list[str]:
         """__init__.py を持つサブフォルダ名を返す。同名は先に見つかった探索フォルダのものを使う。"""
         self._plugin_locations = {}
         names = []
@@ -366,7 +377,7 @@ class PluginManager:
                 names.append(entry)
         return names
 
-    def _load_module(self, plugin_name):
+    def _load_module(self, plugin_name: str) -> Any:
         base_dir = self._plugin_locations[plugin_name]
         init_path = os.path.join(base_dir, plugin_name, "__init__.py")
         module_name = f"graphica_plugin_{plugin_name}"
@@ -385,7 +396,7 @@ class PluginManager:
             raise PluginLoadError(f"プラグイン '{plugin_name}' の読み込み中にエラー: {e}") from e
         return module
 
-    def load_all(self, api, disabled_names=None):
+    def load_all(self, api: GraphicaPluginAPI, disabled_names: set[str] | None = None) -> list[dict[str, Any]]:
         """
         すべてのプラグインを読み込み register(api) を呼ぶ。1つが失敗しても続ける。
 
@@ -394,7 +405,7 @@ class PluginManager:
         disabled_names = disabled_names or set()
         self.loaded_plugins = []
         for plugin_name in self.discover_plugin_dirs():
-            record = {"name": plugin_name, "info": None, "error": None, "disabled": False}
+            record: dict[str, Any] = {"name": plugin_name, "info": None, "error": None, "disabled": False}
             plugin_dir = os.path.join(self._plugin_locations[plugin_name], plugin_name)
 
             if plugin_name in disabled_names:
@@ -448,17 +459,17 @@ _singleton_manager = None
 _safe_mode_enabled = False
 
 
-def set_safe_mode(enabled):
+def set_safe_mode(enabled: bool) -> None:
     """load_plugins_once() が一度呼ばれたあとに変えても、読み込み済みの結果には影響しない。"""
     global _safe_mode_enabled
     _safe_mode_enabled = bool(enabled)
 
 
-def is_safe_mode_enabled():
+def is_safe_mode_enabled() -> bool:
     return _safe_mode_enabled
 
 
-def load_plugins_once(plugins_dir, disabled_names=None):
+def load_plugins_once(plugins_dir: str | list[str], disabled_names: set[str] | None = None) -> "GraphicaPluginAPI":
     """
     最初の呼び出しでだけプラグインを読み込み、以後は同じ GraphicaPluginAPI を返す。
     セーフモードでは探索フォルダに一切触れず(作成もしない)、空の API を返す。
@@ -481,24 +492,24 @@ def load_plugins_once(plugins_dir, disabled_names=None):
     return _singleton_api
 
 
-def get_loaded_plugin_records():
+def get_loaded_plugin_records() -> list[dict[str, Any]] | None:
     """未読み込みなら None。"""
     return None if _singleton_manager is None else list(_singleton_manager.loaded_plugins)
 
 
-def get_plugin_registration_errors():
+def get_plugin_registration_errors() -> list[PluginRegistrationError] | None:
     """フック単位の登録失敗(プラグイン全体の読み込みは成功していても記録される)。未読み込みなら None。"""
     return None if _singleton_api is None else _singleton_api.registration_errors
 
 
-def get_plugin_api():
+def get_plugin_api() -> "GraphicaPluginAPI | None":
     """読み込み済みの API。未読み込みなら None(読み込みはしない)。"""
     return _singleton_api
 
 
-def get_registered_importer_extensions():
+def get_registered_importer_extensions() -> list[str]:
     return _singleton_api.get_importer_extensions() if _singleton_api is not None else []
 
 
-def get_registered_exporters():
+def get_registered_exporters() -> list[PluginExporter]:
     return _singleton_api.get_exporters() if _singleton_api is not None else []

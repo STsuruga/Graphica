@@ -6,6 +6,9 @@
 本体の内部(PlotterApp やその private メソッド)には、この窓口の外から触らないこと。
 本体の実装は gui/plugin_context.py、テスト用は core.plugin_testing.FakePluginContext。
 """
+from typing import TYPE_CHECKING, Any, Callable
+if TYPE_CHECKING:
+    from graphica.core.dataset import Dataset
 
 
 class PluginContext:
@@ -13,7 +16,7 @@ class PluginContext:
 
     # --- データセット ---
 
-    def datasets(self):
+    def datasets(self) -> "list[Dataset]":
         """
         タブの全データセットを返す。
 
@@ -23,21 +26,21 @@ class PluginContext:
         """
         raise NotImplementedError
 
-    def current_dataset(self):
+    def current_dataset(self) -> "Dataset | None":
         """
         Returns:
             Dataset | None: データセット一覧で現在選ばれているもの。なければ None。
         """
         raise NotImplementedError
 
-    def selected_datasets(self):
+    def selected_datasets(self) -> "list[Dataset]":
         """
         Returns:
             list[Dataset]: データセット一覧で選択されているもの(複数選択を含む)。
         """
         raise NotImplementedError
 
-    def add_dataset(self, dataset, description=None):
+    def add_dataset(self, dataset: "Dataset", description: str | None = None) -> None:
         """
         データセットを追加する。Undo で取り消せる。
 
@@ -47,7 +50,7 @@ class PluginContext:
         """
         raise NotImplementedError
 
-    def set_dataset_properties(self, dataset, values, description=None):
+    def set_dataset_properties(self, dataset: "Dataset", values: dict[str, Any], description: str | None = None) -> None:
         """
         データセットの属性をまとめて変更し、再描画する。Undo で取り消せる。
 
@@ -60,13 +63,13 @@ class PluginContext:
         """
         raise NotImplementedError
 
-    def redraw(self):
+    def redraw(self) -> None:
         """グラフを描き直す。データセットの中身を直接変えたあとに呼ぶ。"""
         raise NotImplementedError
 
     # --- 変化の通知 ---
 
-    def on_datasets_changed(self, callback):
+    def on_datasets_changed(self, callback: Callable[[], Any]) -> None:
         """
         データセットの追加・削除・変更・プロジェクトの読み込みのあとに callback() を呼ぶ。
         パネルの表示を最新に保つのに使う。描き直しのたびに呼ばれるので、callback は軽くする。
@@ -76,7 +79,7 @@ class PluginContext:
         """
         raise NotImplementedError
 
-    def on_selection_changed(self, callback):
+    def on_selection_changed(self, callback: Callable[["Dataset | None"], Any]) -> None:
         """
         データセット一覧の選択が変わったら callback(current_dataset) を呼ぶ。
 
@@ -88,25 +91,25 @@ class PluginContext:
     # --- 画面 ---
 
     @property
-    def parent_widget(self):
+    def parent_widget(self) -> Any:
         """
         Returns:
             QWidget | None: ダイアログの親にするウィンドウ。
         """
         raise NotImplementedError
 
-    def show_message(self, text, title=None):
+    def show_message(self, text: str, title: str | None = None) -> None:
         """情報メッセージを表示する。title の省略時はプラグイン名。"""
         raise NotImplementedError
 
-    def show_error(self, text, title=None):
+    def show_error(self, text: str, title: str | None = None) -> None:
         """エラーメッセージを表示する。title の省略時はプラグイン名。"""
         raise NotImplementedError
 
     # --- 保存場所 ---
 
     @property
-    def data_dir(self):
+    def data_dir(self) -> str:
         """
         Returns:
             str: このプラグイン専用の書き込み可能なフォルダ(無ければ作る)。設定やライブラリの保存先。
@@ -116,7 +119,7 @@ class PluginContext:
 
     # --- 色 ---
 
-    def named_colors(self):
+    def named_colors(self) -> list[dict[str, str]]:
         """
         本体に登録された名前付きの色。
 
@@ -125,7 +128,7 @@ class PluginContext:
         """
         raise NotImplementedError
 
-    def set_named_colors(self, entries):
+    def set_named_colors(self, entries: list[dict[str, str]]) -> None:
         """
         名前付きの色を丸ごと置き換える。
 
@@ -136,7 +139,7 @@ class PluginContext:
         """
         raise NotImplementedError
 
-    def color_palettes(self):
+    def color_palettes(self) -> dict[str, list[str]]:
         """
         利用者が作った配色パレット(組み込みのパレットは含まない)。
 
@@ -145,7 +148,7 @@ class PluginContext:
         """
         raise NotImplementedError
 
-    def set_color_palettes(self, palettes):
+    def set_color_palettes(self, palettes: dict[str, list[str]]) -> None:
         """
         利用者の配色パレットを丸ごと置き換える。
 
@@ -156,7 +159,7 @@ class PluginContext:
         """
         raise NotImplementedError
 
-    def active_color_cycle(self):
+    def active_color_cycle(self) -> list[str]:
         """
         Returns:
             list[str]: いま選ばれているパレットの色(系列に順に割り当てる色)。
