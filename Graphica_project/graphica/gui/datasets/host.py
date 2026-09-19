@@ -1,6 +1,8 @@
 """機能ごとのクラスが本体(PlotterApp の1タブ)に頼むことの窓口。"""
 from contextlib import contextmanager
 
+from graphica.core.commands import SetAnnotationsCommand
+
 
 class DatasetHost:
     """機能ごとのクラスが PlotterApp の内部に直接触らないよう、使う操作だけをここに集める。"""
@@ -39,6 +41,21 @@ class DatasetHost:
 
     def add_annotation(self, axis_index, annotation, description):
         self._app._add_annotation(axis_index, annotation, description=description)
+
+    def annotations(self, axis_index):
+        """その軸の注釈(リストはコピー)。"""
+        return list(self._app.project.all_plot_settings[axis_index].get('annotations', []))
+
+    def add_annotations_to_active_axis(self, annotations, description):
+        """今の軸に注釈をまとめて足す(Undo 1回分)。"""
+        project = self._app.project
+        index = project.active_axis_index
+        if index >= len(project.all_plot_settings):
+            return
+        old_annotations = self.annotations(index)
+        self._app.undo_stack.push(SetAnnotationsCommand(
+            project, index, old_annotations, old_annotations + list(annotations),
+            self._app._update_plot_appearance, description=description))
 
     def axis_y_span(self, axis_index):
         """その軸の今の Y の表示幅。軸が無ければ None。"""
@@ -105,6 +122,11 @@ class DatasetHost:
 
     def active_color_cycle(self):
         return self._app.colors.active_color_cycle()
+
+    @property
+    def project(self):
+        """文書全体。読むためだけに使う(書き換えは host の操作を通す)。"""
+        return self._app.project
 
     @property
     def settings(self):

@@ -638,7 +638,7 @@ class UISetupMixin:
                         for proc in sorted(by_category[category], key=lambda p: p.name):
                             action = category_menu.addAction(proc.name)
                             action.triggered.connect(
-                                lambda checked=False, p=proc: self._on_run_plugin_processor(p)
+                                lambda checked=False, p=proc: self.plugin_runs.run_processor(p)
                             )
 
                 # 解析(項目C-2)
@@ -649,7 +649,7 @@ class UISetupMixin:
                     for analyzer in sorted(analyzers, key=lambda a: a.name):
                         action = analysis_menu.addAction(analyzer.name)
                         action.triggered.connect(
-                            lambda checked=False, a=analyzer: self._on_run_plugin_analyzer(a)
+                            lambda checked=False, a=analyzer: self.plugin_runs.run_analyzer(a)
                         )
 
                 # パネル(項目D-1): 各ドックの標準の表示/非表示トグルアクションを

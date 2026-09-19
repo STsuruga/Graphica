@@ -197,6 +197,8 @@ from graphica.core.plugin_api import load_plugins_once, get_registered_importer_
 from graphica.core.plugin_types import PluginExecutionError
 from graphica.gui.datasets.colors import ColorController
 from graphica.gui.datasets.transfer import TransferController
+from graphica.gui.datasets.overlays import OverlayController
+from graphica.gui.datasets.plugin_runs import PluginRunController
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.peaks import PeakController
@@ -627,7 +629,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.data_editor_dialog = None # データエディタ (非モーダル) のインスタンス保持用
         self.help_dialog = None        # mathtextヘルプ (非モーダル) のインスタンス保持用
         self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
-        self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
         self._batch_export_task_runner = None  # バッチエクスポート用バックグラウンドタスク(項目C-004フェーズ5b)の保持用
         self._update_check_task_runner = None  # アップデート確認用バックグラウンドタスク(項目161、C-1203)の保持用
@@ -660,6 +661,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.processing = ProcessingController(self._dataset_host)
         self.colors = ColorController(self._dataset_host)
         self.transfer = TransferController(self._dataset_host)
+        self.overlays = OverlayController(self._dataset_host)
+        self.plugin_runs = PluginRunController(self._dataset_host)
 
         # オートセーブ用タイマーの設定 (間隔は設定から復元。0分なら無効化されたまま)
         # ★ _create_menu_bar() がメニューの初期表示テキストのために参照するため、

@@ -5,7 +5,9 @@ import os
 import re
 import uuid
 import pandas as pd
-from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox
+
+from graphica.core.methods_text import generate_methods_text
 
 logger = logging.getLogger(__name__)
 
@@ -222,3 +224,11 @@ class TransferController:
         self._host.push_property_change(dataset, old_values, new_values,
                                         f"「{dataset.name}」を再読み込み", skip_if_unchanged=False)
         self._host.show_status(f"「{dataset.name}」を元ファイルから再読み込みしました")
+
+    def copy_methods_text(self):
+        """今のデータセットの処理履歴から「方法」節向けの説明文を作り、クリップボードに写す。"""
+        dataset = self._host.current_dataset()
+        if dataset is None or dataset.provenance is None:
+            return
+        QApplication.clipboard().setText(generate_methods_text(dataset, self._host.project))
+        self._host.show_status("「方法」文をクリップボードにコピーしました")

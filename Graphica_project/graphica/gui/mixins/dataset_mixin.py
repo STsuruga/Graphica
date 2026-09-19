@@ -18,20 +18,16 @@ import logging
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QFileDialog, QInputDialog, QMenu)
+from PySide6.QtWidgets import (QDialog, QFileDialog, QInputDialog, QMenu)
 
 from graphica.core.analysis import (sample_standard_deviation)
-from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand)
+from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand)
 from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
 from graphica.core.label_utils import infer_axis_label_from_column_name
-from graphica.core.methods_text import generate_methods_text
 from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
 from graphica.core.plugin_api import get_registered_importer_extensions
-from graphica.core.plugin_types import AnalysisResult, PluginExecutionError
 from graphica.gui.data_editor import DataEditorDialog
-from graphica.gui.dialogs import (ResultDialog, NewDatasetDialog,
-                         PluginParamDialog,
-                         InsetDialog)
+from graphica.gui.dialogs import (NewDatasetDialog)
 from graphica.gui.dataset_style_icon import (
     make_dataset_style_icon, make_dataset_visibility_icon, apply_dataset_visibility_text_style,
     DATASET_TREE_VISIBILITY_COLUMN,
@@ -374,11 +370,11 @@ class DatasetMixin:
             # 再計算される(gui/canvas.pyの_compute_stat_label_text)ため、
             # データやフィットを更新すると値が自動的に追従する。
             add_stat_label_action = analysis_menu.addAction("統計値アンカーラベルを追加...")
-            add_stat_label_action.triggered.connect(self._on_add_stat_anchor_label)
+            add_stat_label_action.triggered.connect(self.overlays.add_stat_label)
 
             # インセット(拡大図)+拡大範囲の指示線(項目138、C-711)
             add_inset_action = analysis_menu.addAction("インセット(拡大図)を追加...")
-            add_inset_action.triggered.connect(self._on_add_inset)
+            add_inset_action.triggered.connect(self.overlays.add_inset)
 
             # ピーク位置へのスマート自動ラベル(項目134、C-707)
             add_peak_labels_action = analysis_menu.addAction("ピーク位置に自動ラベルを追加...")
@@ -398,7 +394,7 @@ class DatasetMixin:
             # 生成する意味のある「方法」が無いため対象外。
             copy_methods_text_action = export_menu.addAction("「方法」文をコピー...")
             copy_methods_text_action.setEnabled(self._get_current_dataset().provenance is not None)
-            copy_methods_text_action.triggered.connect(self._on_copy_methods_text)
+            copy_methods_text_action.triggered.connect(self.transfer.copy_methods_text)
 
         selected_count = len(self._get_selected_datasets())
         if selected_count >= 2:
@@ -457,181 +453,6 @@ class DatasetMixin:
         # 次回の clear() で古い方はまとめて差し替わる。
         menu._graphica_submenus = submenus
         return menu
-
-    # 統計値アンカーラベル(項目C-708)の選択肢: 表示名 -> gui/canvas.pyの
-    # _compute_stat_label_text/STAT_LABEL_TITLESが解釈する内部キー。
-    STAT_ANCHOR_LABEL_CHOICES = {
-        'R²': 'r_squared', 'Y平均': 'mean', 'Y標準偏差': 'std',
-        'Y最大値': 'max', 'Y最小値': 'min',
-    }
-
-    def _on_add_stat_anchor_label(self):
-        """
-        「統計値アンカーラベルを追加...」メニューの処理(項目C-708)。
-        カレントデータセットに紐づく統計値(R²/Y平均/Y標準偏差/Y最大値/Y最小値)を
-        選ばせ、そのデータセットが描画されている軸のAxes相対座標(左上を起点に、
-        既存の統計値ラベル件数ぶん縦にずらして重ならないようにする)に注釈として
-        追加する。表示テキストは固定文字列ではなく、描画のたびに
-        dataset.y_data/fit_resultから再計算される(gui/canvas.pyの
-        _compute_stat_label_text)ため、R²を選んでからフィットを実行/更新しても
-        自動的に値が反映される。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None:
-            return
-
-        choice, ok = QInputDialog.getItem(
-            self, "統計値アンカーラベルの追加", "表示する統計値:",
-            list(self.STAT_ANCHOR_LABEL_CHOICES.keys()), 0, False
-        )
-        if not ok:
-            return
-        stat = self.STAT_ANCHOR_LABEL_CHOICES[choice]
-
-        axis_index = dataset.subplot_target
-        settings = self.project.all_plot_settings[axis_index]
-        existing_stat_count = sum(
-            1 for ann in settings.get('annotations', []) if ann.get('type') == 'stat'
-        )
-        xy = (0.05, max(0.95 - 0.07 * existing_stat_count, 0.05))
-
-        self._add_annotation(axis_index, {
-            'type': 'stat', 'dataset_id': dataset.dataset_id, 'stat': stat,
-            'xy': xy, 'color': '#000000',
-        }, description="統計値アンカーラベルの追加")
-
-    def _on_add_inset(self):
-        """
-        「インセット(拡大図)を追加...」メニューの処理(項目138、C-711)。
-        カレントデータセットのX範囲を初期値として、拡大するX範囲・表示位置
-        (コーナー+サイズ)をInsetDialogで選ばせ、そのデータセットが描画されて
-        いる軸に注釈(type='inset')として追加する(gui/canvas.pyの
-        _draw_annotationsが実際の描画とmark_insetによる指示線を担当)。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None:
-            return
-
-        x_data = np.asarray(dataset.x_data, dtype=float)
-        x_data = x_data[~np.isnan(x_data)]
-        if len(x_data) < 2:
-            QMessageBox.warning(self, "インセット(拡大図)", "有効なデータ点が不足しています(最低2点必要)。")
-            return
-        x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
-        span = x_max - x_min
-        default_zoom_min = x_min + span * 0.4
-        default_zoom_max = x_min + span * 0.6
-
-        dialog = InsetDialog(x_min, x_max, default_zoom_min, default_zoom_max, parent=self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        settings = dialog.get_settings()
-
-        axis_index = dataset.subplot_target
-        self._add_annotation(axis_index, {
-            'type': 'inset', 'corner': settings['corner'], 'size': settings['size'],
-            'zoom_x_range': settings['zoom_x_range'], 'color': '#000000',
-        }, description="インセット(拡大図)の追加")
-
-    def _on_run_plugin_processor(self, processor):
-        """
-        プラグインの「データ処理」メニュー項目が選択されたときの処理(項目C-1)。
-        カレントの1つのデータセットに対して processor.fn を実行し、返された
-        新しいDatasetを非破壊に追加する。既存の規格化/Savitzky-Golayとは異なり、
-        _add_dataset_with_undo() 経由でAddDatasetCommandをpushするため、
-        追加した直後にUndoで取り消せる(プラグイン側はUndoを一切意識しない)。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None:
-            QMessageBox.information(self, processor.name, "データセットを選択してください。")
-            return
-
-        params = {}
-        if processor.param_schema:
-            dialog = PluginParamDialog(processor.name, processor.param_schema, self)
-            if dialog.exec() != QDialog.DialogCode.Accepted:
-                return
-            params = dialog.get_values()
-
-        try:
-            new_dataset = processor.fn(dataset, params)
-            if not isinstance(new_dataset, Dataset):
-                raise TypeError(f"Datasetを返しませんでした(型: {type(new_dataset).__name__})。")
-        except Exception as e:
-            logger.exception("[plugin:%s] processor の実行に失敗しました", processor.plugin_name)
-            QMessageBox.critical(
-                self, "データ処理エラー",
-                str(PluginExecutionError(processor.plugin_name, f"「{processor.name}」の実行に失敗しました: {e}"))
-            )
-            return
-
-        # 生成元プラグインをメタデータとして残す(項目C-3)
-        new_dataset.source_plugin = processor.plugin_name
-        self._add_dataset_with_undo(
-            new_dataset, self._get_target_folder_for_new_dataset(),
-            description=f"データ処理: {processor.name}"
-        )
-        self.statusBar().showMessage(f"「{new_dataset.name}」を追加しました", 3000)
-
-    def _on_run_plugin_analyzer(self, analyzer):
-        """
-        プラグインの「解析」メニュー項目が選択されたときの処理(項目C-2)。
-        analyzer.fn が返す AnalysisResult (表・注釈・派生データセット) を、
-        それぞれ既存の表示/Undo経路にそのまま反映する
-        (7章-7準拠: 結果は文字列ではなく構造化データとして保持する)。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None:
-            QMessageBox.information(self, analyzer.name, "データセットを選択してください。")
-            return
-
-        params = {}
-        if analyzer.param_schema:
-            dialog = PluginParamDialog(analyzer.name, analyzer.param_schema, self)
-            if dialog.exec() != QDialog.DialogCode.Accepted:
-                return
-            params = dialog.get_values()
-
-        try:
-            result = analyzer.fn(dataset, params)
-            if not isinstance(result, AnalysisResult):
-                raise TypeError(f"AnalysisResultを返しませんでした(型: {type(result).__name__})。")
-        except Exception as e:
-            logger.exception("[plugin:%s] analyzer の実行に失敗しました", analyzer.plugin_name)
-            QMessageBox.critical(
-                self, "解析エラー",
-                str(PluginExecutionError(analyzer.plugin_name, f"「{analyzer.name}」の実行に失敗しました: {e}"))
-            )
-            return
-
-        if result.new_datasets:
-            target_folder = self._get_target_folder_for_new_dataset()
-            for new_dataset in result.new_datasets:
-                new_dataset.source_plugin = analyzer.plugin_name  # 項目C-3
-                self._add_dataset_with_undo(
-                    new_dataset, target_folder, description=f"解析による追加: {analyzer.name}"
-                )
-
-        if result.annotations:
-            active_index = self.project.active_axis_index
-            if active_index < len(self.project.all_plot_settings):
-                old_annotations = list(self.project.all_plot_settings[active_index].get('annotations', []))
-                new_annotations = old_annotations + list(result.annotations)
-                command = SetAnnotationsCommand(
-                    self.project, active_index, old_annotations, new_annotations,
-                    self._update_plot_appearance, description=f"解析による注釈追加: {analyzer.name}"
-                )
-                self.undo_stack.push(command)
-
-        if result.table is not None:
-            if self.plugin_analysis_result_dialog is not None:
-                self.plugin_analysis_result_dialog.close()
-            self.plugin_analysis_result_dialog = ResultDialog(
-                analyzer.name, f"[{analyzer.name}] の解析結果", self, csv_data=result.table
-            )
-            self.plugin_analysis_result_dialog.show()
-
-        self.statusBar().showMessage(f"「{analyzer.name}」を実行しました", 3000)
 
     def _top_level_selected_items(self, items):
         """
@@ -1740,20 +1561,6 @@ class DatasetMixin:
         self._update_ui_state()
         # ★ プロットを最新のデータで更新
         self._update_plot()
-
-    def _on_copy_methods_text(self):
-        """
-        「「方法」文をコピー...」メニューの処理(項目C-1102)。
-        カレントデータセットのprovenanceチェーン(項目C-1101)から
-        generate_methods_text()で組み立てた日本語の説明文をクリップボードへ
-        コピーする(論文の「方法」節にそのまま使える体裁を意図している)。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None or dataset.provenance is None:
-            return
-        text = generate_methods_text(dataset, self.project)
-        QApplication.clipboard().setText(text)
-        self.statusBar().showMessage("「方法」文をクリップボードにコピーしました", 3000)
 
     def _on_secondary_y_changed(self):
         """

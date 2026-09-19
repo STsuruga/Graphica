@@ -19,13 +19,15 @@ import pandas as pd
 import pytest
 from PySide6.QtCore import QSettings, QPoint, Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QMenu, QMessageBox
 
 import graphica.gui.datasets.colors as colors_module
 import graphica.gui.datasets.processing as processing_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.datasets.fitting as fitting_module
 import graphica.gui.datasets.transfer as transfer_module
+import graphica.gui.datasets.overlays as overlays_module
+import graphica.gui.datasets.plugin_runs as plugin_runs_module
 import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
 import graphica.gui.mixins.settings_mixin as settings_mixin_module
 from graphica.gui.main_window import PlotterApp
@@ -144,7 +146,8 @@ def _patch_dialog_result(monkeypatch, module_attr_name, base_cls, method_name, v
 
 def _module_that_uses(name):
     """DatasetMixin から機能ごとのクラスへ移したコードは、そのモジュールで名前を引く。"""
-    for module in (processing_module, fitting_module, colors_module, dataset_mixin_module):
+    for module in (processing_module, fitting_module, colors_module, transfer_module,
+                   overlays_module, plugin_runs_module, dataset_mixin_module):
         if hasattr(module, name):
             return module
     raise AttributeError(name)
@@ -337,7 +340,7 @@ def _patch_colormap_choice(monkeypatch, cmap_name, accepted=True):
     """QInputDialog.getItem を、実際にダイアログを表示せず指定の選択結果を返すフェイクに差し替える"""
     def fake_get_item(*args, **kwargs):
         return (cmap_name, accepted)
-    monkeypatch.setattr(dataset_mixin_module.QInputDialog, "getItem", staticmethod(fake_get_item))
+    monkeypatch.setattr(QInputDialog, "getItem", staticmethod(fake_get_item))
 
 
 def _make_simple_dataset(name):
@@ -390,19 +393,19 @@ def test_colormap_auto_assign_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: calls.append(1) or ("viridis", True))
     )
     window.colors.auto_assign_colors_from_colormap()
     assert calls == []  # ダイアログ自体を出さずに早期returnする
 
 
-# --- register_processor()実行配線 (項目C-1: _on_run_plugin_processor) ---
+# --- register_processor()実行配線 (PluginRunController.run_processor) ---
 
 def _patch_info_capture(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        QMessageBox, "information",
         staticmethod(lambda *a, **k: calls.append(a) or None)
     )
     return calls
@@ -411,7 +414,7 @@ def _patch_info_capture(monkeypatch):
 def _patch_critical_capture(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "critical",
+        QMessageBox, "critical",
         staticmethod(lambda *a, **k: calls.append(a) or None)
     )
     return calls
@@ -428,7 +431,7 @@ def _patch_plugin_param_dialog(monkeypatch, values, accepted=True):
         def get_values(self):
             return values
 
-    monkeypatch.setattr(dataset_mixin_module, "PluginParamDialog", FakePluginParamDialog)
+    monkeypatch.setattr(plugin_runs_module, "PluginParamDialog", FakePluginParamDialog)
 
 
 def _make_processor(fn, name="Smooth", category="general", param_schema=None, plugin_name="my_plugin"):
@@ -447,7 +450,7 @@ def test_run_plugin_processor_no_dataset_selected_shows_info_and_adds_nothing(tm
     before_count = len(window.project.datasets)
 
     processor = _make_processor(lambda ds, params: ds)
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(info_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -464,7 +467,7 @@ def test_run_plugin_processor_success_adds_dataset_with_source_plugin(tmp_path, 
         return Dataset(name="processed", df=df, x_col_name='x', y_col_name='y')
 
     processor = _make_processor(fn, plugin_name="cool_plugin")
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(window.project.datasets) == before_count + 1
     new_dataset = window.project.datasets[-1]
@@ -482,7 +485,7 @@ def test_run_plugin_processor_success_is_undoable(tmp_path, monkeypatch):
         return Dataset(name="processed", df=dataset.df.copy(), x_col_name='x', y_col_name='y')
 
     processor = _make_processor(fn)
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
     assert len(window.project.datasets) == before_count + 1
 
     window.undo_stack.undo()
@@ -502,7 +505,7 @@ def test_run_plugin_processor_passes_param_dialog_values_to_fn(tmp_path, monkeyp
 
     _patch_plugin_param_dialog(monkeypatch, {"window": 7})
     processor = _make_processor(fn, param_schema=[{"name": "window", "type": "int"}])
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert received == {"window": 7}
 
@@ -518,7 +521,7 @@ def test_run_plugin_processor_param_dialog_cancelled_adds_nothing(tmp_path, monk
         lambda dataset, params: Dataset(name="processed", df=dataset.df.copy(), x_col_name='x', y_col_name='y'),
         param_schema=[{"name": "window", "type": "int"}],
     )
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(window.project.datasets) == before_count
 
@@ -534,7 +537,7 @@ def test_run_plugin_processor_fn_raises_shows_critical_and_adds_nothing(tmp_path
         raise ValueError("boom")
 
     processor = _make_processor(fn)
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(critical_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -548,20 +551,20 @@ def test_run_plugin_processor_fn_returns_wrong_type_shows_critical(tmp_path, mon
     critical_calls = _patch_critical_capture(monkeypatch)
 
     processor = _make_processor(lambda dataset, params: "not a dataset")
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(critical_calls) == 1
     assert len(window.project.datasets) == before_count
 
 
-# --- register_analyzer()実行配線 (項目C-2: _on_run_plugin_analyzer) ---
+# --- register_analyzer()実行配線 (PluginRunController.run_analyzer) ---
 
 def test_run_plugin_analyzer_no_dataset_selected_shows_info(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     info_calls = _patch_info_capture(monkeypatch)
 
     analyzer = _make_analyzer(lambda ds, params: AnalysisResult())
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert len(info_calls) == 1
 
@@ -576,7 +579,7 @@ def test_run_plugin_analyzer_fn_raises_shows_critical(tmp_path, monkeypatch):
         raise RuntimeError("boom")
 
     analyzer = _make_analyzer(fn)
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert len(critical_calls) == 1
 
@@ -588,7 +591,7 @@ def test_run_plugin_analyzer_fn_returns_wrong_type_shows_critical(tmp_path, monk
     critical_calls = _patch_critical_capture(monkeypatch)
 
     analyzer = _make_analyzer(lambda dataset, params: None)
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert len(critical_calls) == 1
 
@@ -604,7 +607,7 @@ def test_run_plugin_analyzer_new_datasets_added_with_source_plugin_and_undoable(
         return AnalysisResult(new_datasets=[new_ds])
 
     analyzer = _make_analyzer(fn, plugin_name="cool_plugin")
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert len(window.project.datasets) == before_count + 1
     new_dataset = window.project.datasets[-1]
@@ -628,7 +631,7 @@ def test_run_plugin_analyzer_annotations_appended_to_active_plot_settings(tmp_pa
         return AnalysisResult(annotations=[new_annotation])
 
     analyzer = _make_analyzer(fn)
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert window.project.all_plot_settings[active_index]['annotations'] == before_annotations + [new_annotation]
 
@@ -637,16 +640,16 @@ def test_run_plugin_analyzer_table_shown_in_result_dialog(tmp_path, monkeypatch)
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("orig")
     _add_and_select_dataset(window, ds)
-    assert window.plugin_analysis_result_dialog is None
+    assert window.plugin_runs.analysis_result_dialog is None
 
     def fn(dataset, params):
         return AnalysisResult(table="a,b\n1,2\n")
 
     analyzer = _make_analyzer(fn, name="Peaks")
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
-    assert window.plugin_analysis_result_dialog is not None
-    window.plugin_analysis_result_dialog.close()
+    assert window.plugin_runs.analysis_result_dialog is not None
+    window.plugin_runs.analysis_result_dialog.close()
 
 
 def test_run_plugin_analyzer_passes_param_dialog_values_to_fn(tmp_path, monkeypatch):
@@ -662,7 +665,7 @@ def test_run_plugin_analyzer_passes_param_dialog_values_to_fn(tmp_path, monkeypa
 
     _patch_plugin_param_dialog(monkeypatch, {"threshold": 0.5})
     analyzer = _make_analyzer(fn, param_schema=[{"name": "threshold", "type": "float"}])
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert received == {"threshold": 0.5}
 
@@ -681,7 +684,7 @@ def test_run_plugin_analyzer_param_dialog_cancelled_does_nothing(tmp_path, monke
 
     _patch_plugin_param_dialog(monkeypatch, {"threshold": 0.5}, accepted=False)
     analyzer = _make_analyzer(fn, param_schema=[{"name": "threshold", "type": "float"}])
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert calls == []
     assert len(window.project.datasets) == before_count
@@ -697,12 +700,12 @@ def test_run_plugin_analyzer_replaces_previous_table_dialog(tmp_path, monkeypatc
         return AnalysisResult(table="a,b\n1,2\n")
 
     analyzer = _make_analyzer(fn, name="Peaks")
-    window._on_run_plugin_analyzer(analyzer)
-    first_dialog = window.plugin_analysis_result_dialog
+    window.plugin_runs.run_analyzer(analyzer)
+    first_dialog = window.plugin_runs.analysis_result_dialog
     assert first_dialog is not None
 
-    window._on_run_plugin_analyzer(analyzer)
-    second_dialog = window.plugin_analysis_result_dialog
+    window.plugin_runs.run_analyzer(analyzer)
+    second_dialog = window.plugin_runs.analysis_result_dialog
 
     assert second_dialog is not None
     assert second_dialog is not first_dialog
@@ -717,7 +720,7 @@ def test_on_add_dataset_calls_load_data_with_chosen_path(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     chosen_path = str(tmp_path / "data.csv")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getOpenFileName",
+        QFileDialog, "getOpenFileName",
         staticmethod(lambda *a, **k: (chosen_path, "Data Files"))
     )
     calls = []
@@ -731,7 +734,7 @@ def test_on_add_dataset_calls_load_data_with_chosen_path(tmp_path, monkeypatch):
 def test_on_add_dataset_cancelled_does_not_call_load_data(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getOpenFileName",
+        QFileDialog, "getOpenFileName",
         staticmethod(lambda *a, **k: ("", ""))
     )
     calls = []
@@ -838,7 +841,7 @@ def test_dataset_search_folder_with_no_matching_children_is_hidden(tmp_path, mon
 def test_on_new_folder_creates_top_level_folder_when_nothing_selected(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("新しいフォルダ", True))
     )
     before = window.ui.dataset_list_widget.topLevelItemCount()
@@ -853,7 +856,7 @@ def test_on_new_folder_creates_child_folder_when_folder_selected(tmp_path, monke
     parent_folder = window._add_dataset_folder_item("Parent")
     window.ui.dataset_list_widget.setCurrentItem(parent_folder)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("Child", True))
     )
 
@@ -866,7 +869,7 @@ def test_on_new_folder_creates_child_folder_when_folder_selected(tmp_path, monke
 def test_on_new_folder_cancelled_adds_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("", False))
     )
     before = window.ui.dataset_list_widget.topLevelItemCount()
@@ -879,7 +882,7 @@ def test_on_new_folder_cancelled_adds_nothing(tmp_path, monkeypatch):
 def test_on_new_folder_empty_name_adds_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("", True))
     )
     before = window.ui.dataset_list_widget.topLevelItemCount()
@@ -898,7 +901,7 @@ def test_rename_dataset_folder_updates_item_text(tmp_path, monkeypatch):
     folder = window._add_dataset_folder_item("旧フォルダ名")
     window.ui.dataset_list_widget.setCurrentItem(folder)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("新フォルダ名", True))
     )
 
@@ -912,7 +915,7 @@ def test_rename_dataset_folder_cancelled_leaves_name_unchanged(tmp_path, monkeyp
     folder = window._add_dataset_folder_item("フォルダ")
     window.ui.dataset_list_widget.setCurrentItem(folder)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("", False))
     )
 
@@ -928,7 +931,7 @@ def test_rename_dataset_folder_does_nothing_when_dataset_selected(tmp_path, monk
     _add_and_select_dataset(window, ds)
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: calls.append(1) or ("x", True))
     )
 
@@ -944,7 +947,7 @@ def test_rename_dataset_folder_persists_through_capture_dataset_group_tree(tmp_p
     folder = window._add_dataset_folder_item("旧名")
     window.ui.dataset_list_widget.setCurrentItem(folder)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("新名", True))
     )
 
@@ -5002,7 +5005,7 @@ def test_detect_duplicate_x_no_duplicates_shows_info(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     info_calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        QMessageBox, "information",
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
@@ -5106,7 +5109,7 @@ def test_detect_duplicate_x_remove_mode_already_masked_shows_info(tmp_path, monk
     )
     info_calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        QMessageBox, "information",
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
@@ -5213,7 +5216,7 @@ def test_filter_rows_no_new_matches_shows_info(tmp_path, monkeypatch):
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > -1")
     info_calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        QMessageBox, "information",
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
@@ -5790,13 +5793,13 @@ def test_batch_curve_fit_records_provenance_per_result(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 「方法」文のコピー (_on_copy_methods_text, 項目C-1102)
+# 「方法」文のコピー (TransferController.copy_methods_text)
 # =============================================================================
 
 def test_copy_methods_text_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     QApplication.clipboard().setText("")
-    window._on_copy_methods_text()
+    window.transfer.copy_methods_text()
     assert QApplication.clipboard().text() == ""
 
 
@@ -5806,7 +5809,7 @@ def test_copy_methods_text_dataset_without_provenance_does_nothing(tmp_path, mon
     _add_and_select_dataset(window, ds)
     QApplication.clipboard().setText("")
 
-    window._on_copy_methods_text()
+    window.transfer.copy_methods_text()
 
     assert QApplication.clipboard().text() == ""
 
@@ -5821,7 +5824,7 @@ def test_copy_methods_text_copies_generated_text_to_clipboard(tmp_path, monkeypa
     fit_ds = window.project.datasets[-1]
     window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(fit_ds))
 
-    window._on_copy_methods_text()
+    window.transfer.copy_methods_text()
 
     clipboard_text = QApplication.clipboard().text()
     assert "d0" in clipboard_text
@@ -5992,7 +5995,7 @@ def test_multi_peak_fit_methods_text_uses_component_type_and_count(tmp_path, mon
     fit_ds = window.project.datasets[-1]
     window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(fit_ds))
 
-    window._on_copy_methods_text()
+    window.transfer.copy_methods_text()
 
     clipboard_text = QApplication.clipboard().text()
     assert "多峰分離フィット" in clipboard_text
@@ -7012,7 +7015,7 @@ def test_mean_sd_computes_mean_and_std_on_common_grid(tmp_path, monkeypatch):
     _select_and_add(window, [ds_a, ds_b])
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("平均SD結果", True)),
     )
 
@@ -7036,7 +7039,7 @@ def test_mean_sd_uses_overlapping_x_range_only(tmp_path, monkeypatch):
     _select_and_add(window, [ds_a, ds_b])
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("結果", True)),
     )
 
@@ -7074,7 +7077,7 @@ def test_mean_sd_cancelled_name_dialog_adds_nothing(tmp_path, monkeypatch):
     _select_and_add(window, [ds_a, ds_b])
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("", False)),
     )
 
@@ -7094,7 +7097,7 @@ def test_mean_sd_three_datasets_records_provenance(tmp_path, monkeypatch):
     _select_and_add(window, datasets)
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("結果", True)),
     )
 
@@ -7107,12 +7110,12 @@ def test_mean_sd_three_datasets_records_provenance(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 統計値アンカーラベル (_on_add_stat_anchor_label, 項目C-708)
+# 統計値アンカーラベル (OverlayController.add_stat_label)
 # =============================================================================
 
 def test_add_stat_anchor_label_no_selection_is_noop(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_add_stat_anchor_label()  # 例外にならず何もしない
+    window.overlays.add_stat_label()  # 例外にならず何もしない
 
 
 def test_add_stat_anchor_label_adds_stat_annotation(tmp_path, monkeypatch):
@@ -7121,11 +7124,11 @@ def test_add_stat_anchor_label_adds_stat_annotation(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("Y平均", True)),
     )
 
-    window._on_add_stat_anchor_label()
+    window.overlays.add_stat_label()
 
     settings = window.project.all_plot_settings[ds.subplot_target]
     annotations = settings.get('annotations', [])
@@ -7141,11 +7144,11 @@ def test_add_stat_anchor_label_cancelled_dialog_adds_nothing(tmp_path, monkeypat
     _add_and_select_dataset(window, ds)
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("Y平均", False)),
     )
 
-    window._on_add_stat_anchor_label()
+    window.overlays.add_stat_label()
 
     settings = window.project.all_plot_settings[ds.subplot_target]
     assert settings.get('annotations', []) == []
@@ -7158,12 +7161,12 @@ def test_add_stat_anchor_label_stacks_multiple_labels_without_overlap(tmp_path, 
 
     choices = iter(["Y平均", "Y標準偏差", "Y最大値"])
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (next(choices), True)),
     )
 
     for _ in range(3):
-        window._on_add_stat_anchor_label()
+        window.overlays.add_stat_label()
 
     annotations = window.project.all_plot_settings[ds.subplot_target]['annotations']
     assert len(annotations) == 3
@@ -7177,11 +7180,11 @@ def test_add_stat_anchor_label_is_undoable(tmp_path, monkeypatch):
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("R²", True)),
     )
 
-    window._on_add_stat_anchor_label()
+    window.overlays.add_stat_label()
     assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) == 1
 
     window.undo_stack.undo()
@@ -7189,12 +7192,12 @@ def test_add_stat_anchor_label_is_undoable(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# インセット(拡大図)の追加 (_on_add_inset, 項目138、C-711)
+# インセット(拡大図)の追加 (OverlayController.add_inset)
 # =============================================================================
 
 def test_add_inset_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_add_inset()  # 例外にならないこと
+    window.overlays.add_inset()  # 例外にならないこと
     assert window.undo_stack.count() == 0
 
 
@@ -7205,7 +7208,7 @@ def test_add_inset_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_add_inset()
+    window.overlays.add_inset()
 
     assert len(warnings) == 1
 
@@ -7219,7 +7222,7 @@ def test_add_inset_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         {'corner': '右上', 'size': 0.4, 'zoom_x_range': (0, 1)}, accepted=False
     )
 
-    window._on_add_inset()
+    window.overlays.add_inset()
 
     assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
 
@@ -7233,7 +7236,7 @@ def test_add_inset_adds_annotation_with_selected_settings(tmp_path, monkeypatch)
         {'corner': '左下', 'size': 0.3, 'zoom_x_range': (0.5, 1.5)}
     )
 
-    window._on_add_inset()
+    window.overlays.add_inset()
 
     annotations = window.project.all_plot_settings[ds.subplot_target]['annotations']
     assert len(annotations) == 1
@@ -7253,7 +7256,7 @@ def test_add_inset_is_undoable(tmp_path, monkeypatch):
         {'corner': '右上', 'size': 0.4, 'zoom_x_range': (0, 1)}
     )
 
-    window._on_add_inset()
+    window.overlays.add_inset()
     assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) == 1
 
     window.undo_stack.undo()
