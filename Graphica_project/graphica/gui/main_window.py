@@ -195,6 +195,8 @@ from graphica.core.version import APP_NAME, __version__
 from graphica.core.i18n import tr, set_language, DEFAULT_LANGUAGE
 from graphica.core.plugin_api import load_plugins_once, get_registered_importer_extensions
 from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui.datasets.host import DatasetHost
+from graphica.gui.datasets.peaks import PeakController
 from graphica.gui.plugin_context import TabPluginContext
 from graphica.core.app_paths import get_app_data_dir, get_user_plugins_dir
 
@@ -622,7 +624,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.help_dialog = None        # mathtextヘルプ (非モーダル) のインスタンス保持用
         self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
         self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
-        self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
         self.integral_result_dialog = None  # 区間積分結果(項目C-311、非モーダル)のインスタンス保持用
         self.outlier_result_dialog = None  # 外れ値検出結果(項目C-306、非モーダル)のインスタンス保持用
         self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
@@ -2028,6 +2029,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # プラグインへの窓口は (このタブ, プラグイン) ごとに1つ。
         self._plugin_contexts = {}
+
+        # データセットに対する操作を機能ごとに分けたクラス。シグナルの接続より前に作る。
+        self._dataset_host = DatasetHost(self)
+        self.peaks = PeakController(self._dataset_host)
 
         # プラグインのパネル。メニューに表示切替を足すのは _create_menu_bar() なので、
         # ドックはそれより前に作る。1つ失敗しても他のパネルとタブの起動は続ける。

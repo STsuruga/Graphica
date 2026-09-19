@@ -243,7 +243,7 @@ class UISetupMixin:
             self.nan_policy_combo.currentIndexChanged.connect(self._on_property_changed)
 
             self.fit_curve_button.clicked.connect(self._on_fit_curve)
-            self.find_peaks_button.clicked.connect(self._on_find_peaks)
+            self.find_peaks_button.clicked.connect(self.peaks.find_peaks)
             self.multi_peak_fit_button.clicked.connect(self._on_multi_peak_fit)
 
             self.use_secondary_y_checkbox.stateChanged.connect(self._on_secondary_y_changed)

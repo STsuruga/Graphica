@@ -27,8 +27,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QFileDialog, QInputDialog, QMenu,
                                QProgressDialog)
 
-from graphica.core.analysis import (calculate_curve_fit, fit_curve_task, calculate_peak_quantification,
-                           calculate_savgol,
+from graphica.core.analysis import (calculate_curve_fit, fit_curve_task, calculate_savgol,
                            calculate_baseline_als, calculate_baseline_polynomial,
                            calculate_baseline_rubberband, calculate_baseline_manual,
                            calculate_interval_integral, calculate_cumulative_integral,
@@ -36,8 +35,7 @@ from graphica.core.analysis import (calculate_curve_fit, fit_curve_task, calcula
                            calculate_zscore_outliers, calculate_iqr_outliers,
                            calculate_resample_to_grid, multi_peak_fit_task,
                            calculate_histogram, calculate_kde, calculate_error_propagation,
-                           calculate_cross_correlation_alignment, calculate_peaks,
-                           assign_peak_label_levels, split_dataframe_by_column,
+                           calculate_cross_correlation_alignment, split_dataframe_by_column,
                            sample_standard_deviation)
 from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand,
                            SetMaskedRowsCommand)
@@ -52,7 +50,7 @@ from graphica.core.plugin_types import AnalysisResult, PluginExecutionError
 from graphica.core.safe_eval import safe_eval_column_formula
 from graphica.gui.task_runner import TaskRunner
 from graphica.gui.data_editor import DataEditorDialog
-from graphica.gui.dialogs import (PeakSettingsDialog, FitDialog, ResultDialog, ColorPaletteDialog,
+from graphica.gui.dialogs import (FitDialog, ResultDialog, ColorPaletteDialog,
                          ColumnCalculatorDialog, DatasetArithmeticDialog, NewDatasetDialog,
                          NormalizeDatasetDialog, SavGolDialog, PluginParamDialog,
                          BaselineCorrectionDialog, IntervalIntegralDialog, CumulativeIntegralDialog,
@@ -427,7 +425,7 @@ class DatasetMixin:
 
             # ピーク位置へのスマート自動ラベル(項目134、C-707)
             add_peak_labels_action = analysis_menu.addAction("ピーク位置に自動ラベルを追加...")
-            add_peak_labels_action.triggered.connect(self._on_add_smart_peak_labels)
+            add_peak_labels_action.triggered.connect(self.peaks.add_peak_labels)
 
             # ヒストグラム / カーネル密度推定(項目115、C-505): カレント1件の
             # 任意の数値列を集計し、新しいデータセットを1つ作る(上記の
@@ -1820,64 +1818,6 @@ class DatasetMixin:
             'type': 'inset', 'corner': settings['corner'], 'size': settings['size'],
             'zoom_x_range': settings['zoom_x_range'], 'color': '#000000',
         }, description="インセット(拡大図)の追加")
-
-    def _on_add_smart_peak_labels(self):
-        """
-        「ピーク位置に自動ラベルを追加...」メニューの処理(項目134、C-707)。
-        既存のピーク検出(PeakSettingsDialog + core.analysis.calculate_peaks、
-        _on_find_peaksと同じ設定UI・検出ロジック)で見つけた各ピークの位置に、
-        X値を表示するテキスト注釈を追加する。近接するピーク同士は
-        assign_peak_label_levels()で「段」を割り当て、段ごとに縦にずらして
-        ラベルが重ならないようにする(衝突回避、バックログが「地味に難しい」と
-        明記していた部分)。段の高さは、現在表示中の軸のYレンジに対する
-        比率で決める(スケールが違うデータセットでも見た目のずれ幅が揃う)。
-        """
-        dataset = self._get_current_dataset()
-        if dataset is None:
-            return
-
-        x_data, y_data = dataset.x_data, dataset.y_data
-        if len(x_data) < 3:
-            QMessageBox.warning(self, "ピーク位置への自動ラベル", "データ点数が少なすぎます (最低3点必要)。")
-            return
-
-        settings = PeakSettingsDialog.get_peak_settings(self)
-        if settings is None:
-            return
-        peak_type = settings.get("peak_type", "上に凸 (Peaks)")
-
-        try:
-            peak_x, peak_y = calculate_peaks(x_data, y_data, peak_type, settings)
-        except Exception as e:
-            logger.exception("ピーク検出に失敗しました")
-            QMessageBox.warning(self, "ピーク検出エラー", f"エラーが発生しました:\n{e}")
-            return
-
-        if len(peak_x) == 0:
-            QMessageBox.information(self, "ピーク位置への自動ラベル", f"指定された条件で {peak_type} は見つかりませんでした。")
-            return
-
-        order = np.argsort(peak_x)
-        peak_x, peak_y = peak_x[order], peak_y[order]
-
-        axis_index = dataset.subplot_target
-        y_span = 1.0
-        if 0 <= axis_index < len(self.canvas.all_axes):
-            y_lo, y_hi = self.canvas.all_axes[axis_index].get_ylim()
-            y_span = y_hi - y_lo
-        x_span = float(np.max(peak_x) - np.min(peak_x)) if len(peak_x) > 1 else 0.0
-        levels = assign_peak_label_levels(peak_x, x_span)
-
-        is_batch = len(peak_x) > 1
-        if is_batch:
-            self.undo_stack.beginMacro(f"ピーク位置への自動ラベル追加 ({len(peak_x)}件)")
-        for x, y, level in zip(peak_x, peak_y, levels):
-            label_y = y + y_span * (0.06 + 0.05 * level)
-            self._add_annotation(axis_index, {
-                'type': 'text', 'text': f"{x:.4g}", 'xy': (float(x), float(label_y)), 'color': '#000000',
-            }, description="ピーク位置への自動ラベル追加")
-        if is_batch:
-            self.undo_stack.endMacro()
 
     def _on_run_plugin_processor(self, processor):
         """
@@ -4131,90 +4071,6 @@ class DatasetMixin:
             )
         if is_batch:
             self.undo_stack.endMacro()
-
-    def _on_find_peaks(self):
-        """「ピーク検出」ボタンが押されたときの処理"""
-        original_dataset = self._get_current_dataset()
-        if original_dataset is None:
-            return
-
-        x_data, y_data = original_dataset.x_data, original_dataset.y_data
-
-        if len(x_data) < 3:
-            QMessageBox.warning(self, "ピーク検出", "データ点数が少なすぎます (最低3点必要)。")
-            return
-
-        settings = PeakSettingsDialog.get_peak_settings(self)
-        if settings is None:
-            return
-
-        peak_type = settings.get("peak_type", "上に凸 (Peaks)")
-
-        try:
-            # ★ 計算はモジュールに丸投げ。項目C-411: 位置(X,Y)だけでなく
-            # FWHM/面積/重心も一括で定量化する(calculate_peaksの単純な
-            # (x, y)版はcalculate_peak_quantificationが内部で共有ロジック
-            # (_peak_detection_signal_and_kwargs)を使って計算するため、
-            # 検出結果自体は従来と完全に同じ)。
-            quant = calculate_peak_quantification(x_data, y_data, peak_type, settings)
-        except Exception as e:
-            logger.exception("ピーク検出に失敗しました")
-            QMessageBox.warning(self, "ピーク検出エラー", f"エラーが発生しました:\n{e}")
-            return
-
-        peak_x, peak_y = quant['peak_x'], quant['peak_y']
-        fwhm, area, centroid = quant['fwhm'], quant['area'], quant['centroid']
-
-        if len(peak_x) == 0:
-            QMessageBox.information(self, "ピーク検出", f"指定された条件で {peak_type} は見つかりませんでした。")
-            return
-
-        # 結果文字列の作成 (X座標順にソート)
-        sort_order = np.argsort(peak_x)
-        result_text = (
-            f"検出された {peak_type} ({len(peak_x)}個):\n"
-            "  X座標\t\tY座標\t\tFWHM\t\t面積\t\t重心X\n" + "-" * 70 + "\n"
-        )
-        for i in sort_order:
-            result_text += (
-                f"  {peak_x[i]:.4g}\t\t{peak_y[i]:.4g}\t\t{fwhm[i]:.4g}"
-                f"\t\t{area[i]:.4g}\t\t{centroid[i]:.4g}\n"
-            )
-
-        # UI/Modelへの反映 (元のデータセットと同じフォルダに追加する)
-        peak_marker = 'v' if "下に凸" not in peak_type else '^'
-        peak_color = 'red' if "下に凸" not in peak_type else 'blue'
-
-        peaks_df = pd.DataFrame({'peak_x': peak_x, 'peak_y': peak_y})
-        peak_dataset = Dataset(
-            name=f"{peak_type.split(' ')[0]} ({original_dataset.name})",
-            df=peaks_df,
-            x_col_name='peak_x', y_col_name='peak_y',
-            plot_type='Scatter', color=peak_color, linestyle='None',
-            marker=peak_marker, markersize=8,
-            use_secondary_y=original_dataset.use_secondary_y,
-            subplot_target=original_dataset.subplot_target
-        )
-
-        self.project.datasets.append(peak_dataset)
-        original_item = self._get_dataset_tree_item(original_dataset)
-        self._add_dataset_list_item(peak_dataset, original_item.parent() if original_item else None)
-        self._update_plot()
-
-        # ★ グラフを見ながら結果を確認できるよう、非モーダル・スクロール可能なダイアログで表示する
-        # (検出数が多いと行数が非常に多くなりうるため、スクロールできることが重要)
-        if self.peak_result_dialog is not None:
-            self.peak_result_dialog.close()
-        peak_csv_data = pd.DataFrame({
-            'X座標': peak_x[sort_order],
-            'Y座標': peak_y[sort_order],
-            'FWHM': fwhm[sort_order],
-            '面積': area[sort_order],
-            '重心X': centroid[sort_order],
-        })
-        self.peak_result_dialog = ResultDialog("ピーク検出完了", result_text, self, csv_data=peak_csv_data)
-        self.peak_result_dialog.show()
-
 
 def _named_color_menu_icon(color_name, size=16):
     """「登録した色を適用」メニューの色見本(色欄のポップアップと同じ描き方)。"""
