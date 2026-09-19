@@ -1,5 +1,6 @@
 """X 軸の単位の変換(nm / eV / cm^-1 / Hz)。nm 以外は波長に反比例するので、どの組も nm を経由して変換する。"""
 import numpy as np
+from typing import Any
 
 X_AXIS_UNIT_NONE = 'none'
 X_AXIS_UNIT_NM = 'nm'
@@ -30,7 +31,7 @@ _UNIT_TO_NM_CONSTANT = {
 }
 
 
-def convert_x_axis_unit(value, from_unit, to_unit):
+def convert_x_axis_unit(value: Any, from_unit: str, to_unit: str) -> Any:
     """from_unit から to_unit へ変換する。
 
     波長 0 は例外にせず inf / nan にする(secondary_xaxis の関数に使うので、ゼロ除算の警告も抑える)。

@@ -164,11 +164,11 @@ class Dataset:
 
     show_point_labels: bool = False
     # None なら Y の値をラベルにする
-    point_label_col_name: str = field(default=None)
+    point_label_col_name: str | None = field(default=None)
 
     # None ならその軸のエラーバーは描かない
-    x_err_col_name: str = field(default=None)
-    y_err_col_name: str = field(default=None)
+    x_err_col_name: str | None = field(default=None)
+    y_err_col_name: str | None = field(default=None)
 
     # 'bar' / 'band' / 'both'
     error_display: str = 'bar'
@@ -176,22 +176,22 @@ class Dataset:
     # 描画・フィット・解析から除く行。位置ではなく df.index のラベル
     masked_row_indices: list = field(default_factory=list)
 
-    fit_info: str = field(default=None)  # 表示用のフィット結果の文字列
+    fit_info: str | None = field(default=None)  # 表示用のフィット結果の文字列
 
     # フィット結果(fit_type, params, param_errors, covariance, r_squared, residuals など)。
     # pickle と JSON の両方で往復できるよう、Python の素の型だけにする。
-    fit_result: dict = field(default=None)
+    fit_result: dict | None = field(default=None)
 
     # "confidence" / "prediction" / None。df の 'y_lower' / 'y_upper' 列を帯として描く
-    fit_band_display: str = field(default=None)
+    fit_band_display: str | None = field(default=None)
 
     # プラグインの処理・解析が作った系列なら、そのプラグイン名
-    source_plugin: str = field(default=None)
+    source_plugin: str | None = field(default=None)
 
     # 読み込んだファイルの絶対パス(「再読み込み」用)。ファイルから作っていない系列は None。
     # source_sheet は Excel のシート名(CSV と単一シートでは None)
-    source_file: str = field(default=None)
-    source_sheet: str = field(default=None)
+    source_file: str | None = field(default=None)
+    source_sheet: str | None = field(default=None)
 
     # 欠損値の描き方。描くときだけ効き、データは変えない。
     # 'gap'(線を切る)/ 'ffill'(前の値で埋める)/ 'drop'(除いてつなぐ)
@@ -199,22 +199,22 @@ class Dataset:
 
     # この系列を作った直近1回の操作({operation, params, source_dataset_ids, source_dataset_names, timestamp})。
     # 全体の履歴は source_dataset_ids を辿って組み立てる。読み込んだデータは None
-    provenance: dict = field(default=None)
+    provenance: dict | None = field(default=None)
 
     use_secondary_y: bool = field(default=False)
     subplot_target: int = field(default=0)     # 描画先のサブプロット(0始まり)
 
     # '2d_grid' なら df は x/y/z の長形式で、z_grid が格子を組み立てる
     data_kind: str = field(default='1d')
-    z_col_name: str = field(default=None)
+    z_col_name: str | None = field(default=None)
     # 散在データの補間: 'linear' / 'cubic' / 'nearest'
     grid_interp_method: str = field(default='linear')
     # [nx, ny]、None なら自動。JSON で tuple が list になるので最初から list
-    grid_resolution: list = field(default=None)
+    grid_resolution: list | None = field(default=None)
     # vmin / vmax が None ならデータの最小・最大
     colormap: str = field(default='viridis')
-    vmin: float = field(default=None)
-    vmax: float = field(default=None)
+    vmin: float | None = field(default=None)
+    vmax: float | None = field(default=None)
 
     # 'heatmap' / 'contour' / 'contour_filled' / 'heatmap_contour'
     map_display_mode: str = field(default='heatmap')

@@ -7,9 +7,13 @@
 
 from graphica.core.axis_settings import axis_setting
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from typing import TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from graphica.core.dataset import Dataset
+    from graphica.models.project import ProjectModel
 
 
-def _to_native(value):
+def _to_native(value: Any) -> Any:
     """numpy 2 では np.float64 の repr が "np.float64(1.5)" になるので、Python の型にしてから repr する。"""
     if hasattr(value, 'item'):
         try:
@@ -19,7 +23,7 @@ def _to_native(value):
     return value
 
 
-def _format_array_literal(values):
+def _format_array_literal(values: Any) -> str:
     """数値のリストのリテラル。NaN は repr すると未定義の nan になるので float('nan') と書く。"""
     parts = []
     for v in values:
@@ -36,7 +40,7 @@ _BUILTIN_PLOT_TYPES = ('Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step',
                        COLOR_BY_COLUMN_PLOT_TYPE)
 
 
-def _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=None):
+def _emit_dataset_plot_call(lines: list[str], ax_var: str, ds: "Dataset", mappable_var: str | None = None) -> bool:
     """1次元の系列を描く呼び出しを書く。カラーバー用の mappable を mappable_var に入れたら True。"""
     kwargs = f"color={ds.color!r}, alpha={ds.alpha!r}, label={ds.name!r}"
     plot_type = ds.plot_type if ds.plot_type in _BUILTIN_PLOT_TYPES else None
@@ -89,7 +93,7 @@ def _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=None):
 _VALID_MAP_DISPLAY_MODES = ('heatmap', 'contour', 'contour_filled', 'heatmap_contour')
 
 
-def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
+def _emit_2d_dataset_plot_call(lines: list[str], ax_var: str, mesh_var: str, ds: "Dataset") -> bool:
     """2D マップを pcolormesh / contour / contourf で書く。Dataset.z_grid の格子をそのまま埋め込む。
 
     カラーバーの対象(塗りのあるモード)を mesh_var に作れたら True。線だけの contour や格子が作れないときは False。
@@ -131,7 +135,7 @@ def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
     return has_mappable
 
 
-def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):
+def _emit_appearance_calls(lines: list[str], ax_var: str, settings: dict[str, Any], mesh_var: str | None = None) -> None:
     if axis_setting(settings, 'title'):
         lines.append(f"{ax_var}.set_title({settings['title']!r})")
     if axis_setting(settings, 'x_label') and axis_setting(settings, 'x_label_visible'):
@@ -164,7 +168,7 @@ def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):
             lines.append(f"cbar.set_label({settings['colorbar_label']!r})")
 
 
-def generate_python_script(project) -> str:
+def generate_python_script(project: "ProjectModel") -> str:
     """スクリプトのソースを返す。データは np.array としてスクリプトに埋め込む(1ファイルで再現できるが、点が多いと大きくなる)。"""
     lines = [
         '"""',
@@ -209,7 +213,7 @@ def generate_python_script(project) -> str:
     if secondary_axis_indices:
         lines.append('')
 
-    mesh_var_by_axis = {}
+    mesh_var_by_axis: dict[int, str | None] = {}
     # 1つの軸にカラーバーは1つなので、2D マップがある軸では2D マップを優先する(画面と同じ)。
     # 系列の順に書くので、先にこの集合を作らないと順序次第で画面と食い違う
     axes_with_2d = {
@@ -238,9 +242,9 @@ def generate_python_script(project) -> str:
                     lines.append(f'z = np.array({_format_array_literal(list(z_values))})')
             # 2D マップがある軸ではカラーバーを譲る(mesh{N} を上書きしないよう変数名も分ける)
             wants_colorbar = ds.subplot_target not in axes_with_2d
-            mesh_var = f'scatter_mesh{ds.subplot_target}' if wants_colorbar else None
-            if _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=mesh_var):
-                mesh_var_by_axis[ds.subplot_target] = mesh_var
+            scatter_mesh_var = f'scatter_mesh{ds.subplot_target}' if wants_colorbar else None
+            if _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=scatter_mesh_var):
+                mesh_var_by_axis[ds.subplot_target] = scatter_mesh_var
         lines.append('')
 
     for i, settings in enumerate(all_plot_settings[:subplot_count]):

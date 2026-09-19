@@ -5,6 +5,7 @@
 import numpy as np
 import pandas as pd
 from scipy.interpolate import griddata, RegularGridInterpolator
+from typing import Any
 
 # ドラッグでぴったり水平・垂直には引けないので、各軸の範囲に対するこの割合までは水平・垂直とみなす
 SLICE_AXIS_ALIGNMENT_TOLERANCE = 0.01
@@ -16,7 +17,7 @@ class GridDataError(ValueError):
     """2D の格子を作れない。"""
 
 
-def is_regular_grid(x, y):
+def is_regular_grid(x: Any, y: Any) -> bool:
     """x と y の全部の組み合わせが、ちょうど1回ずつあるか。"""
     unique_x = np.unique(x)
     unique_y = np.unique(y)
@@ -26,7 +27,8 @@ def is_regular_grid(x, y):
     return len(pairs) == len(x)
 
 
-def compute_z_grid(x, y, z, interp_method='linear', resolution=None):
+def compute_z_grid(x: Any, y: Any, z: Any, interp_method: str = 'linear',
+                   resolution: tuple[int, int] | list[int] | None = None) -> dict[str, Any]:
     """{'x_grid', 'y_grid'(ソート済みの1次元), 'z_grid'(shape=(len(y), len(x))、データの無い所は nan), 'is_regular'}。
 
     resolution=(nx, ny) は補間するときだけ使う(None なら点の数から決める)。interp_method も補間のときだけ。
@@ -83,7 +85,8 @@ def compute_z_grid(x, y, z, interp_method='linear', resolution=None):
     }
 
 
-def extract_slice(x_grid, y_grid, z_grid, start, end, n_points=200):
+def extract_slice(x_grid: Any, y_grid: Any, z_grid: Any, start: tuple[float, float], end: tuple[float, float],
+                  n_points: int = 200) -> dict[str, Any]:
     """格子上の線分に沿った断面を返す({'axis_values', 'axis_kind', 'z_values'})。
 
     axis_kind はほぼ水平なら 'x'、ほぼ垂直なら 'y'、斜めなら 'distance'(始点からの距離)。格子の外は nan。

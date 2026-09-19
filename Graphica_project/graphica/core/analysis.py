@@ -1,4 +1,5 @@
 import re
+from typing import Any
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import spsolve
@@ -15,7 +16,7 @@ from graphica.core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
 CURVE_FIT_MAX_ITERATIONS = 5000
 
 # プラグインのフィット関数。{name: {"func": f(x, *params), "params": [...], "p0": list | callable | None}}
-_PLUGIN_FIT_FUNCTIONS = {}
+_PLUGIN_FIT_FUNCTIONS: dict[str, dict[str, Any]] = {}
 
 # 組み込みのフィットタイプは部分一致で判定するので、プラグイン名がこれらを含むと取り違える。
 _BUILTIN_FIT_TYPE_SUBSTRINGS = (

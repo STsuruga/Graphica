@@ -7,6 +7,7 @@
 import copy
 
 from graphica.core.unit_conversion import X_AXIS_UNIT_NONE
+from typing import Any
 
 AXIS_SETTING_DEFAULTS = {
     'title': '',
@@ -106,7 +107,7 @@ LEGACY_FALLBACK_KEYS = {
 }
 
 
-def axis_setting(settings, key):
+def axis_setting(settings: dict[str, Any], key: str) -> Any:
     """settings の key の値。無ければ(古いキーがあればその値、それも無ければ)既定値。"""
     if key in settings:
         return settings[key]

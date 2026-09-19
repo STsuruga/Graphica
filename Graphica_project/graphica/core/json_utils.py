@@ -11,12 +11,13 @@ json.JSONEncoder ではそのままシリアライズできない場合がある
 import json
 
 import numpy as np
+from typing import Any
 
 
 class GraphicaJSONEncoder(json.JSONEncoder):
     """numpy型を素のPython型に変換してからシリアライズするJSONEncoder。"""
 
-    def default(self, obj):
+    def default(self, obj: Any) -> Any:
         if isinstance(obj, np.integer):
             return int(obj)
         if isinstance(obj, np.floating):

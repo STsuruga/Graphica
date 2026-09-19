@@ -8,13 +8,14 @@ import ast
 import operator
 
 import numpy as np
+from typing import Any, Callable
 
 
 class SafeEvalError(ValueError):
     """式に許していない構文・名前・関数・属性がある。"""
 
 
-DEFAULT_FUNCTIONS = {
+DEFAULT_FUNCTIONS: dict[str, Any] = {
     'exp': np.exp, 'log': np.log, 'log10': np.log10, 'sqrt': np.sqrt,
     'sin': np.sin, 'cos': np.cos, 'tan': np.tan, 'abs': np.abs,
     'pi': np.pi, 'e': np.e,
@@ -28,22 +29,22 @@ ALLOWED_SERIES_METHODS = frozenset({
     'quantile', 'skew', 'kurt', 'count', 'size',
 })
 
-_BINOPS = {
+_BINOPS: dict[type, Callable[..., Any]] = {
     ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
     ast.Div: operator.truediv, ast.Pow: operator.pow, ast.Mod: operator.mod,
     ast.FloorDiv: operator.floordiv,
 }
 # Series に素の not / and / or を使うと「真偽値が曖昧」になるので、pandas.eval と同じく ~ / & / | として扱う
-_UNARYOPS = {ast.UAdd: operator.pos, ast.USub: operator.neg, ast.Not: operator.invert}
-_BOOLOPS = {ast.And: operator.and_, ast.Or: operator.or_}
-_COMPAREOPS = {
+_UNARYOPS: dict[type, Callable[..., Any]] = {ast.UAdd: operator.pos, ast.USub: operator.neg, ast.Not: operator.invert}
+_BOOLOPS: dict[type, Callable[[Any, Any], Any]] = {ast.And: operator.and_, ast.Or: operator.or_}
+_COMPAREOPS: dict[type, Callable[[Any, Any], Any]] = {
     ast.Eq: operator.eq, ast.NotEq: operator.ne,
     ast.Lt: operator.lt, ast.LtE: operator.le,
     ast.Gt: operator.gt, ast.GtE: operator.ge,
 }
 
 
-def _parse(formula):
+def _parse(formula: str) -> ast.expr:
     try:
         tree = ast.parse(formula, mode='eval')
     except SyntaxError as e:
@@ -52,13 +53,14 @@ def _parse(formula):
 
 
 class _Evaluator:
-    def __init__(self, variables, functions, allowed_methods):
+    def __init__(self, variables: dict[str, Any], functions: dict[str, Any],
+                 allowed_methods: frozenset[str] | None) -> None:
         self.variables = variables
         self.functions = functions
         # None なら属性アクセスを一切許さない(フィットの式)
         self.allowed_methods = allowed_methods
 
-    def eval(self, node):
+    def eval(self, node: ast.AST) -> Any:
         if isinstance(node, ast.Constant):
             if isinstance(node.value, (int, float, complex)):
                 return node.value
@@ -119,7 +121,7 @@ class _Evaluator:
             for kw in node.keywords:
                 if kw.arg is None:
                     raise SafeEvalError("この形式の関数呼び出し(**による引数展開)は許可されていません。")
-            kwargs = {kw.arg: self.eval(kw.value) for kw in node.keywords}
+            kwargs = {str(kw.arg): self.eval(kw.value) for kw in node.keywords}
             if isinstance(node.func, ast.Name):
                 name = node.func.id
                 if name not in self.functions or not callable(self.functions[name]):
@@ -135,7 +137,7 @@ class _Evaluator:
         raise SafeEvalError(f"許可されていない構文です: {type(node).__name__}")
 
 
-def safe_eval_formula(formula, variables, functions=None):
+def safe_eval_formula(formula: str, variables: dict[str, Any], functions: dict[str, Any] | None = None) -> Any:
     """フィットの式を評価する。属性アクセスとメソッド呼び出しは許さない。functions は DEFAULT_FUNCTIONS に足す。"""
     funcs = dict(DEFAULT_FUNCTIONS)
     if functions:
@@ -144,7 +146,7 @@ def safe_eval_formula(formula, variables, functions=None):
     return _Evaluator(variables, funcs, allowed_methods=None).eval(node)
 
 
-def safe_eval_column_formula(df, formula):
+def safe_eval_column_formula(df: Any, formula: str) -> Any:
     """列名を変数として列の計算式を評価する(ALLOWED_SERIES_METHODS のメソッドも使える)。"""
     variables = {str(col): df[col] for col in df.columns}
     node = _parse(formula)

@@ -5,7 +5,7 @@ import re
 _LABEL_WITH_UNIT_PATTERN = re.compile(r'^(?P<label>.+?)\s*[\(\[](?P<unit>[^()\[\]]+)[\)\]]\s*$')
 
 
-def infer_axis_label_from_column_name(column_name):
+def infer_axis_label_from_column_name(column_name: object) -> str | None:
     """列名が「ラベル (単位)」の形ならそのラベルを返す('Wavelength[nm]' -> 'Wavelength (nm)')。
 
     形が合わなければ None(単位の無い列名にラベルをでっちあげない)。

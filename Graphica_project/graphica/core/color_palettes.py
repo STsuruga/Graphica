@@ -4,6 +4,7 @@
 """
 
 from graphica.core.named_colors import normalize_color
+from typing import Any
 
 # 出典: Tableau 10、ColorBrewer(Set2/Dark2/Paired、パブリックドメイン)、
 # Okabe & Ito (2008) Color Universal Design(1型/2型色覚でも判別しやすい8色)。
@@ -31,7 +32,7 @@ BUILTIN_PALETTES = {
 }
 
 
-def normalize_palettes(palettes):
+def normalize_palettes(palettes: Any) -> dict[str, list[str]]:
     """利用者のパレット {名前: [色, ...]} を検証し、色を小文字の #rrggbb にしたコピーを返す。"""
     if not isinstance(palettes, dict):
         raise ValueError("パレットは {名前: [色, ...]} の形で渡してください。")

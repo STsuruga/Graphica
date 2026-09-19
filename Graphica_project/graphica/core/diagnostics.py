@@ -15,6 +15,7 @@ from datetime import datetime
 
 from graphica.core.app_paths import get_app_data_dir
 from graphica.core.version import APP_NAME, LOG_FILE_NAME, __version__
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 _DEPENDENCY_MODULES = ('PySide6', 'matplotlib', 'numpy', 'pandas', 'scipy', 'openpyxl', 'xlrd')
 
 
-def _collect_environment_info():
+def _collect_environment_info() -> str:
     lines = [
         f"{APP_NAME} {__version__}",
         f"生成日時: {datetime.now().astimezone().isoformat()}",
@@ -41,7 +42,7 @@ def _collect_environment_info():
     return "\n".join(lines)
 
 
-def _collect_plugin_info():
+def _collect_plugin_info() -> str:
     from graphica.core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
     records = get_loaded_plugin_records()
     if records is None:
@@ -69,14 +70,14 @@ def _collect_plugin_info():
     return "\n".join(lines)
 
 
-def _collect_settings_info(settings_dict):
+def _collect_settings_info(settings_dict: dict[str, Any] | None) -> str:
     if not settings_dict:
         return "(設定値なし)"
     lines = [f"{key} = {value!r}" for key, value in sorted(settings_dict.items())]
     return "\n".join(lines)
 
 
-def build_diagnostic_bundle(out_path, settings_dict=None):
+def build_diagnostic_bundle(out_path: str, settings_dict: dict[str, Any] | None = None) -> None:
     """
     診断情報バンドル(zip)を out_path に書き出す。
 

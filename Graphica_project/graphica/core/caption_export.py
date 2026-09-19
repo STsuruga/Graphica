@@ -18,13 +18,13 @@ _LATEX_SPECIAL_CHARS = {
 DEFAULT_WIDTH = r'\linewidth'
 
 
-def escape_latex(text):
+def escape_latex(text: str) -> str:
     if not text:
         return ''
     return ''.join(_LATEX_SPECIAL_CHARS.get(ch, ch) for ch in text)
 
 
-def sanitize_label(text, prefix='fig:'):
+def sanitize_label(text: str, prefix: str = 'fig:') -> str:
     """タイトルなどから \\label{} に使える文字列を作る(英数字・-・_ だけ残す)。何も残らなければ既定の名前。"""
     cleaned = re.sub(r'[^A-Za-z0-9_-]+', '', (text or '').strip().replace(' ', '-'))
     # 日本語だけのタイトルなどで、ハイフンだけの意味の無いラベルにならないように
@@ -33,7 +33,7 @@ def sanitize_label(text, prefix='fig:'):
     return f"{prefix}{cleaned}"
 
 
-def generate_latex_figure(image_filename, caption, label, width=DEFAULT_WIDTH):
+def generate_latex_figure(image_filename: str, caption: str, label: str, width: str = DEFAULT_WIDTH) -> str:
     """figure 環境一式。image_filename が空なら 'figure.pdf'(後で差し替える前提)、label が空なら \\label 行を省く。"""
     lines = [
         r'\begin{figure}[htbp]',

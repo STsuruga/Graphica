@@ -4,9 +4,12 @@ import datetime
 import html
 
 from graphica.core.methods_text import generate_methods_text
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from graphica.models.project import ProjectModel
 
 
-def collect_methods_sections(project):
+def collect_methods_sections(project: "ProjectModel") -> list[tuple[str, str]]:
     """履歴を持つデータセットごとの (名前, 方法の文)。元データは含めない。"""
     return [
         (ds.name, generate_methods_text(ds, project))
@@ -15,7 +18,7 @@ def collect_methods_sections(project):
     ]
 
 
-def generate_html_report(image_png_bytes, methods_sections, title=""):
+def generate_html_report(image_png_bytes: bytes, methods_sections: list[tuple[str, str]], title: str = "") -> str:
     """画像を base64 で埋め込んだ1ファイルで完結する HTML。title が空なら既定のタイトル。"""
     title_text = title.strip() or "実験レポート"
     title_html = html.escape(title_text)

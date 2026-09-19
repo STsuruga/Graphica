@@ -1,12 +1,16 @@
 """処理の履歴(provenance)を日本語の説明にする。履歴パネルと「方法」の文で表記を揃えるため、ここに1つにする。"""
+from typing import TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from graphica.core.dataset import Dataset
+    from graphica.models.project import ProjectModel
 
 
-def describe_operation(provenance):
+def describe_operation(provenance: dict[str, Any] | None) -> str:
     """1つの処理を要約した文(履歴パネルの項目にも、方法の文の1文にも使える)。"""
     if not provenance:
         return "不明な操作"
     operation = provenance.get('operation')
-    params = provenance.get('params') or {}
+    params: dict[str, Any] = provenance.get('params') or {}
 
     if operation == 'savgol':
         return (
@@ -33,9 +37,8 @@ def describe_operation(provenance):
     if operation == 'mean_sd':
         return f"複数データセットの平均±SD生成({params.get('n_source')}件、手法: {params.get('method')})"
     if operation == 'cumulative_integral':
-        method_label = {'trapezoid': '台形則', 'simpson': 'Simpson則'}.get(
-            params.get('method'), params.get('method')
-        )
+        method_labels: dict[Any, str] = {'trapezoid': '台形則', 'simpson': 'Simpson則'}
+        method_label = method_labels.get(params.get('method'), params.get('method'))
         return f"累積積分({method_label})"
     if operation == 'average_duplicate_x':
         return (
@@ -60,9 +63,8 @@ def describe_operation(provenance):
         return f"多峰分離フィット({params.get('component_type', '不明')} x{params.get('n_components', '?')})"
     if operation == '2d_slice':
         start, end = params.get('start'), params.get('end')
-        axis_label = {'x': 'X軸方向', 'y': 'Y軸方向', 'distance': '斜め方向'}.get(
-            params.get('axis_kind'), params.get('axis_kind')
-        )
+        axis_labels: dict[Any, str] = {'x': 'X軸方向', 'y': 'Y軸方向', 'distance': '斜め方向'}
+        axis_label = axis_labels.get(params.get('axis_kind'), params.get('axis_kind'))
         if start and end:
             return (
                 f"2Dマップからの1Dスライス抽出({axis_label}、"
@@ -72,11 +74,11 @@ def describe_operation(provenance):
     return operation or "不明な操作"
 
 
-def generate_methods_text(dataset, project):
+def generate_methods_text(dataset: "Dataset", project: "ProjectModel") -> str:
     """祖先から順に辿って「方法」の文にする。元データか、親が消されていればそこで止める(循環も止める)。"""
     chain = []
     visited = set()
-    current = dataset
+    current: "Dataset | None" = dataset
     while current is not None and current.provenance and current.dataset_id not in visited:
         visited.add(current.dataset_id)
         chain.append(current.provenance)

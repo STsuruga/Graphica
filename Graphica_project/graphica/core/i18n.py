@@ -11,14 +11,14 @@ SUPPORTED_LANGUAGES = {"ja": "日本語", "en": "English"}
 DEFAULT_LANGUAGE = "ja"
 
 _current_language = DEFAULT_LANGUAGE
-_translations = {}  # {言語コード: {原文: 訳文}}
+_translations: dict[str, dict[str, str]] = {}  # {言語コード: {原文: 訳文}}
 
 
-def register_translations(lang_code, mapping):
+def register_translations(lang_code: str, mapping: dict[str, str]) -> None:
     _translations.setdefault(lang_code, {}).update(mapping)
 
 
-def set_language(lang_code):
+def set_language(lang_code: str) -> None:
     """対応していない言語なら日本語にする。"""
     global _current_language
     if lang_code not in SUPPORTED_LANGUAGES:
@@ -26,11 +26,11 @@ def set_language(lang_code):
     _current_language = lang_code
 
 
-def get_language():
+def get_language() -> str:
     return _current_language
 
 
-def tr(text):
+def tr(text: str) -> str:
     """日本語のとき、または訳が無いときは原文のまま。"""
     if _current_language == DEFAULT_LANGUAGE:
         return text

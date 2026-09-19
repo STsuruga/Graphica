@@ -10,7 +10,8 @@ import openpyxl
 logger = logging.getLogger(__name__)
 
 
-def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, max_scan_cells=200_000):
+def find_unevaluated_formula_cells(file_path: str, sheet_name: str | None = None, max_examples: int = 5,
+                                  max_scan_cells: int = 200_000) -> tuple[bool, list[str], bool]:
     """数式なのに計算済みの値を持たないセルを探す。(見つかったか, 例のリスト, 全部を見たか)。
 
     大きなファイルで重くならないよう max_scan_cells で打ち切る。

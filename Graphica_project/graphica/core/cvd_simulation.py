@@ -30,7 +30,7 @@ CVD_TYPE_LABELS = {
 }
 
 
-def simulate_rgb_array(rgb_array, cvd_type):
+def simulate_rgb_array(rgb_array: np.ndarray, cvd_type: str) -> np.ndarray:
     """形が (..., 3) の RGB に行列を掛ける。0〜255 のままでよい(スケールは保たれる)。クリップと型の変換は呼び出し側。"""
     if cvd_type not in CVD_MATRICES:
         raise ValueError(f"未知の色覚タイプです: {cvd_type}")
@@ -41,7 +41,7 @@ def simulate_rgb_array(rgb_array, cvd_type):
     return simulated.reshape(original_shape)
 
 
-def simulate_hex_color(hex_color, cvd_type):
+def simulate_hex_color(hex_color: str, cvd_type: str) -> str:
     """#RRGGBB を1つ変換する(画像を介さない単色用)。"""
     hex_color = hex_color.lstrip('#')
     rgb = np.array([int(hex_color[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float64)

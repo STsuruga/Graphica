@@ -12,7 +12,7 @@ class PluginInstallError(Exception):
     """メッセージはそのまま利用者に見せる。"""
 
 
-def _reject_unsafe_members(zf):
+def _reject_unsafe_members(zf: zipfile.ZipFile) -> None:
     # zip-slip: 正規化して .. で始まるか絶対パスなら、target_dir の外に書くので拒否する
     for member in zf.namelist():
         normalized = os.path.normpath(member)
@@ -22,7 +22,7 @@ def _reject_unsafe_members(zf):
             )
 
 
-def _find_plugin_root(staging_dir, zip_path):
+def _find_plugin_root(staging_dir: str, zip_path: str) -> tuple[str, str]:
     """(プラグイン本体のフォルダの絶対パス, 採用するフォルダ名)"""
     if os.path.exists(os.path.join(staging_dir, "__init__.py")):
         # __init__.py が zip の直下にある
@@ -42,7 +42,7 @@ def _find_plugin_root(staging_dir, zip_path):
     )
 
 
-def install_plugin_zip(zip_path, target_dir=None):
+def install_plugin_zip(zip_path: str, target_dir: str | None = None) -> str:
     """target_dir(省略時は get_user_plugins_dir())に入れ、フォルダ名を返す。失敗は PluginInstallError。"""
     if target_dir is None:
         target_dir = get_user_plugins_dir()
