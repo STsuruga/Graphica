@@ -1,31 +1,6 @@
-"""
-gui/residual_panel.py
+"""選んだデータセットのフィットの残差を出すドック。dataset.fit_result の残差をそのまま描く(計算し直さない)。
 
-残差プロットの専用ドックパネル(項目C-406)。ミニマップ(gui/minimap_widget.py)
-やエクスポートプレビュー(gui/export_preview_panel.py)と同じ「メインキャンバス
-とは別の独立したFigure/Axesを持つ、選択状態に連動する小さなパネル」という
-設計方針を踏襲する。選択中のデータセットが切り替わるたびに refresh(dataset)
-が呼ばれ(gui/mixins/dataset_mixin.pyの_update_ui_state内)、そのデータセットが
-曲線フィットの結果(dataset.fit_result、項目C-401で永続化)を持っていれば
-dataset.fit_result['residual_x']/['residuals'] をそのまま散布図として描画する
-(再計算はしない)。持っていなければプレースホルダの案内文を表示する。
-
-★ 設計上の割り切り(実装時の判断、ユーザーとの相談の上で採用):
-ロードマップ原文の「上下連動2段パネル」を、メインプロットのサブプロット
-グリッド内に実際に2段のAxesとして埋め込む形(sharex等での軸連動)ではなく、
-独立したドックパネルとして実装した。理由:
-  - メインキャンバスの再描画ロジック(gui/canvas.pyのredraw_all/_draw_data)は
-    サブプロット数=all_plot_settingsの要素数という前提でグリッド/自由配置
-    レイアウトを組んでおり、「特定のデータセットが選択されている間だけその
-    サブプロットを2段に割る」という状態を持ち込むと、グリッド計算・自由配置の
-    ドラッグ座標・ミニマップ連動・第2Y軸等、既存の多くの機構と複雑に絡み合う
-    ことになり、リグレッションリスクが高い。
-  - 既にこのコードベースには「メインキャンバスとは別の、選択状態に連動する
-    小さな独立パネル」という確立されたパターンがある(ミニマップ、エクスポート
-    プレビュー)。これに倣うことで、既存機構を一切変更せずに実装できる。
-  - 「連動」の意味を、軸範囲のリアルタイム同期(パン/ズームの相互反映)では
-    なく、「選択中のフィットデータセットの残差が常に最新の状態で表示される」
-    という選択状態の連動として解釈した。
+メインのグラフを上下2段に分けないのは、サブプロットの数・配置・自由配置・第2Y軸などの前提と絡み合うため。
 """
 import logging
 
@@ -39,14 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class ResidualPanel(QWidget):
-    """
-    フィット結果の残差(実測値 - フィット値)を表示する常設パネル。
-    gui/dialogs.pyのResultDialog内の残差プロット(フィット直後に一度だけ表示
-    される非モーダルダイアログの一部)と同じ配色方針(gui.themeの現在の
-    トークンを使い、ダーク/ライト両対応)だが、こちらは選択中のデータセットに
-    追従して更新され続ける常設パネルという点が異なる。
-    """
-
     def __init__(self, parent=None, dpi=100):
         super().__init__(parent)
         layout = QVBoxLayout(self)
@@ -68,12 +35,7 @@ class ResidualPanel(QWidget):
         self.canvas.setVisible(False)
 
     def refresh(self, dataset):
-        """
-        選択中のデータセット(非選択時はNone)を受けて、残差プロットを描き直す。
-        dataset.fit_result が無い、または残差データが空の場合はプレースホルダ
-        表示に戻す(再計算は一切しない — dataset.fit_result に既に永続化されて
-        いる残差をそのまま読むだけ)。
-        """
+        """fit_result が無いか残差が空なら案内の文を出す。"""
         fit_result = dataset.fit_result if dataset is not None else None
         residual_x = fit_result.get('residual_x') if fit_result else None
         residuals = fit_result.get('residuals') if fit_result else None
