@@ -85,7 +85,11 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   theme.py の QSS 内コメントは、build_qss() の出力がコメントを除いて一致することで確認。プラグイン向けの公開 API
   (plugin_api / plugin_context / plugin_testing / plugin_types)は Args/Returns を残す方針なので対象外。
   画面や生成物に出る文字列の中の項目番号(3か所)は表示の変更になるので K-17 として登録。
-- 次: J-3(使われていないコードを消す)、J-4、F-3。
+- J-3 完了(b50dddb、未マージ): 呼び出し元の無いコードを削除。AppContext(gui/app_context.py、ユーザー決定で丸ごと。
+  PluginContext が役目を引き継いだ)、settings_mixin の未接続スロット2つ、テストからしか呼ばれない
+  get_multi_peak_param_names と plugin_api の get_registered_* 5つ、未使用の定数4つ。simulate_hex_color は
+  プラグインハブの計画が名前を出しているので残した。
+- 次: J-4(core とプラグイン API の型注釈、mypy を CI に)、F-3。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
