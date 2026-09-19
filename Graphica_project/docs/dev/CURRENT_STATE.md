@@ -61,11 +61,19 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   (_load_designer_ui … _connect_and_initialize)の呼び出しだけにした。formLayout_3 への番号指定の insertRow
   7か所は _insert_form_row_after(form, 基準のウィジェット, …) に置き換え。組み立て結果(ウィジェット789個の木・
   位置・文字・表示・シグナル接続数、メニュー、ツールバー、属性)が分割前と一致することを確認。コメント 554→130行。
-- H-4 完了(ブランチ上、PR 待ち): メニューバー(_create_menu_bar 414行)を graphica/gui/menu_bar.py の一覧表
+- H-4 完了、PR #20 で master に取り込み済み(マージコミット 12240bd): メニューバー(_create_menu_bar 414行)を graphica/gui/menu_bar.py の一覧表
   (Item / Submenu / DockToggle / 区切り線、呼び先は PlotterApp のメソッド名)と組み立て関数 build_menu_bar に
   置き換え。作った QMenu・menuAction・QAction はすべて app._menu_keepalive が持つ(PySide6 の回収対策を1か所に)。
   _connect_signals はサブプロット・軸の設定・データセットの3つに分割(つなぐ順は同じ)。組み立て結果が変更前と一致。
-- 次: H-4 の PR(マージは了承を得てから)。H はこれで全部。その後は推奨順で I-2(pip 配布の仕上げ)。
+- H はすべて完了・取り込み済み。
+- I-2 完了(ブランチ上、PR 待ち): 起動コマンドを gui-scripts に(コンソールを開かない)。依存は範囲指定
+  (PySide6<6.10・matplotlib<3.11 はフルスイートで確かめた minor 版まで、numpy/scipy/pandas は次のメジャーの手前、
+  pandas<3)。exe と CI のテストは requirements.txt の固定版のまま。LICENSE と THIRD_PARTY_LICENSES.md を wheel に
+  同梱(README と同じくリポジトリ直下の複製、tests/test_packaging.py が一致を確かめる)。CI に install-check
+  (Windows、Python 3.10/3.13 のまっさらな環境に wheel を入れて scripts/check_installed_app.py で起動)。README に
+  pip での入れ方。途中で K-15(Tabler Icons の MIT 表示が無い)を修正、K-16(matplotlib 3.11 と PySide6 6.11 で
+  動かない)を登録。
+- 次: I-2 の PR(マージは了承を得てから)。その後は I-3(PyPI、方針確認)か、並行の J-2〜J-4・F-3。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree

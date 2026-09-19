@@ -37,13 +37,14 @@ def _setup_logging():
     exeでは書き込み権限エラーになりうるため。
     """
     log_path = os.path.join(get_app_data_dir(), LOG_FILE_NAME)
+    handlers = [logging.FileHandler(log_path, encoding="utf-8")]
+    # コンソールの無い起動(pip の gui-scripts・exe)では sys.stdout が None
+    if sys.stdout is not None:
+        handlers.append(logging.StreamHandler(sys.stdout))
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.FileHandler(log_path, encoding="utf-8"),
-            logging.StreamHandler(sys.stdout),
-        ],
+        handlers=handlers,
     )
     # グラフの既定フォント(gui/main_window.py の PLOT_DEFAULT_FONT_FAMILIES)は
     # Windows/macOS/Linux向けの日本語フォント名を1つのフォールバックリストに

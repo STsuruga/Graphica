@@ -195,9 +195,22 @@ Graphica は、CSV/Excel などのファイルからデータを読み込み、�
   「開く」を選んでください。** ダブルクリックだけでは Gatekeeper に阻まれます。
   なお配布している `.app` は Apple Silicon (arm64) 向けです。
 
-### 7.2 ソースから実行する
+### 7.2 pip で入れる
 
-Python 3.10 以降が必要です。
+Python 3.10 以降があれば、GitHub から直接インストールできます。依存するライブラリも一緒に入ります
+(ほかのソフトとぶつかりにくいよう、仮想環境に入れることをおすすめします)。
+
+```
+pip install "git+https://github.com/STsuruga/Graphica.git#subdirectory=Graphica_project"
+graphica
+```
+
+`graphica` はコンソール(黒い画面)を開かずに起動します。ログを画面で見たいときは `python -m graphica` で起動してください。
+更新は同じコマンドに `--upgrade` を付けて、アンインストールは `pip uninstall graphica` です。
+
+### 7.3 ソースから実行する
+
+Python 3.11 以降が必要です(`requirements.txt` は動作を確認した版に固定しています)。
 
 ```
 git clone https://github.com/STsuruga/Graphica.git
