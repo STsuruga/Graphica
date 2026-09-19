@@ -89,7 +89,11 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   PluginContext が役目を引き継いだ)、settings_mixin の未接続スロット2つ、テストからしか呼ばれない
   get_multi_peak_param_names と plugin_api の get_registered_* 5つ、未使用の定数4つ。simulate_hex_color は
   プラグインハブの計画が名前を出しているので残した。
-- 次: J-4(core とプラグイン API の型注釈、mypy を CI に)、F-3。
+- J-4 完了(0156973〜dd7bd48、未マージ): graphica/core と graphica/plugin の全関数(約280)に型注釈。mypy==2.3.1 を
+  [tool.mypy](disallow_untyped_defs、pandas/scipy は Any)で設定し、CI の Windows ジョブで ruff の後に実行。
+  Dataset の None 既定のフィールドは Optional に、プラグインの記録の callback 類は object から Callable に。
+  配列の引数はリスト・Series・ndarray が来るので Any。gui/ は対象外(少しずつ広げる、CLAUDE.md に記載)。
+- 次: F-3。J は区切りなので PR(承認待ち)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
