@@ -31,12 +31,13 @@ classifiers = [
     "Environment :: X11 Applications :: Qt",
     "Private :: Do Not Upload",
 ]
-# 利用者の環境とぶつからないよう範囲で指定する。上限は次のメジャー版の手前(pandas 3 は未確認なので 3 未満)。
-# 下限は requires-python の 3.10 でも入る版。exe のビルドと CI は requirements.txt の確認済みの固定版を使う。
-# CI の install-check が 3.10(範囲の下の方)と 3.13(最新)のまっさらな環境で起動を確かめる。
+# 利用者の環境とぶつからないよう範囲で指定する。下限は requires-python の 3.10 でも入る版。
+# 上限は、フルスイートで確かめた範囲まで。PySide6 と matplotlib は minor 版で挙動が変わる
+# (matplotlib 3.11 では描画中にプロセスが落ちる。K-16)ので、確かめた minor 版に留める。
+# exe のビルドと CI のテストは requirements.txt の固定版。CI の install-check が 3.10 と 3.13 で起動を確かめる。
 dependencies = [
-    "PySide6>=6.9,<7",
-    "matplotlib>=3.10,<4",
+    "PySide6>=6.9,<6.10",
+    "matplotlib>=3.10,<3.11",
     "numpy>=2.0,<3",
     "pandas>=2.2,<3",
     "scipy>=1.13,<2",
