@@ -371,14 +371,15 @@ def is_frozen():
 
 def plugin_search_paths():
     """
-    プラグインの探索対象ディレクトリを優先順位つきで返す(項目E-1)。
-    - ソース実行時のみ: resource_path("plugins")(開発者向け、従来通り)
-    - 常に: get_user_plugins_dir()(%LOCALAPPDATA%\\Graphica\\plugins。
-      exe配布環境でもユーザーが書き込める場所)
+    プラグインの探索先(優先順)。同梱の plugins(同梱サンプル)と、利用者のフォルダ
+    (%LOCALAPPDATA%\\Graphica\\plugins、zip からのインストール先)。
+    同梱のフォルダはソースから動かすときにだけあり、配布版と pip 版には無いので、あるときだけ加える
+    (探索先は起動時に作られるので、無いものを渡すと site-packages の中に作ろうとしてしまう)。
     """
     paths = []
-    if not is_frozen():
-        paths.append(resource_path("plugins"))
+    bundled = resource_path("plugins")
+    if not is_frozen() and os.path.isdir(bundled):
+        paths.append(bundled)
     paths.append(get_user_plugins_dir())
     return paths
 

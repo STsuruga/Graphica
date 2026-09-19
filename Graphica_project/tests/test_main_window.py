@@ -2929,3 +2929,19 @@ def test_project_notify_changed_triggers_update_plot(tmp_path, monkeypatch):
     window.project.notify_changed()
 
     assert len(calls) == 1
+
+
+def test_plugin_search_paths_skip_a_missing_bundled_folder(tmp_path, monkeypatch):
+    """pip で入れた環境には同梱の plugins フォルダが無い。無いものは探索先に入れない
+    (入れると起動時に site-packages の中へフォルダを作ろうとして、権限で失敗しうる)。"""
+    user_dir = str(tmp_path / "user_plugins")
+    monkeypatch.setattr(main_window_module, "get_user_plugins_dir", lambda: user_dir)
+    monkeypatch.setattr(main_window_module, "is_frozen", lambda: False)
+
+    monkeypatch.setattr(main_window_module, "resource_path", lambda rel: str(tmp_path / "no_such" / rel))
+    assert main_window_module.plugin_search_paths() == [user_dir]
+
+    bundled = tmp_path / "pkg" / "plugins"
+    bundled.mkdir(parents=True)
+    monkeypatch.setattr(main_window_module, "resource_path", lambda rel: str(tmp_path / "pkg" / rel))
+    assert main_window_module.plugin_search_paths() == [str(bundled), user_dir]
