@@ -42,3 +42,11 @@ def test_every_subpackage_is_listed():
     }
 
     assert on_disk - set(PYPROJECT["tool"]["setuptools"]["packages"]) == set()
+
+
+def test_bundled_mit_icons_carry_their_notice():
+    """MIT は複製に著作権表示と許諾文を含めることを求める。同梱の Tabler Icons の分を配布物に入れる。"""
+    text = (PROJECT_ROOT / "THIRD_PARTY_LICENSES.md").read_text(encoding="utf-8")
+
+    assert "Copyright (c) 2020-2026 Paweł Kuna" in text
+    assert "The above copyright notice and this permission notice shall be included in all" in text
