@@ -34,12 +34,16 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   K-3, K-5〜K-10 は M 以上なので、着手前に直し方の選択肢を示して確認する。
 - F と J-1 は PR #14 で master に取り込み済み(2026-09-19、マージコミット 5c5fd4e)。J-1 のコメント方針は
   CONTRIBUTING.md「コメントと docstring」、見本は core/named_colors.py。
-- G-1〜G-3 完了: プラグイン API 2.0。プラグインは PluginContext(タブ×プラグインごと)で本体を操作し、
-  import してよいのは graphica.plugin / graphica.plugin.testing だけ。版は「主番号一致・小番号以下」で読み込む。
-  tests/test_plugin_public_api.py が公開 API を固定。P-805 は graphica-plugin-element-constants のブランチ
-  api-2.0 で対応済み(G の PR マージ直後に push)。ハブも G の PR マージ時に再公開する。
-- 次: G の PR → マージ後に I-1(方針はボードの I-1 の note。graphica/ の下へ移し、旧名の別名は残さない。
-  旧形式 .pkl 内の "core.dataset" は新しい場所へ読み替える)。I-1 の PR マージまで master のコード変更は止めてもらう。
+- G-1〜G-3 完了、PR #15 で master に取り込み済み(マージコミット 97f2c74)。プラグイン API 2.0: プラグインは
+  PluginContext(タブ×プラグインごと)で本体を操作し、import してよいのは graphica.plugin / graphica.plugin.testing
+  だけ。版は「主番号一致・小番号以下」で読み込む。tests/test_plugin_public_api.py が公開 API を固定。
+  ハブを再公開(Version 4)、P-805 は 2.0 対応を push 済み(graphica-plugin-element-constants main 6b7b4ca)。
+- I-1 実装済み(ブランチ refactor/i1-package-move、d452755): 本体を Graphica_project/graphica/ の1パッケージへ移動。
+  旧名の別名は残さない。旧形式 .pkl の "core.dataset" だけ読み替える。起動は python -m graphica(main.py は薄い入口)。
+  **I-1 の PR をマージするまで master のコード変更は止めてもらっている。** マージ後、本体フォルダ
+  (PlotterApp)を git pull すると、プラグインのリポジトリの editable install も新しい配置を参照する。
+- K-14 登録(pip 版で site-packages に plugins フォルダを作ろうとする)。I-1 の直後に fix: で直す。
+- 次: I-1 の PR → マージ → H-1(方針確認)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
