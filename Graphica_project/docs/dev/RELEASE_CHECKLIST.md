@@ -52,11 +52,29 @@ Graphica を新しいバージョンとして公開するときの手順。過�
 - [ ] CI の成果物(`Graphica-windows` / `Graphica-macos`)をダウンロードし、
       **中に `LICENSE` と `THIRD_PARTY_LICENSES.md` が入っていることを確認**。
       同梱している Qt/PySide6 が LGPL v3 なので、条文の提示は配布の条件。
+- [ ] **PyPI への公開を確認**。同じタグで `.github/workflows/publish.yml` が走り、
+      TestPyPI に上げる → そこから入れて起動を確かめる → 本番 PyPI に上げる、の順に進む。
+      https://pypi.org/project/graphica-plot/ に新しい版が出ていること。
+      タグと `__version__` が違うと最初で止まる。PyPI は同じ版を二度上げられないので、
+      途中で失敗したら版を上げて打ち直す(TestPyPI だけ上がった版も再利用できない)。
 - [ ] GitHub の Releases で新しいリリースを作成し、両OSの成果物を添付する。
       本文には `CHANGELOG.md` の該当節を貼る。
 - [ ] リリースノートに **macOS版は未署名**であることと、初回は右クリック ▸
       「開く」で起動する必要があることを明記(README 7.1 と同じ案内)。
       配布している `.app` は Apple Silicon (arm64) 向け。
+
+## PyPI 公開の初回準備(一度だけ、ユーザーの操作)
+
+配布名は `graphica-plot`(`graphica` は PyPI で別人が使用中)。トークンは使わず
+Trusted Publishing で公開するので、PyPI 側に「この GitHub のワークフローからの公開を許す」
+登録が要る。まだ一度も上げていない名前は「Pending publisher」として先に登録できる。
+
+- [ ] https://pypi.org と https://test.pypi.org にそれぞれアカウントを作り、2 段階認証を有効にする。
+- [ ] 両方で Account settings ▸ Publishing ▸ Add a new pending publisher に次を登録する。
+      PyPI Project Name `graphica-plot` / Owner `STsuruga` / Repository name `Graphica` /
+      Workflow name `publish.yml` / Environment name は TestPyPI では `testpypi`、PyPI では `pypi`。
+- [ ] GitHub の Settings ▸ Environments に `testpypi` と `pypi` を作る。`pypi` には
+      Required reviewers に自分を入れておくと、本番に上げる前に承認を求められる(任意)。
 
 ## 4. リリース後
 

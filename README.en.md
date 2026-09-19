@@ -78,16 +78,20 @@ Translation currently covers the main menus, buttons and key dialogs; some less 
 
 ## Install with pip
 
-With Python 3.10 or later you can install straight from GitHub; the dependencies come along (a virtual environment is
+With Python 3.10 or later you can install from PyPI; the dependencies come along (a virtual environment is
 recommended so they do not clash with other software).
 
 ```
-pip install "git+https://github.com/STsuruga/Graphica.git#subdirectory=Graphica_project"
+pip install graphica-plot
 graphica
 ```
 
 `graphica` starts without a console window. Use `python -m graphica` to see the log in a console. Add `--upgrade` to
-update; `pip uninstall graphica` removes it.
+update; `pip uninstall graphica-plot` removes it. It cannot share an environment with the unrelated `graphica` package
+on PyPI.
+
+The latest unreleased version installs from GitHub:
+`pip install "git+https://github.com/STsuruga/Graphica.git#subdirectory=Graphica_project"`
 
 ## Run from source
 
