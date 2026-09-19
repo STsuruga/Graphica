@@ -23,43 +23,24 @@ from graphica.core.analysis import (calculate_lttb_downsample, calculate_moving_
                            sample_standard_deviation)
 from graphica.core.unit_conversion import convert_x_axis_unit, X_AXIS_UNIT_NONE, X_AXIS_UNIT_LABELS
 
-# 注釈キャッシュの「まだ一度も描いていない」を表す番兵(改善ボード E-2)。
-# None を使うと、キーが None のときに誤って一致してしまう。
+# 注釈を「まだ一度も描いていない」を表す番兵。None だとキーが None のときに一致してしまう
 _NO_KEY = object()
 
 logger = logging.getLogger(__name__)
 
-# 目盛り間隔が細かすぎて描画が固まる/処理落ちするのを防ぐための上限。
-# (軸範囲 / 間隔) がこれを超える場合は、間隔を自動的に粗くする。
-# ★ matplotlib 自体が Locator.MAXTICKS=1000 を超えると警告を出すため、
-#   境界の丸め誤差でそこに接触しないよう、余裕を持たせた値にしている。
+# 目盛りの本数の上限(細かすぎる間隔で描画が固まらないように)。matplotlib の MAXTICKS=1000 に丸め誤差で届かない値
 MAX_TICKS_PER_AXIS = 500
 
-# ウォーターフォール(積み重ね)表示の zorder を正規化する範囲(実機フィード
-# バック: 「ウォーターフォール適用すると枠とかメモリが隠れる」の対策)。
-# matplotlibの既定値は、目盛マーク(tick1line)が約2.01、スパイン(軸の枠線)が
-# 2.5。オクルージョン用fill_between・トレース本体のzorderが常にこの範囲
-# (WATERFALL_ZORDER_BASE 〜 WATERFALL_ZORDER_TOP)に収まるようにすることで、
-# トレース数によらず軸の枠線・目盛より確実に下に描画されるようにする。
+# ウォーターフォールのトレースと背景の zorder の範囲。目盛(約2.01)と枠線(2.5)より下に収めて、隠さないようにする
 WATERFALL_ZORDER_BASE = 0.1
 WATERFALL_ZORDER_TOP = 1.9
 
-# ウォーターフォールの斜向/立体風トグル(項目120、C-514)。積み重ねインデックス
-# 1つあたりのY振幅の縮小率(Dataset.waterfall_depth_shrink_ratio、ユーザーが
-# waterfall_offset_x/yと同じくスピンボックスで指定)が大きすぎると、トレース数が
-# 多い場合に振幅が潰れて見づらくなる/反転するため、下限0.2倍(80%縮小)で
-# クランプする。
+# 立体風の縮小の下限。段が多いと振幅が潰れる・反転するので 0.2 倍で止める
 WATERFALL_DEPTH_SHRINK_MIN_SCALE = 0.2
 
 
 def _waterfall_depth_scale(w_idx, enabled, shrink_ratio):
-    """
-    ウォーターフォールの斜向/立体風トグル(項目120、C-514)。積み重ね
-    インデックスw_idx番目のトレースに掛けるY振幅の倍率を返す。
-    無効時(enabled=False、既定)は1.0を返し、従来通り何も変形しない。
-    shrink_ratioはDataset.waterfall_depth_shrink_ratio(1ステップあたりの
-    縮小率、既定0.03=3%)をそのまま渡す。
-    """
+    """段 w_idx のトレースの Y に掛ける倍率。奥ほど縮めて立体風にする(無効なら 1.0)。"""
     if not enabled:
         return 1.0
     return max(WATERFALL_DEPTH_SHRINK_MIN_SCALE, 1.0 - shrink_ratio * w_idx)
@@ -106,11 +87,7 @@ class _AxisStyle(NamedTuple):
     major_tick_length: float
     minor_tick_length: float
 
-# 対数軸の補助目盛りの本数制御(項目C-604): x/y_log_minor_subs設定値 ->
-# ticker.LogLocator(subs=...)に渡す値。'auto'はLogLocatorが軸の表示範囲
-# (何桁分表示されているか)に応じて自動的に間引く既定動作、それ以外は
-# 明示的なsubs集合(表示する仮数の桁、例えば'few'の(2,5)なら2,5の位置にのみ
-# 補助目盛りを打つ)。
+# 対数軸の補助目盛りの設定値 -> LogLocator の subs(補助目盛りを打つ仮数)。'auto' は表示の桁数に応じて間引く
 _LOG_MINOR_SUBS_PRESETS = {
     'auto': 'auto',
     'all': (2, 3, 4, 5, 6, 7, 8, 9),
@@ -118,19 +95,14 @@ _LOG_MINOR_SUBS_PRESETS = {
     'one': (5,),
 }
 
-# 矢印注釈の形状バリエーション(項目C-703): annotation['arrow_style'] ->
-# matplotlibのarrowstyle文字列。既定'single'は追加前からの唯一の挙動('->')
-# そのものなので、arrow_styleキーを持たない既存の保存済み注釈でも見た目は
-# 変わらない。'bracket'は将来のP-402(有意差表示)の描画基盤を意識した選択。
+# 矢印注釈の形 -> matplotlib の arrowstyle。キーの無い古い注釈は 'single'
 _ARROW_STYLE_MAP = {
     'single': '->',
     'double': '<->',
     'bracket': ']-[',
 }
 
-# インセット(拡大図、項目138、C-711)の配置コーナー -> Axes相対座標(左下原点)
-# のオフセット。サイズ(幅・高さ)はダイアログ側で選ぶ別パラメータのため、
-# ここでは原点位置のみを定義する。
+# 拡大図の置き場所 -> 軸の中での左下の位置(軸に対する割合)
 _INSET_CORNER_ORIGINS = {
     '右上': (0.55, 0.55),
     '左上': (0.05, 0.55),
@@ -138,46 +110,23 @@ _INSET_CORNER_ORIGINS = {
     '左下': (0.05, 0.05),
 }
 
-# データ点ラベル表示(各点の脇にテキストを描画)は、点数が多いと
-# ax.annotate() の呼び出し回数がそのまま増えてアプリがフリーズする原因になるため、
-# この件数を超えるデータセットには自動的にラベルを描画しない。
-# 環境設定ダイアログで変更可能 (main_window.py が起動時/変更時に
-# self.point_label_max_points へ反映する)。
+# これより点が多いデータセットには点ラベルを描かない(annotate が点の数だけ呼ばれて固まる)。環境設定で変えられる
 DEFAULT_POINT_LABEL_MAX_POINTS = 1000
 
-# 表示用ダウンサンプリング(LTTB、項目C-1001)。1データセットあたりの点数が
-# これを超える場合のみ、calculate_lttb_downsample()でLTTB_DOWNSAMPLE_TARGET_POINTS
-# 点程度まで間引いて描画する(小〜中規模データセットは今まで通り無加工で描画)。
-# ★ Line(連続曲線)にのみ適用する。LTTBは「線で結んだときの見た目の形状」を
-#   保つアルゴリズムであり、点の疎密自体が情報であるScatter/Line+Scatterの
-#   マーカーに適用すると実際のデータ密度分布が失われるため対象外とする
-#   (過去にScatterも対象に含めていたのは設計上の見落としだった)。
+# 'Line' の点がこれを超えたら、表示では LTTB で約 TARGET 点に間引く(線の形を保つ方法なので、点の疎密が情報の散布図には使わない)
 LTTB_DOWNSAMPLE_THRESHOLD = 20000
 LTTB_DOWNSAMPLE_TARGET_POINTS = 3000
 
-# 2Dマップ(ヒートマップ、項目C-508)の表示用解像度の上限。1軸あたりの点数が
-# これを超える場合、pcolormeshに渡す前に均等間引きして描画負荷を抑える
-# (LTTB(項目C-1001)と同じく、redraw_all()が画面表示/エクスポート両方の
-# 唯一の入口であるため、この間引きはエクスポートにも同様に適用される。
-# 既存のLTTBダウンサンプリングも同じ挙動のため、それに倣った)。
+# 2Dマップの1軸あたりの点数の上限。超えたら均等に間引く(エクスポートにも効く)
 GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS = 500
 
-# 領域ハイライト(縦帯/横帯、項目C-701)の既定色・透明度。ann辞書に'color'/'alpha'
-# キーが無い(将来の後方互換)場合のフォールバックとして使う。実際に新規作成される
-# 領域ハイライトの既定値はgui/mixins/region_highlight_mixin.pyが常に明示的に
-# 書き込むため、通常はここまで来ない値だが、両者は同じ値に保つこと。
+# 領域ハイライトに色・透明度が無いときの値。region_highlight_mixin.py が書き込む既定値と揃えておく
 REGION_HIGHLIGHT_DEFAULT_COLOR = '#F2A72B'
 REGION_HIGHLIGHT_DEFAULT_ALPHA = 0.18
 
 
 def _apply_legend_order(lines, labels, order):
-    """
-    凡例のハンドル/ラベルを、ユーザーが指定した表示順 (order: ラベル文字列のリスト)
-    に並べ替える。描画順(=デフォルトの凡例順)と独立して凡例だけの順序を
-    指定できるようにするための処理。
-    order に無いラベル(新規追加されたデータセット等)は、元の描画順を保った
-    まま末尾にまとめて追加する。
-    """
+    """凡例を order(ラベルの並び)の順にする。order に無いラベルは元の順のまま最後に付ける。"""
     if not order:
         return lines, labels
     order_index = {name: i for i, name in enumerate(order)}
@@ -190,16 +139,9 @@ def _apply_legend_order(lines, labels, order):
 
 def _apply_nan_policy(x_data, y_data, policy):
     """
-    欠損値(NaN)の方針設定(項目C-201)を、描画直前のX/Y配列に適用する。
-    Dataset.x_data/y_data(フィット・ピーク検出・エクスポート等の他の消費者が使う
-    生データ)自体は書き換えない、表示専用の変換。
-
-    'gap'(既定): 何もしない。matplotlibが自然にNaNの箇所で線を切ってくれる、
-        この設定導入前からの挙動そのもの。
-    'ffill': 直前の非NaN値で埋める(numpy配列のためpandas Seriesを介す)。
-        先頭がNaNの場合は埋められる値が無いためNaNのまま残る(pandasのffillと同じ)。
-    'drop': XかYどちらかがNaNの行を取り除き、前後の点を直接つないだ連続な線にする。
-    未知の値(将来の後方互換のため)は 'gap' と同じく何もしない。
+    欠損値の方針を描く直前の点列に当てる(データ自体は変えない)。
+    'gap' は何もしない(matplotlib が NaN で線を切る)。'ffill' は直前の値で埋める(先頭の NaN は残る)。
+    'drop' は X か Y が欠けた点を除いて前後をつなぐ。知らない値は 'gap' と同じ。
     """
     if policy == 'ffill':
         return (
@@ -207,8 +149,7 @@ def _apply_nan_policy(x_data, y_data, policy):
             pd.Series(y_data).ffill().to_numpy(),
         )
     if policy == 'drop':
-        # pd.Series.isna() を使う(np.isnanではなく): 日付軸(datetime64)のX値でも
-        # dtype変換なしにそのままNaT/NaN判定できるため。
+        # np.isnan は日時(datetime64)を扱えないので pandas で判定する
         x_series = pd.Series(x_data)
         y_series = pd.Series(y_data)
         valid = (~x_series.isna()) & (~y_series.isna())
@@ -216,7 +157,7 @@ def _apply_nan_policy(x_data, y_data, policy):
     return x_data, y_data
 
 
-# 統計値アンカーラベル(項目C-708)の表示見出し。内部キー -> 表示ラベル。
+# 統計値ラベルの見出し
 STAT_LABEL_TITLES = {
     'r_squared': 'R²',
     'mean': '平均',
@@ -245,12 +186,8 @@ def _legend_position_from_settings(settings):
 
 def _compute_stat_label_text(dataset, stat):
     """
-    統計値アンカーラベル(項目C-708)の表示文字列を、dataset.y_data/fit_resultから
-    その都度計算する。固定テキストではなく毎回の描画で再計算するため、データや
-    フィットを更新すると値が自動的に追従する(イラレでの後処理では代替できない、
-    このラベルの存在意義そのもの)。
-    紐づくdatasetが見つからない(削除された)/値がまだ計算できない場合は、
-    例外にせず「何を待っているか」が分かる短いプレースホルダを返す。
+    統計値ラベルの文字列を、描くたびにデータとフィット結果から計算する(データを変えると追従する)。
+    データセットが消えた・まだ計算できないときは、何を待っているかが分かる文字列にする。
     """
     title = STAT_LABEL_TITLES.get(stat, stat)
     if dataset is None:
@@ -282,10 +219,7 @@ def _compute_stat_label_text(dataset, stat):
 
 
 def _safe_multiple_locator(interval, axis_min, axis_max):
-    """
-    MultipleLocator(interval) を作るが、現在の軸範囲に対して目盛りの本数が
-    多すぎる場合は、間隔を MAX_TICKS_PER_AXIS 本相当まで自動的に粗くする。
-    """
+    """間隔 interval の MultipleLocator。今の範囲で目盛りが多すぎるなら MAX_TICKS_PER_AXIS 本相当まで粗くする。"""
     axis_range = abs(axis_max - axis_min)
     if axis_range > 0 and interval > 0:
         estimated_ticks = axis_range / interval
@@ -300,13 +234,13 @@ def _safe_multiple_locator(interval, axis_min, axis_max):
 
 
 def _sci_each_formatter():
-    """1目盛りごとに指数表記(例: 1.0×10^10)で表示するFuncFormatterを返す(項目62)。"""
+    """目盛りごとに指数で書く(例: 1.0×10^10)。"""
     def _fmt(value, pos=None):
         if value == 0:
             return "0"
         exponent = int(np.floor(np.log10(abs(value))))
         mantissa = value / (10 ** exponent)
-        if abs(mantissa) >= 9.995:  # 丸めで仮数部が10.0になり桁が繰り上がるケースを補正
+        if abs(mantissa) >= 9.995:  # 丸めると 10.0 になるので桁を上げる
             mantissa /= 10
             exponent += 1
         return rf"${mantissa:.1f}\times10^{{{exponent}}}$"
@@ -315,9 +249,8 @@ def _sci_each_formatter():
 
 def _apply_tick_format_mode(axis, mode):
     """
-    目盛りラベルの指数表記モード(項目62)を1つの軸(ax.xaxis または ax.yaxis)に適用する。
-    mode: 0=自動(matplotlib既定のまま変更しない) / 1=軸端にまとめて指数表記(×10^n) /
-          2=目盛りごとに指数表記(例: 1.0×10^10) / 3=常に小数表記(指数表記にしない)
+    mode: 0=自動(matplotlib のまま) / 1=指数を軸端にまとめる(×10^n) /
+          2=目盛りごとに指数 / 3=常に小数で書く
     """
     if mode == 1:
         formatter = ticker.ScalarFormatter(useMathText=True)
@@ -332,44 +265,23 @@ def _apply_tick_format_mode(axis, mode):
 
 
 def _apply_tick_decimal_places(axis, decimals):
-    """
-    実機フィードバック: 目盛りの数値を小数点以下何桁まで表示するかを、
-    X軸/Y軸それぞれ独立して指定できるようにする。
-    decimals が None または負値(既定、「自動」)の場合は何もせず、
-    直前に_apply_tick_format_mode()が設定したフォーマッタ(指数表記モード等)
-    をそのまま使う。0以上が指定された場合は、指数表記モードの設定に関わらず
-    常に"%.{decimals}f"形式の固定小数点表記で上書きする(小数点以下の桁数を
-    明示的に指定したいという要求は、指数表記との併用を想定していないため)。
-    """
+    """小数点以下の桁数を指定したら、指数表記の設定より優先して固定小数点で書く。負値・None は自動(何もしない)。"""
     if decimals is None or decimals < 0:
         return
     axis.set_major_formatter(ticker.FormatStrFormatter(f'%.{decimals}f'))
 
 
-# 目盛線の長さ(pt、実機フィードバック)。既定値は matplotlib の rcParams
-# (xtick.major.size=3.5 / xtick.minor.size=2.0)と同じにしてあり、長さの
-# キーを持たない既存プロジェクトの見た目は変わらない。
-# ★ 長さは軸サイズに対する倍率ではなく pt の絶対値にしている。文字サイズや
-#   線の太さも pt 固定なので、目盛りだけ相対値にすると大きいサイズで
-#   エクスポートしたときに「長い目盛りの横に小さい数字」とちぐはぐになり、
-#   多パネル図ではパネルの大きさごとに長さが揃わなくなる(ユーザーと合意済み)。
+# 目盛線の長さは軸の大きさに対する割合ではなく pt。文字や線の太さも pt なので、割合にすると
+# 大きく書き出したときや多パネル図で目盛りだけ長さがちぐはぐになる
 DEFAULT_MAJOR_TICK_LENGTH = AXIS_SETTING_DEFAULTS['major_tick_length']
-# 補助目盛の長さが「自動」(負値)のときに主目盛へ掛ける倍率。matplotlib の
-# 既定の比率(2.0 / 3.5 ≈ 0.57)をそのまま使う: 主目盛と見分けがつく程度に
-# 短く、かつ細い線でも潰れない長さで、既定値どうしの組み合わせが従来の
-# 描画と完全に一致する。
+# 補助目盛が「自動」のときの主目盛に対する長さ(matplotlib の既定 2.0 / 3.5 と同じ)
 MINOR_TICK_LENGTH_RATIO = 2.0 / 3.5
-# 補助目盛の長さの「自動」を表す値(設定パネルのスピンボックスの最小値)。
-# 判定は「負値なら自動」なので、この値そのものに依存するのは表示側だけ。
+# 欄で補助目盛の長さ「自動」を表す値。判定は「負値なら自動」なので、この値に頼るのは欄だけ
 MINOR_TICK_LENGTH_AUTO = -0.5
 
 
 def _resolve_tick_lengths(settings):
-    """
-    設定から (主目盛の長さ, 補助目盛の長さ) を pt で返す。
-    minor_tick_length が未指定または負値なら「自動」とし、
-    主目盛の長さ × MINOR_TICK_LENGTH_RATIO を使う。
-    """
+    """(主目盛, 補助目盛) の長さを pt で返す。補助目盛が未指定・負値なら主目盛 × MINOR_TICK_LENGTH_RATIO。"""
     major = axis_setting(settings, 'major_tick_length')
     if major is None or major < 0:
         major = DEFAULT_MAJOR_TICK_LENGTH
@@ -379,21 +291,8 @@ def _resolve_tick_lengths(settings):
     return major, minor
 
 
-# --- ダーク/ライトモード用の配色(項目H-3) ---
-# ★ 以前はここに個別のハードコード値(例: '#2b2b2b')を持っており、
-#   gui/theme.py のデザイントークンとは完全に無関係だった(H-0調査で判明した
-#   既知の不整合、docs/dev/gui_style_audit.md 3節参照)。値が近いだけで一致しては
-#   おらず、Qtの無彩色ではない寒色寄りのグレー(R<G<Bの傾向)とmatplotlib側の
-#   純粋な無彩色グレー(R=G=B)がわずかに食い違っていた。gui/theme.pyの
-#   トークンを直接参照するよう変更し、今後トークン側を変更すればグラフ側にも
-#   自動的に反映されるようにする。
-#
-# Figure(外側の余白部分)とAxes(実際にデータが描かれる領域)は、
-# plot_container(gui/main_window.py)がキャンバスの周囲に6pxのQtレベルの
-# 余白を持っており、その背景色は{surface}トークンそのものであるため、
-# FigureとAxesの両方を同じ{surface}に揃えることで、Qt側の余白とmatplotlib
-# 側の余白の間に色の継ぎ目ができないようにしている(ライトモードは元々
-# 両方#ffffffで一致していたため、この設計を踏襲した形)。
+# グラフの配色は gui/theme.py のトークンから取る。Figure も Axes も surface にするのは、キャンバスを囲む
+# Qt 側の余白(surface)との間に色の継ぎ目を作らないため
 DARK_FIGURE_FACECOLOR = DARK_TOKENS['surface']
 DARK_AXES_FACECOLOR = DARK_TOKENS['surface']
 DARK_TEXT_COLOR = DARK_TOKENS['text_primary']
@@ -401,101 +300,58 @@ LIGHT_FIGURE_FACECOLOR = LIGHT_TOKENS['surface']
 LIGHT_AXES_FACECOLOR = LIGHT_TOKENS['surface']
 LIGHT_TEXT_COLOR = LIGHT_TOKENS['text_primary']
 
-# 凡例のスタイリング(項目71/H-3): 軸の背景(surfaceトークン)と同化して縁が
-# 見えなくならないよう、軸背景よりわずかに異なる面色(surface_2、他の
-# UI要素の「一段乗ったチップ」表現と同じ考え方)+ border_strongトークンの
-# 枠線にする。
+# 凡例は軸の背景と同化しないよう、一段違う面色と濃い枠線にする
 DARK_LEGEND_FACECOLOR = DARK_TOKENS['surface_2']
 DARK_LEGEND_EDGECOLOR = DARK_TOKENS['border_strong']
 LIGHT_LEGEND_FACECOLOR = LIGHT_TOKENS['surface_2']
 LIGHT_LEGEND_EDGECOLOR = LIGHT_TOKENS['border_strong']
 
-# グリッド線(項目82)の色は従来matplotlibの既定値(rcParams、テーマと無関係な
-# 固定の薄灰色)に任せきりだった。border_strongトークンを明示的に指定し、
-# 背景色との調和を取る。
 DARK_GRID_COLOR = DARK_TOKENS['border_strong']
 LIGHT_GRID_COLOR = LIGHT_TOKENS['border_strong']
 
 
 class _CanvasDrawingMixin:
     """
-    MplCanvasの描画ロジック全体(Figure/Axes操作、プレーンなPython状態の初期化)を
-    持つmixin。Qt(QWidget)に一切依存しないため、GUIスレッド用のMplCanvas
-    (FigureCanvasQTAgg)と、バッチエクスポート用のヘッドレスキャンバス
-    (_HeadlessRenderCanvas、FigureCanvasAgg)の両方から共有できる
-    (項目C-004フェーズ5a)。
+    描画の本体。Qt に依存しないので、画面用の MplCanvas(FigureCanvasQTAgg)と
+    一括エクスポート用の _HeadlessRenderCanvas(FigureCanvasAgg)の両方が使う。
     """
 
     def _init_drawing_state(self, width, height, dpi):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
 
-        # グラフの軸(Axes)の管理も、ウィンドウではなくCanvas側で行う
         self.all_axes = []
         self.all_secondary_axes = []
-        # 各軸のX軸データが日時型かどうか (日付軸の目盛りフォーマット自動選択に使用)
+        # 軸ごとに、X が日時か(目盛りの付け方)・文字列カテゴリか(数値向けの設定を使わない)
         self.axis_is_date_x = []
-        # 各軸のX軸データが文字列カテゴリかどうか (数値専用の軸設定を無視するために使用)
         self.axis_is_category_x = []
-        self.dark_mode = False # ダークモードが有効かどうか (main_windowから設定される)
-        # データ点ラベルを描画する点数の上限(main_windowから環境設定に基づいて設定される)
+        self.dark_mode = False
         self.point_label_max_points = DEFAULT_POINT_LABEL_MAX_POINTS
-        # 自由なテキスト注釈・矢印の描画済みArtistを軸インデックスごとに保持する。
-        # update_appearance_only では fig.clf() を行わないため、再描画のたびに
-        # 前回分を明示的に削除してから描き直さないと注釈が重複してしまう。
+        # 軸ごとの描画済みの注釈。update_appearance_only は fig.clf() しないので、消してから描き直す
         self._annotation_artists = {}
-        # 改善ボード E-2: 直近に描いた注釈の「内容キー」をAxesごとに保持する。
-        # update_appearance_only(Axesをclaしない唯一の経路)で、前回と同じ内容なら
-        # 全削除→全再生成を丸ごと省くために使う。詳細は _annotation_render_key()。
+        # 軸ごとに直近に描いた注釈の内容。同じなら描き直しを省く(_annotation_render_key)
         self._annotation_render_keys = {}
-        # データエディタと連動する「行ハイライト」の描画済みArtistを
-        # dataset.dataset_id ごとに保持する (データ⇔グラフの双方向ハイライト機能)
+        # データエディタと連動する行のハイライト(dataset_id ごと)
         self._highlight_artists = {}
-        # 表示用ダウンサンプリング(項目C-1001)を適用したデータセットについて、
-        # 「描画された(間引き後の)配列上のインデックス」→「元のvisible_df上の
-        # 位置インデックス」の対応を dataset.dataset_id ごとに保持する。
-        # データカーソル(gui/mixins/cursor_mixin.pyの_on_pick)が、クリックされた
-        # 点をartist.get_xdata()上のインデックスで特定した後、このマップで
-        # 元のvisible_df.indexへ正しく変換するために使う(間引き後は両者が
-        # 一致しなくなるため、マップを経由しないと誤った行がハイライトされる)。
-        # 間引きが適用されていないデータセットはこの辞書に一切現れない。
+        # 間引いたデータセットの「描いた点の添字 -> visible_df の位置」(dataset_id ごと)。
+        # データカーソルがクリックした点を正しい行に戻すのに使う。間引いていなければ入らない
         self.downsample_index_map = {}
-        # 平滑化(CubicSpline)された曲線を持つデータセット(元データと1:1に対応
-        # しない200点の補間点のため、クリックしても正しい行を特定できない)の
-        # dataset_idを保持する(downsample_index_mapと同じくdataset_idキーの
-        # 辞書/集合にしておくことで、ax.cla()を経て古いArtistが破棄され新しい
-        # Artistがメモリ上の同じアドレスに再割り当てされてもidベースの集合の
-        # ような取り違えが起きない)。gui/mixins/cursor_mixin.pyの
-        # _toggle_cursor_mode()が「データカーソルモード」ON時に軸内の全
-        # Line2D/PathCollectionへ一括でset_picker(5)を呼ぶため、_draw_data側の
-        # 個別のpicker制御(_enable_element_picking呼び出し判定)だけでは
-        # 不十分(モードON操作でpickerが再度有効化されてしまう)。この集合を
-        # cursor_mixin.py側でも参照し、該当データセットのArtistへは
-        # set_picker(5)を呼ばないようにする(二箇所で同じ判定基準を共有)。
+        # 平滑化した曲線のデータセット。点が元の行と対応しないのでクリックで選ばせない。
+        # データカーソルモードの一括 set_picker(cursor_mixin.py)もこれを見て除く
         self._non_pickable_dataset_ids = set()
-        # 2Dマップ(項目C-508)の描画結果(pcolormeshのQuadMesh)を軸インデックス
-        # ごとに保持する。_apply_appearance()がこれを見てカラーバー(項目C-501)を
-        # 付けるかどうかを判断する(_draw_dataとは別メソッドなので、Artist自体を
-        # 一時的に受け渡す必要がある)。1軸に2Dデータセットが複数あっても
-        # 最後に描画したものだけを保持する(カラーバーは1軸につき最大1つ)。
+        # 軸ごとのカラーバーの対象(2Dマップか値で色分けした散布図)。_apply_appearance に渡すため
         self._axis_2d_mappables = {}
-        # ウォーターフォール(積み重ね)表示の「データ座標 → 表示座標」変換
-        # パラメータを dataset.dataset_id ごとに保持する(改善ボード A-1)。
-        # ウォーターフォール有効時、トレースは
+        # ウォーターフォールの変換(dataset_id ごと)。トレースは
         #     表示X = データX + index * offset_x
         #     表示Y = データY * depth_scale + index * offset_y
-        # の位置に描かれるため、マウス位置(表示座標)をデータ行に対応づける
-        # 側は必ずこの逆変換を通す必要がある。値は
-        # {'index': int, 'offset_x': float, 'offset_y': float, 'depth_scale': float}。
-        # ウォーターフォール無効のデータセットはこの辞書に一切現れない
-        # (= data_to_display/display_to_data が恒等変換になる)。
+        # に描かれるので、マウス位置をデータの行に対応づける側は逆変換(display_to_data)を通す。
+        # 値は {'index', 'offset_x', 'offset_y', 'depth_scale'}。ウォーターフォールでなければ入らない
         self._waterfall_transforms = {}
 
-    # --- ウォーターフォール表示座標 ⇔ データ座標 (改善ボード A-1) ---
+    # --- ウォーターフォールの表示座標 ⇔ データ座標 ---
 
     def get_waterfall_transform(self, dataset_or_id):
         """
-        指定データセットの現在の積み重ね変換パラメータを返す。
-        ウォーターフォールが無効、または未描画の場合は None。
+        データセットの今のウォーターフォール変換。無効または未描画なら None。
 
         Args:
             dataset_or_id: Dataset オブジェクト、または dataset_id。
@@ -504,13 +360,7 @@ class _CanvasDrawingMixin:
         return self._waterfall_transforms.get(dataset_id)
 
     def data_to_display(self, dataset_or_id, x, y):
-        """
-        データ座標(dataset.x_data/y_data と同じ空間)を、実際に描画されている
-        表示座標へ変換する。スカラーでも numpy 配列でも同じように使える。
-
-        ウォーターフォールが無効なデータセット、および未描画のデータセットに
-        対しては入力をそのまま返す(恒等変換)。
-        """
+        """データ座標(dataset.x_data/y_data と同じ)を、描かれている位置へ変換する。スカラーでも配列でもよい。ウォーターフォールでなければそのまま返す。"""
         transform = self.get_waterfall_transform(dataset_or_id)
         if transform is None:
             return x, y
@@ -521,39 +371,26 @@ class _CanvasDrawingMixin:
 
     def display_to_data(self, dataset_or_id, x, y):
         """
-        data_to_display() の逆変換。マウス位置(表示座標)を、データ列と
-        突き合わせられるデータ座標へ戻す。
-
-        マウス操作をデータ行へ対応づける処理(範囲選択マスク・データカーソル・
-        データエディタ連動ハイライト・ピーク配置)は、必ずこのメソッドを
-        経由すること。経由しないと、積み重ね2本目以降で操作が全てずれる。
+        data_to_display() の逆。マウス位置をデータの行に対応づける処理(範囲選択・データカーソル・
+        エディタ連動のハイライト・ピーク配置)は必ずこれを通す。通さないと積み重ねの2本目以降で位置がずれる。
         """
         transform = self.get_waterfall_transform(dataset_or_id)
         if transform is None:
             return x, y
         index = transform['index']
         data_x = x if transform['offset_x'] == 0 else x - index * transform['offset_x']
-        # depth_scale は WATERFALL_DEPTH_SHRINK_MIN_SCALE (0.2) で下限クランプ
-        # されているため 0 除算にはならない。
+        # depth_scale は 0.2 以上に抑えてあるので 0 で割ることはない
         data_y = (y - index * transform['offset_y']) / transform['depth_scale']
         return data_x, data_y
 
     def _effective_text_color(self, configured_color):
-        """
-        ダークモード時、設定値がデフォルトの黒 ('#000000') のままだと
-        暗い背景で文字が見えなくなるため、白系の色に自動変換する。
-        ユーザーが明示的に別の色を選んでいる場合はそれをそのまま尊重する。
-        """
+        """ダークモードで既定の黒のままだと見えないので明るい色にする。利用者が選んだ別の色はそのまま。"""
         if self.dark_mode and configured_color == '#000000':
             return DARK_TEXT_COLOR
         return configured_color
 
     def _default_free_rect(self, index):
-        """
-        自由配置レイアウト(項目37)で、新しいサブプロットに割り当てる初期の
-        (left, bottom, width, height) 正規化座標。互いに少しずつずらして
-        重なりを避けつつ、ユーザーが後からドラッグで調整しやすい位置にする。
-        """
+        """自由配置で新しい軸に割り当てる初期の (left, bottom, width, height)。少しずつずらして重ならないようにする。"""
         offset = 0.04 * (index % 6)
         left = min(0.1 + offset, 0.55)
         bottom = min(0.55 - offset, 0.55) if index % 2 == 0 else min(0.1 + offset, 0.5)
@@ -561,28 +398,9 @@ class _CanvasDrawingMixin:
 
     def _safe_draw(self):
         """
-        self.draw()(matplotlibの実際の描画処理)を例外に対して防御的に
-        呼び出す共通ヘルパー。実機フィードバック調査(macOSのある環境で、
-        目盛りフォント関連の環境依存クラッシュ(LastResortHE-Regular.ttf
-        欠落、redraw_all()側のtight_layout()の同種コメント参照)が
-        繰り返し発生していた)から派生した対策。
-
-        ★ 重要な違い: draw_idle()経由の遅延描画は、matplotlib自身の
-        backend_qt.FigureCanvasQT._draw_idle()内で既に
-        `try: self.draw() except Exception: traceback.print_exc()`と
-        例外を握りつぶしている(コメント曰く「PyQt5では未捕捉例外が
-        致命的になるため」)。この`traceback.print_exc()`は標準エラー出力に
-        書くだけで、コンソールを持たないwindowedビルドのexe/appでは
-        どこにも出力されず、こちらのlogger(ファイルログ)にも一切残らない。
-        一方、redraw_all()/update_appearance_only()/
-        update_all_axes_appearance_and_data()が最後に呼ぶself.draw()は
-        「直接呼び出し」であり、これ自体には何の防御も無かった――例外が
-        起きればログには残るはずだが、呼び出し元によっては見た目上
-        「操作しても何も反映されない」ように見えるだけで終わることがある
-        (呼び出し元のPySide6のシグナル配送経路によっては、例外が
-        クラッシュハンドラまで届かないケースが実際にあり得る)。
-        このヘルパーに統一することで、少なくとも自分のloggerには必ず
-        記録が残るようにし、次回以降の実機での原因切り分けを容易にする。
+        self.draw() の失敗をログに残す。直接の draw() は例外を投げても、呼び出し元のシグナルの経路によっては
+        どこにも記録されず「何も反映されない」だけになる(draw_idle 側は matplotlib が標準エラーに出すだけで、
+        画面版の exe ではそれも見えない)。
         """
         try:
             self.draw()
@@ -595,29 +413,15 @@ class _CanvasDrawingMixin:
     def redraw_all(self, datasets, rows, cols, all_plot_settings, layout_mode='grid', panel_labels_enabled=False,
                     share_x_axis=False, share_y_axis=False, full_resolution=False):
         """
-        メインウィンドウから呼ばれる、全体の再描画メソッド。
-        full_resolution=True の場合、LTTB表示用ダウンサンプリング(項目C-1001)を
-        無視して常に全点描画する(_draw_data参照。単発/バッチエクスポートの
-        「フル解像度」オプションから渡される)。
+        Figure を作り直して全部の軸を描く。full_resolution=True なら間引かない(エクスポートの「フル解像度」)。
+        非表示のデータセットも含めて _draw_data に渡すこと(ウォーターフォールの段の振り方のため。_draw_data 参照)。
         """
-        # データセットの表示/非表示トグル(項目C-907): visible=Falseのデータセットは
-        # 削除せず保持したまま、描画対象から除外する。redraw_all()はメイン画面の
-        # 再描画・エクスポート(gui/mixins/export_mixin.pyの単発/バッチ書き出しは
-        # いずれもこのメソッド、または本メソッドが最後に描いたself.figを経由する)の
-        # 唯一の入口であるため、1箇所でのフィルタが両方に自動的に効く。
-        # ★ 改善ボード A-4: そのフィルタ自体は _draw_data() の内部へ移した
-        # (このメソッドは非表示のものも含めた全リストをそのまま渡す)。
-        # ウォーターフォールの積み重ねインデックスを「非表示のトレースも数に
-        # 含めて」採番するには、_draw_data() が非表示のデータセットも受け取る
-        # 必要があるため。呼び出し側で先にフィルタすると、その経路でだけ
-        # 採番が繰り上がってしまうので絶対にしないこと。
         self.fig.clf()
         self.all_axes.clear()
         self.all_secondary_axes.clear()
         self.axis_is_date_x.clear()
         self.axis_is_category_x.clear()
-        # fig.clf() で古いAxes(とその子Artist)はすべて破棄されるため、
-        # 個別にremove()するまでもなく古い注釈Artist/ハイライトArtistの参照も無効になる
+        # fig.clf() で古い artist はすべて消えるので、参照を捨てるだけでよい
         self._annotation_artists.clear()
         self._annotation_render_keys.clear()
         self._highlight_artists.clear()
@@ -635,20 +439,13 @@ class _CanvasDrawingMixin:
         is_secondary_visible_global = False
 
         if is_free_layout:
-            # 自由配置レイアウト: 均等グリッドではなく、各サブプロットごとに
-            # 保存済み(またはデフォルトの)矩形を使って個別に配置する。
             for i in range(subplot_count):
                 rect = axis_setting(all_plot_settings[i], 'free_rect') or self._default_free_rect(i)
                 ax = self.fig.add_axes(rect)
                 self.all_axes.append(ax)
                 self.all_secondary_axes.append(None)
         else:
-            # 軸共有(項目C-601): 有効な場合、全サブプロットを最初のサブプロット
-            # (self.all_axes[0])とsharex/shareyで束ねる(matplotlibのplt.subplots
-            # (sharex=True, sharey=True)と同じ「グリッド全体で共通」の挙動。
-            # 「同じ行/列のみ共有」ではなく、よりシンプルな全体共有とした)。
-            # 内側の目盛りラベル(最下行以外のX軸ラベル・最左列以外のY軸ラベル)は
-            # 共有時は冗長なので隠す(目盛り自体は残し、ラベル文字だけ消す)。
+            # 軸の共有は、行・列ごとではなく全部の軸を最初の軸に束ねる
             for i in range(subplot_count):
                 share_x_target = self.all_axes[0] if (share_x_axis and self.all_axes) else None
                 share_y_target = self.all_axes[0] if (share_y_axis and self.all_axes) else None
@@ -662,20 +459,12 @@ class _CanvasDrawingMixin:
             else:
                 continue
 
-            # データの描画
             self._draw_data(ax, index, datasets, full_resolution=full_resolution)
-            # 外観の適用
             self._apply_appearance(ax, index, settings)
-            # ★ 軸共有(項目C-601)による内側の目盛数値抑制は、_apply_appearance()が
-            #   目盛/目盛数値の表示状態を常に明示的に設定するようになった後で
-            #   最後に適用する必要がある(先に適用すると_apply_appearance()に
-            #   上書きされてしまう)。
+            # _apply_appearance が目盛数値の表示を毎回設定し直すので、共有で隠すのはその後
             if not is_free_layout:
                 self._apply_shared_axis_tick_visibility(index, rows, cols, share_x_axis, share_y_axis)
-            # 自由なテキスト注釈・矢印・領域ハイライト・統計値アンカーラベルの描画
             self._draw_annotations(ax, index, settings, datasets=datasets, full_resolution=full_resolution)
-            # パネルラベルの自動採番(項目C-712): (a)(b)(c)...をサブプロットの
-            # 並び順(index)から機械的に計算する(文字自体は保存しない)。
             if panel_labels_enabled:
                 self._draw_panel_label(ax, index)
 
@@ -683,32 +472,21 @@ class _CanvasDrawingMixin:
                 is_secondary_visible_global = True
 
         if not is_free_layout:
-            # ★ 自由配置レイアウトでは、各サブプロットの位置・サイズをユーザーが
-            # 明示的に指定しているため、tight_layout() で自動再配置すると
-            # その指定が上書きされてしまう。そのためグリッドレイアウトのみ適用する。
-            # ★ 実機フィードバック(ログで確認): 環境によってはmatplotlib自体の
-            #   インストールが不完全で、フォールバック用フォント
-            #   (LastResortHE-Regular.ttf)が欠落しているケースがある。この場合
-            #   tight_layout()のラベルbbox計算がFileNotFoundErrorで失敗し、
-            #   アプリ全体がクラッシュしていた。Graphica側で修正できる問題では
-            #   ないため、レイアウト最適化自体を諦めて描画を続行する
-            #   (見た目が多少崩れるだけで、クラッシュよりはるかに良い)。
+            # 自由配置は利用者が決めた位置を tight_layout が上書きするので、グリッドだけ。
+            # matplotlib の予備フォント(LastResortHE)が欠けた環境では FileNotFoundError になるので、配置を諦めて続ける
             try:
                 self.fig.tight_layout()
             except (ValueError, FileNotFoundError):
                 pass
 
         self._safe_draw()
-        return is_secondary_visible_global # UI更新用にメインウィンドウへ結果を返す
+        return is_secondary_visible_global
 
     def update_appearance_only(self, all_plot_settings, datasets=(), rows=1, cols=1,
                                 layout_mode='grid', share_x_axis=False, share_y_axis=False):
         """
-        データはそのままに、外観設定だけを適用し直す（軽量版）。
-        datasets は統計値アンカーラベル(項目C-708)の値再計算にのみ使う
-        (_draw_dataは呼ばないため、この経路ではデータそのものは再描画されない)。
-        省略時(既定の空タプル)は統計値アンカーラベルが「データセットなし」表示に
-        フォールバックするだけで、他の描画には影響しない。
+        データはそのままで見た目の設定だけを当て直す。datasets は統計値ラベルの計算にだけ使う
+        (省略すると統計値ラベルが「データセットなし」になるだけ)。
         """
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
         is_free_layout = layout_mode == 'free'
@@ -716,33 +494,21 @@ class _CanvasDrawingMixin:
             if index < len(all_plot_settings):
                 settings = all_plot_settings[index]
                 self._apply_appearance(ax, index, settings)
-                # ★ redraw_all()と同じ理由: 軸共有による内側の目盛数値抑制は
-                #   _apply_appearance()の後に適用しないと上書きされてしまう
-                #   (実機フィードバック: 目盛表示切替のON/OFFが反映されない
-                #   バグの修正に伴い、_apply_appearance()が常に明示的に
-                #   表示状態を設定するようになったため)。
+                # redraw_all と同じく、共有で隠すのは _apply_appearance の後
                 if not is_free_layout:
                     self._apply_shared_axis_tick_visibility(index, rows, cols, share_x_axis, share_y_axis)
-                # E-2: この経路は Axes を cla() しないので、内容が変わって
-                # いなければ既存の注釈Artistをそのまま使い回せる。
+                # この経路だけ軸を cla() しないので、内容が同じなら注釈を使い回せる
                 self._draw_annotations(ax, index, settings, datasets=datasets,
                                        allow_reuse=True)
         try:
             self.fig.tight_layout()
         except (ValueError, FileNotFoundError):
-            # ★ FileNotFoundError: 環境依存のフォント欠落によるクラッシュ対策。
-            #   redraw_all()側の同名except節のコメント参照。
+            # フォントが欠けた環境の対策(redraw_all 参照)
             pass
         self._safe_draw()
 
     def _apply_shared_axis_tick_visibility(self, axis_index, rows, cols, share_x_axis, share_y_axis):
-        """
-        軸共有(項目C-601)有効時、内側の目盛りラベル(最下行以外のX軸ラベル・
-        最左列以外のY軸ラベル)を隠す。redraw_all()のAxes構築時、および
-        update_single_axis()(ax.cla()がtick_paramsをリセットするため)の
-        両方から呼ばれる共通ヘルパー。自由配置レイアウト(cols=0)では
-        行/列の概念自体が無いため何もしない。
-        """
+        """軸の共有が有効なら、内側の目盛数値(最下行以外の X・最左列以外の Y)を隠す。自由配置(cols=0)では何もしない。"""
         if cols <= 0:
             return
         row_idx, col_idx = divmod(axis_index, cols)
@@ -755,27 +521,20 @@ class _CanvasDrawingMixin:
     def _redraw_single_axis_no_draw(self, axis_index, datasets, settings, rows=1, cols=1,
                                      share_x_axis=False, share_y_axis=False, panel_labels_enabled=False,
                                      full_resolution=False):
-        """
-        update_single_axis()の実体(self.draw_idle()を呼ぶ直前まで)。項目C-003
-        フェーズ2のupdate_all_axes_appearance_and_data()が全Axes分ループする際、
-        Axesごとにdraw_idle()を呼ぶ無駄を避け、Figureレベルのdraw()をループの
-        外側で1回だけで済ませられるよう、draw呼び出しを含まない部分を切り出した。
-        """
+        """update_single_axis() の、draw を呼ぶ手前まで(全軸をまとめて描き直すときに draw を1回で済ませるため)。"""
         if axis_index >= len(self.all_axes):
             return
 
-        # twinx()で作られた副軸はax.cla()では消えない別のAxesオブジェクトのため、
-        # 明示的にFigureから取り除いてから作り直す(取り除かないと呼ぶたびに
-        # 副軸が積み重なる)。
+        # twinx() の第2軸は cla() では消えないので、取り除かないと呼ぶたびに積み重なる
         old_secondary = self.all_secondary_axes[axis_index]
         if old_secondary is not None:
             old_secondary.remove()
             self.all_secondary_axes[axis_index] = None
 
         ax = self.all_axes[axis_index]
-        ax.cla()  # このAxesのartist/凡例だけをクリア。他のAxesは無傷。
+        ax.cla()
 
-        # cla()で古いArtistへの参照はすでに無効なので、remove()を試みず単に破棄する。
+        # cla() で古い artist は消えているので、参照を捨てるだけ
         self._annotation_artists.pop(axis_index, None)
         self._annotation_render_keys.pop(axis_index, None)
         for dataset_id in [ds.dataset_id for ds in datasets if ds.subplot_target == axis_index]:
@@ -783,7 +542,6 @@ class _CanvasDrawingMixin:
             self.downsample_index_map.pop(dataset_id, None)
             self._non_pickable_dataset_ids.discard(dataset_id)
 
-        # visible フィルタは _draw_data() の内部で行う(改善ボード A-4、redraw_all参照)
         self._draw_data(ax, axis_index, datasets, full_resolution=full_resolution)
         self._apply_appearance(ax, axis_index, settings)
         self._draw_annotations(ax, axis_index, settings, datasets=datasets, full_resolution=full_resolution)
@@ -796,16 +554,9 @@ class _CanvasDrawingMixin:
                             share_x_axis=False, share_y_axis=False, panel_labels_enabled=False,
                             full_resolution=False):
         """
-        指定した1つのAxesだけを描き直す(項目C-003 フェーズ1)。他のAxes・
-        Figure自体は一切触らない(fig.clf()を経由しないため、他のAxesを
-        参照しているコード―NavigationToolbarのHomeキャッシュ、他インデックスの
-        _annotation_artists/_highlight_artists/downsample_index_map等―への
-        影響がない)。1データセットのスタイル変更や(項目C-003フェーズ3a)
-        subplot_target/use_secondary_yの変更(旧軸・新軸それぞれに対して
-        本メソッドを呼ぶ)専用。Axesの枚数・GridSpec配置自体を変える
-        構造的な変更(レイアウト行数/列数変更、自由配置のサブプロット
-        追加/削除)は呼び出し側でredraw_all()相当のフル再描画、または
-        add_free_axis()/remove_last_free_axis()に振り分けること。
+        1つの軸だけを描き直す。Figure とほかの軸には触らない。データセットの見た目や描画先・第2Y軸の変更用
+        (描画先の変更は旧・新の軸それぞれで呼ぶ)。軸の数や配置が変わるときは redraw_all() か
+        add_free_axis()/remove_last_free_axis() を使う。
         """
         self._redraw_single_axis_no_draw(
             axis_index, datasets, settings, rows=rows, cols=cols,
@@ -815,16 +566,7 @@ class _CanvasDrawingMixin:
         self.draw_idle()
 
     def add_free_axis(self, datasets, settings, panel_labels_enabled=False):
-        """
-        自由配置レイアウトへ、末尾に新しい1つのAxesを追加する(項目C-003
-        フェーズ3b)。他のAxes・Figure自体は一切触らない(fig.clf()を
-        経由しない)。「+ プロット追加」ボタン(gui/mixins/layout_edit_mixin.py
-        の_on_add_free_subplot)専用: 新規追加されるサブプロットは常に
-        既存データセットのどれからも参照されない空のAxesのため、他の
-        Axesへの影響が構造的に発生しない(update_single_axis()と違い
-        「既存Axesの中身を差し替える」のではなく「新しいAxesを1つ増やす」
-        操作であることに注意)。
-        """
+        """自由配置の末尾に軸を1つ足す(ほかの軸には触らない)。足す軸はどのデータセットからも参照されていない。"""
         rect = axis_setting(settings, 'free_rect') or self._default_free_rect(len(self.all_axes))
         ax = self.fig.add_axes(rect)
         self.all_axes.append(ax)
@@ -833,7 +575,6 @@ class _CanvasDrawingMixin:
         self.axis_is_category_x.append(False)
 
         axis_index = len(self.all_axes) - 1
-        # visible フィルタは _draw_data() の内部で行う(改善ボード A-4、redraw_all参照)
         self._draw_data(ax, axis_index, datasets)
         self._apply_appearance(ax, axis_index, settings)
         self._draw_annotations(ax, axis_index, settings, datasets=datasets)
@@ -844,19 +585,8 @@ class _CanvasDrawingMixin:
 
     def remove_last_free_axis(self, datasets):
         """
-        自由配置レイアウトから、末尾の1つのAxesを削除する(項目C-003
-        フェーズ3b)。他のAxes・Figure自体は一切触らない。「- プロット削除」
-        ボタン(_on_remove_free_subplot)は常に末尾のサブプロットのみを
-        削除する仕様のため、削除対象は常にself.all_axesの最後の要素になる
-        (途中の要素を削除するケースは無いため、他のAxesのインデックスを
-        振り直す必要が生じない)。
-
-        ★ 呼び出し側の責務: 削除されたサブプロットに割り当てられていた
-        データセットは、_on_remove_free_subplot側で既に新しい末尾の
-        サブプロットへsubplot_targetを付け替え済みであることを前提とする
-        (このメソッド自体はAxesオブジェクトの後片付けのみ行い、付け替え後の
-        新しい末尾Axesへのデータ再描画は呼び出し側がupdate_single_axis()で
-        別途行うこと)。
+        自由配置の末尾の軸を消す(ほかの軸には触らない)。消す軸のデータセットは、呼び出し側が先に
+        新しい末尾の軸へ付け替え、描き直しも update_single_axis() で行うこと。
         """
         if not self.all_axes:
             return
@@ -887,20 +617,8 @@ class _CanvasDrawingMixin:
                                              panel_labels_enabled=False, share_x_axis=False, share_y_axis=False,
                                              full_resolution=False):
         """
-        既存のAxes枚数・GridSpec配置(all_axes/all_secondary_axesの所属)を
-        一切変えず、全Axesのデータ・外観だけを軽量に描き直す(項目C-003
-        フェーズ2)。パネルラベル表示切替・ダークモード切替のような「全Axesを
-        均一に触るが軸の所属自体は変えない」トリガー専用。redraw_all()と異なり
-        fig.clf()を経由しないため、Axes数・GridSpec配置自体が変わるケース
-        (レイアウト行数/列数変更)には使えない――呼び出し側でこの前提が
-        崩れないことを保証すること(subplot_target/use_secondary_yの変更や
-        自由配置のサブプロット追加/削除は、項目C-003フェーズ3aでの
-        update_single_axis()複数回呼び出し、フェーズ3bでのadd_free_axis()/
-        remove_last_free_axis()により、既にAxes単位の軽量パスへ移行済み)。
-        update_single_axis()を既存Axes数ぶんループしたのち、redraw_all()が
-        1回だけ行っていたFigureレベルの処理(facecolor設定・tight_layout・
-        実際のdraw()・is_secondary_visible_globalの再計算)をループの外側で
-        まとめて1回だけ行う。
+        軸の数と配置を変えずに、全部の軸のデータと見た目を描き直す(パネルラベルやダークモードの切り替え用)。
+        fig.clf() しないので、軸の数や配置が変わるときには使えない。draw などの Figure 全体の処理は最後に1回だけ。
         """
         is_free_layout = layout_mode == 'free'
         is_secondary_visible_global = False
@@ -919,25 +637,17 @@ class _CanvasDrawingMixin:
 
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
         if not is_free_layout:
-            # ★ 自由配置レイアウトでは各サブプロットの位置・サイズをユーザーが
-            # 明示的に指定しているため、redraw_all()と同様tight_layout()は
-            # グリッドレイアウトのみ適用する。
+            # 自由配置には tight_layout を掛けない・フォントが欠けた環境の対策(redraw_all 参照)
             try:
                 self.fig.tight_layout()
             except (ValueError, FileNotFoundError):
-                # ★ FileNotFoundError: 環境依存のフォント欠落によるクラッシュ対策。
-                #   redraw_all()側の同名except節のコメント参照。
                 pass
 
         self._safe_draw()
         return is_secondary_visible_global
 
     def _draw_panel_label(self, ax, index):
-        """
-        サブプロットの左上に (a)(b)(c)... の連番ラベルを描画する(項目C-712)。
-        ラベル文字自体は保存せず、サブプロットの並び順(index)から毎回
-        機械的に計算するため、並び替え・追加・削除しても自動的に振り直される。
-        """
+        """軸の左上に (a)(b)(c)… を描く。文字は保存せず並び順から毎回決めるので、並べ替えても振り直される。"""
         label = self._panel_label_for_index(index)
         text_color = DARK_TEXT_COLOR if self.dark_mode else LIGHT_TEXT_COLOR
         ax.text(
@@ -948,7 +658,7 @@ class _CanvasDrawingMixin:
 
     @staticmethod
     def _panel_label_for_index(index):
-        """0->a, 1->b, ..., 25->z, 26->aa, 27->ab, ... (Excel列名と同じ方式で26件超にも対応)"""
+        """0->a, …, 25->z, 26->aa, 27->ab, …(Excel の列名と同じ)"""
         letters = []
         n = index
         while True:
@@ -961,30 +671,8 @@ class _CanvasDrawingMixin:
 
     def _downsample_for_inset(self, x_data, y_data, full_resolution=False):
         """
-        インセット(拡大図、項目138/C-711)の中に描く点列へ、本体の描画と同じ
-        LTTB表示用ダウンサンプリング(項目C-1001)を適用する(改善ボード E-1)。
-
-        インセットは注釈として実装されており、注釈は再描画のたびに全削除→
-        全再生成される。そのため間引きを通さないと、大きなデータでインセットを
-        1つ置いただけで、再描画のたびに数万〜数十万点を描き直すことになる
-        (#138実装時の抜け)。
-
-        本体の_draw_data側と違い、plot_typeによる出し分けは行わない。
-        インセット内はplot_typeに関わらず常に単純な折れ線として描く仕様
-        (「ズームした概観」を見せる用途と割り切った意図的な簡略化)であり、
-        「マーカーの疎密自体が情報だからScatterは対象外」という本体側の理由が
-        そもそも当てはまらないため。
-
-        LTTBはXが昇順であることを前提とするアルゴリズムなので、本体側と同じく
-        昇順のデータにのみ適用する(降順/非単調なXは全点描画のまま)。
-
-        Args:
-            x_data, y_data (np.ndarray): 拡大範囲でフィルタ済みの点列。
-            full_resolution (bool): エクスポートの「フル解像度」オプション。
-                Trueなら点数によらず全点をそのまま返す。
-
-        Returns:
-            (np.ndarray, np.ndarray): 描画に使うx/y(間引き不要ならそのまま)。
+        拡大図の点列を本体と同じく LTTB で間引く(注釈は描き直しのたびに作り直すので、大きなデータで重くなる)。
+        拡大図は種類に関わらず線で描くので、散布図を除く本体の条件は当てはまらない。X が昇順のときだけ間引く。
         """
         if full_resolution or len(x_data) <= LTTB_DOWNSAMPLE_THRESHOLD:
             return x_data, y_data
@@ -995,27 +683,10 @@ class _CanvasDrawingMixin:
 
     def _annotation_render_key(self, axis_index, settings, datasets, full_resolution):
         """
-        いま描こうとしている注釈の「結果を決める入力すべて」をまとめた文字列を返す
-        (改善ボード E-2 のキャッシュキー)。
-
-        ★ グローバル規約「キャッシュのキーには結果に影響する入力を全部含める」に
-        従って、注釈リストそのものだけでなく次も含めている:
-
-        - **ダークモード**: テキスト/矢印の色は `_effective_text_color()` を通すので、
-          注釈リストが同一でもモードが変われば描画結果が変わる。これを落とすと
-          「ダークモードにしたのに注釈の色だけ元のまま」という壊れ方をする。
-        - **統計値アンカーラベル(type='stat')の確定テキスト**: この経路は
-          `datasets` を「統計値の再計算のため」に受け取る設計で、値が変われば
-          表示も変わる。計算結果の文字列そのものをキーに入れることで、
-          値が変わったときだけ描き直す。
-        - **インセット(type='inset')が参照するデータセットの見た目**:
-          色・線幅・不透明度・表示/非表示。
-
-        インセットが描く「データそのもの」はキーに含めない。この関数を使うのは
-        `update_appearance_only()` だけで、その経路は `_draw_data()` を呼ばない
-        =「データは変わっていない」を前提に本体の描画も省いているため、
-        インセットだけ別の前提を置く必要がないから(データが変わる操作は
-        `ax.cla()` を伴う別の経路を通り、そこでは再利用しない)。
+        注釈の描き直しを省くかどうかのキー。描いた結果に影響するものを全部入れる:
+        ダークモード(色が変わる)、統計値ラベルの計算後の文字列、拡大図が描くデータセットの色・線幅・透明度・表示。
+        拡大図のデータそのものは入れない。これを使う update_appearance_only はデータが変わっていない前提の経路
+        (データが変わる操作は cla() する別の経路を通り、そこでは使い回さない)。
         """
         annotations = axis_setting(settings, 'annotations')
         parts = [bool(self.dark_mode), bool(full_resolution), len(annotations)]
@@ -1040,30 +711,12 @@ class _CanvasDrawingMixin:
     def _draw_annotations(self, ax, axis_index, settings, datasets=None, full_resolution=False,
                           allow_reuse=False):
         """
-        settings['annotations'] (テキスト注釈・矢印注釈・領域ハイライト・統計値
-        アンカーラベルのリスト) を描画する。再描画のたびに、まず前回このAxesに
-        描画した注釈Artistを削除してから描き直すことで、update_appearance_only
-        経由での重複描画を防ぐ。
+        軸の注釈(テキスト・矢印・領域ハイライト・統計値ラベル・拡大図)を、前回の分を消してから描く。
 
-        allow_reuse=True(改善ボード E-2): 前回と内容が変わっていなければ、
-        全削除→全再生成を丸ごと省いて既存のArtistをそのまま残す。
-        **この指定ができるのは `update_appearance_only()` だけ**で、既定はFalse。
-        他の3経路(`redraw_all` は `fig.clf()`、`_redraw_single_axis_no_draw` は
-        `ax.cla()`、`add_free_axis` は新規Axes)では前回のArtistが既に破棄されて
-        いるため、再利用してしまうと注釈が消える。将来の呼び出し元が何も考えずに
-        安全側へ倒れるよう、既定をFalseにしてある。
-
-        効くのは主にインセット(拡大図)で、中でデータセットを再プロットするため
-        「注釈数×データ点数」のコストが軸の書式をいじるたびにかかっていた
-        (E-1 でインセットの間引きは入れたが、毎回作り直す構造自体は残っていた)。
-
-        datasets は統計値アンカーラベル(項目C-708、type='stat')が参照先の
-        Datasetを解決するために使う。省略時(None)は全て「データセットなし」
-        表示にフォールバックする(既存呼び出し元・テストとの後方互換のため)。
-
-        full_resolution=True の場合、インセット(拡大図)内の描画でも
-        LTTB表示用ダウンサンプリング(項目C-1001)を行わず全点描画する
-        (_draw_data と同じく、エクスポートの「フル解像度」オプション用)。
+        allow_reuse=True なら、内容が前回と同じとき描き直しを省く(拡大図はデータを描き直すので重い)。
+        使ってよいのは update_appearance_only() だけ。ほかの経路は前回の artist が既に消えている
+        (fig.clf() / ax.cla() / 新しい軸)ので、使い回すと注釈が消える。既定は False。
+        datasets は統計値ラベルと拡大図が使う(省略すると「データセットなし」)。
         """
         render_key = self._annotation_render_key(axis_index, settings, datasets, full_resolution)
         if allow_reuse and self._annotation_render_keys.get(axis_index, _NO_KEY) == render_key:
@@ -1083,10 +736,6 @@ class _CanvasDrawingMixin:
             text = ann.get('text', '')
             try:
                 if ann_type == 'arrow':
-                    # 矢印のバリエーション拡張(項目C-703): 通常(片矢印)/両矢印/
-                    # ブラケットの3種類。arrow_style/arrow_curvatureを持たない
-                    # 既存の保存済み注釈は既定値(直線の片矢印)にフォールバックし、
-                    # 追加前と全く同じ見た目になる。
                     color = self._effective_text_color(ann.get('color', '#000000'))
                     arrowstyle = _ARROW_STYLE_MAP.get(ann.get('arrow_style', 'single'), '->')
                     curvature = ann.get('arrow_curvature', 0.0)
@@ -1099,9 +748,7 @@ class _CanvasDrawingMixin:
                         color=color, fontsize=9
                     )
                 elif ann_type in ('vspan', 'hspan'):
-                    # 領域ハイライト(項目C-701)。色は注釈の文字色(テーマの
-                    # 明暗による自動反転、_effective_text_color)とは無関係の
-                    # ユーザー指定色をそのまま使うため変換しない。
+                    # 利用者が選んだ色をそのまま使う(ダークモードの読み替えはしない)
                     lo, hi = ann.get('range', (0, 0))
                     color = ann.get('color', REGION_HIGHLIGHT_DEFAULT_COLOR)
                     alpha = ann.get('alpha', REGION_HIGHLIGHT_DEFAULT_ALPHA)
@@ -1110,14 +757,7 @@ class _CanvasDrawingMixin:
                     else:
                         artist = ax.axhspan(lo, hi, color=color, alpha=alpha, zorder=0.5)
                 elif ann_type == 'inset':
-                    # インセット(拡大図)+拡大範囲の指示線(項目138、C-711)。
-                    # #37自由配置のドラッグ基盤の流用は見送り(既存5モードの
-                    # マウス排他機構に7つ目を組み込むリスクに見合わないと判断)、
-                    # コーナー位置+サイズのプリセット選択で位置を決める簡略版。
-                    # インセット内の描画は、フル機能の_draw_data()を再利用せず、
-                    # 対象軸の各データセットのx/yを指定X範囲でそのまま単純な
-                    # 折れ線として描く(plot_type/グラデーション等は再現しない、
-                    # 「ズームした概観」を見せる用途と割り切った意図的な簡略化)。
+                    # 拡大図は、種類やグラデーションは再現せず、範囲内の点を線で結ぶだけの概観
                     x0, y0 = _INSET_CORNER_ORIGINS.get(ann.get('corner', '右上'), (0.55, 0.55))
                     size = ann.get('size', 0.4)
                     x_min, x_max = ann.get('zoom_x_range', (0, 1))
@@ -1142,9 +782,7 @@ class _CanvasDrawingMixin:
                     new_artists.extend([inset_ax, pp, p1, p2])
                     artist = None
                 elif ann_type == 'stat':
-                    # 統計値アンカーラベル(項目C-708)。Axes相対座標(0〜1、
-                    # ax.transAxes)を使うため、データのズーム/パンに関わらず
-                    # 常に同じ画面上の位置(既定では左上を起点に縦積み)に留まる。
+                    # 軸に対する位置なので、拡大・移動しても同じ場所に留まる
                     color = self._effective_text_color(ann.get('color', '#000000'))
                     xy = ann.get('xy', (0.05, 0.95))
                     dataset = datasets_by_id.get(ann.get('dataset_id'))
@@ -1162,16 +800,11 @@ class _CanvasDrawingMixin:
             except Exception:
                 logger.exception("注釈の描画に失敗しました: %s", ann)
         self._annotation_artists[axis_index] = new_artists
-        # 再利用しない経路でもキーは更新しておく。そうしないと、直後の
-        # update_appearance_only が必ず1回ぶん無駄に描き直すことになる。
+        # 使い回さない経路でもキーは更新する(直後の update_appearance_only が無駄に描き直さないように)
         self._annotation_render_keys[axis_index] = render_key
 
     def _enable_element_picking(self, artist):
-        """
-        グラフ要素の直接クリック選択(項目35)のため、Artistをクリック検出可能にする。
-        Bar (BarContainer) は単一のArtistではなく Rectangle の集合なので、
-        個々のpatchに対して設定する必要がある。
-        """
+        """クリックで選べるようにする。棒グラフは Rectangle の集まりなので、1本ずつ設定する。"""
         try:
             if hasattr(artist, 'patches'):  # BarContainer
                 for patch in artist.patches:
@@ -1183,24 +816,14 @@ class _CanvasDrawingMixin:
 
     def _add_gradient_line(self, ax, x, y, color1, color2, linewidth, alpha, linestyle, label=None):
         """
-        線ストロークグラデーション(項目79): 線を細かいセグメントに分割し、
-        各セグメントに開始色(color1)→終端色(color2)を線形補間した色を割り当てる
-        LineCollectionとして描画する(matplotlibにはグラデーション線を直接描く
-        機能が無いため、これが定番の実現方法)。
-
-        ★ 注意点(オートスケールの落とし穴): ax.plot() と違い、
-        ax.add_collection() は呼び出しただけではAxesの表示範囲(view limits)を
-        自動的に広げてくれない場合がある。Collection自体は autolim=True が
-        既定でdataLim(データ範囲)は更新されるが、実際に軸の見た目の範囲へ
-        反映されるのは呼び出し側(_apply_appearance)がautoscaleを適用した
-        タイミングになる。取りこぼしが無いよう、ここでも明示的に
-        ax.update_datalim() を呼んでデータ範囲を確実に反映させておく。
+        線を区間に分けて、始点の色から終点の色へ変わる LineCollection として描く。
+        add_collection は軸の表示範囲を広げないことがあるので、データ範囲を明示的に足しておく。
         """
         x = np.asarray(x, dtype=float)
         y = np.asarray(y, dtype=float)
 
         if len(x) < 2:
-            # 点が0〜1個だとセグメント(区間)を作れないため、通常の線として描画する
+            # 区間が作れないので普通の線にする
             (line,) = ax.plot(x, y, color=color1, linestyle=linestyle, linewidth=linewidth, alpha=alpha, label=label)
             return line
 
@@ -1213,34 +836,25 @@ class _CanvasDrawingMixin:
             linewidths=linewidth, linestyles=linestyle, alpha=alpha, label=label,
             zorder=2,
         )
-        # 各セグメントに、線の始点からの位置(0.0=開始 ～ 1.0=終端)を割り当てる
+        # 区間ごとに始点からの位置(0〜1)を割り当てる
         lc.set_array(np.linspace(0, 1, len(segments)))
         ax.add_collection(lc)
-        # ★ オートスケール対策(上記docstring参照): データ範囲を明示的に反映
         ax.update_datalim(np.column_stack([x, y]))
         return lc
 
     def _add_gradient_fill(self, ax, x, y, color1, color2, alpha, baseline=0.0):
-        """
-        塗りグラデーション(項目79): fill_between() が作るのと同じ形状(X/Y値と
-        基準線baselineの間の領域)のポリゴンをクリップパスとして使い、
-        ax.imshow() で描いたグラデーション画像をその内側だけに見せる
-        (matplotlibで「グラデーション塗り」を実現する定番のレシピ)。
-        """
+        """fill_between と同じ形の多角形で、imshow のグラデーション画像を切り抜いて塗る。"""
         x = np.asarray(x, dtype=float)
         y = np.asarray(y, dtype=float)
 
-        # 縦方向(下→上)のグラデーション画像。origin='lower' で配列の先頭行が
-        # 下端に描かれるため、下端=終端色(color2)・上端=開始色(color1)になるよう
-        # 色の並びを反転させておく。
+        # origin='lower' で先頭行が下端になるので、上端が color1 になるよう色を逆に並べる
         gradient = np.linspace(0, 1, 256).reshape(-1, 1)
         cmap = LinearSegmentedColormap.from_list('graphica_fill_gradient', [color2, color1])
 
         x_min, x_max = float(np.nanmin(x)), float(np.nanmax(x))
         y_min = float(min(np.nanmin(y), baseline))
         y_max = float(max(np.nanmax(y), baseline))
-        # 全点が同じX(またはY)座標だとimshowのextentが潰れてしまうため、
-        # わずかに幅を持たせておく
+        # 全点が同じ座標だと extent が潰れるので幅を持たせる
         if x_min == x_max:
             x_min, x_max = x_min - 0.5, x_max + 0.5
         if y_min == y_max:
@@ -1251,38 +865,21 @@ class _CanvasDrawingMixin:
             extent=(x_min, x_max, y_min, y_max), alpha=alpha, zorder=1,
         )
 
-        # fill_between()と同じ塗り領域(データ点を辿った後、基準線上を逆向きに
-        # 戻ってくる多角形)をクリップパスとして使う
         verts = list(zip(x, y)) + [(x[-1], baseline), (x[0], baseline)]
         clip_poly = Polygon(verts, closed=True, transform=ax.transData)
         im.set_clip_path(clip_poly)
 
-        # ★ imshow()はax.plot()と異なりデータ範囲を自動的に広げないため、
-        # 塗り領域の範囲を明示的に反映させておく(オートスケール対策)
+        # imshow は軸の範囲を広げないので、明示的に足す
         ax.update_datalim(np.array([[x_min, y_min], [x_max, y_max]]))
         return im
 
-    # data_kind='2d_grid'データセットのmap_display_modeとして有効な値
     _VALID_MAP_DISPLAY_MODES = ('heatmap', 'contour', 'contour_filled', 'heatmap_contour')
 
     def _draw_2d_data(self, ax, axis_index, datasets_2d, full_resolution=False):
         """
-        2Dマップ(ヒートマップ/等高線、項目C-508/C-509)を描画する。Dataset.z_grid
-        (core/dataset.py、core/grid_data.pyのcompute_z_grid()の結果をキャッシュした
-        もの)が既に規則格子/補間格子どちらの場合も同じ形の辞書を返すため、
-        ここでは区別せずpcolormesh/contour/contourfに渡すだけでよい。imshow
-        (規則格子限定・高速)ではなくpcolormeshに統一しているのは、規則格子/
-        補間格子のどちらのX/Y間隔にも対応できる(imshowは等間隔前提)ことを
-        優先したため(大規模データはGRID_2D_MAX_DISPLAY_POINTS_PER_AXISの
-        間引きで対応する)。
-
-        ds.map_display_mode(項目C-509)で描画方式を切り替える:
-        'heatmap'(既定、pcolormesh) / 'contour'(線のみ、ds.colorを線色・
-        ds.linewidthを太さとして使う) / 'contour_filled'(塗りつぶし等高線、
-        ds.colormapで塗る) / 'heatmap_contour'(ヒートマップに等高線を重ね描き)。
-        カラーバー用のmappable(_axis_2d_mappables)には、塗りを伴うモード
-        (heatmap/contour_filled/heatmap_contour)の場合のみ登録する
-        (線のみのcontourは通常カラーバーを付けない慣習に合わせる)。
+        2Dマップを描く。規則格子でも補間した格子でも同じ形の z_grid なので、等間隔を前提にする imshow ではなく
+        pcolormesh を使う。map_display_mode: 'heatmap' / 'contour'(線だけ、色と太さはデータセットの線) /
+        'contour_filled' / 'heatmap_contour'。カラーバーの対象は塗りのある方式だけ(線だけの等高線には付けない慣習)。
         """
         self._axis_2d_mappables.pop(axis_index, None)
         for ds in datasets_2d:
@@ -1291,12 +888,6 @@ class _CanvasDrawingMixin:
                 continue
             x_grid, y_grid, z_grid = grid['x_grid'], grid['y_grid'], grid['z_grid']
 
-            # 大規模グリッドの表示負荷対策: 1軸あたりの点数が上限を超える場合、
-            # 均等間隔で間引く(既存のLTTBダウンサンプリング(項目C-1001)と同じく、
-            # redraw_all()が画面表示/エクスポート両方の唯一の入口のため、この
-            # 間引きはエクスポートにも同様に適用される)。full_resolution=True
-            # (エクスポート時の「フル解像度」オプション、_draw_data参照)が
-            # 指定された場合は、Line用LTTBと同様に間引きを無視する。
             if not full_resolution and len(x_grid) > GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS:
                 step = int(np.ceil(len(x_grid) / GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS))
                 x_grid = x_grid[::step]
@@ -1318,11 +909,7 @@ class _CanvasDrawingMixin:
             try:
                 mappable = None
                 contour_set = None
-                # ★ label=ds.nameは付けない: QuadMesh/ContourSetは凡例の
-                # ハンドルとして非対応で、_apply_appearance()の
-                # ax.get_legend_handles_labels()が毎回警告を出してしまう
-                # (2Dマップの識別はカラーバー(項目C-501)が担うため、凡例に
-                # 載せる必要はない)。
+                # label は付けない。QuadMesh/ContourSet は凡例に載らず、凡例を作るたびに警告が出る
                 if mode in ('heatmap', 'heatmap_contour'):
                     mappable = ax.pcolormesh(
                         x_grid, y_grid, z_grid, cmap=ds.colormap, vmin=vmin, vmax=vmax,
@@ -1339,15 +926,10 @@ class _CanvasDrawingMixin:
                         alpha=ds.alpha, linewidths=ds.linewidth,
                     )
             except ValueError as e:
-                # 不明なカラーマップ名等、matplotlib側が拒否した場合は
-                # このデータセットの描画だけをスキップする(他のデータセットや
-                # 軸全体を巻き込んでクラッシュさせない)。
+                # 知らないカラーマップ名など。このデータセットだけ飛ばす
                 logger.warning("2Dマップの描画に失敗しました(%s): %s", ds.name, e)
                 continue
 
-            # ds.artistはカラーバー対象のmappable(塗りを伴うモード)を優先し、
-            # 線のみのcontourモードではcontour_set自体を保持する(データカーソル等の
-            # 将来的な連動を見据えて、描画されたArtistを必ず何か保持しておく)。
             ds.artist = mappable if mappable is not None else contour_set
             if mappable is not None:
                 self._axis_2d_mappables[axis_index] = mappable
@@ -1596,14 +1178,11 @@ class _CanvasDrawingMixin:
 
     def set_highlighted_points(self, dataset, master_indices):
         """
-        データエディタで選択された行に対応するデータ点を、グラフ上でハイライトする
-        (データ⇔グラフの双方向ハイライト機能)。
-        master_indices は dataset.df のインデックスラベルのリストで、空リストなら
-        そのデータセットのハイライトを消す。
+        データエディタで選んだ行の点をグラフ上で丸く囲む。
 
         Args:
-            dataset (Dataset): ハイライト対象のデータセット。
-            master_indices (list): dataset.df.index のラベルのリスト。
+            dataset (Dataset): 対象のデータセット。
+            master_indices (list): dataset.df.index のラベル。空ならこのデータセットのハイライトを消す。
         """
         old_artist = self._highlight_artists.pop(dataset.dataset_id, None)
         if old_artist is not None:
@@ -1628,9 +1207,7 @@ class _CanvasDrawingMixin:
             ax = self.all_axes[axis_index]
 
         try:
-            # ★ x_data/y_data は visible_df (マスクされた行を除いたもの) 基準のため、
-            # 位置への変換もマスター df.index ではなく visible_df.index で行う必要がある
-            # (マスクされている行はそもそもプロットされていないためハイライトも対象外)。
+            # x_data/y_data は visible_df の並びなので、位置も visible_df.index で引く(除外した行は描かれていない)
             visible_index = dataset.visible_df.index
             positions = [visible_index.get_loc(idx) for idx in master_indices if idx in visible_index]
         except Exception:
@@ -1643,10 +1220,7 @@ class _CanvasDrawingMixin:
 
         x_vals = dataset.x_data[positions]
         y_vals = dataset.y_data[positions]
-        # ★ 改善ボード A-1: x_data/y_data はデータ座標なので、ウォーターフォール
-        # (積み重ね)有効時にそのまま描くと、トレース本体とは違う位置(積み重ね
-        # のずれが掛かっていない位置)に丸が出てしまう。実際にトレースが描かれて
-        # いる表示座標へ変換してからハイライトを打つ。無効時は恒等変換。
+        # ウォーターフォールでずらした位置に合わせる
         x_vals, y_vals = self.data_to_display(dataset, x_vals, y_vals)
         artist = ax.scatter(
             x_vals, y_vals, s=160, facecolors='none', edgecolors='#e6194b',
@@ -1657,18 +1231,10 @@ class _CanvasDrawingMixin:
 
     def _draw_point_labels(self, ax, ds, x_data=None, y_data=None, downsample_indices=None):
         """
-        データセットの各点の脇に、Y値または指定列の値をテキストとして表示する。
-        point_label_col_name が None ならY値そのもの、指定されていればその列の値を使う。
-        x_data/y_data を明示的に渡すと、そちらを表示位置として使う(ウォーターフォール
-        (項目80/109)有効時に、ずらした後の位置にラベルを追従させるため)。
-        省略時は ds.x_data/ds.y_data (元の位置) を使う。
-
-        downsample_indices: LTTB表示用ダウンサンプリング(項目C-1001)が適用された
-        場合の間引き後→元のvisible_df上の位置への変換配列(_draw_data参照、
-        誤差バー/バンドと同じもの)。指定された場合、label_values側も同じ
-        インデックスで間引いて揃える(揃えないとzip()が短い方(間引き後の
-        x_data/y_data)で打ち切られ、「間引き後のi番目の点」に「元データi番目の
-        行のラベル値」という無関係な組み合わせが表示されてしまう)。
+        各点の脇に Y 値(point_label_col_name があればその列の値)を書く。
+        x_data/y_data を渡せばその位置に書く(ウォーターフォールでずらした位置)。
+        downsample_indices は点の間引きに使った添字で、ラベルの値も同じく間引く
+        (揃えないと zip が短い方で切れ、点と無関係な行のラベルが付く)。
         """
         if x_data is None:
             x_data = ds.x_data
@@ -1676,8 +1242,7 @@ class _CanvasDrawingMixin:
             y_data = ds.y_data
 
         if ds.point_label_col_name and ds.point_label_col_name in ds.df.columns:
-            # ★ x_data/y_dataはvisible_df(マスクされた行を除いたもの)基準のため、
-            # 同じ行と対応させるにはこちらもvisible_dfから取得する必要がある。
+            # 点と同じ行になるよう visible_df から取る
             label_values = ds.visible_df[ds.point_label_col_name].values
         else:
             label_values = ds.y_data
@@ -1696,11 +1261,8 @@ class _CanvasDrawingMixin:
             ax.annotate(
                 text, (x, y), textcoords="offset points", xytext=(5, 5),
                 fontsize=8, color=ds.color, alpha=ds.alpha,
-                clip_on=True,  # ★ Text/Annotationは既定でclip_on=False。マスク解除で
-                # 軸範囲外の点が再表示された際、ラベルだけが枠外にはみ出て
-                # SVG/PDF等の出力に残ってしまうのを防ぐため明示的にTrueにする。
-                # (マーカー自体はLine2D/PathCollectionの既定clip_on=Trueで元々
-                # 軸範囲外なら描画されない — 挙動を揃える)
+                # Text の既定は clip_on=False で、範囲外の点のラベルだけが枠の外に残り SVG/PDF に出てしまう
+                clip_on=True,
             )
 
     def _apply_appearance(self, ax, axis_index, settings):
@@ -2024,13 +1586,7 @@ class MplCanvas(FigureCanvas, _CanvasDrawingMixin):
 
 
 class _HeadlessRenderCanvas(FigureCanvasAgg, _CanvasDrawingMixin):
-    """
-    バッチエクスポート専用のQt非依存キャンバス(項目C-004フェーズ5a)。
-    QWidgetのサブクラスではないため、GUIスレッド外(実スレッド)で構築・
-    描画しても安全。mpl_connect等のインタラクティブなイベント配線は
-    行わない(MplCanvas自体にも存在せず、全てmain_window.py/mixins側で
-    外付けされているため対象外)。
-    """
+    """一括エクスポート用の Qt に依存しないキャンバス。QWidget ではないので GUI スレッドの外で描いてよい。"""
     def __init__(self, width=5, height=4, dpi=100):
         self._init_drawing_state(width, height, dpi)
         super().__init__(self.fig)
