@@ -13,28 +13,17 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# 指数表記 (1e-5, -2.3E+10 など) を入力途中の状態も含めて許容するための正規表現
-# (X/Y軸の最小値・最大値・目盛り間隔スピンボックスの validate() 上書きで使用)
+# 入力途中の "1e" や "1e-" も通す
 _SCIENTIFIC_INPUT_RE = re.compile(r'^[+-]?(\d+\.?\d*|\.\d+)?([eE][+-]?\d*)?$')
 
 
 def _scientific_text_from_value(self, value):
-    """
-    値を「一般的な('g')」形式の文字列に変換するカスタムメソッド。
-    不要な末尾のゼロを自動的に削除し、必要に応じて指数表記を使います。
-    .16g は float64 (倍精度浮動小数点数) の最大有効桁数(約16桁)を
-    保持することを意味します。
-    """
+    """末尾のゼロを落とし、必要なら指数表記にする(.16g は float64 の有効桁数)。"""
     return f'{value:.16g}'
 
 
 def _scientific_validate(self, text, pos):
-    """
-    指数表記 (例: "1e-5", "-2.3E+10") を1文字ずつ入力できるようにする
-    バリデータ。QDoubleSpinBox 標準の validate() は "1e" や "1e-" のような
-    入力途中の文字列を Invalid として弾いてしまい、指数表記を
-    キーボードから直接入力できないため、これを上書きする。
-    """
+    """QDoubleSpinBox の validate() は "1e-" のような入力途中を弾き、指数表記を打ち込めないので上書きする。"""
     if text == '' or text in ('-', '+'):
         return (QValidator.State.Intermediate, text, pos)
     if _SCIENTIFIC_INPUT_RE.match(text):
@@ -47,10 +36,6 @@ def _scientific_validate(self, text, pos):
 
 
 def _enable_scientific_notation_input(spin_box, minimum, maximum, single_step=0.1):
-    """
-    QDoubleSpinBox が指数表記 (1e-5 など) を表示・入力できるようにする共通ヘルパー。
-    軸の最小値/最大値 (負値も可) と、目盛り間隔 (0以上のみ) の両方で使う。
-    """
     spin_box.setDecimals(SPIN_BOX_MAX_DECIMALS)
     spin_box.setRange(minimum, maximum)
     spin_box.textFromValue = types.MethodType(_scientific_text_from_value, spin_box)
@@ -59,14 +44,9 @@ def _enable_scientific_notation_input(spin_box, minimum, maximum, single_step=0.
 
 
 def _strip_trailing_colon_from_labels(widget):
-    """
-    widget配下の全QLabelについて、末尾の全角コロン「：」を取り除く(実機
-    フィードバック: 「各設定項目のあとの：はなくして」)。ui_main_window.py
-    (Qt Designer/pyside6-uic生成物)のretranslateUi()には多くのフォーム
-    ラベルにこの記号が焼き込まれているが、.uiソースファイル自体がこの
-    リポジトリに存在せず再生成できないため、構築完了後にQLabel.text()を
-    上書きする形で対応する(呼び出しは動的に追加されたラベルも全て構築
-    済みの、__init__の最後の方で行うこと)。
+    """ラベル末尾の「：」を取る。生成物の ui_main_window.py に焼き込まれていて、.ui が無く作り直せない。
+
+    動的に足したラベルも含むよう、画面を組み立て終えてから呼ぶ。
     """
     from PySide6.QtWidgets import QLabel
     for label in widget.findChildren(QLabel):
@@ -74,53 +54,28 @@ def _strip_trailing_colon_from_labels(widget):
         if text.endswith('：'):
             label.setText(text[:-1])
 
-# --- ウィンドウ/レイアウトに関する定数 ---
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
-CONTROL_DOCK_WIDTH = 472  # 項目68/61: フィールドの見切れ解消のため実測ベースで拡幅(旧350px→380px→400px→440px)
-                          # ★ バグ修正(項目102の折りたたみ化で発覚): 440pxのままだと、
-                          #   縦スクロールバー(11px)+レイアウト余白の分だけ中身の最小幅を
-                          #   下回り、意図しない横スクロールバーが常時出てしまっていた。
-                          #   スクロールバー分の余裕を持たせて拡幅する(merged_properties_layout
-                          #   の余白圧縮と合わせて横スクロールバーが出ないことを実測確認済み)。
-EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT = 340  # エクスポートプレビューを下部ドックに分離した際の初期高さ
+CONTROL_DOCK_WIDTH = 472  # 縦スクロールバーの分まで含めた幅。狭めると横スクロールバーが出る
+EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT = 340
 SPIN_BOX_MAX_DECIMALS = 16
 
-# --- 項目C-907: データセットリストの表示/非表示トグル(目のアイコン)関連の定数 ---
-# 列インデックス自体(DATASET_TREE_NAME_COLUMN/DATASET_TREE_VISIBILITY_COLUMN)は
-# dataset_mixin.py からも参照するため gui/dataset_style_icon.py 側で定義している
-# (main_window <-> dataset_mixin の循環import回避、同モジュールの他ヘルパーと同じ理由)。
-DATASET_TREE_VISIBILITY_COLUMN_WIDTH = 26  # 目アイコン(16px)+クリック余白
+# 列番号は dataset_mixin も使うので gui/dataset_style_icon.py にある(循環 import を避けるため)
+DATASET_TREE_VISIBILITY_COLUMN_WIDTH = 26  # 目のアイコン(16px)+クリックの余白
 
-# --- 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し)に関する定数 ---
-CANVAS_DETACHED_GEOMETRY_KEY = "canvas_detached_geometry"  # 切り離しウィンドウのサイズ/位置
-CANVAS_WAS_DETACHED_KEY = "canvas_was_detached"  # 前回終了時に切り離されていたか
+CANVAS_DETACHED_GEOMETRY_KEY = "canvas_detached_geometry"
+CANVAS_WAS_DETACHED_KEY = "canvas_was_detached"
 DEFAULT_DETACHED_CANVAS_WIDTH = 900
 DEFAULT_DETACHED_CANVAS_HEIGHT = 700
 
-# ドックの既定配置のバージョン。デフォルトの配置(どのドックをどのエリアに
-# 置くか)を変更したときはこの値を上げる。QSettingsに保存された前回のバージョンと
-# 異なる場合、保存済みの window_state を復元せず新しい既定配置を優先する
-# (そうしないと、restoreState() で常に旧配置が復元され続け、コード側で
-# デフォルトのドック配置を変えても既存ユーザーには反映されない)。
-DOCK_LAYOUT_VERSION = 4  # v4: 「プロットのプロパティ」「データセットのプロパティ」を1つのドックに統合
+# ドックの既定の配置を変えたら上げる。保存時の値と違えば保存済みの配置を戻さない
+# (戻すと、新しい既定の配置が既存の利用者に届かない)。
+DOCK_LAYOUT_VERSION = 4
 
-# ドックレイアウトの名前付きプリセット(項目152、C-911)。上のwindow_state
-# (起動時に自動保存/復元される「直近の」1つの状態)とは別の、ユーザーが
-# 明示的に名前を付けて保存する複数のプリセットを保持するQSettingsキー。
+# 名前を付けて保存するドック配置(起動時に戻す直近の window_state とは別)
 DOCK_LAYOUT_PRESETS_SETTINGS_KEY = "dock_layout_presets"
 
-# 「データセットのプロパティ」パネルのサブセクション(改善ボード C-1)。
-# Designer生成分+実行時追加で39行が1本のQFormLayoutに縦積みになっており、
-# プロット種別や2Dマップのトグルひとつでパネル高さが763px〜1134pxまで
-# 伸縮していた(実測)。7つの折りたたみ可能なセクションに分け、伸縮する
-# ブロック(グラデーション/ウォーターフォール/2Dマップ)がそれぞれ自分の
-# 見出しの中で開閉するようにする。
-#
-# ★ このタプルが唯一の定義元。新しい行を足すときは、対応するセクションの
-#   キーを _prop_form() に渡すだけでよく、番号指定の insertRow(N, ...) は
-#   もう存在しない(旧 formLayout_4 の「実行順に依存した番号指定挿入」という
-#   地雷は、この分割で丸ごと無くなっている)。
+# データセットのプロパティ欄の節。行は self._prop_form(キー).addRow で足す(番号指定の挿入はしない)。
 DATASET_PROPERTY_SECTIONS = (
     ('data',      'データ列'),
     ('style',     '基本スタイル'),
@@ -131,55 +86,37 @@ DATASET_PROPERTY_SECTIONS = (
     ('place',     '配置・情報'),
 )
 
-# 折りたたみ状態の永続化キー。既定は「全セクション展開」で、ユーザーが
-# 閉じたセクションのキーだけをJSON配列として保存する(=キーが無い/空なら
-# 従来と同じ全展開。新しいセクションを足しても既定は展開のまま)。
+# 閉じている節のキーの JSON 配列。無い・空なら全部開く(節を足しても既定は開いたまま)
 DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY = "dataset_property_collapsed_sections"
 
-# プラグインが register_plot_type() で登録する種別名は任意長のため、
-# 何も対策しないと plot_type_combo の sizeHint が最長項目に合わせて広がり、
-# QFormLayout の列幅を通じてプロパティドックに横スクロールバーが出る
-# (D-2 で実際に踏んだ。当時は組み込み種別名を15文字に縮めて回避した)。
-# コンボ自身の希望幅をこの文字数ぶんに固定し、長い名前は省略表示させる。
+# プラグインの種類名は任意の長さなので、コンボの希望幅を固定して省略表示させる
+# (広がると QFormLayout の列幅を通じてドックに横スクロールバーが出る)。
 PLOT_TYPE_COMBO_MIN_CHARS = 16
 
-# 2Dマップ(ヒートマップ、項目C-508)のカラーマップ選択肢。matplotlib組み込みの
-# 連続カラーマップから、科学データの可視化でよく使われるものを厳選(全カラーマップを
-# 網羅すると選択肢が多すぎて選びにくくなるため)。'viridis'を既定にしているのは
-# matplotlib自体の既定カラーマップであり、知覚的に均等(perceptually uniform)で
-# 色覚多様性にも配慮された設計のため。
 COLORMAP_CHOICES = [
     'viridis', 'plasma', 'inferno', 'magma', 'cividis',
     'coolwarm', 'RdBu', 'seismic', 'jet', 'turbo',
     'gray', 'Blues', 'Greens', 'Reds', 'YlOrRd',
 ]
 
-# --- オートセーブに関する定数 ---
-DEFAULT_AUTOSAVE_INTERVAL_MIN = 5  # 分単位 (0 = 無効化)
+DEFAULT_AUTOSAVE_INTERVAL_MIN = 5  # 0 で無効
 MIN_AUTOSAVE_INTERVAL_MIN = 0
 MAX_AUTOSAVE_INTERVAL_MIN = 180
-AUTOSAVE_FILENAME = "autosave.graphica"  # 新規インストール/セッションは新形式(JSON)でオートセーブする
-AUTOSAVE_GENERATIONS = 3  # 保持する世代数 (最新のautosave.graphicaを含む)
+AUTOSAVE_FILENAME = "autosave.graphica"
+AUTOSAVE_GENERATIONS = 3  # 最新の autosave.graphica を含む
 
-# --- 最近使ったファイル一覧に関する定数 ---
 MAX_RECENT_FILES = 10
 
-# --- ドラッグ&ドロップでの複数ファイル一括読み込みに関する定数 ---
-# gui/workers.py の read_data_file() が実際に読み込める拡張子のみを許可する
-# (ファイルダイアログのフィルタと同じ一覧を gui/workers.py から共有する)
 from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS  # noqa: E402
 SUPPORTED_DATA_FILE_EXTENSIONS = BUILTIN_DATA_FILE_EXTENSIONS
 
-# 未保存の変更の確認ダイアログ(v1.4.2)を無効にする環境変数。テストスイートは
-# ウィンドウを大量に作って閉じるため、モーダルな確認が出るとそこで止まってしまう。
-# tests/conftest.py が "0" を設定する(この機能自体のテストは個別に "1" に戻す)。
+# 未保存の変更の確認を出すか。テストはモーダルなダイアログで止まるので tests/conftest.py が "0" にする
 UNSAVED_CHANGES_PROMPT_ENV = "GRAPHICA_CONFIRM_UNSAVED_CHANGES"
 
 
 def _unsaved_changes_prompt_enabled():
     return os.environ.get(UNSAVED_CHANGES_PROMPT_ENV, "1") != "0"
 
-# --- PySide6 ---
 from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDialog,
                                QComboBox, QLabel, QSpinBox, QDoubleSpinBox, QPushButton,
                                QTextEdit, QCheckBox, QGroupBox, QSizePolicy, QWidget,
@@ -207,14 +144,10 @@ from graphica.gui.datasets.processing import ProcessingController
 from graphica.gui.plugin_context import TabPluginContext
 from graphica.core.app_paths import get_app_data_dir, get_user_plugins_dir
 
-# --- Matplotlib ---
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
-# --- Qt Designer から生成された UI ---
-# ※ main_window.py と同じ階層ではなく大元のフォルダにあるため、そのままインポートできます
 from graphica.ui_main_window import Ui_MainWindow
 
-# --- 自分で分割したモジュール ---
 from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from graphica.core.commands import AddDatasetCommand, RemoveDatasetCommand
@@ -231,20 +164,11 @@ from graphica.gui.dialogs import (ColumnPreviewDialog, ExcelMultiSheetDialog, We
 from graphica.gui.color_picker_widget import ColorPickerWidget
 from graphica.gui.icon_utils import load_svg_icon, ICONS_DIR
 
-# キャンバス上部ツールバーのアイコンサイズ(px)。Qtの既定は24pxだが、
-# カスタムボタンを追加した結果、ウィンドウ幅が狭いときにツールバーが溢れ、
-# はみ出したボタンが極小の「>>」に押し込まれて事実上操作できなくなっていた。
-# アプリ内の他のアイコンのみボタン(18px)ともトーンを揃える。
+# Qt 既定の 24px だと、狭いウィンドウでボタンが「>>」に押し込まれて押せない
 TOOLBAR_ICON_SIZE = 18
 
-# 項目81(mathtext拡充): タイトル/軸ラベルの文字装飾パネルに追加する
-# ギリシャ文字・記号のパレット。(表示するグリフ, 挿入するmathtextマクロ名
-# [バックスラッシュ抜き]) のタプル。マクロは matplotlib mathtext がそのまま
-# 解釈できるもの(\alpha 等)のみを収録している(\sqrt{...}のように引数を
-# 必須とするマクロは、単純な「$\macro$」挿入方式と相性が悪いため対象外。
-# 平方根は引数不要な\surdで代用している)。
-# 前半16個はギリシャ文字、後半16個は実機フィードバック(「四則演算の記号とか
-# プロットでよく使う数学記号があるといいかも」)を受けて追加した算術・数学記号。
+# 文字装飾パネルの記号。(表示, mathtext のマクロ名)。引数の要るマクロ(\sqrt{...})は
+# 「$\macro$」で挿入できないので入れない(平方根は \surd)。
 LABEL_SYMBOL_PALETTE = [
     ("α", "alpha"), ("β", "beta"), ("γ", "gamma"), ("δ", "delta"),
     ("ε", "epsilon"), ("μ", "mu"), ("π", "pi"), ("ρ", "rho"),
@@ -254,24 +178,15 @@ LABEL_SYMBOL_PALETTE = [
     ("≈", "approx"), ("≠", "neq"), ("≤", "leq"), ("≥", "geq"),
     ("∞", "infty"), ("→", "rightarrow"), ("←", "leftarrow"), ("∂", "partial"),
     ("∇", "nabla"), ("∫", "int"), ("∝", "propto"), ("°", "degree"),
-    # ★ 実機フィードバック: ハイフン(-)やen dash(–)ではなく、正しい
-    #   マイナス記号(U+2212、通常のハイフンより長く中央揃えの符号)を
-    #   挿入したいとの要望。mathtextのマクロではなく生の文字そのものを
-    #   挿入したいので、macro=Noneにして_insert_symbol()側で
-    #   $...$のmathtext包装をせず素のテキストとして挿入させる。
+    # マイナス記号(U+2212)は mathtext で包まず、文字のまま入れる
     ("−", None),
 ]
 
 
 def _svg_icon(name, size=20):
-    """
-    assets/icons/{name}.svg を統一トーンのQIconとして読み込む共通ヘルパー。
-    色は呼び出しの都度、現在のテーマ(gui.theme.current_tokens())の
-    text_secondaryトークンから解決する(gui/icon_utils.py の icon() と同じ方針、
-    項目H-4)。ボタン/アクションに一度setIcon()した後は、テーマが変わっても
-    自動更新はされないため、永続的なウィジェット(メインツールバーのボタン等)
-    については_on_toggle_dark_mode側で明示的に再設定する
-    (_refresh_custom_svg_icons、gui/mixins/ui_setup_mixin.py参照)。
+    """テーマの text_secondary 色で描いたアイコン。テーマが変わっても自動では変わらない
+
+    (常に見えているものは _refresh_custom_svg_icons で作り直す)。
     """
     from graphica.gui import theme
     color = theme.current_tokens()["text_secondary"]
@@ -280,16 +195,9 @@ def _svg_icon(name, size=20):
 
 
 def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, max_scan_cells=200_000):
-    """
-    core.excel_utils.find_unevaluated_formula_cells() への遅延importラッパー。
+    """openpyxl の読み込み(約350ms)を起動時に払わないよう、呼ぶときに import する。
 
-    core.excel_utils はopenpyxlに依存しており、これをモジュール先頭でimportすると
-    Excelを一切扱わない起動時にも毎回openpyxlの読み込みコストがかかってしまう
-    (実測 約350ms)。Excelファイルを実際に読み込む時(_import_loaded_dataframe内)
-    にだけ発生するよう、呼び出しの都度ここでimportする。関数名・シグネチャを
-    そのまま維持しているのは、既存テストが
-    monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", ...)
-    でこのモジュール属性を直接差し替える前提になっているため。
+    テストがこのモジュール属性を monkeypatch で差し替えるので、名前を変えない。
     """
     from graphica.core.excel_utils import find_unevaluated_formula_cells as _impl
     return _impl(file_path, sheet_name, max_examples, max_scan_cells)
@@ -305,32 +213,18 @@ from graphica.gui.dataset_style_icon import (
 from graphica.gui.mathtext_preview import FitWidthPixmapLabel, JP_CAPABLE_FONT_FAMILIES
 from graphica.gui.color_history import load_recent_colors_into_picker
 
-# グラフ内テキスト(目盛り・軸ラベル・凡例)の既定フォント。
-# アプリのUIフォント(main.py の APP_FONT_FAMILIES)とは意図的に別系統にしている:
-# matplotlibは独自のフォント探索(freetypeベースのキャッシュ)を使うため、
-# Qt/Windowsの「UI専用」フォントバリアント("Yu Gothic UI"等)を渡すと解決できず
-# 文字化けする。"Yu Gothic"は実ファイルとして存在しmatplotlibからも解決できる。
-# ★ 単一フォント名ではなくフォールバックリスト(gui/mathtext_preview.py の
-#   JP_CAPABLE_FONT_FAMILIESを再利用)にしているのは、"Yu Gothic"がWindows
-#   専用フォントでmacOSには存在しないため。QFont.setFamilies()でこのリストを
-#   丸ごとQFontに設定し、matplotlib側にもリストのまま(familyキーワードに
-#   list)渡すことで、matplotlib 3.6+のフォントフォールバック機構により先頭
-#   から順にグリフを持つフォントが選ばれる(実在しないフォント名は黙って
-#   スキップされるだけなので、複数OS分の候補を並べておいて害はない)。
+# グラフの既定フォント。UI のフォント("Yu Gothic UI" など)は matplotlib が解決できず文字化けする。
+# "Yu Gothic" は Windows だけにあるので、OS ごとの候補を並べたリストを QFont と matplotlib の両方に渡す
+# (無いフォント名は飛ばされる)。
 PLOT_DEFAULT_FONT_FAMILIES = JP_CAPABLE_FONT_FAMILIES
 
 
 def _make_default_plot_font():
-    """PLOT_DEFAULT_FONT_FAMILIES(フォールバックリスト)を設定したQFontを作る。
-
-    QFont(str)コンストラクタは単一のフォント名しか受け付けないため、
-    setFamilies()で複数候補を丸ごと設定する。
-    """
+    """QFont(str) は1つの名前しか取らないので、setFamilies() で候補を全部入れる。"""
     font = QFont()
     font.setFamilies(PLOT_DEFAULT_FONT_FAMILIES)
     return font
 
-# --- 責務ごとに分割した Mixin (God Object 化を避けるための構成) ---
 from graphica.gui.mixins.ui_setup_mixin import UISetupMixin
 from graphica.gui.mixins.settings_mixin import SettingsMixin
 from graphica.gui.mixins.dataset_mixin import DatasetMixin
@@ -351,39 +245,27 @@ from graphica.gui.mixins.quick_access_mixin import QuickAccessMixin
 
 
 def resource_path(relative_path):
-    """
-    .exe化された場合に、一時フォルダ内のリソースへの絶対パスを取得する。
+    """同梱のリソースの絶対パス。凍結時は sys._MEIPASS、ソースからは graphica/ を基準にする。
 
-    .py での実行時は、カレントディレクトリ(cwd)ではなく、このファイル
-    (gui/main_window.py)自身の場所を基準にプロジェクトルート
-    (Graphica_project) を求める。★ 以前は os.path.abspath(".") を使っており、
-    「Graphica_project をカレントディレクトリにして起動する」という暗黙の
-    前提に依存していたため、IDE等の設定次第でcwdがそれ以外の場所になると
-    アイコン等のリソースが一切読み込めなくなる問題があった(項目67/70の
-    アイコンが表示されない、という report で発覚)。
+    カレントディレクトリは使わない(起動の仕方次第でアイコンなどが読めなくなる)。
     """
     try:
-        # PyInstaller が作成する一時フォルダ
         base_path = sys._MEIPASS
     except AttributeError:
-        # .py での実行時: このファイル(gui/main_window.py)から見て1つ上
-        # (gui/ の親、= Graphica_project) をプロジェクトルートとする
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     return os.path.join(base_path, relative_path)
 
 
 def is_frozen():
-    """PyInstallerでexe化されたビルドとして実行されているかどうか。"""
     return hasattr(sys, '_MEIPASS')
 
 
 def plugin_search_paths():
-    """
-    プラグインの探索先(優先順)。同梱の plugins(同梱サンプル)と、利用者のフォルダ
-    (%LOCALAPPDATA%\\Graphica\\plugins、zip からのインストール先)。
-    同梱のフォルダはソースから動かすときにだけあり、配布版と pip 版には無いので、あるときだけ加える
-    (探索先は起動時に作られるので、無いものを渡すと site-packages の中に作ろうとしてしまう)。
+    """プラグインの探索先(優先順)。同梱の plugins と、利用者のフォルダ(%LOCALAPPDATA%\\Graphica\\plugins)。
+
+    同梱のフォルダはソースから動かすときだけあるので、あるときだけ加える
+    (探索先は起動時に作られるので、無いものを渡すと site-packages の中に作ろうとする)。
     """
     paths = []
     bundled = resource_path("plugins")
@@ -397,19 +279,14 @@ DISABLED_PLUGINS_SETTINGS_KEY = "disabled_plugins"
 
 
 def disabled_plugin_names(settings):
-    """
-    QSettingsから、プラグイン管理UI(項目F-2)で個別に無効化されたプラグイン名の
-    集合を読み出す。get_recent_files()と同様、要素数1のリストがQSettings上では
-    単一の文字列として返ってくることがあるため補正する。
-    """
+    """QSettings は要素が1つのリストを文字列で返すことがあるので直す。"""
     names = settings.value(DISABLED_PLUGINS_SETTINGS_KEY, [])
     if isinstance(names, str):
         names = [names]
     return set(names) if names else set()
 
 
-# register_panel() (項目D-1) の area 文字列 -> Qt.DockWidgetArea のマッピング。
-# coreはPySide6に依存しないため、この変換はGUI側(ここ)で行う。
+# core は Qt に依存しないので、area の文字列から Qt の値への変換はここでする
 _PLUGIN_PANEL_AREA_MAP = {
     "right": Qt.DockWidgetArea.RightDockWidgetArea,
     "left": Qt.DockWidgetArea.LeftDockWidgetArea,
@@ -418,25 +295,10 @@ _PLUGIN_PANEL_AREA_MAP = {
 }
 
 class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
-    """
-    dataset_list_widget専用のアイテムデリゲート(項目H-2-2、実機フィードバックで
-    複数回の調整を経て導入)。
+    """選択の背景を、アイコンの列と文字の列にまたがる1つの角丸で描く。
 
-    QSSの `QTreeWidget::item:selected { background: ...; border-radius: ...px; }`
-    だけでは、選択時のハイライトを「アイコン列+テキスト列にまたがる単一の
-    角丸矩形」として描画できない。Qt(Fusionスタイル)は、CE_ItemViewItemの
-    描画時にデコレーション(アイコン)列とテキスト(display)列をそれぞれ独立した
-    矩形として扱い、::item:selectedのbackground/border-radiusを両方に別々に
-    適用するため、2つの矩形の角丸がわずかにズレて隙間が生じる(実機でピクセルを
-    直接比較して確認済み。border-radiusを0にすれば隙間自体は消えるが、今度は
-    行の見た目が完全な直角になり、リスト自体の角丸(border-radius: 8px)と
-    揃わなくなる)。
-
-    そのため、選択時の背景描画だけはこのデリゲートで自前に行う: paint()の中で
-    選択状態を検知したら先に単一のQPainterPathで角丸矩形を1回だけ塗り、その後
-    option.stateからState_Selectedを外してから基底実装に委譲することで、Qt標準の
-    (2矩形に分かれた)選択背景描画を無効化する。アイコン・テキスト自体の描画は
-    引き続き基底実装(QStyledItemDelegate.paint)に任せる。
+    QSS の ::item:selected は2つの列に別々の角丸を描き、間に隙間ができる。背景だけ自前で塗り、
+    State_Selected を外してから標準の描画に任せる。
     """
 
     def paint(self, painter, option, index):
@@ -446,12 +308,7 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
         if opt.state & QStyle.StateFlag.State_Selected:
             painter.save()
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-            # ★ opt.rect はデコレーション(アイコン)+テキスト部分だけの矩形で、
-            #   分岐(展開矢印)用インデント列の分だけ左端が空く(実機フィードバックで
-            #   「ここの隙間」として指摘された)。インデント列はこのリストでは
-            #   何も描画されない(::item:selectedのbackgroundをtransparentに
-            #   している)ため、左端をビューポートの0まで伸ばしてハイライトで
-            #   埋めても他の描画と衝突しない。
+            # 展開矢印の字下げの分だけ左が空くので、左端まで塗る(字下げの列には何も描かれない)
             rect = QRectF(opt.rect)
             rect.setLeft(0)
             path = QPainterPath()
@@ -460,28 +317,16 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
             )
             painter.fillPath(path, theme.current_selection_highlight_qcolor())
             painter.restore()
-            # ★ 基底実装(super().paint)がQt標準の選択背景を重ねて描画しないよう、
-            #   ここでフラグを落としてから委譲する。アイコン/テキストの見た目は
-            #   選択・非選択で変えていないため(色は{text_primary}で共通)、
-            #   これによる副作用は無い。
+            # 標準の選択の背景を重ねないよう落とす(文字とアイコンの色は選択で変わらない)
             opt.state &= ~QStyle.StateFlag.State_Selected
 
         super().paint(painter, opt, index)
 
 
 class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
-    """
-    タイトル/X軸ラベル/Y軸ラベル欄の見た目を担う、クリックで編集ダイアログを
-    開くプレビューラベル(項目H-2-4追加分、実機フィードバック: 「画像の
-    テキスト欄をクリックしたらポップアップが展開するようにして」「mathtextを
-    翻訳した形式をプレビューしといて」)。
+    """タイトルと軸ラベルの欄。mathtext を描いたプレビューで、クリックで編集ダイアログを開く。
 
-    実データは引き続き(非表示にした)元のQLineEditが保持している
-    (`_open_label_edit_dialog`が直接読み書きする対象、`textChanged`シグナルも
-    そのまま生きている)。このラベルは「クリックで開く」トリガーと
-    「レンダリング済みプレビューの表示」だけを担当する、見た目専用の
-    軽量ウィジェット。表示の幅フィット処理はFitWidthPixmapLabel(gui/
-    mathtext_preview.py)から継承している。
+    値は隠した元の QLineEdit が持つ(textChanged もそちらから出る)。
     """
 
     clicked = Signal()
@@ -492,11 +337,7 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(28)
         self.setToolTip(tr("クリックして編集"))
-        # ★ QLabelは既定でマウスホバーの追跡をしないため、QSSの:hover疑似
-        #   クラス(hover時に枠線をselection_accentへ)が反映されない。
-        #   WA_Hover属性を明示的に有効化する必要がある(QPushButton/
-        #   QToolButtonなどは既定で有効だが、QLabelのような一般的な
-        #   QWidgetでは無効)。
+        # QLabel は既定でホバーを追跡せず、QSS の :hover が効かない
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
 
     def mousePressEvent(self, event):
@@ -506,10 +347,7 @@ class _ClickableMathPreviewLabel(FitWidthPixmapLabel):
 
 
 def _insert_form_row_after(form, anchor, *row):
-    """
-    form の、anchor(ラベルか欄のウィジェット)がある行の次に行を入れる。
-    行番号で入れると、ほかの挿入の順番が変わったときに黙って別の位置に入る。
-    """
+    """form の anchor(ラベルか欄)の行の次に入れる。行番号で入れると、ほかの挿入の順番が変わったときに黙って別の位置に入る。"""
     anchor_row, _ = form.getWidgetPosition(anchor)
     if anchor_row < 0:
         raise ValueError(f"{anchor!r} は {form.objectName()} にありません")
@@ -522,14 +360,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                   CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
                   PeakPlacementMixin, SliceExtractionMixin, RegionHighlightMixin,
                   ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
-    """
-    メインアプリケーションウィンドウクラス。
-    QMainWindow を継承し、ui_main_window.py からロードしたUI骨格に、
-    MplCanvas (グラフ) や動的なコントロールUIを組み込みます。
-    """
-
-    # 複数プロジェクトタブ(項目40)で、外側のMainAppWindowがタブのタイトル
-    # (プロジェクト名)を追従表示するために、保存/読込のたびに発行するシグナル。
+    # 保存・読み込みのたびに出す。MainAppWindow がタブ名を更新する
     project_state_changed = Signal()
 
     def __init__(self, run_startup_checks=True, tab_id=None):
@@ -1798,14 +1629,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         apply_form_spacing(self)
 
     def _restore_dock_layout(self):
-        """前回終了時のドック/ツールバー配置をQSettingsから復元する。
-
-        __init__からQTimer.singleShot(0, ...)経由で、ウィンドウが実際の
-        最終サイズ(タブとして埋め込まれた後のサイズ)で表示された後に
-        呼ばれる想定。__init__内で直接呼ぶと、まだDesigner既定サイズの
-        ままの状態でrestoreState()が実行されてしまい、スプリッター位置が
-        誤ったサイズ基準で復元されてしまう。
-        """
+        """前回のドック配置を戻す。タブが最終の大きさになってから呼ぶ(でないとスプリッターの位置がずれる)。"""
         saved_layout_version = self.settings.value("dock_layout_version", 0, type=int) if self._run_startup_checks else DOCK_LAYOUT_VERSION
         saved_state = self.settings.value("window_state") if self._run_startup_checks else None
         state_restored = False
@@ -1814,9 +1638,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         if not state_restored:
             try:
-                # ★ 「プロットのプロパティ」「データセットのプロパティ」は1つのドックに
-                #   統合したため、もう互いの高さ比率を指定する必要はない
-                #   (ドック自体がRightDockWidgetAreaの高さいっぱいに広がる)。
                 self.resizeDocks(
                     [self.export_preview_dock_widget],
                     [EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT],
@@ -1825,14 +1646,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             except Exception:
                 logger.exception("resizeDocks に失敗しました")
 
-    # --- ドックレイアウトの保存/復元/リセット(項目152、C-911) ---
-    # 「最初のタブ・初回起動のみ復元」という既存の制約(起動シーケンス自体は
-    # ドキュメントで「壊れやすい」と明記されているため変更しない)とは別に、
-    # いつでも手動で名前付きレイアウトを保存・復元・既定にリセットできる経路を
-    # 追加する(全てのタブで利用可能、_run_startup_checksに関わらず動作する)。
+    # 名前付きのドック配置。起動時の復元(最初のタブだけ)と違い、どのタブでもいつでも使える
 
     def _load_dock_layout_presets(self):
-        """保存済みのドックレイアウトプリセット一式を{名前: base64文字列}で返す。"""
+        """{名前: base64 の saveState}"""
         raw = self.settings.value(DOCK_LAYOUT_PRESETS_SETTINGS_KEY, "{}")
         if not isinstance(raw, str):
             raw = "{}"
@@ -1847,7 +1664,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.settings.setValue(DOCK_LAYOUT_PRESETS_SETTINGS_KEY, json.dumps(presets))
 
     def _on_save_dock_layout_preset(self):
-        """「現在のレイアウトを保存...」メニューの処理。"""
         name, ok = QInputDialog.getText(self, "レイアウトを保存", "プリセット名:")
         name = name.strip()
         if not ok or not name:
@@ -1858,8 +1674,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.statusBar().showMessage(f"レイアウト「{name}」を保存しました", 3000)
 
     def _populate_load_layout_menu(self):
-        """「レイアウトを読み込み」サブメニューを、表示される直前に毎回作り直す
-        (aboutToShow経由、保存/削除のたびにここを個別更新する必要が無いようにするため)。"""
+        """保存や削除のたびに更新しなくて済むよう、開く直前に作り直す。"""
         self.load_layout_menu.clear()
         presets = self._load_dock_layout_presets()
         if not presets:
@@ -1884,24 +1699,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             QMessageBox.warning(self, "レイアウトの復元", "レイアウトの復元に失敗しました。")
 
     def _on_reset_dock_layout(self):
-        """「既定のレイアウトにリセット」メニューの処理。__init__末尾で保存しておいた
-        「素の」状態(_pristine_dock_state)に戻す。"""
+        """組み立てた直後、配置を戻す前に控えた状態(_pristine_dock_state)に戻す。"""
         self.restoreState(self._pristine_dock_state)
 
     def closeEvent(self, event):
-        """ウィンドウが閉じられる(正常終了する)ときに呼ばれる。"""
-        # ★ バグ修正: バックグラウンドでファイル読み込み中(項目C-004フェーズ4で
-        # TaskRunner化する前は専用のDataLoadWorker、gui/workers.py)にタブ/アプリを
-        # 閉じると、実行中のQThreadが破棄されQtが即座にプロセスをfail-fast
-        # abortさせる(実機で再現確認済み、例外機構を経由しないハードクラッシュの
-        # ため他の全タブの未保存データも道連れになる)。読み込みは通常CSV/Excelの
-        # 読み取りのみで長時間にはならないため、閉じる前にここでブロッキング待機
-        # して完了させる。待機後にsignalをつなぎ直さず先に切断しておくことで、
-        # 待機中にemitされたsucceeded/failedが、閉じている最中のウィンドウに対して
-        # (キュー処理や再描画を伴う)通常のスロットを実行してしまうのも防ぐ。
-        # read_data_file()自体は中断不能なため、requestInterruption()を呼んでも
-        # ここでのwait()は読み込み完了まで実際にブロックしうる(曲線フィットの計算
-        # と同じ扱い、v1では許容)。
+        # 読み込み中の QThread を破棄すると Qt がプロセスごと止め、ほかのタブの未保存データも失う。
+        # 読み込みは中断できないので終わるまで待つ。待つ間に届く完了の通知が閉じかけの窓で動かないよう、先に切る
         if self._data_load_task_runner is not None:
             try:
                 self._data_load_task_runner.succeeded.disconnect()
@@ -1915,8 +1718,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         self.fitting.shutdown()
 
-        # ★ 項目C-004フェーズ5b: バッチエクスポート用のTaskRunnerも同じ理由で
-        # 同型のクリーンアップを行う。
+        # 同じ理由
         if self._batch_export_task_runner is not None:
             try:
                 self._batch_export_task_runner.succeeded.disconnect()
@@ -1928,7 +1730,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._batch_export_task_runner.deleteLater()
             self._batch_export_task_runner = None
 
-        # 項目161(C-1203): アップデート確認用のTaskRunnerも同じ理由で同型のクリーンアップを行う。
+        # 同じ理由
         if self._update_check_task_runner is not None:
             try:
                 self._update_check_task_runner.succeeded.disconnect()
@@ -1942,28 +1744,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         if self._run_startup_checks:
             self.settings.setValue("clean_exit", True)
-            # ドックの配置/表示状態を保存し、次回起動時に復元する
             self.settings.setValue("window_state", self.saveState())
             self.settings.setValue("dock_layout_version", DOCK_LAYOUT_VERSION)
 
-        # 項目86: 「元に戻す」を経由せず切り離した状態のまま終了した場合も、
-        # 次回起動時に同じ状態・ジオメトリで復元できるようここで保存する。
-        # ★ ミニマップの表示/非表示やダークモードと同じ「軽量なUI設定」の
-        # 性質のものなので、window_stateとは異なり最初のタブに限定しない。
+        # 切り離したまま閉じたら次の起動で同じ状態に戻す。軽い設定なので最初のタブに限らない
         if self.canvas_detached and self._canvas_detach_window is not None:
             self.settings.setValue(
                 CANVAS_DETACHED_GEOMETRY_KEY, self._canvas_detach_window.saveGeometry()
             )
         self.settings.setValue(CANVAS_WAS_DETACHED_KEY, self.canvas_detached)
 
-        # 項目86: 切り離しウィンドウを開いたままこのタブ/アプリが閉じられると
-        # 孤立したトップレベルウィンドウが残ってしまうため、ここで明示的に
-        # 片付ける。★ 上で保存した「切り離されていた」状態をFalseに巻き戻して
-        # しまわないよう、通常の再アタッチ処理(_reattach_canvas、closedシグナル
-        # 経由でQSettingsを更新する)は経由せず、直接キャンバスを切り離して
-        # ウィンドウだけを破棄する(self.canvasの親としてぶら下がったまま
-        # deleteLater()されるとキャンバスごと破棄されてしまうため、
-        # 明示的にsetParent(None)しておく)。
+        # 切り離した窓が残らないよう片付ける。_reattach_canvas を通すと、上で保存した「切り離していた」を
+        # 消してしまうので通さない。窓と一緒に破棄されないよう、先にキャンバスの親を外す
         if self._canvas_detach_window is not None:
             self._canvas_detach_window.closed.disconnect(self._on_detach_window_closed)
             self._canvas_detach_window.takeCentralWidget()
@@ -1975,17 +1767,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         super().closeEvent(event)
 
     def _check_autosave_recovery(self):
-        """
-        起動時に一度だけ呼ばれる。前回のセッションが正常終了しなかった
-        (クラッシュ・強制終了など) と判断され、かつオートセーブファイルが
-        残っている場合、復元するかどうかをユーザーに確認する。
+        """前回が正常に終わらず、オートセーブが残っていれば、復元するか尋ねる(起動時に1回)。
 
-        ★ 新形式(.graphica)への移行対応: このアプリのバージョンにアップデートした
-        直後の初回起動では、旧バージョンで発生したクラッシュにより、新形式ではなく
-        旧形式(.pkl)のオートセーブファイルだけが残っている可能性がある。そのため、
-        新形式のファイルが見つからない場合は、同じベース名の旧形式ファイルが
-        無いか一時的なフォールバックとして確認する(恒久的な二重管理ではなく、
-        移行期のみの措置)。どちらの形式でも load_project 側が拡張子で判別する。
+        新しい形式のファイルが無ければ、古い版が残した .pkl を探す。
         """
         if self._had_clean_exit:
             return
@@ -2009,30 +1793,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._load_project_from_path(autosave_path, add_to_recent=False)
 
     def _check_first_launch(self):
-        """
-        起動時に一度だけ呼ばれる。このPC/設定でまだ一度もウェルカムダイアログを
-        表示していなければ、簡単な操作ガイドとサンプルデータの読み込み口を表示する。
-        """
         if self.settings.value("has_shown_welcome", False, type=bool):
             return
         self.settings.setValue("has_shown_welcome", True)
         self._show_welcome_dialog()
 
     def _on_show_startup_screen(self):
-        """
-        「スタートアップ画面...」メニューの処理(項目C-912)。初回起動時にのみ
-        表示される_check_first_launchのWelcomeDialogを、いつでも開けるように
-        したもの(最近使ったファイル・サンプルデータ・書式テンプレートへの入口)。
-        """
         self._show_welcome_dialog()
 
     def _show_welcome_dialog(self):
-        """
-        WelcomeDialog(初回起動時のウェルカム画面兼スタートアップ画面、項目C-912)を
-        表示し、閉じた後の選択結果に応じた処理を行う共通ヘルパー。
-        _check_first_launch(初回のみ)と_on_show_startup_screen(いつでも)の
-        両方から呼ばれる。
-        """
         dialog = WelcomeDialog(self, recent_files=self._get_recent_files())
         dialog.exec()
         if dialog.load_sample_requested:
@@ -2043,16 +1812,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._on_load_plot_template()
 
     def _on_show_autosave_history(self):
-        """
-        「自動バックアップ履歴から復元...」メニューの処理(項目C-107)。
-        既存のオートセーブ世代ローテーション(_rotate_autosave_generations、
-        autosave.graphica / .1. / .2. …)が実際に残している世代ファイルを
-        新しい順に列挙してAutosaveHistoryDialogで見せ、選択された世代を
-        _load_project_from_path(add_to_recent=False)で読み込む
-        (自動復元確認ダイアログ_check_autosave_recoveryと同じadd_to_recent=False
-        の理由: 「最近使ったファイル」を汚さず、次回の上書き保存先にも
-        しないため)。
-        """
+        """オートセーブの世代を新しい順に見せ、選んだものを読み込む(復元確認と同じく、最近使ったファイルに載せず、上書き保存の対象にもしない)。"""
         base, ext = os.path.splitext(self._autosave_filename)
         candidates = [(self._autosave_filename, "現在(最新)")]
         for gen in range(1, AUTOSAVE_GENERATIONS):
@@ -2091,7 +1851,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._load_project_from_path(selected_path, add_to_recent=False)
 
     def _load_sample_data(self):
-        """ウェルカムダイアログの「サンプルデータを開く」ボタンから呼ばれる"""
         sample_path = resource_path(os.path.join("sample_data", "cooling_curve_sample.csv"))
         if not os.path.exists(sample_path):
             QMessageBox.warning(self, "サンプルデータ", "サンプルデータファイルが見つかりませんでした。")
@@ -2099,20 +1858,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.load_data(sample_path)
 
     def _update_autosave_path(self):
-        """
-        QSettingsの "autosave_dir" (環境設定ダイアログで指定可能) に基づいて
-        self._autosave_filename を再計算する。保存先ディレクトリが存在しない
-        場合は作成しておく(auto_save() が失敗しないようにするため)。
+        """autosave_dir(空なら get_app_data_dir())から保存先を決め、フォルダを作る。
 
-        ★ 実機フィードバック(バグ報告、ログで確認): 未設定/空文字時、以前は
-        「アプリのフォルダ」のつもりでファイル名のみ(cwd相対)を使っていたが、
-        これはCLAUDE.mdの「プロセスのカレントディレクトリに依存しない」方針に
-        反しており、macOSで.appとして起動した際のcwdが読み取り専用領域になる
-        ケースがあった(実機ログ: "[Errno 30] Read-only file system:
-        'autosave.graphica'" が5分間隔で繰り返し失敗、オートセーブが実質
-        機能していなかった)。ログファイル(gui/crash_handler.py)やユーザー
-        プラグイン(get_user_plugins_dir)と同じget_app_data_dir()(常に
-        書き込み可能なユーザーごとのディレクトリ)を既定値にする。
+        カレントディレクトリは使わない(macOS の .app では書き込めない場所になる)。
         """
         autosave_dir = self.settings.value("autosave_dir", "", type=str)
         if autosave_dir:
@@ -2126,12 +1874,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._autosave_filename = os.path.join(autosave_dir, self._autosave_base_filename)
 
     def _rotate_autosave_generations(self):
-        """
-        オートセーブファイルを世代ローテーションする。
-        autosave.graphica (拡張子は AUTOSAVE_FILENAME に依存) は常に最新の状態を指し、
-        直前までの内容は autosave.1.graphica, autosave.2.graphica, ... として
-        押し出される (AUTOSAVE_GENERATIONS世代を超える最古のものは破棄する)。
-        """
+        """autosave.graphica を autosave.1.graphica, autosave.2.graphica, ... へ押し出す。"""
         base, ext = os.path.splitext(self._autosave_filename)
 
         oldest = f"{base}.{AUTOSAVE_GENERATIONS - 1}{ext}"
@@ -2148,23 +1891,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             os.replace(self._autosave_filename, f"{base}.1{ext}")
 
     def _sync_project_from_ui(self):
-        """
-        UI 側にしか無い状態を、保存・比較の直前に ProjectModel へ反映する。
-        フォルダ構造(ツリーの現在の状態)と、サブプロットの行数/列数
-        (UIのスピンボックスが真の値で、self.project.layout_rows/cols には
-        保存直前まで反映されないため、同期しないと常に既定値(1x1)で保存される)。
-        """
+        """UI にしか無い状態(フォルダ構造、サブプロットの行数と列数)を、保存や比較の前に ProjectModel へ移す。"""
         self.project.dataset_group_tree = self._capture_dataset_group_tree()
         self.project.layout_rows = self.subplot_rows_spinbox.value()
         self.project.layout_cols = self.subplot_cols_spinbox.value()
 
     def _remember_saved_content(self):
-        """いまの内容を「保存済み」とみなす(保存・読み込みの成功直後に呼ぶ)。"""
+        """いまの内容を保存済みとみなす(保存・読み込みの成功直後に呼ぶ)。"""
         self._sync_project_from_ui()
         self._saved_content_fingerprint = self.project.content_fingerprint()
 
     def plugin_context(self, plugin_name):
-        """このタブでプラグインに渡す窓口(PluginContext)。"""
         context = self._plugin_contexts.get(plugin_name)
         if context is None:
             context = TabPluginContext(self, plugin_name)
@@ -2190,7 +1927,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             )))
 
     def document_title(self):
-        """タブ名・ウィンドウタイトル・保存確認に出す文書名。"""
         if self._current_project_path:
             return os.path.basename(self._current_project_path)
         if self._restored_unsaved:
@@ -2198,29 +1934,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return "無題のプロジェクト"
 
     def has_unsaved_changes(self):
-        """
-        保存していない変更があるか(v1.4.2)。
-        データセットが1つも無く、ファイルとも対応していない(新しいタブのまま)
-        場合は、保存する意味のあるものが無いので False。
-        """
+        """データセットが無く、ファイルとも対応していない新しいタブは False。"""
         if not self.project.datasets and not self._current_project_path:
             return False
         if self._saved_content_fingerprint is None:
-            return True  # 一度も保存していない、またはオートセーブから復元した
+            return True
         self._sync_project_from_ui()
         return self.project.content_fingerprint() != self._saved_content_fingerprint
 
     def confirm_unsaved_changes(self, action_text):
-        """
-        未保存の変更があれば「保存 / 保存しない / キャンセル」を尋ねる(v1.4.2)。
-        ウィンドウ/タブを閉じる前、別のプロジェクトを開く前に呼ぶ。
-
-        Args:
-            action_text (str): 何をしようとしているか(例: "タブを閉じる")。
-        Returns:
-            bool: 続行してよければ True(保存した・保存しないを選んだ・変更が無い)。
-                キャンセルされた、または保存に失敗した場合は False。
-        """
+        """未保存の変更があれば「保存 / 保存しない / キャンセル」を尋ねる。続けてよければ True。"""
         if not _unsaved_changes_prompt_enabled() or not self.has_unsaved_changes():
             return True
         name = self.document_title()
@@ -2240,12 +1963,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             return True
         if clicked is save_button:
             self.manual_save()
-            # 名前を付けて保存をキャンセルした/保存に失敗した場合は、続行しない
             return not self.has_unsaved_changes()
         return False
 
     def auto_save(self):
-        """タイマーから定期的に呼ばれるオートセーブ処理"""
         try:
             self._sync_project_from_ui()
             self._rotate_autosave_generations()
@@ -2256,41 +1977,26 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.statusBar().showMessage(f"オートセーブ失敗: {e}", 3000)
 
     def manual_save(self):
-        """
-        「上書き保存」の処理。実機フィードバック(「プロジェクトの上書き保存と
-        名前つけて保存を追加」)を受け、以前は保存操作が常に「名前を付けて
-        保存」ダイアログを開いていた(既存の保存先へ即座に上書きする手段が
-        無かった)ものを分離した。self._current_project_path(現在開いている/
-        直前に保存したプロジェクトのパス)が分かっていればそこへ直接
-        上書き保存し、まだ一度も保存/読込していない(パス不明)場合のみ
-        manual_save_as()にフォールバックしてダイアログを出す。
-        """
+        """保存先が分かっていればそこへ上書きし、無ければ「名前を付けて保存」にする。"""
         if not self._current_project_path:
             self.manual_save_as()
             return
         self._save_project_to_path(self._current_project_path)
 
     def manual_save_as(self):
-        """「名前を付けて保存」の処理。常に保存先ダイアログを開く。"""
-        # ★ 新形式(.graphica, JSON)をデフォルトの保存先とする。任意コード実行の
-        #   リスクが無い安全なフォーマットへの移行を促すため、先頭のフィルタを
-        #   .graphica にしている。ただし従来形式で保存したいユーザーのために、
-        #   .pkl も引き続き選択できるようにしておく。
+        # 任意のコードを実行されない .graphica を既定にする。.pkl も選べる
         filepath, selected_filter = QFileDialog.getSaveFileName(
             self, "名前を付けて保存", "",
             "Graphica Project (*.graphica);;Project Files (*.pkl)"
         )
         if filepath:
-            # 一部環境ではファイルダイアログが選択フィルタに応じた拡張子を
-            # 自動付加しないため、拡張子が無い場合は選択されたフィルタから補う。
+            # 選んだ形式の拡張子を付けないファイルダイアログがある
             if not os.path.splitext(filepath)[1]:
                 filepath += '.graphica' if 'graphica' in selected_filter else '.pkl'
             self._save_project_to_path(filepath)
 
     def _save_project_to_path(self, filepath):
-        """manual_save()/manual_save_as()共通の実際の保存処理。"""
         try:
-            # フォルダ構造・サブプロットの行数/列数を保存直前に反映する
             self._sync_project_from_ui()
             self.project.save_project(filepath)
             self._current_project_path = filepath
@@ -2304,11 +2010,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             QMessageBox.critical(self, "エラー", f"保存に失敗しました:\n{e}")
 
     def manual_load(self):
-        """ユーザーが読み込み操作をしたときの処理"""
         if not self.confirm_unsaved_changes("別のプロジェクトを開く"):
             return
-        # 新形式(.graphica)・旧形式(.pkl)のどちらも開けるようにする
-        # (project.load_project側が拡張子で自動判別する)
         filepath, _ = QFileDialog.getOpenFileName(
             self, "プロジェクトを開く", "", "Project Files (*.graphica *.pkl)"
         )
@@ -2316,13 +2019,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._load_project_from_path(filepath)
 
     def _load_project_from_path(self, filepath, add_to_recent=True):
-        """
-        プロジェクト(.graphica / .pkl)を読み込み、UIを再構築する。
-
-        Args:
-            add_to_recent (bool): False はオートセーブからの復元。最近使ったファイルに
-                載せず、上書き保存の対象にもしない(未保存扱い)。
-        """
+        """add_to_recent=False はオートセーブからの復元。最近使ったファイルに載せず、上書き保存の対象にもしない。"""
         try:
             self.project.load_project(filepath)
             # 中身はもう入れ替わっている。この先で失敗したとき前のファイルが保存先に
@@ -2353,7 +2050,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.share_y_checkbox.setEnabled(not is_free_layout)
             self._block_all_signals(False)
 
-            # UIにアクティブな設定を反映
             if self.project.all_plot_settings:
                 self._apply_settings_to_ui_controls(
                     self.project.all_plot_settings[self.project.active_axis_index]
@@ -2363,7 +2059,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             # Undo 1回で読み込んだ内容が前の文書に置き換わる。
             self.undo_stack.clear()
 
-            # 画面状態とプロットの最終更新
             self.property_panel.update_ui_state()
             self._update_plot()
 
@@ -2380,41 +2075,21 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
 
     def _reset_zoom(self):
-        """
-        ツールバー/マウスドラッグ等で拡大・パンした表示を、設定通りの既定表示
-        (各軸のautoscale設定に従った全データ表示、または明示的に指定された
-        軸範囲)に戻す。matplotlib純正のNavigationToolbar2QT自身のHomeボタンは
-        内部で拡大操作時のAxesをキャッシュしているが、このアプリでは
-        _update_plot()がfig.clf()で毎回Axesを作り直すため、作り直しを挟んだ
-        後はHomeボタンのキャッシュが古いAxesを指したまま効かなくなることが
-        ある(gui/canvas.pyのdocstring記載の既知の制約と同根)。ここでは
-        キャッシュに頼らず、常に効く_update_plot()のフル再描画をそのまま
-        使うことで確実にリセットする。
+        """設定どおりの表示範囲に戻す。
+
+        matplotlib の Home ボタンは作り直す前の Axes を覚えているので、描き直しを挟むと効かない。
         """
         self._update_plot()
 
     def _update_plot(self, light=False, full_resolution=False):
-        """
-        グラフ全体を再描画する（MVC対応版）。
+        """グラフ全体を描き直す。
 
-        light=True(項目C-003フェーズ2): Axesの枚数・GridSpec配置・所属
-        (subplot_target/use_secondary_y)は一切変わらない、パネルラベル表示
-        切替・ダークモード切替のようなトリガー専用の軽量パス。
-        canvas.redraw_all()(fig.clf()で全Axesを作り直す)の代わりに
-        canvas.update_all_axes_appearance_and_data()(既存Axesのデータ・外観
-        だけを描き直す)を使う。呼び出し側は上記の前提が崩れないことを保証する
-        こと(レイアウト行数/列数変更やデータセット追加削除では使わない)。
-
-        full_resolution=True: LTTB表示用ダウンサンプリング(項目C-1001)を
-        無視して常に全点描画する。単発エクスポート(export_mixin.py の
-        _on_export_plot)が「フル解像度でエクスポート」オプション有効時に、
-        savefig直前でTrueとして呼び、savefig後に既定(False)で呼び直して
-        画面表示を通常の間引き済み状態へ戻す。
+        light=True は Axes の数・配置・所属が変わらないときだけ(既存の Axes の上で描き直す)。
+        full_resolution=True は表示用の間引きをしない(フル解像度でのエクスポート用)。
         """
         layout_mode = getattr(self.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
-            # 自由配置レイアウトでは行数×列数ではなく、all_plot_settingsの
-            # 要素数そのものがサブプロット数になる (canvas.redraw_all側で使用)
+            # 自由配置では行数×列数ではなく、軸の設定の数がサブプロットの数になる
             rows, cols = 0, 0
             if len(self.project.all_plot_settings) == 0:
                 return
@@ -2424,7 +2099,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             if rows * cols == 0:
                 return
 
-        # ★ 描画処理をすべてCanvasに「丸投げ」する！
         canvas_update_method = (
             self.canvas.update_all_axes_appearance_and_data if light else self.canvas.redraw_all
         )
@@ -2436,24 +2110,19 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             full_resolution=full_resolution,
         )
 
-        # ★ Canvasから返ってきた結果をもとに、UI（チェックボックス等）を制御する
         self.tick_direction_y2_label.setVisible(is_secondary_visible_global)
         self.major_tick_direction_y2_combo.setVisible(is_secondary_visible_global)
         self.minor_tick_direction_y2_combo.setVisible(is_secondary_visible_global)
         self.y2_label_text_label.setVisible(is_secondary_visible_global)
         self.y2_label_text_edit.setVisible(is_secondary_visible_global)
 
-        # データカーソル用にAxesの参照を同期
         self.all_axes = self.canvas.all_axes
         self.all_secondary_axes = self.canvas.all_secondary_axes
 
-        # ★ エクスポートプレビューパネルが表示されている場合は、そちらも追従させる
-        # (パネル非表示中は refresh_preview 内で何もしないため、常に呼んで問題ない)
         if hasattr(self, 'export_preview_panel'):
             self.export_preview_panel.refresh_preview()
 
-        # ★ フルの再描画 (redraw_all) は Figure を作り直すため、以前のハイライト表示は
-        #   消えてしまう。データエディタが開いていて行が選択中なら再度反映する。
+        # 全体の描き直しでハイライトも消えるので、データエディタの選択を戻す
         self._reapply_editor_row_highlight()
 
         # ミニマップは別の Figure なので、redraw_all() では描き直されない。
@@ -2461,67 +2130,38 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._notify_plugins_datasets_changed()
 
     def _refresh_minimap(self):
-        """
-        ミニマップ(項目83)の概観表示を、現在のデータセット/ダークモード設定に
-        合わせて描き直す。ウィジェットがまだ作られていない(または非表示中の)
-        場合でも安全に呼べるよう、常に描画自体は行う(非表示中でも次に表示した
-        ときに最新の概観になっているようにするため)。
-        """
+        """隠れていても描く(次に出したときに最新になっているように)。"""
         if not hasattr(self, 'minimap'):
             return
         self.minimap.refresh(self.project.datasets, self.canvas.dark_mode)
 
     def _on_minimap_range_selected(self, xmin, xmax):
-        """
-        ミニマップ(項目83)でドラッグ選択された範囲を、メインキャンバスの
-        全サブプロットのX軸ズーム範囲として一括適用する。
-        ★ ここでは _update_plot()(fig.clf()を伴うフル再描画)は呼ばない。
-        ズーム範囲の変更だけならAxesを作り直す必要はなく、標準のナビゲーション
-        ツールバーのズーム/パンと同様に set_xlim() + draw_idle() で十分かつ軽量。
-        """
+        """ミニマップで選んだ範囲を全部の軸の X の範囲にする。Axes は作り直さない(set_xlim と draw_idle で足りる)。"""
         for ax in self.canvas.all_axes:
             ax.set_xlim(xmin, xmax)
         self.canvas.draw_idle()
 
     def _on_toggle_minimap(self, checked):
-        """「表示」メニューの「ミニマップ」チェック状態が変更されたときの処理。"""
         self.minimap_visible = checked
         self.minimap.setVisible(checked)
         self.minimap_separator.setVisible(checked)
         self.settings.setValue("minimap_visible", checked)
 
     def _on_toggle_panel_labels(self, checked):
-        """
-        「表示」メニューの「パネルラベルを自動表示」チェック状態が変更されたときの処理
-        (項目C-712)。QSettingsではなくプロジェクトごとの状態として保存する
-        (.graphica/.pklに含まれ、プロジェクトファイルを開き直すたびに復元される)。
-        """
+        """QSettings ではなくプロジェクトに保存する。"""
         self.project.panel_labels_enabled = checked
         self._update_plot(light=True)
 
-    # --- ★ 項目86: マルチモニター対応(Canvasの別ウィンドウ切り離し) ---
-    #
-    # self.canvas (MplCanvas) は setParent() で再親付けされるだけで、
-    # 破棄・再生成は一切行わない。cursor_mixin/annotation_mixin/
-    # layout_edit_mixin/export_mixin/settings_mixin/project_io_mixin/
-    # ui_setup_mixin など、アプリ内の多数の箇所が self.canvas を
-    # インスタンス属性として直接参照し続けているため、同一性を保つことが
-    # この機能が成立するための絶対条件(同じオブジェクトの「住所」が
-    # 変わるだけ、という考え方)。
+    # キャンバスの切り離し。self.canvas はあちこちから直接参照されているので、破棄も作り直しもせず親を替えるだけ。
 
     def _on_toggle_canvas_detached(self, checked):
-        """「表示」メニューの「キャンバスを別ウィンドウに切り離す」チェック状態が変更されたときの処理。"""
         if checked:
             self._detach_canvas()
         else:
             self._reattach_canvas()
 
     def _sync_canvas_detach_action(self):
-        """
-        self.canvas_detached の値をメニューのチェック状態・表示文言に反映する
-        (二重トグル防止のためシグナルはブロックする)。切り離し中は「元に戻す」、
-        非切り離し中は「切り離す」と、状態に応じて文言そのものを切り替える。
-        """
+        """メニューのチェックと文言(「切り離す」/「元に戻す」)を状態に合わせる。"""
         if not hasattr(self, 'canvas_detach_action'):
             return
         self.canvas_detach_action.blockSignals(True)
@@ -2532,16 +2172,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.canvas_detach_action.blockSignals(False)
 
     def _detach_canvas(self, restore_geometry=False):
-        """
-        self.canvas を plot_container のレイアウトから取り外し、独立した
-        トップレベルウィンドウ(DetachedCanvasWindow)へ再親付けする。
-        OS標準のウィンドウ移動/最大化がそのまま使えるため、サブモニターへ
-        ドラッグして最大化する、といった操作は呼び出し側では何もしなくてよい。
-
-        Args:
-            restore_geometry (bool): Trueの場合、QSettingsに保存された
-                前回のウィンドウサイズ・位置を復元する(起動時の状態復元用)。
-        """
         if self.canvas_detached:
             return
 
@@ -2554,11 +2184,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         saved_geometry = self.settings.value(CANVAS_DETACHED_GEOMETRY_KEY) if restore_geometry else None
         if saved_geometry is not None:
-            # ★ バグ修正済みパターンを踏襲: restoreGeometry() を show() より前
-            #   (=このウィンドウがまだ一度もOSに実体化されていない段階)で
-            #   呼ぶと、ウィンドウ枠の実寸が未確定なままジオメトリが復元され、
-            #   画面上の位置とQtの内部認識がズレる(gui/main_app_window.py の
-            #   同じ処理を参照)。winId()で先にネイティブハンドルを確定させる。
+            # 先にネイティブのハンドルを作る。窓が実体化する前に restoreGeometry() すると位置がずれる
             self._canvas_detach_window.winId()
             self._canvas_detach_window.restoreGeometry(saved_geometry)
         else:
@@ -2572,18 +2198,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.settings.setValue(CANVAS_WAS_DETACHED_KEY, True)
 
     def _reattach_canvas(self):
-        """
-        切り離されたキャンバスを plot_container のレイアウトへ、元の位置
-        (canvas_separatorの直後)にそのまま戻す。「元に戻す」メニュー操作、
-        および切り離しウィンドウがOSの×ボタンで閉じられた場合の両方から
-        呼ばれる。
-        """
+        """「元に戻す」と、切り離した窓を閉じたときの両方から呼ばれる。"""
         if not self.canvas_detached:
             return
 
         if self._canvas_detach_window is not None:
-            # 閉じる前に現在のサイズ・位置を保存しておく(次回の切り離し時、
-            # および次回起動時の復元に使う)。
             self.settings.setValue(
                 CANVAS_DETACHED_GEOMETRY_KEY, self._canvas_detach_window.saveGeometry()
             )
@@ -2602,22 +2221,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.settings.setValue(CANVAS_WAS_DETACHED_KEY, False)
 
     def _on_detach_window_closed(self):
-        """
-        切り離しウィンドウがOSの×ボタンで閉じられたときに呼ばれる
-        (DetachedCanvasWindow.closeEvent -> closed シグナル経由)。
-        「元に戻す」メニュー操作と全く同じ後処理(_reattach_canvas)に合流させる。
-        """
         self._reattach_canvas()
 
     def _update_plot_appearance(self):
-        """外観のみを更新する（MVC対応版）"""
         layout_mode = getattr(self.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
             rows, cols = 0, 0
         else:
             rows = self.subplot_rows_spinbox.value()
             cols = self.subplot_cols_spinbox.value()
-        # 外観の更新もCanvasに丸投げ
         self.canvas.update_appearance_only(
             self.project.all_plot_settings, datasets=self.project.datasets, rows=rows, cols=cols,
             layout_mode=layout_mode,
@@ -2629,17 +2241,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.export_preview_panel.refresh_preview()
 
     def _on_editor_rows_highlighted(self, master_indices):
-        """
-        データエディタ (DataEditorDialog) で選択されている行が変わったときに呼ばれる。
-        対応するデータ点をグラフ上でハイライトする(逆方向: グラフ上の点クリックで
-        エディタの行を選択する処理は cursor_mixin.py の _on_pick 側にある)。
-        """
+        """データエディタで選んだ行の点をグラフ上で強調する(逆向きは cursor_mixin の _on_pick)。"""
         if self.data_editor_dialog is None:
             return
         self.canvas.set_highlighted_points(self.data_editor_dialog.dataset, master_indices)
 
     def _reapply_editor_row_highlight(self):
-        """データエディタが開いていれば、現在選択中の行のハイライトを再描画後に復元する"""
         if self.data_editor_dialog is None:
             return
         self.canvas.set_highlighted_points(
@@ -2647,21 +2254,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         )
 
     def _wrap_in_collapsible_section(self, group_box, title):
-        """
-        折りたたみ可能に(項目102): 「データセットのプロパティ」「プロットの
-        プロパティ」をアコーディオン形式(クリックで開閉)にするためのヘルパー。
-
-        group_box (QGroupBox) 自体の内部構造には一切手を加えず、外側に新しい
-        開閉トグルボタン(シェブロンアイコン付き)を1つ追加し、そのボタンで
-        group_box 全体(枠・中身ごと)の表示/非表示を切り替える。
-        タイトルの二重表示を避けるため、group_box 自身のタイトルは空にし、
-        トグルボタン側にだけ表示する。
-        """
+        """group_box の外に開閉ボタンを付け、グループボックスごと出し入れする。見出しはボタンにだけ出す。"""
         group_box.setTitle("")
-        # theme.py の QDockWidget QGroupBox は「自身のタイトルを置く場所」として
-        # margin-top/padding-top を確保する。ここではタイトルを空にして見出しを
-        # 外のトグルボタンへ移しているので、その確保分は見出しと中身の間の
-        # 死んだ隙間にしかならない。プロパティで見分けて0にする。
+        # theme.py はグループボックスのタイトル用に上の余白を取る。タイトルを空にしたので、それを 0 にする目印
         group_box.setProperty("collapsibleBody", True)
 
         wrapper = QWidget()
@@ -2684,10 +2279,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             btn.setIcon(_svg_icon("chevron-down" if checked else "chevron-right", size=14))
 
         toggle_button.toggled.connect(_on_toggled)
-        # ★ 項目H-4: このメソッドは複数のグループボックスに対して繰り返し
-        #   呼ばれるため、生成した各トグルボタンをリストに蓄積しておき、
-        #   _refresh_custom_svg_icons側で一括してアイコンを再読み込みできる
-        #   ようにする。
+        # ダークモードの切り替えでアイコンを作り直すので、ボタンを集めておく
         if not hasattr(self, '_collapsible_toggle_buttons'):
             self._collapsible_toggle_buttons = []
         self._collapsible_toggle_buttons.append(toggle_button)
@@ -2696,32 +2288,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         wrapper_layout.addWidget(group_box)
         return wrapper
 
-    #==========================================================================
-    # データセットのプロパティパネルのサブセクション (改善ボード C-1)
-    #==========================================================================
 
     def _build_dataset_property_sections(self):
-        """
-        「データセットのプロパティ」の中身を、DATASET_PROPERTY_SECTIONS で定義した
-        7つの折りたたみ可能なサブセクションに分割する(改善ボード C-1)。
+        """データセットのプロパティ欄を DATASET_PROPERTY_SECTIONS の節に分け、節ごとに QFormLayout を持たせる。
 
-        Designer が作った formLayout_4 に全部を縦積みするのをやめ、セクションごとに
-        独立した QFormLayout を持たせる。これには2つの効果がある:
-
-        1. 番号指定の insertRow(N, ...) が不要になる。従来は行1〜5の挿入が
-           「この順に実行されること」に依存しており、間に1行足すと無関係な
-           フィールドが黙ってずれるという地雷だった(CLAUDE.md参照)。
-        2. QFormLayout の列幅は「そのレイアウト内の最長ウィジェット」で決まるため、
-           レイアウトを分ければ幅の波及もセクション内に閉じる。D-2 で踏んだ
-           「plot_type_combo が広がってフォーム全体が横にはみ出す」波及範囲が、
-           フォーム全体から「基本スタイル」1セクションへ縮む。
-
-        Designer 生成の8行(凡例名/種別/色/線の種類/線の太さ/マーカー/サイズ/平滑化)は
-        takeRow() で formLayout_4 から取り外して移設する。removeRow() はウィジェット
-        ごと破棄してしまうので使ってはいけない。平滑化チェックボックスだけは、
-        後から追加される「透明度」「平滑化の手法」との並び順を揃えるため、ここでは
-        移設せず保留し、_prop_form('style') への追加は呼び出し側が行う
-        (self._pending_smoothing_checkbox_row)。
+        列幅の広がりが節の中に閉じる。Designer の行は takeRow() で移す(removeRow() はウィジェットごと破棄する)。
+        平滑化のチェックだけは「平滑化の手法」の直前に置くので、ここでは移さない。
         """
         self._prop_sections = {}
 
@@ -2735,12 +2307,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         for key, title in DATASET_PROPERTY_SECTIONS:
             body = QWidget()
             form = QFormLayout(body)
-            # 見出し7本ぶんの高さは純増になるので、上下の余白は詰める。
-            # ★ 実機フィードバック:「見出しと項目の区別がつきにくい」
-            #   →「インデントが逆転してるのなんかやだ」。実測すると、親の見出しは
-            #   padding-left:4px で描かれるのに対し子の見出しは0で、子のほうが
-            #   4px左に出ていた。親(4px) → 子(theme.pyで12px) → 中身(ここ)
-            #   の階段になるよう字下げする。
+            # 親の見出し(4px)→ 子の見出し(12px)→ 中身、の階段になるよう字下げする
             form.setContentsMargins(24, 2, 0, 6)
             form.setSpacing(6)
 
@@ -2749,19 +2316,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             toggle_button.setCheckable(True)
             toggle_button.setIcon(_svg_icon("chevron-down", size=13))
             toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            # ★ トップレベルの2セクション(項目102)とは別のobjectNameにする。
-            #   theme.py 側で一段控えめな見出しとしてスタイルでき、既存の
-            #   「トグルボタンはちょうど2つ」というテストも壊れない。
+            # 上の2つの開閉ボタンとは別の名前(theme.py で控えめに描き、2つだけであることをテストが確かめる)
             toggle_button.setObjectName("property_subsection_toggle")
             toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
             toggle_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            # QToolButton の既定は「文字幅ぴったり」なので、区切りの罫線
-            # (theme.py の border-top) が見出しの文字の下までしか引かれない。
-            # 横いっぱいに広げて、罫線がセクションの区切りとして機能するようにする。
+            # QToolButton は文字幅なので、区切りの罫線が見出しの下にしか引かれない
             toggle_button.setSizePolicy(
                 QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             toggle_button.setChecked(key not in collapsed)
-            # 1本目だけは上の罫線を引かない(親の見出しのすぐ下なので二重線に見える)。
+            # 1本目は親の見出しのすぐ下なので、罫線が二重に見える
             if key == DATASET_PROPERTY_SECTIONS[0][0]:
                 toggle_button.setProperty("firstSection", True)
 
@@ -2781,26 +2344,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 'form': form, 'body': body, 'toggle': toggle_button, 'section': section,
             }
 
-        # 空になった formLayout_4 は、Designer 生成物 (ui_main_window.py) 側の
-        # 構造なので取り除かずそのまま残す。余白だけ潰して高さ0にしておく。
+        # 空の formLayout_4 は生成物の構造なので残し、余白だけ潰す
         for row in range(self.ui.formLayout_4.rowCount() - 1, -1, -1):
             self.ui.formLayout_4.takeRow(row)
         self.ui.formLayout_4.setContentsMargins(0, 0, 0, 0)
         self.ui.formLayout_4.setSpacing(0)
-        # Designer の既定余白(9px)は、見出しと最初のセクションの間の隙間に
-        # なるだけなので落とす(左右のインデントは各セクションの body 側が持つ)。
         self.ui.gridLayout_4.setContentsMargins(0, 0, 0, 0)
         self.ui.gridLayout_4.addWidget(container, 1, 0, 1, 1)
         self._dataset_property_sections_container = container
 
-        # ★ 実機フィードバック:「データ追加するまで(セクションを)動かせない」。
-        #   Designer は properties_groupbox 自体を setEnabled(False) にしており、
-        #   Qt では無効な親の下のウィジェットは個別に有効化できないため、
-        #   中に入れたセクション見出しまで道連れで押せなくなっていた。
-        #   開閉は「選択中のデータセットを編集する操作」ではなく「パネルの
-        #   見せ方を変える操作」なので、選択の有無とは無関係に常に押せるべき。
-        #   グループボックスは常に有効にしておき、無効化はセクションの中身
-        #   (body)だけに掛ける。
+        # 無効な親の下の子は有効にできないので、グループボックスは常に有効にして中身だけ無効にする
+        # (でないと、データセットが無い間は節を開閉できない)
         self.ui.properties_groupbox.setEnabled(True)
         self._set_dataset_property_fields_enabled(False)
 
@@ -2813,34 +2367,17 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         style_form.addRow(self.ui.marker_label, self.ui.marker_combo)
         style_form.addRow(self.ui.makersize_label, self.ui.markersize_spinbox)
 
-        # D-2 でフラグした横はみ出し対策: コンボ自身の希望幅を文字数で固定し、
-        # プラグインが長い種別名を登録しても列幅が引きずられないようにする。
         self.ui.plot_type_combo.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.ui.plot_type_combo.setMinimumContentsLength(PLOT_TYPE_COMBO_MIN_CHARS)
 
     def _prop_form(self, section_key):
-        """サブセクション(DATASET_PROPERTY_SECTIONS のキー)の QFormLayout を返す。"""
         return self._prop_sections[section_key]['form']
 
     def _align_form_label_columns(self, forms):
-        """
-        複数の QFormLayout でラベル列の幅を揃える(実機フィードバック:
-        「X軸タブとY軸タブで入力ボックスの大きさが微妙に違う」
-        「ここのタブでボックスの大きさばらばら」)。
+        """ラベルの列幅を複数の QFormLayout で揃え、入力欄の左端を合わせる。決めた幅(px)を返す。
 
-        QFormLayout のラベル列幅は「**そのレイアウト内**で最も widest なラベル」で
-        決まる。X軸/Y軸タブのように別々のレイアウトが縦に切り替わる場合や、
-        C-1 でプロパティパネルを7つのレイアウトに分けた場合、レイアウトごとに
-        列幅が変わるため、入力欄の左端が揃わずガタつく。全ラベルの最大幅を
-        求めて、全員にその最小幅を課すことで列幅を共有させる。
-
-        ★ 非表示のラベルも計算に含める。QFormLayout は非表示のウィジェットを
-        列幅の計算から外すため、含めないと「対数表示をONにした瞬間に
-        『対数軸の補助目盛り』が現れて列幅が広がり、入力欄が一斉にずれる」
-        という別のガタつきが残る。
-
-        戻り値は決定した列幅(px)。
+        隠れているラベルも数える(QFormLayout は隠れたものを外すので、出た瞬間に列幅が変わって欄がずれる)。
         """
         labels = []
         widest = 0
@@ -2858,20 +2395,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return widest
 
     def _set_dataset_property_fields_enabled(self, enabled):
-        """
-        データセットのプロパティ「欄」の有効/無効を切り替える(選択が無いときは無効)。
-
-        ★ 無効化するのは各セクションの中身(body)だけで、見出しのトグルボタンと
-        properties_groupbox 自体は常に有効なままにする。以前は
-        properties_groupbox を丸ごと無効化していたが、Qt は無効な親の下の子を
-        個別に有効化できないため、データセットを1つも追加していない状態では
-        セクションの開閉すらできなかった(実機フィードバック)。
-        """
+        """選択が無いときは無効にする。無効にするのは節の中身だけ(見出しまで無効にすると開閉できない)。"""
         for entry in getattr(self, '_prop_sections', {}).values():
             entry['body'].setEnabled(enabled)
 
     def _load_collapsed_property_sections(self):
-        """QSettings から「閉じている」セクションキーの集合を読む(既定は空=全展開)。"""
         raw = self.settings.value(DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY, "[]")
         try:
             keys = json.loads(raw) if isinstance(raw, str) else list(raw)
@@ -2881,11 +2409,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return {k for k in keys if k in valid}
 
     def _on_property_section_toggled(self, section_key, checked):
-        """
-        サブセクションの開閉。本体の表示を切り替え、シェブロンの向きを直し、
-        閉じているセクションの一覧を QSettings へ書き戻す(ユーザー決定:
-        既定は全展開だが、一度閉じたものは次の起動でも閉じたまま)。
-        """
+        """開閉し、閉じている節を QSettings に書き戻す(一度閉じたものは次の起動でも閉じたまま)。"""
         entry = self._prop_sections.get(section_key)
         if entry is None:
             return
@@ -2901,14 +2425,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY, json.dumps(collapsed))
 
     def _update_property_section_visibility(self):
-        """
-        中身の行が1つも表示されないセクションは、見出しごと隠す。
-
-        条件付き表示(property_panel.update_gradient_controls_visibility 等)で中身が全部消えた
-        セクションの見出しだけが残ると、折りたたみで減らしたぶんの場所を
-        見出しが食い返してしまう。C-2 で「選択状態によって空になるサブメニューは
-        出さない」としたのと同じ方針。
-        """
+        """中の行が全部隠れた節は見出しごと隠す。"""
         sections = getattr(self, '_prop_sections', None)
         if not sections:
             return
@@ -2931,22 +2448,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     break
             entry['section'].setVisible(has_visible)
 
-    #==========================================================================
-    # データセットリスト (QTreeWidget) 関連のヘルパー
-    #==========================================================================
-    # dataset_list_widget は Designer 上は QListWidget だが、フォルダによる
-    # グループ分けに対応するため __init__ の最初 (_replace_dataset_list_with_tree)
-    # で QTreeWidget に差し替えている。データセットは「leaf」、フォルダは
-    # 「内部ノード」として表現し、leaf の Qt.ItemDataRole.UserRole には対応する
-    # Dataset オブジェクトそのものを、フォルダには None を格納することで区別する。
+    # データセット一覧(QTreeWidget)。データセットの葉は UserRole に Dataset を、フォルダは None を持つ。
 
     def _replace_dataset_list_with_tree(self):
-        """
-        Designer が生成した dataset_list_widget (QListWidget) を、
-        同じレイアウト位置に「検索ボックス + QTreeWidget」の縦並びコンテナで
-        置き換える。QGridLayout上の1セルに収まる構成にすることで、他のセルの
-        配置に影響を与えずに検索ボックスをツリーの直上へ追加できる。
-        """
+        """Designer の QListWidget を、同じセルに「検索欄 + QTreeWidget」を縦に並べたものへ差し替える。"""
         old_widget = self.ui.dataset_list_widget
         parent_widget = old_widget.parentWidget()
         parent_layout = parent_widget.layout()
@@ -2963,14 +2468,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         container = QWidget(parent_widget)
         container_layout = QVBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 0, 0)
-        # ★ 項目H-2-2(実機フィードバック): 検索ボックスとリストの間の余白を
-        #   狭すぎると感じたとの指摘を受け、元の4pxから約1.5倍の6pxに広げた。
         container_layout.setSpacing(6)
 
         search_edit = QLineEdit(container)
-        # ★ 項目H-2-2: 検索ボックス単体の枠線を消すQSS(theme.py側
-        #   #dataset_search_edit)をスコープするためのobjectName。リストと
-        #   統合するためではなく、あくまで検索ボックス自身の見た目調整用。
         search_edit.setObjectName("dataset_search_edit")
         search_edit.setPlaceholderText("データセットを検索...")
         search_edit.setClearButtonEnabled(True)
@@ -2979,12 +2479,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         tree = QTreeWidget(container)
         tree.setObjectName("dataset_list_widget")
         tree.setHeaderHidden(True)
-        # ★ 項目C-907: 列0(スタイルアイコン+名前、既存)に加え、列1に
-        #   表示/非表示トグル用の目アイコン専用の列を追加する。ヘッダーは非表示
-        #   (setHeaderHidden)だが、列0を伸縮(Stretch)・列1を固定幅(Fixed)にする
-        #   ことで、ウィンドウ幅が変わっても目アイコンが常に同じ位置・幅を保つ。
-        #   デフォルトのstretchLastSectionがTrueのままだと最後の列(=目アイコン列)
-        #   が余白を吸収して不必要に広がってしまうため明示的に無効化する。
+        # 列1は表示/非表示の目のアイコン。stretchLastSection のままだと目の列が余白を吸って広がる
         tree.setColumnCount(2)
         header = tree.header()
         header.setStretchLastSection(False)
@@ -2995,19 +2490,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         tree.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         tree.setDefaultDropAction(Qt.DropAction.MoveAction)
         tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        # ★ GUI洗練: gridLayout_2の行stretchを0にした(キャンバスへ余白を譲る)ため、
-        #   このリストはsizeHint任せだと窮屈すぎる高さまで縮む可能性がある。
-        #   データが2〜3件程度でも下に大きな空白ができない程度の高さを確保する。
+        # 行の伸びをキャンバスに譲ったので、放っておくと数件でも窮屈な高さまで縮む
         tree.setMinimumHeight(90)
-        # ★ 項目H-2-2: 選択ハイライトをアイコン列+テキスト列にまたがる単一の
-        #   角丸矩形として描画するための専用デリゲート(理由は
-        #   _DatasetTreeSelectionDelegateのdocstringを参照)。
         tree.setItemDelegate(_DatasetTreeSelectionDelegate(tree))
         container_layout.addWidget(tree)
 
-        # 項目69: リストとボタン行の間の余白を、選択中データセットのミニ統計で埋める
-        # (詳細な統計は引き続きプロパティタブの stats_summary_label に表示する。
-        #  こちらは「今何を選んでいるか」がリストのすぐ下で一目で分かるようにする用途)
+        # 一覧のすぐ下に、選んでいるデータセットの短い統計値
         mini_stats_label = QLabel("-")
         mini_stats_label.setObjectName("dataset_mini_stats_label")
         mini_stats_label.setWordWrap(True)
@@ -3023,23 +2511,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.dataset_search_edit = search_edit
 
     def _add_dataset_list_item(self, dataset, parent_item=None):
-        """
-        dataset_list_widget にデータセットの葉(leaf)アイテムを追加する共通ヘルパー。
-        Dataset オブジェクトそのものを Qt.ItemDataRole.UserRole に保持させることで、
-        ドラッグ&ドロップによる並べ替え後も (同名データセットがあっても) 各アイテムが
-        どの Dataset に対応するかを一意に追跡できるようにする。
-
-        Args:
-            dataset (Dataset): 追加するデータセット。
-            parent_item (QTreeWidgetItem, optional): 追加先のフォルダ。
-                None ならツリーの最上位に追加する。
-        """
+        """UserRole に Dataset そのものを持たせる(並べ替えても、同名があっても対応が崩れない)。"""
         item = QTreeWidgetItem([dataset.name])
         item.setData(0, Qt.ItemDataRole.UserRole, dataset)
         item.setIcon(0, make_dataset_style_icon(dataset))
-        # ★ 項目C-907: 専用列(列1)に表示/非表示トグル用の目アイコンを表示する。
-        #   クリック検知は _on_dataset_tree_item_clicked (dataset_mixin.py) が
-        #   itemClicked シグナル経由で列インデックスを見て判定する。
+        # 目のアイコンのクリックは dataset_mixin の _on_dataset_tree_item_clicked が列で見分ける
         item.setIcon(DATASET_TREE_VISIBILITY_COLUMN, make_dataset_visibility_icon(dataset))
         apply_dataset_visibility_text_style(item, dataset)
         # データセット自身はフォルダではないので、ドロップ先にはしない
@@ -3051,22 +2527,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return item
 
     def _get_target_folder_for_new_dataset(self):
-        """
-        現在ツリーで選択中のアイテムがフォルダであれば、それを返す
-        (新規データセットをそのフォルダの中に追加するため)。それ以外は None。
-        """
+        """選択中の項目がフォルダならそれを返す(新しいデータセットをその中に入れる)。"""
         current_item = self.ui.dataset_list_widget.currentItem()
         if current_item is not None and current_item.data(0, Qt.ItemDataRole.UserRole) is None:
             return current_item
         return None
 
     def _add_dataset(self, dataset, parent_folder=None, select=True):
-        """
-        新しい Dataset を project.datasets とツリーウィジェットの両方に追加し、
-        必要ならプロットも再描画する共通ヘルパー。
-        ファイル読み込み・データセット間演算・バッチ処理・クリップボード貼り付けなど、
-        「新しいDatasetを1つ作って追加する」複数の機能から共通で使われる。
-        """
         self.project.datasets.append(dataset)
         new_item = self._add_dataset_list_item(dataset, parent_folder)
         if select:
@@ -3075,13 +2542,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return new_item
 
     def _add_dataset_with_undo(self, dataset, parent_folder=None, description="データセットの追加"):
-        """
-        _add_dataset() をUndo/Redo可能にしたバージョン(項目C-1、プラグインの
-        register_processor/register_analyzerが生成したDatasetの追加専用)。
-        AddDatasetCommand参照: 既存の他の追加経路(規格化・Savitzky-Golay等)は
-        意図的にUndo非対応のまま据え置いている(削除側は改善ボード A-3 で
-        _remove_dataset_items_with_undo() としてUndo対応済み)。
-        """
+        """_add_dataset() の Undo できる版(プラグインの処理と解析の結果用)。"""
         def do_add():
             self._add_dataset(dataset, parent_folder, select=True)
 
@@ -3105,35 +2566,20 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.undo_stack.push(command)
 
     def _remove_dataset_items_with_undo(self, top_level_items, description=None):
-        """
-        ツリー上のアイテム(データセットの葉、またはフォルダ)をUndo/Redo可能に
-        削除する共通ヘルパー(改善ボード A-3、RemoveDatasetCommand参照)。
+        """ツリーの項目(データセットかフォルダ)を Undo できるように削除する。
 
-        `top_level_items` には「最上位の削除対象」だけを渡すこと
-        (フォルダとその中身が両方選択されていた場合、フォルダだけを渡す。
-        dataset_mixin._top_level_selected_items がこの絞り込みを行う)。
-        フォルダを渡すと、その中のデータセットもまとめて削除・復元される。
-
-        復元時に元の見た目へ正確に戻すため、削除の前に次の2つを控えておく:
-
-        - `project.datasets` のリスト全体(=描画順/重なり順)。削除で
-          インデックスがずれるため、行単位ではなくリストごと差し戻す。
-        - 各アイテムのツリー上の位置(親アイテムと、その親の中でのインデックス)。
-          フォルダの中の何番目だったかまで復元する。
-
-        取り外したQTreeWidgetItemはクロージャが参照を保持し続けるため破棄されず、
-        そのまま同じオブジェクトを差し戻せる(子アイテム=フォルダの中身も
-        ぶら下がったまま維持される)。
+        top_level_items には最上位の対象だけを渡す(フォルダを渡すと中身も一緒に消える)。
+        元に戻すため、datasets のリスト全体(描画順)と、各項目の親と位置を控える。
+        外した QTreeWidgetItem はクロージャが持つので、同じものを差し戻せる。
         """
         tree = self.ui.dataset_list_widget
 
-        # --- 削除前のスナップショット ---
         snapshots = []  # [(item, parent_item_or_None, index_in_parent), ...]
         for item in top_level_items:
             parent = item.parent()
             index = parent.indexOfChild(item) if parent is not None else tree.indexOfTopLevelItem(item)
             if index == -1:
-                continue  # 既にツリーから外れている(想定外だが安全側に倒す)
+                continue
             snapshots.append((item, parent, index))
         if not snapshots:
             return
@@ -3142,7 +2588,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             dataset = item.data(0, Qt.ItemDataRole.UserRole)
             if dataset is not None:
                 out.append(dataset)
-            else:  # フォルダ: 中身を再帰的に集める
+            else:
                 for i in range(item.childCount()):
                     collect_datasets(item.child(i), out)
 
@@ -3159,7 +2605,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 description = f"{len(removed_datasets)}件のデータセットの削除"
 
         def do_remove():
-            # 【★ 重要 ★】ツリー操作中に currentItemChanged が意図せず発行されるのを防ぐ
+            # 操作中に currentItemChanged が出ないように
             tree.blockSignals(True)
             try:
                 rows_to_remove = sorted(
@@ -3169,7 +2615,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 for row in rows_to_remove:
                     del self.project.datasets[row]
 
-                # 同じ親を持つアイテムが複数ある場合にインデックスがずれないよう降順で外す
+                # 同じ親の中でずれないよう、後ろから外す
                 for item, parent, _index in sorted(snapshots, key=lambda s: s[2], reverse=True):
                     if parent is not None:
                         parent.removeChild(item)
@@ -3185,14 +2631,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         def do_restore():
             tree.blockSignals(True)
             try:
-                # 控えておいた元のインデックスへ昇順に差し戻す(降順で外した逆順)
                 for item, parent, index in sorted(snapshots, key=lambda s: s[2]):
                     if parent is not None:
                         parent.insertChild(min(index, parent.childCount()), item)
                     else:
                         tree.insertTopLevelItem(min(index, tree.topLevelItemCount()), item)
-                # 行単位ではなくリストごと差し戻して、描画順もまとめて元に戻す
-                # (リストオブジェクト自体は入れ替えず中身だけ差し替える)
+                # リストの中身だけ差し替える(描画順も戻る)
                 self.project.datasets[:] = datasets_before
             finally:
                 tree.blockSignals(False)
@@ -3204,9 +2648,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         )
 
     def _add_dataset_folder_item(self, name, parent_item=None):
-        """dataset_list_widget にフォルダ(内部ノード)を追加する共通ヘルパー"""
         item = QTreeWidgetItem([name])
-        item.setData(0, Qt.ItemDataRole.UserRole, None) # None はフォルダの目印
+        item.setData(0, Qt.ItemDataRole.UserRole, None)
         if parent_item is not None:
             parent_item.addChild(item)
         else:
@@ -3215,11 +2658,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return item
 
     def _flatten_dataset_tree(self, parent_item=None):
-        """
-        ツリーを先行順 (depth-first) に辿り、データセットの leaf アイテムだけを
-        表示順のリストとして返す (フォルダ自体は含めず、中身を再帰的に辿る)。
-        この順序がそのままプロットの描画順 (project.datasets の順序) になる。
-        """
+        """データセットの葉を表示順(深さ優先)に返す。これがそのまま描画順になる。"""
         items = []
         tree = self.ui.dataset_list_widget
         source = tree.invisibleRootItem() if parent_item is None else parent_item
@@ -3233,14 +2672,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return items
 
     def _get_current_dataset(self):
-        """現在「カレント」になっているアイテムに対応する Dataset を返す (フォルダやNoneならNone)"""
         item = self.ui.dataset_list_widget.currentItem()
         if item is None:
             return None
         return item.data(0, Qt.ItemDataRole.UserRole)
 
     def _get_selected_datasets(self):
-        """選択中の全アイテムのうち、データセット (フォルダでない) だけをリストで返す"""
         result = []
         for item in self.ui.dataset_list_widget.selectedItems():
             dataset = item.data(0, Qt.ItemDataRole.UserRole)
@@ -3249,14 +2686,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return result
 
     def _get_dataset_tree_item(self, dataset):
-        """指定した Dataset に対応する QTreeWidgetItem を検索する (オブジェクト同一性で判定)"""
         for item in self._flatten_dataset_tree():
             if item.data(0, Qt.ItemDataRole.UserRole) is dataset:
                 return item
         return None
 
     def _capture_dataset_group_tree(self):
-        """現在の dataset_list_widget の状態から、保存用のフォルダ構造 (辞書) を構築する"""
         def walk(parent_item):
             children = []
             source = self.ui.dataset_list_widget.invisibleRootItem() if parent_item is None else parent_item
@@ -3271,7 +2706,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return {'name': '', 'children': walk(None)}
 
     def _rebuild_dataset_tree_widget(self):
-        """project.dataset_group_tree からツリーウィジェットの中身を再構築する"""
         tree = self.ui.dataset_list_widget
         tree.clear()
 
@@ -3286,13 +2720,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         build(self.project.dataset_group_tree, None)
 
     def _sync_dataset_list_widget_order(self):
-        """
-        project.datasets の現在の順序に合わせて、各フォルダ内でのデータセットの
-        表示順を再構築する (フォルダ自体の位置や、フォルダ間の移動は行わない)。
-        データセットの並べ替えを Undo/Redo したとき、コマンドが project.datasets の
-        順序だけを書き換えるため、ウィジェット側の表示順をこれに追従させるために使う。
-        選択状態と「現在の項目」もできる限り復元する。
-        """
+        """フォルダの中の並びを project.datasets の順に合わせる(並べ替えの Undo/Redo 用)。フォルダ自体は動かさない。"""
         tree = self.ui.dataset_list_widget
         order_index = {id(ds): i for i, ds in enumerate(self.project.datasets)}
         selected_ids = {id(item.data(0, Qt.ItemDataRole.UserRole)) for item in tree.selectedItems()}
@@ -3305,8 +2733,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             source = tree.invisibleRootItem() if parent_item is None else parent_item
             children = [source.child(i) for i in range(source.childCount())]
 
-            # データセットの葉だけを project.datasets の順序に従って並べ替え、
-            # フォルダは元の相対位置のまま動かさない
             dataset_positions = [
                 i for i, c in enumerate(children) if c.data(0, Qt.ItemDataRole.UserRole) is not None
             ]
@@ -3342,23 +2768,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             event.acceptProposedAction()
 
     def dropEvent(self, event):
-        """
-        複数ファイルの一括ドラッグ&ドロップ読み込み(項目77)。
-        ドロップされた全ファイルパスを取得し、対応拡張子のものだけを
-        読み込みキューに積む。実際の読み込みは _process_next_queued_file() が
-        既存の単一ファイル読み込み経路 (load_data) を使って1件ずつ順番に行う。
-        """
         urls = event.mimeData().urls()
         file_paths = [url.toLocalFile() for url in urls if url.toLocalFile()]
         if file_paths:
             self._queue_data_files(file_paths)
 
     def _all_supported_data_file_extensions(self):
-        """
-        ドラッグ&ドロップ一括取込・ファイルダイアログで受け付ける拡張子一覧。
-        ビルトイン対応分(SUPPORTED_DATA_FILE_EXTENSIONS)に、プラグインが
-        register_importer() (項目B-1) で登録した拡張子を加えたもの。
-        """
+        """組み込みの拡張子に、プラグインの読み込み機能の拡張子を足したもの。"""
         extensions = list(SUPPORTED_DATA_FILE_EXTENSIONS)
         for ext in get_registered_importer_extensions():
             if ext not in extensions:
@@ -3366,12 +2782,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return tuple(extensions)
 
     def _queue_data_files(self, file_paths):
-        """
-        ドロップ/一括指定された複数のファイルパスを、対応拡張子かどうかで
-        振り分ける。非対応拡張子はまとめて1回の警告ダイアログでスキップを
-        通知し(1ファイルずつダイアログを出さない)、対応拡張子のファイルは
-        読み込みキューに積んで、他に読み込み中でなければ処理を開始する。
-        """
+        """対応していない拡張子はまとめて1回だけ知らせ、残りを待ち行列に積む。"""
         valid_paths = []
         skipped_names = []
         allowed_extensions = self._all_supported_data_file_extensions()
@@ -3396,22 +2807,13 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         if self._data_load_task_runner is None:
             self._process_next_queued_file()
-        # 既に読み込み中の場合は、その完了後に _process_next_queued_file が
-        # 自動的にキューの続きを処理する
 
     def _process_next_queued_file(self):
-        """
-        読み込みキューの先頭を取り出し、load_data() で読み込みを開始する。
-        キューが空ならバッチの進捗カウンタをリセットするだけで何もしない。
-        _on_data_load_succeeded / _on_data_load_failed の両方から、読み込みの
-        成否によらず呼ばれる(1件読み終わるたびに次を進める)。
-        """
+        """読み込みの成否によらず、1件終わるたびに呼ばれる。"""
         if not self._data_load_queue:
             self._data_load_queue_total = 0
             self._data_load_queue_done = 0
-            # 項目C-104: フォルダ一括インポートのファイル名正規表現は、その
-            # バッチが完全に処理し終わったタイミングでリセットする(以降の
-            # 通常のドラッグ&ドロップ取込みに引き継がれないようにするため)。
+            # 待ち行列を使い切ったら戻す(この後の普通の取り込みに引き継がない)
             self._batch_import_filename_regex = None
             return
 
@@ -3420,16 +2822,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.load_data(next_path, queue_progress=(self._data_load_queue_done, self._data_load_queue_total))
 
     def load_data(self, file_path, queue_progress=None):
-        """
-        ファイルをバックグラウンドスレッドで読み込み、既存のDataset(Model)とUIに反映させる。
-        大きなCSV/Excelファイルでも、読み込み中にUIがフリーズしないようにするため、
-        実際のファイルI/O (gui/workers.py の load_data_file_task) は
-        TaskRunner(項目C-004フェーズ4)経由で別スレッドで実行する。
+        """別スレッドで読み込み、終わったらデータセットとして加える(大きいファイルで画面を止めない)。
 
-        queue_progress: ドラッグ&ドロップの複数ファイル一括読み込み(項目77)で、
-            キュー内の進捗を (現在の件数, 総件数) のタプルで渡すと、
-            ステータスバーに "読み込み中 (2/5): ..." のように表示する。
-            単体読み込み(メニューからの「データセット追加」等)では None のまま。
+        queue_progress=(何件目, 総数) はステータスバーの表示に使う。
         """
         if self._data_load_task_runner is not None:
             QMessageBox.information(self, "読み込み中", "他のファイルを読み込み中です。完了までお待ちください。")
@@ -3449,13 +2844,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         runner.start()
 
     def _on_data_load_succeeded(self, df, file_path):
-        """
-        ファイル読み込みに成功したときに呼ばれるスロット。
-        実際のデータセット追加処理は _import_loaded_dataframe に委譲し、
-        その途中でユーザーがダイアログをキャンセルした場合も含め、
-        必ず finally でキューの次のファイル読み込みに進む
-        (複数ファイル一括ドラッグ&ドロップ、項目77)。
-        """
+        """途中でキャンセルされても、必ず待ち行列の次へ進む。"""
         self._cleanup_data_load_task_runner()
         try:
             self._import_loaded_dataframe(df, file_path)
@@ -3463,11 +2852,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._process_next_queued_file()
 
     def _import_loaded_dataframe(self, df, file_path):
-        """
-        複数シートを持つExcelファイルの場合、シートを複数選択すると
-        シートごとに別々のデータセットとして追加できる(未選択/単一選択の場合は
-        従来通り1ファイル=1データセットの読み込みフローになる)。
-        """
+        """Excel でシートを複数選ぶと、シートごとに別のデータセットにする。"""
         dataset_name = os.path.basename(file_path)
         is_excel = is_excel_file(file_path)
 
@@ -3478,8 +2863,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             except Exception as e:
                 logger.warning("Excelのシート一覧取得に失敗しました: %s", e)
 
-        # None は「ワーカーが既に読み込み済みの df をそのまま使う」ことを表す
-        # (従来通りの、シート選択ダイアログを介さない単純な読み込みフロー)
+        # None は「読み込み済みの df をそのまま使う」
         sheets_to_import = [None]
         if is_excel and len(sheet_names) > 1:
             multi_dialog = ExcelMultiSheetDialog(sheet_names, self)
@@ -3497,7 +2881,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         for sheet_name in sheets_to_import:
             if sheet_name is None:
-                sheet_df = df  # ワーカーが既に読み込み済みのDataFrame
+                sheet_df = df
                 preview_name = dataset_name
             else:
                 try:
@@ -3532,10 +2916,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     if reply != QMessageBox.StandardButton.Yes:
                         continue
 
-            # ★ 列数の多いファイルで意図しない列が自動選択されるのを防ぐため、
-            #   プレビューを見せつつX/Y軸の列をユーザーに選ばせる。
-            #   Excelファイルの場合は、このダイアログ内でシート切り替え・ヘッダー行・
-            #   使用する列(usecols)・最大行数(nrows)の指定も行える。
+            # 列の多いファイルで意図しない列が選ばれないよう、プレビューを見せて X/Y の列を選ばせる
             preview_dialog = ColumnPreviewDialog(sheet_df, preview_name, self, file_path=file_path)
             if sheet_name is not None and preview_dialog.sheet_combo is not None:
                 preview_dialog.sheet_combo.blockSignals(True)
@@ -3543,23 +2924,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 preview_dialog.sheet_combo.blockSignals(False)
 
             if preview_dialog.exec() != QDialog.DialogCode.Accepted:
-                continue  # このシート/ファイルだけスキップ (複数シート選択時は他のシートは続行)
+                continue
 
             x_col, y_col = preview_dialog.get_selected_columns()
-            # シート/ヘッダー行/usecols/nrowsを変更していた場合はそちらを反映したDataFrameを使う
             final_df = preview_dialog.get_dataframe()
 
-            # 元ファイルへのリンク保持(項目C-103): 「再読み込み」
-            # (gui/datasets/transfer.py の reload_from_source)が
-            # このパスからファイルを読み直せるよう、絶対パスを保持しておく。
-            # Excelでシートを切り替えていた場合に備え、ダイアログのシートコンボの
-            # 最終的な選択値(checked_sheetではなく、こちらが実際に使われた値)を使う。
+            # 再読み込みのために元ファイルとシートを持つ。シートはダイアログで最後に選ばれたもの
             source_sheet = (
                 preview_dialog.sheet_combo.currentText()
                 if (is_excel and preview_dialog.sheet_combo is not None) else None
             )
-            # フォルダ一括インポート(項目C-104)でファイル名正規表現が指定されて
-            # いれば、ファイル名から抽出した値を新しい列として追加する。
             if self._batch_import_filename_regex:
                 final_df = self._apply_filename_regex_columns(
                     final_df, file_path, self._batch_import_filename_regex
@@ -3579,16 +2953,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     @staticmethod
     def _apply_filename_regex_columns(df, file_path, pattern):
-        """
-        フォルダ一括インポート(項目C-104)で指定した正規表現の名前付きグループ
-        (?P<name>...)を、ファイル名(拡張子込みのbasename)から抽出して新しい列
-        として追加する(各行に同じ値をブロードキャスト)。数値に変換できる値は
-        float列として、できなければ文字列列として追加する。パターンが不正/
-        マッチしない/名前付きグループが無い場合は、インポート自体は継続したい
-        ため例外を投げず元のdfをそのまま返す(呼び出し側のFolderImportDialog
-        でも同じロジックのライブプレビューを見せているため、通常はここで
-        マッチしない事態にはならない想定だが、フォルダ内のファイル名が
-        統一されていないケースへの保険)。
+        """フォルダ一括取り込みの正規表現の名前付きグループを、ファイル名から取り出して列にする。
+
+        数値にできれば float の列。パターンが合わなくても取り込みは続けたいので、そのときは df をそのまま返す。
         """
         try:
             match = re.search(pattern, os.path.basename(file_path))
@@ -3612,17 +2979,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return df
 
     def _on_import_folder(self):
-        """
-        「フォルダから一括インポート...」メニューの処理(項目C-104)。
-
-        フォルダ内の対応拡張子ファイル(サブフォルダは対象外、_all_supported_
-        data_file_extensions()で判定)を集め、FolderImportDialogで対象一覧と
-        任意のファイル名正規表現(測定条件をファイル名から抜き出して新しい
-        列にする)を確認させた上で、既存のドラッグ&ドロップ一括取込み機構
-        (_queue_data_files)にそのまま渡す。列選択・シート選択等のダイアログは
-        ファイルごとに引き続き表示される(複数ファイルドラッグ&ドロップと
-        同じ挙動、フォルダ一括インポート固有の省略はしない)。
-        """
+        """フォルダ内(サブフォルダは除く)の対応ファイルを、確認させてからドラッグ&ドロップと同じ待ち行列に積む。"""
         dir_path = QFileDialog.getExistingDirectory(self, "フォルダから一括インポート", "")
         if not dir_path:
             return
@@ -3653,14 +3010,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._queue_data_files(file_paths)
 
     def _on_paste_data_from_clipboard(self):
-        """
-        「クリップボードから貼り付け」メニューの処理(項目C-102、スマート貼り付け)。
-        Excel/スプレッドシートでコピーしたセル範囲は、クリップボードに
-        タブ区切りテキストとして格納されるのが一般的だが、プレーンテキストの
-        CSV(カンマ区切り)やセミコロン区切りのデータが貼り付けられることもある
-        ため、区切り文字を自動判定する(gui/workers.pyのdetect_clipboard_delimiter、
-        C-101のファイル読み込みウィザードと同じSnifferロジックを共有)。
-        """
+        """区切り文字はファイル読み込みと同じ判定で決める(Excel からのコピーはタブ区切り)。"""
         text = QApplication.clipboard().text()
         if not text.strip():
             QMessageBox.information(self, "クリップボードから貼り付け", "クリップボードにテキストデータがありません。")
@@ -3697,25 +3047,15 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.statusBar().showMessage("クリップボードからデータを貼り付けました", 3000)
 
     def _on_data_load_failed(self, error_message, file_path):
-        """
-        ファイル読み込みに失敗したときに呼ばれるスロット。
-        失敗時も、複数ファイル一括ドラッグ&ドロップ(項目77)のキューが
-        残っていれば次のファイルの読み込みに進む。
-        """
         self._cleanup_data_load_task_runner()
         self.statusBar().clearMessage()
         QMessageBox.critical(self, "エラー", f"読み込みエラー: {error_message}")
         self._process_next_queued_file()
 
     def _localize_navigation_toolbar(self, toolbar):
-        """
-        matplotlib純正のNavigationToolbar2QTが持つボタンのツールチップは、
-        matplotlib側にハードコードされた英語文字列("Reset original view"等)の
-        ため、アプリ全体を日本語化してもここだけ英語のまま残ってしまう。
-        NavigationToolbar2QT._actions(コールバックメソッド名→QActionの辞書、
-        matplotlib内部実装だが長年安定している)経由でツールチップ/ステータス
-        バー文言を差し替える。将来のmatplotlibで_actionsの構造が変わっても
-        アプリがクラッシュしないよう、失敗時は静かに元の英語表示のまま諦める。
+        """matplotlib のツールバーの英語のツールチップを差し替える。
+
+        _actions は matplotlib の内部なので、構造が変わっていたら何もしない(英語のまま)。
         """
         labels = {
             'home': (tr("元の表示に戻す"), tr("最初の表示範囲にリセットします")),
@@ -3741,29 +3081,21 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             action.setStatusTip(status_tip)
 
     def _cleanup_data_load_task_runner(self):
-        """読み込み完了/失敗後の後片付け(UIの再有効化とTaskRunnerの破棄)"""
         self.ui.add_dataset_button.setEnabled(True)
         if self._data_load_task_runner is not None:
             self._data_load_task_runner.wait()
             self._data_load_task_runner.deleteLater()
             self._data_load_task_runner = None
 
-    #==========================================================================
-    # 最近使ったファイル一覧
-    #==========================================================================
-    # プロジェクト(.graphica/.pkl)とデータファイル(csv/xlsx等)の両方をまとめて履歴管理する。
-    # 履歴自体は QSettings で永続化するため、アプリを再起動しても保持される。
 
     def _get_recent_files(self):
-        """QSettings から履歴リスト (新しい順) を取得する"""
         files = self.settings.value("recent_files", [])
         if isinstance(files, str):
-            # QSettings は要素数1のリストを単一の文字列として返すことがあるため補正する
+            # 要素が1つのリストを文字列で返すことがある
             files = [files]
         return list(files) if files else []
 
     def _add_recent_file(self, file_path):
-        """履歴の先頭にファイルパスを追加し、上限件数でトリムして保存する"""
         file_path = os.path.abspath(file_path)
         files = self._get_recent_files()
         if file_path in files:
@@ -3774,7 +3106,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._update_recent_files_menu()
 
     def _update_recent_files_menu(self):
-        """「最近使ったファイル」サブメニューの中身を、現在の履歴に合わせて再構築する"""
         try:
             self.recent_files_menu.clear()
             files = self._get_recent_files()
@@ -3792,14 +3123,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             clear_action = self.recent_files_menu.addAction("履歴をクリア")
             clear_action.triggered.connect(self._on_clear_recent_files)
         except RuntimeError:
-            # ★ ごく稀に、このメニューのC++側オブジェクトが既に破棄されている
-            #   状態でこのメソッドが呼ばれることがある(shiboken6絡みの既知の
-            #   問題、原因箇所は未特定)。実害は「履歴メニューの表示が古いまま」
-            #   程度のため、アプリ全体をクラッシュさせずログに残すだけに留める。
+            # まれにメニューの C++ 側が破棄済みのことがある(PySide6 の回収、原因は未特定)。表示が古いだけなので落とさない
             logger.warning("recent_files_menuの更新に失敗しました(既に破棄されている可能性があります)。", exc_info=True)
 
     def _on_open_recent_file(self, file_path):
-        """「最近使ったファイル」の項目がクリックされたときの処理"""
         if not os.path.exists(file_path):
             QMessageBox.warning(self, "エラー", f"ファイルが見つかりません:\n{file_path}")
             files = self._get_recent_files()
@@ -3817,6 +3144,5 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.load_data(file_path)
 
     def _on_clear_recent_files(self):
-        """「履歴をクリア」がクリックされたときの処理"""
         self.settings.setValue("recent_files", [])
         self._update_recent_files_menu()
