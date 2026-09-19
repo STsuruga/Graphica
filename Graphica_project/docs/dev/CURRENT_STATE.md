@@ -80,7 +80,12 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   testpypi/pypi の作成はユーザーの操作(docs/dev/RELEASE_CHECKLIST.md「PyPI 公開の初回準備」)。
   既存タグ v1.4.2 には publish.yml が無いので、初回の公開は次の版のタグから。
 - I はすべて完了・取り込み済み(PyPI への初回公開はユーザーの初回準備の後、次の版のタグで)。
-- 次: 並行の J-2〜J-4・F-3。
+- J-2 完了(be25363〜5f2dafc、未マージ): H で触らなかったファイルを中心に約70ファイルのコメントと docstring を
+  J-1 の方針で整理(graphica/ 全体の説明行 8,058 → 2,574)。各コミットで scripts/check_comment_only_diff.py が SAME。
+  theme.py の QSS 内コメントは、build_qss() の出力がコメントを除いて一致することで確認。プラグイン向けの公開 API
+  (plugin_api / plugin_context / plugin_testing / plugin_types)は Args/Returns を残す方針なので対象外。
+  画面や生成物に出る文字列の中の項目番号(3か所)は表示の変更になるので K-17 として登録。
+- 次: J-3(使われていないコードを消す)、J-4、F-3。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
