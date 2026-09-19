@@ -199,7 +199,7 @@ class UISetupMixin:
             self.ui.plot_type_combo.currentTextChanged.connect(self._update_smoothing_control_visibility)
             # ★ 誤差表示コンボの「誤差バンド」項目(Bar/Areaでは無効化)も同様。
             self.ui.plot_type_combo.currentTextChanged.connect(self._update_error_display_control_items)
-            self.color_picker_widget.colorChanged.connect(self._on_dataset_color_changed)
+            self.color_picker_widget.colorChanged.connect(self.colors.on_color_changed)
             self.ui.linestyle_combo.currentTextChanged.connect(self._on_property_changed)
             self.ui.linewidth_spinbox.valueChanged.connect(self._on_property_changed)
             self.ui.marker_combo.currentTextChanged.connect(self._on_property_changed)
@@ -216,7 +216,7 @@ class UISetupMixin:
             self.gradient_checkbox.toggled.connect(self._on_property_changed)
             # チェックのON/OFFで終端色/対象コンボの表示・非表示も切り替える
             self.gradient_checkbox.toggled.connect(self._update_gradient_controls_visibility)
-            self.gradient_color2_picker.colorChanged.connect(self._on_gradient_color2_changed)
+            self.gradient_color2_picker.colorChanged.connect(self.colors.on_gradient_color2_changed)
             self.gradient_target_combo.currentIndexChanged.connect(self._on_property_changed)
             # ウォーターフォールプロット(項目80、項目109でplot_typeとは独立したフラグに変更)
             self.waterfall_checkbox.toggled.connect(self._on_property_changed)
@@ -250,9 +250,9 @@ class UISetupMixin:
             self.subplot_target_combo.currentIndexChanged.connect(self._on_subplot_target_changed)
 
             self.duplicate_dataset_button.clicked.connect(self._on_duplicate_dataset)
-            self.auto_color_button.clicked.connect(self._on_auto_assign_colors)
-            self.manage_palette_action.triggered.connect(self._on_manage_color_palettes)
-            self.colormap_assign_action.triggered.connect(self._on_auto_assign_colors_from_colormap)
+            self.auto_color_button.clicked.connect(self.colors.auto_assign_colors)
+            self.manage_palette_action.triggered.connect(self.colors.manage_palettes)
+            self.colormap_assign_action.triggered.connect(self.colors.auto_assign_colors_from_colormap)
             self.view_edit_data_button.clicked.connect(self._on_show_data_editor)
 
             self.x_col_combo.currentTextChanged.connect(self._on_plot_column_changed)

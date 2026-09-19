@@ -195,6 +195,7 @@ from graphica.core.version import APP_NAME, __version__
 from graphica.core.i18n import tr, set_language, DEFAULT_LANGUAGE
 from graphica.core.plugin_api import load_plugins_once, get_registered_importer_extensions
 from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui.datasets.colors import ColorController
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.peaks import PeakController
@@ -651,6 +652,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # (DataEditorDialog 内のセル編集用スタックとは別物)
         self.undo_stack = QUndoStack(self)
 
+        # データセットに対する操作を機能ごとに分けたクラス。窓口(DatasetHost)は本体に使うときに触れるので、
+        # 画面を組み立てる前に作っておける(組み立ての途中からも使われる)。
+        self._dataset_host = DatasetHost(self)
+        self.peaks = PeakController(self._dataset_host)
+        self.fitting = FittingController(self._dataset_host)
+        self.processing = ProcessingController(self._dataset_host)
+        self.colors = ColorController(self._dataset_host)
+
         # オートセーブ用タイマーの設定 (間隔は設定から復元。0分なら無効化されたまま)
         # ★ _create_menu_bar() がメニューの初期表示テキストのために参照するため、
         #   メニュー作成より前にここで用意しておく必要がある。
@@ -1082,8 +1091,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             _svg_icon("color-swatch", size=16), tr("登録した色を適用"))
         self._named_color_apply_menu_action = self._named_color_apply_menu.menuAction()
         self._named_color_apply_menu.aboutToShow.connect(
-            self._populate_named_color_apply_menu)
-        self._populate_named_color_apply_menu()
+            self.colors.populate_named_color_menu)
+        self.colors.populate_named_color_menu()
         self.dataset_overflow_button.setMenu(overflow_menu)
         self.ui.horizontalLayout_3.addWidget(self.dataset_overflow_button)
 
@@ -2025,12 +2034,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # プラグインへの窓口は (このタブ, プラグイン) ごとに1つ。
         self._plugin_contexts = {}
-
-        # データセットに対する操作を機能ごとに分けたクラス。シグナルの接続より前に作る。
-        self._dataset_host = DatasetHost(self)
-        self.peaks = PeakController(self._dataset_host)
-        self.fitting = FittingController(self._dataset_host)
-        self.processing = ProcessingController(self._dataset_host)
 
         # プラグインのパネル。メニューに表示切替を足すのは _create_menu_bar() なので、
         # ドックはそれより前に作る。1つ失敗しても他のパネルとタブの起動は続ける。

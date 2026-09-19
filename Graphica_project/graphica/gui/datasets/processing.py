@@ -23,8 +23,6 @@ from graphica.gui.dialogs import (ResultDialog, ColumnCalculatorDialog, DatasetA
 logger = logging.getLogger(__name__)
 
 # カスタム配色パレットをQSettingsに保存する際のキー
-COLOR_PALETTES_SETTINGS_KEY = "custom_color_palettes_json"
-ACTIVE_PALETTE_SETTINGS_KEY = "active_color_palette"
 
 # エラーバー用の誤差列コンボボックスで「誤差列を使わない」ことを表す選択肢
 NO_ERROR_COLUMN_LABEL = "(なし)"

@@ -104,4 +104,13 @@ class DatasetHost:
         self._app._update_ui_state()
 
     def active_color_cycle(self):
-        return self._app._get_active_color_cycle()
+        return self._app.colors.active_color_cycle()
+
+    @property
+    def settings(self):
+        """アプリ全体の設定(QSettings)。"""
+        return self._app.settings
+
+    def push_property_change(self, dataset, old_values, new_values, description):
+        """データセットの属性の変更を Undo できる形で積む(変化が無ければ何もしない)。"""
+        self._app._push_dataset_property_command(dataset, old_values, new_values, description)

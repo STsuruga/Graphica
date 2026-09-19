@@ -201,7 +201,7 @@ def test_named_colors_use_a_separate_key_from_the_palette_manager():
     ★ 配色パレット(順序付きの色のリスト)とは目的が違うので、同じキーに
     相乗りさせない。混ぜるとパレット管理側の意味が壊れる。
     """
-    from graphica.gui.mixins.dataset_mixin import COLOR_PALETTES_SETTINGS_KEY
+    from graphica.gui.datasets.colors import COLOR_PALETTES_SETTINGS_KEY
     assert NAMED_COLORS_SETTINGS_KEY != COLOR_PALETTES_SETTINGS_KEY
 
 
@@ -350,7 +350,7 @@ def test_the_gradient_end_colour_picker_gets_the_feature_too(window):
 # --- 一括適用 ---
 
 def test_apply_menu_shows_a_disabled_hint_when_nothing_is_registered(window):
-    window._populate_named_color_apply_menu()
+    window.colors.populate_named_color_menu()
 
     actions = window._named_color_apply_menu.actions()
     assert len(actions) == 1
@@ -359,14 +359,14 @@ def test_apply_menu_shows_a_disabled_hint_when_nothing_is_registered(window):
 
 def test_apply_menu_lists_registered_colors_in_order(window):
     _seed(window, [("試料B", "#d62728"), ("試料A", "#1f77b4")])
-    window._populate_named_color_apply_menu()
+    window.colors.populate_named_color_menu()
 
     texts = [a.text() for a in window._named_color_apply_menu.actions()]
     assert texts == ["試料B\t#d62728", "試料A\t#1f77b4"]
 
 
 def test_apply_menu_is_rebuilt_when_the_registry_changes(window):
-    window._populate_named_color_apply_menu()
+    window.colors.populate_named_color_menu()
     _seed(window, [("試料A", "#1f77b4")])
 
     window._named_color_apply_menu.aboutToShow.emit()
@@ -381,7 +381,7 @@ def test_applying_to_several_datasets_is_one_undo_step(window):
     before_colors = [d.color for d in datasets]
     before_count = window.undo_stack.count()
 
-    window._apply_named_color_to_selection("#d62728", "試料B")
+    window.colors.apply_named_color_to_selection("#d62728", "試料B")
     _pump()
 
     assert [d.color for d in datasets] == ["#d62728"] * 3
@@ -403,7 +403,7 @@ def test_applying_a_colour_everything_already_has_does_not_push_an_undo(window):
     current = datasets[0].color
     before_count = window.undo_stack.count()
 
-    window._apply_named_color_to_selection(current, "同じ色")
+    window.colors.apply_named_color_to_selection(current, "同じ色")
     _pump()
 
     assert window.undo_stack.count() == before_count
@@ -415,7 +415,7 @@ def test_applying_with_no_selection_does_nothing(window):
     _pump()
     before_count = window.undo_stack.count()
 
-    window._apply_named_color_to_selection("#d62728", "試料B")
+    window.colors.apply_named_color_to_selection("#d62728", "試料B")
     _pump()
 
     assert window.undo_stack.count() == before_count
@@ -504,7 +504,7 @@ def _seed_many(window, count):
 
 def test_apply_menu_shows_all_entries_when_within_the_limit(window):
     _seed_many(window, POPUP_LIMIT)
-    window._populate_named_color_apply_menu()
+    window.colors.populate_named_color_menu()
 
     actions = window._named_color_apply_menu.actions()
     assert len(actions) == POPUP_LIMIT
@@ -518,7 +518,7 @@ def test_apply_menu_caps_the_list_and_offers_the_rest(window):
     """
     total = POPUP_LIMIT + 7
     _seed_many(window, total)
-    window._populate_named_color_apply_menu()
+    window.colors.populate_named_color_menu()
 
     actions = window._named_color_apply_menu.actions()
     assert len(actions) == POPUP_LIMIT + 1

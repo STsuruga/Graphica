@@ -21,6 +21,7 @@ from PySide6.QtCore import QSettings, QPoint, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox
 
+import graphica.gui.datasets.colors as colors_module
 import graphica.gui.datasets.processing as processing_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.datasets.fitting as fitting_module
@@ -142,7 +143,7 @@ def _patch_dialog_result(monkeypatch, module_attr_name, base_cls, method_name, v
 
 def _module_that_uses(name):
     """DatasetMixin から機能ごとのクラスへ移したコードは、そのモジュールで名前を引く。"""
-    for module in (processing_module, fitting_module, dataset_mixin_module):
+    for module in (processing_module, fitting_module, colors_module, dataset_mixin_module):
         if hasattr(module, name):
             return module
     raise AttributeError(name)
@@ -352,7 +353,7 @@ def test_colormap_auto_assign_applies_evenly_sampled_colors(tmp_path, monkeypatc
     window.ui.dataset_list_widget.selectAll()
 
     _patch_colormap_choice(monkeypatch, "viridis")
-    window._on_auto_assign_colors_from_colormap()
+    window.colors.auto_assign_colors_from_colormap()
 
     cmap = mpl.colormaps["viridis"]
     expected = [mpl.colors.to_hex(cmap(p)) for p in (0.0, 0.5, 1.0)]
@@ -366,7 +367,7 @@ def test_colormap_auto_assign_single_dataset_uses_midpoint_color(tmp_path, monke
     _add_and_select_dataset(window, ds)
 
     _patch_colormap_choice(monkeypatch, "plasma")
-    window._on_auto_assign_colors_from_colormap()
+    window.colors.auto_assign_colors_from_colormap()
 
     cmap = mpl.colormaps["plasma"]
     assert ds.color == mpl.colors.to_hex(cmap(0.5))
@@ -379,7 +380,7 @@ def test_colormap_auto_assign_cancelled_leaves_colors_unchanged(tmp_path, monkey
     original_color = ds.color
 
     _patch_colormap_choice(monkeypatch, "viridis", accepted=False)
-    window._on_auto_assign_colors_from_colormap()
+    window.colors.auto_assign_colors_from_colormap()
 
     assert ds.color == original_color
 
@@ -391,7 +392,7 @@ def test_colormap_auto_assign_no_selection_does_nothing(tmp_path, monkeypatch):
         dataset_mixin_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: calls.append(1) or ("viridis", True))
     )
-    window._on_auto_assign_colors_from_colormap()
+    window.colors.auto_assign_colors_from_colormap()
     assert calls == []  # ダイアログ自体を出さずに早期returnする
 
 
@@ -3423,13 +3424,13 @@ def test_smoothing_method_included_in_style_copy_paste(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 色変更 (_on_dataset_color_changed / _on_gradient_color2_changed)
+# 色変更 (ColorController.on_color_changed / on_gradient_color2_changed)
 # =============================================================================
 
 def test_dataset_color_changed_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_dataset_color_changed("#ff0000")
+    window.colors.on_color_changed("#ff0000")
     assert window.undo_stack.count() == before_count
 
 
@@ -3439,7 +3440,7 @@ def test_dataset_color_changed_single_dataset_undoable(tmp_path, monkeypatch):
     original_color = ds.color
     _add_and_select_dataset(window, ds)
 
-    window._on_dataset_color_changed("#ff0000")
+    window.colors.on_color_changed("#ff0000")
 
     assert ds.color == "#ff0000"
     window.undo_stack.undo()
@@ -3453,7 +3454,7 @@ def test_dataset_color_changed_batch_macro(tmp_path, monkeypatch):
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
 
-    window._on_dataset_color_changed("#00ff00")
+    window.colors.on_color_changed("#00ff00")
 
     assert all(ds.color == "#00ff00" for ds in datasets)
     window.undo_stack.undo()
@@ -3465,7 +3466,7 @@ def test_gradient_color2_changed_single_dataset_undoable(tmp_path, monkeypatch):
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
 
-    window._on_gradient_color2_changed("#123123")
+    window.colors.on_gradient_color2_changed("#123123")
 
     assert ds.gradient_color2 == "#123123"
     window.undo_stack.undo()
@@ -3475,7 +3476,7 @@ def test_gradient_color2_changed_single_dataset_undoable(tmp_path, monkeypatch):
 def test_gradient_color2_changed_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_gradient_color2_changed("#123123")
+    window.colors.on_gradient_color2_changed("#123123")
     assert window.undo_stack.count() == before_count
 
 
@@ -3486,7 +3487,7 @@ def test_gradient_color2_changed_no_selection_does_nothing(tmp_path, monkeypatch
 def test_auto_assign_colors_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_auto_assign_colors()
+    window.colors.auto_assign_colors()
     assert window.undo_stack.count() == before_count
 
 
@@ -3494,9 +3495,9 @@ def test_auto_assign_colors_single_dataset(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    cycle = window._get_active_color_cycle()
+    cycle = window.colors.active_color_cycle()
 
-    window._on_auto_assign_colors()
+    window.colors.auto_assign_colors()
 
     assert ds.color == cycle[0]
 
@@ -3507,9 +3508,9 @@ def test_auto_assign_colors_batch_cycles_and_is_undoable(tmp_path, monkeypatch):
     for ds in datasets:
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
-    cycle = window._get_active_color_cycle()
+    cycle = window.colors.active_color_cycle()
 
-    window._on_auto_assign_colors()
+    window.colors.auto_assign_colors()
 
     for i, ds in enumerate(datasets):
         assert ds.color == cycle[i % len(cycle)]
@@ -3520,60 +3521,60 @@ def test_auto_assign_colors_batch_cycles_and_is_undoable(tmp_path, monkeypatch):
 
 # =============================================================================
 # カラーパレット設定
-# (_load_color_palettes / _save_color_palettes / _get_active_color_cycle / _on_manage_color_palettes)
+# (ColorController.load_palettes / save_palettes / active_color_cycle / manage_palettes)
 # =============================================================================
 
 def test_load_color_palettes_empty_by_default(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    assert window._load_color_palettes() == {}
+    assert window.colors.load_palettes() == {}
 
 
 def test_save_and_load_color_palettes_round_trip(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     palettes = {"my_palette": ["#111111", "#222222"]}
 
-    window._save_color_palettes(palettes)
+    window.colors.save_palettes(palettes)
 
-    assert window._load_color_palettes() == palettes
+    assert window.colors.load_palettes() == palettes
 
 
 def test_load_color_palettes_corrupted_json_returns_empty(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(dataset_mixin_module.COLOR_PALETTES_SETTINGS_KEY, "{not valid json")
+    window.settings.setValue(colors_module.COLOR_PALETTES_SETTINGS_KEY, "{not valid json")
 
-    assert window._load_color_palettes() == {}
+    assert window.colors.load_palettes() == {}
 
 
 def test_get_active_color_cycle_default_uses_matplotlib_cycle(tmp_path, monkeypatch):
     import matplotlib as mpl
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     expected = mpl.rcParams['axes.prop_cycle'].by_key()['color']
-    assert window._get_active_color_cycle() == expected
+    assert window.colors.active_color_cycle() == expected
 
 
 def test_get_active_color_cycle_uses_custom_active_palette(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._save_color_palettes({"custom": ["#aaaaaa", "#bbbbbb"]})
-    window.settings.setValue(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY, "custom")
+    window.colors.save_palettes({"custom": ["#aaaaaa", "#bbbbbb"]})
+    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "custom")
 
-    assert window._get_active_color_cycle() == ["#aaaaaa", "#bbbbbb"]
+    assert window.colors.active_color_cycle() == ["#aaaaaa", "#bbbbbb"]
 
 
 def test_get_active_color_cycle_uses_builtin_palette(tmp_path, monkeypatch):
     """項目141(C-804): 組み込みの論文向けパレットもアクティブ名で解決できる。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY, "Tableau 10")
+    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "Tableau 10")
 
-    assert window._get_active_color_cycle() == BUILTIN_PALETTES["Tableau 10"]
+    assert window.colors.active_color_cycle() == BUILTIN_PALETTES["Tableau 10"]
 
 
 def test_get_active_color_cycle_falls_back_when_active_palette_missing(tmp_path, monkeypatch):
     import matplotlib as mpl
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY, "deleted_palette")
+    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "deleted_palette")
     expected = mpl.rcParams['axes.prop_cycle'].by_key()['color']
 
-    assert window._get_active_color_cycle() == expected
+    assert window.colors.active_color_cycle() == expected
 
 
 def test_manage_color_palettes_saves_result_on_accept(tmp_path, monkeypatch):
@@ -3584,10 +3585,10 @@ def test_manage_color_palettes_saves_result_on_accept(tmp_path, monkeypatch):
         (new_palettes, "mine")
     )
 
-    window._on_manage_color_palettes()
+    window.colors.manage_palettes()
 
-    assert window._load_color_palettes() == new_palettes
-    assert window.settings.value(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY) == "mine"
+    assert window.colors.load_palettes() == new_palettes
+    assert window.settings.value(colors_module.ACTIVE_PALETTE_SETTINGS_KEY) == "mine"
 
 
 def test_manage_color_palettes_cancelled_does_not_save(tmp_path, monkeypatch):
@@ -3597,9 +3598,9 @@ def test_manage_color_palettes_cancelled_does_not_save(tmp_path, monkeypatch):
         ({"mine": ["#010101"]}, "mine"), accepted=False
     )
 
-    window._on_manage_color_palettes()
+    window.colors.manage_palettes()
 
-    assert window._load_color_palettes() == {}
+    assert window.colors.load_palettes() == {}
 
 
 # =============================================================================

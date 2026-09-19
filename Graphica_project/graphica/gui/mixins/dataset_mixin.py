@@ -14,12 +14,10 @@ _add_dataset_list_item / _add_dataset_folder_item 参照)。
 経由する。これによりフォルダのネストがあっても正しくデータセットだけを扱える。
 """
 import copy
-import json
 import logging
 import os
 import re
 import uuid
-import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
@@ -27,8 +25,6 @@ from PySide6.QtWidgets import (QApplication, QDialog, QMessageBox, QFileDialog, 
 
 from graphica.core.analysis import (sample_standard_deviation)
 from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand, SetAnnotationsCommand)
-from graphica.core.color_palettes import BUILTIN_PALETTES
-from graphica.core.named_colors import POPUP_LIMIT, load_named_colors
 from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
 from graphica.core.label_utils import infer_axis_label_from_column_name
 from graphica.core.methods_text import generate_methods_text
@@ -36,8 +32,7 @@ from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
 from graphica.core.plugin_api import get_registered_importer_extensions
 from graphica.core.plugin_types import AnalysisResult, PluginExecutionError
 from graphica.gui.data_editor import DataEditorDialog
-from graphica.gui.dialogs import (ResultDialog, ColorPaletteDialog,
-                         NewDatasetDialog,
+from graphica.gui.dialogs import (ResultDialog, NewDatasetDialog,
                          PluginParamDialog,
                          InsetDialog)
 from graphica.gui.dataset_style_icon import (
@@ -48,8 +43,6 @@ from graphica.gui.dataset_style_icon import (
 logger = logging.getLogger(__name__)
 
 # カスタム配色パレットをQSettingsに保存する際のキー
-COLOR_PALETTES_SETTINGS_KEY = "custom_color_palettes_json"
-ACTIVE_PALETTE_SETTINGS_KEY = "active_color_palette"
 
 # エラーバー用の誤差列コンボボックスで「誤差列を使わない」ことを表す選択肢
 NO_ERROR_COLUMN_LABEL = "(なし)"
@@ -1336,57 +1329,6 @@ class DatasetMixin:
         if is_batch:
             self.undo_stack.endMacro()
 
-    def _on_dataset_color_changed(self, new_color):
-        """
-        データセットの色選択ウィジェット (color_picker_widget、項目65) で
-        色が変更されたときの処理。スウォッチのパレット展開・カラーコード欄への
-        直接入力のどちらの経路でも呼ばれる (色選択・表示更新自体はウィジェット側で
-        完結済みのため、ここでは選ばれた色をDatasetに適用するだけでよい)。
-        複数のデータセットが選択されている場合は、全てに同じ色を適用し、
-        1回のUndo/Redoでまとめて元に戻せるようにする。
-        """
-        selected_datasets = self._get_selected_datasets()
-        if not selected_datasets:
-            return
-
-        # Undo/Redo可能なコマンドとして発行
-        #    複数選択時は beginMacro/endMacro で1つの操作としてまとめる
-        is_batch = len(selected_datasets) > 1
-        if is_batch:
-            self.undo_stack.beginMacro(f"データセットの色を一括変更 ({len(selected_datasets)}件)")
-        for dataset in selected_datasets:
-            self._push_dataset_property_command(
-                dataset,
-                {'color': dataset.color},
-                {'color': new_color},
-                description="データセットの色変更"
-            )
-        if is_batch:
-            self.undo_stack.endMacro()
-
-    def _on_gradient_color2_changed(self, new_color):
-        """
-        グラデーション終端色ウィジェット (gradient_color2_picker、項目79) で
-        色が変更されたときの処理。_on_dataset_color_changed (開始色=color) と
-        同様のUndo/Redo・複数選択一括適用パターンを、gradient_color2に対して行う。
-        """
-        selected_datasets = self._get_selected_datasets()
-        if not selected_datasets:
-            return
-
-        is_batch = len(selected_datasets) > 1
-        if is_batch:
-            self.undo_stack.beginMacro(f"グラデーション終端色を一括変更 ({len(selected_datasets)}件)")
-        for dataset in selected_datasets:
-            self._push_dataset_property_command(
-                dataset,
-                {'gradient_color2': dataset.gradient_color2},
-                {'gradient_color2': new_color},
-                description="グラデーション終端色の変更"
-            )
-        if is_batch:
-            self.undo_stack.endMacro()
-
     def _update_gradient_controls_visibility(self):
         """
         プロットへのグラデーション適用(項目79)のUIコントロールの表示/非表示を、
@@ -1508,183 +1450,6 @@ class DatasetMixin:
         self.waterfall_depth_ratio_label.setVisible(show_depth_ratio)
         self.waterfall_depth_ratio_spinbox.setVisible(show_depth_ratio)
         self._update_property_section_visibility()
-
-    def _on_auto_assign_colors(self):
-        """
-        「自動配色」ボタンが押されたときの処理。
-        選択中の(複数可)データセットに、現在アクティブなカラーパレット
-        (ユーザーが「パレット管理」で作成したもの、または既定のmatplotlibの
-        カラーサイクル) を順番に自動で割り当てる。
-        手動で1つずつ色を選ぶ手間を省くための一括操作。
-        """
-        selected_datasets = self._get_selected_datasets()
-        if not selected_datasets:
-            return
-
-        color_cycle = self._get_active_color_cycle()
-
-        is_batch = len(selected_datasets) > 1
-        if is_batch:
-            self.undo_stack.beginMacro(f"配色の自動割り当て ({len(selected_datasets)}件)")
-        for i, dataset in enumerate(selected_datasets):
-            new_color = color_cycle[i % len(color_cycle)]
-            self._push_dataset_property_command(
-                dataset,
-                {'color': dataset.color},
-                {'color': new_color},
-                description="配色の自動割り当て"
-            )
-        if is_batch:
-            self.undo_stack.endMacro()
-
-    def _populate_named_color_apply_menu(self):
-        """
-        オーバーフローメニューの「登録した色を適用 ▶」の中身を詰め直す。
-
-        登録内容は「色名の管理」でいつでも変わるので、開くたびに作り直す
-        (データセットメニューと同じ方式)。1件も登録が無いときは、無効化した
-        案内項目を1つだけ出す — 空のサブメニューを開いて何も無いより、
-        「どこで登録するのか」が分かる方が親切なため。
-        """
-        menu = getattr(self, '_named_color_apply_menu', None)
-        if menu is None:
-            return
-        menu.clear()
-        entries = load_named_colors(self.settings)
-        if not entries:
-            empty_action = menu.addAction("(登録がありません)")
-            empty_action.setEnabled(False)
-            return
-        # 色欄のポップアップと同じく、並べるのは先頭 POPUP_LIMIT 件まで。
-        for entry in entries[:POPUP_LIMIT]:
-            action = menu.addAction(
-                _named_color_menu_icon(entry["color"]),
-                f'{entry["name"]}	{entry["color"]}')
-            action.triggered.connect(
-                lambda checked=False, c=entry["color"], n=entry["name"]:
-                    self._apply_named_color_to_selection(c, n))
-        if len(entries) > POPUP_LIMIT:
-            more_action = menu.addAction(f"すべての登録色... ({len(entries)}件)")
-            more_action.triggered.connect(self._on_apply_named_color_from_list)
-
-    def _on_apply_named_color_from_list(self):
-        """登録が POPUP_LIMIT 件を超えたときに、検索欄付きの一覧から選んで適用する。"""
-        from graphica.gui.dialogs import NamedColorPickerDialog
-        dialog = NamedColorPickerDialog(self.settings, self, title="登録色を適用")
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        entry = dialog.selected_entry()
-        if entry:
-            self._apply_named_color_to_selection(entry["color"], entry["name"])
-
-    def _apply_named_color_to_selection(self, color, name):
-        """
-        登録した色を、選択中の(複数可)データセットへまとめて適用する。
-        N件の変更が Undo 1回で戻るのは「自動配色」と同じ
-        (_on_auto_assign_colors と同じ beginMacro の型)。
-        """
-        selected_datasets = self._get_selected_datasets()
-        if not selected_datasets:
-            self.statusBar().showMessage("データセットを選択してください。", 4000)
-            return
-
-        # ★ 既にその色のものを先に除く。空のままbeginMacro/endMacroすると、
-        #   Qtは「中身ゼロのマクロ」をそのままスタックへ積むため、何も変わって
-        #   いないのにUndoが1回分増える(押しても何も起きないUndoができてしまう)。
-        targets = [ds for ds in selected_datasets if ds.color != color]
-        if not targets:
-            self.statusBar().showMessage(f"選択中のデータセットは既に「{name}」の色です。", 4000)
-            return
-
-        is_batch = len(targets) > 1
-        if is_batch:
-            self.undo_stack.beginMacro(f"「{name}」の色を適用 ({len(targets)}件)")
-        for dataset in targets:
-            self._push_dataset_property_command(
-                dataset,
-                {'color': dataset.color},
-                {'color': color},
-                description=f"「{name}」の色を適用",
-            )
-        if is_batch:
-            self.undo_stack.endMacro()
-
-    def _on_auto_assign_colors_from_colormap(self):
-        """
-        「カラーマップから自動配色...」メニューの処理(項目C-805)。
-        _on_auto_assign_colors が離散パレットを順番に割り当てるのに対し、
-        こちらは連続カラーマップ(viridis等)から選択中のデータセット数ぶんを
-        均等サンプリングして割り当てる。時系列/濃度変化など、順序に意味のある
-        系列をグラデーションで表現したい場合向け。
-        """
-        selected_datasets = self._get_selected_datasets()
-        if not selected_datasets:
-            return
-
-        cmap_name, ok = QInputDialog.getItem(
-            self, "カラーマップから自動配色", "使用するカラーマップを選択してください:",
-            RECOMMENDED_COLORMAPS, 0, False
-        )
-        if not ok:
-            return
-
-        cmap = mpl.colormaps[cmap_name]
-        n = len(selected_datasets)
-        # n==1のときの0除算を避ける(1件ならカラーマップの中央値を使う)
-        positions = [0.5] if n == 1 else [i / (n - 1) for i in range(n)]
-        new_colors = [mpl.colors.to_hex(cmap(p)) for p in positions]
-
-        is_batch = n > 1
-        if is_batch:
-            self.undo_stack.beginMacro(f"カラーマップからの配色 ({n}件)")
-        for dataset, new_color in zip(selected_datasets, new_colors):
-            self._push_dataset_property_command(
-                dataset, {'color': dataset.color}, {'color': new_color},
-                description="カラーマップからの配色"
-            )
-        if is_batch:
-            self.undo_stack.endMacro()
-
-    def _load_color_palettes(self):
-        """QSettingsに保存されているカスタム配色パレット一式を辞書として読み込む"""
-        raw = self.settings.value(COLOR_PALETTES_SETTINGS_KEY, "")
-        if not raw:
-            return {}
-        try:
-            return json.loads(raw)
-        except (TypeError, ValueError):
-            logger.warning("カスタム配色パレットの読み込みに失敗しました。空として扱います。")
-            return {}
-
-    def _save_color_palettes(self, palettes: dict):
-        """カスタム配色パレット一式をQSettingsに保存する"""
-        self.settings.setValue(COLOR_PALETTES_SETTINGS_KEY, json.dumps(palettes))
-
-    def _get_active_color_cycle(self):
-        """
-        現在アクティブなパレットの色リストを返す。
-        パレットが未設定、または空の場合はmatplotlibの既定カラーサイクルにフォールバックする。
-        組み込みの論文向けパレット(項目141、C-804、BUILTIN_PALETTES)も
-        ユーザーのカスタムパレットと同じ扱いで名前解決する。
-        """
-        active_name = self.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
-        if active_name in BUILTIN_PALETTES:
-            return BUILTIN_PALETTES[active_name]
-        palettes = self._load_color_palettes()
-        if active_name != ColorPaletteDialog.DEFAULT_PALETTE_NAME and palettes.get(active_name):
-            return palettes[active_name]
-        return mpl.rcParams['axes.prop_cycle'].by_key()['color']
-
-    def _on_manage_color_palettes(self):
-        """「パレット管理...」ボタンが押されたときの処理。ダイアログで編集後、設定に保存する。"""
-        palettes = self._load_color_palettes()
-        active_name = self.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
-
-        dialog = ColorPaletteDialog(palettes, active_name, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            new_palettes, new_active_name = dialog.get_result()
-            self._save_color_palettes(new_palettes)
-            self.settings.setValue(ACTIVE_PALETTE_SETTINGS_KEY, new_active_name)
 
     def _update_ui_state(self):
         """
@@ -2378,8 +2143,3 @@ class DatasetMixin:
             )
         if is_batch:
             self.undo_stack.endMacro()
-
-def _named_color_menu_icon(color_name, size=16):
-    """「登録した色を適用」メニューの色見本(色欄のポップアップと同じ描き方)。"""
-    from graphica.gui.color_picker_widget import _color_icon
-    return _color_icon(color_name, size=size)
