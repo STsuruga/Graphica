@@ -273,7 +273,7 @@ class ProcessingController:
             return
 
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
-        dialog = NormalizeDatasetDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self)
+        dialog = NormalizeDatasetDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         mode, reference_x, output_name = dialog.get_settings()
@@ -330,7 +330,7 @@ class ProcessingController:
             QMessageBox.warning(self._host.parent_widget, "Savitzky-Golayフィルタ", "有効なデータ点が不足しています。")
             return
 
-        dialog = SavGolDialog(original_dataset.name, max_window=len(x_data), parent=self)
+        dialog = SavGolDialog(original_dataset.name, max_window=len(x_data), parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         window_length, polyorder, deriv, output_name = dialog.get_settings()
@@ -380,7 +380,7 @@ class ProcessingController:
             return
 
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
-        dialog = BaselineCorrectionDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self)
+        dialog = BaselineCorrectionDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         method, params, output_name, add_baseline_dataset = dialog.get_settings()
@@ -454,7 +454,7 @@ class ProcessingController:
             return
 
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
-        dialog = IntervalIntegralDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self)
+        dialog = IntervalIntegralDialog(original_dataset.name, x_min=x_min, x_max=x_max, parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         method, x_range, subtract_baseline = dialog.get_settings()
@@ -511,7 +511,7 @@ class ProcessingController:
             QMessageBox.warning(self._host.parent_widget, "累積積分", "有効なデータ点が不足しています(最低2点必要)。")
             return
 
-        dialog = CumulativeIntegralDialog(original_dataset.name, parent=self)
+        dialog = CumulativeIntegralDialog(original_dataset.name, parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         method, output_name = dialog.get_settings()
@@ -665,7 +665,7 @@ class ProcessingController:
 
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
         dialog = ResampleDatasetDialog(
-            original_dataset.name, other_dataset_names, x_min=x_min, x_max=x_max, parent=self
+            original_dataset.name, other_dataset_names, x_min=x_min, x_max=x_max, parent=self._host.parent_widget
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -747,7 +747,7 @@ class ProcessingController:
             return
         default_column = original_dataset.y_col_name if original_dataset.y_col_name in numeric_columns else numeric_columns[0]
 
-        dialog = HistogramKDEDialog(original_dataset.name, numeric_columns, default_column=default_column, parent=self)
+        dialog = HistogramKDEDialog(original_dataset.name, numeric_columns, default_column=default_column, parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         settings = dialog.get_settings()
@@ -807,7 +807,7 @@ class ProcessingController:
             QMessageBox.information(self._host.parent_widget, "重複X値の検出", "重複するX値を持つ行は見つかりませんでした。")
             return
 
-        dialog = DuplicateXDialog(original_dataset.name, n_duplicate_rows, parent=self)
+        dialog = DuplicateXDialog(original_dataset.name, n_duplicate_rows, parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         mode, output_name = dialog.get_settings()
@@ -864,7 +864,7 @@ class ProcessingController:
         if original_dataset is None:
             return
 
-        dialog = RowFilterDialog(original_dataset.df.columns.tolist(), parent=self)
+        dialog = RowFilterDialog(original_dataset.df.columns.tolist(), parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         formula = dialog.get_formula()
@@ -923,7 +923,7 @@ class ProcessingController:
             QMessageBox.warning(self._host.parent_widget, "外れ値検出", "有効なデータ点が不足しています(最低2点必要)。")
             return
 
-        dialog = OutlierDetectionDialog(original_dataset.name, parent=self)
+        dialog = OutlierDetectionDialog(original_dataset.name, parent=self._host.parent_widget)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         method, value, apply_to_mask = dialog.get_settings()

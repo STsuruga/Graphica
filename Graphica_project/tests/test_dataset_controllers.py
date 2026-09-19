@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 import graphica.gui.datasets as datasets_package
 from graphica.core.dataset import Dataset
 from graphica.gui.datasets import colors as colors_module
+from graphica.gui.datasets import processing as processing_module
 import graphica.gui.main_window as main_window_module
 from graphica.gui.main_window import PlotterApp
 
@@ -29,7 +30,8 @@ def _calls_passing_bare_self(path):
             continue
         if isinstance(node.func, ast.Name) and node.func.id in ALLOWED_SELF_CALLS:
             continue
-        if any(isinstance(arg, ast.Name) and arg.id == "self" for arg in node.args):
+        values = list(node.args) + [keyword.value for keyword in node.keywords]
+        if any(isinstance(value, ast.Name) and value.id == "self" for value in values):
             found.append(f"{path.name}:{node.lineno}")
     return found
 
@@ -67,5 +69,25 @@ def test_colormap_dialog_gets_the_window_as_parent(tmp_path, monkeypatch):
     window.ui.dataset_list_widget.selectAll()
 
     window.colors.auto_assign_colors_from_colormap()
+
+    assert parents and isinstance(parents[0], QWidget)
+
+
+def test_normalize_dialog_gets_the_window_as_parent(tmp_path, monkeypatch):
+    window = _make_window(tmp_path, monkeypatch)
+    df = pd.DataFrame({"x": [0, 1, 2], "y": [1.0, 2.0, 3.0]})
+    window._add_dataset(Dataset(name="a", df=df, x_col_name="x", y_col_name="y"), None, select=True)
+    parents = []
+
+    class FakeDialog:
+        def __init__(self, *args, parent=None, **kwargs):
+            parents.append(parent)
+
+        def exec(self):
+            return 0
+
+    monkeypatch.setattr(processing_module, "NormalizeDatasetDialog", FakeDialog)
+
+    window.processing.normalize()
 
     assert parents and isinstance(parents[0], QWidget)
