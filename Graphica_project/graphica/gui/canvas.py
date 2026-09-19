@@ -1,9 +1,9 @@
 import json
 import logging
+from typing import NamedTuple
 import numpy as np
 import pandas as pd
 from scipy.interpolate import CubicSpline
-from scipy.stats import gaussian_kde
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -16,8 +16,8 @@ import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
 from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
+from graphica.gui.plot_type_drawers import BUILTIN_PLOT_TYPE_DRAWERS
 from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
-from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
                            calculate_median_smooth, calculate_gaussian_smooth,
                            sample_standard_deviation)
@@ -63,6 +63,48 @@ def _waterfall_depth_scale(w_idx, enabled, shrink_ratio):
     if not enabled:
         return 1.0
     return max(WATERFALL_DEPTH_SHRINK_MIN_SCALE, 1.0 - shrink_ratio * w_idx)
+
+
+class _WaterfallLayout(NamedTuple):
+    index: dict      # dataset_id -> 段(0 が一番手前)
+    count: int
+    baseline: float  # 奥のトレースを隠す背景を敷く下端
+
+
+def _waterfall_layout(datasets):
+    """
+    ウォーターフォールを有効にしたデータセットに、並び順で段を振る。非表示のものも数に入れる
+    (隠しても後ろの段が繰り上がって図が変わらないように)。下端は、ずらした後の全トレースの最小値から少し下。
+    """
+    waterfall_datasets = [ds for ds in datasets if ds.waterfall_enabled]
+    baseline = 0.0
+    shifted_mins, shifted_maxs = [], []
+    for i, wds in enumerate(waterfall_datasets):
+        if len(wds.y_data) == 0:
+            continue
+        depth_scale = _waterfall_depth_scale(
+            i, wds.waterfall_depth_shrink_enabled, wds.waterfall_depth_shrink_ratio)
+        y_shift = i * wds.waterfall_offset_y
+        shifted_mins.append(float(np.nanmin(wds.y_data)) * depth_scale + y_shift)
+        shifted_maxs.append(float(np.nanmax(wds.y_data)) * depth_scale + y_shift)
+    if shifted_mins:
+        y_min_all, y_max_all = min(shifted_mins), max(shifted_maxs)
+        margin = (y_max_all - y_min_all) * 0.05 if y_max_all > y_min_all else 1.0
+        baseline = y_min_all - margin
+    return _WaterfallLayout(
+        {ds.dataset_id: i for i, ds in enumerate(waterfall_datasets)}, len(waterfall_datasets), baseline)
+
+
+class _AxisStyle(NamedTuple):
+    tick_font: dict
+    label_font: dict
+    tick_color: str
+    label_color: str
+    spine_width: float
+    spine_color: str
+    tick_width: float
+    major_tick_length: float
+    minor_tick_length: float
 
 # 対数軸の補助目盛りの本数制御(項目C-604): x/y_log_minor_subs設定値 ->
 # ticker.LogLocator(subs=...)に渡す値。'auto'はLogLocatorが軸の表示範囲
@@ -1312,521 +1354,245 @@ class _CanvasDrawingMixin:
 
     def _draw_data(self, ax, axis_index, datasets, full_resolution=False):
         """
-        指定された軸にデータをプロットする。
-        full_resolution=True の場合、LTTB表示用ダウンサンプリング(項目C-1001)を
-        無視して常に全点描画する(エクスポート時の「フル解像度」オプション用)。
-        """
-        all_datasets_for_this_axis = [ds for ds in datasets if ds.subplot_target == axis_index]
+        その軸のデータセットを描く。full_resolution=True なら表示用の間引きをしない(エクスポートの「フル解像度」)。
 
-        # 2Dマップ(項目C-508)は、以下の1D点列前提のロジック(日付/カテゴリ軸判定・
-        # ウォーターフォール・LTTBダウンサンプリング・平滑化・plot_type分岐)を
-        # 一切経由しない別経路で描画する(x_data/y_dataは長形式の生の列であり、
-        # 1D描画にそのまま使うと無意味なため)。ヒートマップは背景として先に描き、
-        # 同じ軸に1Dデータ(例: 将来のC-511スライス線)が重なっても見えるようにする。
-        # ★ データセットの表示/非表示トグル(項目C-907)のフィルタはここで行う。
-        # 呼び出し側(redraw_all / _redraw_single_axis_no_draw / add_free_axis)は
-        # 非表示のものも含めた全リストを渡してくる。改善ボード A-4 のため、
-        # ウォーターフォールの積み重ねインデックスだけは「非表示のトレースも
-        # 数に含めて」採番する必要があり、そのために非表示のデータセットも
-        # このメソッドまで届ける必要があるため。
-        # getattr既定値Trueは、この機能追加前に保存された.pklファイル由来の
-        # Datasetオブジェクトでも安全に動くようにするための保険。
-        datasets_2d = [
-            ds for ds in all_datasets_for_this_axis
-            if ds.data_kind == '2d_grid' and getattr(ds, 'visible', True)
-        ]
-        # 1D側は「非表示も含めた全件」と「表示中のみ」の2本を持つ。前者は
-        # ウォーターフォールの採番専用、後者がそれ以外の全処理(軸種別の判定・
-        # 実際の描画ループ)で使う従来どおりのリスト。
-        datasets_1d_all = [ds for ds in all_datasets_for_this_axis if ds.data_kind != '2d_grid']
-        datasets_for_this_axis = [ds for ds in datasets_1d_all if getattr(ds, 'visible', True)]
+        呼び出し側は非表示のデータセットも含めた全件を渡す。ウォーターフォールの段は非表示のものも数に入れて
+        振る(1本隠しても後ろの段が繰り上がらないように)ので、ここで絞る。
+        """
+        on_this_axis = [ds for ds in datasets if ds.subplot_target == axis_index]
+        # 2Dマップは長形式の生の列を持つので、1D の経路(軸の種類の判定・ウォーターフォール・間引きなど)を通さない
+        datasets_2d = [ds for ds in on_this_axis if ds.data_kind == '2d_grid' and getattr(ds, 'visible', True)]
+        datasets_1d_all = [ds for ds in on_this_axis if ds.data_kind != '2d_grid']
+        shown_1d = [ds for ds in datasets_1d_all if getattr(ds, 'visible', True)]
+        # 背景として先に描き、1D のデータが上に重なるようにする
         self._draw_2d_data(ax, axis_index, datasets_2d, full_resolution=full_resolution)
 
-        # この軸のデータセットについて、前回の描画で記録した積み重ね変換
-        # (改善ボード A-1)を破棄する。ウォーターフォールが有効なものだけが
-        # このあとの描画ループで改めて登録される。
-        for ds in all_datasets_for_this_axis:
+        # ウォーターフォールの変換は描くたびに登録し直す
+        for ds in on_this_axis:
             self._waterfall_transforms.pop(ds.dataset_id, None)
 
-        needs_secondary = any(ds.use_secondary_y for ds in datasets_for_this_axis)
-
-        # このプロット(軸)のX軸が日時データかどうかを判定し、目盛りフォーマットの
-        # 自動選択(_apply_appearance側)に使えるよう保持しておく。
-        # 1つでも日時列を使っているデータセットがあれば、その軸は日付軸として扱う。
-        is_date_x = any(
-            pd.api.types.is_datetime64_any_dtype(ds.df[ds.x_col_name])
-            for ds in datasets_for_this_axis
-        )
-        while len(self.axis_is_date_x) <= axis_index:
-            self.axis_is_date_x.append(False)
-        self.axis_is_date_x[axis_index] = is_date_x
-
-        # このプロット(軸)のX軸が文字列カテゴリかどうかを判定する。
-        # (日時型は上のis_date_xで既に扱っているため、それ以外の非数値型のみを対象とする)
-        is_category_x = (not is_date_x) and any(
-            not pd.api.types.is_numeric_dtype(ds.df[ds.x_col_name])
-            for ds in datasets_for_this_axis
-        )
-        while len(self.axis_is_category_x) <= axis_index:
-            self.axis_is_category_x.append(False)
-        self.axis_is_category_x[axis_index] = is_category_x
+        needs_secondary = any(ds.use_secondary_y for ds in shown_1d)
+        is_category_x = self._record_x_axis_kind(axis_index, shown_1d)
 
         secondary_ax = None
         if needs_secondary:
             secondary_ax = ax.twinx()
             self.all_secondary_axes[axis_index] = secondary_ax
 
-        # ウォーターフォールプロット(項目80、項目109で独立したプロット種別から
-        # 「積み重ねオプション」に変更): このサブプロット上で waterfall_enabled な
-        # データセットだけを対象に、リスト順(datasets_for_this_axisの並び順、
-        # waterfall_enabledでないものとは混ぜない)で0始まりの「積み重ねインデックス」を
-        # 振る。plot_typeとは独立したフラグなので、Line/Scatter/Line+Scatter/Area/Bar
-        # のどの見た目とも組み合わせられる。背景色の塗りつぶしで奥のトレースを隠す
-        # (occlusion)ためのベースライン(全ウォーターフォールトレースのY最小値から
-        # わずかに余白を取った値)も、ここでまとめて計算しておく。
-        # ★ 改善ボード A-4(ユーザー判断により「非表示でも位置を保持する」で確定):
-        # 採番は datasets_for_this_axis(表示中のみ)ではなく datasets_1d_all
-        # (非表示も含む)で行う。10本中3本目を一時的に隠したときに4〜10本目が
-        # 1段ずつ繰り上がって図全体の見た目が変わるのを防ぐため、隠したトレースの
-        # 段は空けたままにする。オクルージョン用のベースラインと zorder の刻み幅も
-        # 同じリストから求めるので、表示/非表示の切り替えで奥行きの見え方が
-        # 変わることはない。
-        waterfall_datasets = [ds for ds in datasets_1d_all if ds.waterfall_enabled]
-        waterfall_index = {ds.dataset_id: i for i, ds in enumerate(waterfall_datasets)}
-        waterfall_count = len(waterfall_datasets)
-        waterfall_baseline = 0.0
-        if waterfall_count:
-            shifted_mins, shifted_maxs = [], []
-            for i, wds in enumerate(waterfall_datasets):
-                if len(wds.y_data) == 0:
-                    continue
-                depth_scale = _waterfall_depth_scale(
-                    i, wds.waterfall_depth_shrink_enabled, wds.waterfall_depth_shrink_ratio)
-                y_shift = i * wds.waterfall_offset_y
-                shifted_mins.append(float(np.nanmin(wds.y_data)) * depth_scale + y_shift)
-                shifted_maxs.append(float(np.nanmax(wds.y_data)) * depth_scale + y_shift)
-            if shifted_mins:
-                y_min_all, y_max_all = min(shifted_mins), max(shifted_maxs)
-                margin = (y_max_all - y_min_all) * 0.05 if y_max_all > y_min_all else 1.0
-                waterfall_baseline = y_min_all - margin
-
-        for ds in datasets_for_this_axis:
+        waterfall = _waterfall_layout(datasets_1d_all)
+        for ds in shown_1d:
             target_ax = secondary_ax if ds.use_secondary_y else ax
-            if target_ax is None: continue
+            if target_ax is None:
+                continue
+            self._draw_1d_dataset(target_ax, axis_index, ds, waterfall, is_category_x, full_resolution)
 
-            # ウォーターフォール(項目80/109): 有効な場合、以降の描画処理は全て
-            # 積み重ねインデックス分だけずらしたX/Yを使う。plot_type別のスタイル
-            # (線種・マーカー・塗り等)は各分岐でそのまま個別に選べる。
-            # ★ 文字列カテゴリX軸(is_category_x)の場合、ds.x_dataは文字列の
-            #   object配列のため数値オフセットを加算するとTypeErrorになる。
-            #   Xオフセットは意味を持たない(カテゴリの「ずらし」に相当する演算が
-            #   無い)ためスキップし、Yオフセットのみ適用する(同じX位置での
-            #   縦方向の積み重ね表示として引き続き使える)。
-            waterfall_zorder = None
-            waterfall_fill_zorder = None
-            plot_kwargs = {}
-            if ds.waterfall_enabled:
-                w_idx = waterfall_index.get(ds.dataset_id, 0)
-                # 斜向/立体風トグル(項目120、C-514): 奥(w_idxが大きい)ほど
-                # Y振幅をわずかに縮小し、疑似的な奥行きを出す。無効時は1.0倍
-                # (従来通り)。
-                depth_scale = _waterfall_depth_scale(
-                    w_idx, ds.waterfall_depth_shrink_enabled, ds.waterfall_depth_shrink_ratio)
-                # ★ 文字列カテゴリX軸ではXオフセットを適用しない(上のコメント参照)
-                # ため、逆変換側(display_to_data)にも 0 として記録する。
-                effective_offset_x = 0.0 if is_category_x else ds.waterfall_offset_x
-                self._waterfall_transforms[ds.dataset_id] = {
-                    'index': w_idx,
-                    'offset_x': effective_offset_x,
-                    'offset_y': ds.waterfall_offset_y,
-                    'depth_scale': depth_scale,
-                }
-                plot_x_data = ds.x_data if is_category_x else ds.x_data + w_idx * ds.waterfall_offset_x
-                plot_y_data = ds.y_data * depth_scale + w_idx * ds.waterfall_offset_y
-                # 手前(インデックスが小さい)ほど大きいzorderにし、後ろのトレースの
-                # 上に重なって描画されるようにする。
-                # ★ 実機フィードバック(バグ報告): 「ウォーターフォール適用すると
-                #   枠とかメモリが隠れる」。以前は waterfall_count に比例して
-                #   際限なく大きくなる値((count - w_idx) * 2)を使っていたため、
-                #   トレース数が増えるとオクルージョン用fill_betweenのzorderが
-                #   matplotlib既定のスパインzorder(2.5)・目盛zorder(約2.01)を
-                #   簡単に超えてしまい、背景色の塗りつぶしが軸の枠線・目盛を
-                #   覆い隠していた(実機確認: わずか2トレースでも再現)。
-                #   WATERFALL_ZORDER_BASE〜WATERFALL_ZORDER_TOPの狭い範囲に
-                #   正規化することで、トレース数によらず常にスパイン/目盛より
-                #   下に収まるようにする(隣接インデックス間の相対順序は
-                #   従来通り保たれる)。
-                step = (WATERFALL_ZORDER_TOP - WATERFALL_ZORDER_BASE) / (waterfall_count + 1)
-                waterfall_zorder = WATERFALL_ZORDER_BASE + (waterfall_count - w_idx) * step
-                waterfall_fill_zorder = waterfall_zorder - step / 2
-                plot_kwargs['zorder'] = waterfall_zorder
-            else:
-                plot_x_data = ds.x_data
-                plot_y_data = ds.y_data
+    def _record_x_axis_kind(self, axis_index, datasets):
+        """X 軸が日時か文字列カテゴリかを記録する(目盛りの付け方に使う)。カテゴリなら True を返す。"""
+        is_date_x = any(pd.api.types.is_datetime64_any_dtype(ds.df[ds.x_col_name]) for ds in datasets)
+        while len(self.axis_is_date_x) <= axis_index:
+            self.axis_is_date_x.append(False)
+        self.axis_is_date_x[axis_index] = is_date_x
 
-            # 欠損値(NaN)の方針設定(項目C-201)。カテゴリX軸は文字列変換
-            # (このすぐ下)で個別に扱われるため対象外(既定'gap'相当のまま)。
-            # ★ 既知の制約: 'drop'は配列を短くするため、この後のLTTBダウンサンプリング
-            # (downsample_index_map)経由のデータカーソル位置対応が、NaN行が
-            # 除かれた分だけvisible_df上の実際の行位置とずれる可能性がある
-            # (ダウンサンプリング閾値を超える大量データ+'drop'併用時のみ)。
-            if not is_category_x and ds.nan_policy != 'gap':
-                plot_x_data, plot_y_data = _apply_nan_policy(plot_x_data, plot_y_data, ds.nan_policy)
+        is_category_x = (not is_date_x) and any(
+            not pd.api.types.is_numeric_dtype(ds.df[ds.x_col_name]) for ds in datasets
+        )
+        while len(self.axis_is_category_x) <= axis_index:
+            self.axis_is_category_x.append(False)
+        self.axis_is_category_x[axis_index] = is_category_x
+        return is_category_x
 
-            if is_category_x:
-                # 混在型列(文字列+数値/NaN等)対策: matplotlibのカテゴリ軸変換は
-                # 全要素がstr/bytesであることを厳密に要求するため、列のdtypeが
-                # 非数値(=is_category_x)と判定されても個々の値に文字列以外が
-                # 混ざっているとTypeErrorでクラッシュする。ここで非文字列値のみ
-                # 文字列化しておく。
-                plot_x_data = np.array(
-                    [v if isinstance(v, str) else str(v) for v in plot_x_data]
-                )
+    def _draw_1d_dataset(self, target_ax, axis_index, ds, waterfall, is_category_x, full_resolution):
+        plot_x_data, plot_y_data, plot_kwargs, occlusion_zorder = self._waterfall_shifted_points(
+            ds, waterfall, is_category_x)
 
-            # 表示用ダウンサンプリング(LTTB、項目C-1001): Lineのみ、かつ点数が
-            # 閾値を超える場合のみ、LTTBで代表点を間引いて描画負荷を下げる
-            # (Scatter/Line+Scatterはマーカーの疎密自体が情報のため対象外、
-            # Bar/Areaは1本ごと/塗り形状の意味が変わるため対象外)。
-            # full_resolution=True(エクスポート時の「フル解像度」オプション)が
-            # 指定された場合は、点数によらず常に全点描画する。
-            # LTTBはXが昇順であることを前提とするアルゴリズムのため、既に昇順の
-            # データにのみ適用する(降順/非単調なXはまれなケースとして対象外にし、
-            # 従来通り全点描画する — 誤って形状を変えてしまうより安全側に倒す)。
-            downsample_indices = None
-            if (
-                ds.plot_type == 'Line'
-                and not full_resolution
-                and not is_category_x
+        # カテゴリ軸は下で文字列にするので対象外。
+        # 'drop' は配列を短くするため、大量データで間引きと併用するとデータカーソルの行の対応がずれうる(既知の制約)。
+        if not is_category_x and ds.nan_policy != 'gap':
+            plot_x_data, plot_y_data = _apply_nan_policy(plot_x_data, plot_y_data, ds.nan_policy)
+
+        if is_category_x:
+            # matplotlib のカテゴリ軸は全要素が文字列でないと例外になる(数値や NaN が混ざった列)
+            plot_x_data = np.array([v if isinstance(v, str) else str(v) for v in plot_x_data])
+
+        plot_x_data, plot_y_data, downsample_indices = self._downsample_for_display(
+            ds, plot_x_data, plot_y_data, is_category_x, full_resolution)
+
+        # 平滑化は線で結ぶ種別だけ(ほかの種別では平滑化した線がマーカー・棒・塗りを置き換えてしまう)
+        is_smoothed_artist = False
+        if (ds.smoothing and ds.plot_type in ('Line', 'Line+Scatter')
+                and len(plot_x_data) > 1 and not is_category_x):
+            is_smoothed_artist = self._draw_smoothed(target_ax, ds, plot_x_data, plot_y_data, plot_kwargs)
+        else:
+            ds.artist = self._draw_plot_type(target_ax, axis_index, ds, plot_x_data, plot_y_data, plot_kwargs)
+
+        # 手前のトレースが奥を隠すよう、トレースの下に軸の背景色を敷く。面は自分の塗りと重なるので除く
+        if (ds.waterfall_enabled and ds.waterfall_occlusion_enabled
+                and ds.plot_type != 'Area' and len(plot_x_data) > 0):
+            bg_color = DARK_AXES_FACECOLOR if self.dark_mode else LIGHT_AXES_FACECOLOR
+            target_ax.fill_between(
+                plot_x_data, plot_y_data, waterfall.baseline,
+                color=bg_color, alpha=1.0, zorder=occlusion_zorder, linewidth=0,
+            )
+
+        # 平滑化した曲線の点は元の行と対応しないので、クリックで選べないようにする。
+        # データカーソルモードの一括 set_picker からも外すため、_non_pickable_dataset_ids にも入れる
+        if is_smoothed_artist:
+            self._non_pickable_dataset_ids.add(ds.dataset_id)
+        else:
+            self._non_pickable_dataset_ids.discard(ds.dataset_id)
+        if ds.artist is not None and not is_smoothed_artist:
+            self._enable_element_picking(ds.artist)
+
+        self._draw_error_display(target_ax, ds, plot_x_data, plot_y_data, downsample_indices)
+
+        # 曲線フィットの信頼帯・予測帯。帯の列があるときだけ描ける
+        if ds.fit_band_display and 'y_lower' in ds.df.columns and 'y_upper' in ds.df.columns:
+            band_df = ds.visible_df
+            target_ax.fill_between(
+                band_df[ds.x_col_name], band_df['y_lower'], band_df['y_upper'],
+                color=ds.color, alpha=ds.alpha * 0.15, linewidth=0,
+            )
+
+        # 点数が上限を超えると描画で GUI が止まるので描かない。
+        # ラベルの値は間引く前の並びなので、点と同じ downsample_indices で揃える
+        if ds.show_point_labels and len(ds.visible_df) <= self.point_label_max_points:
+            self._draw_point_labels(
+                target_ax, ds, x_data=plot_x_data, y_data=plot_y_data,
+                downsample_indices=downsample_indices,
+            )
+
+    def _waterfall_shifted_points(self, ds, waterfall, is_category_x):
+        """
+        描く点列 (x, y, plot_kwargs, 背景を敷く zorder)。ウォーターフォールなら段の分だけずらし、
+        逆変換(display_to_data)用に変換を記録する。カテゴリ軸では X はずらせないので Y だけずらす。
+        """
+        if not ds.waterfall_enabled:
+            return ds.x_data, ds.y_data, {}, None
+        w_idx = waterfall.index.get(ds.dataset_id, 0)
+        depth_scale = _waterfall_depth_scale(
+            w_idx, ds.waterfall_depth_shrink_enabled, ds.waterfall_depth_shrink_ratio)
+        self._waterfall_transforms[ds.dataset_id] = {
+            'index': w_idx,
+            'offset_x': 0.0 if is_category_x else ds.waterfall_offset_x,
+            'offset_y': ds.waterfall_offset_y,
+            'depth_scale': depth_scale,
+        }
+        plot_x_data = ds.x_data if is_category_x else ds.x_data + w_idx * ds.waterfall_offset_x
+        plot_y_data = ds.y_data * depth_scale + w_idx * ds.waterfall_offset_y
+        # 手前(段が小さい)ほど上に重ねる。段の数によらず枠線・目盛(zorder 2.01〜2.5)より下に収める
+        step = (WATERFALL_ZORDER_TOP - WATERFALL_ZORDER_BASE) / (waterfall.count + 1)
+        zorder = WATERFALL_ZORDER_BASE + (waterfall.count - w_idx) * step
+        return plot_x_data, plot_y_data, {'zorder': zorder}, zorder - step / 2
+
+    def _downsample_for_display(self, ds, plot_x_data, plot_y_data, is_category_x, full_resolution):
+        """
+        点が多い 'Line' だけ LTTB で間引く(散布図などは点の疎密自体が情報)。X が昇順でないと
+        LTTB が形を変えてしまうので、そのときは間引かない。戻り値の3つ目は間引きに使った添字(無ければ None)。
+        """
+        if not (ds.plot_type == 'Line' and not full_resolution and not is_category_x
                 and len(plot_x_data) > LTTB_DOWNSAMPLE_THRESHOLD
-                and np.all(np.diff(plot_x_data) >= 0)
-            ):
-                downsample_indices = calculate_lttb_downsample(
-                    plot_x_data, plot_y_data, LTTB_DOWNSAMPLE_TARGET_POINTS
-                )
-                if len(downsample_indices) < len(plot_x_data):
-                    # データカーソル(cursor_mixin.py)が、クリック点のインデックス
-                    # (間引き後の配列上)を元のvisible_df上の位置へ変換するために使う。
-                    self.downsample_index_map[ds.dataset_id] = downsample_indices
-                    plot_x_data = plot_x_data[downsample_indices]
-                    plot_y_data = plot_y_data[downsample_indices]
-                else:
-                    downsample_indices = None
+                and np.all(np.diff(plot_x_data) >= 0)):
+            return plot_x_data, plot_y_data, None
+        indices = calculate_lttb_downsample(plot_x_data, plot_y_data, LTTB_DOWNSAMPLE_TARGET_POINTS)
+        if len(indices) >= len(plot_x_data):
+            return plot_x_data, plot_y_data, None
+        # データカーソルが、間引いた後の添字を visible_df の行に戻すのに使う
+        self.downsample_index_map[ds.dataset_id] = indices
+        return plot_x_data[indices], plot_y_data[indices], indices
 
-            # ★ 平滑化(CubicSpline)は「線で結んだ曲線」を滑らかにする機能のため、
-            # Line/Line+Scatterでのみ意味を持つ。Scatter/Bar/Areaに適用すると、
-            # 平滑化した線がマーカー/棒/塗りつぶしを完全に置き換えてしまい
-            # (Line+Scatter以外は元データ点を重ね描きする分岐が無いため)、
-            # ユーザーが選んだ見た目が丸ごと消えてしまう実害があった(過去の
-            # 見落とし)。UIの平滑化チェックボックスも同じ条件で非表示にする
-            # (dataset_mixin.pyの_update_smoothing_control_visibility参照、
-            # グラデーション機能と同じ「表示制御はUI側、描画側も独立して
-            # 適用条件を再チェックする」の二重ガード方針)。数値のX軸でのみ
-            # 意味を持つ/計算可能なため、文字列カテゴリ軸の場合もスキップする。
-            # ★ データカーソル(cursor_mixin.py)は「artist上のインデックス」を
-            #   そのままds.visible_dfの行番号として解釈するため、平滑化された
-            #   曲線(元データと1:1に対応しない200点のCubicSpline補間点)を
-            #   クリック可能にすると、無関係な行を選択する/範囲外で無反応になる
-            #   (過去の見落とし)。CubicSplineが成功して実際に平滑化曲線を
-            #   描いた場合のみTrueにし、下のpicker登録箇所でクリック検出を
-            #   スキップする(ValueErrorフォールバック時は元データ点のままの
-            #   線を描くため、通常通りクリック可能にしてよい)。
-            is_smoothed_artist = False
-            if (
-                ds.smoothing
-                and ds.plot_type in ('Line', 'Line+Scatter')
-                and len(plot_x_data) > 1
-                and not is_category_x
-            ):
-                sort_indices = np.argsort(plot_x_data)
-                x_sorted = plot_x_data[sort_indices]
-                y_sorted = plot_y_data[sort_indices]
-                # ★ グラデーション(項目79)は平滑化された曲線にも適用できるよう、
-                # 平滑化後のx_smooth/y_smoothに対してLineCollectionを作る。
-                use_line_gradient = ds.gradient_enabled and ds.gradient_target in ('line', 'both')
-                # 平滑化の手法(項目C-304): 既定'cubic_spline'は元の唯一の
-                # 挙動(200点への補間で滑らかな曲線を作る)のまま無変更。
-                # moving_average/median/gaussianはノイズ低減が目的のため、
-                # 実データ点数のまま(x_sorted上で)平滑化する。
-                smoothing_method = getattr(ds, 'smoothing_method', 'cubic_spline')
-                try:
-                    if smoothing_method == 'moving_average':
-                        x_smooth, y_smooth = calculate_moving_average_smooth(x_sorted, y_sorted)
-                    elif smoothing_method == 'median':
-                        x_smooth, y_smooth = calculate_median_smooth(x_sorted, y_sorted)
-                    elif smoothing_method == 'gaussian':
-                        x_smooth, y_smooth = calculate_gaussian_smooth(x_sorted, y_sorted)
-                    else:  # 'cubic_spline'(既定)
-                        f = CubicSpline(x_sorted, y_sorted)
-                        x_smooth = np.linspace(x_sorted.min(), x_sorted.max(), 200)
-                        y_smooth = f(x_smooth)
-                    if use_line_gradient:
-                        ds.artist = self._add_gradient_line(
-                            target_ax, x_smooth, y_smooth, ds.color, ds.gradient_color2,
-                            ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
-                        )
-                    else:
-                        (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
-                        ds.artist = artist_line
-                    is_smoothed_artist = True
-                    if ds.plot_type == 'Line+Scatter':
-                        target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **plot_kwargs)
-                except ValueError:
-                    if use_line_gradient:
-                        ds.artist = self._add_gradient_line(
-                            target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
-                            ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
-                        )
-                    else:
-                        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
-                        ds.artist = artist
+    def _draw_smoothed(self, target_ax, ds, plot_x_data, plot_y_data, plot_kwargs):
+        """平滑化した曲線を描く。平滑化できなければ元の点のまま線で結び、False を返す。"""
+        sort_indices = np.argsort(plot_x_data)
+        x_sorted = plot_x_data[sort_indices]
+        y_sorted = plot_y_data[sort_indices]
+        use_line_gradient = ds.gradient_enabled and ds.gradient_target in ('line', 'both')
+        smoothing_method = getattr(ds, 'smoothing_method', 'cubic_spline')
+        try:
+            # cubic_spline は200点に補間して滑らかにする。ほかはノイズを減らすのが目的なので点数はそのまま
+            if smoothing_method == 'moving_average':
+                x_smooth, y_smooth = calculate_moving_average_smooth(x_sorted, y_sorted)
+            elif smoothing_method == 'median':
+                x_smooth, y_smooth = calculate_median_smooth(x_sorted, y_sorted)
+            elif smoothing_method == 'gaussian':
+                x_smooth, y_smooth = calculate_gaussian_smooth(x_sorted, y_sorted)
             else:
-                # ★ 線ストロークグラデーション(項目79)は 'line'/'both' が
-                # 選ばれているときのみ、'Line'/'Line+Scatter' で有効になる。
-                use_line_gradient = ds.gradient_enabled and ds.gradient_target in ('line', 'both')
-                if ds.plot_type == 'Line':
-                    if use_line_gradient:
-                        ds.artist = self._add_gradient_line(
-                            target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
-                            ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
-                        )
-                    else:
-                        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
-                        ds.artist = artist
-                elif ds.plot_type == 'Scatter':
-                    artist = target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs)
-                    ds.artist = artist
-                elif ds.plot_type == 'Line+Scatter':
-                    if use_line_gradient:
-                        # LineCollectionはマーカーを描けないため、線はグラデーション、
-                        # マーカーは別途ds.colorの単色scatterとして重ねて描画する。
-                        ds.artist = self._add_gradient_line(
-                            target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
-                            ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
-                        )
-                        target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **plot_kwargs)
-                    else:
-                        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=ds.name, **plot_kwargs)
-                        ds.artist = artist
-                elif ds.plot_type == 'Area':
-                    # 塗りつぶし(エリア)プロット: 0を基準線としてY値との間を塗りつぶす。
-                    # 輪郭を分かりやすくするため、上端に細い線も重ねて描画する。
-                    # ★ グラデーション無効時は従来どおりの描画(回帰防止のため分岐を変えない)。
-                    if not ds.gradient_enabled:
-                        artist = target_ax.fill_between(plot_x_data, plot_y_data, 0, color=ds.color, alpha=ds.alpha * 0.4, label=ds.name, **plot_kwargs)
-                        target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, **plot_kwargs)
-                        ds.artist = artist
-                    else:
-                        use_fill_gradient = ds.gradient_target in ('fill', 'both')
-                        use_area_line_gradient = ds.gradient_target in ('line', 'both')
-                        if use_fill_gradient:
-                            artist = self._add_gradient_fill(target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2, ds.alpha * 0.4)
-                        else:
-                            artist = target_ax.fill_between(plot_x_data, plot_y_data, 0, color=ds.color, alpha=ds.alpha * 0.4, **plot_kwargs)
-
-                        if use_area_line_gradient:
-                            self._add_gradient_line(
-                                target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
-                                ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
-                            )
-                        else:
-                            target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
-                        ds.artist = artist
-                elif ds.plot_type == 'Bar':
-                    # 棒グラフ: 文字列カテゴリ軸(項目31)との組み合わせを主な用途として想定。
-                    artist = target_ax.bar(plot_x_data, plot_y_data, color=ds.color, alpha=ds.alpha, label=ds.name, **plot_kwargs)
-                    ds.artist = artist
-                elif ds.plot_type == 'Step':
-                    # 階段プロット(項目113、C-503)。既存の'Line'描画をax.plot(drawstyle=...)に
-                    # 変えるだけの最小実装(バックログの想定通り)。区間の左端の値を右端まで
-                    # 保持する'steps-post'を既定に選ぶ(サンプリング/イベントデータの慣習に合わせる)。
-                    (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, drawstyle='steps-post', **plot_kwargs)
-                    ds.artist = artist
-                elif ds.plot_type == 'Density Scatter':
-                    # 2D密度散布図(項目117、C-507): 点が重なる大量データ向けに、
-                    # 各点自身の位置での2次元カーネル密度推定(scipy.stats.
-                    # gaussian_kde)を色にマッピングする(定番のレシピ)。
-                    # ds.colormap は2Dグリッド(ヒートマップ等)と共用のフィールド。
-                    # 点数が少なすぎる/全点が同一座標(共分散行列が特異)だと
-                    # gaussian_kdeが失敗するため、その場合は通常のScatter(単色)に
-                    # フォールバックする(クラッシュさせない)。
-                    try:
-                        if len(plot_x_data) < 3:
-                            raise ValueError("点数不足")
-                        xy = np.vstack([plot_x_data, plot_y_data])
-                        density = gaussian_kde(xy)(xy)
-                        artist = target_ax.scatter(
-                            plot_x_data, plot_y_data, c=density, cmap=ds.colormap,
-                            marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs
-                        )
-                    except (np.linalg.LinAlgError, ValueError):
-                        artist = target_ax.scatter(
-                            plot_x_data, plot_y_data, color=ds.color, marker=ds.marker,
-                            s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs
-                        )
-                    ds.artist = artist
-                elif ds.plot_type == COLOR_BY_COLUMN_PLOT_TYPE:
-                    # 3列目の値による点の色分け(改善ボード D-2)。Density Scatterが
-                    # 「点の密度」を色にするのに対し、こちらは z_col_name で選んだ
-                    # 任意の列の値をそのまま色にマッピングする(温度・時間・濃度・
-                    # 深さ等の測定条件を1枚の散布図に載せる定番の表現)。
-                    # colormap/vmin/vmaxは2Dマップ(項目C-508)と共用のフィールドで、
-                    # カラーバーも同じ_axis_2d_mappables経由の既存経路に載せる。
-                    # ★ z値はds.z_data(visible_df経由)から取る。df から直接取ると、
-                    #   1行でもマスクした時点で点と色の対応が1つずつずれる。
-                    z_values = ds.z_data
-                    if z_values is not None and len(z_values) == len(plot_x_data):
-                        artist = target_ax.scatter(
-                            plot_x_data, plot_y_data, c=z_values, cmap=ds.colormap,
-                            vmin=ds.vmin, vmax=ds.vmax,
-                            marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha,
-                            label=ds.name, **plot_kwargs
-                        )
-                        # カラーバー(項目C-501)は_apply_appearance()がこの辞書を
-                        # 見て付ける。同じ軸に2Dマップが既に登録済みの場合は
-                        # 上書きしない(カラーバーは1軸に最大1つで、既存の
-                        # ヒートマップ側の挙動を変えないことを優先する)。
-                        if axis_index not in self._axis_2d_mappables:
-                            self._axis_2d_mappables[axis_index] = artist
-                    else:
-                        # Z列が未選択/列が消えている/欠損値の方針'drop'で配列が
-                        # 短くなった場合は、クラッシュさせず通常のScatter(単色)へ
-                        # フォールバックする(Density Scatterがgaussian_kde失敗時に
-                        # そうするのと同じ方針)。長さの食い違いだけは「Z列は選んで
-                        # あるのに色が付かない」という分かりにくい症状になるため、
-                        # 理由をログに残す。
-                        if z_values is not None:
-                            logger.warning(
-                                "'%s' のZ列の長さ(%d)がプロット点数(%d)と一致しないため、"
-                                "単色のScatterとして描画します(欠損値の方針'drop'等で"
-                                "配列が短くなっている可能性があります)。",
-                                ds.name, len(z_values), len(plot_x_data),
-                            )
-                        artist = target_ax.scatter(
-                            plot_x_data, plot_y_data, color=ds.color, marker=ds.marker,
-                            s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs
-                        )
-                    ds.artist = artist
-                else:
-                    # 項目D-2: register_plot_type()でプラグインが追加した未知のplot_type。
-                    # 既存5種類の分岐は変更しない増分実装(ウォーターフォール等の追加
-                    # オーバーレイはプラグイン描画には自動適用されない、既知の制限)。
-                    from graphica.core.plugin_api import get_plugin_api
-                    api = get_plugin_api()
-                    plugin_plot_type = api.get_plot_type(ds.plot_type) if api is not None else None
-                    if plugin_plot_type is not None:
-                        try:
-                            artist = plugin_plot_type.drawer(ds, target_ax, plot_x_data, plot_y_data)
-                            if artist is not None:
-                                ds.artist = artist
-                        except Exception as e:
-                            logger.warning(
-                                "[plugin:%s] plot_type '%s' の描画に失敗しました: %s",
-                                plugin_plot_type.plugin_name, ds.plot_type, e,
-                            )
-                    else:
-                        logger.warning("未知のplot_type '%s' です。Lineとして描画します。", ds.plot_type)
-                        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
-                        ds.artist = artist
-
-            # ウォーターフォール(項目80/109): 手前のトレースが奥のトレースを隠すよう、
-            # 描画したアーティストの下(waterfall_fill_zorder)に軸背景色の
-            # fill_betweenを敷く(オクルージョン)。Areaは自身の塗りつぶしと
-            # 二重になり見た目が煩雑になるため対象外とする。plot_type分岐の後に
-            # まとめて行うことで、どの見た目(Line/Scatter/Line+Scatter/Bar)と
-            # 組み合わせても同じ処理で済む。
-            # ★ 実機フィードバック: 「オクルージョンはon/off切り替え可能にして」。
-            #   ds.waterfall_occlusion_enabled(既定True)で切り替えられる。
-            if (
-                ds.waterfall_enabled and ds.waterfall_occlusion_enabled
-                and ds.plot_type != 'Area' and len(plot_x_data) > 0
-            ):
-                bg_color = DARK_AXES_FACECOLOR if self.dark_mode else LIGHT_AXES_FACECOLOR
-                target_ax.fill_between(
-                    plot_x_data, plot_y_data, waterfall_baseline,
-                    color=bg_color, alpha=1.0, zorder=waterfall_fill_zorder, linewidth=0,
+                f = CubicSpline(x_sorted, y_sorted)
+                x_smooth = np.linspace(x_sorted.min(), x_sorted.max(), 200)
+                y_smooth = f(x_smooth)
+            if use_line_gradient:
+                ds.artist = self._add_gradient_line(
+                    target_ax, x_smooth, y_smooth, ds.color, ds.gradient_color2,
+                    ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
                 )
-
-            # ★ グラフ要素の直接クリック選択(項目35)のため、常にクリック検出を有効にする。
-            # (データカーソルモードの ON/OFF とは独立。データカーソル自体のpick_event処理は
-            #  cursor_mixin._on_pick 側で cursor_mode_enabled を見て有効/無効を判断している)
-            # 平滑化曲線(is_smoothed_artist)は元データと1:1に対応しないため、
-            # クリック検出自体を無効のままにする(上記コメント参照)。_non_pickable_dataset_ids
-            # にも登録/除外し、cursor_mixin.pyの「データカーソルモード」ON操作(軸内の全
-            # Line2D/PathCollectionへ一括でset_picker(5)する別経路)からもこの
-            # データセットが除外されるようにする(ここでの判定だけでは、モードON操作で
-            # picker が再度有効化されてしまう)。平滑化がOFFに戻された場合に備え、
-            # 該当しない場合は明示的にdiscardして古い状態を残さない。
-            if is_smoothed_artist:
-                self._non_pickable_dataset_ids.add(ds.dataset_id)
             else:
-                self._non_pickable_dataset_ids.discard(ds.dataset_id)
-            if ds.artist is not None and not is_smoothed_artist:
-                self._enable_element_picking(ds.artist)
-
-            # ★ 誤差の表示(X/Y誤差列が設定されている場合のみ描画、項目C-502で
-            # 表示形式を選べるようにした)。fmt='none' なので線やマーカーは追加せず、
-            # 誤差の縦横棒のみを元データ点(平滑化前、ウォーターフォール有効時は
-            # ずらした後)の位置に重ねて描画する。
-            if ds.x_err_col_name or ds.y_err_col_name:
-                # 項目C-1001: plot_x_data/plot_y_dataがダウンサンプリング済みの
-                # 場合、誤差列(ds.x_err_data/ds.y_err_data、常に元データと同じ
-                # フルサイズ)もplot_x_data/plot_y_dataと同じ点数に揃える必要がある
-                # (揃えないとmatplotlib.errorbar/fill_betweenが長さ不一致で例外になる)。
-                # downsample_indicesはplot_x_data/plot_y_dataを間引いたのと同じ
-                # インデックス列なので、そのまま使い回せる。
-                x_err = ds.x_err_data
-                y_err_full = ds.y_err_data
-                if downsample_indices is not None:
-                    if x_err is not None:
-                        x_err = x_err[downsample_indices]
-                    if y_err_full is not None:
-                        y_err_full = y_err_full[downsample_indices]
-
-                if ds.error_display in ('bar', 'both'):
-                    target_ax.errorbar(
-                        plot_x_data, plot_y_data,
-                        xerr=x_err, yerr=y_err_full,
-                        fmt='none', ecolor=ds.color, elinewidth=ds.linewidth, alpha=ds.alpha, capsize=3
-                    )
-                # 誤差バンド(fill_between): X誤差には対応せず、Y誤差の帯のみ描画する
-                # (2軸方向の帯は一般的でないため)。
-                if ds.error_display in ('band', 'both') and y_err_full is not None:
-                    y_arr = np.asarray(plot_y_data)
-                    y_err = np.asarray(y_err_full)
-                    target_ax.fill_between(
-                        plot_x_data, y_arr - y_err, y_arr + y_err,
-                        color=ds.color, alpha=ds.alpha * 0.25, linewidth=0,
-                    )
-
-            # ★ 曲線フィットの信頼帯・予測帯(項目C-405): gui/mixins/dataset_mixin.py
-            # gui/datasets/fitting.py の単発・一括フィットがband_typeを選ばれた場合にのみ
-            # dfへ'y_lower'/'y_upper'列を追加しているため、その存在で描画有無を判断する
-            # (fit_band_displayはUI上の意図/ラベル用、実際に描画できるかは列の有無で決まる)。
-            if ds.fit_band_display and 'y_lower' in ds.df.columns and 'y_upper' in ds.df.columns:
-                band_df = ds.visible_df
-                target_ax.fill_between(
-                    band_df[ds.x_col_name], band_df['y_lower'], band_df['y_upper'],
-                    color=ds.color, alpha=ds.alpha * 0.15, linewidth=0,
+                (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+                ds.artist = artist_line
+            if ds.plot_type == 'Line+Scatter':
+                target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **plot_kwargs)
+            return True
+        except ValueError:
+            if use_line_gradient:
+                ds.artist = self._add_gradient_line(
+                    target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
+                    ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
                 )
+            else:
+                (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+                ds.artist = artist
+            return False
 
-            # ★ データポイントラベル (各点の脇にY値、または指定列の値を表示)
-            # 平滑化が有効な場合でも、ラベルは元のデータ点の位置に表示する
-            # (ウォーターフォール有効時はずらした後の位置)。
-            # 点数が point_label_max_points を超える場合は、フリーズ防止のため描画しない
-            # (ダイアログ側で有効化時に確認ポップアップを出しているが、これは別プロジェクトの
-            #  読み込みなど確認を経ないケースも含めて描画時にも必ず効くようにするための保険)。
-            # ★ point_label_max_points はLTTB_DOWNSAMPLE_THRESHOLD(20,000)より大きい値に
-            #   環境設定で変更できるため、その場合はLTTB間引き済みのplot_x_data/plot_y_data
-            #   (間引き後の点数)とラベル値(常にvisible_df基準のフルサイズ)の長さが
-            #   ズレ、zip()が短い方に合わせて打ち切られた結果「間引き後のi番目の点」に
-            #   「元データi番目の行のラベル値」という無関係な組み合わせが表示される
-            #   実害があった(過去の見落とし)。誤差バンド/バーと同じdownsample_indices
-            #   を渡してラベル値側も同じ並びに揃える。
-            if ds.show_point_labels and len(ds.visible_df) <= self.point_label_max_points:
-                self._draw_point_labels(
-                    target_ax, ds, x_data=plot_x_data, y_data=plot_y_data,
-                    downsample_indices=downsample_indices,
-                )
+    def _draw_plot_type(self, target_ax, axis_index, ds, plot_x_data, plot_y_data, plot_kwargs):
+        """
+        plot_type の描画関数で描き、ds.artist にするものを返す。組み込みに無ければプラグインの種類を探し、
+        それも無ければ線で描く。プラグインの描画にはウォーターフォールの zorder などは渡らない(既知の制限)。
+        """
+        drawer = BUILTIN_PLOT_TYPE_DRAWERS.get(ds.plot_type)
+        if drawer is not None:
+            return drawer(self, target_ax, ds, plot_x_data, plot_y_data, plot_kwargs, axis_index)
+
+        from graphica.core.plugin_api import get_plugin_api
+        api = get_plugin_api()
+        plugin_plot_type = api.get_plot_type(ds.plot_type) if api is not None else None
+        if plugin_plot_type is None:
+            logger.warning("未知のplot_type '%s' です。Lineとして描画します。", ds.plot_type)
+            (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+            return artist
+        try:
+            artist = plugin_plot_type.drawer(ds, target_ax, plot_x_data, plot_y_data)
+        except Exception as e:
+            logger.warning(
+                "[plugin:%s] plot_type '%s' の描画に失敗しました: %s",
+                plugin_plot_type.plugin_name, ds.plot_type, e,
+            )
+            return ds.artist
+        return artist if artist is not None else ds.artist
+
+    def _draw_error_display(self, target_ax, ds, plot_x_data, plot_y_data, downsample_indices):
+        """誤差棒と誤差の帯を、描いた点(ずらし・間引きの後)の位置に重ねる。帯は Y の誤差だけ。"""
+        if not (ds.x_err_col_name or ds.y_err_col_name):
+            return
+        # 誤差列は間引く前の長さなので、点と同じ添字で揃える(揃えないと長さ違いで例外)
+        x_err = ds.x_err_data
+        y_err_full = ds.y_err_data
+        if downsample_indices is not None:
+            if x_err is not None:
+                x_err = x_err[downsample_indices]
+            if y_err_full is not None:
+                y_err_full = y_err_full[downsample_indices]
+
+        if ds.error_display in ('bar', 'both'):
+            target_ax.errorbar(
+                plot_x_data, plot_y_data,
+                xerr=x_err, yerr=y_err_full,
+                fmt='none', ecolor=ds.color, elinewidth=ds.linewidth, alpha=ds.alpha, capsize=3
+            )
+        if ds.error_display in ('band', 'both') and y_err_full is not None:
+            y_arr = np.asarray(plot_y_data)
+            y_err = np.asarray(y_err_full)
+            target_ax.fill_between(
+                plot_x_data, y_arr - y_err, y_arr + y_err,
+                color=ds.color, alpha=ds.alpha * 0.25, linewidth=0,
+            )
 
     def set_highlighted_points(self, dataset, master_indices):
         """
@@ -1938,16 +1704,26 @@ class _CanvasDrawingMixin:
             )
 
     def _apply_appearance(self, ax, axis_index, settings):
-        """指定された軸に外観設定を適用する"""
+        """その軸に見た目の設定を当てる。matplotlib の状態に依存するので、下の順番は変えない。"""
         secondary_ax = self.all_secondary_axes[axis_index]
-
         ax.set_facecolor(DARK_AXES_FACECOLOR if self.dark_mode else LIGHT_AXES_FACECOLOR)
 
         is_date_x = axis_index < len(self.axis_is_date_x) and self.axis_is_date_x[axis_index]
-        # 文字列カテゴリ軸: X最小/最大・対数スケールなど数値専用の設定は意味を持たない
-        # (指定してもmatplotlibのカテゴリ位置と噛み合わず表示が壊れる)ため無視する。
+        # 文字列カテゴリ軸では、範囲・対数などの数値向けの設定はカテゴリの位置と噛み合わないので使わない
         is_category_x = axis_index < len(self.axis_is_category_x) and self.axis_is_category_x[axis_index]
 
+        self._apply_limits_and_scale(ax, settings, is_category_x)
+        self._apply_tick_locators(ax, settings, is_date_x, is_category_x)
+        style = self._axis_text_and_line_style(settings)
+        self._apply_titles_and_labels(ax, settings, style)
+        self._apply_spines_and_tick_marks(ax, settings, style)
+        self._apply_legend(ax, secondary_ax, settings)
+        self._apply_grid(ax, settings)
+        self._apply_secondary_y_axis(ax, secondary_ax, settings, style)
+        self._apply_unit_conversion_x_axis(ax, settings, style, is_date_x, is_category_x)
+        self._apply_colorbar(ax, axis_index, settings, style)
+
+    def _apply_limits_and_scale(self, ax, settings, is_category_x):
         if is_category_x or axis_setting(settings, 'x_autoscale'): ax.autoscale(enable=True, axis='x', tight=True)
         else:
             min_val, max_val = axis_setting(settings, 'x_min'), axis_setting(settings, 'x_max')
@@ -1959,29 +1735,24 @@ class _CanvasDrawingMixin:
             if min_val < max_val: ax.set_ylim(min_val, max_val)
 
         if not is_category_x:
-            # ★ 注意: ax.set_xscale() は、たとえ同じ'linear'を指定し直すだけでも
-            # matplotlib内部でその軸のLocator/Formatterをスケールの既定値に
-            # リセットしてしまう。文字列カテゴリ軸ではbar()/plot()呼び出し時に
-            # matplotlib自身が設定したカテゴリ用のLocator/Formatterを保ちたいため、
-            # このAxesでは(スケール自体はどのみち常にlinearなので)呼び出さない。
+            # set_xscale は同じ 'linear' でも Locator/Formatter を既定に戻してしまう。
+            # カテゴリ軸では matplotlib が付けたカテゴリ用のものを残したいので呼ばない
             ax.set_xscale('log' if axis_setting(settings, 'x_log') else 'linear')
         ax.xaxis.set_inverted(axis_setting(settings, 'x_invert'))
         ax.set_yscale('log' if axis_setting(settings, 'y_log') else 'linear')
         ax.yaxis.set_inverted(axis_setting(settings, 'y_invert'))
 
+    def _apply_tick_locators(self, ax, settings, is_date_x, is_category_x):
         x_min_lim, x_max_lim = ax.get_xlim()
         y_min_lim, y_max_lim = ax.get_ylim()
 
         if is_date_x:
-            # 日時データのX軸: 軸範囲に応じて年/月/日/時刻など適切な間隔・表示形式を
-            # 自動選択する (手動間隔指定のUI設定はここでは意味を持たないため無視する)。
+            # 日時の軸は範囲に合わせて年・月・日・時刻の間隔と表記を自動で選ぶ(間隔の手動指定は使わない)
             date_locator = mdates.AutoDateLocator()
             ax.xaxis.set_major_locator(date_locator)
             ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(date_locator))
         elif is_category_x:
-            # matplotlibがプロット時に自動設定したカテゴリ用のLocator/Formatter
-            # (各カテゴリ位置に1つずつラベルを表示) をそのまま使う。数値軸向けの
-            # AutoLocator等で上書きすると目盛りラベルが崩れるため触らない。
+            # matplotlib が付けたカテゴリ用の目盛りのまま(数値用で上書きするとラベルが崩れる)
             pass
         elif axis_setting(settings, 'x_major_tick_mode') == 0: ax.xaxis.set_major_locator(ticker.AutoLocator())
         else:
@@ -1994,15 +1765,10 @@ class _CanvasDrawingMixin:
             if interval > 0: ax.yaxis.set_major_locator(_safe_multiple_locator(interval, y_min_lim, y_max_lim))
 
         if is_date_x or is_category_x:
-            # 日付軸/カテゴリ軸では数値の補助目盛り間隔は意味を持たないため表示しない
             ax.xaxis.set_minor_locator(ticker.NullLocator())
         elif axis_setting(settings, 'x_minor_ticks_visible'):
             if axis_setting(settings, 'x_log'):
-                # 対数軸の補助目盛り高度制御(項目C-604)。set_xscale('log')の
-                # 既定Locator/Formatterをそのまま使わず明示的に設定し直す
-                # (このAxesでは既にset_minor_locatorを必ず呼ぶ設計のため、
-                # x_log分岐を追加しないと従来のMultipleLocatorが対数軸にも
-                # 誤って適用されてしまう)。
+                # 対数軸は間隔指定の MultipleLocator ではなく LogLocator にする
                 subs = _LOG_MINOR_SUBS_PRESETS.get(axis_setting(settings, 'x_log_minor_subs'), 'auto')
                 ax.xaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs=subs))
                 ax.xaxis.set_minor_formatter(
@@ -2027,264 +1793,227 @@ class _CanvasDrawingMixin:
                 if interval > 0: ax.yaxis.set_minor_locator(_safe_multiple_locator(interval, y_min_lim, y_max_lim))
         else: ax.yaxis.set_minor_locator(ticker.NullLocator())
 
-        # 目盛りの指数表記フォーマット切り替え(項目62)。日付軸/カテゴリ軸は
-        # 専用のFormatterを既に設定済みのため、数値軸のX軸(および常に数値のY軸)のみ適用する。
+        # 日付・カテゴリの X 軸は専用の表記を付けてあるので、数値の軸だけ
         if not is_date_x and not is_category_x:
             _apply_tick_format_mode(ax.xaxis, axis_setting(settings, 'x_tick_format_mode'))
             _apply_tick_decimal_places(ax.xaxis, axis_setting(settings, 'x_tick_decimals'))
         _apply_tick_format_mode(ax.yaxis, axis_setting(settings, 'y_tick_format_mode'))
         _apply_tick_decimal_places(ax.yaxis, axis_setting(settings, 'y_tick_decimals'))
 
-        tick_font_dict = axis_setting(settings, 'tick_font')
-        label_font_dict = axis_setting(settings, 'axis_label_font')
-        tick_color = self._effective_text_color(axis_setting(settings, 'tick_color'))
-        label_color = self._effective_text_color(axis_setting(settings, 'axis_label_color'))
+    def _axis_text_and_line_style(self, settings):
+        """文字と線の見た目のうち、軸・第2軸・カラーバーで共通に使うもの(ダークモードの色の読み替え後)。"""
+        major_tick_length, minor_tick_length = _resolve_tick_lengths(settings)
+        return _AxisStyle(
+            tick_font=axis_setting(settings, 'tick_font'),
+            label_font=axis_setting(settings, 'axis_label_font'),
+            tick_color=self._effective_text_color(axis_setting(settings, 'tick_color')),
+            label_color=self._effective_text_color(axis_setting(settings, 'axis_label_color')),
+            spine_width=axis_setting(settings, 'spine_width'),
+            spine_color=self._effective_text_color(axis_setting(settings, 'spine_color')),
+            tick_width=axis_setting(settings, 'tick_width'),
+            major_tick_length=major_tick_length,
+            minor_tick_length=minor_tick_length,
+        )
 
-        ax.set_title(axis_setting(settings, 'title'), **label_font_dict, color=label_color)
-        # 軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分):
-        # settings['x_label']/['y_label']自体は(非表示にしても)消さずに保持し、
-        # 描画時にx_label_visible/y_label_visible(既定True、後方互換)が
-        # Falseの場合だけ空文字で描画する。テキスト入力欄を空にする実装だと
-        # 再表示のたびに再入力が必要になってしまうため、別のフラグにしている。
+    def _apply_titles_and_labels(self, ax, settings, style):
+        ax.set_title(axis_setting(settings, 'title'), **style.label_font, color=style.label_color)
+        # 非表示にしても文字列は消さない(表示に戻したときに打ち直さなくて済むように)
         x_label_text = axis_setting(settings, 'x_label') if axis_setting(settings, 'x_label_visible') else ''
         y_label_text = axis_setting(settings, 'y_label') if axis_setting(settings, 'y_label_visible') else ''
-        ax.set_xlabel(x_label_text, **label_font_dict, color=label_color)
-        ax.set_ylabel(y_label_text, **label_font_dict, color=label_color)
-        # ★ グラフ要素の直接クリック選択(項目35): タイトルをクリックすると、
-        # そのサブプロットを「編集対象のプロット」に切り替えられるようにする。
+        ax.set_xlabel(x_label_text, **style.label_font, color=style.label_color)
+        ax.set_ylabel(y_label_text, **style.label_font, color=style.label_color)
+        # タイトルのクリックで、その軸を編集対象にする
         ax.title.set_picker(5)
 
         for label in ax.get_xticklabels() + ax.get_yticklabels():
-            label.set(**tick_font_dict)
-            label.set_color(tick_color)
+            label.set(**style.tick_font)
+            label.set_color(style.tick_color)
 
-        spine_width = axis_setting(settings, 'spine_width')
-        spine_color = self._effective_text_color(axis_setting(settings, 'spine_color'))
-        tick_width = axis_setting(settings, 'tick_width')
+    def _apply_spines_and_tick_marks(self, ax, settings, style):
+        for spine in ax.spines.values():
+            spine.set_linewidth(style.spine_width)
+            spine.set_color(style.spine_color)
+
+        # 表示/非表示は毎回 True/False を明示する。tick_params の値は ax.cla() をまたいで残るので、
+        # 隠すときだけ指定すると表示に戻せない。軸の共有で内側の目盛数値を隠すのは呼び出し側が後で行う
         major_dir = axis_setting(settings, 'major_tick_direction')
         minor_dir = axis_setting(settings, 'minor_tick_direction')
-        major_tick_length, minor_tick_length = _resolve_tick_lengths(settings)
-
-        for spine in ax.spines.values():
-            spine.set_linewidth(spine_width)
-            spine.set_color(spine_color)
-
-        # ★ 実機フィードバック: 「目盛/目盛数値の表示非表示がちゃんと切り替わらない」
-        #   「X軸Y軸一括じゃなくてそれぞれで設定できるように」。
-        #   旧実装は「Falseの時だけ明示的に隠す」設計だったが、
-        #   ax.tick_params()が設定した値はax.cla()を挟んでも保持され続ける
-        #   ("既定はTrueなので何もしない"という前提が成り立たない)ため、
-        #   一度非表示にしてから再度表示に戻しても反映されないバグがあった。
-        #   常にTrue/Falseを明示的に指定することで確実に反映されるようにし、
-        #   同時にX軸/Y軸をそれぞれ独立して設定できるよう分離する。
-        #   ★ 軸共有(_apply_shared_axis_tick_visibility)による内側の目盛数値
-        #   抑制は、このメソッドの呼び出し後に別途適用される(呼び出し側の
-        #   redraw_all()/update_appearance_only()/_redraw_single_axis_no_draw()
-        #   参照)ため、ここで軸共有を意識する必要はない。
         x_ticks_visible = axis_setting(settings, 'x_ticks_visible')
         y_ticks_visible = axis_setting(settings, 'y_ticks_visible')
         x_tick_labels_visible = axis_setting(settings, 'x_tick_labels_visible')
         y_tick_labels_visible = axis_setting(settings, 'y_tick_labels_visible')
 
-        ax.tick_params(axis='x', which='major', width=tick_width, length=major_tick_length, color=spine_color, labelcolor=tick_color,
+        ax.tick_params(axis='x', which='major', width=style.tick_width, length=style.major_tick_length, color=style.spine_color, labelcolor=style.tick_color,
                         direction=major_dir, bottom=x_ticks_visible, labelbottom=x_tick_labels_visible)
-        ax.tick_params(axis='x', which='minor', width=tick_width * 0.75, length=minor_tick_length, color=spine_color,
+        ax.tick_params(axis='x', which='minor', width=style.tick_width * 0.75, length=style.minor_tick_length, color=style.spine_color,
                         direction=minor_dir, bottom=x_ticks_visible, labelbottom=x_tick_labels_visible)
-        ax.tick_params(axis='y', which='major', width=tick_width, length=major_tick_length, color=spine_color, labelcolor=tick_color,
+        ax.tick_params(axis='y', which='major', width=style.tick_width, length=style.major_tick_length, color=style.spine_color, labelcolor=style.tick_color,
                         direction=major_dir, left=y_ticks_visible, labelleft=y_tick_labels_visible)
-        ax.tick_params(axis='y', which='minor', width=tick_width * 0.75, length=minor_tick_length, color=spine_color,
+        ax.tick_params(axis='y', which='minor', width=style.tick_width * 0.75, length=style.minor_tick_length, color=style.spine_color,
                         direction=minor_dir, left=y_ticks_visible, labelleft=y_tick_labels_visible)
 
+    def _apply_legend(self, ax, secondary_ax, settings):
+        lines_primary, labels_primary, lines_secondary, labels_secondary = [], [], [], []
         if axis_setting(settings, 'legend_visible'):
             lines_primary, labels_primary = ax.get_legend_handles_labels()
-            has_primary_data = bool(lines_primary)
-            has_secondary_data = False
-            lines_secondary, labels_secondary = [], []
             if secondary_ax:
                 lines_secondary, labels_secondary = secondary_ax.get_legend_handles_labels()
-                has_secondary_data = bool(lines_secondary)
-
-            if has_primary_data or has_secondary_data:
-                loc_code = axis_setting(settings, 'legend_loc')
-                # ドラッグで動かした位置(v1.4.2)。軸の左下を(0, 0)、右上を(1, 1)とする
-                # 凡例の左下の座標で、あれば「凡例の位置」の選択より優先する。
-                dragged_position = _legend_position_from_settings(settings)
-                if dragged_position is not None:
-                    loc_code = dragged_position
-                legend_font_dict = axis_setting(settings, 'legend_font')
-                legend_color = self._effective_text_color(axis_setting(settings, 'legend_color'))
-                legend_font_prop = FontProperties(
-                    family=legend_font_dict.get('family'),
-                    size=legend_font_dict.get('size'),
-                    weight=legend_font_dict.get('weight'),
-                    style=legend_font_dict.get('style'),
-                    stretch=legend_font_dict.get('stretch')
-                )
-                # 凡例の並び順(ドラッグで並べ替え可能): 描画順とは独立に指定できる
-                legend_order = axis_setting(settings, 'legend_order')
-                legend_obj = None
-                if secondary_ax and has_primary_data and has_secondary_data:
-                    combined_lines, combined_labels = _apply_legend_order(
-                        lines_primary + lines_secondary, labels_primary + labels_secondary, legend_order
-                    )
-                    legend_obj = ax.legend(combined_lines, combined_labels, loc=loc_code, prop=legend_font_prop)
-                elif has_primary_data:
-                    ordered_lines, ordered_labels = _apply_legend_order(lines_primary, labels_primary, legend_order)
-                    legend_obj = ax.legend(ordered_lines, ordered_labels, loc=loc_code, prop=legend_font_prop)
-                elif secondary_ax and has_secondary_data:
-                    ordered_lines, ordered_labels = _apply_legend_order(lines_secondary, labels_secondary, legend_order)
-                    legend_obj = secondary_ax.legend(ordered_lines, ordered_labels, loc=loc_code, prop=legend_font_prop)
-
-                if legend_obj:
-                    for text in legend_obj.get_texts(): text.set_color(legend_color)
-                    # 凡例のダーク/ライトモード対応スタイリング(項目71):
-                    # 既定のまま(白背景固定)だとダークモードで浮いて見えるため、
-                    # 軸背景と調和する面色・枠線色に合わせる。
-                    frame = legend_obj.get_frame()
-                    if self.dark_mode:
-                        frame.set_facecolor(DARK_LEGEND_FACECOLOR)
-                        frame.set_edgecolor(DARK_LEGEND_EDGECOLOR)
-                    else:
-                        frame.set_facecolor(LIGHT_LEGEND_FACECOLOR)
-                        frame.set_edgecolor(LIGHT_LEGEND_EDGECOLOR)
-                    frame.set_alpha(0.92)
-                    # ★ 以前は legend_obj.draggable(True) を呼んでいたが、このメソッドは
-                    #   matplotlib 3.x で削除済みで、AttributeError を握りつぶしていたため
-                    #   凡例は実際にはドラッグできなかった。update='loc' で離した位置が
-                    #   legend._loc に入り、PlotterApp がそれを設定へ保存する。
-                    legend_obj.set_draggable(True, update='loc')
-            else:
-                if ax.get_legend() is not None: ax.get_legend().remove()
-                if secondary_ax and secondary_ax.get_legend() is not None: secondary_ax.get_legend().remove()
-        else:
+        has_primary_data = bool(lines_primary)
+        has_secondary_data = bool(lines_secondary)
+        if not (has_primary_data or has_secondary_data):
             if ax.get_legend() is not None: ax.get_legend().remove()
             if secondary_ax and secondary_ax.get_legend() is not None: secondary_ax.get_legend().remove()
+            return
 
-        # グリッド線の詳細カスタマイズ(項目82): X軸/Y軸・主目盛/補助目盛をそれぞれ
-        # 独立した線種(linestyle)・太さ(linewidth)・透過度(alpha)で描画できるようにする。
-        # settings に該当キーが無い場合(この機能追加前に保存されたプロジェクト等)は、
-        # 従来の固定値(主目盛: 実線・太さ0.8 / 補助目盛: 破線・太さ0.5、共にalpha=1.0)を
-        # そのままデフォルトとして使い、既存プロジェクトの見た目を変えない。
-        # 1回の ax.grid() 呼び出しは指定した which/axis の組み合わせにしか効かないため、
-        # X/Y × 主/補助 の4通りを個別に呼び分ける。
-        if axis_setting(settings, 'grid_visible'):
-            # ★ 項目H-3: グリッド線の色は以前matplotlibの既定値(rcParams、
-            #   テーマと無関係な固定の薄灰色)に任せきりだったため、
-            #   ダークモードでライトモードと同じ薄灰色が使われ、背景色との
-            #   調和が取れていなかった。border_strongトークンを明示的に指定する。
-            grid_color = DARK_GRID_COLOR if self.dark_mode else LIGHT_GRID_COLOR
-            for grid_axis in ('x', 'y'):
+        loc_code = axis_setting(settings, 'legend_loc')
+        # ドラッグで動かした位置(軸の左下 (0, 0)・右上 (1, 1) での凡例の左下)があれば、位置の選択より優先する
+        dragged_position = _legend_position_from_settings(settings)
+        if dragged_position is not None:
+            loc_code = dragged_position
+        legend_font_dict = axis_setting(settings, 'legend_font')
+        legend_color = self._effective_text_color(axis_setting(settings, 'legend_color'))
+        legend_font_prop = FontProperties(
+            family=legend_font_dict.get('family'),
+            size=legend_font_dict.get('size'),
+            weight=legend_font_dict.get('weight'),
+            style=legend_font_dict.get('style'),
+            stretch=legend_font_dict.get('stretch')
+        )
+        # 凡例の並びは描画順とは別に指定できる
+        legend_order = axis_setting(settings, 'legend_order')
+        legend_obj = None
+        if secondary_ax and has_primary_data and has_secondary_data:
+            combined_lines, combined_labels = _apply_legend_order(
+                lines_primary + lines_secondary, labels_primary + labels_secondary, legend_order
+            )
+            legend_obj = ax.legend(combined_lines, combined_labels, loc=loc_code, prop=legend_font_prop)
+        elif has_primary_data:
+            ordered_lines, ordered_labels = _apply_legend_order(lines_primary, labels_primary, legend_order)
+            legend_obj = ax.legend(ordered_lines, ordered_labels, loc=loc_code, prop=legend_font_prop)
+        elif secondary_ax and has_secondary_data:
+            ordered_lines, ordered_labels = _apply_legend_order(lines_secondary, labels_secondary, legend_order)
+            legend_obj = secondary_ax.legend(ordered_lines, ordered_labels, loc=loc_code, prop=legend_font_prop)
+
+        if legend_obj:
+            for text in legend_obj.get_texts(): text.set_color(legend_color)
+            frame = legend_obj.get_frame()
+            if self.dark_mode:
+                frame.set_facecolor(DARK_LEGEND_FACECOLOR)
+                frame.set_edgecolor(DARK_LEGEND_EDGECOLOR)
+            else:
+                frame.set_facecolor(LIGHT_LEGEND_FACECOLOR)
+                frame.set_edgecolor(LIGHT_LEGEND_EDGECOLOR)
+            frame.set_alpha(0.92)
+            # 離した位置が legend._loc に入り、PlotterApp がそれを設定へ保存する
+            # (matplotlib 3.x に Legend.draggable() は無い)
+            legend_obj.set_draggable(True, update='loc')
+
+    def _apply_grid(self, ax, settings):
+        """ax.grid() は指定した which/axis にしか効かないので、X/Y × 主/補助 を個別に呼ぶ。"""
+        if not axis_setting(settings, 'grid_visible'):
+            ax.grid(False, which='both')
+            return
+        grid_color = DARK_GRID_COLOR if self.dark_mode else LIGHT_GRID_COLOR
+        for grid_axis in ('x', 'y'):
+            ax.grid(
+                True, which='major', axis=grid_axis,
+                linestyle=axis_setting(settings, f'{grid_axis}_major_grid_linestyle'),
+                linewidth=axis_setting(settings, f'{grid_axis}_major_grid_width'),
+                alpha=axis_setting(settings, f'{grid_axis}_major_grid_alpha'),
+                color=grid_color,
+            )
+            if axis_setting(settings, 'minor_grid_visible'):
                 ax.grid(
-                    True, which='major', axis=grid_axis,
-                    linestyle=axis_setting(settings, f'{grid_axis}_major_grid_linestyle'),
-                    linewidth=axis_setting(settings, f'{grid_axis}_major_grid_width'),
-                    alpha=axis_setting(settings, f'{grid_axis}_major_grid_alpha'),
+                    True, which='minor', axis=grid_axis,
+                    linestyle=axis_setting(settings, f'{grid_axis}_minor_grid_linestyle'),
+                    linewidth=axis_setting(settings, f'{grid_axis}_minor_grid_width'),
+                    alpha=axis_setting(settings, f'{grid_axis}_minor_grid_alpha'),
                     color=grid_color,
                 )
-                if axis_setting(settings, 'minor_grid_visible'):
-                    ax.grid(
-                        True, which='minor', axis=grid_axis,
-                        linestyle=axis_setting(settings, f'{grid_axis}_minor_grid_linestyle'),
-                        linewidth=axis_setting(settings, f'{grid_axis}_minor_grid_width'),
-                        alpha=axis_setting(settings, f'{grid_axis}_minor_grid_alpha'),
-                        color=grid_color,
-                    )
-                else:
-                    ax.grid(False, which='minor', axis=grid_axis)
-        else:
-            ax.grid(False, which='both')
+            else:
+                ax.grid(False, which='minor', axis=grid_axis)
 
-        if secondary_ax:
-            secondary_ax.autoscale(enable=True, axis='y', tight=True)
-            secondary_ax.set_ylabel(axis_setting(settings, 'y2_label'), **label_font_dict, color=label_color)
-            major_dir_y2 = axis_setting(settings, 'major_tick_direction_y2')
-            minor_dir_y2 = axis_setting(settings, 'minor_tick_direction_y2')
-            for label in secondary_ax.get_yticklabels():
-                label.set(**tick_font_dict)
-                label.set_color(tick_color)
-            secondary_ax.tick_params(axis='y', which='major', width=tick_width, length=major_tick_length, color=spine_color, labelcolor=tick_color, direction=major_dir_y2)
-            secondary_ax.tick_params(axis='y', which='minor', width=tick_width * 0.75, length=minor_tick_length, color=spine_color, direction=minor_dir_y2)
-            secondary_ax.spines['right'].set_linewidth(spine_width)
-            secondary_ax.spines['right'].set_color(spine_color)
-            secondary_ax.spines['right'].set_visible(True)
-            secondary_ax.spines['left'].set_visible(False)
-            secondary_ax.spines['top'].set_visible(False)
-            secondary_ax.spines['bottom'].set_visible(False)
-            ax.spines['right'].set_visible(False)
-        else:
+    def _apply_secondary_y_axis(self, ax, secondary_ax, settings, style):
+        """第2Y軸があれば右の枠線と目盛りを第2Y軸に任せ、無ければ主軸の右の枠線を出す。"""
+        if not secondary_ax:
             ax.spines['right'].set_visible(True)
-            ax.spines['right'].set_linewidth(spine_width)
-            ax.spines['right'].set_color(spine_color)
+            ax.spines['right'].set_linewidth(style.spine_width)
+            ax.spines['right'].set_color(style.spine_color)
+            return
+        secondary_ax.autoscale(enable=True, axis='y', tight=True)
+        secondary_ax.set_ylabel(axis_setting(settings, 'y2_label'), **style.label_font, color=style.label_color)
+        major_dir_y2 = axis_setting(settings, 'major_tick_direction_y2')
+        minor_dir_y2 = axis_setting(settings, 'minor_tick_direction_y2')
+        for label in secondary_ax.get_yticklabels():
+            label.set(**style.tick_font)
+            label.set_color(style.tick_color)
+        secondary_ax.tick_params(axis='y', which='major', width=style.tick_width, length=style.major_tick_length, color=style.spine_color, labelcolor=style.tick_color, direction=major_dir_y2)
+        secondary_ax.tick_params(axis='y', which='minor', width=style.tick_width * 0.75, length=style.minor_tick_length, color=style.spine_color, direction=minor_dir_y2)
+        secondary_ax.spines['right'].set_linewidth(style.spine_width)
+        secondary_ax.spines['right'].set_color(style.spine_color)
+        secondary_ax.spines['right'].set_visible(True)
+        secondary_ax.spines['left'].set_visible(False)
+        secondary_ax.spines['top'].set_visible(False)
+        secondary_ax.spines['bottom'].set_visible(False)
+        ax.spines['right'].set_visible(False)
 
-        # 単位変換の第2X軸(項目C-602): X軸データの単位と第2X軸に表示したい単位が
-        # 共に「なし」以外かつ異なる場合のみ、matplotlibのsecondary_xaxis
-        # (functions=(forward, inverse))で上部に変換後の第2X軸を追加する。
-        # 日付軸/カテゴリ軸は数値変換の対象外(nm/eV/cm^-1/Hzという物理量の
-        # 変換とは無関係)なので何もしない。
+    def _apply_unit_conversion_x_axis(self, ax, settings, style, is_date_x, is_category_x):
+        """X の単位と表示したい単位が別々に選ばれていれば、上に単位を変換した第2X軸を付ける(数値の軸だけ)。"""
         source_unit = axis_setting(settings, 'x_secondary_axis_source_unit')
         target_unit = axis_setting(settings, 'x_secondary_axis_target_unit')
-        if (not is_date_x and not is_category_x
+        # 範囲の端が変換で inf/nan になる(波長 0nm など)と secondary_xaxis が例外を出し、描画全体が失敗する
+        if not (not is_date_x and not is_category_x
                 and source_unit != X_AXIS_UNIT_NONE and target_unit != X_AXIS_UNIT_NONE
                 and source_unit != target_unit
                 and np.all(np.isfinite(convert_x_axis_unit(np.array(ax.get_xlim()), source_unit, target_unit)))):
-            # ★ X軸範囲の端(0を含む等)がnm<->eV/cm^-1/Hz変換で inf/nan になる
-            #   (波長0nmは物理的に無意味)場合、ax.secondary_xaxis()が
-            #   「Axis limits cannot be NaN or Inf」で例外を投げグラフ全体の
-            #   再描画が失敗する。上のisfinite判定でその組み合わせの時だけ
-            #   第2X軸自体を追加しないことで、メインの描画には影響させない。
-            def _forward(x, _from=source_unit, _to=target_unit):
-                return convert_x_axis_unit(x, _from, _to)
+            return
 
-            def _inverse(x, _from=source_unit, _to=target_unit):
-                return convert_x_axis_unit(x, _to, _from)
+        def _forward(x, _from=source_unit, _to=target_unit):
+            return convert_x_axis_unit(x, _from, _to)
 
-            secondary_x_ax = ax.secondary_xaxis('top', functions=(_forward, _inverse))
-            # ★ 実機フィードバック(ログで確認): nm<->cm^-1等の非線形(逆数)変換では、
-            #   主軸側では常識的な範囲でも変換後の第2X軸の値域が極端に広がる
-            #   ことがあり、matplotlib既定のAutoLocatorがGraphica側の
-            #   _safe_multiple_locator(主軸の目盛り間隔手動指定にのみ適用され、
-            #   この既定ロケータ生成経路は素通りする)の対象外のまま
-            #   千本を超える目盛りを生成しようとし、
-            #   "Locator attempting to generate N ticks...exceeds MAXTICKS"の
-            #   警告を出していた(実害としては描画が極端に重くなる/崩れる)。
-            #   MaxNLocatorは変換後の値域の大小に関わらず常に妥当な本数に
-            #   収まるため、明示的に設定して既定のAutoLocatorに任せきりにしない。
-            secondary_x_ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=8))
-            secondary_x_ax.set_xlabel(X_AXIS_UNIT_LABELS.get(target_unit, target_unit),
-                                       **label_font_dict, color=label_color)
-            for label in secondary_x_ax.get_xticklabels():
-                label.set(**tick_font_dict)
-                label.set_color(tick_color)
-            secondary_x_ax.tick_params(axis='x', which='major', width=tick_width, length=major_tick_length,
-                                        color=spine_color, labelcolor=tick_color, direction=major_dir)
-            secondary_x_ax.spines['top'].set_linewidth(spine_width)
-            secondary_x_ax.spines['top'].set_color(spine_color)
+        def _inverse(x, _from=source_unit, _to=target_unit):
+            return convert_x_axis_unit(x, _to, _from)
 
-        # カラーバー(項目C-501): このAxesに2Dマップ(項目C-508)が描画されていた
-        # 場合のみ意味を持つ。_draw_data()が_axis_2d_mappablesへ登録した
-        # QuadMeshを対象に、fig.colorbar()で付ける。位置(location)を指定すると
-        # matplotlibが向き(vertical/horizontal)を自動的に決めるため、orientationは
-        # 明示的に渡さない(両方渡すと衝突しうる)。
+        secondary_x_ax = ax.secondary_xaxis('top', functions=(_forward, _inverse))
+        # 逆数の変換では値域が極端に広がり、既定の AutoLocator が千本を超える目盛りを作ろうとする
+        secondary_x_ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=8))
+        secondary_x_ax.set_xlabel(X_AXIS_UNIT_LABELS.get(target_unit, target_unit),
+                                   **style.label_font, color=style.label_color)
+        for label in secondary_x_ax.get_xticklabels():
+            label.set(**style.tick_font)
+            label.set_color(style.tick_color)
+        secondary_x_ax.tick_params(axis='x', which='major', width=style.tick_width, length=style.major_tick_length,
+                                    color=style.spine_color, labelcolor=style.tick_color,
+                                    direction=axis_setting(settings, 'major_tick_direction'))
+        secondary_x_ax.spines['top'].set_linewidth(style.spine_width)
+        secondary_x_ax.spines['top'].set_color(style.spine_color)
+
+    def _apply_colorbar(self, ax, axis_index, settings, style):
+        """
+        2Dマップ(または値で色分けした散布図)がこの軸にあればカラーバーを付ける。
+        location を渡すと向きは matplotlib が決めるので、orientation は渡さない(衝突しうる)。
+        """
         mappable = self._axis_2d_mappables.get(axis_index)
-        if mappable is not None and axis_setting(settings, 'colorbar_enabled'):
-            position = axis_setting(settings, 'colorbar_position')
-            if position not in ('right', 'left', 'top', 'bottom'):
-                position = 'right'
-            try:
-                fraction = float(axis_setting(settings, 'colorbar_width_fraction'))
-            except (TypeError, ValueError):
-                fraction = 0.05
-            if fraction <= 0:
-                fraction = 0.05
-            cbar = self.fig.colorbar(mappable, ax=ax, location=position, fraction=fraction, pad=0.04)
-            colorbar_label = axis_setting(settings, 'colorbar_label')
-            if colorbar_label:
-                cbar.set_label(colorbar_label, **label_font_dict, color=label_color)
-            for tick_label in cbar.ax.get_yticklabels() + cbar.ax.get_xticklabels():
-                tick_label.set(**tick_font_dict)
-                tick_label.set_color(tick_color)
-            cbar.outline.set_edgecolor(spine_color)
-            cbar.outline.set_linewidth(spine_width)
+        if mappable is None or not axis_setting(settings, 'colorbar_enabled'):
+            return
+        position = axis_setting(settings, 'colorbar_position')
+        if position not in ('right', 'left', 'top', 'bottom'):
+            position = 'right'
+        try:
+            fraction = float(axis_setting(settings, 'colorbar_width_fraction'))
+        except (TypeError, ValueError):
+            fraction = 0.05
+        if fraction <= 0:
+            fraction = 0.05
+        cbar = self.fig.colorbar(mappable, ax=ax, location=position, fraction=fraction, pad=0.04)
+        colorbar_label = axis_setting(settings, 'colorbar_label')
+        if colorbar_label:
+            cbar.set_label(colorbar_label, **style.label_font, color=style.label_color)
+        for tick_label in cbar.ax.get_yticklabels() + cbar.ax.get_xticklabels():
+            tick_label.set(**style.tick_font)
+            tick_label.set_color(style.tick_color)
+        cbar.outline.set_edgecolor(style.spine_color)
+        cbar.outline.set_linewidth(style.spine_width)
 
 
 class MplCanvas(FigureCanvas, _CanvasDrawingMixin):
