@@ -70,7 +70,7 @@ def window(tmp_path, monkeypatch):
 
 
 def test_summary_and_popup_show_the_same_value_as_the_anchor_label(window):
-    window._update_stats_summary_label(_dataset())
+    window.property_panel.update_stats_summary_label(_dataset())
     expected = f"{SAMPLE_SD:.4g}"
     assert f"標準偏差: {expected}" in window.stats_summary_label.text()
     assert f"SD={expected}" in window.dataset_mini_stats_label.text()
@@ -78,5 +78,5 @@ def test_summary_and_popup_show_the_same_value_as_the_anchor_label(window):
 
 def test_single_point_summary_shows_a_dash_instead_of_zero(window):
     df = pd.DataFrame({"x": [1.0], "y": [3.0]})
-    window._update_stats_summary_label(Dataset(name="one", df=df, x_col_name="x", y_col_name="y"))
+    window.property_panel.update_stats_summary_label(Dataset(name="one", df=df, x_col_name="x", y_col_name="y"))
     assert "標準偏差: -" in window.stats_summary_label.text()

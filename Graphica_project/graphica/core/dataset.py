@@ -293,7 +293,7 @@ class Dataset:
 
     # フィット結果の信頼帯・予測帯を表示するか(項目C-405)。"confidence"/
     # "prediction"/None(表示しない、既定)。有効な場合、dfに'y_lower'/'y_upper'
-    # 列(gui/mixins/dataset_mixin.pyの_on_fit_curve/_on_batch_curve_fitが
+    # 列(gui/datasets/fitting.py の単発・一括フィットが
     # calculate_confidence_band()の結果から追加)が存在することを前提に、
     # gui/canvas.pyがfill_betweenで帯を描画する。
     fit_band_display: str = field(default=None)
@@ -305,7 +305,7 @@ class Dataset:
 
     # 元ファイルへのリンク保持と再読み込み(項目C-103)。ファイル読み込みで
     # 作成されたDatasetについて、読込元ファイルの絶対パスを保持しておき、
-    # 「再読み込み」(gui/mixins/dataset_mixin.pyの_on_reload_dataset_from_source)
+    # 「再読み込み」(gui/datasets/transfer.py の reload_from_source)
     # でファイルの最新内容に df だけを差し替えられるようにする(書式・注釈・
     # X/Y列選択は維持)。クリップボード貼り付け・プラグインprocessor/analyzerの
     # 生成物・データセット間演算等の「元ファイルを持たない」Datasetは常にNone。

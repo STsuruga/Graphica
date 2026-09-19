@@ -193,5 +193,5 @@ def test_reload_from_source_reads_an_xls_sheet(window, monkeypatch):
     QApplication.instance().processEvents()
     monkeypatch.setattr(main_window_module.QMessageBox, "warning",
                         lambda *a, **k: pytest.fail(f"warning shown: {a[1:]}"))
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
     assert len(window._get_current_dataset().df) == 3

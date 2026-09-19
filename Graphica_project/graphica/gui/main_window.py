@@ -195,6 +195,15 @@ from graphica.core.version import APP_NAME, __version__
 from graphica.core.i18n import tr, set_language, DEFAULT_LANGUAGE
 from graphica.core.plugin_api import load_plugins_once, get_registered_importer_extensions
 from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui.datasets.colors import ColorController
+from graphica.gui.datasets.transfer import TransferController
+from graphica.gui.datasets.overlays import OverlayController
+from graphica.gui.datasets.plugin_runs import PluginRunController
+from graphica.gui.datasets.property_panel import DatasetPropertyPanel
+from graphica.gui.datasets.fitting import FittingController
+from graphica.gui.datasets.host import DatasetHost
+from graphica.gui.datasets.peaks import PeakController
+from graphica.gui.datasets.processing import ProcessingController
 from graphica.gui.plugin_context import TabPluginContext
 from graphica.core.app_paths import get_app_data_dir, get_user_plugins_dir
 
@@ -621,15 +630,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.data_editor_dialog = None # データエディタ (非モーダル) のインスタンス保持用
         self.help_dialog = None        # mathtextヘルプ (非モーダル) のインスタンス保持用
         self.calc_help_dialog = None   # 列計算ヘルプ (非モーダル) のインスタンス保持用
-        self.fit_result_dialog = None  # 曲線フィット結果 (非モーダル) のインスタンス保持用
-        self.peak_result_dialog = None # ピーク検出結果 (非モーダル) のインスタンス保持用
-        self.integral_result_dialog = None  # 区間積分結果(項目C-311、非モーダル)のインスタンス保持用
-        self.outlier_result_dialog = None  # 外れ値検出結果(項目C-306、非モーダル)のインスタンス保持用
-        self.plugin_analysis_result_dialog = None  # プラグイン解析結果(項目C-2、非モーダル)のインスタンス保持用
         self._data_load_task_runner = None  # ファイル読み込み用バックグラウンドタスク(項目C-004フェーズ4)の保持用
-        self._fit_task_runner = None   # 曲線フィット用バックグラウンドタスク(項目C-004)の保持用
-        self._batch_fit_task_runner = None  # バッチカーブフィット用バックグラウンドタスク(項目C-004フェーズ2)の保持用
-        self._multi_peak_fit_task_runner = None  # 多峰分離フィット用バックグラウンドタスク(項目C-409)の保持用
         self._batch_export_task_runner = None  # バッチエクスポート用バックグラウンドタスク(項目C-004フェーズ5b)の保持用
         self._update_check_task_runner = None  # アップデート確認用バックグラウンドタスク(項目161、C-1203)の保持用
         self._data_load_queue = []     # ドラッグ&ドロップで複数ファイルを落とした際の読み込み待ちキュー
@@ -641,7 +642,6 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # キューを使い切った時点でNoneに戻す(通常のドラッグ&ドロップ取込みには
         # 影響しない)。
         self._batch_import_filename_regex = None
-        self._copied_dataset_style = None  # 「スタイルをコピー」でコピーした属性値の辞書
         # 上書き保存先。None なら manual_save() は「名前を付けて保存」になる。
         # タブ名もこの値から作る(ProjectModel.current_filepath はオートセーブでも変わる)。
         self._current_project_path = None
@@ -653,6 +653,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # データセットのプロパティ変更 (色・線種・凡例名など) 用の Undo/Redo スタック
         # (DataEditorDialog 内のセル編集用スタックとは別物)
         self.undo_stack = QUndoStack(self)
+
+        # データセットに対する操作を機能ごとに分けたクラス。窓口(DatasetHost)は本体に使うときに触れるので、
+        # 画面を組み立てる前に作っておける(組み立ての途中からも使われる)。
+        self._dataset_host = DatasetHost(self)
+        self.peaks = PeakController(self._dataset_host)
+        self.fitting = FittingController(self._dataset_host)
+        self.processing = ProcessingController(self._dataset_host)
+        self.colors = ColorController(self._dataset_host)
+        self.transfer = TransferController(self._dataset_host)
+        self.overlays = OverlayController(self._dataset_host)
+        self.plugin_runs = PluginRunController(self._dataset_host)
+        self.property_panel = DatasetPropertyPanel(self)
 
         # オートセーブ用タイマーの設定 (間隔は設定から復元。0分なら無効化されたまま)
         # ★ _create_menu_bar() がメニューの初期表示テキストのために参照するため、
@@ -1085,8 +1097,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             _svg_icon("color-swatch", size=16), tr("登録した色を適用"))
         self._named_color_apply_menu_action = self._named_color_apply_menu.menuAction()
         self._named_color_apply_menu.aboutToShow.connect(
-            self._populate_named_color_apply_menu)
-        self._populate_named_color_apply_menu()
+            self.colors.populate_named_color_menu)
+        self.colors.populate_named_color_menu()
         self.dataset_overflow_button.setMenu(overflow_menu)
         self.ui.horizontalLayout_3.addWidget(self.dataset_overflow_button)
 
@@ -1123,7 +1135,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # (Areaプロットの塗り領域をグラデーションにする)の2種類。
         # チェックボックスで有効/無効を切り替え、終端色は既存のColorPickerWidget
         # (項目65)を再利用し、対象(線/塗り/両方)はプロットタイプに応じて
-        # 関連する選択肢だけを見せる(_update_gradient_controls_visibility で制御)。
+        # 関連する選択肢だけを見せる(property_panel.update_gradient_controls_visibility で制御)。
         self.gradient_checkbox = QCheckBox(tr("グラデーションを適用"))
         self._prop_form('gradient').addRow(self.gradient_checkbox)
 
@@ -1146,8 +1158,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 有効時は、隣接するデータセット1件あたりのX/Yオフセット量
         # (waterfall_offset_x/waterfall_offset_y) をスピンボックスで指定する。
         # 項目66でスライダーからスピンボックスへ統一済みの方針に合わせる。
-        # 表示/非表示は _update_gradient_controls_visibility と同じパターンで
-        # _update_waterfall_controls_visibility が行う(dataset_mixin.py)。
+        # 表示/非表示は property_panel.update_gradient_controls_visibility と同じパターンで
+        # property_panel.update_waterfall_controls_visibility が行う(dataset_mixin.py)。
         self.waterfall_checkbox = QCheckBox(tr("ウォーターフォール表示(積み重ね)"))
         self._prop_form('waterfall').addRow(self.waterfall_checkbox)
 
@@ -1218,7 +1230,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 点列描画(plot_type)ではなく、X/Y/Z列を持つ長形式のdfをヒートマップ
         # として描画する(core/dataset.pyのDataset.z_gridが実際のグリッド化/
         # 補間を担う)。関連コントロール(Z列・カラーマップ・値域・補間方法)は
-        # data_2d_checkboxがONの時だけ表示する(_update_2d_controls_visibility、
+        # data_2d_checkboxがONの時だけ表示する(property_panel.update_2d_controls_visibility、
         # gui/mixins/dataset_mixin.py)。
         self.data_2d_checkbox = QCheckBox(tr("2Dグリッドデータとして扱う(ヒートマップ)"))
         self._prop_form('map').addRow(self.data_2d_checkbox)
@@ -1357,7 +1369,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 4b. 統計サマリー表示用のUI (項目106: 以前は「データセットのプロパティ」に
         #     常時1行を占有していたが、常に使う情報ではないため、ツールバーの
         #     アイコンボタンから必要な時だけポップアップで参照できる方式に変更した。
-        #     _update_stats_summary_label (dataset_mixin.py) は選択中データセットが
+        #     property_panel.update_stats_summary_label (dataset_mixin.py) は選択中データセットが
         #     変わるたびにこのラベルのテキストを更新し続ける(ポップアップが
         #     閉じている間も)。
         self.stats_summary_label = QLabel("-")
@@ -2296,7 +2308,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # 待機中にemitされたsucceeded/failedが、閉じている最中のウィンドウに対して
         # (キュー処理や再描画を伴う)通常のスロットを実行してしまうのも防ぐ。
         # read_data_file()自体は中断不能なため、requestInterruption()を呼んでも
-        # ここでのwait()は読み込み完了まで実際にブロックしうる(_fit_task_runner
+        # ここでのwait()は読み込み完了まで実際にブロックしうる(曲線フィットの計算
         # と同じ扱い、v1では許容)。
         if self._data_load_task_runner is not None:
             try:
@@ -2309,46 +2321,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._data_load_task_runner.deleteLater()
             self._data_load_task_runner = None
 
-        # ★ 項目C-004: 曲線フィット用のTaskRunnerも同じ理由(実行中のQThreadを
-        # 破棄するとQtがプロセスをfail-fast abortさせる)でシグナル切断→
-        # wait()→deleteLater()の順に後始末する。scipy.optimize.curve_fit自体は
-        # 中断不能なため、requestInterruption()を呼んでもここでのwait()は
-        # 計算完了まで実際にブロックしうる(v1では許容、フィットは通常短時間)。
-        if self._fit_task_runner is not None:
-            try:
-                self._fit_task_runner.succeeded.disconnect()
-                self._fit_task_runner.failed.disconnect()
-            except (RuntimeError, TypeError):
-                pass
-            self._fit_task_runner.requestInterruption()
-            self._fit_task_runner.wait()
-            self._fit_task_runner.deleteLater()
-            self._fit_task_runner = None
-
-        # ★ 項目C-004フェーズ2: バッチカーブフィット用のTaskRunnerも同じ理由で
-        # 同型のクリーンアップを行う。
-        if self._batch_fit_task_runner is not None:
-            try:
-                self._batch_fit_task_runner.succeeded.disconnect()
-                self._batch_fit_task_runner.failed.disconnect()
-            except (RuntimeError, TypeError):
-                pass
-            self._batch_fit_task_runner.requestInterruption()
-            self._batch_fit_task_runner.wait()
-            self._batch_fit_task_runner.deleteLater()
-            self._batch_fit_task_runner = None
-
-        # ★ 項目C-409: 多峰分離フィット用のTaskRunnerも同じ理由で同型のクリーンアップを行う。
-        if self._multi_peak_fit_task_runner is not None:
-            try:
-                self._multi_peak_fit_task_runner.succeeded.disconnect()
-                self._multi_peak_fit_task_runner.failed.disconnect()
-            except (RuntimeError, TypeError):
-                pass
-            self._multi_peak_fit_task_runner.requestInterruption()
-            self._multi_peak_fit_task_runner.wait()
-            self._multi_peak_fit_task_runner.deleteLater()
-            self._multi_peak_fit_task_runner = None
+        self.fitting.shutdown()
 
         # ★ 項目C-004フェーズ5b: バッチエクスポート用のTaskRunnerも同じ理由で
         # 同型のクリーンアップを行う。
@@ -2799,7 +2772,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.undo_stack.clear()
 
             # 画面状態とプロットの最終更新
-            self._update_ui_state()
+            self.property_panel.update_ui_state()
             self._update_plot()
 
             self.statusBar().showMessage("プロジェクトを読み込みました", 3000)
@@ -3339,7 +3312,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """
         中身の行が1つも表示されないセクションは、見出しごと隠す。
 
-        条件付き表示(_update_gradient_controls_visibility 等)で中身が全部消えた
+        条件付き表示(property_panel.update_gradient_controls_visibility 等)で中身が全部消えた
         セクションの見出しだけが残ると、折りたたみで減らしたぶんの場所を
         見出しが食い返してしまう。C-2 で「選択状態によって空になるサブメニューは
         出さない」としたのと同じ方針。
@@ -3533,7 +3506,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     idx = self.ui.dataset_list_widget.indexOfTopLevelItem(item)
                     if idx != -1:
                         self.ui.dataset_list_widget.takeTopLevelItem(idx)
-            self._update_ui_state()
+            self.property_panel.update_ui_state()
             self._update_plot()
 
         command = AddDatasetCommand(do_add, do_remove, description=description)
@@ -3614,7 +3587,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                             tree.takeTopLevelItem(idx)
             finally:
                 tree.blockSignals(False)
-            self._update_ui_state()
+            self.property_panel.update_ui_state()
             self._update_plot()
 
         def do_restore():
@@ -3631,7 +3604,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 self.project.datasets[:] = datasets_before
             finally:
                 tree.blockSignals(False)
-            self._update_ui_state()
+            self.property_panel.update_ui_state()
             self._update_plot()
 
         self.undo_stack.push(
@@ -3985,7 +3958,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             final_df = preview_dialog.get_dataframe()
 
             # 元ファイルへのリンク保持(項目C-103): 「再読み込み」
-            # (gui/mixins/dataset_mixin.pyの_on_reload_dataset_from_source)が
+            # (gui/datasets/transfer.py の reload_from_source)が
             # このパスからファイルを読み直せるよう、絶対パスを保持しておく。
             # Excelでシートを切り替えていた場合に備え、ダイアログのシートコンボの
             # 最終的な選択値(checked_sheetではなく、こちらが実際に使われた値)を使う。

@@ -110,10 +110,10 @@ class TabPluginContext(PluginContext):
         save_named_colors(self._app.settings, validated)
 
     def color_palettes(self):
-        return {name: list(colors) for name, colors in self._app._load_color_palettes().items()}
+        return {name: list(colors) for name, colors in self._app.colors.load_palettes().items()}
 
     def set_color_palettes(self, palettes):
-        self._app._save_color_palettes(normalize_palettes(palettes))
+        self._app.colors.save_palettes(normalize_palettes(palettes))
 
     def active_color_cycle(self):
-        return list(self._app._get_active_color_cycle())
+        return list(self._app.colors.active_color_cycle())

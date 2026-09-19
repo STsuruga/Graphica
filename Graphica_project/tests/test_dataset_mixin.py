@@ -19,9 +19,17 @@ import pandas as pd
 import pytest
 from PySide6.QtCore import QSettings, QPoint, Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication, QDialog, QMenu, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QMenu, QMessageBox
 
+import graphica.gui.datasets.colors as colors_module
+import graphica.gui.datasets.processing as processing_module
 import graphica.gui.main_window as main_window_module
+import graphica.gui.datasets.fitting as fitting_module
+import graphica.gui.datasets.transfer as transfer_module
+import graphica.gui.datasets.actions_menu as actions_menu_module
+import graphica.gui.datasets.property_panel as property_panel_module
+import graphica.gui.datasets.overlays as overlays_module
+import graphica.gui.datasets.plugin_runs as plugin_runs_module
 import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
 import graphica.gui.mixins.settings_mixin as settings_mixin_module
 from graphica.gui.main_window import PlotterApp
@@ -70,7 +78,7 @@ def _pump_events_until_fit_task_done(window, max_iterations=300):
     app = QApplication.instance()
     for _ in range(max_iterations):
         app.processEvents()
-        if window._fit_task_runner is None:
+        if window.fitting.fit_runner is None:
             return
         time.sleep(0.01)
     raise AssertionError("フィット処理が時間内に完了しませんでした")
@@ -81,7 +89,7 @@ def _pump_events_until_batch_fit_task_done(window, max_iterations=300):
     app = QApplication.instance()
     for _ in range(max_iterations):
         app.processEvents()
-        if window._batch_fit_task_runner is None:
+        if window.fitting.batch_fit_runner is None:
             return
         time.sleep(0.01)
     raise AssertionError("バッチフィット処理が時間内に完了しませんでした")
@@ -104,7 +112,7 @@ def _patch_normalize_dialog(monkeypatch, mode, reference_x, output_name, accepte
         def get_settings(self):
             return mode, reference_x, output_name
 
-    monkeypatch.setattr(dataset_mixin_module, "NormalizeDatasetDialog", FakeNormalizeDialog)
+    monkeypatch.setattr(processing_module, "NormalizeDatasetDialog", FakeNormalizeDialog)
 
 
 def _patch_warning_capture(monkeypatch):
@@ -134,8 +142,17 @@ def _patch_dialog_result(monkeypatch, module_attr_name, base_cls, method_name, v
             return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
 
     setattr(FakeDialog, method_name, lambda self: value)
-    monkeypatch.setattr(dataset_mixin_module, module_attr_name, FakeDialog)
+    monkeypatch.setattr(_module_that_uses(module_attr_name), module_attr_name, FakeDialog)
     return FakeDialog
+
+
+def _module_that_uses(name):
+    """DatasetMixin から機能ごとのクラスへ移したコードは、そのモジュールで名前を引く。"""
+    for module in (processing_module, fitting_module, colors_module, transfer_module,
+                   overlays_module, plugin_runs_module, dataset_mixin_module):
+        if hasattr(module, name):
+            return module
+    raise AttributeError(name)
 
 
 def _patch_new_dataset_dialog(monkeypatch, name, column_names, row_count, accepted=True):
@@ -172,16 +189,8 @@ def _patch_fit_dialog(monkeypatch, fit_type, custom_formula=None, use_weighted=F
         p0_overrides or {}, fixed_params or {}, bounds or {}, band_type, loss,
     )
     monkeypatch.setattr(
-        dataset_mixin_module.FitDialog, "get_fit_type",
+        fitting_module.FitDialog, "get_fit_type",
         staticmethod(lambda *a, **k: result)
-    )
-
-
-def _patch_peak_dialog(monkeypatch, settings_dict):
-    """PeakSettingsDialog.get_peak_settings (staticmethod) をフェイクに差し替える(None=キャンセル)"""
-    monkeypatch.setattr(
-        dataset_mixin_module.PeakSettingsDialog, "get_peak_settings",
-        staticmethod(lambda *a, **k: settings_dict)
     )
 
 
@@ -223,7 +232,7 @@ def test_normalize_max_mode_peak_becomes_one(tmp_path, monkeypatch):
     before_count = len(window.project.datasets)
     _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(window.project.datasets) == before_count + 1
     new_dataset = window.project.datasets[-1]
@@ -246,7 +255,7 @@ def test_normalize_x_value_mode_interpolates(tmp_path, monkeypatch):
         monkeypatch, NormalizeDatasetDialog.MODE_X_VALUE, 1.5, "sample_normalized"
     )
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     new_dataset = window.project.datasets[-1]
     np.testing.assert_allclose(new_dataset.y_data, np.array([0.4, 0.8, 1.2, 1.6]))
@@ -266,7 +275,7 @@ def test_normalize_max_mode_excludes_masked_rows(tmp_path, monkeypatch):
 
     _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     new_dataset = window.project.datasets[-1]
     # マスク除外後の可視データは y=[1,2,3] なので、最大値は3のはず
@@ -287,7 +296,7 @@ def test_normalize_out_of_range_reference_x_warns_and_aborts(tmp_path, monkeypat
         monkeypatch, NormalizeDatasetDialog.MODE_X_VALUE, 999.0, "sample_normalized"
     )
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -304,7 +313,7 @@ def test_normalize_near_zero_reference_guards(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -322,7 +331,7 @@ def test_normalize_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
         monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized", accepted=False
     )
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(window.project.datasets) == before_count
 
@@ -333,7 +342,7 @@ def _patch_colormap_choice(monkeypatch, cmap_name, accepted=True):
     """QInputDialog.getItem を、実際にダイアログを表示せず指定の選択結果を返すフェイクに差し替える"""
     def fake_get_item(*args, **kwargs):
         return (cmap_name, accepted)
-    monkeypatch.setattr(dataset_mixin_module.QInputDialog, "getItem", staticmethod(fake_get_item))
+    monkeypatch.setattr(QInputDialog, "getItem", staticmethod(fake_get_item))
 
 
 def _make_simple_dataset(name):
@@ -350,7 +359,7 @@ def test_colormap_auto_assign_applies_evenly_sampled_colors(tmp_path, monkeypatc
     window.ui.dataset_list_widget.selectAll()
 
     _patch_colormap_choice(monkeypatch, "viridis")
-    window._on_auto_assign_colors_from_colormap()
+    window.colors.auto_assign_colors_from_colormap()
 
     cmap = mpl.colormaps["viridis"]
     expected = [mpl.colors.to_hex(cmap(p)) for p in (0.0, 0.5, 1.0)]
@@ -364,7 +373,7 @@ def test_colormap_auto_assign_single_dataset_uses_midpoint_color(tmp_path, monke
     _add_and_select_dataset(window, ds)
 
     _patch_colormap_choice(monkeypatch, "plasma")
-    window._on_auto_assign_colors_from_colormap()
+    window.colors.auto_assign_colors_from_colormap()
 
     cmap = mpl.colormaps["plasma"]
     assert ds.color == mpl.colors.to_hex(cmap(0.5))
@@ -377,7 +386,7 @@ def test_colormap_auto_assign_cancelled_leaves_colors_unchanged(tmp_path, monkey
     original_color = ds.color
 
     _patch_colormap_choice(monkeypatch, "viridis", accepted=False)
-    window._on_auto_assign_colors_from_colormap()
+    window.colors.auto_assign_colors_from_colormap()
 
     assert ds.color == original_color
 
@@ -386,19 +395,19 @@ def test_colormap_auto_assign_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: calls.append(1) or ("viridis", True))
     )
-    window._on_auto_assign_colors_from_colormap()
+    window.colors.auto_assign_colors_from_colormap()
     assert calls == []  # ダイアログ自体を出さずに早期returnする
 
 
-# --- register_processor()実行配線 (項目C-1: _on_run_plugin_processor) ---
+# --- register_processor()実行配線 (PluginRunController.run_processor) ---
 
 def _patch_info_capture(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        QMessageBox, "information",
         staticmethod(lambda *a, **k: calls.append(a) or None)
     )
     return calls
@@ -407,7 +416,7 @@ def _patch_info_capture(monkeypatch):
 def _patch_critical_capture(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "critical",
+        QMessageBox, "critical",
         staticmethod(lambda *a, **k: calls.append(a) or None)
     )
     return calls
@@ -424,7 +433,7 @@ def _patch_plugin_param_dialog(monkeypatch, values, accepted=True):
         def get_values(self):
             return values
 
-    monkeypatch.setattr(dataset_mixin_module, "PluginParamDialog", FakePluginParamDialog)
+    monkeypatch.setattr(plugin_runs_module, "PluginParamDialog", FakePluginParamDialog)
 
 
 def _make_processor(fn, name="Smooth", category="general", param_schema=None, plugin_name="my_plugin"):
@@ -443,7 +452,7 @@ def test_run_plugin_processor_no_dataset_selected_shows_info_and_adds_nothing(tm
     before_count = len(window.project.datasets)
 
     processor = _make_processor(lambda ds, params: ds)
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(info_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -460,7 +469,7 @@ def test_run_plugin_processor_success_adds_dataset_with_source_plugin(tmp_path, 
         return Dataset(name="processed", df=df, x_col_name='x', y_col_name='y')
 
     processor = _make_processor(fn, plugin_name="cool_plugin")
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(window.project.datasets) == before_count + 1
     new_dataset = window.project.datasets[-1]
@@ -478,7 +487,7 @@ def test_run_plugin_processor_success_is_undoable(tmp_path, monkeypatch):
         return Dataset(name="processed", df=dataset.df.copy(), x_col_name='x', y_col_name='y')
 
     processor = _make_processor(fn)
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
     assert len(window.project.datasets) == before_count + 1
 
     window.undo_stack.undo()
@@ -498,7 +507,7 @@ def test_run_plugin_processor_passes_param_dialog_values_to_fn(tmp_path, monkeyp
 
     _patch_plugin_param_dialog(monkeypatch, {"window": 7})
     processor = _make_processor(fn, param_schema=[{"name": "window", "type": "int"}])
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert received == {"window": 7}
 
@@ -514,7 +523,7 @@ def test_run_plugin_processor_param_dialog_cancelled_adds_nothing(tmp_path, monk
         lambda dataset, params: Dataset(name="processed", df=dataset.df.copy(), x_col_name='x', y_col_name='y'),
         param_schema=[{"name": "window", "type": "int"}],
     )
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(window.project.datasets) == before_count
 
@@ -530,7 +539,7 @@ def test_run_plugin_processor_fn_raises_shows_critical_and_adds_nothing(tmp_path
         raise ValueError("boom")
 
     processor = _make_processor(fn)
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(critical_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -544,20 +553,20 @@ def test_run_plugin_processor_fn_returns_wrong_type_shows_critical(tmp_path, mon
     critical_calls = _patch_critical_capture(monkeypatch)
 
     processor = _make_processor(lambda dataset, params: "not a dataset")
-    window._on_run_plugin_processor(processor)
+    window.plugin_runs.run_processor(processor)
 
     assert len(critical_calls) == 1
     assert len(window.project.datasets) == before_count
 
 
-# --- register_analyzer()実行配線 (項目C-2: _on_run_plugin_analyzer) ---
+# --- register_analyzer()実行配線 (PluginRunController.run_analyzer) ---
 
 def test_run_plugin_analyzer_no_dataset_selected_shows_info(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     info_calls = _patch_info_capture(monkeypatch)
 
     analyzer = _make_analyzer(lambda ds, params: AnalysisResult())
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert len(info_calls) == 1
 
@@ -572,7 +581,7 @@ def test_run_plugin_analyzer_fn_raises_shows_critical(tmp_path, monkeypatch):
         raise RuntimeError("boom")
 
     analyzer = _make_analyzer(fn)
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert len(critical_calls) == 1
 
@@ -584,7 +593,7 @@ def test_run_plugin_analyzer_fn_returns_wrong_type_shows_critical(tmp_path, monk
     critical_calls = _patch_critical_capture(monkeypatch)
 
     analyzer = _make_analyzer(lambda dataset, params: None)
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert len(critical_calls) == 1
 
@@ -600,7 +609,7 @@ def test_run_plugin_analyzer_new_datasets_added_with_source_plugin_and_undoable(
         return AnalysisResult(new_datasets=[new_ds])
 
     analyzer = _make_analyzer(fn, plugin_name="cool_plugin")
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert len(window.project.datasets) == before_count + 1
     new_dataset = window.project.datasets[-1]
@@ -624,7 +633,7 @@ def test_run_plugin_analyzer_annotations_appended_to_active_plot_settings(tmp_pa
         return AnalysisResult(annotations=[new_annotation])
 
     analyzer = _make_analyzer(fn)
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert window.project.all_plot_settings[active_index]['annotations'] == before_annotations + [new_annotation]
 
@@ -633,16 +642,16 @@ def test_run_plugin_analyzer_table_shown_in_result_dialog(tmp_path, monkeypatch)
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("orig")
     _add_and_select_dataset(window, ds)
-    assert window.plugin_analysis_result_dialog is None
+    assert window.plugin_runs.analysis_result_dialog is None
 
     def fn(dataset, params):
         return AnalysisResult(table="a,b\n1,2\n")
 
     analyzer = _make_analyzer(fn, name="Peaks")
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
-    assert window.plugin_analysis_result_dialog is not None
-    window.plugin_analysis_result_dialog.close()
+    assert window.plugin_runs.analysis_result_dialog is not None
+    window.plugin_runs.analysis_result_dialog.close()
 
 
 def test_run_plugin_analyzer_passes_param_dialog_values_to_fn(tmp_path, monkeypatch):
@@ -658,7 +667,7 @@ def test_run_plugin_analyzer_passes_param_dialog_values_to_fn(tmp_path, monkeypa
 
     _patch_plugin_param_dialog(monkeypatch, {"threshold": 0.5})
     analyzer = _make_analyzer(fn, param_schema=[{"name": "threshold", "type": "float"}])
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert received == {"threshold": 0.5}
 
@@ -677,7 +686,7 @@ def test_run_plugin_analyzer_param_dialog_cancelled_does_nothing(tmp_path, monke
 
     _patch_plugin_param_dialog(monkeypatch, {"threshold": 0.5}, accepted=False)
     analyzer = _make_analyzer(fn, param_schema=[{"name": "threshold", "type": "float"}])
-    window._on_run_plugin_analyzer(analyzer)
+    window.plugin_runs.run_analyzer(analyzer)
 
     assert calls == []
     assert len(window.project.datasets) == before_count
@@ -693,12 +702,12 @@ def test_run_plugin_analyzer_replaces_previous_table_dialog(tmp_path, monkeypatc
         return AnalysisResult(table="a,b\n1,2\n")
 
     analyzer = _make_analyzer(fn, name="Peaks")
-    window._on_run_plugin_analyzer(analyzer)
-    first_dialog = window.plugin_analysis_result_dialog
+    window.plugin_runs.run_analyzer(analyzer)
+    first_dialog = window.plugin_runs.analysis_result_dialog
     assert first_dialog is not None
 
-    window._on_run_plugin_analyzer(analyzer)
-    second_dialog = window.plugin_analysis_result_dialog
+    window.plugin_runs.run_analyzer(analyzer)
+    second_dialog = window.plugin_runs.analysis_result_dialog
 
     assert second_dialog is not None
     assert second_dialog is not first_dialog
@@ -713,7 +722,7 @@ def test_on_add_dataset_calls_load_data_with_chosen_path(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     chosen_path = str(tmp_path / "data.csv")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getOpenFileName",
+        QFileDialog, "getOpenFileName",
         staticmethod(lambda *a, **k: (chosen_path, "Data Files"))
     )
     calls = []
@@ -727,7 +736,7 @@ def test_on_add_dataset_calls_load_data_with_chosen_path(tmp_path, monkeypatch):
 def test_on_add_dataset_cancelled_does_not_call_load_data(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getOpenFileName",
+        QFileDialog, "getOpenFileName",
         staticmethod(lambda *a, **k: ("", ""))
     )
     calls = []
@@ -834,7 +843,7 @@ def test_dataset_search_folder_with_no_matching_children_is_hidden(tmp_path, mon
 def test_on_new_folder_creates_top_level_folder_when_nothing_selected(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("新しいフォルダ", True))
     )
     before = window.ui.dataset_list_widget.topLevelItemCount()
@@ -849,7 +858,7 @@ def test_on_new_folder_creates_child_folder_when_folder_selected(tmp_path, monke
     parent_folder = window._add_dataset_folder_item("Parent")
     window.ui.dataset_list_widget.setCurrentItem(parent_folder)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("Child", True))
     )
 
@@ -862,7 +871,7 @@ def test_on_new_folder_creates_child_folder_when_folder_selected(tmp_path, monke
 def test_on_new_folder_cancelled_adds_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("", False))
     )
     before = window.ui.dataset_list_widget.topLevelItemCount()
@@ -875,7 +884,7 @@ def test_on_new_folder_cancelled_adds_nothing(tmp_path, monkeypatch):
 def test_on_new_folder_empty_name_adds_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("", True))
     )
     before = window.ui.dataset_list_widget.topLevelItemCount()
@@ -894,7 +903,7 @@ def test_rename_dataset_folder_updates_item_text(tmp_path, monkeypatch):
     folder = window._add_dataset_folder_item("旧フォルダ名")
     window.ui.dataset_list_widget.setCurrentItem(folder)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("新フォルダ名", True))
     )
 
@@ -908,7 +917,7 @@ def test_rename_dataset_folder_cancelled_leaves_name_unchanged(tmp_path, monkeyp
     folder = window._add_dataset_folder_item("フォルダ")
     window.ui.dataset_list_widget.setCurrentItem(folder)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("", False))
     )
 
@@ -924,7 +933,7 @@ def test_rename_dataset_folder_does_nothing_when_dataset_selected(tmp_path, monk
     _add_and_select_dataset(window, ds)
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: calls.append(1) or ("x", True))
     )
 
@@ -940,7 +949,7 @@ def test_rename_dataset_folder_persists_through_capture_dataset_group_tree(tmp_p
     folder = window._add_dataset_folder_item("旧名")
     window.ui.dataset_list_widget.setCurrentItem(folder)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("新名", True))
     )
 
@@ -1115,7 +1124,7 @@ def test_dataset_tree_context_menu_omits_global_visibility_actions_when_project_
     window._on_dataset_tree_context_menu(QPoint(0, 0))
 
     assert _RecordingMenu.last_instance.added_texts == ["新しいフォルダ"]
-# データセットツリーの右クリックメニュー (_on_dataset_tree_context_menu)
+# データセットツリーの右クリックメニュー (populate_dataset_actions_menu)
 # =============================================================================
 
 class _RecordingMenu(QMenu):
@@ -1177,6 +1186,7 @@ class _RecordingMenu(QMenu):
 
 def _patch_recording_menu(monkeypatch):
     monkeypatch.setattr(dataset_mixin_module, "QMenu", _RecordingMenu)
+    monkeypatch.setattr(actions_menu_module, "QMenu", _RecordingMenu)
 
 
 def test_context_menu_no_selection_shows_only_new_folder(tmp_path, monkeypatch):
@@ -1302,7 +1312,7 @@ def test_context_menu_paste_style_disabled_without_copied_style(tmp_path, monkey
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    assert window._copied_dataset_style is None
+    assert window.transfer.copied_style is None
     _patch_recording_menu(monkeypatch)
 
     window._on_dataset_tree_context_menu(QPoint(0, 0))
@@ -1315,7 +1325,7 @@ def test_context_menu_paste_style_enabled_after_copy(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
     _patch_recording_menu(monkeypatch)
 
     window._on_dataset_tree_context_menu(QPoint(0, 0))
@@ -1325,13 +1335,13 @@ def test_context_menu_paste_style_enabled_after_copy(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# スタイルのコピー&ペースト (_on_copy_dataset_style / _on_paste_dataset_style)
+# スタイルのコピー&ペースト (TransferController.copy_style / paste_style)
 # =============================================================================
 
 def test_copy_dataset_style_with_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_copy_dataset_style()
-    assert window._copied_dataset_style is None
+    window.transfer.copy_style()
+    assert window.transfer.copied_style is None
 
 
 def test_copy_dataset_style_captures_style_attrs_by_value(tmp_path, monkeypatch):
@@ -1341,33 +1351,33 @@ def test_copy_dataset_style_captures_style_attrs_by_value(tmp_path, monkeypatch)
     ds.linestyle = "dashed"
     _add_and_select_dataset(window, ds)
 
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
 
-    assert window._copied_dataset_style["color"] == "#abcdef"
-    assert window._copied_dataset_style["linestyle"] == "dashed"
+    assert window.transfer.copied_style["color"] == "#abcdef"
+    assert window.transfer.copied_style["linestyle"] == "dashed"
     # コピー元を後から変えても、既にコピーした内容には影響しない(値のコピーであること)
     ds.color = "#000000"
-    assert window._copied_dataset_style["color"] == "#abcdef"
+    assert window.transfer.copied_style["color"] == "#abcdef"
 
 
 def test_paste_dataset_style_without_copy_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    window._on_paste_dataset_style()  # 例外なく完了すればOK
+    window.transfer.paste_style()  # 例外なく完了すればOK
 
 
 def test_paste_dataset_style_without_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
     folder = window._add_dataset_folder_item("Folder")
     window.ui.dataset_list_widget.clearSelection()
     folder.setSelected(True)
     window.ui.dataset_list_widget.setCurrentItem(folder)
 
-    window._on_paste_dataset_style()  # 対象データセットが無いので何も起きない
+    window.transfer.paste_style()  # 対象データセットが無いので何も起きない
 
 
 def test_paste_dataset_style_single_dataset_applies_and_is_undoable(tmp_path, monkeypatch):
@@ -1376,13 +1386,13 @@ def test_paste_dataset_style_single_dataset_applies_and_is_undoable(tmp_path, mo
     source.color = "#123456"
     source.linestyle = "dashed"
     _add_and_select_dataset(window, source)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
 
     target = _make_simple_dataset("target")
     original_color = target.color
     _add_and_select_dataset(window, target)
 
-    window._on_paste_dataset_style()
+    window.transfer.paste_style()
 
     assert target.color == "#123456"
     assert target.linestyle == "dashed"
@@ -1404,11 +1414,11 @@ def test_copy_paste_dataset_style_includes_2d_appearance_but_not_structure(tmp_p
     source.data_kind = '2d_grid'
     source.z_col_name = 'some_z_col'
     _add_and_select_dataset(window, source)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
 
     target = _make_simple_dataset("target")
     _add_and_select_dataset(window, target)
-    window._on_paste_dataset_style()
+    window.transfer.paste_style()
 
     assert target.colormap == "plasma"
     assert target.vmin == -1.0
@@ -1422,14 +1432,14 @@ def test_paste_dataset_style_batch_uses_single_macro(tmp_path, monkeypatch):
     source = _make_simple_dataset("source")
     source.color = "#123456"
     _add_and_select_dataset(window, source)
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
 
     targets = [_make_simple_dataset(f"t{i}") for i in range(2)]
     for ds in targets:
         window._add_dataset(ds, None, select=False)
     _select_items(window, targets)
 
-    window._on_paste_dataset_style()
+    window.transfer.paste_style()
 
     assert all(ds.color == "#123456" for ds in targets)
 
@@ -1438,17 +1448,17 @@ def test_paste_dataset_style_batch_uses_single_macro(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# データ表の書き出し (_on_export_dataset_data)
+# データ表の書き出し (TransferController.export_data)
 # =============================================================================
 
 def test_export_dataset_data_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: calls.append(1) or ("", ""))
     )
-    window._on_export_dataset_data()
+    window.transfer.export_data()
     assert calls == []
 
 
@@ -1458,12 +1468,12 @@ def test_export_single_dataset_csv(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     out_path = str(tmp_path / "out.csv")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "CSV Files (*.csv)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert os.path.exists(out_path)
     assert len(info_calls) == 1
@@ -1475,12 +1485,12 @@ def test_export_single_dataset_excel_via_filter_appends_extension(tmp_path, monk
     _add_and_select_dataset(window, ds)
     out_path_no_ext = str(tmp_path / "outbook")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path_no_ext, "Excel Files (*.xlsx)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert os.path.exists(out_path_no_ext + ".xlsx")
     assert len(info_calls) == 1
@@ -1491,12 +1501,12 @@ def test_export_single_dataset_cancelled_writes_nothing(tmp_path, monkeypatch):
     ds = _make_simple_dataset("mydata")
     _add_and_select_dataset(window, ds)
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: ("", ""))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert info_calls == []
 
@@ -1507,7 +1517,7 @@ def test_export_single_dataset_write_error_shows_warning(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     out_path = str(tmp_path / "out.csv")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "CSV Files (*.csv)"))
     )
 
@@ -1518,7 +1528,7 @@ def test_export_single_dataset_write_error_shows_warning(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert len(warnings) == 1
     assert info_calls == []
@@ -1532,16 +1542,16 @@ def test_export_multi_datasets_csv_per_file_with_name_collision(tmp_path, monkey
     window._add_dataset(ds2, None, select=False)
     _select_items(window, [ds1, ds2])
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", True))
     )
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getExistingDirectory",
+        transfer_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: str(tmp_path))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert (tmp_path / "dup.csv").exists()
     assert (tmp_path / "dup_2.csv").exists()
@@ -1556,17 +1566,17 @@ def test_export_multi_datasets_excel_workbook_with_sheet_collision(tmp_path, mon
     window._add_dataset(ds2, None, select=False)
     _select_items(window, [ds1, ds2])
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("Excel (1ブックにシート分け)", True))
     )
     out_path = str(tmp_path / "book.xlsx")
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getSaveFileName",
+        transfer_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "Excel Files (*.xlsx)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert os.path.exists(out_path)
     xls = pd.ExcelFile(out_path)
@@ -1581,12 +1591,12 @@ def test_export_multi_datasets_format_choice_cancelled_writes_nothing(tmp_path, 
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", False))
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert info_calls == []
 
@@ -1598,16 +1608,16 @@ def test_export_multi_datasets_csv_dir_cancelled_writes_nothing(tmp_path, monkey
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", True))
     )
     monkeypatch.setattr(
-        dataset_mixin_module.QFileDialog, "getExistingDirectory",
+        transfer_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: "")
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_dataset_data()
+    window.transfer.export_data()
 
     assert info_calls == []
 
@@ -1623,7 +1633,7 @@ def test_arithmetic_requires_exactly_two_selected(tmp_path, monkeypatch):
     before_count = len(window.project.datasets)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(info_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -1649,7 +1659,7 @@ def test_arithmetic_a_minus_b_success(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -1668,7 +1678,7 @@ def test_arithmetic_a_divide_b(tmp_path, monkeypatch):
         "get_settings", ("A ÷ B", "ratio")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     new_ds = window.project.datasets[-1]
     np.testing.assert_allclose(new_ds.y_data, [0.0, 2.0, 4.0, 6.0])
@@ -1686,7 +1696,7 @@ def test_arithmetic_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(window.project.datasets) == before_count
 
@@ -1704,7 +1714,7 @@ def test_arithmetic_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -1725,7 +1735,7 @@ def test_arithmetic_all_nan_data_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(warnings) == 1
 
@@ -1745,7 +1755,7 @@ def test_arithmetic_non_overlapping_ranges_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     assert len(warnings) == 1
 
@@ -1771,7 +1781,7 @@ def test_arithmetic_propagates_error_when_both_datasets_have_error_columns(tmp_p
         "get_settings", ("A - B", "diff")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.y_err_col_name == 'y_err'
@@ -1792,7 +1802,7 @@ def test_arithmetic_no_error_column_when_only_one_dataset_has_errors(tmp_path, m
         "get_settings", ("A - B", "diff")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.y_err_col_name is None
@@ -1810,7 +1820,7 @@ def test_arithmetic_no_error_columns_unaffected(tmp_path, monkeypatch):
         "get_settings", ("A - B", "diff")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.y_err_col_name is None
@@ -1841,7 +1851,7 @@ def test_align_datasets_requires_exactly_two_selected(tmp_path, monkeypatch):
     before_count = len(window.project.datasets)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(info_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -1859,7 +1869,7 @@ def test_align_datasets_shifts_b_to_match_a(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -1880,7 +1890,7 @@ def test_align_datasets_does_not_modify_originals(tmp_path, monkeypatch):
         "get_settings", "B_aligned"
     )
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     np.testing.assert_array_equal(ds_b.x_data, original_b_x)  # 元のBは非破壊
 
@@ -1897,7 +1907,7 @@ def test_align_datasets_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(window.project.datasets) == before_count
 
@@ -1915,7 +1925,7 @@ def test_align_datasets_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -1936,7 +1946,7 @@ def test_align_datasets_insufficient_points_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     assert len(warnings) == 1
 
@@ -1952,7 +1962,7 @@ def test_align_datasets_records_provenance_with_both_source_datasets(tmp_path, m
         "get_settings", "B_aligned"
     )
 
-    window._on_align_datasets()
+    window.processing.align_selected()
 
     prov = window.project.datasets[-1].provenance
     assert prov is not None
@@ -1968,7 +1978,7 @@ def test_align_datasets_records_provenance_with_both_source_datasets(tmp_path, m
 def test_normalize_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_normalize_dataset()
+    window.processing.normalize()
     assert len(window.project.datasets) == before_count
 
 
@@ -1979,7 +1989,7 @@ def test_normalize_all_nan_data_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(warnings) == 1
 
@@ -1992,7 +2002,7 @@ def test_normalize_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2012,7 +2022,7 @@ def _make_savgol_dataset(n=11):
 def test_savgol_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
     assert len(window.project.datasets) == before_count
 
 
@@ -2023,7 +2033,7 @@ def test_savgol_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(warnings) == 1
 
@@ -2038,7 +2048,7 @@ def test_savgol_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(window.project.datasets) == before_count
 
@@ -2054,7 +2064,7 @@ def test_savgol_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2072,11 +2082,11 @@ def test_savgol_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("窓幅が不正です")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_savgol", raiser)
+    monkeypatch.setattr(processing_module, "calculate_savgol", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2092,7 +2102,7 @@ def test_savgol_success_smoothing_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -2109,7 +2119,7 @@ def test_savgol_success_derivative_adds_dataset(tmp_path, monkeypatch):
         (5, 2, 1, "curve_deriv1")
     )
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.name == "curve_deriv1"
@@ -2129,7 +2139,7 @@ def _make_baseline_dataset(n=50):
 def test_baseline_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
     assert len(window.project.datasets) == before_count
 
 
@@ -2140,7 +2150,7 @@ def test_baseline_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(warnings) == 1
 
@@ -2156,7 +2166,7 @@ def test_baseline_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count
 
@@ -2172,7 +2182,7 @@ def test_baseline_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2190,11 +2200,11 @@ def test_baseline_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("lamは正の値である必要があります")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_baseline_als", raiser)
+    monkeypatch.setattr(processing_module, "calculate_baseline_als", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2210,7 +2220,7 @@ def test_baseline_als_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -2228,7 +2238,7 @@ def test_baseline_polynomial_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 1
     assert window.project.datasets[-1].name == "spectrum_poly"
@@ -2244,7 +2254,7 @@ def test_baseline_rubberband_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 1
     assert window.project.datasets[-1].name == "spectrum_rubberband"
@@ -2260,7 +2270,7 @@ def test_baseline_manual_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 1
     assert window.project.datasets[-1].name == "spectrum_manual"
@@ -2277,7 +2287,7 @@ def test_baseline_manual_invalid_anchor_text_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -2293,7 +2303,7 @@ def test_baseline_add_baseline_curve_checkbox_adds_two_datasets(tmp_path, monkey
     )
     before_count = len(window.project.datasets)
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     assert len(window.project.datasets) == before_count + 2
     names = [d.name for d in window.project.datasets[-2:]]
@@ -2311,7 +2321,7 @@ def test_batch_column_calculate_requires_at_least_two_selected(tmp_path, monkeyp
     _add_and_select_dataset(window, ds)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     assert len(info_calls) == 1
 
@@ -2327,7 +2337,7 @@ def test_batch_column_calculate_dialog_cancelled_changes_nothing(tmp_path, monke
         "get_formula", ("y2", "y*2"), accepted=False
     )
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     assert all("y2" not in ds.df.columns for ds in datasets)
 
@@ -2344,7 +2354,7 @@ def test_batch_column_calculate_empty_formula_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     assert len(warnings) == 1
 
@@ -2361,7 +2371,7 @@ def test_batch_column_calculate_applies_formula_to_all_selected(tmp_path, monkey
     )
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     for ds in datasets:
         np.testing.assert_allclose(ds.df["y2"].values, ds.df["y"].values * 2)
@@ -2380,17 +2390,17 @@ def test_batch_column_calculate_partial_failure_reports_both(tmp_path, monkeypat
         "get_formula", ("y2", "y*2")
     )
 
-    original = dataset_mixin_module.safe_eval_column_formula
+    original = processing_module.safe_eval_column_formula
 
     def flaky(df, formula):
         if df is ds2.df:
             raise ValueError("bad formula")
         return original(df, formula)
 
-    monkeypatch.setattr(dataset_mixin_module, "safe_eval_column_formula", flaky)
+    monkeypatch.setattr(processing_module, "safe_eval_column_formula", flaky)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_column_calculate()
+    window.processing.batch_column_calculate()
 
     assert "y2" in ds1.df.columns
     assert "y2" not in ds2.df.columns
@@ -2416,7 +2426,7 @@ def test_batch_curve_fit_requires_at_least_two_selected(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
 
     assert len(info_calls) == 1
 
@@ -2430,7 +2440,7 @@ def test_batch_curve_fit_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     _patch_fit_dialog(monkeypatch, None)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
 
     assert len(window.project.datasets) == before_count
 
@@ -2445,7 +2455,7 @@ def test_batch_curve_fit_success_adds_fit_dataset_per_selected(tmp_path, monkeyp
     info_calls = _patch_info_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     assert len(window.project.datasets) == before_count + 2
@@ -2468,17 +2478,17 @@ def test_batch_curve_fit_partial_failure_reports_both(tmp_path, monkeypatch):
     _select_items(window, [ok_ds, bad_ds])
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    original = dataset_mixin_module.calculate_curve_fit
+    original = fitting_module.calculate_curve_fit
 
     def flaky(x_data, y_data, fit_type, **kwargs):
         if len(x_data) and x_data[0] > 500:
             raise RuntimeError("fit failed")
         return original(x_data, y_data, fit_type, **kwargs)
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", flaky)
+    monkeypatch.setattr(fitting_module, "calculate_curve_fit", flaky)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     names = {ds.name for ds in window.project.datasets if ds.name.startswith("Fit (")}
@@ -2504,7 +2514,7 @@ def test_batch_curve_fit_calls_update_plot_exactly_once_for_n_dataset_batch(tmp_
     update_plot_calls = []
     monkeypatch.setattr(window, "_update_plot", lambda: update_plot_calls.append(1))
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     assert update_plot_calls == [1]
@@ -2531,17 +2541,17 @@ def test_batch_curve_fit_cancellation_keeps_only_completed_items(tmp_path, monke
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     _patch_info_capture(monkeypatch)
 
-    original = dataset_mixin_module.calculate_curve_fit
+    original = fitting_module.calculate_curve_fit
 
     def slow(x_data, y_data, fit_type, **kwargs):
         time.sleep(0.2)
         return original(x_data, y_data, fit_type, **kwargs)
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", slow)
+    monkeypatch.setattr(fitting_module, "calculate_curve_fit", slow)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
-    runner = window._batch_fit_task_runner
+    window.fitting.batch_fit_selected()
+    runner = window.fitting.batch_fit_runner
     assert runner is not None
 
     app = QApplication.instance()
@@ -2846,13 +2856,13 @@ def test_non_structural_property_change_still_updates_tree_item_and_plot_visuall
 
 
 # =============================================================================
-# 描画先プロット変更 (_on_subplot_target_changed)
+# 描画先プロット変更 (property_panel.on_subplot_target_changed)
 # =============================================================================
 
 def test_subplot_target_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_subplot_target_changed(1)
+    window.property_panel.on_subplot_target_changed(1)
     assert window.undo_stack.count() == before_count
 
 
@@ -2862,7 +2872,7 @@ def test_subplot_target_changed_same_value_does_nothing(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     before_count = window.undo_stack.count()
 
-    window._on_subplot_target_changed(ds.subplot_target)
+    window.property_panel.on_subplot_target_changed(ds.subplot_target)
 
     assert window.undo_stack.count() == before_count
 
@@ -2873,7 +2883,7 @@ def test_subplot_target_changed_minus_one_does_nothing(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     before_count = window.undo_stack.count()
 
-    window._on_subplot_target_changed(-1)
+    window.property_panel.on_subplot_target_changed(-1)
 
     assert window.undo_stack.count() == before_count
 
@@ -2884,7 +2894,7 @@ def test_subplot_target_changed_updates_and_is_undoable(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     assert ds.subplot_target == 0
 
-    window._on_subplot_target_changed(1)
+    window.property_panel.on_subplot_target_changed(1)
 
     assert ds.subplot_target == 1
     window.undo_stack.undo()
@@ -2892,14 +2902,14 @@ def test_subplot_target_changed_updates_and_is_undoable(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 凡例名の変更 (_on_legend_name_changed)
+# 凡例名の変更 (property_panel.on_legend_name_changed)
 # =============================================================================
 
 def test_legend_name_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
     window.ui.legend_name_edit.setText("new name")
-    window._on_legend_name_changed()
+    window.property_panel.on_legend_name_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -2909,7 +2919,7 @@ def test_legend_name_changed_updates_dataset_and_tree_item(tmp_path, monkeypatch
     _add_and_select_dataset(window, ds)
     window.ui.legend_name_edit.setText("new_name")
 
-    window._on_legend_name_changed()
+    window.property_panel.on_legend_name_changed()
 
     assert ds.name == "new_name"
     item = window._get_dataset_tree_item(ds)
@@ -2921,7 +2931,7 @@ def test_legend_name_changed_updates_dataset_and_tree_item(tmp_path, monkeypatch
 
 
 # =============================================================================
-# データ点ラベル表示のトグル (_on_point_labels_toggled)
+# データ点ラベル表示のトグル (property_panel.on_point_labels_toggled)
 # =============================================================================
 
 def test_point_labels_toggle_off_skips_confirmation(tmp_path, monkeypatch):
@@ -3005,19 +3015,19 @@ def test_raising_the_limit_hides_the_note(tmp_path, monkeypatch):
     window.point_labels_checkbox.setChecked(True)
 
     window.canvas.point_label_max_points = 2000
-    window._update_point_labels_limit_note()
+    window.property_panel.update_point_labels_limit_note()
 
     assert window.point_labels_limit_note.isHidden()
 
 
 # =============================================================================
-# プロパティ一括変更 (_on_property_changed)
+# プロパティ一括変更 (property_panel.on_property_changed)
 # =============================================================================
 
 def test_property_changed_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_property_changed()
+    window.property_panel.on_property_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -3027,7 +3037,7 @@ def test_property_changed_unrecognized_sender_does_nothing(tmp_path, monkeypatch
     _add_and_select_dataset(window, ds)
     before_count = window.undo_stack.count()
 
-    window._on_property_changed()  # 直接呼び出しのため sender() は None
+    window.property_panel.on_property_changed()  # 直接呼び出しのため sender() は None
 
     assert window.undo_stack.count() == before_count
 
@@ -3413,21 +3423,21 @@ def test_smoothing_method_included_in_style_copy_paste(tmp_path, monkeypatch):
     window._add_dataset(source, None, select=True)
     window._add_dataset(target, None, select=False)
 
-    window._on_copy_dataset_style()
+    window.transfer.copy_style()
     _add_and_select_dataset(window, target)
-    window._on_paste_dataset_style()
+    window.transfer.paste_style()
 
     assert target.smoothing_method == 'gaussian'
 
 
 # =============================================================================
-# 色変更 (_on_dataset_color_changed / _on_gradient_color2_changed)
+# 色変更 (ColorController.on_color_changed / on_gradient_color2_changed)
 # =============================================================================
 
 def test_dataset_color_changed_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_dataset_color_changed("#ff0000")
+    window.colors.on_color_changed("#ff0000")
     assert window.undo_stack.count() == before_count
 
 
@@ -3437,7 +3447,7 @@ def test_dataset_color_changed_single_dataset_undoable(tmp_path, monkeypatch):
     original_color = ds.color
     _add_and_select_dataset(window, ds)
 
-    window._on_dataset_color_changed("#ff0000")
+    window.colors.on_color_changed("#ff0000")
 
     assert ds.color == "#ff0000"
     window.undo_stack.undo()
@@ -3451,7 +3461,7 @@ def test_dataset_color_changed_batch_macro(tmp_path, monkeypatch):
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
 
-    window._on_dataset_color_changed("#00ff00")
+    window.colors.on_color_changed("#00ff00")
 
     assert all(ds.color == "#00ff00" for ds in datasets)
     window.undo_stack.undo()
@@ -3463,7 +3473,7 @@ def test_gradient_color2_changed_single_dataset_undoable(tmp_path, monkeypatch):
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
 
-    window._on_gradient_color2_changed("#123123")
+    window.colors.on_gradient_color2_changed("#123123")
 
     assert ds.gradient_color2 == "#123123"
     window.undo_stack.undo()
@@ -3473,7 +3483,7 @@ def test_gradient_color2_changed_single_dataset_undoable(tmp_path, monkeypatch):
 def test_gradient_color2_changed_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_gradient_color2_changed("#123123")
+    window.colors.on_gradient_color2_changed("#123123")
     assert window.undo_stack.count() == before_count
 
 
@@ -3484,7 +3494,7 @@ def test_gradient_color2_changed_no_selection_does_nothing(tmp_path, monkeypatch
 def test_auto_assign_colors_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_auto_assign_colors()
+    window.colors.auto_assign_colors()
     assert window.undo_stack.count() == before_count
 
 
@@ -3492,9 +3502,9 @@ def test_auto_assign_colors_single_dataset(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
-    cycle = window._get_active_color_cycle()
+    cycle = window.colors.active_color_cycle()
 
-    window._on_auto_assign_colors()
+    window.colors.auto_assign_colors()
 
     assert ds.color == cycle[0]
 
@@ -3505,9 +3515,9 @@ def test_auto_assign_colors_batch_cycles_and_is_undoable(tmp_path, monkeypatch):
     for ds in datasets:
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
-    cycle = window._get_active_color_cycle()
+    cycle = window.colors.active_color_cycle()
 
-    window._on_auto_assign_colors()
+    window.colors.auto_assign_colors()
 
     for i, ds in enumerate(datasets):
         assert ds.color == cycle[i % len(cycle)]
@@ -3518,60 +3528,60 @@ def test_auto_assign_colors_batch_cycles_and_is_undoable(tmp_path, monkeypatch):
 
 # =============================================================================
 # カラーパレット設定
-# (_load_color_palettes / _save_color_palettes / _get_active_color_cycle / _on_manage_color_palettes)
+# (ColorController.load_palettes / save_palettes / active_color_cycle / manage_palettes)
 # =============================================================================
 
 def test_load_color_palettes_empty_by_default(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    assert window._load_color_palettes() == {}
+    assert window.colors.load_palettes() == {}
 
 
 def test_save_and_load_color_palettes_round_trip(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     palettes = {"my_palette": ["#111111", "#222222"]}
 
-    window._save_color_palettes(palettes)
+    window.colors.save_palettes(palettes)
 
-    assert window._load_color_palettes() == palettes
+    assert window.colors.load_palettes() == palettes
 
 
 def test_load_color_palettes_corrupted_json_returns_empty(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(dataset_mixin_module.COLOR_PALETTES_SETTINGS_KEY, "{not valid json")
+    window.settings.setValue(colors_module.COLOR_PALETTES_SETTINGS_KEY, "{not valid json")
 
-    assert window._load_color_palettes() == {}
+    assert window.colors.load_palettes() == {}
 
 
 def test_get_active_color_cycle_default_uses_matplotlib_cycle(tmp_path, monkeypatch):
     import matplotlib as mpl
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     expected = mpl.rcParams['axes.prop_cycle'].by_key()['color']
-    assert window._get_active_color_cycle() == expected
+    assert window.colors.active_color_cycle() == expected
 
 
 def test_get_active_color_cycle_uses_custom_active_palette(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._save_color_palettes({"custom": ["#aaaaaa", "#bbbbbb"]})
-    window.settings.setValue(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY, "custom")
+    window.colors.save_palettes({"custom": ["#aaaaaa", "#bbbbbb"]})
+    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "custom")
 
-    assert window._get_active_color_cycle() == ["#aaaaaa", "#bbbbbb"]
+    assert window.colors.active_color_cycle() == ["#aaaaaa", "#bbbbbb"]
 
 
 def test_get_active_color_cycle_uses_builtin_palette(tmp_path, monkeypatch):
     """項目141(C-804): 組み込みの論文向けパレットもアクティブ名で解決できる。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY, "Tableau 10")
+    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "Tableau 10")
 
-    assert window._get_active_color_cycle() == BUILTIN_PALETTES["Tableau 10"]
+    assert window.colors.active_color_cycle() == BUILTIN_PALETTES["Tableau 10"]
 
 
 def test_get_active_color_cycle_falls_back_when_active_palette_missing(tmp_path, monkeypatch):
     import matplotlib as mpl
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY, "deleted_palette")
+    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "deleted_palette")
     expected = mpl.rcParams['axes.prop_cycle'].by_key()['color']
 
-    assert window._get_active_color_cycle() == expected
+    assert window.colors.active_color_cycle() == expected
 
 
 def test_manage_color_palettes_saves_result_on_accept(tmp_path, monkeypatch):
@@ -3582,10 +3592,10 @@ def test_manage_color_palettes_saves_result_on_accept(tmp_path, monkeypatch):
         (new_palettes, "mine")
     )
 
-    window._on_manage_color_palettes()
+    window.colors.manage_palettes()
 
-    assert window._load_color_palettes() == new_palettes
-    assert window.settings.value(dataset_mixin_module.ACTIVE_PALETTE_SETTINGS_KEY) == "mine"
+    assert window.colors.load_palettes() == new_palettes
+    assert window.settings.value(colors_module.ACTIVE_PALETTE_SETTINGS_KEY) == "mine"
 
 
 def test_manage_color_palettes_cancelled_does_not_save(tmp_path, monkeypatch):
@@ -3595,13 +3605,13 @@ def test_manage_color_palettes_cancelled_does_not_save(tmp_path, monkeypatch):
         ({"mine": ["#010101"]}, "mine"), accepted=False
     )
 
-    window._on_manage_color_palettes()
+    window.colors.manage_palettes()
 
-    assert window._load_color_palettes() == {}
+    assert window.colors.load_palettes() == {}
 
 
 # =============================================================================
-# 統計サマリー / フィット情報表示 (_update_ui_state / _update_stats_summary_label)
+# 統計サマリー / フィット情報表示 (property_panel.update_ui_state / property_panel.update_stats_summary_label)
 # =============================================================================
 
 def test_select_dataset_with_fit_info_shows_fit_panel(tmp_path, monkeypatch):
@@ -3818,13 +3828,13 @@ def test_show_data_editor_switching_dataset_closes_old_and_creates_new_dialog(tm
 
 
 # =============================================================================
-# プロット列変更 (_on_plot_column_changed)
+# プロット列変更 (property_panel.on_plot_column_changed)
 # =============================================================================
 
 def test_plot_column_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_plot_column_changed()
+    window.property_panel.on_plot_column_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -3866,7 +3876,7 @@ def test_plot_column_changed_both_at_once_single_command(tmp_path, monkeypatch):
     window.x_col_combo.blockSignals(False)
     window.y_col_combo.blockSignals(False)
 
-    window._on_plot_column_changed()
+    window.property_panel.on_plot_column_changed()
 
     assert ds.x_col_name == 'z'
     assert ds.y_col_name == 'x'
@@ -3878,7 +3888,7 @@ def test_plot_column_changed_both_at_once_single_command(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 列の単位メタデータ→軸ラベル自動生成 (_maybe_autofill_axis_label, 項目127、C-608)
+# 列の単位メタデータ→軸ラベル自動生成 (property_panel.maybe_autofill_axis_label, 項目127、C-608)
 # =============================================================================
 
 def test_plot_column_changed_autofills_empty_x_label_from_unit_column(tmp_path, monkeypatch):
@@ -3937,13 +3947,13 @@ def test_plot_column_changed_autofills_non_active_subplot_settings_dict(tmp_path
 
 
 # =============================================================================
-# 誤差列変更 (_on_error_column_changed)
+# 誤差列変更 (property_panel.on_error_column_changed)
 # =============================================================================
 
 def test_error_column_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_error_column_changed()
+    window.property_panel.on_error_column_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -3957,18 +3967,18 @@ def test_error_column_changed_sets_and_clears_error_columns(tmp_path, monkeypatc
 
     assert ds.y_err_col_name == 'yerr'
 
-    window.y_err_col_combo.setCurrentText(dataset_mixin_module.NO_ERROR_COLUMN_LABEL)
+    window.y_err_col_combo.setCurrentText(property_panel_module.NO_ERROR_COLUMN_LABEL)
 
     assert ds.y_err_col_name is None
 
 
 # =============================================================================
-# データ構造変更の反映 (_on_data_structure_changed)
+# データ構造変更の反映 (property_panel.on_data_structure_changed)
 # =============================================================================
 
 def test_data_structure_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_data_structure_changed()  # 例外が出なければOK
+    window.property_panel.on_data_structure_changed()  # 例外が出なければOK
 
 
 def test_data_structure_changed_refreshes_column_combos(tmp_path, monkeypatch):
@@ -3977,7 +3987,7 @@ def test_data_structure_changed_refreshes_column_combos(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     ds.df['z'] = [7.0, 8.0, 9.0]
 
-    window._on_data_structure_changed()
+    window.property_panel.on_data_structure_changed()
 
     items = [window.x_col_combo.itemText(i) for i in range(window.x_col_combo.count())]
     assert 'z' in items
@@ -3990,7 +4000,7 @@ def test_data_structure_changed_refreshes_column_combos(tmp_path, monkeypatch):
 def test_fit_curve_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     assert len(window.project.datasets) == before_count
 
 
@@ -4001,11 +4011,11 @@ def test_fit_curve_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     _patch_fit_dialog(monkeypatch, None)
     before_count = len(window.project.datasets)
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
 
     # ダイアログでキャンセルした場合はTaskRunnerが起動する前にreturnするため、
     # ポンピング不要(_fit_task_runnerはNoneのまま)。
-    assert window._fit_task_runner is None
+    assert window.fitting.fit_runner is None
     assert len(window.project.datasets) == before_count
 
 
@@ -4015,10 +4025,10 @@ def test_fit_curve_success_adds_fit_dataset_and_shows_result(tmp_path, monkeypat
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
     before_count = len(window.project.datasets)
-    assert window.fit_result_dialog is None
+    assert window.fitting.result_dialog is None
 
-    window._on_fit_curve()
-    assert window._fit_task_runner is not None
+    window.fitting.fit_current_dataset()
+    assert window.fitting.fit_runner is not None
     assert not window.fit_curve_button.isEnabled()
     _pump_events_until_fit_task_done(window)
     assert window.fit_curve_button.isEnabled()
@@ -4027,7 +4037,7 @@ def test_fit_curve_success_adds_fit_dataset_and_shows_result(tmp_path, monkeypat
     new_ds = window.project.datasets[-1]
     assert new_ds.name == "Fit (d0)"
     assert new_ds.fit_info is not None
-    assert window.fit_result_dialog is not None
+    assert window.fitting.result_dialog is not None
 
     # 項目C-401: fit_infoの表示文字列だけでなく、後続機能が再利用できる
     # 構造化フィット結果もあわせて保持されていること
@@ -4052,12 +4062,12 @@ def test_fit_curve_replaces_previous_result_dialog(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
-    first = window.fit_result_dialog
-    window._on_fit_curve()
+    first = window.fitting.result_dialog
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
-    second = window.fit_result_dialog
+    second = window.fitting.result_dialog
 
     assert second is not first
     second.close()
@@ -4074,7 +4084,7 @@ def test_fit_curve_with_weighted_and_x_range(tmp_path, monkeypatch):
     x_range = (x_min + 1, x_max - 1)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", use_weighted=True, x_range=x_range)
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4097,11 +4107,11 @@ def test_fit_curve_calculation_error_shows_warning(tmp_path, monkeypatch):
     # fit_curve_task(dataset_mixin_module内にimport済み)に委ねるようになった
     # ため、以前のように直接呼んでいたcalculate_curve_fitではなく、実際の
     # 呼び出し対象であるfit_curve_taskをモックする。
-    monkeypatch.setattr(dataset_mixin_module, "fit_curve_task", raiser)
+    monkeypatch.setattr(fitting_module, "fit_curve_task", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     assert len(warnings) == 1
@@ -4118,7 +4128,7 @@ def test_fit_curve_with_fixed_param_holds_value_and_is_recorded(tmp_path, monkey
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", fixed_params={"b": 1.3})
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4142,7 +4152,7 @@ def test_fit_curve_with_p0_overrides_and_bounds_recorded(tmp_path, monkeypatch):
         p0_overrides={"a": 1.0}, bounds={"a": (0.0, 10.0)},
     )
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4161,7 +4171,7 @@ def test_fit_curve_without_customization_records_empty_dicts(tmp_path, monkeypat
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4178,7 +4188,7 @@ def test_fit_curve_with_band_type_adds_band_columns_and_flag(tmp_path, monkeypat
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", band_type="confidence")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4194,7 +4204,7 @@ def test_fit_curve_without_band_type_adds_no_band_columns(tmp_path, monkeypatch)
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4211,7 +4221,7 @@ def test_fit_curve_with_robust_loss_recorded_in_fit_result_and_text(tmp_path, mo
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='soft_l1')
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4226,7 +4236,7 @@ def test_fit_curve_default_loss_omits_robust_fit_line_from_result_text(tmp_path,
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -4244,13 +4254,13 @@ def test_fit_curve_robust_fit_less_affected_by_outlier_end_to_end(tmp_path, monk
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     linear_slope = window.project.datasets[-1].fit_result['params'][0]
 
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='soft_l1')
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     robust_slope = window.project.datasets[-1].fit_result['params'][0]
 
@@ -4269,7 +4279,7 @@ def test_batch_curve_fit_applies_robust_loss_to_all_datasets(tmp_path, monkeypat
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='huber')
     _patch_info_capture(monkeypatch)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     fit_datasets = window.project.datasets[len(datasets):]
@@ -4285,11 +4295,11 @@ def test_batch_curve_fit_format_fit_result_text_includes_loss_after_reload(tmp_p
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)", loss='huber')
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     fit_result = window.project.datasets[-1].fit_result
-    text = window._format_fit_result_text(fit_result)
+    text = fitting_module.format_fit_result_text(fit_result)
     assert "ロバストフィット" in text
     assert "huber" in text
 
@@ -4309,7 +4319,7 @@ def test_batch_curve_fit_applies_fixed_params_to_all_datasets(tmp_path, monkeypa
     _patch_info_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     assert len(window.project.datasets) == before_count + 2
@@ -4332,7 +4342,7 @@ def test_fit_curve_fixed_params_validation_error_shows_warning(tmp_path, monkeyp
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     assert len(warnings) == 1
@@ -4362,7 +4372,7 @@ def test_context_menu_export_fit_action_enabled_for_fit_dataset(tmp_path, monkey
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])  # 既存アイテムをカレントにする(再追加しない)
@@ -4376,8 +4386,8 @@ def test_context_menu_export_fit_action_enabled_for_fit_dataset(tmp_path, monkey
 
 def test_export_fit_result_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_export_fit_result()
-    assert window.fit_result_dialog is None
+    window.fitting.show_fit_result()
+    assert window.fitting.result_dialog is None
 
 
 def test_export_fit_result_without_fit_result_shows_info_and_no_crash(tmp_path, monkeypatch):
@@ -4388,10 +4398,10 @@ def test_export_fit_result_without_fit_result_shows_info_and_no_crash(tmp_path, 
     _add_and_select_dataset(window, ds)
     info_calls = _patch_info_capture(monkeypatch)
 
-    window._on_export_fit_result()
+    window.fitting.show_fit_result()
 
     assert len(info_calls) == 1
-    assert window.fit_result_dialog is None
+    assert window.fitting.result_dialog is None
 
 
 def test_export_fit_result_reuses_stored_result_without_recompute(tmp_path, monkeypatch):
@@ -4402,7 +4412,7 @@ def test_export_fit_result_reuses_stored_result_without_recompute(tmp_path, monk
     ds = _make_linear_dataset("d0", slope=2.0, intercept=1.0, n=20)
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     original_fit_result = fit_ds.fit_result
@@ -4411,13 +4421,13 @@ def test_export_fit_result_reuses_stored_result_without_recompute(tmp_path, monk
     def raiser(*a, **k):
         raise AssertionError("calculate_curve_fit() が再フィットのため呼び出された(再計算してはいけない)")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_curve_fit", raiser)
+    monkeypatch.setattr(fitting_module, "calculate_curve_fit", raiser)
     _patch_question_yes(monkeypatch, accept=False)  # 注釈焼き込みはこのテストでは対象外
 
-    window._on_export_fit_result()
+    window.fitting.show_fit_result()
 
-    assert window.fit_result_dialog is not None
-    dialog = window.fit_result_dialog
+    assert window.fitting.result_dialog is not None
+    dialog = window.fitting.result_dialog
     assert "線形 (y = ax + b)" in dialog.text_edit.toPlainText()
     for param_name in original_fit_result['param_names']:
         assert param_name in dialog.text_edit.toPlainText()
@@ -4435,7 +4445,7 @@ def test_export_fit_result_declining_annotation_adds_no_annotation(tmp_path, mon
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])
@@ -4443,8 +4453,8 @@ def test_export_fit_result_declining_annotation_adds_no_annotation(tmp_path, mon
     before_annotations = list(window.project.all_plot_settings[axis_index].get('annotations', []))
     _patch_question_yes(monkeypatch, accept=False)
 
-    window._on_export_fit_result()
-    window.fit_result_dialog.close()
+    window.fitting.show_fit_result()
+    window.fitting.result_dialog.close()
 
     assert window.project.all_plot_settings[axis_index]['annotations'] == before_annotations
 
@@ -4457,7 +4467,7 @@ def test_export_fit_result_burns_annotation_undoable(tmp_path, monkeypatch):
     ds = _make_linear_dataset("d0", slope=2.0, intercept=1.0, n=20)
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])
@@ -4465,8 +4475,8 @@ def test_export_fit_result_burns_annotation_undoable(tmp_path, monkeypatch):
     before_annotations = list(window.project.all_plot_settings[axis_index].get('annotations', []))
     _patch_question_yes(monkeypatch, accept=True)
 
-    window._on_export_fit_result()
-    window.fit_result_dialog.close()
+    window.fitting.show_fit_result()
+    window.fitting.result_dialog.close()
 
     after_annotations = window.project.all_plot_settings[axis_index]['annotations']
     assert len(after_annotations) == len(before_annotations) + 1
@@ -4494,27 +4504,27 @@ def test_export_fit_result_annotation_anchored_to_correct_subplot(tmp_path, monk
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     assert fit_ds.subplot_target == 0
     _select_items(window, [fit_ds])
     _patch_question_yes(monkeypatch, accept=True)
 
-    window._on_export_fit_result()
-    window.fit_result_dialog.close()
+    window.fitting.show_fit_result()
+    window.fitting.result_dialog.close()
 
     assert len(window.project.all_plot_settings[0]['annotations']) == 1
 
 
 # =============================================================================
-# 第2Y軸使用の切り替え (_on_secondary_y_changed)
+# 第2Y軸使用の切り替え (property_panel.on_secondary_y_changed)
 # =============================================================================
 
 def test_secondary_y_changed_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_secondary_y_changed()
+    window.property_panel.on_secondary_y_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -4670,265 +4680,6 @@ def test_dataset_tree_item_clicked_multi_selection_toggles_all_selected_as_batch
 
 
 # =============================================================================
-# ピーク検出 (_on_find_peaks)
-# =============================================================================
-
-def _make_peaky_dataset(name="peaky"):
-    x = np.linspace(0, 10, 100)
-    y = np.sin(x) * 10
-    df = pd.DataFrame({'x': x, 'y': y})
-    return Dataset(name=name, df=df, x_col_name='x', y_col_name='y')
-
-
-def test_find_peaks_no_current_dataset_does_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    before_count = len(window.project.datasets)
-    window._on_find_peaks()
-    assert len(window.project.datasets) == before_count
-
-
-def test_find_peaks_too_few_points_warns(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    df = pd.DataFrame({'x': [0, 1], 'y': [0.0, 1.0]})
-    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
-    _add_and_select_dataset(window, ds)
-    warnings = _patch_warning_capture(monkeypatch)
-
-    window._on_find_peaks()
-
-    assert len(warnings) == 1
-
-
-def test_find_peaks_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(monkeypatch, None)
-    before_count = len(window.project.datasets)
-
-    window._on_find_peaks()
-
-    assert len(window.project.datasets) == before_count
-
-
-def test_find_peaks_calculation_error_warns(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
-    )
-
-    def raiser(*a, **k):
-        raise ValueError("bad settings")
-
-    monkeypatch.setattr(dataset_mixin_module, "calculate_peak_quantification", raiser)
-    warnings = _patch_warning_capture(monkeypatch)
-
-    window._on_find_peaks()
-
-    assert len(warnings) == 1
-
-
-def test_find_peaks_no_peaks_found_shows_info(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 1000.0, "distance_x": 1.0, "prominence": None}
-    )
-    info_calls = _patch_info_capture(monkeypatch)
-    before_count = len(window.project.datasets)
-
-    window._on_find_peaks()
-
-    assert len(info_calls) == 1
-    assert len(window.project.datasets) == before_count
-
-
-def test_find_peaks_success_upward_adds_dataset_with_expected_style(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
-    )
-    before_count = len(window.project.datasets)
-
-    window._on_find_peaks()
-
-    assert len(window.project.datasets) == before_count + 1
-    new_ds = window.project.datasets[-1]
-    assert new_ds.marker == 'v'
-    assert new_ds.color == 'red'
-    assert len(new_ds.df) > 0
-    assert window.peak_result_dialog is not None
-
-
-def test_find_peaks_result_table_includes_quantification_columns(tmp_path, monkeypatch):
-    """項目C-411: 結果ダイアログのCSV用DataFrameにFWHM/面積/重心の列が追加されていること。"""
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
-    )
-
-    window._on_find_peaks()
-
-    csv_data = window.peak_result_dialog.csv_data
-    assert list(csv_data.columns) == ['X座標', 'Y座標', 'FWHM', '面積', '重心X']
-    assert len(csv_data) > 0
-    assert (csv_data['FWHM'] > 0).all()
-    assert (csv_data['面積'] > 0).all()
-
-
-def test_find_peaks_success_downward_uses_valley_style(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "下に凸 (Valleys)", "height": 0.0, "distance_x": 1.0, "prominence": None}
-    )
-
-    window._on_find_peaks()
-
-    new_ds = window.project.datasets[-1]
-    assert new_ds.marker == '^'
-    assert new_ds.color == 'blue'
-
-
-def test_find_peaks_replaces_previous_result_dialog(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
-    )
-
-    window._on_find_peaks()
-    first = window.peak_result_dialog
-    window._on_find_peaks()
-    second = window.peak_result_dialog
-
-    assert second is not first
-    second.close()
-
-
-# =============================================================================
-# ピーク位置へのスマート自動ラベル (_on_add_smart_peak_labels, 項目134、C-707)
-# =============================================================================
-
-def test_add_smart_peak_labels_no_current_dataset_does_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_add_smart_peak_labels()  # 例外にならないこと
-    assert window.undo_stack.count() == 0
-
-
-def test_add_smart_peak_labels_too_few_points_warns(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    df = pd.DataFrame({'x': [0, 1], 'y': [0.0, 1.0]})
-    ds = Dataset(name="d0", df=df, x_col_name='x', y_col_name='y')
-    _add_and_select_dataset(window, ds)
-    warnings = _patch_warning_capture(monkeypatch)
-
-    window._on_add_smart_peak_labels()
-
-    assert len(warnings) == 1
-
-
-def test_add_smart_peak_labels_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(monkeypatch, None)
-
-    window._on_add_smart_peak_labels()
-
-    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
-
-
-def test_add_smart_peak_labels_calculation_error_warns(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
-    )
-
-    def raiser(*a, **k):
-        raise ValueError("bad settings")
-
-    monkeypatch.setattr(dataset_mixin_module, "calculate_peaks", raiser)
-    warnings = _patch_warning_capture(monkeypatch)
-
-    window._on_add_smart_peak_labels()
-
-    assert len(warnings) == 1
-
-
-def test_add_smart_peak_labels_no_peaks_found_shows_info(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 1000.0, "distance_x": 1.0, "prominence": None}
-    )
-    info_calls = _patch_info_capture(monkeypatch)
-
-    window._on_add_smart_peak_labels()
-
-    assert len(info_calls) == 1
-    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
-
-
-def test_add_smart_peak_labels_adds_one_annotation_per_peak(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
-    )
-
-    window._on_add_smart_peak_labels()
-
-    annotations = window.project.all_plot_settings[ds.subplot_target]['annotations']
-    assert len(annotations) > 0
-    assert all(a['type'] == 'text' for a in annotations)
-    # sin(x)*10のピークはX昇順に単調増加するはずで、テキストはX値の文字列表現
-    x_values = [float(a['text']) for a in annotations]
-    assert x_values == sorted(x_values)
-
-
-def test_add_smart_peak_labels_is_undoable_as_single_macro(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    ds = _make_peaky_dataset()
-    _add_and_select_dataset(window, ds)
-    _patch_peak_dialog(
-        monkeypatch,
-        {"peak_type": "上に凸 (Peaks)", "height": 0.0, "distance_x": 1.0, "prominence": None}
-    )
-    before_count = window.undo_stack.count()
-
-    window._on_add_smart_peak_labels()
-
-    assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) > 1
-    assert window.undo_stack.count() == before_count + 1  # 1回のUndo単位にまとまる
-
-    window.undo_stack.undo()
-    assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
-
-
-# =============================================================================
 # 区間積分 (_on_interval_integral_dataset, 項目C-311)
 # =============================================================================
 
@@ -4941,8 +4692,8 @@ def _make_integral_dataset(n=50):
 
 def test_interval_integral_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_interval_integral_dataset()
-    assert window.integral_result_dialog is None
+    window.processing.interval_integral()
+    assert window.processing.integral_result_dialog is None
 
 
 def test_interval_integral_insufficient_points_warns(tmp_path, monkeypatch):
@@ -4952,10 +4703,10 @@ def test_interval_integral_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
     assert len(warnings) == 1
-    assert window.integral_result_dialog is None
+    assert window.processing.integral_result_dialog is None
 
 
 def test_interval_integral_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
@@ -4967,9 +4718,9 @@ def test_interval_integral_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         ("trapezoid", (0.0, 10.0), False), accepted=False
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    assert window.integral_result_dialog is None
+    assert window.processing.integral_result_dialog is None
 
 
 def test_interval_integral_calculation_error_warns(tmp_path, monkeypatch):
@@ -4984,10 +4735,10 @@ def test_interval_integral_calculation_error_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
     assert len(warnings) == 1
-    assert window.integral_result_dialog is None
+    assert window.processing.integral_result_dialog is None
 
 
 def test_interval_integral_trapezoid_success_shows_result_dialog(tmp_path, monkeypatch):
@@ -5000,16 +4751,16 @@ def test_interval_integral_trapezoid_success_shows_result_dialog(tmp_path, monke
         ("trapezoid", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
     # スカラー結果のみを返す機能のため、_on_savgol_dataset等と異なり
     # 新しいデータセットは追加されない
     assert len(window.project.datasets) == before_count
-    assert window.integral_result_dialog is not None
-    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    assert window.processing.integral_result_dialog is not None
+    result_text = window.processing.integral_result_dialog.text_edit.toPlainText()
     assert "50" in result_text
     assert "台形則" in result_text
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_simpson_success_shows_result_dialog(tmp_path, monkeypatch):
@@ -5021,12 +4772,12 @@ def test_interval_integral_simpson_success_shows_result_dialog(tmp_path, monkeyp
         ("simpson", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    assert window.integral_result_dialog is not None
-    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    assert window.processing.integral_result_dialog is not None
+    result_text = window.processing.integral_result_dialog.text_edit.toPlainText()
     assert "Simpson" in result_text
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_result_csv_data_has_expected_columns(tmp_path, monkeypatch):
@@ -5038,12 +4789,12 @@ def test_interval_integral_result_csv_data_has_expected_columns(tmp_path, monkey
         ("trapezoid", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    csv_data = window.integral_result_dialog.csv_data
+    csv_data = window.processing.integral_result_dialog.csv_data
     assert list(csv_data.columns) == ['X', 'Y(元データ)', 'Y(積分に使用)']
     assert len(csv_data) > 0
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_subtract_baseline_option_reflected_in_result(tmp_path, monkeypatch):
@@ -5059,15 +4810,15 @@ def test_interval_integral_subtract_baseline_option_reflected_in_result(tmp_path
         ("simpson", (0.0, 10.0), True)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    result_text = window.processing.integral_result_dialog.text_edit.toPlainText()
     assert "ベースライン差し引き: あり" in result_text
     expected_peak_area = 5 * 0.5 * np.sqrt(2 * np.pi)
     match = re.search(r"積分値\s*=\s*([\-0-9.eE+]+)", result_text)
     assert match is not None
     assert float(match.group(1)) == pytest.approx(expected_peak_area, rel=1e-2)
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_no_baseline_option_reflected_in_result(tmp_path, monkeypatch):
@@ -5079,11 +4830,11 @@ def test_interval_integral_no_baseline_option_reflected_in_result(tmp_path, monk
         ("trapezoid", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
+    window.processing.interval_integral()
 
-    result_text = window.integral_result_dialog.text_edit.toPlainText()
+    result_text = window.processing.integral_result_dialog.text_edit.toPlainText()
     assert "ベースライン差し引き: なし" in result_text
-    window.integral_result_dialog.close()
+    window.processing.integral_result_dialog.close()
 
 
 def test_interval_integral_replaces_previous_result_dialog(tmp_path, monkeypatch):
@@ -5095,10 +4846,10 @@ def test_interval_integral_replaces_previous_result_dialog(tmp_path, monkeypatch
         ("trapezoid", (0.0, 10.0), False)
     )
 
-    window._on_interval_integral_dataset()
-    first = window.integral_result_dialog
-    window._on_interval_integral_dataset()
-    second = window.integral_result_dialog
+    window.processing.interval_integral()
+    first = window.processing.integral_result_dialog
+    window.processing.interval_integral()
+    second = window.processing.integral_result_dialog
 
     assert second is not first
     second.close()
@@ -5111,7 +4862,7 @@ def test_interval_integral_replaces_previous_result_dialog(tmp_path, monkeypatch
 def test_cumulative_integral_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
     assert len(window.project.datasets) == before_count
 
 
@@ -5122,7 +4873,7 @@ def test_cumulative_integral_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(warnings) == 1
 
@@ -5137,7 +4888,7 @@ def test_cumulative_integral_dialog_cancelled_adds_nothing(tmp_path, monkeypatch
     )
     before_count = len(window.project.datasets)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(window.project.datasets) == before_count
 
@@ -5153,7 +4904,7 @@ def test_cumulative_integral_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5171,11 +4922,11 @@ def test_cumulative_integral_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("未知の積分方法です")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_cumulative_integral", raiser)
+    monkeypatch.setattr(processing_module, "calculate_cumulative_integral", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5191,7 +4942,7 @@ def test_cumulative_integral_trapezoid_success_adds_dataset(tmp_path, monkeypatc
     )
     before_count = len(window.project.datasets)
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -5212,7 +4963,7 @@ def test_cumulative_integral_simpson_success_adds_dataset(tmp_path, monkeypatch)
         ("simpson", "d0_cumsum")
     )
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.provenance['params']['method'] == 'simpson'
@@ -5227,7 +4978,7 @@ def test_cumulative_integral_records_provenance(tmp_path, monkeypatch):
         ("trapezoid", "d0_cumsum")
     )
 
-    window._on_cumulative_integral_dataset()
+    window.processing.cumulative_integral()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.provenance['operation'] == 'cumulative_integral'
@@ -5247,7 +4998,7 @@ def _make_duplicate_x_dataset():
 def test_detect_duplicate_x_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
     assert len(window.project.datasets) == before_count
 
 
@@ -5257,11 +5008,11 @@ def test_detect_duplicate_x_no_duplicates_shows_info(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     info_calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        QMessageBox, "information",
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(info_calls) == 1
 
@@ -5276,7 +5027,7 @@ def test_detect_duplicate_x_dialog_cancelled_does_nothing(tmp_path, monkeypatch)
     )
     before_count = len(window.project.datasets)
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(window.project.datasets) == before_count
     assert ds.masked_row_indices == []
@@ -5292,7 +5043,7 @@ def test_detect_duplicate_x_average_mode_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -5313,7 +5064,7 @@ def test_detect_duplicate_x_average_mode_empty_output_name_warns(tmp_path, monke
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5328,7 +5079,7 @@ def test_detect_duplicate_x_remove_mode_masks_non_first_duplicates(tmp_path, mon
         ("remove", "")
     )
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     # df.index: 0(x=1), 1(x=2), 2(x=2), 3(x=3), 4(x=1) のうち、各X値グループの
     # 2件目以降(index 2, 4)がマスクされるはず
@@ -5344,7 +5095,7 @@ def test_detect_duplicate_x_remove_mode_is_undoable(tmp_path, monkeypatch):
         ("remove", "")
     )
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
     assert ds.masked_row_indices != []
     window.undo_stack.undo()
     assert ds.masked_row_indices == []
@@ -5361,11 +5112,11 @@ def test_detect_duplicate_x_remove_mode_already_masked_shows_info(tmp_path, monk
     )
     info_calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        QMessageBox, "information",
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
-    window._on_detect_duplicate_x()
+    window.processing.detect_duplicate_x()
 
     assert len(info_calls) == 1
 
@@ -5381,7 +5132,7 @@ def _make_row_filter_dataset():
 
 def test_filter_rows_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_filter_rows()  # 例外にならないこと
+    window.processing.filter_rows()  # 例外にならないこと
 
 
 def test_filter_rows_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
@@ -5393,7 +5144,7 @@ def test_filter_rows_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         "y > 0.5", accepted=False
     )
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert ds.masked_row_indices == []
 
@@ -5405,7 +5156,7 @@ def test_filter_rows_empty_formula_warns(tmp_path, monkeypatch):
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "")
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert len(warnings) == 1
     assert ds.masked_row_indices == []
@@ -5417,7 +5168,7 @@ def test_filter_rows_masks_non_matching_rows(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     # y=0.1(index 0)とy=0.2(index 3)がy>0.5を満たさずマスクされるはず
     assert set(ds.masked_row_indices) == {0, 3}
@@ -5431,7 +5182,7 @@ def test_filter_rows_invalid_formula_warns_without_crashing(tmp_path, monkeypatc
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y >")
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert len(warnings) == 1
     assert ds.masked_row_indices == []
@@ -5443,7 +5194,7 @@ def test_filter_rows_is_undoable(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
     assert ds.masked_row_indices != []
     window.undo_stack.undo()
     assert ds.masked_row_indices == []
@@ -5456,7 +5207,7 @@ def test_filter_rows_union_with_existing_mask(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > 0.5")
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert set(ds.masked_row_indices) == {0, 2, 3}
 
@@ -5468,11 +5219,11 @@ def test_filter_rows_no_new_matches_shows_info(tmp_path, monkeypatch):
     _patch_dialog_result(monkeypatch, "RowFilterDialog", RowFilterDialog, "get_formula", "y > -1")
     info_calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        QMessageBox, "information",
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
-    window._on_filter_rows()
+    window.processing.filter_rows()
 
     assert len(info_calls) == 1
     assert ds.masked_row_indices == []
@@ -5491,8 +5242,8 @@ def _make_outlier_dataset():
 
 def test_detect_outliers_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_detect_outliers()  # 例外にならないこと
-    assert window.outlier_result_dialog is None
+    window.processing.detect_outliers()  # 例外にならないこと
+    assert window.processing.outlier_result_dialog is None
 
 
 def test_detect_outliers_insufficient_points_warns(tmp_path, monkeypatch):
@@ -5502,7 +5253,7 @@ def test_detect_outliers_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
     assert len(warnings) == 1
 
@@ -5516,10 +5267,10 @@ def test_detect_outliers_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         ("zscore", 3.0, True), accepted=False
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
     assert ds.masked_row_indices == []
-    assert window.outlier_result_dialog is None
+    assert window.processing.outlier_result_dialog is None
 
 
 def test_detect_outliers_preview_only_does_not_mask(tmp_path, monkeypatch):
@@ -5531,13 +5282,13 @@ def test_detect_outliers_preview_only_does_not_mask(tmp_path, monkeypatch):
         ("zscore", 3.0, False)
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
     assert ds.masked_row_indices == []
-    assert window.outlier_result_dialog is not None
-    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    assert window.processing.outlier_result_dialog is not None
+    result_text = window.processing.outlier_result_dialog.text_edit.toPlainText()
     assert "プレビューのみ" in result_text
-    window.outlier_result_dialog.close()
+    window.processing.outlier_result_dialog.close()
 
 
 def test_detect_outliers_apply_to_mask_masks_detected_rows(tmp_path, monkeypatch):
@@ -5549,13 +5300,13 @@ def test_detect_outliers_apply_to_mask_masks_detected_rows(tmp_path, monkeypatch
         ("zscore", 3.0, True)
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
     assert 20 in ds.masked_row_indices  # 100.0の外れ値(index 20)
-    assert window.outlier_result_dialog is not None
-    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    assert window.processing.outlier_result_dialog is not None
+    result_text = window.processing.outlier_result_dialog.text_edit.toPlainText()
     assert "マスクに追加しました" in result_text
-    window.outlier_result_dialog.close()
+    window.processing.outlier_result_dialog.close()
 
 
 def test_detect_outliers_apply_to_mask_is_undoable(tmp_path, monkeypatch):
@@ -5567,11 +5318,11 @@ def test_detect_outliers_apply_to_mask_is_undoable(tmp_path, monkeypatch):
         ("zscore", 3.0, True)
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
     assert ds.masked_row_indices != []
     window.undo_stack.undo()
     assert ds.masked_row_indices == []
-    window.outlier_result_dialog.close()
+    window.processing.outlier_result_dialog.close()
 
 
 def test_detect_outliers_iqr_method_used_when_selected(tmp_path, monkeypatch):
@@ -5583,11 +5334,11 @@ def test_detect_outliers_iqr_method_used_when_selected(tmp_path, monkeypatch):
         ("iqr", 1.5, False)
     )
 
-    window._on_detect_outliers()
+    window.processing.detect_outliers()
 
-    result_text = window.outlier_result_dialog.text_edit.toPlainText()
+    result_text = window.processing.outlier_result_dialog.text_edit.toPlainText()
     assert "IQR" in result_text
-    window.outlier_result_dialog.close()
+    window.processing.outlier_result_dialog.close()
 
 
 def test_detect_outliers_replaces_previous_result_dialog(tmp_path, monkeypatch):
@@ -5599,10 +5350,10 @@ def test_detect_outliers_replaces_previous_result_dialog(tmp_path, monkeypatch):
         ("zscore", 3.0, False)
     )
 
-    window._on_detect_outliers()
-    first = window.outlier_result_dialog
-    window._on_detect_outliers()
-    second = window.outlier_result_dialog
+    window.processing.detect_outliers()
+    first = window.processing.outlier_result_dialog
+    window.processing.detect_outliers()
+    second = window.processing.outlier_result_dialog
 
     assert second is not first
     second.close()
@@ -5622,7 +5373,7 @@ def _make_histogram_dataset():
 
 def test_generate_histogram_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_generate_histogram_or_kde()  # 例外にならないこと
+    window.processing.histogram_or_kde()  # 例外にならないこと
     assert len(window.project.datasets) == 0
 
 
@@ -5636,7 +5387,7 @@ def test_generate_histogram_dialog_cancelled_does_nothing(tmp_path, monkeypatch)
         accepted=False,
     )
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     assert len(window.project.datasets) == 1  # 元のデータセットのみ
 
@@ -5650,7 +5401,7 @@ def test_generate_histogram_creates_bar_dataset(tmp_path, monkeypatch):
         {'mode': 'histogram', 'column': 'y', 'output_name': 'hist_ds_hist', 'bins': 10, 'density': False},
     )
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     assert len(window.project.datasets) == 2
     new_ds = window.project.datasets[-1]
@@ -5669,7 +5420,7 @@ def test_generate_kde_creates_line_dataset(tmp_path, monkeypatch):
         {'mode': 'kde', 'column': 'y', 'output_name': 'hist_ds_kde', 'n_points': 50},
     )
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.name == 'hist_ds_kde'
@@ -5687,7 +5438,7 @@ def test_generate_histogram_empty_output_name_warns(tmp_path, monkeypatch):
     )
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == 1
@@ -5704,7 +5455,7 @@ def test_generate_kde_respects_mask_excludes_masked_rows(tmp_path, monkeypatch):
         {'mode': 'histogram', 'column': 'y', 'output_name': 'hist_ds_hist', 'bins': 10, 'density': False},
     )
 
-    window._on_generate_histogram_or_kde()
+    window.processing.histogram_or_kde()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.df['y'].sum() == 50  # マスクされた前半50件を除いた残り
@@ -5724,7 +5475,7 @@ def _make_resample_dataset(name="source", n=30):
 def test_resample_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_resample_dataset()
+    window.processing.resample()
     assert len(window.project.datasets) == before_count
 
 
@@ -5735,7 +5486,7 @@ def test_resample_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
 
@@ -5751,7 +5502,7 @@ def test_resample_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(window.project.datasets) == before_count
 
@@ -5767,7 +5518,7 @@ def test_resample_empty_output_name_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5784,7 +5535,7 @@ def test_resample_linspace_success_adds_dataset(tmp_path, monkeypatch):
     )
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(window.project.datasets) == before_count + 1
     new_ds = window.project.datasets[-1]
@@ -5806,7 +5557,7 @@ def test_resample_linspace_same_start_stop_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5830,7 +5581,7 @@ def test_resample_onto_other_dataset_grid(tmp_path, monkeypatch):
         ("dataset", {"dataset_name": "target_grid"}, "linear", False, "source_on_target_grid")
     )
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     new_ds = window.project.datasets[-1]
     assert new_ds.name == "source_on_target_grid"
@@ -5850,7 +5601,7 @@ def test_resample_missing_target_dataset_warns(tmp_path, monkeypatch):
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5868,11 +5619,11 @@ def test_resample_calculation_error_warns(tmp_path, monkeypatch):
     def raiser(*a, **k):
         raise ValueError("3次スプライン補間には少なくとも4点のデータが必要です")
 
-    monkeypatch.setattr(dataset_mixin_module, "calculate_resample_to_grid", raiser)
+    monkeypatch.setattr(processing_module, "calculate_resample_to_grid", raiser)
     warnings = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     assert len(warnings) == 1
     assert len(window.project.datasets) == before_count
@@ -5888,7 +5639,7 @@ def test_resample_cubic_extrapolate_success(tmp_path, monkeypatch):
         ("linspace", {"start": -2.0, "stop": 12.0, "num_points": 10}, "cubic", True, "source_extrapolated")
     )
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     new_ds = window.project.datasets[-1]
     assert len(new_ds.y_data) == 10
@@ -5911,7 +5662,7 @@ def test_arithmetic_records_provenance_with_both_source_datasets(tmp_path, monke
         "get_settings", ("A - B", "diff")
     )
 
-    window._on_dataset_arithmetic()
+    window.processing.arithmetic()
 
     prov = window.project.datasets[-1].provenance
     assert prov is not None
@@ -5929,7 +5680,7 @@ def test_normalize_records_provenance_with_source_dataset(tmp_path, monkeypatch)
     _add_and_select_dataset(window, dataset)
     _patch_normalize_dialog(monkeypatch, NormalizeDatasetDialog.MODE_MAX, None, "sample_normalized")
 
-    window._on_normalize_dataset()
+    window.processing.normalize()
 
     prov = window.project.datasets[-1].provenance
     assert prov['operation'] == 'normalize'
@@ -5947,7 +5698,7 @@ def test_savgol_records_provenance_with_filter_params(tmp_path, monkeypatch):
         (5, 2, 0, "curve_smoothed")
     )
 
-    window._on_savgol_dataset()
+    window.processing.savgol_smooth()
 
     prov = window.project.datasets[-1].provenance
     assert prov['operation'] == 'savgol'
@@ -5964,7 +5715,7 @@ def test_baseline_correction_records_provenance_with_method_in_operation_name(tm
         ("rubberband", {}, "corrected", False)
     )
 
-    window._on_baseline_correction_dataset()
+    window.processing.baseline_correction()
 
     prov = window.project.datasets[-1].provenance
     assert prov['operation'] == 'baseline_rubberband'
@@ -5985,7 +5736,7 @@ def test_resample_records_provenance_with_source_and_target_dataset_for_dataset_
         ("dataset", {"dataset_name": "target"}, "linear", False, "resampled")
     )
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     prov = window.project.datasets[-1].provenance
     assert prov['operation'] == 'resample'
@@ -6002,7 +5753,7 @@ def test_resample_records_provenance_with_only_source_dataset_for_linspace_mode(
         ("linspace", {"start": 0.0, "stop": 10.0, "num_points": 20}, "linear", False, "resampled")
     )
 
-    window._on_resample_dataset()
+    window.processing.resample()
 
     prov = window.project.datasets[-1].provenance
     assert prov['source_dataset_ids'] == [ds.dataset_id]
@@ -6014,7 +5765,7 @@ def test_fit_curve_records_provenance_reusing_fit_result_as_params(tmp_path, mon
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
 
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -6034,7 +5785,7 @@ def test_batch_curve_fit_records_provenance_per_result(tmp_path, monkeypatch):
     _patch_info_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_batch_curve_fit()
+    window.fitting.batch_fit_selected()
     _pump_events_until_batch_fit_task_done(window)
 
     new_datasets = window.project.datasets[before_count:]
@@ -6045,13 +5796,13 @@ def test_batch_curve_fit_records_provenance_per_result(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 「方法」文のコピー (_on_copy_methods_text, 項目C-1102)
+# 「方法」文のコピー (TransferController.copy_methods_text)
 # =============================================================================
 
 def test_copy_methods_text_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     QApplication.clipboard().setText("")
-    window._on_copy_methods_text()
+    window.transfer.copy_methods_text()
     assert QApplication.clipboard().text() == ""
 
 
@@ -6061,7 +5812,7 @@ def test_copy_methods_text_dataset_without_provenance_does_nothing(tmp_path, mon
     _add_and_select_dataset(window, ds)
     QApplication.clipboard().setText("")
 
-    window._on_copy_methods_text()
+    window.transfer.copy_methods_text()
 
     assert QApplication.clipboard().text() == ""
 
@@ -6071,12 +5822,12 @@ def test_copy_methods_text_copies_generated_text_to_clipboard(tmp_path, monkeypa
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(fit_ds))
 
-    window._on_copy_methods_text()
+    window.transfer.copy_methods_text()
 
     clipboard_text = QApplication.clipboard().text()
     assert "d0" in clipboard_text
@@ -6102,7 +5853,7 @@ def test_context_menu_copy_methods_text_action_enabled_for_derived_dataset(tmp_p
     ds = _make_linear_dataset("d0")
     _add_and_select_dataset(window, ds)
     _patch_fit_dialog(monkeypatch, "線形 (y = ax + b)")
-    window._on_fit_curve()
+    window.fitting.fit_current_dataset()
     _pump_events_until_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     _select_items(window, [fit_ds])
@@ -6138,7 +5889,7 @@ def _patch_multi_peak_fit_dialog(monkeypatch, component_type, baseline_type='con
     result = (component_type, baseline_type, initial_guesses) if component_type is not None \
         else (None, None, None)
     monkeypatch.setattr(
-        dataset_mixin_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
+        fitting_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
         staticmethod(lambda *a, **k: result)
     )
 
@@ -6148,7 +5899,7 @@ def _pump_events_until_multi_peak_fit_task_done(window, max_iterations=300):
     app = QApplication.instance()
     for _ in range(max_iterations):
         app.processEvents()
-        if window._multi_peak_fit_task_runner is None:
+        if window.fitting.multi_peak_fit_runner is None:
             return
         time.sleep(0.01)
     raise AssertionError("多峰分離フィット処理が時間内に完了しませんでした")
@@ -6157,7 +5908,7 @@ def _pump_events_until_multi_peak_fit_task_done(window, max_iterations=300):
 def test_multi_peak_fit_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = len(window.project.datasets)
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
     assert len(window.project.datasets) == before_count
 
 
@@ -6168,9 +5919,9 @@ def test_multi_peak_fit_dialog_cancelled_adds_nothing(tmp_path, monkeypatch):
     _patch_multi_peak_fit_dialog(monkeypatch, None)
     before_count = len(window.project.datasets)
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
 
-    assert window._multi_peak_fit_task_runner is None
+    assert window.fitting.multi_peak_fit_runner is None
     assert len(window.project.datasets) == before_count
 
 
@@ -6186,10 +5937,10 @@ def test_multi_peak_fit_success_adds_fit_dataset_and_shows_result(tmp_path, monk
         ],
     )
     before_count = len(window.project.datasets)
-    assert window.fit_result_dialog is None
+    assert window.fitting.result_dialog is None
 
-    window._on_multi_peak_fit()
-    assert window._multi_peak_fit_task_runner is not None
+    window.fitting.multi_peak_fit_current_dataset()
+    assert window.fitting.multi_peak_fit_runner is not None
     assert not window.multi_peak_fit_button.isEnabled()
     _pump_events_until_multi_peak_fit_task_done(window)
     assert window.multi_peak_fit_button.isEnabled()
@@ -6198,7 +5949,7 @@ def test_multi_peak_fit_success_adds_fit_dataset_and_shows_result(tmp_path, monk
     new_ds = window.project.datasets[-1]
     assert new_ds.name == "MultiPeakFit (d0)"
     assert new_ds.fit_info is not None
-    assert window.fit_result_dialog is not None
+    assert window.fitting.result_dialog is not None
 
     assert new_ds.fit_result is not None
     assert new_ds.fit_result['fit_type'] == 'multi_peak'
@@ -6222,7 +5973,7 @@ def test_multi_peak_fit_records_provenance_reusing_fit_result_as_params(tmp_path
         initial_guesses=[{'center': 0.0, 'height': 5.0, 'width': 1.0}, {'center': 8.0, 'height': 3.0, 'width': 1.5}],
     )
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
     _pump_events_until_multi_peak_fit_task_done(window)
 
     new_ds = window.project.datasets[-1]
@@ -6242,12 +5993,12 @@ def test_multi_peak_fit_methods_text_uses_component_type_and_count(tmp_path, mon
         monkeypatch, "gaussian", baseline_type="constant",
         initial_guesses=[{'center': 0.0, 'height': 5.0, 'width': 1.0}, {'center': 8.0, 'height': 3.0, 'width': 1.5}],
     )
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
     _pump_events_until_multi_peak_fit_task_done(window)
     fit_ds = window.project.datasets[-1]
     window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(fit_ds))
 
-    window._on_copy_methods_text()
+    window.transfer.copy_methods_text()
 
     clipboard_text = QApplication.clipboard().text()
     assert "多峰分離フィット" in clipboard_text
@@ -6271,11 +6022,11 @@ def test_multi_peak_fit_passes_and_clears_pending_peak_guesses(tmp_path, monkeyp
         return None, None, None  # キャンセル
 
     monkeypatch.setattr(
-        dataset_mixin_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
+        fitting_module.MultiPeakFitDialog, "get_multi_peak_fit_settings",
         staticmethod(fake_get_settings)
     )
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
 
     assert seen_kwargs['initial_guesses'] == [{'center': 0.0, 'height': 5.0, 'width': 1.0}]
     assert window._pending_peak_guesses == []
@@ -6297,7 +6048,7 @@ def test_multi_peak_fit_calculation_error_shows_warning(tmp_path, monkeypatch):
     warn_calls = _patch_warning_capture(monkeypatch)
     before_count = len(window.project.datasets)
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
     _pump_events_until_multi_peak_fit_task_done(window)
 
     assert len(window.project.datasets) == before_count
@@ -6310,12 +6061,12 @@ def test_multi_peak_fit_busy_shows_info_when_already_running(tmp_path, monkeypat
     ds = _make_two_gaussian_dataset("d0")
     _add_and_select_dataset(window, ds)
     info_calls = _patch_info_capture(monkeypatch)
-    window._multi_peak_fit_task_runner = object()  # 実行中を模擬
+    window.fitting.multi_peak_fit_runner = object()  # 実行中を模擬
 
-    window._on_multi_peak_fit()
+    window.fitting.multi_peak_fit_current_dataset()
 
     assert len(info_calls) == 1
-    window._multi_peak_fit_task_runner = None  # 後始末(他テストへの影響防止)
+    window.fitting.multi_peak_fit_runner = None  # 後始末(他テストへの影響防止)
 
 
 # =============================================================================
@@ -6407,7 +6158,7 @@ def test_z_column_changed_updates_dataset(tmp_path, monkeypatch):
 def test_z_column_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_z_column_changed()
+    window.property_panel.on_z_column_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -6511,7 +6262,7 @@ def test_value_range_manual_spinboxes_set_vmin_vmax(tmp_path, monkeypatch):
 def test_value_range_changed_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     before_count = window.undo_stack.count()
-    window._on_2d_value_range_changed()
+    window.property_panel.on_2d_value_range_changed()
     assert window.undo_stack.count() == before_count
 
 
@@ -7104,7 +6855,7 @@ def test_warn_if_font_family_unavailable_does_not_warn_when_stretch_resolvable(t
 
 
 # =============================================================================
-# 元ファイルからの再読み込み (_on_reload_dataset_from_source, 項目C-103)
+# 元ファイルからの再読み込み (TransferController.reload_from_source)
 # =============================================================================
 
 def test_reload_dataset_replaces_data_and_preserves_style(tmp_path, monkeypatch):
@@ -7121,7 +6872,7 @@ def test_reload_dataset_replaces_data_and_preserves_style(tmp_path, monkeypatch)
     # ファイルを更新してから再読み込み(測定やり直しを模す)
     path.write_text("x,y\n1,20\n3,40\n5,60\n", encoding='utf-8')
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     assert dataset.name == "measurement"
     assert dataset.color == '#ff0000'
@@ -7139,7 +6890,7 @@ def test_reload_dataset_clears_masked_rows(tmp_path, monkeypatch):
                        source_file=str(path), masked_row_indices=[0])
     _add_and_select_dataset(window, dataset)
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     assert dataset.masked_row_indices == []
 
@@ -7154,7 +6905,7 @@ def test_reload_dataset_is_undoable(tmp_path, monkeypatch):
     _add_and_select_dataset(window, dataset)
 
     path.write_text("x,y\n1,20\n3,40\n", encoding='utf-8')
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
     np.testing.assert_allclose(dataset.y_data, np.array([20.0, 40.0]))
 
     window.undo_stack.undo()
@@ -7170,7 +6921,7 @@ def test_reload_dataset_without_source_file_is_noop(tmp_path, monkeypatch):
     _add_and_select_dataset(window, dataset)
     before_index = window.undo_stack.index()
 
-    window._on_reload_dataset_from_source()  # 例外にならず何もしない
+    window.transfer.reload_from_source()  # 例外にならず何もしない
 
     assert window.undo_stack.index() == before_index
 
@@ -7185,7 +6936,7 @@ def test_reload_dataset_missing_file_shows_warning(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     assert len(calls) == 1
     assert "見つかりません" in calls[0][2]
@@ -7207,7 +6958,7 @@ def test_reload_dataset_missing_column_aborts_with_warning(tmp_path, monkeypatch
     calls = []
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: calls.append(a)))
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     assert len(calls) == 1
     assert "見つかりませんでした" in calls[0][2]
@@ -7227,7 +6978,7 @@ def test_reload_dataset_excel_uses_source_sheet(tmp_path, monkeypatch):
                        source_file=str(path), source_sheet="Sheet2")
     _add_and_select_dataset(window, dataset)
 
-    window._on_reload_dataset_from_source()
+    window.transfer.reload_from_source()
 
     np.testing.assert_allclose(dataset.y_data, np.array([100.0, 200.0]))
 
@@ -7252,7 +7003,7 @@ def test_mean_sd_requires_at_least_two_selected(tmp_path, monkeypatch):
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: info_calls.append(a)))
 
     before_count = len(window.project.datasets)
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     assert len(info_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -7267,12 +7018,12 @@ def test_mean_sd_computes_mean_and_std_on_common_grid(tmp_path, monkeypatch):
     _select_and_add(window, [ds_a, ds_b])
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("平均SD結果", True)),
     )
 
     before_count = len(window.project.datasets)
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     assert len(window.project.datasets) == before_count + 1
     new_dataset = window.project.datasets[-1]
@@ -7291,11 +7042,11 @@ def test_mean_sd_uses_overlapping_x_range_only(tmp_path, monkeypatch):
     _select_and_add(window, [ds_a, ds_b])
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("結果", True)),
     )
 
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     new_dataset = window.project.datasets[-1]
     assert new_dataset.x_data.min() == pytest.approx(1.0)
@@ -7314,7 +7065,7 @@ def test_mean_sd_no_overlap_shows_warning(tmp_path, monkeypatch):
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     before_count = len(window.project.datasets)
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     assert len(warn_calls) == 1
     assert len(window.project.datasets) == before_count
@@ -7329,12 +7080,12 @@ def test_mean_sd_cancelled_name_dialog_adds_nothing(tmp_path, monkeypatch):
     _select_and_add(window, [ds_a, ds_b])
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("", False)),
     )
 
     before_count = len(window.project.datasets)
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     assert len(window.project.datasets) == before_count
 
@@ -7349,11 +7100,11 @@ def test_mean_sd_three_datasets_records_provenance(tmp_path, monkeypatch):
     _select_and_add(window, datasets)
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getText",
+        QInputDialog, "getText",
         staticmethod(lambda *a, **k: ("結果", True)),
     )
 
-    window._on_generate_mean_sd()
+    window.processing.mean_and_sd_of_selected()
 
     new_dataset = window.project.datasets[-1]
     assert new_dataset.provenance['operation'] == 'mean_sd'
@@ -7362,12 +7113,12 @@ def test_mean_sd_three_datasets_records_provenance(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# 統計値アンカーラベル (_on_add_stat_anchor_label, 項目C-708)
+# 統計値アンカーラベル (OverlayController.add_stat_label)
 # =============================================================================
 
 def test_add_stat_anchor_label_no_selection_is_noop(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_add_stat_anchor_label()  # 例外にならず何もしない
+    window.overlays.add_stat_label()  # 例外にならず何もしない
 
 
 def test_add_stat_anchor_label_adds_stat_annotation(tmp_path, monkeypatch):
@@ -7376,11 +7127,11 @@ def test_add_stat_anchor_label_adds_stat_annotation(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("Y平均", True)),
     )
 
-    window._on_add_stat_anchor_label()
+    window.overlays.add_stat_label()
 
     settings = window.project.all_plot_settings[ds.subplot_target]
     annotations = settings.get('annotations', [])
@@ -7396,11 +7147,11 @@ def test_add_stat_anchor_label_cancelled_dialog_adds_nothing(tmp_path, monkeypat
     _add_and_select_dataset(window, ds)
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("Y平均", False)),
     )
 
-    window._on_add_stat_anchor_label()
+    window.overlays.add_stat_label()
 
     settings = window.project.all_plot_settings[ds.subplot_target]
     assert settings.get('annotations', []) == []
@@ -7413,12 +7164,12 @@ def test_add_stat_anchor_label_stacks_multiple_labels_without_overlap(tmp_path, 
 
     choices = iter(["Y平均", "Y標準偏差", "Y最大値"])
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (next(choices), True)),
     )
 
     for _ in range(3):
-        window._on_add_stat_anchor_label()
+        window.overlays.add_stat_label()
 
     annotations = window.project.all_plot_settings[ds.subplot_target]['annotations']
     assert len(annotations) == 3
@@ -7432,11 +7183,11 @@ def test_add_stat_anchor_label_is_undoable(tmp_path, monkeypatch):
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("R²", True)),
     )
 
-    window._on_add_stat_anchor_label()
+    window.overlays.add_stat_label()
     assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) == 1
 
     window.undo_stack.undo()
@@ -7444,12 +7195,12 @@ def test_add_stat_anchor_label_is_undoable(tmp_path, monkeypatch):
 
 
 # =============================================================================
-# インセット(拡大図)の追加 (_on_add_inset, 項目138、C-711)
+# インセット(拡大図)の追加 (OverlayController.add_inset)
 # =============================================================================
 
 def test_add_inset_no_current_dataset_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_add_inset()  # 例外にならないこと
+    window.overlays.add_inset()  # 例外にならないこと
     assert window.undo_stack.count() == 0
 
 
@@ -7460,7 +7211,7 @@ def test_add_inset_insufficient_points_warns(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     warnings = _patch_warning_capture(monkeypatch)
 
-    window._on_add_inset()
+    window.overlays.add_inset()
 
     assert len(warnings) == 1
 
@@ -7474,7 +7225,7 @@ def test_add_inset_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         {'corner': '右上', 'size': 0.4, 'zoom_x_range': (0, 1)}, accepted=False
     )
 
-    window._on_add_inset()
+    window.overlays.add_inset()
 
     assert window.project.all_plot_settings[ds.subplot_target].get('annotations', []) == []
 
@@ -7488,7 +7239,7 @@ def test_add_inset_adds_annotation_with_selected_settings(tmp_path, monkeypatch)
         {'corner': '左下', 'size': 0.3, 'zoom_x_range': (0.5, 1.5)}
     )
 
-    window._on_add_inset()
+    window.overlays.add_inset()
 
     annotations = window.project.all_plot_settings[ds.subplot_target]['annotations']
     assert len(annotations) == 1
@@ -7508,7 +7259,7 @@ def test_add_inset_is_undoable(tmp_path, monkeypatch):
         {'corner': '右上', 'size': 0.4, 'zoom_x_range': (0, 1)}
     )
 
-    window._on_add_inset()
+    window.overlays.add_inset()
     assert len(window.project.all_plot_settings[ds.subplot_target]['annotations']) == 1
 
     window.undo_stack.undo()

@@ -273,12 +273,12 @@ def test_removing_with_nothing_selected_pushes_no_command(tmp_path, monkeypatch)
 def test_remove_without_confirmation_is_also_undoable(tmp_path, monkeypatch):
     """項目C-905の「別のタブへ移動」が使う削除経路も、このタブ側の削除は
     Undoできること(移動先タブへの追加は別のundo_stackなので戻らない
-    ―_remove_datasets_without_confirmationのdocstring参照)。"""
+    ―TransferController.copy_or_move_to_tab のdocstring参照)。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     a = _add(window, "a")
     _add(window, "b")
 
-    window._remove_datasets_without_confirmation([a], description="別のタブへ移動(1件)")
+    window._dataset_host.remove_datasets([a], description="別のタブへ移動(1件)")
     assert _names(window) == ["b"]
 
     assert window.undo_stack.command(window.undo_stack.count() - 1).text() == "別のタブへ移動(1件)"

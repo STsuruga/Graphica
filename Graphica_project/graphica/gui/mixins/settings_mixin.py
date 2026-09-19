@@ -263,7 +263,7 @@ class SettingsMixin:
             # 「編集対象」コンボボックスの選択状態を、現在のアクティブインデックスに合わせる
             self.active_axis_combo.setCurrentIndex(self.project.active_axis_index)
 
-            # (「描画先」コンボボックスの選択状態は、_update_ui_state で
+            # (「描画先」コンボボックスの選択状態は、property_panel.update_ui_state で
             #  データセットが選択されたときに設定される)
 
             self.active_axis_combo.blockSignals(False)

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 
 from graphica.gui.theme import apply_theme
 from graphica.gui.dialogs import CommandPaletteDialog
+from graphica.gui.datasets.actions_menu import populate_dataset_actions_menu
 from graphica.core.version import APP_NAME
 from graphica.core.i18n import tr
 
@@ -176,7 +177,7 @@ class UISetupMixin:
             self.ui.remove_dataset_button.clicked.connect(self._on_remove_dataset)
             self.new_folder_button.clicked.connect(self._on_new_folder)
             self.dataset_search_edit.textChanged.connect(self._on_dataset_search_changed)
-            self.ui.dataset_list_widget.currentItemChanged.connect(self._on_dataset_selected)
+            self.ui.dataset_list_widget.currentItemChanged.connect(self.property_panel.on_dataset_selected)
             self.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
             # 項目C-907: 目アイコン列のクリックでデータセットの表示/非表示をトグルする
             self.ui.dataset_list_widget.itemClicked.connect(self._on_dataset_tree_item_clicked)
@@ -187,90 +188,90 @@ class UISetupMixin:
 
             # ★ 凡例名は editingFinished (Enterキー押下 or フォーカス喪失時) を使う
             #    (textChanged だと1文字打つたびにグラフが再描画され、重くなるため)
-            self.ui.legend_name_edit.editingFinished.connect(self._on_legend_name_changed)
+            self.ui.legend_name_edit.editingFinished.connect(self.property_panel.on_legend_name_changed)
 
-            self.ui.plot_type_combo.currentTextChanged.connect(self._on_property_changed)
+            self.property_panel.watch(self.ui.plot_type_combo.currentTextChanged, self.ui.plot_type_combo)
             # ★ グラデーション対象コンボ(項目79)は、プロットタイプによって
             # 「線/塗り/両方」のうちどれが意味を持つかが変わるため、プロットタイプの
             # 変更のたびに表示/非表示を更新し直す(_on_property_changedとは別経路)。
-            self.ui.plot_type_combo.currentTextChanged.connect(self._update_gradient_controls_visibility)
+            self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_gradient_controls_visibility)
             # ★ 平滑化チェックボックス(Line/Line+Scatterでのみ意味を持つ)も同様に、
             # プロットタイプの変更のたびに表示/非表示を更新し直す。
-            self.ui.plot_type_combo.currentTextChanged.connect(self._update_smoothing_control_visibility)
+            self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_smoothing_control_visibility)
             # ★ 誤差表示コンボの「誤差バンド」項目(Bar/Areaでは無効化)も同様。
-            self.ui.plot_type_combo.currentTextChanged.connect(self._update_error_display_control_items)
-            self.color_picker_widget.colorChanged.connect(self._on_dataset_color_changed)
-            self.ui.linestyle_combo.currentTextChanged.connect(self._on_property_changed)
-            self.ui.linewidth_spinbox.valueChanged.connect(self._on_property_changed)
-            self.ui.marker_combo.currentTextChanged.connect(self._on_property_changed)
-            self.ui.markersize_spinbox.valueChanged.connect(self._on_property_changed)
-            self.ui.smoothing_checkbox.stateChanged.connect(self._on_property_changed)
+            self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_error_display_control_items)
+            self.color_picker_widget.colorChanged.connect(self.colors.on_color_changed)
+            self.property_panel.watch(self.ui.linestyle_combo.currentTextChanged, self.ui.linestyle_combo)
+            self.property_panel.watch(self.ui.linewidth_spinbox.valueChanged, self.ui.linewidth_spinbox)
+            self.property_panel.watch(self.ui.marker_combo.currentTextChanged, self.ui.marker_combo)
+            self.property_panel.watch(self.ui.markersize_spinbox.valueChanged, self.ui.markersize_spinbox)
+            self.property_panel.watch(self.ui.smoothing_checkbox.stateChanged, self.ui.smoothing_checkbox)
             # ★ 平滑化チェックボックスのON/OFFで、手法コンボ(項目C-304)の
             # 有効/無効も切り替える(_update_smoothing_control_visibility経由、
             # plot_type変更時と同じ更新ロジックを再利用する)。
-            self.ui.smoothing_checkbox.stateChanged.connect(self._update_smoothing_control_visibility)
+            self.ui.smoothing_checkbox.stateChanged.connect(self.property_panel.update_smoothing_control_visibility)
             # 平滑化の手法(項目C-304)
-            self.smoothing_method_combo.currentIndexChanged.connect(self._on_property_changed)
-            self.alpha_spinbox.valueChanged.connect(self._on_property_changed)
+            self.property_panel.watch(self.smoothing_method_combo.currentIndexChanged, self.smoothing_method_combo)
+            self.property_panel.watch(self.alpha_spinbox.valueChanged, self.alpha_spinbox)
             # プロットへのグラデーション適用(項目79)
-            self.gradient_checkbox.toggled.connect(self._on_property_changed)
+            self.property_panel.watch(self.gradient_checkbox.toggled, self.gradient_checkbox)
             # チェックのON/OFFで終端色/対象コンボの表示・非表示も切り替える
-            self.gradient_checkbox.toggled.connect(self._update_gradient_controls_visibility)
-            self.gradient_color2_picker.colorChanged.connect(self._on_gradient_color2_changed)
-            self.gradient_target_combo.currentIndexChanged.connect(self._on_property_changed)
+            self.gradient_checkbox.toggled.connect(self.property_panel.update_gradient_controls_visibility)
+            self.gradient_color2_picker.colorChanged.connect(self.colors.on_gradient_color2_changed)
+            self.property_panel.watch(self.gradient_target_combo.currentIndexChanged, self.gradient_target_combo)
             # ウォーターフォールプロット(項目80、項目109でplot_typeとは独立したフラグに変更)
-            self.waterfall_checkbox.toggled.connect(self._on_property_changed)
+            self.property_panel.watch(self.waterfall_checkbox.toggled, self.waterfall_checkbox)
             # チェックのON/OFFでオフセット量スピンボックスの表示・非表示も切り替える
-            self.waterfall_checkbox.toggled.connect(self._update_waterfall_controls_visibility)
-            self.waterfall_offset_x_spinbox.valueChanged.connect(self._on_property_changed)
-            self.waterfall_offset_y_spinbox.valueChanged.connect(self._on_property_changed)
+            self.waterfall_checkbox.toggled.connect(self.property_panel.update_waterfall_controls_visibility)
+            self.property_panel.watch(self.waterfall_offset_x_spinbox.valueChanged, self.waterfall_offset_x_spinbox)
+            self.property_panel.watch(self.waterfall_offset_y_spinbox.valueChanged, self.waterfall_offset_y_spinbox)
             # オクルージョン(実機フィードバック): on/off切り替え可能にする
-            self.waterfall_occlusion_checkbox.toggled.connect(self._on_property_changed)
+            self.property_panel.watch(self.waterfall_occlusion_checkbox.toggled, self.waterfall_occlusion_checkbox)
             # 斜向/立体風トグル(項目120、C-514): 奥のトレースをわずかに縮小
-            self.waterfall_depth_checkbox.toggled.connect(self._on_property_changed)
+            self.property_panel.watch(self.waterfall_depth_checkbox.toggled, self.waterfall_depth_checkbox)
             # チェックのON/OFFで縮小率スピンボックスの表示・非表示も切り替える
-            self.waterfall_depth_checkbox.toggled.connect(self._update_waterfall_controls_visibility)
-            self.waterfall_depth_ratio_spinbox.valueChanged.connect(self._on_property_changed)
+            self.waterfall_depth_checkbox.toggled.connect(self.property_panel.update_waterfall_controls_visibility)
+            self.property_panel.watch(self.waterfall_depth_ratio_spinbox.valueChanged, self.waterfall_depth_ratio_spinbox)
             # 項目105: ラベル有効化時、データ点が多いと確認ポップアップを挟むための
             # 専用ハンドラ経由にする(_on_property_changedへは内部で委譲される)
-            self.point_labels_checkbox.toggled.connect(self._on_point_labels_toggled)
-            self.point_label_col_combo.currentTextChanged.connect(self._on_property_changed)
+            self.point_labels_checkbox.toggled.connect(self.property_panel.on_point_labels_toggled)
+            self.property_panel.watch(self.point_label_col_combo.currentTextChanged, self.point_label_col_combo)
 
             # 誤差の表示形式(項目C-502)
-            self.error_display_combo.currentIndexChanged.connect(self._on_property_changed)
+            self.property_panel.watch(self.error_display_combo.currentIndexChanged, self.error_display_combo)
 
             # 欠損値(NaN)の方針設定(項目C-201)
-            self.nan_policy_combo.currentIndexChanged.connect(self._on_property_changed)
+            self.property_panel.watch(self.nan_policy_combo.currentIndexChanged, self.nan_policy_combo)
 
-            self.fit_curve_button.clicked.connect(self._on_fit_curve)
-            self.find_peaks_button.clicked.connect(self._on_find_peaks)
-            self.multi_peak_fit_button.clicked.connect(self._on_multi_peak_fit)
+            self.fit_curve_button.clicked.connect(self.fitting.fit_current_dataset)
+            self.find_peaks_button.clicked.connect(self.peaks.find_peaks)
+            self.multi_peak_fit_button.clicked.connect(self.fitting.multi_peak_fit_current_dataset)
 
-            self.use_secondary_y_checkbox.stateChanged.connect(self._on_secondary_y_changed)
-            self.subplot_target_combo.currentIndexChanged.connect(self._on_subplot_target_changed)
+            self.use_secondary_y_checkbox.stateChanged.connect(self.property_panel.on_secondary_y_changed)
+            self.subplot_target_combo.currentIndexChanged.connect(self.property_panel.on_subplot_target_changed)
 
             self.duplicate_dataset_button.clicked.connect(self._on_duplicate_dataset)
-            self.auto_color_button.clicked.connect(self._on_auto_assign_colors)
-            self.manage_palette_action.triggered.connect(self._on_manage_color_palettes)
-            self.colormap_assign_action.triggered.connect(self._on_auto_assign_colors_from_colormap)
+            self.auto_color_button.clicked.connect(self.colors.auto_assign_colors)
+            self.manage_palette_action.triggered.connect(self.colors.manage_palettes)
+            self.colormap_assign_action.triggered.connect(self.colors.auto_assign_colors_from_colormap)
             self.view_edit_data_button.clicked.connect(self._on_show_data_editor)
 
-            self.x_col_combo.currentTextChanged.connect(self._on_plot_column_changed)
-            self.y_col_combo.currentTextChanged.connect(self._on_plot_column_changed)
-            self.x_err_col_combo.currentTextChanged.connect(self._on_error_column_changed)
-            self.y_err_col_combo.currentTextChanged.connect(self._on_error_column_changed)
+            self.x_col_combo.currentTextChanged.connect(self.property_panel.on_plot_column_changed)
+            self.y_col_combo.currentTextChanged.connect(self.property_panel.on_plot_column_changed)
+            self.x_err_col_combo.currentTextChanged.connect(self.property_panel.on_error_column_changed)
+            self.y_err_col_combo.currentTextChanged.connect(self.property_panel.on_error_column_changed)
 
             # 2Dグリッドデータ(ヒートマップ、項目C-508)
-            self.data_2d_checkbox.toggled.connect(self._on_data_2d_toggled)
-            self.z_col_combo.currentTextChanged.connect(self._on_z_column_changed)
-            self.colormap_combo.currentTextChanged.connect(self._on_property_changed)
-            self.grid_interp_method_combo.currentTextChanged.connect(self._on_property_changed)
-            self.color_range_auto_checkbox.toggled.connect(self._on_2d_value_range_changed)
-            self.vmin_spinbox.valueChanged.connect(self._on_2d_value_range_changed)
-            self.vmax_spinbox.valueChanged.connect(self._on_2d_value_range_changed)
+            self.data_2d_checkbox.toggled.connect(self.property_panel.on_data_2d_toggled)
+            self.z_col_combo.currentTextChanged.connect(self.property_panel.on_z_column_changed)
+            self.property_panel.watch(self.colormap_combo.currentTextChanged, self.colormap_combo)
+            self.property_panel.watch(self.grid_interp_method_combo.currentTextChanged, self.grid_interp_method_combo)
+            self.color_range_auto_checkbox.toggled.connect(self.property_panel.on_2d_value_range_changed)
+            self.vmin_spinbox.valueChanged.connect(self.property_panel.on_2d_value_range_changed)
+            self.vmax_spinbox.valueChanged.connect(self.property_panel.on_2d_value_range_changed)
             # 2Dマップの表示方式・等高線レベル数(項目C-509)
-            self.map_display_mode_combo.currentIndexChanged.connect(self._on_property_changed)
-            self.contour_levels_spinbox.valueChanged.connect(self._on_property_changed)
+            self.property_panel.watch(self.map_display_mode_combo.currentIndexChanged, self.map_display_mode_combo)
+            self.property_panel.watch(self.contour_levels_spinbox.valueChanged, self.contour_levels_spinbox)
 
     def _create_menu_bar(self):
             """
@@ -475,18 +476,14 @@ class UISetupMixin:
             edit_menu.addAction(self.command_palette_action)
 
             # --- 2b. 「データセット」メニュー ---
-            # ★ 実機フィードバック: C-2 で整理したデータセット右クリックメニューは
-            #   中身が豊富なのに、リストを右クリックしないと辿り着けず気づかれ
-            #   にくい。メニューバーからも同じものを開けるようにする。
-            #   中身の構築は dataset_mixin._populate_dataset_actions_menu() が
-            #   右クリック側と共有する(片方だけに項目を足す壊れ方を防ぐ)。
+            # 右クリックと同じ中身を populate_dataset_actions_menu で作る(片方だけに項目を足さないため)。
             dataset_menu = menu_bar.addMenu(tr("データセット(&D)"))
             self._dataset_menu = dataset_menu           # 破棄されないよう保持
             self._dataset_menu_action = dataset_menu.menuAction()  # 開閉用アクションも(CLAUDE.md)
             # 選択状態によって出し入れされる項目があるので、開くたびに詰め直す。
             dataset_menu.aboutToShow.connect(
-                lambda: self._populate_dataset_actions_menu(dataset_menu))
-            self._populate_dataset_actions_menu(dataset_menu)
+                lambda: populate_dataset_actions_menu(self, dataset_menu))
+            populate_dataset_actions_menu(self, dataset_menu)
 
             # --- 3. 「表示」メニュー ---
             view_menu = menu_bar.addMenu(tr("表示(&V)"))
@@ -638,7 +635,7 @@ class UISetupMixin:
                         for proc in sorted(by_category[category], key=lambda p: p.name):
                             action = category_menu.addAction(proc.name)
                             action.triggered.connect(
-                                lambda checked=False, p=proc: self._on_run_plugin_processor(p)
+                                lambda checked=False, p=proc: self.plugin_runs.run_processor(p)
                             )
 
                 # 解析(項目C-2)
@@ -649,7 +646,7 @@ class UISetupMixin:
                     for analyzer in sorted(analyzers, key=lambda a: a.name):
                         action = analysis_menu.addAction(analyzer.name)
                         action.triggered.connect(
-                            lambda checked=False, a=analyzer: self._on_run_plugin_analyzer(a)
+                            lambda checked=False, a=analyzer: self.plugin_runs.run_analyzer(a)
                         )
 
                 # パネル(項目D-1): 各ドックの標準の表示/非表示トグルアクションを
@@ -960,4 +957,4 @@ class UISetupMixin:
 
             # --- 最終的なUI状態の更新 ---
             # (データセットが選択されていない状態 = プロパティUIを無効化)
-            self._update_ui_state()
+            self.property_panel.update_ui_state()

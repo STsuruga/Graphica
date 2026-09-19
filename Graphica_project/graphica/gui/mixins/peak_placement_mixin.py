@@ -15,7 +15,7 @@ calculate_multi_peak_fit)の初期値配置モード(項目C-410)をまとめた
 `self._pending_peak_guesses` は [{'center': float, 'height': float,
 'width': float}, ...] の形で、gui/dialogs.py の MultiPeakFitDialog の
 initial_guesses引数へそのまま渡せる(gui/mixins/dataset_mixin.pyの
-_on_multi_peak_fit()が仲介する)。ダイアログを開いた時点で現在の内容を
+FittingController.multi_peak_fit_current_dataset() が仲介する)。ダイアログを開いた時点で現在の内容を
 引き継ぐ設計であり、ダイアログ側でさらに編集・追加・削除できるため、
 ダイアログを閉じた後(OK/Cancelいずれでも)は本モード側のペンディング状態を
 クリアする(_clear_pending_peak_guesses)。

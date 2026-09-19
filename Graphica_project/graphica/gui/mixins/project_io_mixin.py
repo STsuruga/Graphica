@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
 from graphica.gui.dialogs import PreferencesDialog
 from graphica.gui.canvas import DEFAULT_POINT_LABEL_MAX_POINTS
 from graphica.gui.mixins.annotation_mixin import DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
-from graphica.gui.mixins.dataset_mixin import STYLE_ATTRS
+from graphica.gui.datasets.transfer import STYLE_ATTRS
 from graphica.core.i18n import tr, get_language
 
 logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ class ProjectIOMixin:
             self.settings.setValue("point_label_max_points", new_point_label_max)
             self.canvas.point_label_max_points = new_point_label_max
             self._update_plot()
-            self._update_point_labels_limit_note()
+            self.property_panel.update_point_labels_limit_note()
 
         # スナップ・トゥ・グリッド(項目84): 注釈モードのドラッグ確定時に参照される
         # self.snap_to_grid_enabled / self.snap_grid_interval_px をここで即座に更新する。

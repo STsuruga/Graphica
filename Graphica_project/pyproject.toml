@@ -59,6 +59,7 @@ packages = [
     "graphica.plugin",
     "graphica.core",
     "graphica.gui",
+    "graphica.gui.datasets",
     "graphica.gui.dialogs",
     "graphica.gui.mixins",
     "graphica.models",

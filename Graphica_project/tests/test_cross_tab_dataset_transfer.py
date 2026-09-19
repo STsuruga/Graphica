@@ -1,8 +1,8 @@
 # tests/test_cross_tab_dataset_transfer.py
 """
 タブ間のデータセットコピー/移動(項目C-905)に対するテスト。
-gui/mixins/dataset_mixin.py の _get_sibling_tabs/_on_copy_or_move_dataset_to_tab/
-_remove_datasets_without_confirmation を、実際に複数タブを持つ MainAppWindow を
+graphica/gui/datasets/transfer.py の copy_or_move_to_tab と DatasetHost の sibling_tabs/
+remove_datasets を、実際に複数タブを持つ MainAppWindow を
 使って検証する(タブ=完全に独立した PlotterApp インスタンスという設計上、
 単体 PlotterApp だけでは他タブの存在を再現できないため)。
 
@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 import graphica.gui.main_app_window as main_app_window_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.app_context as app_context_module
-import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
+import graphica.gui.datasets.transfer as transfer_module
 from graphica.gui.main_app_window import MainAppWindow
 from graphica.core.dataset import Dataset
 
@@ -67,7 +67,7 @@ def _add_and_select(tab, dataset):
     return dataset
 
 
-# --- _get_sibling_tabs ---
+# --- sibling_tabs ---
 
 def test_get_sibling_tabs_standalone_plotter_app_returns_empty(tmp_path, monkeypatch):
     """MainAppWindow無しの単体PlotterApp(主にテスト環境)では空リストになる"""
@@ -82,7 +82,7 @@ def test_get_sibling_tabs_standalone_plotter_app_returns_empty(tmp_path, monkeyp
     monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
 
-    assert window._get_sibling_tabs() == []
+    assert window._dataset_host.sibling_tabs() == []
 
 
 def test_get_sibling_tabs_lists_other_tabs_with_titles(tmp_path, monkeypatch):
@@ -90,11 +90,11 @@ def test_get_sibling_tabs_lists_other_tabs_with_titles(tmp_path, monkeypatch):
     tab1 = window.tab_widget.widget(0)
     tab2 = window.add_new_project_tab()
 
-    siblings = tab1._get_sibling_tabs()
+    siblings = tab1._dataset_host.sibling_tabs()
 
     assert len(siblings) == 1
-    title, widget = siblings[0]
-    assert widget is tab2
+    title, host = siblings[0]
+    assert host is tab2._dataset_host
     assert isinstance(title, str)
 
 
@@ -104,20 +104,20 @@ def test_get_sibling_tabs_excludes_self(tmp_path, monkeypatch):
     window.add_new_project_tab()
     window.add_new_project_tab()
 
-    siblings = tab1._get_sibling_tabs()
+    siblings = tab1._dataset_host.sibling_tabs()
 
-    assert all(widget is not tab1 for _, widget in siblings)
+    assert all(host is not tab1._dataset_host for _, host in siblings)
     assert len(siblings) == 2
 
 
-# --- _on_copy_or_move_dataset_to_tab: コピー ---
+# --- copy_or_move_to_tab: コピー ---
 
 def test_copy_no_selection_is_noop(tmp_path, monkeypatch):
     window = _make_isolated_main_app_window(tmp_path, monkeypatch)
     tab1 = window.tab_widget.widget(0)
     window.add_new_project_tab()
 
-    tab1._on_copy_or_move_dataset_to_tab(move=False)  # 例外にならず何もしない
+    tab1.transfer.copy_or_move_to_tab(move=False)  # 例外にならず何もしない
 
 
 def test_copy_no_other_tabs_shows_info(tmp_path, monkeypatch):
@@ -127,11 +127,11 @@ def test_copy_no_other_tabs_shows_info(tmp_path, monkeypatch):
 
     info_calls = []
     monkeypatch.setattr(
-        dataset_mixin_module.QMessageBox, "information",
+        transfer_module.QMessageBox, "information",
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
-    tab1._on_copy_or_move_dataset_to_tab(move=False)
+    tab1.transfer.copy_or_move_to_tab(move=False)
 
     assert len(info_calls) == 1
     assert ds in tab1.project.datasets  # 元タブには残ったまま
@@ -144,11 +144,11 @@ def test_copy_adds_independent_dataset_to_target_tab_and_keeps_source(tmp_path, 
     ds = _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (window._tab_title_for(tab2), True)),
     )
 
-    tab1._on_copy_or_move_dataset_to_tab(move=False)
+    tab1.transfer.copy_or_move_to_tab(move=False)
 
     assert ds in tab1.project.datasets  # コピーなので元タブに残る
     assert len(tab2.project.datasets) == 1
@@ -168,11 +168,11 @@ def test_copy_cancelled_dialog_transfers_nothing(tmp_path, monkeypatch):
     _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("", False)),
     )
 
-    tab1._on_copy_or_move_dataset_to_tab(move=False)
+    tab1.transfer.copy_or_move_to_tab(move=False)
 
     assert len(tab2.project.datasets) == 0
 
@@ -187,17 +187,17 @@ def test_copy_multiple_selected_datasets(tmp_path, monkeypatch):
     tab1.ui.dataset_list_widget.selectAll()
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (window._tab_title_for(tab2), True)),
     )
 
-    tab1._on_copy_or_move_dataset_to_tab(move=False)
+    tab1.transfer.copy_or_move_to_tab(move=False)
 
     assert len(tab2.project.datasets) == 3
     assert len(tab1.project.datasets) == 3  # コピーなので元タブも3件のまま
 
 
-# --- _on_copy_or_move_dataset_to_tab: 移動 ---
+# --- copy_or_move_to_tab: 移動 ---
 
 def test_move_removes_from_source_tab(tmp_path, monkeypatch):
     window = _make_isolated_main_app_window(tmp_path, monkeypatch)
@@ -206,11 +206,11 @@ def test_move_removes_from_source_tab(tmp_path, monkeypatch):
     ds = _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (window._tab_title_for(tab2), True)),
     )
 
-    tab1._on_copy_or_move_dataset_to_tab(move=True)
+    tab1.transfer.copy_or_move_to_tab(move=True)
 
     assert ds not in tab1.project.datasets
     assert len(tab2.project.datasets) == 1
@@ -224,11 +224,11 @@ def test_move_removes_tree_item_from_source_tab(tmp_path, monkeypatch):
     ds = _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (window._tab_title_for(tab2), True)),
     )
 
-    tab1._on_copy_or_move_dataset_to_tab(move=True)
+    tab1.transfer.copy_or_move_to_tab(move=True)
 
     assert tab1._get_dataset_tree_item(ds) is None
 
@@ -240,10 +240,10 @@ def test_move_cancelled_dialog_keeps_dataset_in_source(tmp_path, monkeypatch):
     ds = _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        dataset_mixin_module.QInputDialog, "getItem",
+        transfer_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("", False)),
     )
 
-    tab1._on_copy_or_move_dataset_to_tab(move=True)
+    tab1.transfer.copy_or_move_to_tab(move=True)
 
     assert ds in tab1.project.datasets

@@ -18,6 +18,7 @@ import logging
 
 from PySide6.QtWidgets import QMessageBox
 
+from graphica.core.provenance import build_provenance
 from graphica.core.dataset import Dataset
 from graphica.core.grid_data import extract_slice, GridDataError
 
@@ -173,7 +174,7 @@ class SliceExtractionMixin:
     def _create_slice_dataset(self, source_dataset, start, end, result):
         """
         extract_slice()の結果から新規1Dデータセットを作成し、プロジェクトに追加する
-        (_on_fit_curve_succeeded等、他の派生データセット生成箇所と同じパターン)。
+        (曲線フィットなど、他の派生データセット生成箇所と同じパターン)。
         """
         import pandas as pd
 
@@ -189,7 +190,7 @@ class SliceExtractionMixin:
         slice_dataset = Dataset(
             name=f"Slice ({source_dataset.name})",
             df=df, x_col_name='x', y_col_name='y',
-            provenance=self._build_provenance('2d_slice', params, [source_dataset]),
+            provenance=build_provenance('2d_slice', params, [source_dataset]),
         )
 
         self.project.datasets.append(slice_dataset)
