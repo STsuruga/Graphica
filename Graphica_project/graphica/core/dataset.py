@@ -3,6 +3,7 @@ import warnings
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field, fields, MISSING
+from typing import Any
 
 # 線種は短い記号('-')とコンボの表示名('solid')の両方で保存されている。保存値は書き換えず
 # (既存のプロジェクトのため)、表示と比較の直前に揃える。
@@ -15,7 +16,7 @@ _LINESTYLE_ALIASES = {
 }
 
 
-def linestyle_name(value):
+def linestyle_name(value: Any) -> str | None:
     """プロパティ欄の表示名に揃える。線を描かない値や未知の値は None。"""
     if value is None:
         return None
@@ -36,7 +37,7 @@ class Dataset:
     y_col_name: str
 
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         """df と masked_row_indices の再代入で visible_df のキャッシュを捨てる。
 
         df をその場で書き換えたとき(dataset.df[col] = ...)はここを通らないので、invalidate_visible_df_cache() を呼ぶ。
@@ -45,7 +46,7 @@ class Dataset:
         if name in ('df', 'masked_row_indices'):
             self.invalidate_visible_df_cache()
 
-    def invalidate_visible_df_cache(self):
+    def invalidate_visible_df_cache(self) -> None:
         """df をその場で書き換えた後に呼ぶ(再代入なら自動で捨てられる)。"""
         self.__dict__['_version'] = self.__dict__.get('_version', 0) + 1
 
@@ -66,7 +67,7 @@ class Dataset:
         return self.__dict__['_visible_df_cache']
 
     @property
-    def z_grid(self):
+    def z_grid(self) -> dict[str, Any] | None:
         """data_kind='2d_grid' の格子({'x_grid', 'y_grid', 'z_grid', 'is_regular'})。それ以外は None。
 
         散在データの補間は重いのでキャッシュする。列名や補間の設定は版番号を上げないので、キャッシュのキーに含める。
@@ -110,14 +111,14 @@ class Dataset:
         return self.visible_df[self.y_col_name].values
 
     @property
-    def x_err_data(self):
+    def x_err_data(self) -> np.ndarray | None:
         """X の誤差の列の値。列が未設定なら None(エラーバーなし)。x_data と長さが揃う。"""
         if self.x_err_col_name and self.x_err_col_name in self.df.columns:
             return self.visible_df[self.x_err_col_name].values
         return None
 
     @property
-    def z_data(self):
+    def z_data(self) -> np.ndarray | None:
         """Z の列の値。未設定か列が無ければ None。
 
         2D マップと 'Z-Color Scatter' の色が使う。visible_df を通すので、マスクしても点と色がずれない。
@@ -127,7 +128,7 @@ class Dataset:
         return None
 
     @property
-    def y_err_data(self):
+    def y_err_data(self) -> np.ndarray | None:
         """Y の誤差の列の値。x_err_data と同じ。"""
         if self.y_err_col_name and self.y_err_col_name in self.df.columns:
             return self.visible_df[self.y_err_col_name].values
@@ -230,7 +231,7 @@ class Dataset:
 
     # df はこのクラスのメソッドで変える(Undo のコマンドがこれを呼ぶ)
 
-    def set_cell(self, row_idx, col_name, value):
+    def set_cell(self, row_idx: Any, col_name: str, value: Any) -> None:
         # 列の型に入らない値(bool 列の NaN、日時列の文字列など)は、列を object 型に
         # してから入れる。pandas 3 は暗黙の型変換をやめて例外を出す。
         with warnings.catch_warnings():
@@ -242,7 +243,7 @@ class Dataset:
                 self.df.loc[row_idx, col_name] = value
         self.invalidate_visible_df_cache()
 
-    def add_row(self):
+    def add_row(self) -> None:
         """NaN の行を末尾に足す。
 
         全体を振り直すと delete_rows が残した欠番(restore_rows に要る)が消えるので、新しいラベルを1つだけ割り当てる。
@@ -251,12 +252,12 @@ class Dataset:
         new_row = pd.Series([np.nan] * len(self.df.columns), index=self.df.columns, name=new_index)
         self.df = pd.concat([self.df, new_row.to_frame().T])
 
-    def delete_last_row(self):
+    def delete_last_row(self) -> None:
         """末尾の行を削除する(add_row の取り消し用)。"""
         if len(self.df) > 0:
             self.df = self.df.drop(self.df.index[-1])
 
-    def delete_rows(self, row_indices):
+    def delete_rows(self, row_indices: list[Any]) -> None:
         """行を削除する。index は振り直さない(restore_rows が元のラベルで戻すため)。
 
         削除した行のラベルは masked_row_indices からも消す(残すと、同じラベルで足した新しい行が隠れる)。
@@ -268,7 +269,7 @@ class Dataset:
             if len(remaining_mask) != len(self.masked_row_indices):
                 self.masked_row_indices = remaining_mask
 
-    def restore_rows(self, deleted_data):
+    def restore_rows(self, deleted_data: pd.DataFrame) -> None:
         """delete_rows で消した行を元のラベルで戻す。
 
         振り直すと、ほかの削除で空いた欠番がずれ、後続の Undo が別の行を触る。
@@ -276,20 +277,20 @@ class Dataset:
         restored_df = pd.concat([self.df, deleted_data])
         self.df = restored_df.sort_index()
 
-    def is_column_in_use(self, col_name) -> bool:
+    def is_column_in_use(self, col_name: str) -> bool:
         """X/Y、または誤差の列として使っているか。"""
         return col_name in (self.x_col_name, self.y_col_name, self.x_err_col_name, self.y_err_col_name)
 
-    def add_column(self, col_name):
+    def add_column(self, col_name: str) -> None:
         if col_name not in self.df.columns:
             self.df[col_name] = np.nan
             self.invalidate_visible_df_cache()
 
-    def remove_column(self, col_name):
+    def remove_column(self, col_name: str) -> None:
         if col_name in self.df.columns:
             self.df = self.df.drop(columns=[col_name])
 
-    def rename_column(self, old_name, new_name):
+    def rename_column(self, old_name: str, new_name: str) -> None:
         """列名を変える。X/Y・誤差・点のラベルの列として使っていれば、そちらも新しい名前にする。"""
         if old_name not in self.df.columns or old_name == new_name:
             return
@@ -305,7 +306,7 @@ class Dataset:
         if self.point_label_col_name == old_name:
             self.point_label_col_name = new_name
 
-    def restore_column(self, col_name, column_data):
+    def restore_column(self, col_name: str, column_data: pd.Series) -> None:
         """remove_column で消した列を末尾に戻す。"""
         if col_name not in self.df.columns:
             self.df[col_name] = column_data
@@ -418,7 +419,7 @@ class Dataset:
             df = df[columns]
         return df
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         """artist は描くたびに作り直す Figure への参照なので保存しない。"""
         state = self.__dict__.copy()
         state['artist'] = None
@@ -427,7 +428,7 @@ class Dataset:
             state.pop(cache_key, None)
         return state
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict[str, Any]) -> None:
         self.__dict__.update(state)
         # 古い .pkl に無いフィールドは既定値で補う
         for f in fields(self):
