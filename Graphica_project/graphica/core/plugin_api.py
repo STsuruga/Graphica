@@ -502,23 +502,3 @@ def get_registered_importer_extensions():
 
 def get_registered_exporters():
     return _singleton_api.get_exporters() if _singleton_api is not None else []
-
-
-def get_registered_processors():
-    return _singleton_api.get_processors() if _singleton_api is not None else []
-
-
-def get_registered_analyzers():
-    return _singleton_api.get_analyzers() if _singleton_api is not None else []
-
-
-def get_registered_panels():
-    return _singleton_api.get_panels() if _singleton_api is not None else []
-
-
-def get_registered_plot_types():
-    return _singleton_api.get_plot_types() if _singleton_api is not None else []
-
-
-def get_registered_render_backends():
-    return _singleton_api.get_render_backends() if _singleton_api is not None else []

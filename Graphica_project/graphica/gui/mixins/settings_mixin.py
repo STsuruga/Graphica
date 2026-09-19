@@ -453,16 +453,6 @@ class SettingsMixin:
         self.project.all_plot_settings[axis_index]['legend_order'] = dialog.get_order()
         self._update_plot()
 
-    # 下の2つは呼ばれない(valueChanged は _on_axis_setting_changed に直接つないでいる)
-
-    def _on_tick_width_changed(self, value):
-        self._tick_width = value
-        self._update_plot_appearance()
-
-    def _on_spine_width_changed(self, value):
-        self._spine_width = value
-        self._update_plot_appearance()
-
     def _font_props_to_dict(self, qfont: QFont) -> dict:
         """QFont を JSON に保存できる辞書にする。
 

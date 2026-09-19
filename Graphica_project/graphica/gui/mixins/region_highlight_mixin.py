@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 # これより動かなければクリック(誤クリックで極小の帯ができないように)
 REGION_HIGHLIGHT_DRAG_THRESHOLD_PX = 5
-# 右クリックで消す帯の許容距離(帯の内側は 0。外側の際どい位置を拾うため)
-REGION_HIGHLIGHT_DELETE_TOLERANCE_PX = 10
 
 REGION_HIGHLIGHT_DEFAULT_COLOR = '#F2A72B'
 REGION_HIGHLIGHT_DEFAULT_ALPHA = 0.18

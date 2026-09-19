@@ -10,8 +10,6 @@ ICONS_DIR = os.path.join("assets", "icons")
 
 # カレントディレクトリではなく、このファイルの場所を基準にする
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# 使われていない(色は icon() が呼ぶたびにテーマから決める)
-DEFAULT_ICON_COLOR = "#3B3F42"
 
 
 def icon(name, color=None, size=16):

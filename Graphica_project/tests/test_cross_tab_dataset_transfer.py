@@ -15,7 +15,6 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 import graphica.gui.main_app_window as main_app_window_module
 import graphica.gui.main_window as main_window_module
-import graphica.gui.app_context as app_context_module
 import graphica.gui.datasets.transfer as transfer_module
 from graphica.gui.main_app_window import MainAppWindow
 from graphica.core.dataset import Dataset
@@ -31,7 +30,6 @@ def _make_isolated_main_app_window(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main_app_window_module, "QSettings", IsolatedQSettings)
     monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
-    monkeypatch.setattr(app_context_module, "QSettings", IsolatedQSettings)
 
     monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))

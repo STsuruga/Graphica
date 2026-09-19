@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QMessageBox
                                QUndoView, QWidget, QHBoxLayout)
 
 from graphica.gui.main_window import PlotterApp, resource_path
-from graphica.gui.app_context import AppContext
 from graphica.gui.icon_utils import icon as svg_icon
 from graphica.gui import theme
 from graphica.core.version import APP_NAME, __version__
@@ -30,9 +29,6 @@ class MainAppWindow(QMainWindow):
 
         # ウィンドウ全体の大きさと位置はここで持つ
         self._settings = QSettings("Graphica", "Graphica")
-
-        # タブをまたいで共有する状態(QSettings、最近使ったファイル、プラグイン)。プロセスに1つ
-        self.app_context = AppContext(self)
 
         # 各タブは自分の QUndoStack を持ち、ここでグループにまとめて、表示中のタブのものを有効にする
         # (履歴パネルはグループを通して表示中のタブの履歴を出す)

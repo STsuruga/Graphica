@@ -7,7 +7,7 @@ AddDatasetCommand)は tests/test_dataset_mixin.py 側で検証する。
 import pytest
 
 import graphica.core.plugin_api as plugin_api_module
-from graphica.core.plugin_api import GraphicaPluginAPI, get_registered_analyzers, get_registered_processors
+from graphica.core.plugin_api import GraphicaPluginAPI
 
 
 @pytest.fixture(autouse=True)
@@ -109,22 +109,3 @@ def test_register_analyzer_duplicate_name_is_isolated_not_raised():
     assert len(api.registration_errors) == 1
     assert api.registration_errors[0].hook_kind.value == "analyzer"
 
-
-# --- モジュールレベルのアクセサ ---
-
-def test_get_registered_processors_returns_empty_when_unloaded():
-    assert get_registered_processors() == []
-
-
-def test_get_registered_analyzers_returns_empty_when_unloaded():
-    assert get_registered_analyzers() == []
-
-
-def test_module_accessors_reflect_loaded_singleton():
-    api = GraphicaPluginAPI()
-    api.register_processor("Smooth", _dummy_processor_fn)
-    api.register_analyzer("Peaks", _dummy_analyzer_fn)
-    plugin_api_module._singleton_api = api
-
-    assert [p.name for p in get_registered_processors()] == ["Smooth"]
-    assert [a.name for a in get_registered_analyzers()] == ["Peaks"]

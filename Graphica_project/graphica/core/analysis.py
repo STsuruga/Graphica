@@ -497,25 +497,6 @@ _MULTI_PEAK_COMPONENT_TYPES = {
 }
 
 
-def get_multi_peak_param_names(component_type, n_components, baseline_type='constant'):
-    """calculate_multi_peak_fit() のパラメータ名(成分番号付き+ベースライン)をフィットせずに返す。"""
-    if component_type not in _MULTI_PEAK_COMPONENT_TYPES:
-        raise ValueError(f"不明な成分タイプ: {component_type}")
-    if n_components < 1:
-        raise ValueError("成分数は1以上である必要があります。")
-    component_param_names = _MULTI_PEAK_COMPONENT_TYPES[component_type]['param_names']
-    names = []
-    for i in range(1, n_components + 1):
-        names.extend(f"{p}{i}" for p in component_param_names)
-    if baseline_type == 'constant':
-        names.append('baseline_c')
-    elif baseline_type == 'linear':
-        names.extend(['baseline_m', 'baseline_b'])
-    elif baseline_type != 'none':
-        raise ValueError(f"不明なベースラインタイプ: {baseline_type}")
-    return names
-
-
 def calculate_multi_peak_fit(x_data, y_data, component_type, initial_guesses, baseline_type='constant',
                               x_range=None, sigma=None, p0_overrides=None, fixed_params=None, bounds=None):
     """同じ種類の N 成分とベースラインを同時にフィットする。
