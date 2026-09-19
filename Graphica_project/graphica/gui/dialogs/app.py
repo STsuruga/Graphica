@@ -1,11 +1,4 @@
-# gui/dialogs/app.py
-"""
-アプリ全体(設定・ヘルプ・操作)のダイアログ。
-
-gui/dialogs.py(5,560行・47ダイアログ)を機能群ごとに分割したもの
-(改善ボード B-2)。呼び出し側は従来どおり `from gui.dialogs import X` で
-参照できる(gui/dialogs/__init__.py が再エクスポートしている)。
-"""
+"""アプリ全体(設定・ヘルプ・操作)のダイアログ。呼び出し側は `from graphica.gui.dialogs import X` で参照する。"""
 
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -37,39 +30,18 @@ from graphica.gui import icon_utils
 from graphica.gui.theme import apply_form_spacing
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 環境設定 (Preferences)
-#==============================================================================
 class PreferencesDialog(QDialog):
-    """
-    これまでメニューに散らばっていた設定項目 (ダークモード、オートセーブ間隔) を
-    1つの画面にまとめた環境設定ダイアログ。
-    設定の永続化自体は呼び出し側 (main_window) が get_settings() の戻り値を
-    使って行う。このダイアログ自体は値の入力/表示のみを担当する。
-    """
+    """環境設定。値の入力と表示だけで、保存は呼び出し側が get_settings() の値で行う。"""
 
     def __init__(self, dark_mode, autosave_minutes, autosave_bounds=(0, 180), parent=None,
                  current_language=None, autosave_dir="", point_label_max_points=1000,
                  snap_to_grid_enabled=False, snap_grid_interval_px=10,
                  plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None):
-        """
-        plugin_records/plugin_registration_errors/disabled_plugin_names は
-        「プラグイン」タブ(項目F-2)用。呼び出し側(gui/mixins/project_io_mixin.py)
-        が core.plugin_api.get_loaded_plugin_records() 等をそのまま渡す想定。
-        plugin_records=None は「一度もロードされていない(セーフモード含む)」を表し、
-        空リストの「1つも無い」とは区別して表示する。
-        """
+        """plugin_records=None は一度も読み込んでいない(セーフモードなど)。空のリスト(1つも無い)とは区別して表示する。"""
         super().__init__(parent)
         from graphica.core.i18n import tr, SUPPORTED_LANGUAGES, get_language
         self.setWindowTitle(tr("環境設定"))
-        # ★ QGroupBoxの見出しをアクセントカラーの背景チップで目立たせるQSS
-        #   (GUIモダン化第2弾、項目68)により、各グループボックスの上部余白
-        #   (margin-top/padding-top)が以前より広くなったため、旧来のサイズ
-        #   (360x260)のままだと3つのグループボックスがすべて収まりきらず
-        #   文字が見切れてしまっていた。縦方向に余裕を持たせる。
-        # 項目F-2でプラグイン管理タブを追加したため、さらに縦横に余裕を持たせる。
+        # 見出しのチップで各グループの上の余白が広いので、小さいと見切れる
         self.resize(480, 520)
 
         outer_layout = QVBoxLayout(self)
@@ -87,8 +59,7 @@ class PreferencesDialog(QDialog):
         appearance_layout.addWidget(self.dark_mode_checkbox)
         layout.addWidget(appearance_group)
 
-        # UIの多言語対応(項目41): 表示言語の選択。切り替えは次回起動時に反映される
-        # (実行中のウィジェットをその場で再翻訳する仕組みは持たないため)。
+        # 切り替えは次の起動から(作った画面をその場で訳し直す仕組みは無い)
         language_group = QGroupBox(tr("言語"))
         language_form = QFormLayout(language_group)
         self.language_combo = QComboBox()
@@ -114,9 +85,7 @@ class PreferencesDialog(QDialog):
         self.autosave_spinbox.setValue(int(autosave_minutes))
         save_form.addRow(tr("オートセーブ間隔"), self.autosave_spinbox)
 
-        # オートセーブの保存先フォルダ(未指定なら core.app_paths.get_app_data_dir()、
-        # Windows では %LOCALAPPDATA%\Graphica。以前の表示「アプリのフォルダ」は
-        # 実際の保存先と違っていた)
+        # 空なら core.app_paths.get_app_data_dir()
         self._autosave_dir = autosave_dir or ""
         autosave_dir_row = QHBoxLayout()
         self.autosave_dir_edit = QLineEdit(self._autosave_dir)
@@ -136,9 +105,7 @@ class PreferencesDialog(QDialog):
 
         layout.addWidget(save_group)
 
-        # パフォーマンス(項目105): データ点ラベル表示は点数が多いと ax.annotate() の
-        # 呼び出し回数がそのまま増え、アプリがフリーズする原因になる。この件数を
-        # 超えるデータセットには自動的にラベルを描画しないようにする上限を設定できる。
+        # 点のラベルは点の数だけ annotate するので、多いと固まる。この数を超えたら描かない
         performance_group = QGroupBox(tr("パフォーマンス"))
         performance_form = QFormLayout(performance_group)
         self.point_label_max_spinbox = QSpinBox()
@@ -154,8 +121,7 @@ class PreferencesDialog(QDialog):
         performance_form.addRow(tr("データ点ラベルの表示上限"), self.point_label_max_spinbox)
         layout.addWidget(performance_group)
 
-        # スナップ・トゥ・グリッド(項目84): テキスト注釈・矢印注釈をドラッグ配置する際、
-        # ピクセル単位のグリッドに位置を吸着させ、複数の注釈をきれいに整列できるようにする。
+        # 注釈をドラッグで置くとき、ピクセルのグリッドに吸着させる
         annotation_group = QGroupBox(tr("注釈"))
         annotation_layout = QVBoxLayout(annotation_group)
         self.snap_to_grid_checkbox = QCheckBox(tr("スナップ・トゥ・グリッドを有効にする"))
@@ -172,21 +138,15 @@ class PreferencesDialog(QDialog):
 
         layout.addStretch()
 
-        # --- 「プラグイン」タブ(項目F-2) ---
         plugin_tab = QWidget()
         plugin_tab_layout = QVBoxLayout(plugin_tab)
         tabs.addTab(plugin_tab, tr("プラグイン"))
 
-        # インストール・プラグインフォルダを開く(いずれもOK/Cancelフローとは
-        # 独立した即時実行のボタン。オートセーブ保存先の参照ボタンと同じ位置づけ)
         plugin_actions_row = QHBoxLayout()
         self.install_plugin_button = QPushButton(tr("プラグインをインストール..."))
         self.install_plugin_button.setIcon(icon_utils.icon("download"))
         self.install_plugin_button.clicked.connect(self._on_install_plugin)
-        # ★ 実機フィードバック: 「ボタンが一回押すと他のボタン押すまでずっと
-        #   色付きになる」。QPushButtonの既定フォーカスポリシー(StrongFocus/
-        #   ClickFocus)によりクリック後もフォーカスの青枠が残り続けるため、
-        #   即時実行ボタン(OK/Cancelフローとは独立)はフォーカスを持たせない。
+        # OK/キャンセルとは別のすぐ実行するボタンなので、フォーカスの枠を残さない
         self.install_plugin_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         plugin_actions_row.addWidget(self.install_plugin_button)
         self.open_plugins_folder_button = QPushButton(tr("プラグインフォルダを開く"))
@@ -197,10 +157,7 @@ class PreferencesDialog(QDialog):
         plugin_actions_row.addStretch()
         plugin_tab_layout.addLayout(plugin_actions_row)
 
-        # ロード済みプラグインの一覧(名前/バージョン/作者)+ 個別ON/OFF。
-        # チェック状態はダイアログを閉じる際にget_disabled_plugin_names()経由で
-        # 読み取られ、QSettingsへの反映(次回起動時に反映)は呼び出し側
-        # (gui/mixins/project_io_mixin.py の _on_show_preferences)が行う。
+        # チェックの状態は閉じるときに get_disabled_plugin_names() で読まれ、次の起動から効く
         loaded_group = QGroupBox(tr("読み込み済みプラグイン"))
         loaded_layout = QVBoxLayout(loaded_group)
         self.plugin_list = QListWidget()
@@ -209,9 +166,7 @@ class PreferencesDialog(QDialog):
         loaded_layout.addWidget(self.plugin_list)
         plugin_tab_layout.addWidget(loaded_group, 1)
 
-        # フック単位の登録失敗(項目A-2): プラグイン全体としてはロードに成功して
-        # いても、個々のregister_xxx呼び出しが(名前衝突等で)失敗している場合に
-        # ここに表示する(get_loaded_plugin_recordsのerrorには現れないため)。
+        # プラグイン自体は読めても、個々の register_xxx が(名前の重複などで)失敗したもの
         hook_errors_group = QGroupBox(tr("フック単位の登録エラー"))
         hook_errors_layout = QVBoxLayout(hook_errors_group)
         self.plugin_hook_errors_list = QListWidget()
@@ -228,12 +183,7 @@ class PreferencesDialog(QDialog):
         apply_form_spacing(self)
 
     def _populate_plugin_list(self, plugin_records, disabled_names):
-        """
-        「読み込み済みプラグイン」リストを構築する。plugin_records=Noneは
-        「一度もロードされていない」(セーフモード中含む)ことを表す特別扱いの
-        1行を出す。各行のチェック状態は現在の無効化設定を反映する(表示専用の
-        行=状態未読込プラグイン向けエラー行にはチェックボックスを付けない)。
-        """
+        """plugin_records=None なら「読み込んでいない」の1行だけ出す。エラーの行にはチェックを付けない。"""
         from graphica.core.i18n import tr
         self.plugin_list.clear()
         if plugin_records is None:
@@ -283,11 +233,7 @@ class PreferencesDialog(QDialog):
             self.plugin_hook_errors_list.addItem(QListWidgetItem(text))
 
     def get_disabled_plugin_names(self):
-        """
-        「読み込み済みプラグイン」リストの現在のチェック状態から、無効化された
-        (チェックが外された)プラグイン名の集合を返す。呼び出し側がこれを
-        QSettingsのDISABLED_PLUGINS_SETTINGS_KEYへ保存する(次回起動時に反映)。
-        """
+        """チェックを外したプラグイン名の集合(呼び出し側が保存し、次の起動から効く)。"""
         disabled = set()
         for i in range(self.plugin_list.count()):
             item = self.plugin_list.item(i)
@@ -336,54 +282,28 @@ class PreferencesDialog(QDialog):
         )
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (bool, int, str, str, int, bool, int): (ダークモードを有効にするか,
-                オートセーブ間隔(分, 0=無効), 表示言語コード,
-                オートセーブ保存先ディレクトリ("" なら既定=get_app_data_dir()),
-                データ点ラベルの表示上限(件数),
-                スナップ・トゥ・グリッドを有効にするか, グリッド間隔(px))
-        """
+        """(ダークモード, オートセーブの間隔(分、0 で無効), 言語, オートセーブ先(空なら既定),
+        点のラベルの上限, グリッドへの吸着, グリッドの間隔(px))"""
         language_code = self._language_codes[self.language_combo.currentIndex()]
         return (self.dark_mode_checkbox.isChecked(), self.autosave_spinbox.value(),
                 language_code, self._autosave_dir, self.point_label_max_spinbox.value(),
                 self.snap_to_grid_checkbox.isChecked(), self.snap_grid_interval_spinbox.value())
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (1)
-#==============================================================================
 class HelpDialog(QDialog):
-    """
-    Matplotlib の mathtext (数式表示機能) の簡易リファレンスを表示する
-    ヘルプダイアログクラスです。
-    """
+    """mathtext の簡単なリファレンス。"""
 
     def __init__(self, parent=None):
-        """
-        ダイアログの初期化を行います。
-        
-        Args:
-            parent (QWidget, optional): 親ウィジェット。
-        """
         super().__init__(parent)
         self.setWindowTitle("mathtext クイックリファレンス")
-        self.resize(600, 700) # ウィンドウサイズを固定（リサイズ可能にする場合は resize の代わりに setMinimumSize なども検討）
+        self.resize(600, 700)
 
-        # メインレイアウトとして QVBoxLayout (垂直レイアウト) を設定
         layout = QVBoxLayout(self)
 
-        # HTML を表示するための QTextBrowser を作成
         text_browser = QTextBrowser()
-        text_browser.setReadOnly(True) # 閲覧専用に設定
-        text_browser.setOpenExternalLinks(True) # (もしHTML内にリンクがあれば) 外部ブラウザで開く
+        text_browser.setReadOnly(True)
+        text_browser.setOpenExternalLinks(True)
 
-        # --- リファレンスの内容をHTMLで定義 ---
-        # r"""...""" (Raw Triple-Quoted String) を使うことで、
-        # バックスラッシュ '\' をエスケープシーケンスとして解釈させず、
-        # LaTeX のコマンド (例: \mathbf) をそのまま記述できます。
         help_html = r"""
         <h1>Matplotlib Mathtext クイックリファレンス</h1>
         <p>
@@ -546,44 +466,21 @@ class HelpDialog(QDialog):
             には対応していません。
         </p>
         """
-        # ★ 項目H-2-6(実機での目視確認で発覚): 表内の見出し行はHTML内に
-        #   `background-color: #f0f0f0`のような固定の薄いグレーをハード
-        #   コードしていたため、ダークモードでは見出しセルがほぼ見えない
-        #   薄グレーの塊になり、文字も読めなくなっていた(ライトモードは
-        #   問題なかった)。見出し行はクラス名(class="header-row")だけを
-        #   HTML側に残し、実際の色はQTextDocumentのdefault stylesheetで
-        #   現在のテーマトークンから注入することで、ダーク/ライト両方で
-        #   読めるようにする。
+        # 見出し行の色は HTML に書かず、テーマの色から注入する(固定の薄いグレーはダークモードで読めない)
         self._text_browser = text_browser
         self.refresh_theme()
-        # HTMLコンテンツを QTextBrowser にセット
         text_browser.setHtml(help_html)
-        # --- HTML定義ここまで ---
 
-        # レイアウトにテキストブラウザを追加
         layout.addWidget(text_browser)
 
-        # --- 閉じるボタンの追加 ---
-        # QDialogButtonBox を使うと、プラットフォーム標準のボタン配置（OK, Cancel, Closeなど）
-        # を簡単に実現できます。
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
 
-        # 'rejected' シグナル（CloseボタンやEscキー押下で発生）を、
-        # QDialog の標準スロット 'reject'（ダイアログを閉じる処理）に接続します。
         button_box.rejected.connect(self.reject)
 
-        # レイアウトにボタンボックスを追加
         layout.addWidget(button_box)
 
     def refresh_theme(self):
-        """
-        表見出し行(tr.header-row)の色を現在のテーマトークンに合わせて
-        再適用する。このダイアログは非モーダル(show())で開いたまま
-        メインウィンドウを操作できるため、開いたままダークモードを
-        切り替えられると、__init__時点のトークンで固定していた色が
-        古いテーマのまま取り残されるバグがあった
-        (gui/mixins/ui_setup_mixin.py の _on_toggle_dark_mode から呼ばれる)。
-        """
+        """開いたままダークモードを切り替えられるので、見出し行の色を今のテーマで当て直す。"""
         from graphica.gui import theme
         _tokens = theme.current_tokens()
         self._text_browser.document().setDefaultStyleSheet(
@@ -592,17 +489,8 @@ class HelpDialog(QDialog):
         )
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (0): このソフトについて
-#==============================================================================
 class AboutDialog(QDialog):
-    """
-    「このソフトについて」ダイアログ。
-    バージョン番号 (core/version.py で一元管理) と、使用しているOSSライブラリの
-    ライセンス表記をまとめて表示する。
-    """
+    """バージョンと、使っている OSS のライセンス表記。"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -661,24 +549,11 @@ class AboutDialog(QDialog):
         layout.addWidget(button_box)
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 初回起動時のウェルカム画面
-#==============================================================================
 class WelcomeDialog(QDialog):
-    """
-    初回起動時に表示するウェルカムダイアログ兼スタートアップ画面(項目C-912)。
-    簡単な操作ガイド(チュートリアル)・すぐに試せるサンプルデータの読み込み・
-    最近使ったファイルへの入口・書式テンプレートを開く入口をまとめて提供する。
+    """初回の案内とスタートアップ画面。操作ガイド、サンプル、最近使ったファイル、書式テンプレートへの入口。
 
-    初回起動時(gui/main_window.pyの_check_first_launch、has_shown_welcome
-    QSettingsフラグで一度きり)に加え、「ファイル」メニューの
-    「スタートアップ画面...」(_on_show_startup_screen)からいつでも同じ内容を
-    開ける。呼び出し元は、閉じた後に load_sample_requested/selected_recent_file/
-    load_template_requested のいずれが立っているかを見て、対応する処理
-    (サンプル読込/該当ファイルを開く/書式テンプレート読込ダイアログを開く)を行う
-    (このダイアログ自身はファイルI/Oを一切行わない、意思表示のみの役割)。
+    ファイルは扱わず、閉じた後に呼び出し側が load_sample_requested / selected_recent_file /
+    load_template_requested を見て処理する。
     """
 
     def __init__(self, parent=None, recent_files=None):
@@ -727,8 +602,7 @@ class WelcomeDialog(QDialog):
         guide_browser.setMaximumHeight(180)
         layout.addWidget(guide_browser)
 
-        # 最近使ったファイル(項目C-912)。履歴が無い場合(主に初回起動時)は
-        # そもそも何も選べないため、セクション自体を表示しない。
+        # 履歴が無ければ(初回など)節ごと出さない
         if self._recent_file_paths:
             recent_group = QGroupBox(tr("最近使ったファイル"))
             recent_layout = QVBoxLayout(recent_group)
@@ -782,24 +656,11 @@ class WelcomeDialog(QDialog):
         self.accept()
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: キーボードショートカット一覧
-#==============================================================================
 class ShortcutsDialog(QDialog):
-    """
-    ヘルプメニューから開く、現在使えるキーボードショートカットの一覧ダイアログ。
-    メニューバーを直接走査するため、ショートカットを追加/変更してもここを
-    個別に更新し忘れる心配がない(CommandPaletteDialogと同じ collect_fn 方式)。
-    """
+    """キーボードショートカットの一覧。メニューから集めるので、追加や変更で直し忘れない。"""
 
     def __init__(self, collect_fn, parent=None):
-        """
-        Args:
-            collect_fn (callable): 呼ぶたびに現在のメニューアクションを
-                [(パスのリスト, QAction), ...] として新しく収集して返す関数。
-        """
+        """collect_fn は呼ぶたびにメニューの [(パス, QAction), ...] を集め直す関数。"""
         super().__init__(parent)
         self.setWindowTitle("キーボードショートカット一覧")
         self.resize(420, 380)
@@ -815,9 +676,7 @@ class ShortcutsDialog(QDialog):
 
         rows = []
         for path, action in collect_fn():
-            # ★ QUndoStack.createUndoAction() 等、self.xxx として保持されていない
-            # QAction はPython側のラッパーがGCで無効化されうる(既知のPySide6の癖)。
-            # 収集直後の使用でも起こりうるため、個別に握りつぶして続行する。
+            # 属性で持っていない QAction は、集めた直後でも PySide6 が無効にしていることがある
             try:
                 shortcut = action.shortcut()
             except RuntimeError:
@@ -839,33 +698,15 @@ class ShortcutsDialog(QDialog):
         layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: コマンドパレット
-#==============================================================================
 class CommandPaletteDialog(QDialog):
-    """
-    Ctrl+Shift+P で開く、メニュー項目をキーボードで検索して実行できるダイアログ。
-    検索欄にフォーカスがある状態のまま上下キーでリストの選択を移動し、
-    Enterで実行できるようにしている(一般的なコマンドパレットのUXに合わせる)。
+    """メニューの項目を検索して実行する(Ctrl+Shift+P)。
 
-    ★ 注意 ★
-    QMenu.addAction(text) の戻り値のように、Python側で明示的に self.xxx として
-    保持されていない QAction は、後からPythonの参照だけを保持していても、
-    ガベージコレクションのタイミングでラッパーが無効化される(実体は
-    メニューに残っているのに "already deleted" になる)ことがある。
-    そのため、収集した (path, action) の組は一度きりの表示にしか使わず、
-    実際に実行する際は collect_fn() を呼び直して「今」有効なQActionを
-    取り直してからその場で trigger() する(取得と使用の間に時間を空けない)。
+    属性で持っていない QAction は PySide6 が無効にすることがあるので、一覧にはパスだけを持ち、
+    実行する直前に collect_fn() で取り直してすぐ trigger() する。
     """
 
     def __init__(self, collect_fn, parent=None):
-        """
-        Args:
-            collect_fn (callable): 呼ぶたびに現在のメニューアクションを
-                [(パスのリスト, QAction), ...] として新しく収集して返す関数。
-        """
+        """collect_fn は ShortcutsDialog と同じ。"""
         super().__init__(parent)
         self.setWindowTitle("コマンドパレット")
         self.resize(480, 420)
@@ -898,8 +739,6 @@ class CommandPaletteDialog(QDialog):
             item = QListWidgetItem(label)
             if action.isCheckable():
                 item.setText(f"{'✓' if action.isChecked() else ' '}  {label}")
-            # QAction そのものではなく、後で再検索するためのパスだけを保持する
-            # (プレーンなPythonのリストなので、ラッパー無効化の影響を受けない)
             item.setData(Qt.ItemDataRole.UserRole, path)
             self.list_widget.addItem(item)
         if self.list_widget.count() > 0:
@@ -910,17 +749,13 @@ class CommandPaletteDialog(QDialog):
         self.accept()
         if target_path is None:
             return
-        # 表示時に集めた QAction は使わず、実行直前に取り直したものを使う
         for path, action in self._collect_fn():
             if path == target_path:
                 action.trigger()
                 return
 
     def eventFilter(self, obj, event):
-        """
-        検索欄(QLineEdit)にフォーカスがある間も、上下キーでリストの選択を
-        移動でき、Enterで実行できるようにする。
-        """
+        """検索欄にフォーカスがあるまま、上下キーで選択を動かし Enter で実行する。"""
         if obj is self.search_edit and event.type() == QEvent.Type.KeyPress:
             key = event.key()
             if key == Qt.Key.Key_Down:
@@ -939,32 +774,11 @@ class CommandPaletteDialog(QDialog):
         return super().eventFilter(obj, event)
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: クイックアクセスの管理 (項目87)
-#==============================================================================
 class QuickAccessManagerDialog(QDialog):
-    """
-    クイックアクセスツールバーへのピン留めを、チェックボックス付きの検索可能な
-    一覧から行うためのダイアログ。CommandPaletteDialogと同様、collect_fn()を
-    呼ぶたびに現在有効なメニューアクションを集め直す(表示中に保持したQActionは
-    実行には使わない)。
-
-    ★ 注意 ★
-    OK/キャンセルの概念を持たない、チェック状態の変更をその場で即座に反映する
-    「表示/非表示」に近いトグルUI(閉じるボタンのみ)。
-    """
+    """クイックアクセスのピン留めを一覧から選ぶ。チェックの変更はその場で反映する(閉じるボタンだけ)。"""
 
     def __init__(self, collect_fn, is_pinned_fn, toggle_fn, parent=None):
-        """
-        Args:
-            collect_fn (callable): CommandPaletteDialogと同じ契約。呼ぶたびに
-                現在のメニューアクションを [(パスのリスト, QAction), ...] として返す。
-            is_pinned_fn (callable): (識別子文字列) -> bool。現在ピン留め済みかどうか。
-            toggle_fn (callable): (識別子文字列, パスのリスト, チェック後の状態bool) -> None。
-                チェック状態が変わった項目に対して呼ばれる、ピン留め/解除の実処理。
-        """
+        """collect_fn は CommandPaletteDialog と同じ。is_pinned_fn(id) -> bool、toggle_fn(id, path, checked)。"""
         super().__init__(parent)
         from graphica.core.i18n import tr
 
@@ -974,7 +788,7 @@ class QuickAccessManagerDialog(QDialog):
         self._collect_fn = collect_fn
         self._is_pinned_fn = is_pinned_fn
         self._toggle_fn = toggle_fn
-        self._updating = False  # _update_list() でのチェック状態初期化中はitemChangedを無視する
+        self._updating = False  # _update_list() がチェックを入れている間は itemChanged を無視する
 
         layout = QVBoxLayout(self)
 
@@ -993,7 +807,7 @@ class QuickAccessManagerDialog(QDialog):
         self.list_widget.itemChanged.connect(self._on_item_changed)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        button_box.rejected.connect(self.accept)  # Closeボタンは RejectRole → rejected() を発行する
+        button_box.rejected.connect(self.accept)  # Close は RejectRole なので rejected が出る
         layout.addWidget(button_box)
 
         self._update_list("")
@@ -1028,25 +842,11 @@ class QuickAccessManagerDialog(QDialog):
         self._toggle_fn(ident, path, checked)
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 自動バックアップ履歴(項目C-107)
-#==============================================================================
 class AutosaveHistoryDialog(QDialog):
-    """
-    既存のオートセーブ世代ローテーション(main_window.pyの
-    _rotate_autosave_generations、autosave.graphica/.1./.2.…)の各世代を
-    一覧表示し、選んだ世代のパスを返すダイアログ。実際の復元処理
-    (_load_project_from_path)は呼び出し側が行う。
-    """
+    """オートセーブの世代を一覧にして、選んだファイルのパスを返す(復元は呼び出し側)。"""
 
     def __init__(self, generations, parent=None):
-        """
-        Args:
-            generations (list[tuple[str, str, str]]): (ファイルパス, 世代ラベル,
-                更新日時の文字列)のリスト、新しい順。
-        """
+        """generations は (パス, 世代のラベル, 更新日時) の新しい順のリスト。"""
         super().__init__(parent)
         self.setWindowTitle("自動バックアップ履歴")
         self.resize(480, 320)
@@ -1081,25 +881,18 @@ class AutosaveHistoryDialog(QDialog):
         self.accept()
 
     def get_selected_path(self):
-        """Returns: str | None (選択されていなければNone)"""
         item = self.history_list.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
 
 
-
-
 class PluginParamDialog(QDialog):
-    """
-    register_processor()/register_analyzer() の param_schema から、パラメータ
-    入力フォームを自動生成するダイアログ(項目C-1/C-2)。
+    """プラグインの param_schema から入力欄を作る。
 
-    param_schema は dict のリストで、各要素は少なくとも "name" と "type" を持つ:
-        {"name": str, "label": str(省略時はname), "type": "int"|"float"|"str"|"bool"|"choice",
-         "default": 任意, "min"/"max": int|float(int/floatのみ), "choices": list(choiceのみ),
-         "decimals": int(floatのみ、省略時4)}
+    各要素は {"name", "type": "int"|"float"|"str"|"bool"|"choice"} と、任意で "label" / "default" /
+    "min" / "max" / "choices" / "decimals"(float、既定 4)。
     """
 
-    _INT_RANGE = (-2_147_483_647, 2_147_483_647)  # Qt QSpinBoxのネイティブ範囲に合わせる
+    _INT_RANGE = (-2_147_483_647, 2_147_483_647)  # QSpinBox の範囲
 
     def __init__(self, title, param_schema, parent=None):
         super().__init__(parent)
@@ -1148,14 +941,14 @@ class PluginParamDialog(QDialog):
             if default is not None:
                 widget.setCurrentText(str(default))
             return widget
-        # "str" および未知のtypeはテキスト入力にフォールバックする
+        # "str" と未知の型は文字の欄
         widget = QLineEdit()
         if default is not None:
             widget.setText(str(default))
         return widget
 
     def get_values(self):
-        """Returns: dict {パラメータ名: 入力値(型はparam_schemaのtypeに従う)}"""
+        """{パラメータ名: 値}。型は param_schema の type に従う。"""
         values = {}
         for name, (ptype, widget) in self._widgets.items():
             if ptype in ("int", "float"):

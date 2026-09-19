@@ -1,11 +1,4 @@
-# gui/theme.py
-"""
-アプリ全体 (Qt UI) のダークモード切り替え、およびフラット/ミニマルな
-見た目 (QSS) の適用を担当するモジュール。
-ベースは QPalette + Fusion スタイルの標準的な手法だが、それに加えて
-QSS (Qtスタイルシート) でツールバー・ボタン・入力欄・リスト等の見た目を
-角丸/フラットに統一し、よりモダンな印象にしている。
-"""
+"""アプリ全体のテーマ。Fusion スタイルの上でパレットを切り替え、QSS でフラットな見た目にする。"""
 import os
 import re
 import tempfile
@@ -17,46 +10,26 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QComboBox,
 
 from graphica.gui.icon_utils import icon as _svg_icon
 
-# 起動時の元のパレット/スタイル名を保持し、ライトモードへの復帰に使う
 _original_palette = None
 _original_style_name = None
 _wheel_value_change_disabled = False
-_current_proxy_style = None  # QApplication.setStyle()に渡したオブジェクトへの参照を保持
-_current_tokens = None  # 現在適用中のLIGHT_TOKENS/DARK_TOKENS(項目H-2-2:
-                         # QSSだけでは表現できない選択ハイライトをカスタム
-                         # デリゲートで描く際に、ライト/ダーク現在値を参照するため)
-_last_applied_dark = None  # 直近にQApplicationへ実際に適用した dark 値(起動高速化:
-                            # 同じ値でのapply_theme()再呼び出し時、高コストな
-                            # setPalette()/setStyleSheet()の再実行を省略するため)
+_current_proxy_style = None
+_current_tokens = None
+_last_applied_dark = None  # 同じ値での apply_theme() は重い処理を省く
 
-# データセットリストの角丸(選択ハイライト用デリゲートが、リスト自体の角丸
-# (下のQTreeWidget, QListWidget, QTableWidget規則のborder-radius)と揃える
-# ために参照する値。QSS文字列側の値を変更したら、こちらも合わせて変更すること。
+# 選択の角丸を描くデリゲートが使う。QSS の QTreeWidget の border-radius と同じ値にしておくこと
 DATASET_LIST_ITEM_RADIUS = 8
 
-# スピンボックスの上下矢印アイコンのキャッシュ先。
-# ★ QSpinBox::up-button/down-buttonにQSSで何かプロパティを指定すると
-#   ウィジェット自体もQSSで角丸枠にしている都合上(QLineEdit等と共有の
-#   入力欄スタイル)、Qtの内部実装(QStyleSheetStyle)がCC_SpinBoxの描画を
-#   丸ごと引き取ってしまい、QProxyStyle側でdrawPrimitive/drawComplexControlを
-#   オーバーライドしても矢印の描画に一貫して反映されないことを検証の上で確認した
-#   (呼ばれたり呼ばれなかったりする再現性の低い挙動だった)。
-#   一方 QSS の `::up-arrow`/`::down-arrow` に `image: url(...)` で
-#   実ファイルの矢印画像を指定する方式は確実に反映される。このため、
-#   矢印だけは小さなPNGとして生成しキャッシュし、QSSから参照する。
+# スピンボックスの矢印は PNG にして QSS の ::up-arrow / ::down-arrow の image で指定する。
+# 枠を QSS で描いていると、QProxyStyle で矢印を描いても反映されたりされなかったりする。
 _ARROW_ICON_CACHE_DIR = os.path.join(tempfile.gettempdir(), "graphica_theme_icons")
 
 
 def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
-    """
-    上向き/下向きの三角矢印PNGを(未生成なら)描画してキャッシュし、
-    QSSの `url(...)` にそのまま埋め込める形式のパス文字列を返す。
-    """
+    """三角の矢印の PNG を(無ければ)作り、QSS の url() に入れられるパスを返す。"""
     os.makedirs(_ARROW_ICON_CACHE_DIR, exist_ok=True)
     safe_color = color.lstrip("#")
-    # ★ ファイル名にサイズを含めることで、実機フィードバックを受けて矢印を
-    #   大きくした際(項目H-2-4)のような将来の寸法変更時に、キャッシュ
-    #   ディレクトリに残った旧サイズのPNGを誤って使い回さないようにしている。
+    # 大きさをファイル名に入れ、寸法を変えたとき古い PNG を使い回さない
     size = 14
     filename = f"spin_arrow_{direction}_{safe_color}_{size}.png"
     path = os.path.join(_ARROW_ICON_CACHE_DIR, filename)
@@ -85,45 +58,20 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
         painter.end()
         pixmap.save(path)
 
-    # QSSのurl()はWindowsの円記号区切りパスを解釈できないため、
-    # スラッシュ区切りに変換する。
+    # QSS の url() は Windows の区切りの \ を読めない
     return path.replace(os.sep, "/")
 
-# フラット/ミニマルテーマの配色トークン(項目H-1: 唯一の定義箇所)。
-# チェックリスト(ロードマップ)アーティファクトで使ったものと近い、
-# ニュートラルグレー+ティール系アクセントの配色に揃えている。
-# 公開名(LIGHT_TOKENS/DARK_TOKENS)はロードマップH-1の完了条件に合わせたもの。
-# 現状これらを上書きするユーザー設定(QSettings)は存在しない
-# (docs/dev/gui_style_audit.md 6節: 「カスタムカラーパレット」機能はデータセットの
-# 線色サイクルであり、このUIテーマのアクセントカラーとは無関係)。
+# 配色の唯一の定義。これを上書きする利用者の設定は無い(配色パレットはデータの線の色で、UI とは別)。
 LIGHT_TOKENS = {
-    # ★ 実機フィードバック: 「背景色が若干黄色っぽい」との指摘を受け、
-    # bg/surface_2を寒色寄りのニュートラルグレーに変更した(旧値:
-    # bg=#F7F7F5, surface_2=#EFF1EF。両方ともG成分がわずかに高く、
-    # 暖色/黄み寄りだった)。3案(ニュートラル/寒色寄り/濃いめ寒色)を提示し、
-    # 「B: 寒色寄りグレー」が選ばれた。
     "bg": "#F6F7F9", "surface": "#FFFFFF", "surface_2": "#EEF0F3",
     "border": "#DFE2E1", "border_strong": "#C9CDCB",
     "text_primary": "#1B1F1E", "text_secondary": "#5B6462", "text_muted": "#8B938F",
     "accent": "#1F6F78", "accent_soft": "#E4F0EF", "accent_text": "#FFFFFF",
-    # データセットリストの選択ハイライト専用(項目H-2-2)。アプリ全体のアクセント
-    # 色(ティール系)とは別に、実機フィードバックで明示的に要望された「青」を
-    # 使う専用トークン(他の淡いリスト/テーブルが使うaccent_softとは意図的に
-    # 別トークンにしている)。accent_softは不透明な淡色だが、こちらは実際に
-    # rgbaの透過を持たせている(以前の「はっきりしたアクセント色の塗りつぶし」
-    # という意図的な差別化が濃すぎると判断され、この色に変更した経緯がある)。
+    # データセット一覧の選択だけに使う半透明の青(アクセントのティールとは別)
     "selection_highlight": "rgba(37, 99, 235, 0.12)",
-    # selection_highlightと同じ青相のopaque版(項目H-2-4、実機フィードバック:
-    # 「フォーカス時の色が緑のまま」「チェックボックスの塗りつぶしの色も」
-    # 「タブの選択色も」)。selection_highlightは枠線・チェックボックスの
-    # 塗りつぶしのような「完全に不透明であるべき」用途には透過が邪魔になるため、
-    # 同じ色相のopaque版を別トークンとして用意した。
+    # selection_highlight と同じ色の不透明版(枠やチェックボックスの塗りには透明だと困る)
     "selection_accent": "#2563EB",
-    # 欠損値(NaN)セルの可視化(項目C-201)。データセットリストの選択ハイライト
-    # (青系)・アプリ全体のアクセント(ティール系)のどちらとも被らない、
-    # 「注意を引くが警告/エラーではない」ニュートラルな琥珀系の淡色。
-    # 将来のC-210(テーブルの条件付き書式)でも同系統の用途に再利用できるよう、
-    # 単発のハードコード値ではなくトークンとして定義する。
+    # 欠損値のセル。選択の青とも、アクセントとも被らない
     "warning_soft": "#FDF1D8",
 }
 DARK_TOKENS = {
@@ -862,40 +810,25 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 """
 
 
-
-# 見出しの既定サイズを決めるときの基準(アプリ既定フォントからの相対)。
-# ★ px で固定してはいけない。このアプリはQSSでフォントサイズを指定しておらず、
-#   フォームのラベルやコンボはOS既定のフォントで描かれる。その既定は
-#   Windowsで9pt、macOSで13pt前後と差が大きいため、px固定にすると片方のOSで
-#   「見出しのほうが本文より小さい」という階層の逆転が起きる
-#   (実際にmacOSのCIで 見出し13px < 項目15px となって検出された)。
-HEADING_POINT_OFFSET = 2.0      # トップレベルのアコーディオン見出し
-SUBHEADING_POINT_OFFSET = 1.0   # プロパティパネル内のサブセクション見出し
+# 見出しの文字サイズはアプリ既定のフォントからの相対にする。px で固定すると、OS 既定の大きさ
+# (Windows 9pt、macOS 13pt 前後)によって見出しが本文より小さくなる。
+HEADING_POINT_OFFSET = 2.0      # 上の2つの開閉見出し
+SUBHEADING_POINT_OFFSET = 1.0   # プロパティ欄の節の見出し
 _FALLBACK_BASE_POINT_SIZE = 9.0
 
 
 def heading_point_sizes():
-    """
-    (トップレベル見出し, サブセクション見出し) の文字サイズをpt単位で返す。
-
-    アプリ既定フォントに対する相対で決めるので、OSが変わっても
-    「見出し > サブ見出し > 本文」の順序が保たれる。
-    """
+    """(上の見出し, 節の見出し) の pt。"""
     app = QApplication.instance()
     base = app.font().pointSizeF() if app is not None else _FALLBACK_BASE_POINT_SIZE
     if base <= 0:
-        # pointSizeF() は、フォントがピクセル指定のとき -1 を返す
+        # ピクセル指定のフォントだと pointSizeF() は -1
         base = _FALLBACK_BASE_POINT_SIZE
     return base + HEADING_POINT_OFFSET, base + SUBHEADING_POINT_OFFSET
 
 
 def build_qss(tokens: dict) -> str:
-    """
-    トークン辞書(LIGHT_TOKENS/DARK_TOKENS、または将来の任意のカスタムトークン)
-    から、_FLAT_QSS_TEMPLATEの`{token_name}`プレースホルダを埋めた最終的な
-    QSS文字列を返す(項目H-1)。矢印アイコンのURLはトークンの`text_primary`色から
-    動的に生成して付加する。
-    """
+    """_FLAT_QSS_TEMPLATE の {token} を埋めた QSS。矢印の画像は text_primary の色で作る。"""
     format_args = dict(tokens)
     format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_primary"])
     format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_primary"])
@@ -927,33 +860,17 @@ def _build_dark_palette() -> QPalette:
 
 
 class _FlatThemeProxyStyle(QProxyStyle):
-    """
-    QSSだけでは実現できない(あるいはQtの既知の癖により逆に壊れる)、いくつかの
-    描画をQProxyStyle側で肩代わりするための共通スタイル。
+    """QSS では描けないもの(QSS を当てると中身が消えるもの)をここで描く。
 
-    ★ 共通する根本原因: Qtは、あるサブコントロールにQSSで何かひとつでも
-    プロパティ(padding, border-radius, width...)を指定すると、そのサブ
-    コントロールを「スタイルシートでカスタム描画されるもの」とみなし、
-    アイコンやチェックマークなどの「中身」を一切描画しなくなることがある。
-    - タブを閉じる「×」ボタン: QTabBar::close-buttonにQSSを当てると、
-      アイコン自体が完全に消える(実機で報告され、調査の上で発見)。
-      → QSSは一切当てず、標準アイコンをここで差し替える。
-    - チェックボックス: QCheckBox::indicatorにQSSを当てると、チェック時に
-      ただの塗りつぶし四角になり、チェックマークが描画されない
-      (同じく実機で報告)。
-      → QSSは一切当てず、枠・塗りつぶし・チェックマークをすべてここで
-      自前描画する。
+    QTabBar::close-button に QSS を当てると × が消え、QCheckBox::indicator に当てるとチェックマークが
+    描かれない。どちらも QSS は当てず、ここでアイコンを差し替え、チェックボックスを自前で描く。
     """
     def __init__(self, base_style, tokens):
         super().__init__(base_style)
         self.update_tokens(tokens)
 
     def update_tokens(self, tokens):
-        """
-        ダーク/ライト切り替え時に、既存のインスタンスの色情報だけを
-        更新する(新しいインスタンスをapp.setStyle()で差し替えない)。
-        理由はapply_theme()側のコメント参照。
-        """
+        """色だけ替える(作り直して setStyle() し直すとクラッシュする。apply_theme() を参照)。"""
         self._tokens = tokens
         self._close_icon = _svg_icon("x", color=tokens["text_secondary"], size=14)
         self._close_pixmap = self._close_icon.pixmap(14, 14)
@@ -964,10 +881,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
         return super().standardIcon(standard_icon, option, widget)
 
     def standardPixmap(self, standard_pixmap, option=None, widget=None):
-        # ★ Qt内部のタブ「閉じる」ボタン(private CloseButton)は、実際には
-        #   standardIcon()ではなくこちらのstandardPixmap()経由でアイコンを
-        #   取得している。standardIcon()だけをオーバーライドしても効果が
-        #   無かったため、両方をオーバーライドする必要がある。
+        # タブの閉じるボタンは standardIcon() ではなく standardPixmap() でアイコンを取る
         if standard_pixmap == QStyle.StandardPixmap.SP_TabCloseButton:
             return self._close_pixmap
         return super().standardPixmap(standard_pixmap, option, widget)
@@ -977,13 +891,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
             self._draw_checkbox_indicator(option, painter)
             return
         if element == QStyle.PrimitiveElement.PE_FrameTabBarBase:
-            # ★ 実機フィードバック(画像提示): 「プロパティ/エクスポート
-            #   プレビュー」タブ(タブ化したQDockWidget)の上に、灰色の横線が
-            #   残っていた。これはQTabBar::tab等のQSSでは制御できない別の
-            #   プリミティブ(タブバーを内容ペインに接続する「土台」線、
-            #   Fusionスタイルが独自に描画する)が原因で、QSSからは一切
-            #   スタイルできない(チェックボックスの項目と同じ理由でここに
-            #   実装している)。何も描画せずに抑制することで解消する。
+            # タブにしたドックの上に出る灰色の線(Fusion が描く、QSS では消せない)を描かない
             return
         super().drawPrimitive(element, option, painter, widget)
 
@@ -997,9 +905,6 @@ class _FlatThemeProxyStyle(QProxyStyle):
             fill = QColor(tokens["surface_2"])
             border = QColor(tokens["border"])
         elif checked or tristate:
-            # ★ 実機フィードバック: 「チェックボックスの塗りつぶしの色も」
-            #   緑(ティール系accent)から、他の選択/フォーカス表現と揃えた
-            #   selection_accent(青)に変更した。
             fill = QColor(tokens["selection_accent"])
             border = fill
         else:
@@ -1028,11 +933,10 @@ class _FlatThemeProxyStyle(QProxyStyle):
             r = option.rect
             path = QPainterPath()
             if tristate:
-                # 部分選択状態: 横棒のみ
+                # 一部だけ選ばれている: 横棒
                 path.moveTo(r.x() + r.width() * 0.22, r.y() + r.height() * 0.5)
                 path.lineTo(r.x() + r.width() * 0.78, r.y() + r.height() * 0.5)
             else:
-                # チェックマーク(レ点)
                 path.moveTo(r.x() + r.width() * 0.20, r.y() + r.height() * 0.52)
                 path.lineTo(r.x() + r.width() * 0.42, r.y() + r.height() * 0.74)
                 path.lineTo(r.x() + r.width() * 0.82, r.y() + r.height() * 0.26)
@@ -1042,14 +946,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
 
 
 def apply_theme(app, dark: bool):
-    """
-    QApplication 全体にダーク/ライトのテーマを適用する。
-
-    ライト/ダークどちらのときも常に Fusion スタイルを使い、パレット(色)だけを
-    切り替える。スタイル自体をネイティブ⇔Fusionで切り替えると、ツールバーの
-    ボタンサイズや余白などQStyle依存の見た目がモードごとに変わってしまうため、
-    スタイルは固定してモード間の見た目の一貫性を保つ。
-    """
+    """ライトでもダークでも Fusion を使い、パレットだけ替える(スタイルを替えるとボタンの大きさや余白まで変わる)。"""
     global _original_palette, _original_style_name, _current_proxy_style, _current_tokens
     global _last_applied_dark
     if _original_palette is None:
@@ -1059,31 +956,13 @@ def apply_theme(app, dark: bool):
     tokens = DARK_TOKENS if dark else LIGHT_TOKENS
     _current_tokens = tokens
 
-    # ★ 起動高速化: PlotterApp.__init__は同じ dark 値でapply_theme()を2回
-    #   呼ぶ(アイコン構築前の早期反映用と、_create_menu_bar()側の冪等性
-    #   確保用)。複数タブを開いた場合もタブごとに同じ値で再度呼ばれる。
-    #   setPalette()/app.setStyleSheet()はQApplication配下の全ウィジェットに
-    #   対する処理でQt側のコストが大きい(実測: 1回あたり約130ms)ため、
-    #   直前に適用済みの値と変わらない場合は完全にスキップする。
-    #   _on_toggle_dark_mode等、実際にモードが変わる呼び出しでは
-    #   _last_applied_dark と異なる値が渡るため、従来通りフルに適用される。
+    # 同じ値で何度も呼ばれる(タブごとなど)。setPalette() と setStyleSheet() は1回約130ms かかるので省く
     if _current_proxy_style is not None and _last_applied_dark == dark:
         return
     _last_applied_dark = dark
 
-    # ★ バグ修正: 以前は呼び出しのたびに新しい QProxyStyle(+ラップ元の新しい
-    # Fusionスタイル)を作ってapp.setStyle()で丸ごと差し替えていた。
-    # QApplication.setStyle()は「差し替え前の古いスタイルオブジェクトを
-    # 削除する」仕様のため、その古いスタイルオブジェクトを、まだ生きている
-    # 他のウィンドウ/ウィジェット(このアプリは複数タブ=複数の独立した
-    # PlotterAppを同一QApplication上で同時に持つ設計、CLAUDE.md参照)が
-    # 参照し続けていると、削除済みオブジェクトへのアクセスで
-    # "Windows fatal exception: access violation" のようなネイティブ
-    # クラッシュを起こす(実際にCI上のフルテスト実行で複数タブ相当の
-    # ウィンドウが多数生きた状態のままダークモード切替を繰り返した際に
-    # 再現した)。スタイルオブジェクト自体はQApplicationにつき1つだけ生成し
-    # (app.setStyle()も一度だけ呼ぶ)、ダーク/ライト切替時はその既存
-    # インスタンスの色情報だけをupdate_tokens()で書き換える。
+    # スタイルは QApplication に1つだけ作り、setStyle() も1回だけ。setStyle() は古いスタイルを削除するので、
+    # 差し替えるとほかのタブのウィジェットが削除済みのスタイルを触ってプロセスごと落ちる
     if _current_proxy_style is None:
         base_style = QStyleFactory.create('Fusion')
         _current_proxy_style = _FlatThemeProxyStyle(base_style, tokens)
@@ -1095,34 +974,18 @@ def apply_theme(app, dark: bool):
     else:
         app.setPalette(_original_palette)
 
-    # パレットに加えて QSS を適用し、ツールバー/ボタン/入力欄/リスト等を
-    # 角丸・フラットな見た目に統一する(モダンなミニマルテーマ)。
     app.setStyleSheet(build_qss(tokens))
 
 
 def current_tokens() -> dict:
-    """
-    現在適用中(ライト/ダーク)のトークン辞書(LIGHT_TOKENSまたはDARK_TOKENS)を
-    そのまま返す(項目H-2-4追加分: mathtextプレビュー(gui/mathtext_preview.py)
-    の文字色をテーマに追従させるため等、Python側から任意のトークン値を
-    参照したい場面向けの汎用アクセサ)。apply_theme()より前に呼ばれた場合
-    (通常は起こらない)はLIGHT_TOKENSにフォールバックする。
-    """
+    """今のテーマの配色トークン。apply_theme() の前なら LIGHT_TOKENS。"""
     return _current_tokens or LIGHT_TOKENS
 
 
 def current_selection_highlight_qcolor() -> QColor:
-    """
-    現在適用中(ライト/ダーク)のselection_highlightトークンをQColorとして返す
-    (項目H-2-2)。データセットリストの選択ハイライトはQSSのbackgroundだけでは
-    行全体を単一の角丸矩形として描画できない(Qtがアイコン列とテキスト列を
-    別々の矩形として描画するため、実機検証済み)ため、
-    _DatasetTreeSelectionDelegate(gui/main_window.py)が自前で背景を描画している。
-    トークン値は "rgba(r, g, b, a)" 形式のQSS埋め込み用文字列であり、
-    QColor(str)コンストラクタでは解釈できない(QColorはCSSのrgba()関数記法を
-    理解せず、不透明の黒に無効フォールバックしてしまうことを実機で確認した)ため、
-    ここで正規表現パースしてQColorを直接返す。apply_theme()より前に呼ばれた
-    場合(通常は起こらない)はLIGHT_TOKENSにフォールバックする。
+    """selection_highlight を QColor で返す。
+
+    トークンは QSS 用の "rgba(r, g, b, a)" で、QColor(str) はこれを読めず不透明の黒になるので自前で解釈する。
     """
     tokens = _current_tokens or LIGHT_TOKENS
     raw = tokens["selection_highlight"]
@@ -1136,25 +999,10 @@ def current_selection_highlight_qcolor() -> QColor:
 
 
 def install_dock_focus_highlight(window):
-    """
-    windowが持つQDockWidget群に、キーボード/クリックでフォーカスが当たって
-    いる間だけ枠線をアクセント色で強調する仕組みを組み込む(項目H-2-3)。
+    """フォーカスのあるドックの枠を強調する(dockActive プロパティを QSS で描く)。
 
-    QDockWidget自体には「アクティブ」を示すQt標準の状態が無いため、
-    `QApplication.focusChanged`信号でアプリ全体のフォーカス移動を監視し、
-    フォーカスされたウィジェットの祖先をたどってQDockWidgetを特定した上で、
-    動的プロパティ`dockActive`をQSSの属性セレクタ(`QDockWidget[dockActive=
-    "true"]`、上の_FLAT_QSS_TEMPLATE参照)経由で反映する。プラグイン製パネル
-    (項目D-1)のように後から追加されるQDockWidgetも、祖先を都度たどる方式
-    のため個別登録なしで自動的にカバーされる。
-
-    ★ 複数タブ(main_app_window.py)対応の注意点: `focusChanged`はプロセス内
-    全体で共有される単一のシグナルであり、他のタブ/ウィンドウでのフォーカス
-    移動でもこのハンドラは呼ばれる。見つかったドックが`window`の管轄でない
-    場合は「このwindowにとってはフォーカスが外れた」ものとして扱い、
-    自分のドックのハイライトだけを解除する(他のタブのドックには一切触れない)。
-    各PlotterAppタブは完全に独立したウィンドウという設計方針
-    (CLAUDE.mdのアーキテクチャ節参照)を、この機能でも守っている。
+    focusChanged はプロセス全体で1つなので、ほかのタブのドックにフォーカスが移ったら、このウィンドウの強調を消すだけにする。
+    後から足したドック(プラグインのパネル)も、祖先を辿るので登録しなくてよい。
     """
     from PySide6.QtWidgets import QApplication, QDockWidget
 
@@ -1185,18 +1033,12 @@ def install_dock_focus_highlight(window):
 
     app = QApplication.instance()
     app.focusChanged.connect(_on_focus_changed)
-    # windowが破棄された後もconnectionが残ってゾンビハンドラにならないよう、
-    # window自身の破棄時にdisconnectする。
+    # 窓が破棄された後に接続が残らないように
     window.destroyed.connect(lambda: app.focusChanged.disconnect(_on_focus_changed))
 
 
 def apply_form_spacing(widget, spacing=12):
-    """
-    設定/プロパティ系のダイアログ・パネルの項目間の余白を広げる
-    (ユーザーフィードバックを受けて、QFormLayoutの既定の詰まった間隔を緩める)。
-    widget配下の全QFormLayoutを対象に、垂直方向の間隔を最低spacingまで広げる。
-    既にそれより広い間隔が明示的に設定されているレイアウトは縮めない。
-    """
+    """フォームの行の間隔を spacing まで広げる(既に広いものは縮めない)。"""
     from PySide6.QtWidgets import QFormLayout
     for form_layout in widget.findChildren(QFormLayout):
         if form_layout.verticalSpacing() < spacing:
@@ -1204,30 +1046,10 @@ def apply_form_spacing(widget, spacing=12):
 
 
 def disable_scroll_value_change():
-    """
-    QSpinBox/QDoubleSpinBox/QComboBoxは既定でマウスホイールで値が変わり、
-    スクロール可能なドック/ダイアログの中でスクロールしようとしただけで
-    意図せず値が変わる事故が起きやすい。
+    """スピンボックスとコンボでホイールによる値の変更を止める(スクロールしただけで値が変わる)。
 
-    ★ 当初は「フォーカスが無い間だけ無視する」という条件付きの実装を
-    試したが、実際には効果がなかった: QAbstractSpinBoxの既定のフォーカス
-    ポリシーは Qt.FocusPolicy.WheelFocus であり、フォームを開いた直後は
-    フォーカス可能な最初のウィジェットに自動的にフォーカスが当たる上、
-    一度どれかのフィールドにフォーカスが移ると、ユーザーがマウスを別の
-    フィールドへ動かして単にスクロールしただけでは、フォーカス自体は
-    そのフィールドに残ったままになる。つまり「マウスカーソルが今どこに
-    あるか」と「hasFocus()が真かどうか」は一致しないため、フォーカスの
-    有無では判定できない。そのため、ホイールによる値変更は常に無効化する
-    (値の変更は上下矢印ボタン、またはキーボード入力/フォーカス後の
-    キー操作で行う)。
-
-    ホイールイベントを event.ignore() で無視すると (accept() せず、独自の
-    処理も行わないと)、Qtはそのイベントを親ウィジェットへ伝播させるため、
-    スピンボックスの上でマウスホイールを回してもスクロールエリア自体は
-    問題なくスクロールできる。
-
-    クラスのメソッドを直接書き換えるため、アプリ起動時に一度だけ呼び出す
-    (QApplication生成後、最初のウィジェットが作られる前が望ましい)。
+    フォーカスの有無では判定できない(フォーカスはカーソルが離れても残る)ので常に止める。無視したイベントは
+    親に渡るので、スクロールはそのままできる。クラスのメソッドを書き換えるので、起動時に1回呼ぶ。
     """
     global _wheel_value_change_disabled
     if _wheel_value_change_disabled:
