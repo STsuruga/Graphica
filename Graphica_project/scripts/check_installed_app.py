@@ -13,6 +13,8 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ["GRAPHICA_CONFIRM_UNSAVED_CHANGES"] = "0"
+# CI の Windows のコンソールは cp1252 で、日本語の結果を書けずに落ちる
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 SOURCE_ROOT = Path(__file__).resolve().parent.parent
 # このスクリプトのフォルダ(scripts/)の親がソースの置き場所。そこを import の探索先から外す
@@ -26,6 +28,10 @@ def main():
     package_dir = Path(graphica.__file__).resolve().parent
     if SOURCE_ROOT in package_dir.parents:
         problems.append(f"ソースの graphica を読み込んでいます: {package_dir}")
+
+    import logging
+    # 日本語フォントの無い CI では、見つからないフォントの警告が大量に出る
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 
     from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication
