@@ -1,7 +1,4 @@
-# gui/mixins/help_mixin.py
-"""
-ヘルプメニューから開くリファレンスダイアログをまとめた Mixin。
-"""
+"""ヘルプメニュー(リファレンス、診断情報、アップデートの確認)。"""
 import logging
 import webbrowser
 from datetime import datetime
@@ -19,20 +16,14 @@ logger = logging.getLogger(__name__)
 
 class HelpMixin:
     def _on_show_about(self):
-        """「このソフトについて」メニューがクリックされたときの処理。"""
         dialog = AboutDialog(self)
         dialog.exec()
 
     def _on_show_help(self):
-        """
-        「mathtext リファレンス」メニューがクリックされたときの処理。
-        ヘルプを見ながらプロットウィンドウも操作できるよう、非モーダル (show) で表示する。
-        """
+        """プロットを操作しながら見られるよう、非モーダルで開く。"""
         if getattr(self, 'help_dialog', None) is not None:
             self.help_dialog.close()
-            # ★ バグ修正: close()だけではC++オブジェクトは破棄されず、非表示の
-            # まま親(self)にぶら下がり続けてリークする(gui/data_editor.pyの
-            # DataEditorDialogと同種のバグ、詳細はそちら参照)。
+            # close() だけでは C++ のオブジェクトが残ってリークする
             self.help_dialog.deleteLater()
         self.help_dialog = HelpDialog(self)
         self.help_dialog.show()
@@ -40,29 +31,21 @@ class HelpMixin:
         self.help_dialog.activateWindow()
 
     def _on_show_calc_help(self):
-        """
-        「列計算機能 リファレンス」メニューがクリックされたときの処理。
-        ヘルプを見ながらプロットウィンドウも操作できるよう、非モーダル (show) で表示する。
-        """
+        """プロットを操作しながら見られるよう、非モーダルで開く。"""
         if getattr(self, 'calc_help_dialog', None) is not None:
             self.calc_help_dialog.close()
-            self.calc_help_dialog.deleteLater()  # 理由はHelpDialog側と同じ
+            self.calc_help_dialog.deleteLater()
         self.calc_help_dialog = CalcHelpDialog(self)
         self.calc_help_dialog.show()
         self.calc_help_dialog.raise_()
         self.calc_help_dialog.activateWindow()
 
     def _on_show_shortcuts(self):
-        """「キーボードショートカット一覧」メニューがクリックされたときの処理。"""
         dialog = ShortcutsDialog(self._collect_menu_actions, self)
         dialog.exec()
 
     def _on_export_diagnostic_bundle(self):
-        """
-        「診断情報をエクスポート...」メニューの処理(項目C-1201)。
-        バグ報告時に添付できるよう、ログ・環境情報・設定値・プラグイン
-        読み込み状況を1つのzipファイルにまとめて書き出す。
-        """
+        """ログ・環境・設定・プラグインの状態を1つの zip にする(不具合の報告用)。"""
         default_name = f"graphica_diagnostics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
         file_path, _ = QFileDialog.getSaveFileName(
             self, "診断情報をエクスポート", default_name, "Zip Files (*.zip)"
@@ -82,17 +65,12 @@ class HelpMixin:
 
         QMessageBox.information(self, "エクスポート完了", f"診断情報を書き出しました:\n{file_path}")
 
-    # --- アップデート通知(項目161、C-1203) ---
-    # 「取得のみ・送信なし」: 公開のGitHub REST APIへの匿名GET1回のみ行い、
-    # ユーザーを特定できる情報は一切送信しない。起動時の自動確認(失敗時は
-    # 静かに諦める)と、ヘルプメニューからの手動確認(失敗時はエラーを表示する)
-    # の2経路があり、いずれもcore.update_check.check_for_updateをTaskRunner
-    # (項目C-004)経由でバックグラウンド実行することでUIをブロックしない。
+    # アップデートの確認は公開 API への匿名の GET 1回だけで、何も送らない。起動時は失敗しても黙り、手動では知らせる
 
     def _start_startup_update_check(self):
-        """起動直後に一度だけ行う自動確認。新版が無い/確認に失敗した場合は何も表示しない。"""
+        """新しい版が無いか失敗したら何も出さない。"""
         if self._update_check_task_runner is not None:
-            return  # 手動確認と重複しないよう、既に実行中なら何もしない
+            return  # 手動の確認が動いている
         runner = TaskRunner(check_for_update, __version__, parent=self)
         runner.succeeded.connect(self._on_startup_update_check_succeeded)
         runner.failed.connect(self._on_startup_update_check_failed)
@@ -105,8 +83,6 @@ class HelpMixin:
             self._show_update_available_dialog(update_info)
 
     def _on_startup_update_check_failed(self, _message):
-        # 自動確認の失敗(オフライン等)はユーザーに知らせる必要がないため、
-        # ログにだけ残して静かに諦める。
         logger.info("起動時のアップデート確認に失敗しました(オフライン等の可能性): %s", _message)
         self._update_check_task_runner = None
 

@@ -1,17 +1,7 @@
-# gui/provenance_panel.py
-"""
-処理履歴(provenance、項目C-1101)をツリー表示する専用ドックパネル。
-gui/residual_panel.py(項目C-406)と同じ「メインキャンバスとは別の、選択状態に
-連動する小さな独立パネル」という確立されたパターンを踏襲する。選択中の
-データセットが切り替わるたびに refresh(dataset, project) が呼ばれる
-(gui/mixins/dataset_mixin.py の property_panel.update_ui_state 内)。
+"""選んだデータセットの処理の履歴をツリーで見せるドック。
 
-ツリー構造: ルート=選択中のデータセット名。その下に「操作内容」ノード
-(describe_operationで日本語化)、さらにその下に「その操作の元になった
-データセット」ノードを配置し、元データセット自身もprovenanceを持っていれば
-同じパターンで再帰的に祖先までたどる。元データセットが既に削除されている
-場合は「(削除済み)」と表示して再帰を打ち切る(provenanceが親のIDだけでなく
-名前も保持しているのはこのため)。
+操作の下にその元のデータセットを置き、元にも履歴があれば祖先まで辿る。元が消されていれば「(削除済み)」で止める
+(履歴が親の ID だけでなく名前も持つのはこのため)。
 """
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem
 
@@ -38,10 +28,7 @@ class ProvenancePanel(QWidget):
         self.tree.setVisible(False)
 
     def refresh(self, dataset, project):
-        """
-        選択中のデータセット(非選択時、またはprovenanceを持たない元データの
-        場合はNoneでも安全)と、祖先を辿るためのprojectを受けてツリーを描き直す。
-        """
+        """dataset は None でもよい。project は祖先を辿るのに使う。"""
         self.tree.clear()
         if dataset is None:
             self.tree.setVisible(False)
@@ -57,12 +44,7 @@ class ProvenancePanel(QWidget):
         self.tree.expandAll()
 
     def _add_provenance_children(self, parent_item, dataset, project, visited):
-        """
-        dataset自身を生成した操作+その元データセットを、parent_itemの子として
-        追加し、元データセット側も再帰的に辿る。visitedは循環参照(理論上
-        発生しないはずだが、壊れた/手編集されたプロジェクトファイルへの
-        安全策)を検知するためのdataset_idの集合。
-        """
+        """dataset を作った操作と元のデータセットを parent_item の下に足し、元も辿る。visited で循環を止める。"""
         if dataset is None or not dataset.provenance or dataset.dataset_id in visited:
             return
         visited = visited | {dataset.dataset_id}

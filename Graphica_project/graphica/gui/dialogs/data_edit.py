@@ -1,11 +1,4 @@
-# gui/dialogs/data_edit.py
-"""
-データの編集・列操作のダイアログ。
-
-gui/dialogs.py(5,560行・47ダイアログ)を機能群ごとに分割したもの
-(改善ボード B-2)。呼び出し側は従来どおり `from gui.dialogs import X` で
-参照できる(gui/dialogs/__init__.py が再エクスポートしている)。
-"""
+"""データの編集と列の操作のダイアログ。呼び出し側は `from graphica.gui.dialogs import X` で参照する。"""
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -29,56 +22,31 @@ from PySide6.QtCore import Qt
 from graphica.gui.theme import apply_form_spacing
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (5)
-#==============================================================================
 class ColumnCalculatorDialog(QDialog):
-    """
-    データエディタの「列の計算」機能で使用するダイアログクラスです。
-    出力先（新規または既存）の列名と、safe_eval_column_formula() で実行する
-    計算式をユーザーに入力させます。
-    """
+    """列の計算の出力先の列と式(式は safe_eval_column_formula で評価する)。"""
     
     def __init__(self, column_names, parent=None):
-        """
-        ダイアログのUIコンポーネントを初期化します。
-        
-        Args:
-            column_names (list[str]): 
-                現在の DataFrame に存在する列名のリスト。コンボボックスの選択肢として使用されます。
-            parent (QWidget, optional): 親ウィジェット。
-        """
         super().__init__(parent)
         self.setWindowTitle("列の計算")
         
         self.column_names = column_names
-        
-        # --- UIコンポーネントの作成 ---
-        
+
+
         self.output_col_label = QLabel("出力先の列 (既存または新規)")
         
-        # --- 出力先コンボボックス ---
         self.output_col_combo = QComboBox()
-        self.output_col_combo.addItems(self.column_names) # 既存の列を選択肢に追加
-        # ★ setEditable(True) が重要
-        # これにより、ユーザーは既存の列を選択するだけでなく、
-        # テキストボックスのように新しい列名を自由に入力できます。
+        self.output_col_combo.addItems(self.column_names)
+        # 新しい列名も打ち込めるように
         self.output_col_combo.setEditable(True) 
         
         self.formula_label = QLabel("計算式 (例: A + B * 2)")
 
-        # --- 計算式入力欄 ---
         self.formula_edit = QLineEdit()
-        # ★ (入力例をプレースホルダーとして表示)
         self.formula_edit.setPlaceholderText("例: (A + B) / 2 や log(C)")
 
-        # --- ヘルプテキスト ---
         help_text = QLabel("列名はそのまま使えます (例: `A`)。\n数値や `log(A)`, `sin(A)` なども利用可能です。")
-        help_text.setStyleSheet("font-size: 9pt; color: gray;") # 少し小さく灰色で表示
+        help_text.setStyleSheet("font-size: 9pt; color: gray;")
 
-        # --- プリセット (よく使う計算をボタン一つで挿入) ---
         preset_group = QGroupBox("プリセット (対象列を選んでボタンを押すと計算式が自動入力されます)")
         preset_layout = QVBoxLayout()
 
@@ -109,14 +77,11 @@ class ColumnCalculatorDialog(QDialog):
 
         preset_group.setLayout(preset_layout)
 
-        # --- OK / Cancel ボタン ---
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
 
-        # --- レイアウト ---
-        # (このダイアログは QFormLayout ではなく QVBoxLayout (垂直) を使用)
         layout = QVBoxLayout(self)
         layout.addWidget(self.output_col_label)
         layout.addWidget(self.output_col_combo)
@@ -127,7 +92,6 @@ class ColumnCalculatorDialog(QDialog):
         layout.addWidget(button_box)
 
     def _apply_preset_moving_average(self):
-        """「移動平均」プリセットボタン: 選択列に rolling().mean() の式を入力する"""
         col = self.preset_source_combo.currentText()
         if not col:
             return
@@ -136,7 +100,6 @@ class ColumnCalculatorDialog(QDialog):
         self.output_col_combo.setCurrentText(f"{col}_moving_avg{window}")
 
     def _apply_preset_diff(self):
-        """「微分(差分)」プリセットボタン: 選択列に diff() の式を入力する"""
         col = self.preset_source_combo.currentText()
         if not col:
             return
@@ -144,7 +107,7 @@ class ColumnCalculatorDialog(QDialog):
         self.output_col_combo.setCurrentText(f"{col}_diff")
 
     def _apply_preset_normalize(self):
-        """「正規化」プリセットボタン: 選択列を平均0・標準偏差1に正規化する式を入力する"""
+        """平均0・標準偏差1にする式。"""
         col = self.preset_source_combo.currentText()
         if not col:
             return
@@ -152,7 +115,6 @@ class ColumnCalculatorDialog(QDialog):
         self.output_col_combo.setCurrentText(f"{col}_normalized")
 
     def _apply_preset_cumsum(self):
-        """「累積和」プリセットボタン: 選択列に cumsum() の式を入力する"""
         col = self.preset_source_combo.currentText()
         if not col:
             return
@@ -160,52 +122,27 @@ class ColumnCalculatorDialog(QDialog):
         self.output_col_combo.setCurrentText(f"{col}_cumsum")
 
     def get_formula(self):
-        """
-        ダイアログで入力された「出力先列名」と「計算式」をタプルで返します。
-        
-        Returns:
-            tuple (str, str): (出力先列名, 計算式)
-        """
-        # QComboBox が setEditable(True) の場合、
-        # currentText() は、選択されたアイテムまたは入力されたテキストを返します。
+        """(出力先の列名, 式)"""
         output_column_name = self.output_col_combo.currentText()
         formula_string = self.formula_edit.text()
         
         return output_column_name, formula_string
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (2)
-#==============================================================================
 class CalcHelpDialog(QDialog):
-    """
-    データエディタの「列計算」機能のリファレンスを表示するヘルプダイアログクラスです。
-    core/safe_eval.py の safe_eval_column_formula() で使用できる構文について説明します。
-    """
+    """列の計算で使える書き方のリファレンス。"""
     
     def __init__(self, parent=None):
-        """
-        ダイアログの初期化を行います。
-        
-        Args:
-            parent (QWidget, optional): 親ウィジェット。
-        """
         super().__init__(parent)
         self.setWindowTitle("列計算機能 リファレンス")
-        self.resize(600, 700) # ウィンドウサイズを指定
+        self.resize(600, 700)
 
-        # メインレイアウト (垂直)
         layout = QVBoxLayout(self)
         
-        # HTML表示用のテキストブラウザ
         text_browser = QTextBrowser()
         text_browser.setReadOnly(True)
-        # ★ HTML内のリンクをクリックしたときに外部ブラウザで開くように設定
         text_browser.setOpenExternalLinks(True) 
         
-        # --- リファレンスの内容をHTMLで定義 ---
         help_html = r"""
         <h1>列計算機能 リファレンス</h1>
         <p>
@@ -266,18 +203,15 @@ class CalcHelpDialog(QDialog):
         self._text_browser = text_browser
         self.refresh_theme()
         text_browser.setHtml(help_html)
-        # --- HTML定義ここまで ---
 
         layout.addWidget(text_browser)
 
-        # 閉じるボタン
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
     def refresh_theme(self):
-        """表見出し行の色を現在のテーマトークンに合わせて再適用する
-        (詳しい経緯はHelpDialog.refresh_theme参照、同じバグ・同じ対処)。"""
+        """開いたままダークモードを切り替えられるので、見出し行の色を今のテーマで当て直す。"""
         from graphica.gui import theme
         _tokens = theme.current_tokens()
         self._text_browser.document().setDefaultStyleSheet(
@@ -286,20 +220,8 @@ class CalcHelpDialog(QDialog):
         )
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 列の分割・結合・数値抽出 (項目C-205)
-#==============================================================================
 class ColumnStringOpsDialog(QDialog):
-    """
-    データエディタの「文字列操作...」機能で使用するダイアログ(項目C-205:
-    列の分割・結合・文字列操作)。「列の分割」「列の結合」「数値抽出」の
-    3モードをコンボボックスで切り替え、モードごとの入力欄をQStackedWidgetで
-    表示する(gui/dialogs.pyのResampleDatasetDialogと同じパターン)。
-    実際の分割/結合/抽出処理は呼び出し側(gui/data_editor.pyのDataEditorDialog)
-    が行う。このダイアログは設定値の入力・受け渡しのみを担う。
-    """
+    """列の分割・結合・数値の抽出の設定。処理は呼び出し側(DataEditorDialog)が行う。"""
 
     MODE_SPLIT = "列の分割"
     MODE_MERGE = "列の結合"
@@ -323,7 +245,6 @@ class ColumnStringOpsDialog(QDialog):
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
 
-        # --- 列の分割: 1列を区切り文字で複数列に分ける ---
         split_page = QWidget()
         split_form = QFormLayout(split_page)
         self.split_source_combo = QComboBox()
@@ -337,7 +258,6 @@ class ColumnStringOpsDialog(QDialog):
         split_form.addRow("出力列名の接頭辞", self.split_prefix_edit)
         self.stack.addWidget(split_page)
 
-        # --- 列の結合: 複数列を区切り文字でつなげて1列にする ---
         merge_page = QWidget()
         merge_layout = QVBoxLayout(merge_page)
         merge_layout.addWidget(QLabel("結合する列を2つ以上選択してください:"))
@@ -357,7 +277,6 @@ class ColumnStringOpsDialog(QDialog):
         merge_layout.addLayout(merge_form)
         self.stack.addWidget(merge_page)
 
-        # --- 数値抽出: 正規表現で文字列から数値部分を取り出す ---
         extract_page = QWidget()
         extract_form = QFormLayout(extract_page)
         self.extract_source_combo = QComboBox()
@@ -387,7 +306,7 @@ class ColumnStringOpsDialog(QDialog):
         return self.mode_combo.currentText()
 
     def get_split_settings(self):
-        """Returns: (対象列名, 区切り文字, 出力列名の接頭辞)"""
+        """(対象の列, 区切り文字, 出力の列名の接頭辞)"""
         return (
             self.split_source_combo.currentText(),
             self.split_delimiter_edit.text(),
@@ -395,7 +314,7 @@ class ColumnStringOpsDialog(QDialog):
         )
 
     def get_merge_settings(self):
-        """Returns: (選択された列名のリスト, 区切り文字, 出力列名)"""
+        """(列名のリスト, 区切り文字, 出力の列名)"""
         selected = []
         for i in range(self.merge_column_list.count()):
             item = self.merge_column_list.item(i)
@@ -404,7 +323,7 @@ class ColumnStringOpsDialog(QDialog):
         return selected, self.merge_separator_edit.text(), self.merge_output_edit.text().strip()
 
     def get_extract_settings(self):
-        """Returns: (対象列名, 正規表現パターン, 出力列名)"""
+        """(対象の列, 正規表現, 出力の列名)"""
         return (
             self.extract_source_combo.currentText(),
             self.extract_pattern_edit.text(),
@@ -412,28 +331,13 @@ class ColumnStringOpsDialog(QDialog):
         )
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 検索/置換 (項目C-208)
-#==============================================================================
 class FindReplaceDialog(QDialog):
-    """
-    データエディタの「検索/置換...」機能で使用する非モーダルダイアログ
-    (項目C-208: テーブルの検索・置換・行ジャンプ)。「次を検索」でテーブル上の
-    次の一致セルへ移動し、「すべて置換」で一致する全セルの値を置換する。
-
-    実際の検索/置換ロジックは呼び出し側(gui/data_editor.pyのDataEditorDialog、
-    _on_find_next/_on_replace_all)が持ち、このダイアログは入力欄・ボタン・
-    状態表示ラベルだけを提供する薄いUI。データエディタ側のテーブルを見ながら
-    次々に検索できるよう非モーダル(exec()ではなくshow())で使うことを想定する。
-    """
+    """検索と置換。入力欄とボタンだけで、処理は DataEditorDialog が持つ。表を見ながら使うので非モーダル。"""
 
     def __init__(self, column_names, parent=None):
         super().__init__(parent)
         self.setWindowTitle("検索/置換")
-        # 常にデータエディタの上に浮かぶツールウィンドウにする(非モーダルのため、
-        # 裏に隠れて操作できなくなるのを防ぐ)。
+        # 非モーダルなので、データエディタの裏に隠れないよう上に浮かせる
         self.setWindowFlag(Qt.WindowType.Tool, True)
         self.resize(340, 200)
 
@@ -473,7 +377,7 @@ class FindReplaceDialog(QDialog):
         return self.replace_edit.text()
 
     def get_target_column(self):
-        """選択中の対象列名、「(すべての列)」ならNoneを返す"""
+        """対象の列。「(すべての列)」なら None。"""
         text = self.column_combo.currentText()
         return None if text == "(すべての列)" else text
 
@@ -481,18 +385,8 @@ class FindReplaceDialog(QDialog):
         self.status_label.setText(text)
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 行フィルタ(項目C-204)
-#==============================================================================
 class RowFilterDialog(QDialog):
-    """
-    条件式(例: "y > 0.5")を満たさない行をマスク(項目36、非破壊)する
-    ダイアログ。ColumnCalculatorDialogと同じ`core/safe_eval.py`の
-    safe_eval_column_formula()をそのまま使う(列名を裸の識別子として
-    参照する、比較/論理演算子が使える、という同じ規約)。
-    """
+    """条件式(例: "y > 0.5")を満たさない行をマスクする。式は列の計算と同じ規則。"""
 
     def __init__(self, column_names, parent=None):
         super().__init__(parent)
@@ -532,17 +426,8 @@ class RowFilterDialog(QDialog):
         return self.formula_edit.text().strip()
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 列の表示/非表示 (項目C-207)
-#==============================================================================
 class ColumnVisibilityDialog(QDialog):
-    """
-    データエディタの「列の表示/非表示...」機能で使用するダイアログ(項目C-207)。
-    チェックを外した列は、テーブル上でのみ非表示になる(dataset.df自体は
-    変更しない、ソート状態と同じ「ビュー専用」の状態)。
-    """
+    """チェックを外した列を表で隠す(表示だけで dataset.df は変えない)。"""
 
     def __init__(self, column_names, hidden_columns, parent=None):
         super().__init__(parent)
@@ -568,7 +453,7 @@ class ColumnVisibilityDialog(QDialog):
         layout.addWidget(button_box)
 
     def get_hidden_columns(self):
-        """チェックが外された(非表示にする)列名のリストを返す"""
+        """隠す列名のリスト。"""
         hidden = []
         for i in range(self.column_list.count()):
             item = self.column_list.item(i)
@@ -577,19 +462,8 @@ class ColumnVisibilityDialog(QDialog):
         return hidden
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 重複X値の検出(項目C-203)
-#==============================================================================
 class DuplicateXDialog(QDialog):
-    """
-    同じX値を持つ行の処理方法(平均化/除去)を選ばせるダイアログ。
-    「平均化」は新しいデータセットを作る(_on_cumulative_integral_dataset等と
-    同じ「カレント1件から新しいデータセットを1つ作る」パターン)、「除去」は
-    先頭以外をマスク(項目36、非破壊)する。ResampleDatasetDialogと同じく
-    モードごとの入力欄をQStackedWidgetで切り替える。
-    """
+    """同じ X の行を、平均した新しいデータセットにするか、先頭以外をマスクする。"""
 
     MODE_AVERAGE = "平均化(新しいデータセットを作成)"
     MODE_REMOVE = "除去(先頭以外をマスク)"
@@ -638,26 +512,13 @@ class DuplicateXDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (str, str): (処理方法("average"|"remove"), 出力データセット名
-                ("remove"モードでは無視される))
-        """
+        """(方法 "average" | "remove", 出力名("remove" では使わない))"""
         mode = "average" if self.mode_combo.currentText() == self.MODE_AVERAGE else "remove"
         return mode, self.output_name_edit.text().strip()
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (9)
-#==============================================================================
 class ReplicateErrorDialog(QDialog):
-    """
-    同一条件で複数回測定した列 (反復測定列) から、行ごとの平均と誤差
-    (標準偏差/標準誤差/95%信頼区間) を自動計算するための列を選ばせるダイアログ。
-    データエディタの「誤差の自動計算...」ボタンから使われる。
-    """
+    """反復測定の列を選び、行ごとの平均と誤差(SD / SEM / 95%CI)の列を作る。"""
 
     def __init__(self, column_names, parent=None):
         super().__init__(parent)
@@ -701,11 +562,7 @@ class ReplicateErrorDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (list[str], str, str): (選択された列名のリスト,
-                誤差の種類 ('SD'/'SEM'/'95%CI'), 出力列名のベース名)
-        """
+        """(列名のリスト, 誤差の種類 'SD' / 'SEM' / '95%CI', 出力の列名のもと)"""
         selected = []
         for i in range(self.column_list.count()):
             item = self.column_list.item(i)

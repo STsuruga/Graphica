@@ -1,24 +1,16 @@
-# core/report_export.py
-"""
-PDF/HTML実験レポート自動ビルド(項目157、C-1104)。
-既存のprovenance記録(C-1101)・「方法」文の自動生成(C-1102、
-core/methods_text.py)の出力先として、それらをグラフ画像とまとめた
-1つのレポートを組み立てる。GUIに一切依存しない純粋関数のみを置く
-(gui/mixins/export_mixin.pyがPNG画像バイト列/PDFページの生成を担当する)。
-"""
+"""グラフの画像と処理の「方法」の文をまとめたレポート(HTML)。GUI には依存しない。"""
 import base64
 import datetime
 import html
 
 from graphica.core.methods_text import generate_methods_text
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from graphica.models.project import ProjectModel
 
 
-def collect_methods_sections(project):
-    """
-    project内の、処理履歴(provenance)を持つデータセットそれぞれについて
-    (データセット名, 方法文)のタプルのリストを返す(処理履歴を持たない
-    元データのデータセットは対象外)。
-    """
+def collect_methods_sections(project: "ProjectModel") -> list[tuple[str, str]]:
+    """履歴を持つデータセットごとの (名前, 方法の文)。元データは含めない。"""
     return [
         (ds.name, generate_methods_text(ds, project))
         for ds in project.datasets
@@ -26,19 +18,8 @@ def collect_methods_sections(project):
     ]
 
 
-def generate_html_report(image_png_bytes, methods_sections, title=""):
-    """
-    実験レポートを自己完結のHTML文字列として生成する(画像はbase64で
-    埋め込むため、単一ファイルで完結し外部ファイル参照が要らない)。
-
-    Args:
-        image_png_bytes (bytes): グラフのPNG画像データ。
-        methods_sections (list[tuple[str, str]]): collect_methods_sections()の戻り値。
-        title (str): レポートのタイトル(空なら既定のタイトルを使う)。
-
-    Returns:
-        str: HTML文字列。
-    """
+def generate_html_report(image_png_bytes: bytes, methods_sections: list[tuple[str, str]], title: str = "") -> str:
+    """画像を base64 で埋め込んだ1ファイルで完結する HTML。title が空なら既定のタイトル。"""
     title_text = title.strip() or "実験レポート"
     title_html = html.escape(title_text)
     generated_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")

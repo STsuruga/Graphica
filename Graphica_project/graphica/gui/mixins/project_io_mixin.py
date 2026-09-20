@@ -1,11 +1,4 @@
-# gui/mixins/project_io_mixin.py
-"""
-プロジェクト (.graphica/.pkl) の保存/読込メニュー、および書式テンプレート (.json) の
-保存/読込をまとめた Mixin。
-実際のファイルI/Oの主要ロジックは gui/main_window.py の manual_save/manual_load
-(拡張子に応じてJSON/pickleを振り分け) にあり、ここはメニューからの呼び出しと
-テンプレート機能を担当する。
-"""
+"""プロジェクトの保存と読み込みのメニュー、書式テンプレート、環境設定、設定の書き出しと読み込み。"""
 import json
 import logging
 from PySide6.QtWidgets import QFileDialog, QMessageBox, QInputDialog
@@ -18,16 +11,12 @@ from graphica.core.i18n import tr, get_language
 
 logger = logging.getLogger(__name__)
 
-# オートセーブ間隔として指定できる範囲 (分)
 AUTOSAVE_INTERVAL_MIN_BOUNDS = (0, 180)
 
-# 項目C-806: フィギュアテンプレートの現在のスキーマバージョン。
 TEMPLATE_FORMAT_VERSION = 1
 
-# 項目C-109: 設定・スタイルのエクスポート/インポート対象のQSettingsキー。
-# (キー名, 型, 既定値) のタプル。ウィンドウ状態・最近使ったファイル・
-# オートセーブ保存先ディレクトリのような「その環境固有」の項目は対象外
-# (別PCに持ち込んでも意味がない、またはむしろ害になるため)。
+# 書き出す QSettings のキー (キー, 型, 既定値)。ウィンドウの状態や最近使ったファイルなど、
+# その環境だけの項目は入れない(別の PC に持ち込んでも意味が無いか害になる)
 SETTINGS_EXPORT_FORMAT_VERSION = 1
 SETTINGS_EXPORT_SPEC = (
     ("language", str, ""),
@@ -42,33 +31,22 @@ SETTINGS_EXPORT_SPEC = (
     ("disabled_plugins", list, []),
 )
 
-# all_plot_settings[index]のうち、注釈・凡例の並び順・自由配置の位置は
-# サブプロットごとの「内容」寄りで、別のデータセット/プロジェクトへ持ち込む
-# 「見た目のスタイル」としては不適切なため、テンプレートの保存/適用対象から除外する
-# (保存時は除いて書き出し、適用時は現在のサブプロットが持つ値をそのまま保持する)。
+# サブプロットの中身に近いもの。テンプレートでは保存も適用もしない(適用先の値を残す)
 TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS = ('annotations', 'legend_order', 'free_rect')
 
 
 class ProjectIOMixin:
     def _on_save_project(self):
-        """プロジェクトの上書き保存(MVC対応)。既存の保存先が未確定なら
-        自動的に「名前を付けて保存」ダイアログにフォールバックする(manual_save()参照)。"""
         self.manual_save()
 
     def _on_save_project_as(self):
-        """プロジェクトを「名前を付けて保存」(MVC対応)。常に保存先ダイアログを開く。"""
         self.manual_save_as()
 
     def _on_load_project(self):
-        """プロジェクト読込（MVC対応）"""
-        self.manual_load() # 既に定義されている読込処理を呼ぶ(拡張子でJSON/pickleを振り分け)
+        self.manual_load()
 
     def _on_configure_autosave_interval(self):
-        """
-        「オートセーブ間隔を設定...」メニューがクリックされたときの処理。
-        分単位で間隔を指定でき、0を指定するとオートセーブを無効化する。
-        設定は QSettings で永続化され、次回起動時にも復元される。
-        """
+        """0 分で無効。"""
         current_minutes = (self.autosave_timer.interval() // 60000) if self.autosave_timer.isActive() else 0
         min_minutes, max_minutes = AUTOSAVE_INTERVAL_MIN_BOUNDS
         minutes, ok = QInputDialog.getInt(
@@ -82,10 +60,7 @@ class ProjectIOMixin:
         self._apply_autosave_interval(minutes)
 
     def _apply_autosave_interval(self, minutes):
-        """
-        オートセーブ間隔 (分) を実際に適用し、設定を永続化する。
-        「オートセーブ間隔を設定...」メニューと環境設定ダイアログの両方から呼ばれる。
-        """
+        """メニューと環境設定の両方から呼ばれる。"""
         self.settings.setValue("autosave_interval_min", minutes)
         if minutes <= 0:
             self.autosave_timer.stop()
@@ -97,10 +72,6 @@ class ProjectIOMixin:
         self._update_autosave_menu_text()
 
     def _on_show_preferences(self):
-        """
-        「編集」メニューの「環境設定...」がクリックされたときの処理。
-        ダークモード・オートセーブ間隔をまとめた1つのダイアログで変更できるようにする。
-        """
         current_minutes = (self.autosave_timer.interval() // 60000) if self.autosave_timer.isActive() else 0
         current_language = self.settings.value("language", get_language())
         current_autosave_dir = self.settings.value("autosave_dir", "", type=str)
@@ -111,9 +82,7 @@ class ProjectIOMixin:
         current_snap_grid_interval = self.settings.value(
             "snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, type=int)
 
-        # プラグイン管理タブ(項目F-2)向けのデータ。
-        # gui.main_window はこのMixinを読み込む側(逆方向にimportすると循環
-        # importになる)なので、関数内でのローカルimportにする。
+        # main_window がこの mixin を import しているので、関数の中で import する
         from graphica.core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
         from graphica.gui.main_window import DISABLED_PLUGINS_SETTINGS_KEY, disabled_plugin_names
         current_disabled_plugin_names = disabled_plugin_names(self.settings)
@@ -136,37 +105,28 @@ class ProjectIOMixin:
          new_autosave_dir, new_point_label_max,
          new_snap_to_grid, new_snap_grid_interval) = dlg.get_settings()
 
-        # プラグインの個別ON/OFF(項目F-2): 次回起動時に反映される
-        # (今回のロード済みプラグイン一覧をその場で入れ替える仕組みは持たない)。
+        # 次の起動から効く(読み込んだプラグインをその場で入れ替える仕組みは無い)
         new_disabled_plugin_names = dlg.get_disabled_plugin_names()
         if new_disabled_plugin_names != current_disabled_plugin_names:
             self.settings.setValue(DISABLED_PLUGINS_SETTINGS_KEY, list(new_disabled_plugin_names))
 
-        # オートセーブの保存先フォルダ(項目: 環境設定からオートセーブ保存先を指定可能に)
         if new_autosave_dir != current_autosave_dir:
             self.settings.setValue("autosave_dir", new_autosave_dir)
             self._update_autosave_path()
 
-        # ダークモードの切り替えは、ツールバー等のチェック状態も含めて一貫性を
-        # 保つため、既存の View メニューのチェック可能アクション経由で行う。
-        # setChecked() が値の変化時に toggled シグナルを発火し、
-        # _on_toggle_dark_mode が実際の適用(パレット/設定保存/再描画)を行う。
+        # 表示メニューのチェック経由で切り替える(toggled から _on_toggle_dark_mode が適用し、チェックの状態も揃う)
         if new_dark_mode != self.canvas.dark_mode:
             self.dark_mode_action.setChecked(new_dark_mode)
 
         if new_autosave_minutes != current_minutes:
             self._apply_autosave_interval(new_autosave_minutes)
 
-        # データ点ラベルの表示上限(項目105): 変更されたら即座にキャンバスへ反映し、
-        # 現在表示中のグラフにも(上限を超えるデータセットがあれば)反映されるよう再描画する
         if new_point_label_max != current_point_label_max:
             self.settings.setValue("point_label_max_points", new_point_label_max)
             self.canvas.point_label_max_points = new_point_label_max
             self._update_plot()
             self.property_panel.update_point_labels_limit_note()
 
-        # スナップ・トゥ・グリッド(項目84): 注釈モードのドラッグ確定時に参照される
-        # self.snap_to_grid_enabled / self.snap_grid_interval_px をここで即座に更新する。
         if new_snap_to_grid != current_snap_to_grid:
             self.settings.setValue("snap_to_grid_enabled", new_snap_to_grid)
             self.snap_to_grid_enabled = new_snap_to_grid
@@ -174,8 +134,7 @@ class ProjectIOMixin:
             self.settings.setValue("snap_grid_interval_px", new_snap_grid_interval)
             self.snap_grid_interval_px = new_snap_grid_interval
 
-        # UIの多言語対応(項目41): 実行中のウィジェットをその場で再翻訳する仕組みは
-        # 持たないため、設定の保存のみ行い、反映は次回起動時になる旨を案内する。
+        # 作った画面をその場で訳し直す仕組みは無いので、次の起動からと知らせる
         if new_language != current_language:
             self.settings.setValue("language", new_language)
             QMessageBox.information(
@@ -184,10 +143,6 @@ class ProjectIOMixin:
             )
 
     def _update_autosave_menu_text(self):
-        """
-        「ファイル」メニューのオートセーブ項目に、現在の状態 (有効/無効・間隔) を
-        反映したテキストを設定する。__init__ で一度、設定変更のたびに呼び出す。
-        """
         if not self.autosave_timer.isActive():
             self.autosave_interval_action.setText(tr("オートセーブ: 無効(&I)..."))
         else:
@@ -195,13 +150,7 @@ class ProjectIOMixin:
             self.autosave_interval_action.setText(tr("オートセーブ: {minutes}分間隔(&I)...").format(minutes=minutes))
 
     def _on_save_plot_template(self):
-        """
-        現在のプロジェクトの全サブプロットの外観設定+全データセットのスタイルを、
-        独立したテンプレートファイル(*.graphica-style)として保存する(項目C-806)。
-        データそのもの(df/x_col_name等、識別/データ系フィールド)は含まない。
-        注釈・凡例の並び順・自由配置の位置(TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS)は
-        サブプロットの「内容」寄りのため対象外(見た目のスタイルのみを対象とする)。
-        """
+        """全サブプロットの見た目と全データセットのスタイルを *.graphica-style に保存する(データは含めない)。"""
         file_path, _ = QFileDialog.getSaveFileName(
             self, "書式テンプレートを保存", "", "Graphica Style Template (*.graphica-style)"
         )
@@ -210,9 +159,7 @@ class ProjectIOMixin:
         if not (file_path.endswith('.graphica-style') or file_path.endswith('.json')):
             file_path += '.graphica-style'
 
-        # 保存直前に、現在アクティブな軸のUI状態を all_plot_settings へ反映させておく
-        # (_gather_settings_from_ui はUIコントロールの現在値を読むだけで、
-        #  自動的には保存されないため)。
+        # 今の軸の欄の値はまだ all_plot_settings に入っていない
         if self.project.active_axis_index < len(self.project.all_plot_settings):
             self.project.all_plot_settings[self.project.active_axis_index] = self._gather_settings_from_ui()
 
@@ -239,20 +186,10 @@ class ProjectIOMixin:
             logger.exception("テンプレートの保存中にエラー")
 
     def _on_load_plot_template(self):
-        """
-        書式テンプレートファイル(*.graphica-style、または項目C-806以前の
-        *.json形式との後方互換あり)を読み込み、現在のプロジェクトへ適用する。
+        """書式テンプレートを今のプロジェクトに当てる。Undo はできない。
 
-        新形式(format_versionあり、項目C-806): 保存時の並び順のまま、現在の
-        サブプロット数ぶんサイクリックに外観設定を適用する(既存の注釈・
-        凡例並び順・自由配置位置はサブプロットごとに保持したまま、それ以外の
-        見た目だけ差し替える)。データセットのスタイルも同様にサイクリックに
-        適用する(データセット数がテンプレート保存時と異なっていても破綻しない)。
-        Undo/Redoには対応しない(旧形式のテンプレート適用も同様に非対応だった
-        既存の挙動を踏襲)。
-
-        旧形式(plot_settingsキーのみ): 従来通り「現在アクティブな1サブプロット」
-        にのみ適用する(既存の互換動作をそのまま維持)。
+        新しい形式(format_version あり)は、保存した順にサブプロットとデータセットへ繰り返し当てる(数が違ってもよい)。
+        古い .json(plot_settings だけ)は今の軸だけに当てる。
         """
         file_path, _ = QFileDialog.getOpenFileName(
             self, "書式テンプレートを適用", "", "Graphica Style Template (*.graphica-style *.json)"
@@ -289,7 +226,7 @@ class ProjectIOMixin:
 
                 self._update_plot()
             else:
-                # 旧形式(項目C-806以前): アクティブな1サブプロットのみに適用
+                # 古い形式: 今の軸だけ
                 settings = template_data.get('plot_settings', {})
                 if not settings:
                     QMessageBox.warning(self, "読込エラー", "有効な書式設定がファイルに含まれていません。")
@@ -302,12 +239,7 @@ class ProjectIOMixin:
             logger.exception("テンプレートの読み込み中にエラー")
 
     def _on_export_settings(self):
-        """
-        「設定・スタイルをエクスポート...」メニューの処理(項目C-109)。
-        SETTINGS_EXPORT_SPECに列挙したQSettingsキーだけをJSONへ書き出す
-        (書式テンプレート機能=_on_save_plot_templateと同じJSON+format_version
-        の形式)。別PCでの利用や研究室内での設定共有を想定している。
-        """
+        """SETTINGS_EXPORT_SPEC のキーだけを JSON に書き出す(別の PC や研究室での共有用)。"""
         file_path, _ = QFileDialog.getSaveFileName(
             self, "設定・スタイルをエクスポート", "graphica_settings.json", "JSON Files (*.json)"
         )
@@ -320,8 +252,7 @@ class ProjectIOMixin:
         for key, value_type, default in SETTINGS_EXPORT_SPEC:
             if value_type is list:
                 value = self.settings.value(key, default)
-                # QSettingsは要素数1のリストを単一の文字列として返すことがある
-                # (quick_access_mixin.py/disabled_plugin_namesと同じ既知の癖)。
+                # 要素が1つのリストを文字列で返すことがある
                 if isinstance(value, str):
                     value = [value] if value else []
             else:
@@ -338,18 +269,9 @@ class ProjectIOMixin:
             logger.exception("設定のエクスポート中にエラー")
 
     def _on_import_settings(self):
-        """
-        「設定・スタイルをインポート...」メニューの処理(項目C-109)。
-        _on_export_settingsが書き出したJSONを読み込み、SETTINGS_EXPORT_SPECに
-        含まれるキーのみをQSettingsへ反映する(未知のキーは無視、部分的な
-        ファイルでも安全に適用できる)。
+        """書き出した JSON から SETTINGS_EXPORT_SPEC のキーだけを QSettings に入れる(未知のキーは無視)。
 
-        既知の制約: 表示言語(core/i18n.pyのset_language()と同じ理由で
-        次回起動時にのみ反映)・ダークモード・カスタムパレット等は、この場で
-        即座にUIへ反映するにはそれぞれ個別の再適用処理が必要(テーマ再適用・
-        パレットコンボの再構築等)になり、影響範囲が広いため今回のスコープでは
-        行わない。QSettingsへの書き込みのみ行い、次回起動時に反映される旨を
-        メッセージで案内する。
+        言語・ダークモード・パレットなどをその場で当て直すと影響が広いので、次の起動から効くと知らせる。
         """
         file_path, _ = QFileDialog.getOpenFileName(
             self, "設定・スタイルをインポート", "", "JSON Files (*.json)"
@@ -367,8 +289,7 @@ class ProjectIOMixin:
 
         data = payload.get('settings') if isinstance(payload, dict) else None
         if not isinstance(data, dict):
-            # format_versionを持たない素朴なdictも許容する(手作業で書いた
-            # 設定ファイルにも対応できるよう、settingsキー必須にはしない)。
+            # 手で書いた設定ファイルも読めるよう、settings キーが無くてもよい
             data = payload if isinstance(payload, dict) else None
         if not isinstance(data, dict):
             QMessageBox.warning(self, "設定・スタイルをインポート", "対応していないファイル形式です。")

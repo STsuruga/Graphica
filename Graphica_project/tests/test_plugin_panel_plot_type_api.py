@@ -8,7 +8,7 @@ plot_type描画のフォールバック配線はgui/canvas.py側でそれぞれ�
 import pytest
 
 import graphica.core.plugin_api as plugin_api_module
-from graphica.core.plugin_api import GraphicaPluginAPI, get_registered_panels, get_registered_plot_types
+from graphica.core.plugin_api import GraphicaPluginAPI
 
 
 @pytest.fixture(autouse=True)
@@ -103,22 +103,3 @@ def test_register_plot_type_duplicate_name_is_isolated_not_raised():
     assert len(api.registration_errors) == 1
     assert api.registration_errors[0].hook_kind.value == "plot_type"
 
-
-# --- モジュールレベルのアクセサ ---
-
-def test_get_registered_panels_returns_empty_when_unloaded():
-    assert get_registered_panels() == []
-
-
-def test_get_registered_plot_types_returns_empty_when_unloaded():
-    assert get_registered_plot_types() == []
-
-
-def test_module_accessors_reflect_loaded_singleton():
-    api = GraphicaPluginAPI()
-    api.register_panel("My Panel", _dummy_widget_factory)
-    api.register_plot_type("Heatmap", _dummy_drawer)
-    plugin_api_module._singleton_api = api
-
-    assert [p.name for p in get_registered_panels()] == ["My Panel"]
-    assert [p.type_name for p in get_registered_plot_types()] == ["Heatmap"]

@@ -1,4 +1,4 @@
-"""解析のダイアログ。呼び出し側は `from gui.dialogs import X` で参照する。"""
+"""解析のダイアログ。呼び出し側は `from graphica.gui.dialogs import X` で参照する。"""
 
 import logging
 
@@ -32,36 +32,18 @@ from graphica.gui.theme import apply_form_spacing
 logger = logging.getLogger(__name__)
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (4)
-#==============================================================================
 class FitDialog(QDialog):
-    """
-    曲線フィット (Curve Fitting) を行う際に、
-    どの関数モデル（線形、多項式など）を使用するかをユーザーに選択させるダイアログクラスです。
-    """
+    """フィットのモデルと条件を選ぶ。"""
     
     def __init__(self, parent=None, x_min=None, x_max=None):
-        """
-        ダイアログのUIコンポーネントを初期化します。
-
-        Args:
-            parent (QWidget, optional): 親ウィジェット。
-            x_min (float, optional): フィット範囲指定欄の初期値(最小X)。
-                通常は対象データセットの実際のXの最小値を渡す。
-            x_max (float, optional): フィット範囲指定欄の初期値(最大X)。
-        """
+        """x_min / x_max はフィット範囲の欄の初期値(ふつうはデータの X の範囲)。"""
         super().__init__(parent)
         self.setWindowTitle("曲線フィット")
 
-        # メインレイアウト (垂直)
         layout = QVBoxLayout(self)
 
         layout.addWidget(QLabel("フィットする関数の種類を選択してください:"))
         
-        # --- 関数選択のコンボボックス ---
         self.fit_type_combo = QComboBox()
         self.fit_type_combo.addItems([
             "線形 (y = ax + b)",
@@ -79,15 +61,13 @@ class FitDialog(QDialog):
             "シグモイド (y = a / (1 + exp(-b(x-c))))",
             "ヒルの式 (y = vmax*x^n / (k^n + x^n))",
         ])
-        # プラグインが追加したフィット関数を、組み込みの選択肢と
-        # 「カスタム数式...」の間に挿入する
+        # プラグインのフィット関数は、組み込みと「カスタム数式...」の間に入れる
         from graphica.core.analysis import get_plugin_fit_type_names
         self.fit_type_combo.addItems(get_plugin_fit_type_names())
         self.fit_type_combo.addItem("カスタム数式...")
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
         layout.addWidget(self.fit_type_combo)
 
-        # --- カスタム数式入力欄 (「カスタム数式...」選択時のみ表示) ---
         self.custom_formula_label = QLabel("数式 (xとパラメータ名を使って入力、例: a*exp(-b*x)+c)")
         self.custom_formula_edit = QLineEdit()
         self.custom_formula_edit.setPlaceholderText("a*exp(-b*x)+c")
@@ -96,7 +76,6 @@ class FitDialog(QDialog):
         layout.addWidget(self.custom_formula_label)
         layout.addWidget(self.custom_formula_edit)
 
-        # --- 重み付きフィット(項目C-402) ---
         self.weighted_checkbox = QCheckBox("Y誤差列を重みとして使用する(設定されている場合)")
         self.weighted_checkbox.setToolTip(
             "誤差が大きい点ほどフィットへの影響を小さくする(scipy.optimize.curve_fitのsigma)。\n"
@@ -104,7 +83,6 @@ class FitDialog(QDialog):
         )
         layout.addWidget(self.weighted_checkbox)
 
-        # --- ロバストフィット(項目C-407) ---
         loss_form = QFormLayout()
         self.loss_combo = QComboBox()
         self.loss_combo.addItem("通常の最小二乗(既定)", "linear")
@@ -118,7 +96,6 @@ class FitDialog(QDialog):
         loss_form.addRow("損失関数", self.loss_combo)
         layout.addLayout(loss_form)
 
-        # --- フィット範囲の指定(項目C-404) ---
         self.range_checkbox = QCheckBox("フィット範囲を指定する")
         layout.addWidget(self.range_checkbox)
 
@@ -143,10 +120,6 @@ class FitDialog(QDialog):
         self.range_checkbox.toggled.connect(self.range_min_spinbox.setEnabled)
         self.range_checkbox.toggled.connect(self.range_max_spinbox.setEnabled)
 
-        # --- パラメータごとの初期値・固定・範囲拘束(項目C-403) ---
-        # 「収束しないフィットの大半はこれで解決」— ユーザーがパラメータの
-        # 自動推定初期値を上書きしたり、値を固定して自由パラメータから除外したり、
-        # [最小,最大]の範囲に拘束したりできるようにする。
         layout.addWidget(QLabel("パラメータごとの初期値・固定・範囲拘束(収束しない場合に指定してください):"))
         self.param_table = QTableWidget(0, 6)
         self.param_table.setHorizontalHeaderLabels(
@@ -157,13 +130,9 @@ class FitDialog(QDialog):
         layout.addWidget(self.param_table)
 
         self.fit_type_combo.currentTextChanged.connect(self._rebuild_param_table)
-        # カスタム数式は入力途中でもパラメータ数が変わりうるため、1文字入力される
-        # たびに再構築する(_rebuild_param_tableはパース失敗時に0行にするだけで
-        # 例外を外に投げないため、入力途中でクラッシュすることはない)。
+        # 入力途中でもパラメータの数が変わるので、1文字ごとに作り直す(解釈できなければ0行になるだけ)
         self.custom_formula_edit.textChanged.connect(self._rebuild_param_table)
 
-        # --- 信頼帯・予測帯(項目C-405) ---
-        # 既定は「表示しない」(計算コストと帯の重ね描きが常に欲しいとは限らないため)。
         band_form = QFormLayout()
         self.band_combo = QComboBox()
         self.band_combo.addItems(["表示しない", "信頼帯 (95%)", "予測帯 (95%)"])
@@ -175,7 +144,6 @@ class FitDialog(QDialog):
         band_form.addRow("信頼帯/予測帯", self.band_combo)
         layout.addLayout(band_form)
 
-        # --- OK / Cancel ボタン ---
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
                                     QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
@@ -185,25 +153,15 @@ class FitDialog(QDialog):
         self._rebuild_param_table()
 
     def _on_fit_type_changed(self, text):
-        """フィット関数の選択が変わったときに、カスタム数式入力欄の表示/非表示を切り替える"""
         is_custom = "カスタム数式" in text
         self.custom_formula_label.setVisible(is_custom)
         self.custom_formula_edit.setVisible(is_custom)
 
     def _rebuild_param_table(self, *_args):
-        """
-        項目C-403: フィットタイプ(コンボボックス)またはカスタム数式の入力内容が
-        変わるたびに、パラメータテーブルの行を作り直す。get_fit_param_names()が
-        ValueErrorを送出するケース(フィットタイプ未確定、カスタム数式が空/
-        パース不能な入力途中の状態)は握りつぶして0行にする — ダイアログを
-        クラッシュさせず、単に「まだ何も出さない」だけにする。
+        """フィットの種類か数式が変わるたびにパラメータの行を作り直す。まだ決まらない間は0行。
 
-        各行の「初期値/固定値」欄はダブルユースで、「固定」チェックが外れている
-        間はp0の初期値(ユーザーが実際に触った場合のみp0_overridesに採用される。
-        触らなければフィットタイプごとの自動推定デフォルトのまま)、「固定」
-        チェックが入っている間はその値でパラメータを固定する(fixed_params)。
-        「範囲拘束」チェックは「固定」チェックと排他的に扱う(固定パラメータは
-        最適化されないため範囲の概念自体が無意味なので、固定時は無効化する)。
+        値の欄は、「固定」が外れていれば初期値(触った行だけ p0_overrides に入る)、入っていれば固定値。
+        固定したパラメータには範囲拘束を付けられない。
         """
         fit_type = self.fit_type_combo.currentText()
         custom_formula = self.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
@@ -226,12 +184,8 @@ class FitDialog(QDialog):
             value_spin.blockSignals(True)
             value_spin.setValue(1.0)
             value_spin.blockSignals(False)
-            # ★ ユーザーが実際に値を変更したかどうかを追跡する(初期化時の
-            # setValue(1.0)はblockSignals()でこのフラグを立てない)。
-            # get_param_settings()はこのフラグが立っている行だけをp0_overrides
-            # に含める。立っていない行は「フィットタイプごとの自動推定デフォルト
-            # のまま」を意味する(このダイアログはx_data/y_dataを持たないため、
-            # 自動推定値そのものはここでは計算・表示できない)。
+            # 触った行だけ初期値を上書きする(触らなければ種類ごとの自動推定のまま)。
+            # 自動推定の値はデータが要るので、このダイアログでは出せない
             value_spin.setProperty("_user_overridden", False)
             value_spin.valueChanged.connect(
                 lambda _v, w=value_spin: w.setProperty("_user_overridden", True)
@@ -270,28 +224,13 @@ class FitDialog(QDialog):
 
     @staticmethod
     def _on_param_fixed_toggled(checked, range_check, min_spin, max_spin):
-        """「固定」チェックが入っている間は「範囲拘束」チェックと最小/最大欄を
-        無効化する(固定パラメータは最適化されないため範囲拘束は意味を持たない)。"""
+        """固定したパラメータは最適化されないので、範囲拘束の欄を無効にする。"""
         range_check.setEnabled(not checked)
         min_spin.setEnabled((not checked) and range_check.isChecked())
         max_spin.setEnabled((not checked) and range_check.isChecked())
 
     def get_param_settings(self):
-        """
-        項目C-403: パラメータテーブルの内容から、calculate_curve_fit()にそのまま
-        渡せる (p0_overrides, fixed_params, bounds) の3つのdictを組み立てる。
-        パラメータテーブルが0行(フィットタイプ未確定/カスタム数式が入力途中)
-        の場合は3つとも空dictを返す。
-
-        「固定」がチェックされている行は、値欄の値をfixed_paramsに入れ、
-        p0_overrides・boundsのどちらにも含めない(「範囲拘束」がチェックされて
-        いても無視する — 固定パラメータに範囲の概念はない)。
-
-        Returns:
-            tuple(dict[str, float], dict[str, float], dict[str, tuple[float, float]]):
-            (p0_overrides, fixed_params, bounds)。何もカスタマイズしなかった
-            場合はいずれも空dict(Noneではない)。
-        """
+        """calculate_curve_fit() に渡す (p0_overrides, fixed_params, bounds)。何も変えなければ空の dict。"""
         p0_overrides, fixed_params, bounds = {}, {}, {}
         for row in range(self.param_table.rowCount()):
             name = self.param_table.item(row, 0).text()
@@ -314,11 +253,7 @@ class FitDialog(QDialog):
         return p0_overrides, fixed_params, bounds
 
     def get_band_type(self):
-        """
-        項目C-405。
-        Returns:
-            str | None: "confidence" / "prediction" / (「表示しない」選択時は)None。
-        """
+        """"confidence" / "prediction" / None(表示しない)。"""
         text = self.band_combo.currentText()
         if "信頼帯" in text:
             return "confidence"
@@ -327,52 +262,23 @@ class FitDialog(QDialog):
         return None
 
     def get_weighted(self):
-        """Y誤差列を重みとして使うかどうか"""
         return self.weighted_checkbox.isChecked()
 
     def get_loss(self):
-        """
-        項目C-407(ロバストフィット)。
-        Returns:
-            str: 'linear'(既定、通常の最小二乗) / 'soft_l1' / 'huber'。
-        """
+        """'linear' / 'soft_l1' / 'huber'。"""
         return self.loss_combo.currentData()
 
     def get_x_range(self):
-        """
-        Returns:
-            tuple(float, float) | None: フィット範囲指定が有効なら(最小X, 最大X)、
-            無効ならNone。
-        """
+        """指定があれば (最小X, 最大X)、無ければ None。"""
         if not self.range_checkbox.isChecked():
             return None
         return (self.range_min_spinbox.value(), self.range_max_spinbox.value())
 
     @staticmethod
     def get_fit_type(parent=None, x_min=None, x_max=None):
-        """
-        【スタティックメソッド】
-        ダイアログをモーダルで表示し、OKが押された場合は
-        (フィットタイプ名, カスタム数式またはNone, 重み付けを使うか, フィット範囲
-        またはNone, p0_overrides, fixed_params, bounds, band_type, loss) のタプルを、
-        Cancelが押された場合は (None, None, False, None, {}, {}, {}, None, 'linear') を
-        返します。p0_overrides/fixed_params/boundsは、何もカスタマイズしなかった
-        場合も(Noneではなく)空dictになります — calculate_curve_fit()にそのまま
-        キーワード引数として渡せる形です。band_type(項目C-405)は
-        "confidence"/"prediction"/(表示しない場合)None。loss(項目C-407)は
-        'linear'(既定)/'soft_l1'/'huber'。
+        """OK なら (種類, 数式, 重み付け, 範囲, p0_overrides, fixed_params, bounds, band_type, loss)。
 
-        Args:
-            parent (QWidget, optional): 親ウィジェット。
-            x_min (float, optional): フィット範囲指定欄の初期値(最小X)。
-            x_max (float, optional): フィット範囲指定欄の初期値(最大X)。
-
-        Returns:
-            tuple (str|None, str|None, bool, tuple(float,float)|None,
-                   dict[str,float], dict[str,float], dict[str,tuple[float,float]],
-                   str|None, str):
-            (フィットタイプ名, カスタム数式, 重み付けを使うか, フィット範囲,
-             p0_overrides, fixed_params, bounds, band_type, loss)
+        キャンセルなら (None, None, False, None, {}, {}, {}, None, 'linear')。
         """
         dialog = FitDialog(parent, x_min=x_min, x_max=x_max)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -384,20 +290,8 @@ class FitDialog(QDialog):
         return None, None, False, None, {}, {}, {}, None, 'linear'
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス (4b): 多峰分離フィット (項目C-409/C-410)
-#==============================================================================
 class MultiPeakFitDialog(QDialog):
-    """
-    多峰分離フィット(項目C-409)の設定ダイアログ。成分タイプ(全成分共通)・
-    ベースラインタイプに加え、各ピークの初期値(中心/高さ/幅)を行として持つ
-    テーブルを編集できる。行は手動追加/削除のほか、「ピーク検出から自動配置...」
-    ボタン(項目C-411のcalculate_peak_quantificationを流用)、および
-    キャンバス上のクリック配置モード(項目C-410、gui/mixins/peak_placement_mixin.py)
-    で集めた初期値(initial_guesses引数)からも事前入力できる。
-    """
+    """多峰分離の設定。各ピークの初期値の行は、手で、ピーク検出から、またはキャンバスのクリックで入れる。"""
 
     COMPONENT_TYPES = [
         ('gaussian', 'ガウシアン'),
@@ -412,15 +306,7 @@ class MultiPeakFitDialog(QDialog):
     ]
 
     def __init__(self, parent=None, x_data=None, y_data=None, initial_guesses=None):
-        """
-        Args:
-            parent (QWidget, optional): 親ウィジェット。
-            x_data, y_data (array-like, optional): 「ピーク検出から自動配置...」用の
-                対象データセットの生データ。Noneの場合はそのボタンを無効化する。
-            initial_guesses (list[dict], optional): 事前入力する初期値
-                ([{'center':, 'height':, 'width':}, ...])。ピーク配置クリック
-                モードで集めた点を引き継ぐ想定。
-        """
+        """x_data / y_data が無ければ「ピーク検出から自動配置」を無効にする。initial_guesses はクリックで集めた初期値。"""
         super().__init__(parent)
         self.setWindowTitle("多峰分離フィット")
         self._x_data = x_data
@@ -437,7 +323,7 @@ class MultiPeakFitDialog(QDialog):
         self.baseline_combo = QComboBox()
         for key, label in self.BASELINE_TYPES:
             self.baseline_combo.addItem(label, key)
-        self.baseline_combo.setCurrentIndex(1)  # 既定は「定数」
+        self.baseline_combo.setCurrentIndex(1)  # 定数
         form.addRow("ベースライン", self.baseline_combo)
         layout.addLayout(form)
 
@@ -493,11 +379,7 @@ class MultiPeakFitDialog(QDialog):
             self.guess_table.removeRow(row)
 
     def _on_auto_detect(self):
-        """
-        項目C-411のピーク検出設定ダイアログ(PeakSettingsDialog)を再利用して
-        検出条件を尋ね、calculate_peak_quantification()の結果(中心/高さ/FWHM)を
-        テーブルへ追加する(既存行は消さずに追加する — クリック配置と併用可能)。
-        """
+        """ピーク検出の結果(中心・高さ・FWHM)を行に足す。既にある行は消さない(クリックでの配置と併用できる)。"""
         settings = PeakSettingsDialog.get_peak_settings(self)
         if settings is None:
             return
@@ -529,11 +411,7 @@ class MultiPeakFitDialog(QDialog):
         return self.baseline_combo.currentData()
 
     def get_initial_guesses(self):
-        """
-        Returns:
-            list[dict]: [{'center': float, 'height': float, 'width': float}, ...]
-            (calculate_multi_peak_fit()にそのまま渡せる形)。
-        """
+        """calculate_multi_peak_fit() に渡す [{'center', 'height', 'width'}, ...]。"""
         guesses = []
         for row in range(self.guess_table.rowCount()):
             center = self.guess_table.cellWidget(row, 0).value()
@@ -544,21 +422,11 @@ class MultiPeakFitDialog(QDialog):
 
     @staticmethod
     def get_multi_peak_fit_settings(parent=None, x_data=None, y_data=None, initial_guesses=None):
-        """
-        【スタティックメソッド】
-        ダイアログをモーダルで表示し、OKが押された場合は
-        (component_type, baseline_type, initial_guesses) のタプルを、
-        Cancelが押された場合は (None, None, None) を返す。
-
-        Returns:
-            tuple(str|None, str|None, list[dict]|None)
-        """
+        """OK なら (component_type, baseline_type, initial_guesses)、キャンセルなら (None, None, None)。"""
         dialog = MultiPeakFitDialog(parent, x_data=x_data, y_data=y_data, initial_guesses=initial_guesses)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return dialog.get_component_type(), dialog.get_baseline_type(), dialog.get_initial_guesses()
         return None, None, None
-
-
 
 
 class PeakSettingsDialog(QDialog):
@@ -609,8 +477,7 @@ class PeakSettingsDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """distance_x は X 軸の値のまま返す(データ点数への換算は core.analysis 側)。
-        height・prominence は無効のとき None。"""
+        """distance_x は X の値のまま(点の数への換算は core.analysis)。height と prominence は無効なら None。"""
         height = self.height_spinbox.value()
         prominence = self.prominence_spinbox.value()
         return {
@@ -629,33 +496,11 @@ class PeakSettingsDialog(QDialog):
         return None
 
 
-
-
 class ResultDialog(QDialog):
-    """
-    曲線フィット/ピーク検出などの結果テキストを表示するための汎用ダイアログ。
-
-    ピーク検出結果は検出数が多いと行数が非常に多くなりうるため、
-    QMessageBox (スクロール不可、画面からはみ出る) ではなく、
-    スクロール可能な QPlainTextEdit で表示する。
-    csv_data (DataFrame) を渡すと「CSVとして保存」ボタンも表示される。
-    """
+    """結果の文章をスクロールできる欄で見せる(ピークが多いと QMessageBox は画面からはみ出す)。"""
 
     def __init__(self, title, text, parent=None, csv_data=None, residual_x=None, residual_y=None):
-        """
-        Args:
-            title (str): ウィンドウタイトル。
-            text (str): 表示する結果テキスト (複数行可)。
-            parent (QWidget, optional): 親ウィジェット。
-            csv_data (pandas.DataFrame, optional): CSV保存用の構造化データ。
-                None の場合は「CSVとして保存」ボタンを表示しない
-                (表示テキストをそのままパースするのではなく、呼び出し側が
-                 意味のある表形式データを渡す設計にしている)。
-            residual_x (array-like, optional): 曲線フィットの残差プロット用のX座標。
-            residual_y (array-like, optional): 曲線フィットの残差 (実測値-フィット値)。
-                residual_x/residual_y を両方渡すと、当てはまりの良し悪しを視覚的に
-                確認できる残差プロット(0を基準にした散布図)を追加表示する。
-        """
+        """csv_data を渡すと「CSVとして保存」を出す。residual_x と residual_y を両方渡すと残差の図も出す。"""
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(480, 420)
@@ -666,7 +511,7 @@ class ResultDialog(QDialog):
         self.text_edit = QPlainTextEdit()
         self.text_edit.setReadOnly(True)
         self.text_edit.setPlainText(text)
-        # 等幅フォントにすることで、タブ区切りのX/Y座標の桁が揃って見やすくなる
+        # タブ区切りの桁が揃う
         mono_font = QFont("Consolas")
         mono_font.setStyleHint(QFont.StyleHint.Monospace)
         self.text_edit.setFont(mono_font)
@@ -678,11 +523,7 @@ class ResultDialog(QDialog):
             from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
             from matplotlib.figure import Figure
             from graphica.gui import theme
-            # ★ バグ修正: この残差プロットはgui/canvas.pyのMplCanvasとは別の、
-            # 独立したFigureを都度その場で作っているため、canvas.py側の
-            # dark_mode分岐(facecolor/文字色/グリッド色)を一切継承しない。
-            # ダークモードで開くと、ダイアログ本体は暗いのに残差プロットだけ
-            # matplotlib既定の白背景+黒文字のまま浮いて見えていた。
+            # 独立した Figure なのでキャンバスのダークモードの配色を継承しない。テーマの色を当てる
             _tokens = theme.current_tokens()
             fig = Figure(figsize=(4, 2.2), dpi=100, tight_layout=True,
                          facecolor=_tokens['surface'])
@@ -719,7 +560,6 @@ class ResultDialog(QDialog):
         layout.addLayout(button_layout)
 
     def _on_copy(self):
-        """表示中のテキストをクリップボードにコピーし、ボタンに一時的なフィードバックを表示する"""
         QApplication.clipboard().setText(self.text_edit.toPlainText())
         original_text = self.copy_button.text()
         self.copy_button.setText("コピーしました ✓")
@@ -732,7 +572,6 @@ class ResultDialog(QDialog):
         QTimer.singleShot(1200, _restore)
 
     def _on_save_csv(self):
-        """csv_data (DataFrame) をCSVファイルとして保存する"""
         file_path, _ = QFileDialog.getSaveFileName(
             self, "CSVとして保存", "", "CSV Files (*.csv);;All Files (*)"
         )
@@ -746,16 +585,7 @@ class ResultDialog(QDialog):
             QMessageBox.warning(self, "保存エラー", f"CSV保存中にエラーが発生しました:\n{e}")
 
 
-
-
 class BaselineCorrectionDialog(QDialog):
-    """
-    ベースライン補正(項目C-308)の設定を入力させるダイアログ。
-    ALS/多項式/ラバーバンド/手動点の4手法をコンボボックスで切り替え、
-    QStackedWidgetで手法ごとのパラメータ欄を切り替える(BatchExportDialogの
-    モード切り替えと同じ構成)。ラバーバンドはパラメータを持たない。
-    """
-
     METHOD_ALS = "ALS(Asymmetric Least Squares)"
     METHOD_POLYNOMIAL = "多項式(反復フィット)"
     METHOD_RUBBERBAND = "ラバーバンド(下側凸包)"
@@ -783,7 +613,6 @@ class BaselineCorrectionDialog(QDialog):
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
 
-        # --- ALS ---
         als_page = QWidget()
         als_form = QFormLayout(als_page)
         self.als_lam_spinbox = QDoubleSpinBox()
@@ -803,7 +632,6 @@ class BaselineCorrectionDialog(QDialog):
         als_form.addRow("反復回数", self.als_niter_spinbox)
         self.stack.addWidget(als_page)
 
-        # --- 多項式 ---
         poly_page = QWidget()
         poly_form = QFormLayout(poly_page)
         self.poly_degree_spinbox = QSpinBox()
@@ -816,7 +644,6 @@ class BaselineCorrectionDialog(QDialog):
         poly_form.addRow("反復回数", self.poly_iterations_spinbox)
         self.stack.addWidget(poly_page)
 
-        # --- ラバーバンド(パラメータなし) ---
         rubberband_page = QWidget()
         rubberband_layout = QVBoxLayout(rubberband_page)
         rubberband_info = QLabel(
@@ -828,7 +655,6 @@ class BaselineCorrectionDialog(QDialog):
         rubberband_layout.addStretch()
         self.stack.addWidget(rubberband_page)
 
-        # --- 手動点 ---
         manual_page = QWidget()
         manual_layout = QVBoxLayout(manual_page)
         manual_layout.addWidget(QLabel("アンカー点のX座標をカンマ区切りで入力してください(2点以上):"))
@@ -871,17 +697,9 @@ class BaselineCorrectionDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (str, dict, str, bool):
-                (手法("als"|"polynomial"|"rubberband"|"manual"),
-                 手法別パラメータのdict(calculate_baseline_xxxへそのままkwargsとして
-                 渡せる形。"manual"のみ anchor_x ではなく anchor_x_text(未パース
-                 の生テキスト)と method("linear"|"spline")を含む。数値パースは
-                 呼び出し側(_on_baseline_correction_dataset)が行い、書式エラー
-                 を利用者にわかりやすく伝える),
-                 出力データセット名,
-                 ベースライン曲線も別データセットとして追加するか)
+        """(手法, 手法の引数, 出力名, ベースラインも追加するか)。
+
+        "manual" の引数は anchor_x ではなく未解釈の anchor_x_text(書式の誤りは呼び出し側が知らせる)。
         """
         method_text = self.method_combo.currentText()
         if method_text == self.METHOD_ALS:
@@ -909,14 +727,7 @@ class BaselineCorrectionDialog(QDialog):
         return method, params, self.output_name_edit.text().strip(), self.add_baseline_checkbox.isChecked()
 
 
-
-
 class SavGolDialog(QDialog):
-    """
-    Savitzky-Golayフィルタ(平滑化: 項目C-301、微分スペクトル: 項目C-302)の
-    設定を入力させるダイアログ。NormalizeDatasetDialogと同じ構成。
-    """
-
     MODE_SMOOTH = "平滑化"
     MODE_DERIV1 = "1次微分"
     MODE_DERIV2 = "2次微分"
@@ -974,10 +785,7 @@ class SavGolDialog(QDialog):
         self.output_name_edit.setText(f"{self._name}{self._SUFFIX_BY_MODE[mode]}")
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (int, int, int, str): (窓幅, 多項式の次数, 微分階数(0/1/2), 出力データセット名)
-        """
+        """(窓幅, 多項式の次数, 微分の階数, 出力名)"""
         mode = self.mode_combo.currentText()
         return (
             self.window_spinbox.value(),
@@ -987,19 +795,8 @@ class SavGolDialog(QDialog):
         )
 
 
-
-
-# カスタムダイアログクラス: 区間積分(項目C-311)
 class IntervalIntegralDialog(QDialog):
-    """
-    区間積分(項目C-311)の設定を入力させるダイアログ。
-
-    真のグラフ上ドラッグ選択(項目C-909、未実装)ではなく、FitDialog(項目C-404、
-    フィット範囲の指定)と同じ「数値でXの範囲を指定する」UXを踏襲する。
-    最小/最大XはQDoubleSpinBoxで、ダイアログを開いた時点で対象データセットの
-    実際のX範囲を初期値として埋めておく(そのままOKすればデータセット全体を
-    積分できる)。
-    """
+    """区間積分の設定。X の範囲はデータの範囲を初期値にする(そのまま OK で全体を積分)。"""
 
     METHOD_TRAPEZOID = "台形則(Trapezoidal)"
     METHOD_SIMPSON = "Simpson則"
@@ -1062,28 +859,14 @@ class IntervalIntegralDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (str, tuple(float, float), bool):
-                (積分方法("trapezoid"|"simpson"), (最小X, 最大X), ベースラインを差し引くか)
-        """
+        """(積分の方法, (最小X, 最大X), ベースラインを引くか)"""
         method_text = self.method_combo.currentText()
         method = self._METHOD_KEY_BY_LABEL[method_text]
         x_range = (self.range_min_spinbox.value(), self.range_max_spinbox.value())
         return method, x_range, self.subtract_baseline_checkbox.isChecked()
 
 
-
-
 class CumulativeIntegralDialog(QDialog):
-    """
-    累積積分(項目C-303)の設定を入力させるダイアログ。IntervalIntegralDialogと
-    積分方法の選択肢は共有するが、こちらは範囲指定・ベースライン差し引きは
-    持たず(常にデータ全体を対象に、Xの各点までの積分値を求める)、代わりに
-    SavGolDialog等と同じ「出力データセット名」欄を持つ(結果はスカラーではなく
-    新しいデータセットとして追加されるため)。
-    """
-
     METHOD_TRAPEZOID = "台形則(Trapezoidal)"
     METHOD_SIMPSON = "Simpson則"
     METHODS = [METHOD_TRAPEZOID, METHOD_SIMPSON]
@@ -1122,27 +905,14 @@ class CumulativeIntegralDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (str, str): (積分方法("trapezoid"|"simpson"), 出力データセット名)
-        """
+        """(積分の方法, 出力名)"""
         method_text = self.method_combo.currentText()
         method = self._METHOD_KEY_BY_LABEL[method_text]
         return method, self.output_name_edit.text().strip()
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 規格化(ノーマライズ)
-#==============================================================================
 class NormalizeDatasetDialog(QDialog):
-    """
-    規格化(ノーマライズ、項目78)の設定を入力させるダイアログ。
-    最大値基準(Yの最大値を1.0にする)か、特定X値での強度基準
-    (指定したX値での補間値を1.0にする)かを選ばせ、後者の場合のみ
-    基準X値の数値入力欄を有効にする。DatasetArithmeticDialogと同じ構成。
-    """
+    """最大値か、指定した X での値を 1.0 にする。"""
 
     MODE_MAX = "最大値基準"
     MODE_X_VALUE = "特定X値での強度基準"
@@ -1194,30 +964,14 @@ class NormalizeDatasetDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (str, float|None, str): (基準の種類 (MODESのいずれか),
-            基準X値 (MODE_X_VALUEの場合のみ数値、それ以外はNone), 出力データセット名)
-        """
+        """(基準の種類, 基準の X(MODE_X_VALUE のときだけ), 出力名)"""
         mode = self.mode_combo.currentText()
         reference_x = self.reference_x_spinbox.value() if mode == self.MODE_X_VALUE else None
         return mode, reference_x, self.output_name_edit.text().strip()
 
 
-
-
 class ResampleDatasetDialog(QDialog):
-    """
-    共通X格子へのリサンプリング/補間(項目C-305)の設定を入力させるダイアログ。
-
-    対象のグリッド(リサンプリング先のX格子)を「他のデータセットのX格子」または
-    「等間隔グリッド」のいずれかから選ばせる。BaselineCorrectionDialogと同じく
-    QStackedWidgetで選択肢ごとの入力欄を切り替える。
-    「他のデータセットのX格子」はDatasetArithmeticDialogのA/B選択と異なり、
-    ここでは対象データセット1件(カレント)に対して"もう1件"を後から選ぶ形に
-    なるため、コンボボックスで他データセット名を選ばせる(ロード中のデータセットが
-    対象1件のみの場合は選択肢がなく、その場合はこのソースを選べない)。
-    """
+    """ほかのデータセットの X か等間隔のグリッドに補間する。"""
 
     SOURCE_DATASET = "他のデータセットのX格子"
     SOURCE_LINSPACE = "等間隔グリッド"
@@ -1246,22 +1000,19 @@ class ResampleDatasetDialog(QDialog):
         self.stack = QStackedWidget()
         layout.addWidget(self.stack)
 
-        # --- 他のデータセットのX格子 ---
         dataset_page = QWidget()
         dataset_form = QFormLayout(dataset_page)
         self.other_dataset_combo = QComboBox()
         self.other_dataset_combo.addItems(other_dataset_names)
         dataset_form.addRow("データセット", self.other_dataset_combo)
         if not other_dataset_names:
-            # 対象になり得る他のデータセットが存在しない(ロード中がこの1件のみ)。
-            # コンボが空のままOKされないよう選択肢自体を無効化しておく。
+            # ほかにデータセットが無いので、空のまま OK されないよう無効にする
             self.other_dataset_combo.setEnabled(False)
             no_dataset_label = QLabel("(他に読み込まれているデータセットがありません)")
             no_dataset_label.setWordWrap(True)
             dataset_form.addRow(no_dataset_label)
         self.stack.addWidget(dataset_page)
 
-        # --- 等間隔グリッド(numpy.linspace方式: 開始・終了・点数) ---
         linspace_page = QWidget()
         linspace_form = QFormLayout(linspace_page)
         self.linspace_start_spinbox = QDoubleSpinBox()
@@ -1286,7 +1037,6 @@ class ResampleDatasetDialog(QDialog):
 
         self.source_combo.currentIndexChanged.connect(self.stack.setCurrentIndex)
         if not other_dataset_names:
-            # 選べる他データセットがない場合は最初から「等間隔グリッド」を既定にする。
             self.source_combo.setCurrentText(self.SOURCE_LINSPACE)
 
         method_form = QFormLayout()
@@ -1319,15 +1069,9 @@ class ResampleDatasetDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (str, dict, str, bool, str):
-                (グリッドソース("dataset"|"linspace"),
-                 ソース別パラメータのdict。"dataset"なら{"dataset_name": str}、
-                 "linspace"なら{"start": float, "stop": float, "num_points": int}、
-                 補間方法("linear"|"cubic"),
-                 範囲外を外挿するか,
-                 出力データセット名)
+        """(グリッドの元, 元ごとの引数, 補間の方法, 外挿するか, 出力名)。
+
+        引数は "dataset" なら {"dataset_name"}、"linspace" なら {"start", "stop", "num_points"}。
         """
         source_text = self.source_combo.currentText()
         if source_text == self.SOURCE_DATASET:
@@ -1349,21 +1093,8 @@ class ResampleDatasetDialog(QDialog):
         )
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: 統計的外れ値検出(項目C-306)
-#==============================================================================
 class OutlierDetectionDialog(QDialog):
-    """
-    Z-score/IQRによる外れ値検出(Y値基準)の設定ダイアログ。
-
-    検出そのものと「検出結果をマスクに適用するか」を分離しており、後者は
-    既定でOFFのチェックボックスとしてユーザーに明示的に選ばせる(検出だけ
-    行って結果を確認し、必要ならマスクする、という2段階の運用を想定)。
-    OK後は必ず検出結果をResultDialogで表示し(_on_detect_outliers参照)、
-    チェックボックスがONの場合のみSetMaskedRowsCommandで実際にマスクする。
-    """
+    """外れ値の検出の設定。マスクに適用するかは別のチェック(既定はオフ、結果を見てから決められる)。"""
 
     METHOD_ZSCORE = "Z-score"
     METHOD_IQR = "IQR(四分位範囲)"
@@ -1423,30 +1154,14 @@ class OutlierDetectionDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (str, float, bool): (検出方法("zscore"|"iqr"),
-                しきい値/係数(検出方法に応じてどちらか一方の意味),
-                検出結果をマスクに適用するか)
-        """
+        """(方法, しきい値か係数, マスクに適用するか)"""
         method = self._METHOD_KEY_BY_LABEL[self.method_combo.currentText()]
         value = self.threshold_spinbox.value() if method == "zscore" else self.multiplier_spinbox.value()
         return method, value, self.apply_mask_checkbox.isChecked()
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: ヒストグラム / カーネル密度推定(項目115、C-505)
-#==============================================================================
 class HistogramKDEDialog(QDialog):
-    """
-    ヒストグラム(区間集計)またはカーネル密度推定(KDE)を、対象列・モードごとの
-    設定で1つの新しいデータセットとして生成するためのダイアログ。
-    ResampleDatasetDialog/DuplicateXDialogと同じく、モードごとの入力欄を
-    QStackedWidgetで切り替える。対象列はY列に限らず、データセットの任意の
-    数値列から選べる(分布を見たいのはY値とは限らないため)。
-    """
+    """ヒストグラムか KDE。対象の列は Y に限らない(分布を見たいのは Y とは限らない)。"""
 
     MODE_HISTOGRAM = "ヒストグラム"
     MODE_KDE = "カーネル密度推定(KDE)"
@@ -1516,8 +1231,7 @@ class HistogramKDEDialog(QDialog):
         apply_form_spacing(self)
 
     def _update_default_output_name(self, mode_text):
-        # ユーザーが手で書き換えていそうな場合(既定のどちらの接尾辞パターンとも
-        # 一致しない)は上書きしない。
+        # 利用者が書き換えた名前は上書きしない
         current = self.output_name_edit.text()
         if current not in (f"{self._name}_hist", f"{self._name}_kde"):
             return
@@ -1525,12 +1239,7 @@ class HistogramKDEDialog(QDialog):
         self.output_name_edit.setText(f"{self._name}{suffix}")
 
     def get_settings(self):
-        """
-        Returns:
-            dict: {'mode': "histogram"|"kde", 'column': str, 'output_name': str,
-                'bins': int|'auto' (histogramのみ), 'density': bool (histogramのみ),
-                'n_points': int (kdeのみ)}
-        """
+        """{'mode', 'column', 'output_name'} と、histogram なら 'bins' / 'density'、kde なら 'n_points'。"""
         mode = "histogram" if self.mode_combo.currentText() == self.MODE_HISTOGRAM else "kde"
         settings = {
             'mode': mode,
@@ -1545,18 +1254,8 @@ class HistogramKDEDialog(QDialog):
         return settings
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: データセット間演算
-#==============================================================================
 class DatasetArithmeticDialog(QDialog):
-    """
-    2つのデータセット (A, B) 間で差・和・積・商を計算し、新しいデータセットを
-    生成するための設定を入力させるダイアログ。
-    X軸の値が完全には一致しない2つのデータセットを対象にするため、実際の計算は
-    B側のY値をA側のX値に線形補間してから行う (呼び出し側の責務)。
-    """
+    """A と B の演算。X が揃わないので、呼び出し側が B を A の X に補間してから計算する。"""
 
     OPERATIONS = ["A - B", "B - A", "A + B", "A × B", "A ÷ B", "B ÷ A"]
 
@@ -1594,26 +1293,12 @@ class DatasetArithmeticDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """
-        Returns:
-            tuple (str, str): (演算の種類 (OPERATIONSのいずれか), 出力データセット名)
-        """
+        """(演算の種類, 出力名)"""
         return self.operation_combo.currentText(), self.output_name_edit.text().strip()
 
 
-
-
-#==============================================================================
-# カスタムダイアログクラス: X軸アライメント(相互相関、項目105、C-307)
-#==============================================================================
 class XAxisAlignmentDialog(QDialog):
-    """
-    相互相関によるX軸アライメント(項目105、C-307)の設定を入力させるダイアログ。
-    2つのデータセット(A=基準/移動しない、B=位置合わせ対象/移動する)を対象とし、
-    シフト量自体は自動推定(ユーザー入力不要)のため、出力データセット名の
-    入力のみを求める最小限の構成(DatasetArithmeticDialogと同じ「A/B表示 +
-    出力名」の構成)。
-    """
+    """B(動かす側)を A に重ねる。シフト量は自動で求めるので、出力名だけ尋ねる。"""
 
     def __init__(self, name_a, name_b, parent=None):
         super().__init__(parent)
@@ -1645,5 +1330,4 @@ class XAxisAlignmentDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """Returns: str (出力データセット名)"""
         return self.output_name_edit.text().strip()

@@ -1,50 +1,23 @@
-# gui/mixins/peak_placement_mixin.py
-"""
-グラフクリックによる多峰分離フィット(項目C-409、core/analysis.pyの
-calculate_multi_peak_fit)の初期値配置モード(項目C-410)をまとめたMixin。
+"""ピーク配置モード: 左クリックで多峰分離の初期値を置き、右クリックで近いものを消す。
 
-他のクリック/ドラッグ系モード(データカーソル/注釈/範囲選択/自由配置編集)と
-同じ「モードトグル+mpl_connect('button_press_event', ...)+他モードとの
-相互排他」パターンを踏襲する(gui/mixins/range_select_mixin.py参照)。
-
-左クリックでピーク位置(中心X・高さY)を1つ`self._pending_peak_guesses`に
-追加し、キャンバス上に仮マーカー(縦線+点)を描く。右クリックで直近に追加した
-ものではなく、クリック位置に最も近い既存の仮マーカーを削除する(注釈モードの
-右クリック削除と同じ「最近傍」方式)。
-
-`self._pending_peak_guesses` は [{'center': float, 'height': float,
-'width': float}, ...] の形で、gui/dialogs.py の MultiPeakFitDialog の
-initial_guesses引数へそのまま渡せる(gui/mixins/dataset_mixin.pyの
-FittingController.multi_peak_fit_current_dataset() が仲介する)。ダイアログを開いた時点で現在の内容を
-引き継ぐ設計であり、ダイアログ側でさらに編集・追加・削除できるため、
-ダイアログを閉じた後(OK/Cancelいずれでも)は本モード側のペンディング状態を
-クリアする(_clear_pending_peak_guesses)。
-
-★ 仮マーカーはaxes.axvline/axes.plotで直接描画し、range_select_mixin.pyの
-プレビュー矩形と同じ理由(メインキャンバスはredraw_all()のたびにfig.clf()で
-Axesを作り直すため、Artist参照が再描画をまたいで有効である保証はない)で、
-削除時にValueError/NotImplementedErrorを無視する。
+_pending_peak_guesses は [{'center', 'height', 'width'}, ...] で、MultiPeakFitDialog の initial_guesses にそのまま渡す。
+ダイアログを閉じたら(OK でもキャンセルでも)消す。仮のマーカーは redraw_all() で消えていることがあるので、
+消すときの例外は無視する。
 """
 import logging
 
 logger = logging.getLogger(__name__)
 
-# クリック位置の「高さ」を仮の幅(FWHM)推定に変換する係数
-# (表示中のX軸範囲に対する割合。ユーザーはMultiPeakFitDialogのテーブルで
-# 後から自由に上書きできるため、大まかな初期値であれば十分)。
+# 仮の幅は表示中の X の範囲に対する割合(ダイアログで直せるので大まかでよい)
 PEAK_PLACEMENT_DEFAULT_WIDTH_FRACTION = 0.05
-# 右クリックで削除対象とみなす、マーカー位置からの許容ピクセル距離
 PEAK_PLACEMENT_DELETE_TOLERANCE_PX = 15
 
 
 class PeakPlacementMixin:
     def _toggle_peak_placement_mode(self, checked):
-        """「ピーク配置」ツールバーボタンが押されたときの処理。"""
         self.peak_placement_mode_enabled = checked
 
         if checked:
-            # 排他制御は登録簿(gui/mixins/mouse_mode_mixin.py の MOUSE_MODES)に
-            # 集約している。8つ目のモードを足すときもここは変更不要。
             self._deactivate_other_mouse_modes('peak_placement')
 
             self._peak_placement_press_cid = self.canvas.mpl_connect(
@@ -65,7 +38,7 @@ class PeakPlacementMixin:
         if event.inaxes is None or event.xdata is None or event.ydata is None:
             return
 
-        if event.button == 3:  # 右クリック: 最近傍のマーカーを削除
+        if event.button == 3:  # 右クリックは近いマーカーを消す
             self._remove_nearest_pending_peak_guess(event)
             return
         if event.button != 1:
@@ -73,17 +46,11 @@ class PeakPlacementMixin:
 
         ax = event.inaxes
         x_min, x_max = ax.get_xlim()
-        # Xオフセットは平行移動なので、表示座標での幅とデータ座標での幅は等しい
-        # (奥行き縮小が掛かるのはY方向のみ)。
+        # X のずらしは平行移動なので、幅は表示座標でもデータ座標でも同じ
         width = abs(x_max - x_min) * PEAK_PLACEMENT_DEFAULT_WIDTH_FRACTION or 1.0
 
-        # ★ 改善ボード A-1: クリック位置(event.xdata/ydata)は表示座標。
-        # 初期値は MultiPeakFitDialog を経由してフィット計算へ渡され、そこでは
-        # dataset.x_data/y_data(データ座標)と突き合わされるため、ウォーター
-        # フォール(積み重ね)有効時にそのまま使うと積み重ね2本目以降で
-        # フィットが収束しない/明後日の値に収束する。データ座標へ逆変換する。
-        # 仮マーカーはユーザーがクリックした場所(表示座標)に出す必要があるので、
-        # 描画にはクリック位置をそのまま使う。
+        # 初期値はフィットでデータ座標と突き合わされるので、クリック位置(表示座標)をデータ座標に戻す。
+        # マーカーはクリックした場所に出す
         dataset = self._get_current_dataset()
         data_x, data_y = self.canvas.display_to_data(
             dataset, float(event.xdata), float(event.ydata)
@@ -98,12 +65,7 @@ class PeakPlacementMixin:
         )
 
     def _draw_pending_peak_marker(self, ax, guess, display_x, display_y):
-        """仮マーカーを「表示座標」に描く(改善ボード A-1)。
-
-        guess は常にデータ座標で保持するが、マーカーはユーザーがクリックした
-        位置、つまりトレースが実際に描かれている表示座標に出す必要がある
-        (ウォーターフォール無効時は両者が一致する)。
-        """
+        """マーカーは表示座標に描く(guess はデータ座標で持つ)。"""
         line = ax.axvline(display_x, color='#E4572E', linestyle=':', linewidth=1, zorder=100)
         point, = ax.plot(
             [display_x], [display_y],
@@ -121,8 +83,7 @@ class PeakPlacementMixin:
 
         best_i, best_distance = None, None
         for i, (_guess, _line, point) in enumerate(self._pending_peak_markers):
-            # guess はデータ座標なので、描かれたマーカーの位置(表示座標)で比べる。
-            # こうしないとウォーターフォール表示でずれる。
+            # guess はデータ座標なので、描いたマーカーの位置(表示座標)で比べる
             marker_x = point.get_xdata()[0]
             marker_y = point.get_ydata()[0]
             pos_px = ax.transData.transform((marker_x, marker_y))
@@ -143,8 +104,7 @@ class PeakPlacementMixin:
         self.canvas.draw_idle()
 
     def _clear_pending_peak_guesses(self):
-        """MultiPeakFitDialogを閉じた後(OK/Cancelいずれでも)に呼ばれる、
-        ペンディング状態(仮マーカー含む)の一括クリア。"""
+        """ダイアログを閉じたら(OK でもキャンセルでも)仮のマーカーごと消す。"""
         for _guess, line, point in self._pending_peak_markers:
             for artist in (line, point):
                 try:

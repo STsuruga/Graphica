@@ -1,34 +1,20 @@
-# core/script_export.py
-"""
-プロジェクトを、matplotlib単体で完結するスタンドアロンのPythonスクリプトとして
-書き出すためのコード生成ロジック(項目C-1103)。gui/canvas.pyのGUI依存コードは
-一切importせず、project.datasets/project.all_plot_settingsだけを読んで文字列と
-してソースコードを組み立てる純粋関数群(GUIから独立してテストできるようにする、
-将来のC-1105バッチ/CLIモードとも設計を共有できるようにするための意図的な分離)。
+"""プロジェクトを matplotlib だけで動くスクリプトにする。GUI には依存しない。
 
-★ スコープ(意図的な簡略化、既知の制限として生成スクリプトの先頭コメントにも
-明記する): データ・基本的なプロット種別(Line/Scatter/Line+Scatter/Area/Bar/
-Step/Z-Color Scatter)・
-2Dグリッドデータ(ヒートマップ、項目C-508、pcolormesh+カラーバー)・
-色/線種/線幅/マーカー/透明度・タイトル/軸ラベル/軸範囲/対数軸/凡例表示/
-グリッド表示/第2Y軸(twinx)の主要な見た目は再現するが、グラデーション・
-ウォーターフォール・エラーバー・注釈・パネルラベル・第2X軸の単位変換・
-グリッド線の詳細カスタマイズ・フォント/配色トークン・日付軸/カテゴリ軸の
-専用フォーマットは対象外。プラグイン提供のplot_type(register_plot_type)は
-スクリプト側にプラグインを持ち出せないため、コメント付きでLineとして代替出力する。
+再現するのはデータ、組み込みの種類、2D マップ、色・線・マーカー、タイトル・軸ラベル・範囲・対数軸・凡例・グリッド・
+第2Y軸まで。グラデーション・ウォーターフォール・誤差・注釈などは対象外(生成したスクリプトの先頭にも書く)。
+プラグインの種類はスクリプトに持ち出せないので Line で代わりに出す。
 """
 
 from graphica.core.axis_settings import axis_setting
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from typing import TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from graphica.core.dataset import Dataset
+    from graphica.models.project import ProjectModel
 
 
-def _to_native(value):
-    """
-    numpyのスカラ型(np.float64等)をPythonの素の型に変換する。
-    numpy>=2.0ではnp.float64のrepr()が"np.float64(1.5)"のようになり、
-    生成スクリプトの可読性を損なう(構文としては動くが冗長)ため、
-    .item()で素のPython型に落としてからrepr()する。
-    """
+def _to_native(value: Any) -> Any:
+    """numpy 2 では np.float64 の repr が "np.float64(1.5)" になるので、Python の型にしてから repr する。"""
     if hasattr(value, 'item'):
         try:
             return value.item()
@@ -37,37 +23,25 @@ def _to_native(value):
     return value
 
 
-def _format_array_literal(values):
-    """
-    数値配列を、Pythonソース上のリストリテラル文字列として整形する。
-    NaNはrepr()すると"nan"という未定義の識別子になってしまう(構文エラーに
-    なる)ため、float('nan')という有効なPython式に明示的に変換する。
-    """
+def _format_array_literal(values: Any) -> str:
+    """数値のリストのリテラル。NaN は repr すると未定義の nan になるので float('nan') と書く。"""
     parts = []
     for v in values:
         v = _to_native(v)
-        if isinstance(v, float) and v != v:  # NaNの判定(NaNは自分自身と等しくない)
+        if isinstance(v, float) and v != v:  # NaN
             parts.append("float('nan')")
         else:
             parts.append(repr(v))
     return "[" + ", ".join(parts) + "]"
 
 
-# plot_type(core/dataset.py の Dataset.plot_type)のうち、プラグインを介さず
-# 組み込みでサポートしている値の一覧(未知の値=プラグイン提供として扱う)。
+# 組み込みの種類(これ以外はプラグインのもの)
 _BUILTIN_PLOT_TYPES = ('Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step',
                        COLOR_BY_COLUMN_PLOT_TYPE)
 
 
-def _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=None):
-    """
-    1次元データセット1件分の描画呼び出しを出力する。
-
-    Returns:
-        bool: カラーバーの対象になるmappableを ``mappable_var`` へ代入したか
-        (改善ボード D-2 の 'Z-Color Scatter' でZ列が有効な場合のみTrue)。
-        呼び出し側はこれがTrueの軸にだけカラーバーを出力する。
-    """
+def _emit_dataset_plot_call(lines: list[str], ax_var: str, ds: "Dataset", mappable_var: str | None = None) -> bool:
+    """1次元の系列を描く呼び出しを書く。カラーバー用の mappable を mappable_var に入れたら True。"""
     kwargs = f"color={ds.color!r}, alpha={ds.alpha!r}, label={ds.name!r}"
     plot_type = ds.plot_type if ds.plot_type in _BUILTIN_PLOT_TYPES else None
 
@@ -78,10 +52,7 @@ def _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=None):
         plot_type = 'Line'
 
     if plot_type == COLOR_BY_COLUMN_PLOT_TYPE:
-        # 3列目の値による点の色分け(改善ボード D-2)。scipyを使わない
-        # 純粋なmatplotlib呼び出しなので、Density Scatter(gaussian_kde依存の
-        # ためLineへ代替出力)と違ってそのまま再現できる。
-        # zはgenerate_python_script側が visible_df 経由で出力済み。
+        # scipy を使わない matplotlib だけの呼び出しなので、そのまま再現できる(Density Scatter は Line で代わりに出す)
         z_values = ds.z_data
         if z_values is None or len(z_values) != len(ds.x_data):
             lines.append(
@@ -122,24 +93,10 @@ def _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=None):
 _VALID_MAP_DISPLAY_MODES = ('heatmap', 'contour', 'contour_filled', 'heatmap_contour')
 
 
-def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
-    """
-    2Dグリッドデータセット(項目C-508、data_kind='2d_grid')をpcolormesh/contour/
-    contourfとして出力する。_emit_dataset_plot_call()(plot_type分岐)とは
-    独立した経路(gui/canvas.pyの_draw_data()がdata_kindで2D/1Dを振り分ける
-    のと同じ設計)。Dataset.z_grid(core/dataset.py、規則格子/散在データの補間
-    どちらも同じ形の辞書を返す)が既に計算済みのグリッドをそのまま埋め込む。
+def _emit_2d_dataset_plot_call(lines: list[str], ax_var: str, mesh_var: str, ds: "Dataset") -> bool:
+    """2D マップを pcolormesh / contour / contourf で書く。Dataset.z_grid の格子をそのまま埋め込む。
 
-    ds.map_display_mode(項目C-509)で描画方式を切り替える。gui/canvas.pyの
-    _draw_2d_data()と同じく、塗りを伴うモード(heatmap/contour_filled/
-    heatmap_contour)の場合のみカラーバー用のmesh_var(呼び出し側が
-    fig.colorbar()の対象として使う)を組み立てる。
-
-    Returns:
-        bool: カラーバーの対象になるmappable(pcolormesh/contourfの戻り値)を
-        出力できたか。線のみのcontourモード、または有効なグリッドが
-        構築できなかった場合はFalseを返す(呼び出し側はカラーバー出力を
-        スキップする)。
+    カラーバーの対象(塗りのあるモード)を mesh_var に作れたら True。線だけの contour や格子が作れないときは False。
     """
     grid = ds.z_grid
     if grid is None:
@@ -178,11 +135,9 @@ def _emit_2d_dataset_plot_call(lines, ax_var, mesh_var, ds):
     return has_mappable
 
 
-def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):
+def _emit_appearance_calls(lines: list[str], ax_var: str, settings: dict[str, Any], mesh_var: str | None = None) -> None:
     if axis_setting(settings, 'title'):
         lines.append(f"{ax_var}.set_title({settings['title']!r})")
-    # 軸ラベルの表示/非表示トグル(項目127追加分): 非表示(False)の場合は
-    # テキストがあっても出力しない(既定Trueで後方互換)。
     if axis_setting(settings, 'x_label') and axis_setting(settings, 'x_label_visible'):
         lines.append(f"{ax_var}.set_xlabel({settings['x_label']!r})")
     if axis_setting(settings, 'y_label') and axis_setting(settings, 'y_label_visible'):
@@ -200,9 +155,6 @@ def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):
     if axis_setting(settings, 'legend_visible'):
         lines.append(f"{ax_var}.legend()")
 
-    # カラーバー(項目C-501): このサブプロットに2Dマップ(項目C-508)が
-    # 描画されていた場合のみ(mesh_varは呼び出し側がgenerate_python_script内で
-    # _emit_2d_dataset_plot_call()が成功した軸だけに渡す)。
     if mesh_var is not None and axis_setting(settings, 'colorbar_enabled'):
         position = axis_setting(settings, 'colorbar_position')
         if position not in ('right', 'left', 'top', 'bottom'):
@@ -216,14 +168,8 @@ def _emit_appearance_calls(lines, ax_var, settings, mesh_var=None):
             lines.append(f"cbar.set_label({settings['colorbar_label']!r})")
 
 
-def generate_python_script(project) -> str:
-    """
-    project(models/project.py の ProjectModel)から、matplotlib単体で実行できる
-    スタンドアロンのPythonスクリプトのソースコードを文字列として組み立てる
-    (項目C-1103)。データは外部ファイルを参照せず、np.array([...])としてスクリプト
-    内に直接埋め込む(単一ファイルでの再現性を優先する意図的な設計、大量点数の
-    データセットではファイルサイズが大きくなる既知のトレードオフ)。
-    """
+def generate_python_script(project: "ProjectModel") -> str:
+    """スクリプトのソースを返す。データは np.array としてスクリプトに埋め込む(1ファイルで再現できるが、点が多いと大きくなる)。"""
     lines = [
         '"""',
         'Graphicaから書き出されたスタンドアロンのPythonスクリプト(項目C-1103)。',
@@ -267,12 +213,9 @@ def generate_python_script(project) -> str:
     if secondary_axis_indices:
         lines.append('')
 
-    mesh_var_by_axis = {}
-    # 改善ボード D-2: 同じ軸に2Dマップと色分け散布図が両方あるとき、カラーバーは
-    # 1軸に最大1つなので2Dマップ側を優先する(gui/canvas.pyの_draw_dataが
-    # 「2Dの登録済みmappableを上書きしない」のと同じ挙動に揃える。スクリプト側は
-    # データセットの並び順に出力するため、先にこの集合を作らないと順序次第で
-    # 画面と食い違う)。
+    mesh_var_by_axis: dict[int, str | None] = {}
+    # 1つの軸にカラーバーは1つなので、2D マップがある軸では2D マップを優先する(画面と同じ)。
+    # 系列の順に書くので、先にこの集合を作らないと順序次第で画面と食い違う
     axes_with_2d = {
         d.subplot_target for d in visible_datasets if d.data_kind == '2d_grid'
     }
@@ -292,19 +235,16 @@ def generate_python_script(project) -> str:
         else:
             lines.append(f'x = np.array({_format_array_literal(list(ds.x_data))})')
             lines.append(f'y = np.array({_format_array_literal(list(ds.y_data))})')
-            # 3列目の値による点の色分け(改善ボード D-2)はz列も必要になる。
-            # x_data/y_dataと同じく visible_df 経由(ds.z_data)なので、
-            # マスクした行があっても点と色の対応がずれない。
+            # visible_df 経由なので、マスクした行があっても点と色がずれない
             if ds.plot_type == COLOR_BY_COLUMN_PLOT_TYPE:
                 z_values = ds.z_data
                 if z_values is not None and len(z_values) == len(ds.x_data):
                     lines.append(f'z = np.array({_format_array_literal(list(z_values))})')
-            # 2Dマップが同じ軸にある場合はカラーバーを譲る(変数名も別にして、
-            # 生成スクリプト上で mesh{N} を上書きしないようにする)。
+            # 2D マップがある軸ではカラーバーを譲る(mesh{N} を上書きしないよう変数名も分ける)
             wants_colorbar = ds.subplot_target not in axes_with_2d
-            mesh_var = f'scatter_mesh{ds.subplot_target}' if wants_colorbar else None
-            if _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=mesh_var):
-                mesh_var_by_axis[ds.subplot_target] = mesh_var
+            scatter_mesh_var = f'scatter_mesh{ds.subplot_target}' if wants_colorbar else None
+            if _emit_dataset_plot_call(lines, ax_var, ds, mappable_var=scatter_mesh_var):
+                mesh_var_by_axis[ds.subplot_target] = scatter_mesh_var
         lines.append('')
 
     for i, settings in enumerate(all_plot_settings[:subplot_count]):

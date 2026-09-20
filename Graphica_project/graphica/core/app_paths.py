@@ -10,7 +10,7 @@ import re
 from graphica.core.version import APP_NAME
 
 
-def get_app_data_dir():
+def get_app_data_dir() -> str:
     """無ければ作る。LOCALAPPDATA の無い環境では ~/.local/share/Graphica。"""
     base = os.environ.get('LOCALAPPDATA')
     if not base:
@@ -20,14 +20,14 @@ def get_app_data_dir():
     return app_dir
 
 
-def get_user_plugins_dir():
+def get_user_plugins_dir() -> str:
     """利用者が zip から入れたプラグインの置き場所。無ければ作る。"""
     plugins_dir = os.path.join(get_app_data_dir(), 'plugins')
     os.makedirs(plugins_dir, exist_ok=True)
     return plugins_dir
 
 
-def get_plugin_data_dir(plugin_name):
+def get_plugin_data_dir(plugin_name: str) -> str:
     """プラグインごとの書き込み用フォルダ。無ければ作る。名前はフォルダ名に使える文字だけ残す。"""
     safe_name = re.sub(r'[^\w.-]', '_', plugin_name).strip('.') or '_'
     data_dir = os.path.join(get_app_data_dir(), 'plugin_data', safe_name)

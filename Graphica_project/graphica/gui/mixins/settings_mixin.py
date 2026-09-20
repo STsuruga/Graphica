@@ -1,11 +1,4 @@
-# gui/mixins/settings_mixin.py
-"""
-プロット(軸)の外観設定に関する処理をまとめた Mixin。
-- レイアウト(行数/列数)、編集対象プロットの切り替え
-- UI <-> settings辞書 の相互変換 (_gather_settings_from_ui / _apply_settings_to_ui_controls)
-- フォント/色選択ダイアログ
-- 各種チェックボックス変更に伴うUIの有効/無効切り替え
-"""
+"""軸の設定: 画面の欄と設定の辞書の相互変換、サブプロットの行数と列数、フォントと色の選択。"""
 import functools
 import logging
 from PySide6.QtCore import QTimer
@@ -22,14 +15,8 @@ from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
 logger = logging.getLogger(__name__)
 
 
-# 実機フィードバック: 「Arial narrowは反映されない」→ 原因調査の結果、Windows上の
-# 「Arial Narrow」本体(ARIALN.TTF)はmatplotlibのフォントキャッシュに
-# family="Arial", stretch(幅)="condensed"として登録されており、"Arial Narrow"
-# という名前のファミリーとしては一切存在しない(GDIの伝統的なスタイルリンク方式。
-# fm.fontManager.ttflistを直接調べて確認)。そのため文字列そのままfindfontすると
-# 解決できず、matplotlibは既定フォントへ静かにフォールバックしてしまう。
-# ここでmatplotlib自身のstretch語彙にマッピングし、family+stretchで再解決を
-# 試みることで、Windows上でもNarrow/Condensed系フォントを実際に反映できるようにする。
+# Windows の「Arial Narrow」は matplotlib には family="Arial", stretch="condensed" として登録されていて、
+# 名前のままでは見つからず黙って既定のフォントになる。末尾の語を stretch に読み替えて探し直す。
 _FONT_STRETCH_KEYWORDS = {
     'narrow': 'condensed',
     'condensed': 'condensed',
@@ -46,19 +33,9 @@ _FONT_STRETCH_KEYWORDS = {
 
 @functools.lru_cache(maxsize=256)
 def _resolve_font_family_for_matplotlib(family_name: str):
-    """
-    フォント名がmatplotlibのfindfontでそのまま解決できるかを確認し、
-    できなければ末尾の「Narrow」「Condensed」等のスタイルキーワードを
-    切り離し、family=基底名 + stretch=condensed等で再解決を試みる。
+    """(matplotlib に渡す family, stretch または None, 解決できたか) を返す。
 
-    戻り値: (matplotlibに渡すべきfamily名, stretch値 or None, 解決できたか: bool)。
-    どちらの方法でも解決できない場合は (family_name, None, False) を返す
-    (呼び出し側の未解決フォント警告に委ねる)。
-
-    lru_cacheを付けているのは、_font_props_to_dict()が軸設定の変更のたびに
-    (_gather_settings_from_ui()経由で)毎回呼ばれるため、同じフォント名に
-    ついてfindfont(実質的にファイルシステム/フォントキャッシュへの問い合わせ)
-    を毎回繰り返さないようにするため。
+    軸の設定を変えるたびに呼ばれるので、findfont の結果をキャッシュする。
     """
     import matplotlib.font_manager as fm
 
@@ -83,14 +60,7 @@ def _resolve_font_family_for_matplotlib(family_name: str):
 
 
 def _qfont_from_family_props(font_props: dict) -> QFont:
-    """
-    保存済みフォント辞書の'family'からQFontを復元する。
-
-    'family'は新形式ではフォールバック候補のリスト(_font_props_to_dict参照)、
-    旧形式(このリスト化より前に保存されたプロジェクトファイル)では単一の
-    フォント名(str)。QFont(list)は使えないため、リストならsetFamilies()、
-    strならQFont(str)相当のコンストラクタで復元する。
-    """
+    """'family' は候補のリストか、古いプロジェクトでは1つの名前。QFont(list) は無いので setFamilies() を使う。"""
     family = font_props.get('family', 'Sans Serif')
     if isinstance(family, (list, tuple)):
         font = QFont()
@@ -101,8 +71,7 @@ def _qfont_from_family_props(font_props: dict) -> QFont:
 
 
 def _order_labels(labels, order):
-    """凡例ラベルのリストを、保存済みの並び順(order)に従って並べ替える。
-    order に無いラベルは元の相対順を保ったまま末尾に追加する。"""
+    """order の順に並べ、order に無いラベルは元の順のまま末尾に置く。"""
     if not order:
         return list(labels)
     order_index = {name: i for i, name in enumerate(order)}
@@ -115,143 +84,76 @@ def _order_labels(labels, order):
 
 class SettingsMixin:
     def _on_layout_changed(self):
-            """
-            サブプロットのレイアウト(行数/列数)スピンボックスが変更されたときに呼び出されます。
-            all_plot_settings リストのサイズを調整し、UIを更新します。
-
-            自由配置レイアウト(項目37)が有効な間は行数/列数スピンボックス自体が
-            無効化されているが、念のため二重チェックとしてここでも早期returnする
-            (自由配置モードでのサブプロット数の増減は「+」「-」ボタン経由で行う)。
-            """
             if getattr(self.project, 'layout_mode', 'grid') == 'free':
                 return
 
-            # 1. 【★ 重要 ★】
-            #    これからUIコントロール（active_axis_comboなど）の値を変更するため、
-            #    シグナルの連鎖的な発火（ループ）を防ぐために一時的にブロックします。
+            # 欄の値を変える間、変更の通知が連鎖しないように
             self._block_all_signals(True)
 
             rows = self.subplot_rows_spinbox.value()
             cols = self.subplot_cols_spinbox.value()
-            total_plots = rows * cols # 新しいプロットの総数
+            total_plots = rows * cols
 
-            # 2. 既存のプロット設定リストのサイズを新しいサイズに合わせる
             current_plot_count = len(self.project.all_plot_settings)
 
             if total_plots > current_plot_count:
-                # 2a. プロットが増えた場合
-                #     現在のUI設定 (アクティブな軸の設定) をコピー元として取得
+                # 増えた分は今の軸の設定をもとにする
                 default_settings = self._gather_settings_from_ui()
                 for _ in range(total_plots - current_plot_count):
-                    # ★ .copy() が重要 (辞書は参照型のため、コピーしないとすべて同じ設定になる)
                     new_settings = default_settings.copy()
-                    # ★ 新しいサブプロットは、アクティブな軸の注釈をそのまま
-                    # 引き継がず空から始める(かつ .copy() は浅いコピーなので、
-                    # 空リストにしないと全ての新規プロットが同じリストを共有してしまう)
+                    # 注釈は引き継がない。浅いコピーなので、空のリストにしないと全部が同じリストを共有する
                     new_settings['annotations'] = []
                     new_settings['legend_order'] = []
                     self.project.all_plot_settings.append(new_settings)
 
             elif total_plots < current_plot_count:
-                # 2b. プロットが減った場合
-                #     リストの末尾から設定を削除
                 self.project.all_plot_settings = self.project.all_plot_settings[:total_plots]
 
-                # ★ バグ修正: 削除された(存在しなくなった)サブプロット番号を
-                # subplot_target に持つデータセットは、そのままだと
-                # gui/canvas.pyのdatasets-per-axisフィルタ(ds.subplot_target
-                # == axis_index)に一致する軸が無くなり、どのサブプロットにも
-                # 描画されず、エクスポート画像にも含まれなくなる。データ
-                # セット自体はリストに残り続け普通に選択・編集できてしまう
-                # ため、「データが消えた」ことに気づきにくいサイレントな
-                # バグだった(グリッドを再び広げると何事もなかったかのように
-                # 復活するため、原因の特定はさらに難しい)。存在する最後の
-                # サブプロットに割り当て直すことで、見えなくなることを防ぐ。
+                # 無くなったサブプロットを描画先にしていたデータセットは、どこにも描かれず
+                # エクスポートにも入らないのに気づけないので、最後のサブプロットに移す
                 for dataset in self.project.datasets:
                     if dataset.subplot_target >= total_plots:
                         dataset.subplot_target = total_plots - 1
 
-            # 3. アクティブな軸のインデックスが範囲外になったら 0 に戻す
-            #    (例: 2x2=4 で P4 を編集中に 1x1=1 に変更した場合)
             if self.project.active_axis_index >= total_plots:
                 self.project.active_axis_index = 0
 
-            # 4. UIコントロールを更新
-            #    コンボボックスの選択肢を (P1, P2...) のように更新
             self._update_subplot_combos()
-            #    新しいアクティブインデックス (self.project.active_axis_index) の設定をUIにロード
             self._apply_settings_to_ui_controls(self.project.all_plot_settings[self.project.active_axis_index])
 
-            # 5. シグナルのブロックを解除
             self._block_all_signals(False)
 
-            # 6. グラフ全体を再描画
             self._update_plot()
 
     def _on_share_axis_changed(self):
-        """
-        「X軸を共有」「Y軸を共有」チェックボックスが変更されたときに呼び出されます。
-        グリッドレイアウト時のみ意味を持つ設定のため、ProjectModel にそのまま保存し再描画します。
-        """
         self.project.share_x_axis = self.share_x_checkbox.isChecked()
         self.project.share_y_axis = self.share_y_checkbox.isChecked()
         self._update_plot()
 
     def _on_active_axis_changed(self, index):
-            """
-            「編集対象のプロット」コンボボックスが変更されたときに呼び出されます。
-            UI上の変更を古い軸設定に「保存」し、新しい軸設定をUIに「ロード」します。
-
-            Args:
-                index (int): 新しく選択されたコンボボックスのインデックス (＝軸インデックス)。
-            """
+            """切り替える前の欄の値を元の軸に保存してから、新しい軸の設定を欄に読み込む。"""
 
             if index == -1 or index >= len(self.project.all_plot_settings):
-                return # 無効なインデックス (例: リストクリア時)
+                return
 
-            # 1. 【保存】
-            #    変更「前」のUI設定を、変更「前」の active_axis_index に対応する
-            #    設定リスト (all_plot_settings) に保存します。
             self.project.all_plot_settings[self.project.active_axis_index] = self._gather_settings_from_ui()
 
-            # 2. 【更新】
-            #    アクティブインデックスを新しいインデックスに更新します。
             self.project.active_axis_index = index
 
-            # 3. 【ロード】
-            #    新しくアクティブになったインデックスの設定をリストから取得し、
-            #    その内容をUIコントロール（スピンボックス、テキストなど）に反映させます。
             settings_to_load = self.project.all_plot_settings[self.project.active_axis_index]
             self._apply_settings_to_ui_controls(settings_to_load)
 
     def _on_axis_setting_changed(self):
-            """
-            軸設定のUIコントロール(スピンボックス、テキストエディットなど)が
-            変更されたときに呼び出されます。
-
-            (_connect_signals で多くのUIがこのスロットに接続されています)
-            """
-
-            # 1. 現在のUIコントロールの状態をすべて辞書として収集
             current_settings = self._gather_settings_from_ui()
 
-            # 2. 収集した設定を、現在アクティブな軸 (active_axis_index) の
-            #    設定としてリスト (all_plot_settings) に「保存」します。
             self.project.all_plot_settings[self.project.active_axis_index] = current_settings
 
-            # 3. 外観のみ更新（軽量な再描画）
             self._update_plot_appearance()
 
     def _update_subplot_combos(self):
-            """
-            「編集対象」「描画先」コンボボックスの中身（選択肢）を、
-            現在の総プロット数に合わせて更新するヘルパーメソッドです。
-            """
             total_plots = len(self.project.all_plot_settings)
-            # (例: total_plots=2 の場合 -> ["プロット 1", "プロット 2"])
             plot_names = [f"プロット {i+1}" for i in range(total_plots)]
 
-            # シグナルをブロック (clear/addItems/setCurrentIndex でシグナルが発火するのを防ぐ)
             self.active_axis_combo.blockSignals(True)
             self.subplot_target_combo.blockSignals(True)
 
@@ -261,40 +163,17 @@ class SettingsMixin:
             self.active_axis_combo.addItems(plot_names)
             self.subplot_target_combo.addItems(plot_names)
 
-            # 「編集対象」コンボボックスの選択状態を、現在のアクティブインデックスに合わせる
             self.active_axis_combo.setCurrentIndex(self.project.active_axis_index)
 
-            # (「描画先」コンボボックスの選択状態は、property_panel.update_ui_state で
-            #  データセットが選択されたときに設定される)
-
+            # 「描画先」の選択はデータセットを選んだときに property_panel.update_ui_state が決める
             self.active_axis_combo.blockSignals(False)
             self.subplot_target_combo.blockSignals(False)
 
-    #==========================================================================
-    # UI連動ヘルパーメソッド (スロット)
-    #==========================================================================
-    # これらのメソッドは、主に「あるUI (A)」の変更に応じて、
-    # 「別のUI (B)」を有効化/無効化（グレーアウト）するために使われます。
-    #
-    # 【★ 注意 ★】
-    # _connect_signals で、これらのメソッド（_on_grid_... 以外）への接続が
-    # 漏れているため、現状では機能しません (上記【指摘】参照)。
-    # #==========================================================================
 
     def _seed_min_max_spinboxes(self, min_spinbox, max_spinbox, limits):
-        """
-        実機フィードバック(バグ報告: 「軸の値は変わるようになったけど挙動が
-        少し変。最小値から変更するとすぐに反映されなくて…最大値から変更した
-        場合には最初から変更が反映される」): 自動スケールを外した直後、
-        min/maxのスピンボックスがDesignerの初期値(0.0/0.0)のまま放置されて
-        いたため、min側を先に変更すると「新しいmin >= 古い(未更新の)max」に
-        なり、gui/canvas.pyの`if min_val < max_val: ax.set_xlim(...)`という
-        ガードに阻まれて反映されなかった(max側を先に変更した場合は
-        たまたまガードを通るため問題なく見え、変更する順序によって挙動が
-        変わるという分かりにくいバグになっていた、実機ログでは再現せず
-        Windows上のオフラインスクリプトで実際に再現・確認済み)。
-        自動スケールを外す瞬間に、現在実際に表示されている軸範囲を
-        スピンボックスへ反映しておくことで、この不整合を解消する。
+        """オートスケールを切った瞬間に、いま表示している範囲を最小値・最大値の欄に入れる。
+
+        欄が初期値 0/0 のままだと、最小値を先に変えたとき「最小 >= 最大」で反映されない。
         """
         if limits is None:
             return
@@ -307,26 +186,16 @@ class SettingsMixin:
         max_spinbox.blockSignals(False)
 
     def _current_active_axis(self):
-        """編集対象として選択中のAxesを返す(未構築・範囲外なら None)。"""
         axis_index = self.project.active_axis_index
         if 0 <= axis_index < len(self.canvas.all_axes):
             return self.canvas.all_axes[axis_index]
         return None
 
     def _refresh_x_autoscale_enabled_state(self):
-        """
-        X軸のmin/maxスピンボックスの有効/無効だけを、オートスケールの
-        チェック状態に合わせて更新する。**値は一切書き換えない。**
+        """最小値・最大値の欄の有効/無効だけをオートスケールに合わせる。値は書き換えない。
 
-        ★ 保存済みの設定を復元する経路(_apply_settings_to_ui_controls)は
-        必ずこちらを使うこと。_on_x_autoscale_changed()の方は
-        「ユーザーがチェックを外した瞬間」向けに、現在表示中の軸範囲を
-        スピンボックスへシードする(_seed_min_max_spinboxes)ため、
-        復元経路で呼ぶと**保存されていた軸範囲が、いま画面に出ている範囲で
-        上書きされて失われる**(改善ボード B-4 のテスト整備中に発見)。
-
-        Returns:
-            bool: 現在のオートスケール状態。
+        保存した設定を戻すときはこちらを使う。_on_x_autoscale_changed() は表示中の範囲を欄に入れるので、
+        保存されていた範囲が上書きされる。
         """
         is_autoscale = self.ui.x_autoscale_checkbox.isChecked()
         self.ui.x_min_spinbox.setEnabled(not is_autoscale)
@@ -334,14 +203,13 @@ class SettingsMixin:
         return is_autoscale
 
     def _refresh_y_autoscale_enabled_state(self):
-        """Y軸版。_refresh_x_autoscale_enabled_state()のdocstring参照。"""
         is_autoscale = self.ui.y_autoscale_checkbox.isChecked()
         self.ui.y_min_spinbox.setEnabled(not is_autoscale)
         self.ui.y_max_spinbox.setEnabled(not is_autoscale)
         return is_autoscale
 
     def _on_x_autoscale_changed(self):
-        """X軸オートスケール チェックボックスが**ユーザー操作で**変更された"""
+        """利用者がチェックを変えたとき(設定を戻すときは _refresh_x_autoscale_enabled_state)。"""
         is_autoscale = self._refresh_x_autoscale_enabled_state()
 
         if not is_autoscale:
@@ -349,13 +217,10 @@ class SettingsMixin:
             self._seed_min_max_spinboxes(
                 self.ui.x_min_spinbox, self.ui.x_max_spinbox, axis.get_xlim() if axis is not None else None)
 
-        # ★ 上でスピンボックスの値をコード側から書き換えた可能性があるため、
-        #   _update_plot_appearance()だけでなく_on_axis_setting_changed()を
-        #   呼び、UIの最新値(seedした値を含む)を改めて収集してから描画する。
+        # 欄の値を書き換えたので、描き直すだけでなく設定も集め直す
         self._on_axis_setting_changed()
 
     def _on_y_autoscale_changed(self):
-        """Y軸オートスケール チェックボックスが**ユーザー操作で**変更された"""
         is_autoscale = self._refresh_y_autoscale_enabled_state()
 
         if not is_autoscale:
@@ -366,32 +231,21 @@ class SettingsMixin:
         self._on_axis_setting_changed()
 
     def _on_x_tick_mode_changed(self):
-        """X軸 主目盛モード (自動/固定) コンボボックスが変更された"""
-        # currentIndex() == 1 が "固定間隔"
         is_fixed_interval = (self.ui.x_major_tick_mode_combo.currentIndex() == 1)
-        # "固定間隔" が選ばれた場合のみ、間隔入力スピンボックスを有効化
         self.ui.x_major_tick_interval_spinbox.setEnabled(is_fixed_interval)
         self._update_plot_appearance()
 
     def _on_y_tick_mode_changed(self):
-        """Y軸 主目盛モード (自動/固定) コンボボックスが変更された"""
         is_fixed_interval = (self.ui.y_major_tick_mode_combo.currentIndex() == 1)
         self.ui.y_major_tick_interval_spinbox.setEnabled(is_fixed_interval)
         self._update_plot_appearance()
 
     def _on_x_minor_tick_visibility_changed(self):
-        """
-        X軸 補助目盛表示 チェックボックス、または対数表示チェックボックスが
-        変更された(項目C-604: 対数軸の補助目盛り制御は、この2つの状態の
-        両方に依存するため同じスロットにまとめている)。
-        """
+        """補助目盛の表示と対数表示の両方に依存するので、同じスロットで受ける。"""
         is_visible = self.ui.x_minor_ticks_visible_checkbox.isChecked()
         is_log = self.ui.x_log_checkbox.isChecked()
-        # チェックが ON の場合のみ、間隔入力スピンボックスを有効化
-        # (対数軸の場合はMultipleLocatorではなくLogLocatorを使うため無効化する)
+        # 対数軸は MultipleLocator ではなく LogLocator なので間隔は使わない
         self.ui.x_minor_tick_interval_spinbox.setEnabled(is_visible and not is_log)
-        # 対数軸の補助目盛り制御(本数プリセット/ラベル表示)は対数軸のときのみ
-        # 意味を持つため、対数軸でない間は隠す。
         self.x_log_minor_subs_label.setVisible(is_log)
         self.x_log_minor_subs_combo.setVisible(is_log)
         self.x_log_minor_labels_checkbox.setVisible(is_log)
@@ -400,7 +254,6 @@ class SettingsMixin:
         self._update_plot_appearance()
 
     def _on_y_minor_tick_visibility_changed(self):
-        """Y軸版の_on_x_minor_tick_visibility_changed。"""
         is_visible = self.ui.y_minor_ticks_visible_checkbox.isChecked()
         is_log = self.ui.y_log_checkbox.isChecked()
         self.ui.y_minor_tick_interval_spinbox.setEnabled(is_visible and not is_log)
@@ -412,14 +265,8 @@ class SettingsMixin:
         self._update_plot_appearance()
 
     def _on_legend_visibility_changed(self):
-        """
-        凡例の表示/非表示チェックボックスが変更された。
-        (★ 元のコードの _set_initial_ui_state には存在したが、
-            PlotterApp のメソッドとしては定義されていなかったため追加)
-        """
         is_visible = self.ui.legend_visible_checkbox.isChecked()
 
-        # 凡例が非表示なら、位置、フォント、色の設定UIをすべて無効化
         self.legend_loc_label.setEnabled(is_visible)
         self.legend_loc_combo.setEnabled(is_visible)
         self.legend_font_label.setEnabled(is_visible)
@@ -427,42 +274,28 @@ class SettingsMixin:
         self.legend_color_label.setEnabled(is_visible)
         self.legend_color_button.setEnabled(is_visible)
 
-        # (このメソッドも _connect_signals での接続が必要)
-        # (self._update_plot_appearance() の呼び出しは _on_axis_setting_changed が
-        #  担当するので、ここでは不要だが、ユーザーのパターンに合わせて追加)
         self._update_plot_appearance()
 
 
     def _grid_linestyle_code(self, combo_index: int) -> str:
-        """グリッド線種コンボボックスの選択インデックスを、matplotlibのlinestyle文字列
-        ('-' / '--' / ':' / '-.') に変換する (項目82)。"""
         choices = self.grid_linestyle_choices
         if 0 <= combo_index < len(choices):
             return choices[combo_index][1]
         return '-'
 
     def _grid_linestyle_index(self, linestyle_code: str) -> int:
-        """matplotlibのlinestyle文字列を、グリッド線種コンボボックスの選択インデックスに
-        逆変換する (項目82)。未知の値が来た場合は先頭(実線)を返す。"""
+        """未知の値は 0(実線)。"""
         for i, (_label, code) in enumerate(self.grid_linestyle_choices):
             if code == linestyle_code:
                 return i
         return 0
 
     def _on_grid_visibility_changed(self):
-        """
-        メインのグリッド表示チェックボックスが変更されたときの処理
-        (★ このメソッドは _connect_signals で正しく接続されています)
-        """
         is_visible = self.ui.grid_visible_checkbox.isChecked()
 
-        # 「補助グリッドも表示」チェックボックスの有効/無効を切り替え
-        # (メイングリッドが OFF なら、補助グリッドも選択不可にする)
         self.ui.minor_grid_visible_checkbox.setEnabled(is_visible)
 
-        # グリッド線の詳細カスタマイズ(項目82)コントロールの有効/無効も連動させる。
-        # 主目盛用(線種/太さ/透過度)はメイングリッドのON/OFFに、
-        # 補助目盛用はメイングリッド かつ 補助グリッド表示のON/OFFに従う。
+        # 主のグリッドの欄はグリッドの表示に、補助の欄はさらに補助グリッドの表示にも従う
         is_minor_visible = is_visible and self.ui.minor_grid_visible_checkbox.isChecked()
         for widget in (
             self.x_major_grid_linestyle_combo, self.x_major_grid_width_spinbox, self.x_major_grid_alpha_spinbox,
@@ -477,36 +310,11 @@ class SettingsMixin:
 
         self._update_plot_appearance()
 
-    #==========================================================================
-    # フォント・色 選択スロット
-    #==========================================================================
-    # これらは _connect_signals で ..._button.clicked に接続されています。
-    #
-    # パターン:
-    # 1. ダイアログ (QFontDialog / QColorDialog) を開く
-    # 2. ユーザーが "OK" を押したら (ok or color.isValid())
-    # 3. 内部の状態変数 (self._tick_font など) を更新
-    # 4. _on_axis_setting_changed() を呼び出し、変更を保存・適用する
-    #==========================================================================
 
     def _warn_if_font_family_unavailable_for_graph(self, font):
-        """
-        実機フィードバック: 「フォントがちゃんと反映されてない、少なくとも
-        Arial Narrowは反映されてない。反映されるのとされないのある」。
-        QFontDialogが一覧表示するフォントはOS(Qt)側が把握しているものだが、
-        実際にグラフを描画するmatplotlib自身のフォント探索
-        (matplotlib.font_manager、Qtの一覧とは完全に独立したキャッシュ)には
-        含まれていないことがある。一致しない場合、matplotlibはエラーも
-        警告ダイアログも出さず既定フォントへ静かにフォールバックするだけ
-        (ログにfindfont警告が出るのみ)なので、「選んでも反映されない」
-        「フォントによって効くものと効かないものがある」という一見不可解な
-        挙動になっていた。
+        """グラフのフォントが matplotlib で見つからなければ知らせる(選択は保存する)。
 
-        ★ 「Arial Narrow」のような複合名はfamily+stretchへの変換で実際に
-        解決できることが判明したため(_resolve_font_family_for_matplotlib参照)、
-        ここでも同じ解決ロジックを使い、変換後も解決できない場合のみ警告する
-        (選択自体は妨げない――将来そのフォントをインストールした場合に
-        備えて、設定としてはそのまま保持する)。
+        QFontDialog は OS のフォント一覧を出すが、matplotlib は別の一覧で探し、見つからないと黙って既定のフォントになる。
         """
         family = font.family()
         _resolved_name, _stretch, resolved = _resolve_font_family_for_matplotlib(family)
@@ -520,75 +328,55 @@ class SettingsMixin:
             )
 
     def _on_change_tick_font(self):
-        """「目盛フォント」ボタンが押された"""
-        # (現在のフォント, 親ウィジェット) を渡す
         ok, font = QFontDialog.getFont(self._tick_font, self)
         if ok:
             self._warn_if_font_family_unavailable_for_graph(font)
             self._tick_font = font
-            self._on_axis_setting_changed() # 変更を保存・適用
+            self._on_axis_setting_changed()
 
     def _on_change_tick_color(self):
-        """「目盛 文字色」ボタンが押された"""
         color = get_color_with_history(self.settings, self)
         if color.isValid():
-            self._tick_color = color.name() # #RRGGBB 形式の文字列
-            self._on_axis_setting_changed() # 変更を保存・適用
+            self._tick_color = color.name()
+            self._on_axis_setting_changed()
 
     def _on_change_axis_label_font(self):
-        """「軸ラベルフォント」ボタンが押された"""
         ok, font = QFontDialog.getFont(self._axis_label_font, self)
         if ok:
             self._warn_if_font_family_unavailable_for_graph(font)
             self._axis_label_font = font
-            # 【★ バグ修正 ★】
-            # _update_plot_appearance() ではなく _on_axis_setting_changed() を呼び出し、
-            # 変更されたフォント設定 (self._axis_label_font) が
-            # all_plot_settings に保存されるようにする。
+            # _update_plot_appearance() だけでは all_plot_settings に保存されない
             self._on_axis_setting_changed()
 
     def _on_change_axis_label_color(self):
-        """「軸ラベル 文字色」ボタンが押された"""
         color = get_color_with_history(self.settings, self)
         if color.isValid():
             self._axis_label_color = color.name()
-            # 【★ バグ修正 ★】 (上記と同様の理由)
             self._on_axis_setting_changed()
 
     def _on_change_legend_font(self):
-        """「凡例フォント」ボタンが押された"""
         ok, font = QFontDialog.getFont(self._legend_font, self)
         if ok:
             self._warn_if_font_family_unavailable_for_graph(font)
             self._legend_font = font
-            self._on_axis_setting_changed() # 変更を保存・適用
+            self._on_axis_setting_changed()
 
     def _on_change_legend_color(self):
-        """「凡例 文字色」ボタンが押された"""
         color = get_color_with_history(self.settings, self)
         if color.isValid():
             self._legend_color = color.name()
-            self._on_axis_setting_changed() # 変更を保存・適用
+            self._on_axis_setting_changed()
 
     def _on_change_spine_color(self):
-        """「外枠・目盛線 色」ボタンが押された"""
         color = get_color_with_history(self.settings, self)
         if color.isValid():
             self._spine_color = color.name()
-            # 【★ バグ修正 ★】 (上記と同様の理由)
             self._on_axis_setting_changed()
 
     def _open_label_edit_dialog(self, line_edit, dialog_title):
-        """
-        タイトル/X軸ラベル/Y軸ラベルの「Aa」ボタンが押されたときの処理
-        (実機フィードバックによるポップアップウィンドウ化、項目61/81/H-2-4)。
-        LabelEditDialog(gui/dialogs.py)を開き、OKされたら結果をline_editへ
-        書き戻す(setText()なのでtextChanged経由の_on_axis_setting_changedが
-        通常通り発火し、既存の反映経路がそのまま使える)。
+        """編集ダイアログの結果を line_edit に setText() する(textChanged からいつもの経路で反映される)。
 
-        ★ LABEL_SYMBOL_PALETTEはgui/main_window.py側の定義を、循環import
-        (main_window.pyがこのMixinをインポートしているため)を避けるために
-        ここで遅延importして渡している。
+        LABEL_SYMBOL_PALETTE は main_window がこの mixin を import しているので、ここで遅れて import する。
         """
         from graphica.gui.main_window import LABEL_SYMBOL_PALETTE
 
@@ -597,15 +385,7 @@ class SettingsMixin:
             line_edit.setText(dialog.get_text())
 
     def _refresh_label_preview(self, preview_label, text, placeholder):
-        """
-        タイトル/X軸ラベル/Y軸ラベルのプレビューラベル(_ClickableMathPreviewLabel、
-        gui/main_window.py)の表示を、現在のテキストを実際にmatplotlibで
-        レンダリングした見た目に更新する(項目H-2-4追加分、実機フィードバック:
-        「mathtextを翻訳した形式をプレビューしといて」)。テキストが空の場合は
-        placeholderをtext_muted色で表示する(QLineEditのplaceholderTextと
-        同じ役割)。line_edit.textChanged、および初期表示・ダークモード切り替え
-        (_refresh_all_label_previews)から呼ばれる。
-        """
+        """プレビューを matplotlib で描いた見た目にする。空なら placeholder を text_muted の色で出す。"""
         from graphica.gui.mathtext_preview import render_mathtext_to_pixmap
 
         tokens = theme.current_tokens()
@@ -613,52 +393,27 @@ class SettingsMixin:
             pixmap = render_mathtext_to_pixmap(text, color=tokens["text_primary"])
         else:
             pixmap = render_mathtext_to_pixmap(placeholder, color=tokens["text_muted"])
-        # ★ 実機フィードバック: 「ここの文字サイズを枠内に収まるようにして」
-        #   (長いmathtext文字列がプレビュー欄の枠からはみ出していた)。
-        #   set_natural_pixmap()は「等倍」のpixmapを保持しておき、ウィジェット
-        #   自身の実際の幅が確定するたび(resizeEvent、タブ切り替え・
-        #   ウィンドウリサイズ等を含む)自動的に収まるよう再フィットする
-        #   (単純なsetPixmap()だと、この呼び出し時点でのwidth()が
-        #   まだ実際のレイアウト確定値と一致しない場合にはみ出したままに
-        #   なる、FitWidthPixmapLabel参照)。
+        # 欄の幅が決まるたびに収まるよう縮める(setPixmap だと、この時点の幅がまだ確定していないとはみ出す)
         preview_label.set_natural_pixmap(pixmap)
 
     def _refresh_all_label_previews(self):
-        """
-        ダークモード切り替え時に、タイトル/X軸ラベル/Y軸ラベルの全プレビューを
-        再レンダリングする(文字色がtext_primary/text_mutedトークン経由で
-        テーマに追従しているため、テーマが変わったら再描画しないと古い配色の
-        まま残ってしまう)。
-        """
+        """文字色がテーマに従うので、ダークモードの切り替えで描き直す。"""
         for preview_label, line_edit, placeholder in self._label_preview_widgets:
             self._refresh_label_preview(preview_label, line_edit.text(), placeholder)
 
     def _on_legend_loc_changed(self, *_args):
-        """
-        「凡例の位置」を選び直したときの処理。ドラッグで動かした位置
-        (legend_position)が残っていると選んだ位置が効かないため、先に消す。
-        """
+        """ドラッグした位置(legend_position)が残っていると選んだ位置が効かないので消す。"""
         axis_index = self.project.active_axis_index
         if axis_index < len(self.project.all_plot_settings):
             self.project.all_plot_settings[axis_index].pop('legend_position', None)
         self._on_axis_setting_changed()
 
     def _on_legend_drag_release(self, _event):
-        """
-        キャンバス上でマウスボタンを離したときの処理。凡例のドラッグ終了は
-        matplotlib 側の button_release_event で確定する(legend._loc が更新される)が、
-        このハンドラはそれより先に呼ばれうるので、イベント処理の後に読み取る。
-        """
+        """凡例のドラッグは matplotlib 側の button_release_event で確定し、こちらが先に呼ばれうるので、処理の後で読む。"""
         QTimer.singleShot(0, self._store_dragged_legend_positions)
 
     def _store_dragged_legend_positions(self):
-        """
-        各サブプロットの凡例の現在位置が、ドラッグで決まった座標(タプル)なら
-        その軸の設定 legend_position に保存する。保存しておかないと、次の
-        再描画で「凡例の位置」の選択どおりに戻ってしまう。
-        Returns:
-            bool: どれかの軸の位置を更新したか。
-        """
+        """凡例がドラッグで置かれていれば、その位置を legend_position に保存する(しないと次の描画で戻る)。どれか変えたら True。"""
         changed = False
         settings_list = self.project.all_plot_settings
         secondary_axes = getattr(self.canvas, 'all_secondary_axes', [])
@@ -670,7 +425,7 @@ class SettingsMixin:
                 legend = secondary_axes[index].get_legend()
             loc = getattr(legend, '_loc', None) if legend is not None else None
             if not isinstance(loc, tuple) or len(loc) != 2:
-                continue  # 'best' 等の既定位置のまま(ドラッグされていない)
+                continue
             position = [round(float(loc[0]), 4), round(float(loc[1]), 4)]
             if axis_setting(settings_list[index], 'legend_position') != position:
                 settings_list[index]['legend_position'] = position
@@ -678,12 +433,7 @@ class SettingsMixin:
         return changed
 
     def _on_edit_legend_order(self):
-        """
-        「凡例の順序...」ボタンが押されたときの処理。
-        現在アクティブな軸に描画されているデータセットの凡例ラベルを、
-        (保存済みのカスタム順があればそれを初期値として) ドラッグで並べ替えられる
-        ダイアログを表示し、結果を軸ごとの設定 (legend_order) に保存する。
-        """
+        """今の軸の凡例の並びをダイアログで決め、legend_order に保存する。"""
         axis_index = self.project.active_axis_index
         if axis_index >= len(self.canvas.all_axes):
             return
@@ -703,40 +453,11 @@ class SettingsMixin:
         self.project.all_plot_settings[axis_index]['legend_order'] = dialog.get_order()
         self._update_plot()
 
-    #==========================================================================
-    # 【★ 指摘: 以下のメソッドは「デッドコード」 ★】
-    # _connect_signals で valueChanged シグナルは _on_axis_setting_changed に
-    # 接続されているため、これらのスロットは実際には呼び出されません。
-    #==========================================================================
-
-    def _on_tick_width_changed(self, value):
-        """(呼び出されない) 目盛の太さ スピンボックスが変更された"""
-        self._tick_width = value
-        self._update_plot_appearance()
-
-    def _on_spine_width_changed(self, value):
-        """(呼び出されない) 外枠の太さ スピンボックスが変更された"""
-        self._spine_width = value
-        self._update_plot_appearance()
-
     def _font_props_to_dict(self, qfont: QFont) -> dict:
-        """
-        PySide6のQFontオブジェクトをMatplotlib用の（JSON保存可能な）辞書に変換する。
-        (★ __init__ でインポートした FontProperties ではないことに注意)
+        """QFont を JSON に保存できる辞書にする。
 
-        ★ 'family'は単一の名前(str)ではなく、qfont.families()が返す
-        フォールバック候補リストをそのまま保存する。既定フォント
-        (gui/main_window.py の _make_default_plot_font())はWindows/macOS
-        双方の日本語フォント名を含むフォールバックリストで構築されているため、
-        ここを.family()(先頭の1件しか返さない)にすると、matplotlib側に
-        渡すリストが1件に潰れてしまい、macOSでは存在しない"Yu Gothic"だけが
-        残って日本語が文字化けする。matplotlibのfamilyキーワードはstr/list
-        どちらも受け付けるため、ユーザーがQFontDialogで単一フォントを選んだ
-        場合(families()が1件のリストを返す)も含めて、常にリストとして保存する。
-
-        ★ 各候補名は_resolve_font_family_for_matplotlib()で解決を試み、
-        「Arial Narrow」のような複合名がmatplotlibに直接認識されない場合は
-        family+stretchのペアに変換する(詳細は同関数のdocstring参照)。
+        'family' は families() の候補リストのまま保存する(.family() の先頭1つにすると、macOS に無い
+        "Yu Gothic" だけが残って日本語が化ける)。各候補は _resolve_font_family_for_matplotlib で解決する。
         """
         resolved_families = []
         stretch = None
@@ -759,7 +480,6 @@ class SettingsMixin:
     def _gather_settings_from_ui(self) -> dict:
         """今の軸の設定を、画面の欄から集めた辞書(保存形式そのもの)で返す。キーは AXIS_SETTING_DEFAULTS と同じ。"""
         settings = {
-            # ラベル/書式タブ
             'title': self.ui.title_text_edit.text(),
             'x_label': self.ui.x_label_text_edit.text(),
             'y_label': self.ui.y_label_text_edit.text(),
@@ -767,7 +487,6 @@ class SettingsMixin:
             'y_label_visible': self.y_label_visible_checkbox.isChecked(),
             'y2_label': self.y2_label_text_edit.text(),
 
-            # X軸タブ
             'x_autoscale': self.ui.x_autoscale_checkbox.isChecked(),
             'x_min': self.ui.x_min_spinbox.value(),
             'x_max': self.ui.x_max_spinbox.value(),
@@ -787,7 +506,6 @@ class SettingsMixin:
             'x_secondary_axis_target_unit':
                 X_AXIS_UNIT_CHOICES[self.x_secondary_axis_target_unit_combo.currentIndex()],
 
-            # Y軸タブ
             'y_autoscale': self.ui.y_autoscale_checkbox.isChecked(),
             'y_min': self.ui.y_min_spinbox.value(),
             'y_max': self.ui.y_max_spinbox.value(),
@@ -802,7 +520,6 @@ class SettingsMixin:
             'y_tick_format_mode': self.y_tick_format_combo.currentIndex(),
             'y_tick_decimals': self.y_tick_decimals_spinbox.value(),
 
-            # ラベル/書式タブ (続き)
             'legend_visible': self.ui.legend_visible_checkbox.isChecked(),
             'legend_loc': self.legend_loc_combo.currentText(),
             'grid_visible': self.ui.grid_visible_checkbox.isChecked(),
@@ -1001,16 +718,10 @@ class SettingsMixin:
             QMessageBox.warning(self, "設定適用エラー", f"設定の適用中にエラーが発生しました:\n{e}")
             logger.exception("設定の適用中にエラー")
         finally:
-            # 5. ★★★ 必須 ★★★
-            #    成功しても失敗しても、シグナルを必ず元に戻す
+            # 途中で失敗しても必ず戻す
             self._block_all_signals(False)
 
     def _block_all_signals(self, block: bool):
-        """
-        UIコントロールのシグナルを一括でブロック(True) / 解除(False) する
-        ヘルパーメソッド。_apply_settings_to_ui_controls で使用。
-        """
-        # X軸タブ
         self.ui.x_autoscale_checkbox.blockSignals(block)
         self.ui.x_min_spinbox.blockSignals(block)
         self.ui.x_max_spinbox.blockSignals(block)
@@ -1029,7 +740,6 @@ class SettingsMixin:
         self.x_secondary_axis_source_unit_combo.blockSignals(block)
         self.x_secondary_axis_target_unit_combo.blockSignals(block)
 
-        # Y軸タブ
         self.ui.y_autoscale_checkbox.blockSignals(block)
         self.ui.y_min_spinbox.blockSignals(block)
         self.ui.y_max_spinbox.blockSignals(block)
@@ -1046,7 +756,6 @@ class SettingsMixin:
         self.y_ticks_visible_checkbox.blockSignals(block)
         self.y_tick_labels_visible_checkbox.blockSignals(block)
 
-        # ラベル/書式タブ
         self.ui.title_text_edit.blockSignals(block)
         self.ui.x_label_text_edit.blockSignals(block)
         self.ui.y_label_text_edit.blockSignals(block)

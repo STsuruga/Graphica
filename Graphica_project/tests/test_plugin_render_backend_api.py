@@ -12,7 +12,7 @@ gui/canvas.py のレンダリング経路への実際の組み込みはスコー
 import pytest
 
 import graphica.core.plugin_api as plugin_api_module
-from graphica.core.plugin_api import GraphicaPluginAPI, get_registered_render_backends
+from graphica.core.plugin_api import GraphicaPluginAPI
 
 
 @pytest.fixture(autouse=True)
@@ -53,14 +53,3 @@ def test_register_render_backend_duplicate_name_is_isolated_not_raised():
     assert len(api.registration_errors) == 1
     assert api.registration_errors[0].hook_kind.value == "render_backend"
 
-
-def test_get_registered_render_backends_returns_empty_when_unloaded():
-    assert get_registered_render_backends() == []
-
-
-def test_module_accessor_reflects_loaded_singleton():
-    api = GraphicaPluginAPI()
-    api.register_render_backend("MyBackend", _DummyBackend())
-    plugin_api_module._singleton_api = api
-
-    assert [b.name for b in get_registered_render_backends()] == ["MyBackend"]

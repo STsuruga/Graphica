@@ -1,22 +1,16 @@
-# core/methods_text.py
-"""
-provenance(処理履歴、項目C-1101)から人間可読な説明を組み立てる共通ロジック。
-gui/provenance_panel.py(ツリー表示のノードラベル)と generate_methods_text()
-(項目C-1102、「方法」文の自動生成)の両方から使う、operation文字列→日本語の
-説明文への変換をここに一本化する(表記のズレを防ぐため)。
-"""
+"""処理の履歴(provenance)を日本語の説明にする。履歴パネルと「方法」の文で表記を揃えるため、ここに1つにする。"""
+from typing import TYPE_CHECKING, Any
+if TYPE_CHECKING:
+    from graphica.core.dataset import Dataset
+    from graphica.models.project import ProjectModel
 
 
-def describe_operation(provenance):
-    """
-    provenance dict(Dataset.provenance、項目C-1101)から、1つの処理ステップを
-    要約した日本語の文字列を組み立てる。ツリー表示のノードラベル・方法文の
-    1文単位のどちらにも使える粒度にしてある。
-    """
+def describe_operation(provenance: dict[str, Any] | None) -> str:
+    """1つの処理を要約した文(履歴パネルの項目にも、方法の文の1文にも使える)。"""
     if not provenance:
         return "不明な操作"
     operation = provenance.get('operation')
-    params = provenance.get('params') or {}
+    params: dict[str, Any] = provenance.get('params') or {}
 
     if operation == 'savgol':
         return (
@@ -43,9 +37,8 @@ def describe_operation(provenance):
     if operation == 'mean_sd':
         return f"複数データセットの平均±SD生成({params.get('n_source')}件、手法: {params.get('method')})"
     if operation == 'cumulative_integral':
-        method_label = {'trapezoid': '台形則', 'simpson': 'Simpson則'}.get(
-            params.get('method'), params.get('method')
-        )
+        method_labels: dict[Any, str] = {'trapezoid': '台形則', 'simpson': 'Simpson則'}
+        method_label = method_labels.get(params.get('method'), params.get('method'))
         return f"累積積分({method_label})"
     if operation == 'average_duplicate_x':
         return (
@@ -70,9 +63,8 @@ def describe_operation(provenance):
         return f"多峰分離フィット({params.get('component_type', '不明')} x{params.get('n_components', '?')})"
     if operation == '2d_slice':
         start, end = params.get('start'), params.get('end')
-        axis_label = {'x': 'X軸方向', 'y': 'Y軸方向', 'distance': '斜め方向'}.get(
-            params.get('axis_kind'), params.get('axis_kind')
-        )
+        axis_labels: dict[Any, str] = {'x': 'X軸方向', 'y': 'Y軸方向', 'distance': '斜め方向'}
+        axis_label = axis_labels.get(params.get('axis_kind'), params.get('axis_kind'))
         if start and end:
             return (
                 f"2Dマップからの1Dスライス抽出({axis_label}、"
@@ -82,27 +74,17 @@ def describe_operation(provenance):
     return operation or "不明な操作"
 
 
-def generate_methods_text(dataset, project):
-    """
-    データセットのprovenanceチェーンを祖先から順にたどり、処理の流れを
-    説明する日本語の「方法」文を1つの文字列として組み立てる(項目C-1102)。
-    元データ(provenanceを持たないデータセット)にたどり着くか、親が既に
-    削除されている(project.datasetsに見つからない)場合はそこで打ち切る。
-    循環参照(理論上発生しないはずだが、壊れた/手編集されたプロジェクト
-    ファイルへの安全策として)は visited セットで検知し打ち切る。
-    """
+def generate_methods_text(dataset: "Dataset", project: "ProjectModel") -> str:
+    """祖先から順に辿って「方法」の文にする。元データか、親が消されていればそこで止める(循環も止める)。"""
     chain = []
     visited = set()
-    current = dataset
+    current: "Dataset | None" = dataset
     while current is not None and current.provenance and current.dataset_id not in visited:
         visited.add(current.dataset_id)
         chain.append(current.provenance)
         source_ids = current.provenance.get('source_dataset_ids') or []
         if len(source_ids) != 1:
-            # 複数の親(データセット間演算等)を持つ場合、単一の直線的な
-            # 文章では表現しきれないため、そこで祖先探索を打ち切り
-            # (自分自身のoperationは既にchainに含めてある)、この後
-            # 別途「親データセット名」を列挙する形で文章に反映する。
+            # 親が複数(データセット間の演算など)なら一本の文にならないので、ここで止めて親の名前を並べる
             break
         source_id = source_ids[0]
         current = next((ds for ds in project.datasets if ds.dataset_id == source_id), None)
@@ -110,7 +92,7 @@ def generate_methods_text(dataset, project):
     if not chain:
         return f"「{dataset.name}」は処理履歴を持たない元データです。"
 
-    chain.reverse()  # 祖先(最も古い操作)から順に並べる
+    chain.reverse()  # 古い処理から順に
     steps = [describe_operation(prov) for prov in chain]
 
     if len(steps) == 1:

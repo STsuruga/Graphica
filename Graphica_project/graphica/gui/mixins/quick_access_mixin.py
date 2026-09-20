@@ -1,38 +1,9 @@
-# gui/mixins/quick_access_mixin.py
-"""
-項目87: クイックアクセスのカスタムツールバー。
+"""クイックアクセス: よく使うメニュー項目をツールバーにピン留めする。
 
-ユーザーがよく使うメニュー項目(プラグイン(項目76)が追加したメニュー項目も
-含む)を、専用のツールバーにピン留めできるようにするMixin。
-
-設計方針:
-- ピン留め対象は「メニューバー配下の実行可能なQAction」に統一する。
-  既存の _collect_menu_actions() (UISetupMixinで定義、コマンドパレット/
-  ショートカット一覧が既に依存している) が返す [(パスのリスト, QAction), ...]
-  をそのまま再利用する。プラグインが register_menu_action() で追加した
-  アクションも、_create_menu_bar() の時点で通常のQActionとして
-  「プラグイン」メニューに追加済みのため、特別扱い不要で一緒に集まる
-  (_collect_menu_actions() 側で「プラグイン」メニューも走査するよう修正済み)。
-- ★ 重要 ★ ピン留めしたQActionは、コピーを作らず「同じオブジェクト」を
-  ツールバーにも addAction() する。QActionは複数のウィジェット
-  (メニュー・ツールバー)に同時に所属でき、Qt側が状態(有効/無効・チェック
-  状態など)を自動的に同期するため、複製すると起き得る「本体側だけ更新されて
-  ツールバー側が古いままになる」ようなズレを避けられる。
-- 永続化はQSettings("Graphica", "Graphica")の "quick_access_pinned_actions"
-  キーに、識別子文字列のリストとして保存する。識別子は
-  _collect_menu_actions() が返すパスのリストを " > " で連結した文字列
-  (例: "ファイル(F) > プロジェクトを開く(O)...")。アプリ再起動のたびに
-  メニューは一から再構築され、QAction自体は毎回新しいオブジェクトになる
-  ため、objectName等ではなく「表示テキストの階層パス」を安定識別子として
-  使う。メニュー構造やテキストを変えない限り再起動をまたいで一致し続け、
-  該当するアクションが見つからない場合(プラグインが削除された等)は
-  単に無視して復元をスキップする(エラーにしない)。
-- 複数タブ(項目40)対応: 各PlotterAppタブは自分自身の menuBar()・
-  _collect_menu_actions()・quick_access_toolbar を個別に持つため、
-  ツールバーの構築/復元は毎回タブごとに独立して行う。共有するのは
-  QSettingsの永続化データ(識別子のリスト)のみで、新しく開いたタブは
-  そのタブ自身のメニューから同じ識別子に一致するアクションを探して
-  復元する。
+ツールバーにはメニューの QAction そのものを addAction する(写しを作ると状態がずれる)。
+ピン留めは QSettings の "quick_access_pinned_actions" に、メニューのパスを " > " でつないだ文字列で保存する
+(QAction は起動のたびに作り直されるので、表示文字のパスを識別子にする)。見つからないものは黙って飛ばす。
+ツールバーはタブごとに作り、共有するのは保存した識別子だけ。
 """
 import logging
 
@@ -48,63 +19,42 @@ logger = logging.getLogger(__name__)
 QUICK_ACCESS_SETTINGS_KEY = "quick_access_pinned_actions"
 
 
-# 識別子(永続化されるピン留めのキー)でメニュー階層を区切る文字列。
-# _migrate_pinned_quick_access_ids() が末尾の項目名を取り出すのにも使うため、
-# 両者が必ず同じものを見るよう定数にしてある。
+# _migrate_pinned_quick_access_ids() が末尾の項目名を取り出すのにも使う
 SEPARATOR = " > "
 
 
 def quick_access_action_identifier(path):
-    """_collect_menu_actions() が返すパスのリストから、永続化用の識別子文字列を作る"""
     return SEPARATOR.join(path)
 
 
 class QuickAccessMixin:
     def _create_quick_access_toolbar(self):
-        """
-        空のクイックアクセスツールバーと、表示/非表示を切り替えるための
-        表示メニュー項目を作成する。__init__ 内の _create_menu_bar() から、
-        表示メニュー構築の一環として呼ばれる。
+        """空のツールバーと、表示メニューの切り替えを作る。
 
-        ピン留め済みアクションの実際の復元は _restore_quick_access_actions() で
-        別途行う(「プラグイン」メニューを含む全メニューが構築し終わった後で
-        ないと、プラグインが登録したアクションを _collect_menu_actions() 経由で
-        見つけられないため)。
+        ピン留めを戻すのは _restore_quick_access_actions()(プラグインのメニューを含めて全部できた後でないと見つからない)。
         """
-        self._quick_access_actions = {}  # 識別子 -> QAction (GC対策の永続参照)
+        self._quick_access_actions = {}  # 識別子 -> QAction(回収されないよう持つ)
 
         toolbar = QToolBar(tr("クイックアクセス"), self)
-        # QMainWindow::saveState()/restoreState() がツールバーの表示状態・配置を
-        # 一意に識別できるよう、objectNameを設定しておく(未設定だと警告が出る)。
+        # saveState() が見分けられるように
         toolbar.setObjectName("quick_access_toolbar")
-        # 項目H-2-1(GUIモダン化): Qt標準のツールバーはドラッグで再配置・
-        # フローティング化できる「移動グリップ」(ドット状のハンドル)を左端に
-        # 描画するが、このアプリでは上部固定の1本のみを想定しており移動機能を
-        # 使わないため、フラット/ミニマルテーマと馴染まないこのグリップの
-        # 表示自体をQtの標準機能で無効化する(QSSでは隠せない見た目のため)。
+        # 上に固定するので、移動用のつまみは出さない(QSS では隠せない)
         toolbar.setMovable(False)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
         self.quick_access_toolbar = toolbar
 
-        # ツールバー先頭には常に「管理...」ボタンを置く(ピン留め0件でも
-        # 管理ダイアログへ辿り着けるようにするため)。
+        # ピン留めが0件でも管理ダイアログに行けるよう、先頭に置く
         self.quick_access_manage_action = QAction(tr("クイックアクセスの管理..."), self)
         self.quick_access_manage_action.triggered.connect(self._on_manage_quick_access)
         toolbar.addAction(self.quick_access_manage_action)
         toolbar.addSeparator()
 
-        # QToolBarもQDockWidgetと同様、標準の表示/非表示トグルアクションを持つ
-        # (既存のプロパティパネル/エクスポートプレビューの表示メニュー項目と同じ方式)。
         toggle_action = toolbar.toggleViewAction()
         toggle_action.setText(tr("クイックアクセスツールバー"))
         self._view_menu.addAction(toggle_action)
 
-    # --------------------------------------------------------------------
-    # 右クリックでのピン留め/解除 (メニュー項目 → コンテキストメニュー)
-    # --------------------------------------------------------------------
 
     def _quick_access_pinnable_menus(self):
-        """右クリックでのピン留め対象とする、キャッシュ済みの最上位メニュー一覧"""
         menus = [self._file_menu, self._edit_menu, self._view_menu, self._help_menu]
         plugin_menu = getattr(self, '_plugin_menu', None)
         if plugin_menu is not None:
@@ -112,12 +62,7 @@ class QuickAccessMixin:
         return menus
 
     def _install_quick_access_context_menus(self):
-        """
-        各最上位メニューに、項目を右クリックして
-        「クイックアクセスに追加/から削除」できるコンテキストメニューを取り付ける。
-        _create_menu_bar() が完全に終わった後(プラグインメニューも含めて
-        全メニューが揃った後)に __init__ 側から一度だけ呼ばれる想定。
-        """
+        """各メニューの項目の右クリックでピン留めと解除をできるようにする(全部のメニューができた後に1回)。"""
         for menu in self._quick_access_pinnable_menus():
             menu.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             menu.customContextMenuRequested.connect(
@@ -125,14 +70,7 @@ class QuickAccessMixin:
             )
 
     def _resolve_quick_access_menu_target(self, menu, pos):
-        """
-        menu内の座標posにあるアクションから、(識別子, パスのリスト, QAction) を返す。
-        区切り線・サブメニューを開くアクション・どこも指していない位置の場合はNoneを返す。
-
-        ★ このメソッドはUIを一切開かない(ポップアップ表示を伴う
-        _on_quick_access_menu_context_menu から意図的に切り出してある)ため、
-        イベントループを介さずにテストできる。
-        """
+        """pos の項目の (識別子, パス, QAction)。区切り線やサブメニューなら None。UI を開かないのでテストできる。"""
         action = menu.actionAt(pos)
         if action is None or action.isSeparator() or action.menu() is not None:
             return None
@@ -144,7 +82,6 @@ class QuickAccessMixin:
         return ident, path, action
 
     def _on_quick_access_menu_context_menu(self, menu, pos):
-        """メニュー項目を右クリックしたときの処理。ピン留め/解除の小さなメニューを出す"""
         target = self._resolve_quick_access_menu_target(menu, pos)
         if target is None:
             return
@@ -159,16 +96,12 @@ class QuickAccessMixin:
             add_action.triggered.connect(lambda: self.pin_quick_access_action(ident, action))
         popup.exec(menu.mapToGlobal(pos))
 
-    # --------------------------------------------------------------------
-    # 永続化 (QSettings)
-    # --------------------------------------------------------------------
 
     def _get_pinned_quick_access_ids(self):
-        """QSettingsから、ピン留め済み識別子のリスト(ピン留めした順)を取得する"""
+        """ピン留めした順の識別子。"""
         ids = self.settings.value(QUICK_ACCESS_SETTINGS_KEY, [])
         if isinstance(ids, str):
-            # QSettings は要素数1のリストを単一の文字列として返すことがあるため補正する
-            # (_get_recent_files と同じ既知の癖)
+            # 要素が1つのリストを文字列で返すことがある
             ids = [ids]
         return list(ids) if ids else []
 
@@ -176,23 +109,10 @@ class QuickAccessMixin:
         self.settings.setValue(QUICK_ACCESS_SETTINGS_KEY, ids)
 
     def _migrate_pinned_quick_access_ids(self, ids, available):
-        """
-        メニューの再編でパスが変わったピン留めを、新しい識別子へ読み替える
-        (改善ボード C-3 のサブメニュー化への対応)。
+        """メニューの組み替えでパスが変わったピン留めを、新しい識別子に読み替える。((識別子のリスト, 変えたか))
 
-        識別子は「メニューのパス全体」("ファイル(F) > 名前を付けてエクスポート(S)..."
-        のような文字列)なので、項目をサブメニューへ移したり別のメニューへ移したり
-        すると、保存済みのピンがどれにも一致しなくなる。_restore_quick_access_actions
-        は一致しない識別子を黙ってスキップする設計なので、放っておくと
-        **エラーも警告も出ないままツールバーからピンが消える**。
-
-        読み替えは「末尾の項目名が一致する候補が現在のメニューにちょうど1つだけ
-        あるか」で判定する。同名の項目が複数あるときは誤爆を避けて読み替えない
-        (その場合は従来どおり黙ってスキップされる)。項目名自体が変わった場合も
-        対象外で、これは意図的な割り切り。
-
-        Returns:
-            (list, bool): 読み替え後の識別子リストと、変更があったかどうか。
+        一致しない識別子は黙って飛ばされ、ピンが知らないうちに消えるので読み替える。末尾の項目名が一致する候補が
+        今のメニューにちょうど1つあるときだけ読み替え、複数あれば触らない。項目名自体が変わったものは読み替えない。
         """
         by_leaf = {}
         for ident in available:
@@ -213,19 +133,11 @@ class QuickAccessMixin:
                 migrated.append(candidates[0])
                 changed = True
             else:
-                migrated.append(ident)  # 判断できないものは触らずそのまま残す
+                migrated.append(ident)
         return migrated, changed
 
     def _restore_quick_access_actions(self):
-        """
-        起動時に一度呼ばれる。QSettingsに保存された識別子のリストから、
-        現在のメニューに存在するアクションだけをツールバーへ復元する。
-        該当するアクションが見つからない識別子(プラグインが削除された等)は
-        黙ってスキップする(エラーにしない、ベストエフォート)。
-
-        ★ メニュー再編でパスが変わった識別子は、復元の前に
-        _migrate_pinned_quick_access_ids() で読み替える(改善ボード C-3)。
-        """
+        """保存した識別子のうち、今のメニューにあるものをツールバーに戻す(起動時に1回)。"""
         ids = self._get_pinned_quick_access_ids()
         if not ids:
             return
@@ -235,16 +147,13 @@ class QuickAccessMixin:
         }
         ids, changed = self._migrate_pinned_quick_access_ids(ids, available)
         if changed:
-            # 読み替え結果を書き戻して、次回以降は読み替え不要にする
+            # 書き戻して、次からは読み替えずに済むように
             self._set_pinned_quick_access_ids(ids)
         for ident in ids:
             action = available.get(ident)
             if action is not None:
                 self._add_action_to_quick_access_toolbar(ident, action)
 
-    # --------------------------------------------------------------------
-    # ピン留め/解除の実処理 (コンテキストメニュー・管理ダイアログ共通)
-    # --------------------------------------------------------------------
 
     def _add_action_to_quick_access_toolbar(self, ident, action):
         if ident in self._quick_access_actions:
@@ -253,10 +162,6 @@ class QuickAccessMixin:
         self._quick_access_actions[ident] = action
 
     def pin_quick_access_action(self, ident, action):
-        """
-        アクションをクイックアクセスツールバーにピン留めする
-        (コンテキストメニュー・管理ダイアログの両方から呼ばれる共通エントリポイント)。
-        """
         self._add_action_to_quick_access_toolbar(ident, action)
         ids = self._get_pinned_quick_access_ids()
         if ident not in ids:
@@ -264,7 +169,6 @@ class QuickAccessMixin:
             self._set_pinned_quick_access_ids(ids)
 
     def unpin_quick_access_action(self, ident):
-        """クイックアクセスツールバーからピン留めを解除する"""
         action = self._quick_access_actions.pop(ident, None)
         if action is not None:
             self.quick_access_toolbar.removeAction(action)
@@ -276,17 +180,11 @@ class QuickAccessMixin:
     def is_quick_access_pinned(self, ident):
         return ident in self._quick_access_actions
 
-    # --------------------------------------------------------------------
-    # 管理ダイアログ
-    # --------------------------------------------------------------------
 
     def _on_manage_quick_access(self):
-        """クイックアクセスツールバーの「クイックアクセスの管理...」ボタンの処理"""
-
         def toggle(ident, path, checked):
             if checked:
-                # CommandPaletteDialogと同じ理由で、表示時に集めたQActionは
-                # 使わず、実行直前に取り直したものを使う(パスで再照合する)。
+                # 一覧を作ったときの QAction は使わず、実行する直前にパスで取り直す
                 for p, action in self._collect_menu_actions():
                     if p == path:
                         self.pin_quick_access_action(ident, action)

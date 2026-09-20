@@ -1,11 +1,4 @@
-# gui/color_picker_widget.py
-"""
-データセットの色選択欄(項目65)用の複合ウィジェット。
-
-スウォッチボタン(クリックでQColorDialog/最近使った色パレットを展開)と、
-選択中の色をカラーコード(#RRGGBB)で直接確認・編集できるテキスト欄を
-組み合わせ、色を「見て」「数値でも」扱えるようにする。
-"""
+"""データセットの色の欄: 色見本のボタン(クリックで色を選ぶ)と、#RRGGBB の入力欄。"""
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QLineEdit,
@@ -18,20 +11,13 @@ from graphica.core.named_colors import (
 )
 from graphica.gui.color_history import get_color_with_history
 
-# ポップアップに並べる色見本の一辺(px)
 _SWATCH_ICON_SIZE = 14
 
 DEFAULT_COLOR = "#1f77b4"
 
 
 class ColorPickerWidget(QWidget):
-    """
-    スウォッチ(パレット展開ボタン) + カラーコード入力欄の複合ウィジェット。
-
-    colorChanged(str) は、ユーザー操作(スウォッチでの選択 or カラーコード欄への
-    直接入力)によって色が実際に変わったときのみ発火する。set_color() による
-    プログラム的な表示更新(データセット切り替え時など)では発火しない。
-    """
+    """colorChanged(str) は利用者の操作で色が変わったときだけ出る(set_color() では出ない)。"""
     colorChanged = Signal(str)
 
     def __init__(self, settings, parent=None, initial_color=DEFAULT_COLOR):
@@ -62,18 +48,13 @@ class ColorPickerWidget(QWidget):
         self.hex_edit.setText(self._color.name())
 
     def color(self):
-        """現在の色を QColor で返す。"""
         return QColor(self._color)
 
     def color_name(self):
-        """現在の色を #RRGGBB 形式の文字列で返す。"""
         return self._color.name()
 
     def set_color(self, color):
-        """
-        表示のみを更新する(colorChangedは発火しない)。
-        データセット選択の切り替え時など、外部の状態にUIを合わせる用途。
-        """
+        """表示だけ変える(colorChanged は出ない)。"""
         new_color = QColor(color)
         if not new_color.isValid():
             return
@@ -84,20 +65,13 @@ class ColorPickerWidget(QWidget):
         self.hex_edit.blockSignals(False)
 
     def blockSignals(self, block):
-        # dataset_mixin.py 側の「シグナルを一時ブロックしてUIへ値をロードする」既存パターン
-        # (self.ui.xxx.blockSignals(True/False)) と同じ流儀で使えるよう、内部の
-        # 子ウィジェットにも伝播させる。
+        # ほかの欄と同じく blockSignals で値を入れられるよう、中の部品にも伝える
         self.swatch_button.blockSignals(block)
         self.hex_edit.blockSignals(block)
         return super().blockSignals(block)
 
     def _update_swatch(self, preview_color=None):
-        # ★ 項目H-2-6(H-0調査で判明): 以前はborder色をrgba(128,128,128,110)で
-        #   ハードコードしており、gui/theme.pyのトークンと無関係な固定グレーだった
-        #   (ライト/ダーク双方で同じ見た目になり、他のUI要素との統一感が無かった)。
-        #   現在テーマのborder_strongトークンを参照するよう変更。
-        # preview_color: カラーコード欄への入力中(未確定)のライブプレビュー用。
-        #   Noneなら確定済みの self._color を使う(通常の再描画)。
+        # preview_color は入力中(未確定)の色。None なら確定した self._color
         from graphica.gui import theme
         border_color = theme.current_tokens()["border_strong"]
         color_name = (preview_color or self._color).name()
@@ -108,30 +82,15 @@ class ColorPickerWidget(QWidget):
         )
 
     def refresh_theme(self):
-        """
-        ダークモード切り替え時に呼ばれ、スウォッチの枠線色を現在のテーマに
-        合わせて再描画する(スウォッチの背景色自体はユーザーが選んだデータ色
-        なのでテーマとは無関係、枠線色だけがテーマ依存)。
-        """
+        """ダークモードの切り替えで枠の色を当て直す(塗りはデータの色なのでテーマと関係ない)。"""
         self._update_swatch()
 
     def _on_swatch_clicked(self):
-        """
-        スウォッチを押したときのポップアップ。
-
-        以前は直接 QColorDialog を開いていたが、「よく使う色を名前付きで登録して
-        おき、複数の種類のデータで同じ物質に同じ色を使いたい」という要望を受けて、
-        登録済みの色(core/named_colors.py)を先に見せるメニューにした。
-        従来どおりの自由な色選択は「その他の色...」から辿れる
-        (ツールチップが元から「クリックしてパレットを開く」なので、挙動としても
-        こちらの方が素直)。
-        """
+        """登録した色(core/named_colors.py)を先に並べ、自由な色選びは「その他の色...」から。"""
         menu = QMenu(self)
         entries = load_named_colors(self._settings)
 
-        # 登録は際限なく増やせるので、メニューに並べるのは先頭 POPUP_LIMIT 件まで。
-        # 溢れたぶんは検索欄付きの一覧から選ぶ(よく使う色は「色名の管理」の
-        # 「上へ」で上位に持って行けば、ここだけで済む)。
+        # 登録は際限なく増えるので、並べるのは先頭 POPUP_LIMIT 件まで。残りは検索できる一覧から選ぶ
         for entry in entries[:POPUP_LIMIT]:
             action = menu.addAction(_color_icon(entry["color"]),
                                     f'{entry["name"]}	{entry["color"]}')
@@ -153,13 +112,12 @@ class ColorPickerWidget(QWidget):
         other_action = menu.addAction(tr("その他の色..."))
         other_action.triggered.connect(self._on_pick_other_color)
 
-        # サブメニューは無いが、ローカル変数 menu が exec() の間ずっと生きている
-        # ことに依存する点は、データセットの右クリックメニューと同じ。
+        # menu が exec() の間生きていることに頼っている(データセットの右クリックメニューと同じ)
         menu.exec(self.swatch_button.mapToGlobal(
             self.swatch_button.rect().bottomLeft()))
 
     def _apply_color_name(self, color_name):
-        """登録済みの色を選んだときの反映(値が変わったときだけ通知する)。"""
+        """値が変わったときだけ知らせる。"""
         candidate = QColor(color_name)
         if not candidate.isValid() or candidate.name() == self._color.name():
             return
@@ -167,7 +125,6 @@ class ColorPickerWidget(QWidget):
         self.colorChanged.emit(self._color.name())
 
     def _on_choose_from_all_named_colors(self):
-        """登録が POPUP_LIMIT 件を超えたときに開く、検索欄付きの一覧。"""
         from graphica.gui.dialogs import NamedColorPickerDialog
         dialog = NamedColorPickerDialog(self._settings, self)
         if dialog.exec() != dialog.DialogCode.Accepted:
@@ -177,7 +134,6 @@ class ColorPickerWidget(QWidget):
             self._apply_color_name(entry["color"])
 
     def _on_pick_other_color(self):
-        """従来どおりの QColorDialog(最近使った色の履歴つき)。"""
         color = get_color_with_history(self._settings, self, initial=self._color)
         if not color.isValid():
             return
@@ -187,7 +143,6 @@ class ColorPickerWidget(QWidget):
         self.colorChanged.emit(self._color.name())
 
     def _on_register_current_color(self):
-        """いま選んでいる色に名前を付けて登録する。"""
         name, ok = QInputDialog.getText(
             self, tr("色を登録"),
             tr("この色の登録名 (%s)") % self._color.name())
@@ -202,35 +157,24 @@ class ColorPickerWidget(QWidget):
         save_named_colors(self._settings, entries)
 
     def _on_manage_named_colors(self):
-        """
-        色名の管理ダイアログを開く。
-        ★ gui/dialogs.py はこのモジュールを取り込む側なので、循環importを避ける
-        ため関数内で遅延importする。
-        """
+        """dialogs がこのモジュールを import しているので、ここで遅れて import する。"""
         from graphica.gui.dialogs import NamedColorManagerDialog
         dialog = NamedColorManagerDialog(self._settings, self)
         dialog.exec()
 
     def _on_hex_text_changed(self, text):
-        """
-        カラーコード欄をキー入力するたびに呼ばれ、まだ確定(editingFinished)
-        していなくても、有効な色になった時点でスウォッチにライブプレビュー
-        表示する。確定処理(Dataset側への反映・Undoコマンド発行・colorChanged
-        発火)は_on_hex_edited側のみが行う — キー入力のたびにUndo履歴を
-        積んでしまわないよう、ここではあくまで見た目の先行表示に留める。
-        """
+        """入力中でも有効な色になったら色見本に先に出す。確定(反映・Undo・colorChanged)は _on_hex_edited だけ(打つたびに Undo を積まないように)。"""
         candidate = QColor(text.strip())
         if candidate.isValid():
             self._update_swatch(preview_color=candidate)
         else:
-            # 入力途中で無効な状態(未入力・不完全な桁数など)は確定色の表示に戻す
             self._update_swatch()
 
     def _on_hex_edited(self):
         text = self.hex_edit.text().strip()
         candidate = QColor(text)
         if not candidate.isValid():
-            # 無効な入力(例: 未入力・誤字)は現在の色の表記に戻す
+            # 無効な入力なら今の色の表記に戻す
             self.hex_edit.setText(self._color.name())
             return
         if candidate.name() == self._color.name():
@@ -240,10 +184,7 @@ class ColorPickerWidget(QWidget):
 
 
 def _color_icon(color_name, size=_SWATCH_ICON_SIZE):
-    """
-    メニュー項目の先頭に出す色見本。枠線を1px描くのは、白や淡い色が
-    メニューの背景に溶けて「何も無い」ように見えるのを防ぐため。
-    """
+    """メニューの色見本。白や淡い色が背景に溶けないよう1pxの枠を描く。"""
     pixmap = QPixmap(size, size)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)

@@ -5,6 +5,7 @@
 """
 import json
 import re
+from typing import Any
 
 # 並び順がポップアップの表示順なので、辞書ではなく JSON の配列で保存する。
 NAMED_COLORS_SETTINGS_KEY = "named_colors_json"
@@ -19,7 +20,7 @@ class NamedColorError(ValueError):
     """メッセージはそのまま利用者に表示する。"""
 
 
-def normalize_color(value):
+def normalize_color(value: Any) -> str:
     """`#rgb` / `#rrggbb` を小文字の `#rrggbb` にする。QColor を使わないのは Qt 非依存にするため。"""
     text = (value or "").strip()
     if not _HEX_RE.match(text):
@@ -30,7 +31,7 @@ def normalize_color(value):
     return text
 
 
-def normalize_name(value):
+def normalize_name(value: Any) -> str:
     name = (value or "").strip()
     if not name:
         raise NamedColorError("登録名を入力してください。")
@@ -39,7 +40,7 @@ def normalize_name(value):
     return name
 
 
-def load_named_colors(settings):
+def load_named_colors(settings: Any) -> list[dict[str, str]]:
     """壊れたエントリは1件ずつ捨てる。設定が壊れても起動できなくなるよりは、登録が一部消える方がよい。"""
     raw = settings.value(NAMED_COLORS_SETTINGS_KEY, "")
     if not raw:
@@ -68,12 +69,12 @@ def load_named_colors(settings):
     return entries
 
 
-def save_named_colors(settings, entries):
+def save_named_colors(settings: Any, entries: list[dict[str, str]]) -> None:
     payload = [{"name": e["name"], "color": e["color"]} for e in entries]
     settings.setValue(NAMED_COLORS_SETTINGS_KEY, json.dumps(payload, ensure_ascii=False))
 
 
-def find_index_by_name(entries, name):
+def find_index_by_name(entries: list[dict[str, str]], name: str) -> int:
     target = (name or "").strip()
     for index, entry in enumerate(entries):
         if entry["name"] == target:
@@ -84,7 +85,7 @@ def find_index_by_name(entries, name):
 # 編集関数はどれも、引数のリストを変えずに新しいリストを返す。
 
 
-def add_named_color(entries, name, color):
+def add_named_color(entries: list[dict[str, str]], name: object, color: object) -> list[dict[str, str]]:
     # 名前と色が1対1でないと、名前から色が決まらないので重複は禁止。
     name = normalize_name(name)
     color = normalize_color(color)
@@ -93,7 +94,7 @@ def add_named_color(entries, name, color):
     return list(entries) + [{"name": name, "color": color}]
 
 
-def update_named_color(entries, index, name, color):
+def update_named_color(entries: list[dict[str, str]], index: int, name: object, color: object) -> list[dict[str, str]]:
     if not 0 <= index < len(entries):
         raise NamedColorError("編集対象が選択されていません。")
     name = normalize_name(name)
@@ -106,7 +107,7 @@ def update_named_color(entries, index, name, color):
     return updated
 
 
-def remove_named_color(entries, index):
+def remove_named_color(entries: list[dict[str, str]], index: int) -> list[dict[str, str]]:
     if not 0 <= index < len(entries):
         raise NamedColorError("削除対象が選択されていません。")
     updated = list(entries)
@@ -114,7 +115,7 @@ def remove_named_color(entries, index):
     return updated
 
 
-def move_named_color(entries, index, offset):
+def move_named_color(entries: list[dict[str, str]], index: int, offset: int) -> list[dict[str, str]]:
     if not 0 <= index < len(entries):
         raise NamedColorError("移動対象が選択されていません。")
     new_index = index + offset

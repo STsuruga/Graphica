@@ -1,8 +1,4 @@
-# gui/mixins/export_mixin.py
-"""
-プロットを画像/PDF/SVGとしてエクスポートする処理、およびエクスポート
-ダイアログのプレビュー生成をまとめた Mixin。
-"""
+"""画像・PDF・SVG への書き出し、印刷、クリップボード、書き出しのプレビュー。"""
 import datetime
 import io
 import os
@@ -31,35 +27,22 @@ from graphica.core.report_export import collect_methods_sections, generate_html_
 logger = logging.getLogger(__name__)
 
 def _project_has_raster_gradient_fill(project):
-    """
-    ベクター出力時のラスタ要素警告(項目145、C-810)のヘルパー。
-    gui/canvas.pyの_draw_data()が_add_gradient_fill()(ax.imshow()ベース)を
-    呼ぶのと全く同じ条件('Area'プロットタイプ + gradient_enabled +
-    gradient_targetが'fill'か'both')を持つデータセットが1つでもあるかを返す。
-    """
+    """グラデーションの塗り(imshow で描くのでベクター形式でもラスタになる)を使う系列があるか。"""
     return any(
         ds.plot_type == 'Area' and ds.gradient_enabled and ds.gradient_target in ('fill', 'both')
         for ds in project.datasets
     )
 
 
-# クリップボードにコピーする画像の解像度 (現在の表示サイズのまま、荒くならない程度のDPI)
 CLIPBOARD_COPY_DPI = 150
 
-# 印刷時の画像レンダリング解像度 (DPI)。プリンター出力なので画面表示より高めにする
 PRINT_RENDER_DPI = 200
 
-# バッチエクスポート時、個別画像として書き出す際のFigureサイズ (インチ)
 BATCH_EXPORT_FIGSIZE = (8, 6)
 
 
 class ExportMixin:
     def _on_copy_plot_to_clipboard(self):
-        """
-        「グラフをコピー」メニューがクリックされたときの処理。
-        現在表示中のグラフ全体 (全サブプロット) を画像としてクリップボードに
-        コピーする。他のアプリ (Word, PowerPointなど) に直接貼り付けられる。
-        """
         buf = io.BytesIO()
         try:
             self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
@@ -76,12 +59,7 @@ class ExportMixin:
         QApplication.clipboard().setPixmap(pixmap)
 
     def _on_show_cvd_simulation(self):
-        """
-        「色覚シミュレーションプレビュー...」メニューの処理(項目140、C-803)。
-        現在表示中のグラフを1回だけPNGとしてレンダリングし(クリップボード
-        コピーと同じ経路)、CVDSimulationDialogに渡す(グラフ自体の再描画は
-        行わない、ダイアログ側でモード切替のたびに画像変換だけを行う)。
-        """
+        """今のグラフを1回だけ PNG にし、ダイアログはその画像を変換して見せる(グラフは描き直さない)。"""
         buf = io.BytesIO()
         try:
             self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
@@ -98,14 +76,7 @@ class ExportMixin:
         dialog.exec()
 
     def _on_print_plot(self):
-        """
-        「印刷...」メニューがクリックされたときの処理。
-        ファイル保存を経由せず、現在表示中のグラフ(全サブプロット)を
-        QPrinter経由で直接プリンターに出力する。
-        matplotlibのFigureを直接QPainterで描画する代わりに、PNG画像として
-        レンダリングしてから貼り付ける方式にすることで、既存のsavefig周りの
-        ロジック(エクスポート機能)と同じ確実な描画結果を得られるようにしている。
-        """
+        """PNG に描いてから QPrinter に貼る(書き出しと同じ描画結果になる)。"""
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         print_dialog = QPrintDialog(printer, self)
         if print_dialog.exec() != QDialog.DialogCode.Accepted:
@@ -146,20 +117,9 @@ class ExportMixin:
         self.statusBar().showMessage("印刷を実行しました", 3000)
 
     def _on_batch_export(self):
-        """
-        「バッチエクスポート...」メニューの処理。
-        現在のプロジェクトの各サブプロットを個別画像として、または複数の
-        プロジェクトファイル(.graphica/.pkl)をそれぞれの完成図として、まとめて書き出す。
+        """サブプロットごと、または複数のプロジェクトファイルをまとめて書き出す。別スレッドで1本の TaskRunner で行う。
 
-        ★ 項目C-004フェーズ5b: フェーズ5aで書き出し1件ごとの一時キャンバスを
-        Qt非依存の_HeadlessRenderCanvas(gui/canvas.py、FigureCanvasAgg)に
-        切り替えたことで、GUIスレッド外での構築・描画が安全になったため、
-        ここから実際にgui/datasets/fitting.py の batch_fit_workerと同じ
-        TaskRunner配線パターンでバックグラウンドスレッド化する。
-        ★ 並行性の制約: _save_figure_with_optionsが使うmpl.rc_context()は
-        プロセスグローバルなrcParamsを書き換えるため、複数TaskRunnerを
-        同時に走らせたり、ループ自体を並列化したりはしない(既存の逐次forループの
-        ままバックグラウンドスレッドを1つだけ使う)。
+        rc_context はプロセス全体の rcParams を書き換えるので、並列にはしない。
         """
         if self._batch_export_task_runner is not None:
             QMessageBox.information(self, "実行中", "別のバッチエクスポート処理が実行中です。完了までお待ちください。")
@@ -216,11 +176,7 @@ class ExportMixin:
         QMessageBox.warning(self, "バッチエクスポート", f"バッチエクスポート処理に失敗しました:\n{error_message}")
 
     def _on_batch_export_succeeded(self, results, progress_dialog):
-        """
-        _batch_export_subplots()/_batch_export_project_files()の結果
-        ((出力ファイル名, エラー文字列またはNone)のタプルのリスト、
-        キャンセル時は完了済み分のみ)をメインスレッド側で処理する。
-        """
+        """結果は [(出力ファイル名, エラーか None), ...]。キャンセルなら終わった分だけ。"""
         self._cleanup_batch_export_task_runner()
         progress_dialog.close()
 
@@ -228,7 +184,7 @@ class ExportMixin:
         failed = [(name, error) for name, error in results if error is not None]
 
         if not succeeded and not failed:
-            return  # 1件も処理されないうちにキャンセルされた場合、通知不要
+            return  # 1件も終わらないうちにキャンセルされた
 
         message = f"{len(succeeded)}件を書き出しました。"
         if failed:
@@ -236,16 +192,9 @@ class ExportMixin:
         QMessageBox.information(self, "バッチエクスポート完了", message)
 
     def _save_figure_with_options(self, fig, out_path, options):
-        """
-        savefigのkwargsを、既存の単発エクスポートと同じ方針(bbox_inches='tight')で組み立てて保存する。
-        透過背景の有無は options['transparent'] に従う(項目108、未指定時は従来どおりTrue)。
-        SVG形式では svg.fonttype を適用し、目盛りの数字や凡例の文字を
-        テキスト要素(既定、'none')またはパス('path'、項目88)として出力する。
-        PDF形式では pdf.fonttype/ps.fonttype を42(TrueType埋め込み)にする(項目C-801)。
-        matplotlibの既定(Type3)だとIllustrator等のベクター編集ソフトで開いた際に
-        テキストとして選択・編集できず、アウトライン化されたように見えてしまうため。
-        options['format'] がプラグイン登録済みの形式名と一致する場合は、
-        ビルトイン処理の代わりにプラグインのwriterを呼ぶ(項目B-2)。
+        """bbox_inches='tight' で保存する。rc の設定は export_rc_params(SVG の文字の扱い、PDF の TrueType 埋め込み)。
+
+        形式がプラグインの書き出しの名前なら、プラグインの writer を呼ぶ。
         """
         api = get_plugin_api()
         exporter = api.get_exporter(options['format']) if api is not None else None
@@ -263,18 +212,10 @@ class ExportMixin:
             fig.savefig(out_path, **save_kwargs)
 
     def _batch_export_subplots(self, indices, options, report_progress=None, is_cancelled=None):
-        """
-        現在のプロジェクトの、指定されたサブプロットそれぞれを個別の画像として書き出す。
-        一時的な _HeadlessRenderCanvas を新しい1x1レイアウトとして使うため、対象
-        データセットの subplot_target を一時的に0に付け替えたコピー
-        (dataclasses.replace、dfは参照共有)を渡す。
+        """サブプロットを1枚ずつ書き出す。1x1 の一時キャンバスなので、subplot_target を 0 にした写しを渡す。
 
-        ★ 項目C-004フェーズ5b: TaskRunnerからバックグラウンドスレッドで呼ばれる
-        (gui/datasets/fitting.py の batch_fit_worker と同じ配線)。Qt/GUIオブジェクトには
-        一切触れない(_HeadlessRenderCanvasはQWidgetのサブクラスではないため
-        安全に構築できる)。is_cancelled()は項目間でのみチェックする(1件の
-        redraw_all()+savefig()自体は中断できないため、キャンセルの粒度は
-        「バッチの残り未処理分をスキップする」まで、batch_fit_worker と同じ方針)。
+        別スレッドで呼ばれるので Qt には触れない(_HeadlessRenderCanvas は QWidget ではない)。
+        キャンセルは1件ごとにしか見ない(1件の描画と保存は中断できない)。
         """
         results = []
         total = len(indices)
@@ -302,15 +243,7 @@ class ExportMixin:
         return results
 
     def _batch_export_project_files(self, paths, options, report_progress=None, is_cancelled=None):
-        """
-        複数のプロジェクトファイル(.graphica/.pkl)それぞれを読み込み、その完成図を書き出す。
-        現在開いているプロジェクト/GUIの状態には一切触れない(使い捨てのProjectModelと
-        _HeadlessRenderCanvasだけを使う)。load_project側が拡張子で保存形式を自動判別するため、
-        ここでは形式を意識せずパスをそのまま渡すだけでよい。
-
-        report_progress/is_cancelled(項目C-004フェーズ5b): _batch_export_subplots()と
-        同じ役割・同じ配線(TaskRunnerからバックグラウンドスレッドで呼ばれる)。
-        """
+        """プロジェクトファイルを1つずつ読み、その図を書き出す。開いているプロジェクトには触れない。別スレッドで呼ばれる。"""
         results = []
         total = len(paths)
         for i, path in enumerate(paths):
@@ -326,8 +259,7 @@ class ExportMixin:
                 temp_project.load_project(path)
                 layout_mode = getattr(temp_project, 'layout_mode', 'grid')
                 if layout_mode == 'free':
-                    # 自由配置レイアウトでは行数×列数という概念が無いため、
-                    # サブプロット数(=all_plot_settingsの要素数)に応じた標準サイズを使う。
+                    # 自由配置には行×列が無いので、サブプロットの数に応じた大きさにする
                     if not temp_project.all_plot_settings:
                         raise ValueError("有効なプロット設定が見つかりません")
                     rows, cols = 0, 0
@@ -353,14 +285,7 @@ class ExportMixin:
         return results
 
     def _on_export_python_script(self):
-        """
-        「Pythonスクリプトとしてエクスポート...」メニューの処理(項目C-1103)。
-        現在のプロジェクトを、matplotlib単体で完結するスタンドアロンの
-        Pythonスクリプトとして書き出す(囲い込み感の解消が狙い、Graphica本体が
-        無くても図を再現できる)。コード生成自体はGUI非依存の
-        core/script_export.py に委譲し、ここではファイルダイアログとエラー
-        表示だけを担当する。
-        """
+        """matplotlib だけで図を再現するスクリプトを書き出す(生成は core/script_export.py)。"""
         file_path, _ = QFileDialog.getSaveFileName(
             self, "Pythonスクリプトとしてエクスポート", "", "Python Files (*.py)"
         )
@@ -381,13 +306,7 @@ class ExportMixin:
         self.statusBar().showMessage(f"Pythonスクリプトを書き出しました: {file_path}", 3000)
 
     def _on_generate_caption(self):
-        """
-        「LaTeX/Word用キャプションを生成...」メニューの処理(項目142、C-807)。
-        現在編集中の軸(project.active_axis_index)のタイトルをキャプションの
-        初期値として、CaptionGeneratorDialogを表示するだけの薄い処理
-        (実際のLaTeXコード生成はcore/caption_export.pyに委譲し、コピー操作も
-        ダイアログ自身が行う)。
-        """
+        """今の軸のタイトルを初期値にキャプションのダイアログを出す(生成は core/caption_export.py)。"""
         settings = {}
         if 0 <= self.project.active_axis_index < len(self.project.all_plot_settings):
             settings = self.project.all_plot_settings[self.project.active_axis_index]
@@ -398,13 +317,7 @@ class ExportMixin:
         dialog.exec()
 
     def _on_generate_report(self):
-        """
-        「実験レポートを生成 (HTML/PDF)...」メニューの処理(項目157、C-1104)。
-        既存のprovenance記録(C-1101)・「方法」文の自動生成(C-1102)の出力先
-        として、現在のグラフ画像+処理履歴を持つ全データセットの方法文を
-        1つのレポートにまとめる。形式はファイル保存ダイアログで選んだ拡張子
-        (.html/.pdf)で決まる。
-        """
+        """グラフの画像と、履歴のある全データセットの方法の文を1つのレポートにする。形式は拡張子(.html / .pdf)で決まる。"""
         settings = {}
         if 0 <= self.project.active_axis_index < len(self.project.all_plot_settings):
             settings = self.project.all_plot_settings[self.project.active_axis_index]
@@ -439,18 +352,13 @@ class ExportMixin:
         self.statusBar().showMessage(f"実験レポートを書き出しました: {file_path}", 3000)
 
     def _write_pdf_report(self, file_path, title, methods_sections):
-        """
-        _on_generate_reportのPDF出力部分。1ページ目に現在のグラフ、2ページ目に
-        タイトル+方法文をテキストページとして描画したPDFを2ページ構成で書き出す
-        (matplotlib.backends.backend_pdf.PdfPages、追加依存なし)。
-        """
+        """1ページ目にグラフ、2ページ目にタイトルと方法の文。"""
         from graphica.gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
 
-        # フォントをTrueTypeとして埋め込む(項目C-801、_on_export_plotのPDF分岐と同じ理由)。
         with mpl.rc_context(export_rc_params('pdf')), PdfPages(file_path) as pdf:
             pdf.savefig(self.canvas.fig, bbox_inches='tight')
 
-            text_fig = Figure(figsize=(8.27, 11.69))  # A4縦
+            text_fig = Figure(figsize=(8.27, 11.69))  # A4 縦
             text_fig.text(0.08, 0.95, title, fontsize=16, fontweight='bold', va='top',
                           family=JP_CAPABLE_FONT_FAMILIES)
             body_lines = [f"生成日時: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", "", "方法:"]
@@ -464,28 +372,15 @@ class ExportMixin:
             pdf.savefig(text_fig)
 
     def _on_export_plot(self):
-            """
-            「名前を付けてエクスポート」メニューがクリックされたときの処理。
-            ExportDialog を表示し、設定を取得してプロットをファイルに保存します。
-            """
-
-            # 1. ExportDialog を作成
             dialog = ExportDialog(self)
 
-            # 2. ダイアログの「プレビュー更新」ボタンの clicked シグナルを、
-            #    _generate_preview メソッドに接続
-            #    (lambda を使い、dialog 自身を引数として渡す)
             dialog.preview_button.clicked.connect(
                 lambda: self._generate_preview(dialog)
             )
 
-            # 3. ダイアログをモーダルで表示し、"Save" (Accepted) が押されたか確認
             if dialog.exec() == QDialog.DialogCode.Accepted:
-                # 4. ダイアログから設定辞書を取得
                 options = dialog.get_options()
 
-                # 5. 保存先ファイルパスを QFileDialog で取得
-                # プラグインがregister_exporter()(項目B-2)で登録した形式も選択肢に追加する
                 filter_parts = ["PNG (*.png)", "PDF (*.pdf)", "SVG (*.svg)"]
                 for exp in get_registered_exporters():
                     filter_parts.append(f"{exp.format_name} (*{exp.extension})")
@@ -493,14 +388,9 @@ class ExportMixin:
                     self, "プロットを保存", "", ";;".join(filter_parts)
                 )
                 if not file_path:
-                    return # キャンセルされた
+                    return
 
-                # 5.5. ベクター出力時のラスタ要素警告(項目145、C-810)。
-                # グラデーション塗り(項目79)はax.imshow()で描いた画像をクリップ
-                # して見せる実装(_add_gradient_fill)のため、SVG/PDFに出力しても
-                # ベクターのままにならず、その部分だけラスタ画像として埋め込まれる
-                # (拡大するとぼやける・ファイルサイズが増える)。エクスポートは
-                # 続行しつつ、事前に気づけるよう注意喚起だけ行う。
+                # グラデーションの塗りはベクター形式でもラスタで埋め込まれる。書き出しは続け、知らせるだけ
                 export_ext = os.path.splitext(file_path)[1].lower()
                 if export_ext in ('.svg', '.pdf') and _project_has_raster_gradient_fill(self.project):
                     QMessageBox.warning(
@@ -511,29 +401,20 @@ class ExportMixin:
                         "エクスポートは続行します。"
                     )
 
-                # 6. ヘルパーメソッドで、設定 (px, cm) をインチ (in) に変換
                 width_in, height_in = self._calculate_size_in_inches(options)
 
-                # 6.5. フル解像度エクスポート: 有効な場合、LTTB/2Dグリッド間引きを
-                #    無視して全データ点/全解像度で再描画してから保存する
-                #    (self.canvasは画面表示用の本体キャンバスのため、finallyで
-                #    必ず通常の間引き済み状態へ戻す)。
+                # フル解像度なら間引かずに描き直してから保存する(finally で画面用に戻す)
                 full_resolution = options.get('full_resolution', False)
                 if full_resolution:
                     self._update_plot(full_resolution=True)
 
-                # 7. ★ 一時的に Figure サイズを変更して保存
-                original_size = self.canvas.fig.get_size_inches() # 現在のサイズを退避
+                original_size = self.canvas.fig.get_size_inches()
 
-                # 8. Figure のサイズをダイアログで指定されたサイズに変更
                 self.canvas.fig.set_size_inches(width_in, height_in)
 
-                # 9. savefig を実行 (DPIも指定)
                 try:
-                    # ファイルパスの拡張子を取得 (小文字に変換)
                     file_ext = os.path.splitext(file_path)[1].lower()
 
-                    # プラグインが登録した拡張子ならそちらのwriterに委譲する(項目B-2)
                     api = get_plugin_api()
                     exporter = api.get_exporter_for_extension(file_ext) if api is not None else None
                     if exporter is not None:
@@ -545,56 +426,36 @@ class ExportMixin:
                             ) from e
                         return
 
-                    # 背景の透過(項目108): ExportDialogのチェックボックスに従う
                     save_kwargs = {'transparent': options.get('transparent', True)}
                     save_kwargs['bbox_inches'] = 'tight'
 
-                    # ベクター形式 (pdf, svg) の場合は dpi を指定しない
                     if file_ext in ['.pdf', '.svg']:
                         pass
                     else:
-                        # ラスター形式 (png など) の場合は dpi を指定
                         save_kwargs['dpi'] = options["dpi"]
 
-                    # SVG形式では目盛りの数字・凡例の文字をテキスト(既定、項目108)
-                    # またはパス(項目88、svg_text_as_pathチェック時)として出力する
                     with mpl.rc_context(export_rc_params(file_ext, options.get('svg_text_as_path', False))):
                         self.canvas.fig.savefig(file_path, **save_kwargs)
                 except Exception as e:
                     logger.exception("エクスポートに失敗しました")
                     QMessageBox.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
                 finally:
-                    # 10. ★★★ 必須 ★★★
-                    #    保存が成功しても失敗しても、Figure のサイズを
-                    #    GUI上の元のサイズ (original_size) に戻す
+                    # 失敗しても画面の大きさに戻す
                     self.canvas.fig.set_size_inches(original_size)
-                    # フル解像度エクスポートのために全点描画へ切り替えていた場合、
-                    # 画面表示を通常の間引き済み状態へ戻す。
                     if full_resolution:
                         self._update_plot(full_resolution=False)
-                    self.canvas.draw_idle() # GUIのキャンバスを再描画
+                    self.canvas.draw_idle()
 
     def _generate_preview(self, dialog):
-            """
-            ExportDialog 内の「プレビュー更新」ボタンが押されたときの処理。
-            「現在アクティブなプロット」のプレビューを生成し、ダイアログに表示します。
+            """今の軸だけを、書き出しの大きさの一時的な Figure に描いて見せる。"""
 
-            Args:
-                dialog (ExportDialog): プレビューを表示するダイアログのインスタンス。
-            """
-
-            # 1. ダイアログから現在の設定を取得
             options = dialog.get_options()
 
-            # 2. サイズをインチに変換
             width_in, height_in = self._calculate_size_in_inches(options)
 
-            # 3. ★ プレビュー用の「一時的な」Figure を作成
-            #    (GUIの self.canvas.fig とは別物)
-            temp_fig = Figure(figsize=(width_in, height_in), dpi=100) # プレビューは 100 dpi 固定で十分
-            temp_ax = temp_fig.add_subplot(111) # プレビューは 1x1
+            temp_fig = Figure(figsize=(width_in, height_in), dpi=100)
+            temp_ax = temp_fig.add_subplot(111)
 
-            # 4. 現在アクティブな軸」のインデックスと設定を取得
             active_index = self.project.active_axis_index
             if active_index >= len(self.project.all_plot_settings):
                 logger.warning("プレビュー生成時、アクティブな軸設定が見つかりません。")
@@ -602,9 +463,7 @@ class ExportMixin:
 
             active_settings = self.project.all_plot_settings[active_index]
 
-            # 5. 一時的な軸 (temp_ax) に対し、アクティブな軸の
-            #    「データ」と「外観」を描画/適用する
-            # _draw_data は第2Y軸をこの一時的な Figure 上に作り all_secondary_axes に入れる。
+            # _draw_data は第2Y軸をこの一時的な Figure に作って all_secondary_axes に入れる。
             # 失敗しても必ず戻さないと、画面の第2Y軸がプレビューの軸を指したままになる。
             original_secondary = self.canvas.all_secondary_axes.copy()
             try:
@@ -621,56 +480,38 @@ class ExportMixin:
             finally:
                 self.canvas.all_secondary_axes = original_secondary
 
-            # 6. tight_layout() でラベルの重なりを調整
             try:
                 temp_fig.tight_layout()
             except ValueError:
-                pass # 失敗しても無視
+                pass
 
-            # 7. メモリ上のバイトバッファ (BytesIO) に PNG として保存
             buf = io.BytesIO()
             temp_fig.savefig(buf, format='png', dpi=100)
-            buf.seek(0) # バッファのポインタを先頭に戻す
+            buf.seek(0)
 
-            # 8. バッファから QPixmap (Qtの画像) をロード
             pixmap = QPixmap()
             pixmap.loadFromData(buf.read())
 
-            # 9. ダイアログの QLabel に QPixmap をセット
             dialog.preview_label.setPixmap(
-                pixmap.scaled(dialog.preview_label.size(), # ラベルのサイズ (400x300) に合わせる
-                            Qt.AspectRatioMode.KeepAspectRatio, # アスペクト比を維持
-                            Qt.TransformationMode.SmoothTransformation) # 滑らかに縮小
+                pixmap.scaled(dialog.preview_label.size(),
+                            Qt.AspectRatioMode.KeepAspectRatio,
+                            Qt.TransformationMode.SmoothTransformation)
             )
 
             buf.close()
-            del temp_fig # メモリを明示的に解放
+            del temp_fig
 
     def _calculate_size_in_inches(self, options):
-            """
-            ExportDialog の設定 (options 辞書) から、
-            幅と高さを「インチ」単位に変換して返すヘルパーメソッド。
-
-            Args:
-                options (dict): dialog.get_options() で取得した辞書。
-
-            Returns:
-                tuple (float, float): (width_in_inches, height_in_inches)
-            """
+            """ダイアログの幅と高さをインチにする。"""
             width, height, unit, dpi = options["width"], options["height"], options["unit"], options["dpi"]
 
             if "インチ" in unit:
-                # 単位がインチなら、そのまま返す
                 return width, height
             elif "ミリメートル" in unit:
-                # 項目139(C-802): 学術誌の投稿規定でよく使われる単位。1インチ = 25.4mm
                 return width / 25.4, height / 25.4
             elif "センチメートル" in unit:
-                # 1 インチ = 2.54 cm
                 return width / 2.54, height / 2.54
             elif "ピクセル" in unit:
-                # インチ = ピクセル数 / DPI (Dots Per Inch)
                 return width / dpi, height / dpi
 
-            # デフォルト (万が一単位が不明な場合)
             return 8, 6

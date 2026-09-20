@@ -11,10 +11,7 @@ from graphica.core.json_utils import GraphicaJSONEncoder
 
 logger = logging.getLogger(__name__)
 
-# --- pickle 読み込みの安全対策 ---
-# プロジェクトファイル(.pkl)は Dataset/DataFrame/ndarray などデータ専用の
-# オブジェクトしか含まないはずなので、復元を許可するモジュールをホワイトリスト化する。
-# これにより、細工された .pkl から os.system 等の任意コードが実行されるのを防ぐ。
+# .pkl から復元してよいモジュール。細工された .pkl で任意のコードを実行されないように
 _ALLOWED_MODULE_PREFIXES = (
     "numpy",
     "pandas",
@@ -33,8 +30,6 @@ _ALLOWED_BUILTINS = {
 
 
 class _RestrictedUnpickler(pickle.Unpickler):
-    """許可されたモジュール/クラスのみ復元するUnpickler(任意コード実行対策)。"""
-
     def find_class(self, module, name):
         module = _RENAMED_MODULES.get(module, module)
         allowed_names = _ALLOWED_BUILTINS.get(module)
@@ -52,31 +47,23 @@ def _restricted_loads(fileobj):
     return _RestrictedUnpickler(fileobj).load()
 
 
-# --- .graphica (JSON) 形式のバージョン管理 ---
-# format_version導入前(このキー自体が無い)ファイルは version 0 として扱う。
-# 破壊的な構造変更をする際は、CURRENT_FORMAT_VERSIONをインクリメントし、
-# 旧バージョンからの変換関数を _MIGRATIONS に追加すること。
+# format_version が無いファイルは 0。構造を変えたら上げて、前の版からの変換を _MIGRATIONS に足す
 CURRENT_FORMAT_VERSION = 1
 
 
 def _migrate_v0_to_v1(data):
-    """format_version未導入(旧data構造そのもの)をversion 1として扱えるようにする。
-    このバージョン間でデータ構造自体に変更は無く、format_versionフィールドの
-    導入そのものが移行内容のため、変換処理はno-op。"""
+    """0 から 1 は format_version を足しただけで、構造は同じ。"""
     return data
 
 
-# from_version -> データを (from_version + 1) に変換する関数
+# from_version -> (from_version + 1) の形にする関数
 _MIGRATIONS = {
     0: _migrate_v0_to_v1,
 }
 
 
 def _migrate_project_data(data):
-    """dataのformat_versionを見て、CURRENT_FORMAT_VERSIONまで順に移行する。
-    未来バージョン(このアプリより新しいバージョンで保存されたファイル)は
-    安全側に倒して明示的にエラーとする(無言でフィールドを無視して壊れた
-    状態のまま読み込むことを避けるため)。"""
+    """CURRENT_FORMAT_VERSION まで順に変換する。新しい版のファイルはエラーにする(黙って半分だけ読まない)。"""
     version = data.get('format_version', 0)
     if version > CURRENT_FORMAT_VERSION:
         raise ValueError(
@@ -94,93 +81,43 @@ def _migrate_project_data(data):
 
 
 class ProjectModel(QObject):
-    """
-    アプリケーションのコア状態(データセット・外観設定・レイアウト)を
-    一元管理するモデル。
+    """1つの文書(データセット、軸ごとの設定、レイアウト)。
 
-    ★ シグナル化(項目80、C-005)についての設計メモ:
-    このクラスへの変更は現状、GUI側の約38箇所が`PlotterApp._update_plot()`を
-    ミューテーション後に明示的に呼び出す規約で再描画をトリガーしている(規約は
-    一貫して守られており、このセッション時点で実際の「呼び忘れ」バグは
-    確認されていない)。それら既存38箇所を全てシグナル配線に置き換える
-    「フルrefactor」は、コア機構(models/project.py)への広範囲な変更となり
-    コスト・リスクに見合わないと判断し、意図的にスコープ外とした(詳細は
-    docs/dev/CORE_FEATURES_PROGRESS.mdのC-005エントリ参照)。
-
-    代わりに、今後追加される新しいミューテーション経路(プラグインAPI経由の
-    変更や、切り離しCanvas/ミニマップのように「誰が呼ぶか」が自明でない
-    同期先など)が、`PlotterApp`の内部メソッド名(`_update_plot`)を知らなくても
-    `changed`シグナルさえ発行すれば再描画に繋がる、という最小限の基盤だけを
-    用意する。既存の直接呼び出し箇所は一切変更していない(このシグナルは
-    現状どこからも発行されない=既存動作への影響ゼロ)。
+    既存の変更箇所は PlotterApp._update_plot() を直接呼ぶ。changed は、そのメソッドを知らない新しい経路が
+    再描画を頼むためのもので、今は誰も発行しない。
     """
 
-    # プロジェクトの内容(データセット/外観設定/レイアウト等)が変更されたことを
-    # 通知する汎用シグナル。既存の`_update_plot()`直接呼び出し規約を置き換える
-    # ものではなく、それを呼ばなくても済む新しい経路のための追加の選択肢。
     changed = Signal()
 
     def __init__(self):
         super().__init__()
-        # 現在のファイルパス
+        # 最後に保存・読み込みしたパス(オートセーブでも変わる。上書き保存先は PlotterApp._current_project_path)
         self.current_filepath = ""
 
-        # --- アプリケーションのコア状態（ここですべて一元管理） ---
-        self.datasets = []              # Datasetオブジェクトのリスト
-        # データセットのフォルダ分け構造。
-        # {'name': str, 'children': [...]} の入れ子。
-        # 子要素は {'name':..., 'children':[...]} (フォルダ) か
-        # {'dataset': <Datasetオブジェクト>} (データセットのリーフ) のどちらか。
-        # name='' のルートは表示されない仮想フォルダ。
+        self.datasets = []
+        # {'name', 'children': [...]} の入れ子。子はフォルダか {'dataset': Dataset}。name='' のルートは表示しない
         self.dataset_group_tree = {'name': '', 'children': []}
-        self.all_plot_settings = []     # 各プロットの外観設定リスト
-        self.active_axis_index = 0      # 現在編集中のプロット番号
+        self.all_plot_settings = []     # 軸ごとの設定(core/axis_settings.py)
+        self.active_axis_index = 0
 
-        # --- レイアウト情報 ---
-        self.layout_rows = 1            # 行数
-        self.layout_cols = 1            # 列数
-        # 'grid' (行数×列数の均等グリッド) か 'free' (サブプロットをドラッグで
-        # 自由な位置・サイズに配置するレイアウト) か。'free'時は all_plot_settings の
-        # 各要素数がそのままサブプロット数となり、各要素の 'free_rect' キーに
-        # (left, bottom, width, height) の正規化座標(0〜1)が保持される。
+        self.layout_rows = 1
+        self.layout_cols = 1
+        # 'grid' か 'free'。'free' では all_plot_settings の数がサブプロットの数で、各設定の
+        # 'free_rect' に (left, bottom, width, height) を 0〜1 で持つ
         self.layout_mode = 'grid'
 
-        # 複数サブプロットに (a)(b)(c)... の連番ラベルを自動表示するか(項目C-712)。
-        # サブプロットの並び順(all_plot_settingsのインデックス)に基づいて
-        # gui/canvas.py が描画時に自動計算するため、文字自体は保存しない。
+        # (a)(b)(c)… は描くときに並びから決めるので、文字は保存しない
         self.panel_labels_enabled = False
 
-        # サブプロットの軸共有(項目C-601)。グリッドレイアウト時のみ意味を持つ
-        # (自由配置レイアウトには「同じ行/列」という概念が無いため対象外、
-        # gui/canvas.pyのredraw_all()がlayout_mode=='free'の間はこの設定を無視する)。
-        # 有効にすると、gui/canvas.pyが各サブプロットをグリッド上の同じ行(sharex)/
-        # 同じ列(sharey)の他のサブプロットとmatplotlibのsharex/shareyで束ね、
-        # 内側の目盛りラベル(同じ行のX軸ラベル、同じ列のY軸ラベル)を隠す。
+        # 同じ行(sharex)・同じ列(sharey)のサブプロットの軸を束ね、内側の目盛りラベルを隠す。グリッドのときだけ
         self.share_x_axis = False
         self.share_y_axis = False
 
     def notify_changed(self):
-        """
-        プロジェクトの内容が変更されたことを`changed`シグナルで通知する。
-
-        既存の`self._update_plot()`直接呼び出し規約(gui/mixins配下・
-        gui/main_window.py、計約38箇所)を置き換えるものではなく、それらは
-        今まで通り変更不要。呼び出し元が`PlotterApp`のインスタンスや
-        `_update_plot`というメソッド名を知らなくても再描画に繋げたい新しい
-        経路(例: プラグインAPI、切り離しCanvas/ミニマップなど)のための
-        最小限の追加の選択肢として用意している。
-        """
         self.changed.emit()
 
     def save_project(self, filepath):
-        """
-        現在のアプリケーション状態を保存する。
-        拡張子によって保存形式を振り分ける:
-          - .pkl      : 従来通りpickleで保存(挙動は変更なし)
-          - .graphica : 新形式。JSONとして保存する(信頼できないファイルを
-                        開いても任意コード実行が起きないよう、データ専用の
-                        フォーマットにするための移行先)
-        """
+        """拡張子で形式を決める。.pkl は pickle、.graphica は JSON(開いてもコードが実行されない)。"""
         ext = os.path.splitext(filepath)[1].lower()
         if ext == '.pkl':
             self._save_project_pickle(filepath)
@@ -192,7 +129,6 @@ class ProjectModel(QObject):
         self.current_filepath = filepath
 
     def load_project(self, filepath):
-        """保存形式(拡張子)に応じてプロジェクトファイルを読み込む"""
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"ファイルが見つかりません: {filepath}")
 
@@ -206,10 +142,8 @@ class ProjectModel(QObject):
 
         self.current_filepath = filepath
 
-    # --- .pkl (pickle) 形式 ---
 
     def _save_project_pickle(self, filepath):
-        """現在のアプリケーション状態を丸ごとpickleで保存"""
         data = {
             'datasets': self.datasets,
             'dataset_group_tree': self.dataset_group_tree,
@@ -226,7 +160,7 @@ class ProjectModel(QObject):
             pickle.dump(data, f)
 
     def _load_project_pickle(self, filepath):
-        """pickleファイルから状態を復元(信頼できるオブジェクトのみ許可)"""
+        """許可したクラスだけを復元する。"""
         with open(filepath, 'rb') as f:
             try:
                 data = _restricted_loads(f)
@@ -234,10 +168,8 @@ class ProjectModel(QObject):
                 logger.exception("プロジェクトファイルの読み込みを拒否しました: %s", filepath)
                 raise
 
-        # 読み込んだデータを自身にセット
         self.datasets = data.get('datasets', [])
-        # 古い形式の.pklファイル(フォルダ機能追加前)にはキーが無いため、
-        # その場合は全データセットがルート直下にあるものとして構築し直す。
+        # フォルダ機能より前の .pkl にはキーが無いので、全部をルートに置く
         self.dataset_group_tree = data.get('dataset_group_tree') or {
             'name': '', 'children': [{'dataset': ds} for ds in self.datasets]
         }
@@ -250,12 +182,10 @@ class ProjectModel(QObject):
         self.share_x_axis = data.get('share_x_axis', False)
         self.share_y_axis = data.get('share_y_axis', False)
 
-    # --- .graphica (JSON) 形式 ---
 
     @staticmethod
     def _tree_to_json(node):
-        """dataset_group_tree を、Datasetの生参照を dataset_id 文字列に
-        置き換えたJSON化可能な形に変換する(再帰)。"""
+        """Dataset の参照を dataset_id の文字列にする(JSON にするため)。"""
         if 'dataset' in node:
             return {'dataset_id': node['dataset'].dataset_id}
         return {
@@ -265,10 +195,7 @@ class ProjectModel(QObject):
 
     @staticmethod
     def _tree_from_json(node, dataset_map):
-        """_tree_to_json() の逆変換。dataset_id を、読み込み済みdatasetsの
-        中から見つけた実際のDatasetオブジェクト(同一インスタンス)に
-        再リンクする。存在しないIDの場合は警告してそのリーフを除外する
-        (壊れた/手編集されたファイルでも読み込みがクラッシュしないように)。"""
+        """_tree_to_json() の逆。見つからない ID は警告して除く(壊れたファイルでも読めるように)。"""
         if 'dataset_id' in node:
             ds = dataset_map.get(node['dataset_id'])
             if ds is None:
@@ -287,25 +214,19 @@ class ProjectModel(QObject):
         return {'name': node.get('name', ''), 'children': children}
 
     def content_fingerprint(self):
-        """
-        「保存すると書き出される内容」のハッシュ(未保存の変更の検出用、v1.4.2)。
+        """保存すると書き出される内容のハッシュ(未保存の変更の判定)。
 
-        ★ Undo スタックの clean 状態やフラグでは判定しない。軸設定の変更・
-          列の計算・フォルダ操作など、Undo の対象外の変更が多数あるため、
-          取りこぼしが出る。保存形式(.graphica)と同じ辞書を作ってハッシュを
-          取れば、「保存したら結果が変わるか」をそのまま比べられる。
-        呼び出し側はツリー構造やレイアウトの行数など、UI 側にしかない状態を
-        先に反映しておくこと(PlotterApp._sync_project_from_ui)。
+        Undo の clean 状態では判定しない(軸の設定・列の計算・フォルダ操作は Undo の対象外)。
+        呼ぶ前に UI にしか無い状態を反映しておくこと(PlotterApp._sync_project_from_ui)。
         """
         payload = self._json_payload()
-        # 選択中のサブプロットは保存されるが「内容の変更」ではないので比較に含めない
-        # (編集対象を切り替えただけで保存確認が出ないように)。
+        # 編集対象のサブプロットを切り替えただけで保存の確認が出ないように
         payload.pop('active_axis_index', None)
         text = json.dumps(payload, cls=GraphicaJSONEncoder, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
     def _json_payload(self):
-        """.graphica に書き出す辞書(_save_project_json と content_fingerprint で共有)"""
+        """.graphica に書き出す辞書(保存と content_fingerprint で共有)。"""
         return {
             'format_version': CURRENT_FORMAT_VERSION,
             'datasets': [ds.to_dict() for ds in self.datasets],
@@ -321,15 +242,12 @@ class ProjectModel(QObject):
         }
 
     def _save_project_json(self, filepath):
-        """現在のアプリケーション状態をJSON(.graphica)として保存する"""
         data = self._json_payload()
-        # ensure_ascii=False: データセット名/フォルダ名に日本語が使われることが
-        # 多いため、\uXXXXエスケープではなく読める形でファイルに残す。
+        # 名前に日本語が多いので \uXXXX にせず読める形で残す
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(data, f, cls=GraphicaJSONEncoder, indent=2, ensure_ascii=False)
 
     def _load_project_json(self, filepath):
-        """JSON(.graphica)ファイルから状態を復元する"""
         with open(filepath, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
@@ -342,8 +260,7 @@ class ProjectModel(QObject):
         if tree_data:
             self.dataset_group_tree = self._tree_from_json(tree_data, dataset_map)
         else:
-            # dataset_group_tree キーが無い場合(将来この形式が変わった場合等)は、
-            # pickle側の後方互換処理と同様に、全データセットをルート直下に置く。
+            # キーが無ければ、.pkl と同じく全部をルートに置く
             self.dataset_group_tree = {
                 'name': '', 'children': [{'dataset': ds} for ds in self.datasets]
             }

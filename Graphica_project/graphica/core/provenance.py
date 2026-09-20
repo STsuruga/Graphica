@@ -1,8 +1,9 @@
 """派生データセットの由来(Dataset.provenance)。core/methods_text.py がここから「方法」文を作る。"""
 from datetime import datetime, timezone
+from typing import Any
 
 
-def build_provenance(operation, params, source_datasets):
+def build_provenance(operation: str, params: dict[str, Any], source_datasets: list[Any]) -> dict[str, Any]:
     """
     Args:
         operation (str): 操作の名前(methods_text の説明の引き当てに使う)。

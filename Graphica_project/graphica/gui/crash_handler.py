@@ -1,14 +1,4 @@
-# gui/crash_handler.py
-"""
-未処理の例外(どこでもキャッチされずに上がってきたもの)に対する、
-ユーザー向けの案内を担当するモジュール。
-
-.exe化(PyInstaller)するとコンソールが表示されないため、何も対策しないと
-未処理の例外が発生した際、ユーザーには「何も起きていないように見えるが操作が
-効かない/おかしい」という最悪のUXになってしまう。
-sys.excepthook を差し替えることで、通常のログ出力に加えて、ログの場所と
-オートセーブ復元の手順を案内するダイアログを表示するようにする。
-"""
+"""未処理の例外で、ログの場所とオートセーブからの復元の手順を案内する(exe ではコンソールが無く、何も見えない)。"""
 import sys
 import os
 import logging
@@ -25,16 +15,11 @@ _original_excepthook = sys.excepthook
 
 
 def install_crash_handler():
-    """アプリ起動時に一度だけ呼び出し、グローバルな未処理例外ハンドラを差し替える"""
     sys.excepthook = _handle_uncaught_exception
 
 
 def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
-    """
-    sys.excepthook として登録される関数。
-    Ctrl+C (KeyboardInterrupt) は通常のシャットダウン操作なので、
-    案内ダイアログを出さず元の挙動に任せる。
-    """
+    """Ctrl+C(KeyboardInterrupt)は普通の終了なので案内しない。"""
     if issubclass(exc_type, KeyboardInterrupt):
         _original_excepthook(exc_type, exc_value, exc_traceback)
         return
@@ -58,46 +43,21 @@ def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
     except Exception:
-        # ダイアログの表示自体に失敗しても、最低限ログには残るようにする
         logger.exception("クラッシュ案内ダイアログの表示に失敗しました。")
 
 
-# --- セーフモード起動(項目F-4) ---
-#
-# gui/main_window.py の _check_autosave_recovery() が使う「clean_exit」
-# QSettings追跡(2.1節/2.7節)を、別の目的(プラグイン無効化の提案)で
-# 読み取り専用に流用する。書き込み(clean_exitキーのリセット/復元)は
-# 引き続き PlotterApp.__init__/closeEvent の既存ロジックだけが行い、
-# ここでは一切書き換えない。
+# セーフモードで起動するかの確認。clean_exit を読むだけで、書き換えるのは PlotterApp だけ
 
 
 def should_prompt_safe_mode(settings):
-    """
-    前回セッションが正常終了しなかった(clean_exit=False)かどうかを返す。
-
-    settings は QSettings 互換オブジェクト(.value("clean_exit", True, type=bool)
-    を持つもの)。main.py の起動シーケンスから、PlotterApp.__init__ が
-    clean_exit キーを書き換える(Falseにリセットする)より前に呼ぶこと
-    (呼び出し順序を誤ると、既に起動中の自分自身の書き込みを異常終了と
-    誤検出してしまう)。
-    """
+    """前回が正常に終わらなかったか。PlotterApp が clean_exit を False にする前に呼ぶこと(後だと自分を異常終了と見誤る)。"""
     return not settings.value("clean_exit", True, type=bool)
 
 
 def prompt_safe_mode_and_apply(settings, parent=None):
-    """
-    前回異常終了を検出した場合、プラグインを無効化して起動するかを
-    QMessageBox.question で尋ね、Yesならcore.plugin_api.set_safe_mode(True)
-    を呼ぶ。
+    """前回が異常終了なら、プラグインなしで起動するか尋ねる。セーフモードにしたら True。
 
-    既定ボタンは No (=通常通りプラグインを読み込む) にしている。
-    _check_autosave_recovery() の復元確認ダイアログは既定Yes(データ消失を
-    避ける方向を既定にする)だが、こちらは逆に「普段使っているプラグインが
-    ユーザーの意図なく無効化される」方が驚きが大きいため、あえて安全側
-    (=何もしない)をNo側に置く。
-
-    Returns:
-        bool: セーフモードを有効化したかどうか。
+    既定のボタンは「いいえ」(いつものプラグインが知らないうちに無効になる方が驚く)。
     """
     if not should_prompt_safe_mode(settings):
         return False
@@ -111,10 +71,6 @@ def prompt_safe_mode_and_apply(settings, parent=None):
     if reply != QMessageBox.StandardButton.Yes:
         return False
 
-    # プラグインAPI側への依存はここでのみ発生させる(crash_handlerは本来
-    # 未処理例外まわりのモジュールだが、既存のclean_exit追跡を持つ
-    # main_window.py 側ではなく、main.pyの起動シーケンスから呼びやすい
-    # このモジュールに置くほうが自然なため、F-4の実装場所としてここを選んだ)。
     from graphica.core.plugin_api import set_safe_mode
     set_safe_mode(True)
     return True

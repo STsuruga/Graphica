@@ -12,7 +12,6 @@ from PySide6.QtCore import Signal, Qt
 
 logger = logging.getLogger(__name__)
 
-# 自分で切り出したモジュールの読み込み
 from graphica.core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
                            AddColumnCommand, DeleteColumnCommand, SetMaskedRowsCommand,
                            RenameColumnCommand)
@@ -29,105 +28,54 @@ def _masked_row_background():
 
 
 def _nan_cell_background():
-    """
-    欠損値(NaN/NaT)セルの背景色を、現在のテーマトークンから解決する(項目C-201:
-    欠損値の可視化)。マスク済み行の背景(surface_2、中立グレー)とは別の
-    warning_softトークンを使い、「除外されている」行全体の印と「値そのものが
-    欠損している」セル単位の印を混同しないようにする。
-    """
+    """欠損値のセルの背景。マスクした行(行全体の印)とは別の色にする。"""
     return QColor(theme.current_tokens()["warning_soft"])
 
-# 外れ値のマスク機能(項目36): 除外中の行をテーブル上でひと目で分かるように示す背景色。
-# ★ バグ修正: 以前はライトモード専用の固定色(#DCDCDC)がハードコードされて
-# おり、ダークモード(surfaceが#1B1F22のような暗色)ではほぼ白に近いこの色が
-# 逆に浮いて見え、「除外中で目立たなくする」という意図と真逆の派手な表示に
-# なっていた。gui/theme.pyのトークンから都度解決するようにする
-# (_populate_table()呼び出しの都度動的に取得、_masked_row_background()参照)。
 
-#==============================================================================
-# データ構造とMatplotlibキャンバスクラス (2)
-#==============================================================================
 class DataEditorDialog(QDialog):
-    """
-    DataFrame (dataset.df) の内容を QTableWidget で表示・編集するための
-    ダイアログクラスです。
+    """dataset.df の表示と編集。編集は Undo できる(列の計算など一部を除く)。"""
     
-    Undo/Redo 機能 (QUndoStack) を持ち、セル編集、行/列の追加・削除を
-    元に戻したり、やり直したりすることができます。
-    """
-    
-    # dataChanged シグナルを定義
-    # このダイアログ外 (PlotterApp) に「データが変更された」ことを通知するために使う
+    # データが変わったことを PlotterApp に知らせる
     dataChanged = Signal()
 
-    # テーブルで選択されている行が変わったときに発行するシグナル。
-    # 引数は dataset.df のインデックスラベルのリスト (空リストなら選択なし)。
-    # データ⇔グラフの双方向ハイライト機能で、グラフ側の表示を連動させるために使う。
+    # 選んだ行の df.index ラベル(空なら選択なし)。グラフ側で強調するため
     rowsHighlighted = Signal(list)
     
     def __init__(self, dataset, parent=None):
-        """
-        ダイアログの初期化。
-        
-        Args:
-            dataset (Dataset): 編集対象の Dataset オブジェクト。
-            parent (QWidget, optional): 親ウィジェット。
-        """
         super().__init__(parent)
-        # ★ 実機フィードバック(ユーザー選択: 「タスクバー化+再クリックで最前面」):
-        #   既定のQDialog(親ウィンドウの子)のままだと、Windows/macOS双方で
-        #   OS標準のタスクバー/Alt+Tab(macOSはDock/Cmd+Tab)一覧に独立した
-        #   項目として現れず、メインウィンドウの背面に隠れると「親を介した
-        #   間接的な手段」でしか呼び戻せなかった(不便との報告)。
-        #   Qt.WindowType.Windowフラグを付けて独立したトップレベルウィンドウ
-        #   として扱わせることで、OS標準の手段(タスクバークリック/Alt+Tab/
-        #   Dockクリック)で直接前面に呼び戻せるようにする。
-        #   親子関係(parent)自体は維持するため、メインウィンドウが閉じられれば
-        #   このダイアログも従来通り一緒に閉じる。
+        # 独立したウィンドウにして、タスクバーや Alt+Tab から呼び戻せるようにする。親は残すので本体と一緒に閉じる
         self.setWindowFlag(Qt.WindowType.Window, True)
         self.setWindowTitle(f"データエディタ: {dataset.name}")
         self.resize(800, 600)
         
-        # 編集対象の dataset オブジェクトへの参照を保持
         self.dataset = dataset
         
-        # ★ view_df: フィルターやソートを適用するための「表示用」DataFrame
-        # マスター (dataset.df) のコピー (copy()) を使うことが重要。
-        # (元のコードではコピーしていなかったため、ソートなどがマスターに影響する可能性があった)
+        # 並べ替えは表示用のコピーに対して行い、dataset.df は変えない
         self.view_df = self.dataset.df.copy()
-        self.sort_state = (None, True) # (現在ソート中の列名, 昇順かどうか)。未ソート時は (None, True)
+        self.sort_state = (None, True)  # (並べ替え中の列名, 昇順か)
 
-        # 列の表示/非表示(項目C-207)。ソート状態と同じく「ビュー専用」の状態
-        # (dataset.df自体は変更しない)。列名の集合で保持する。
+        # 隠した列の名前(表示だけで dataset.df は変えない)
         self._hidden_columns = set()
 
-        # 検索/置換(項目C-208)。非モーダルダイアログの参照を保持し、
-        # 「次を検索」の再クリックで前回の続きから探索を再開できるようにする。
+        # 開いたままにして、「次を検索」を前回の続きから探す
         self._find_replace_dialog = None
         self._last_search_query = None
         self._last_search_index = -1
 
-        # --- ★ Undo/Redo スタックを作成 ---
         self.undo_stack = QUndoStack(self)
-        # コマンドが push/undo/redo されるたびに呼ばれる (コマンド自体はGUIを一切知らない)
+        # コマンドは GUI を知らないので、表の描き直しと通知はここでする
         self.undo_stack.indexChanged.connect(self._on_undo_stack_changed)
 
-        # --- メインのテーブルウィジェット ---
         self.table_widget = QTableWidget()
-        self.table_widget.setSortingEnabled(False) # ★ ソート機能は自前で実装する必要があるため、標準は無効
+        self.table_widget.setSortingEnabled(False)  # 並べ替えは view_df で自前で行う
         self.table_widget.horizontalHeader().setSectionsClickable(True)
         self.table_widget.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
-        # 列ヘッダーのダブルクリックで列名をリネームできるようにする(項目64)
         self.table_widget.horizontalHeader().sectionDoubleClicked.connect(self._on_header_double_clicked)
-        # 列のドラッグ&ドロップ並べ替え(項目C-207)。ソート(_on_header_clicked)と
-        # 同じく見た目上の並び替えのみで、dataset.df自体の列順は変更しない
-        # (Qt標準機能、追加のロジック不要)。
+        # 列の並べ替えも見た目だけ(dataset.df の列順は変えない)
         self.table_widget.horizontalHeader().setSectionsMovable(True)
-        # 選択中の行が変わるたびに、対応するデータ点をグラフ上でハイライトする
         self.table_widget.itemSelectionChanged.connect(self._on_table_selection_changed)
         self._populate_table()
         
-        # --- 1. ボタンのレイアウトを作成 (QHBoxLayout: 水平) ---
         button_layout = QHBoxLayout()
         self.add_row_button = QPushButton("行を追加")
         self.delete_row_button = QPushButton("選択行を削除")
@@ -142,9 +90,6 @@ class DataEditorDialog(QDialog):
         self.jump_to_row_button = QPushButton("行へ移動...")
         self.save_csv_button = QPushButton("CSVとして保存...")
 
-        # メインウィンドウの操作ボタン行(項目70)と統一感を持たせるため、
-        # ここもテキスト付きボタンではなくアイコンのみの正方形ボタンにする。
-        # ラベルはツールチップに残す。
         _button_icons = (
             (self.add_row_button, "row-insert-bottom"),
             (self.delete_row_button, "row-remove"),
@@ -169,18 +114,13 @@ class DataEditorDialog(QDialog):
             button.setIcon(icon_utils.icon(icon_name, size=18))
             button.setProperty("iconOnly", True)
             button.setFixedSize(34, 34)
-            # ★ 実機フィードバック: 「ボタンが一回押すと他のボタン押すまで
-            #   ずっと色付きになる」。QPushButtonの既定フォーカスポリシー
-            #   (StrongFocus)により、クリック後もキーボードフォーカスが
-            #   居座り続け、gui/theme.pyのQPushButton:focus(青枠)が
-            #   他のウィジェットにフォーカスが移るまで表示され続けていた。
-            #   フォーカスを一切受け取らないようにして解消する。
+            # フォーカスが残ると :focus の枠が次の操作まで出たままになる
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         button_layout.addWidget(self.add_row_button)
         button_layout.addWidget(self.delete_row_button)
         button_layout.addWidget(self.mask_rows_button)
-        button_layout.addStretch() # 伸縮可能なスペース (ボタンを左端に寄せる)
+        button_layout.addStretch()
         button_layout.addWidget(self.add_col_button)
         button_layout.addWidget(self.delete_col_button)
         button_layout.addStretch()
@@ -195,43 +135,32 @@ class DataEditorDialog(QDialog):
         button_layout.addWidget(self.save_csv_button)
 
 
-        # --- 2. メインレイアウト (QVBoxLayout: 垂直) ---
         main_layout = QVBoxLayout(self)
         
-        # --- メニューバーの作成 (Undo/Redo のため) ---
         menu_bar = QMenuBar(self)
         edit_menu = menu_bar.addMenu("編集")
         
-        # QUndoStack から Undo/Redo の QAction を自動生成
         undo_action = self.undo_stack.createUndoAction(self, "元に戻す")
-        undo_action.setShortcut(QKeySequence.StandardKey.Undo) # Ctrl+Z
+        undo_action.setShortcut(QKeySequence.StandardKey.Undo)
         
         redo_action = self.undo_stack.createRedoAction(self, "やり直し")
-        redo_action.setShortcut(QKeySequence.StandardKey.Redo) # Ctrl+Y (Win) / Cmd+Shift+Z (Mac)
+        redo_action.setShortcut(QKeySequence.StandardKey.Redo)
         
         edit_menu.addAction(undo_action)
         edit_menu.addAction(redo_action)
         
-        # QDialog にも QMenuBar をセットできる (setMenuBar)
         main_layout.setMenuBar(menu_bar)
+
+
+        main_layout.addLayout(button_layout)
+        main_layout.addWidget(self.table_widget)
         
-        # (デバッグ用に Undo 履歴を表示するビューを追加することも可能)
-        # undo_view = QUndoView(self.undo_stack)
-        # main_layout.addWidget(undo_view)
-        
-        main_layout.addLayout(button_layout) # メニューバーの下にボタンレイアウト
-        main_layout.addWidget(self.table_widget) # その下にテーブル
-        
-        # 閉じるボタン
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         button_box.rejected.connect(self.reject)
         main_layout.addWidget(button_box)
         
-        # --- 3. シグナル接続 ---
-        # テーブルのセルが編集されたら _on_cell_changed を呼ぶ
         self.table_widget.cellChanged.connect(self._on_cell_changed)
         
-        # 各ボタンのクリックシグナルを対応するスロット（メソッド）に接続
         self.add_row_button.clicked.connect(self._on_add_row)
         self.delete_row_button.clicked.connect(self._on_delete_rows)
         self.mask_rows_button.clicked.connect(self._on_toggle_mask_rows)
@@ -246,34 +175,24 @@ class DataEditorDialog(QDialog):
         self.save_csv_button.clicked.connect(self._on_save_as_csv)
 
     def _populate_table(self):
-        """
-        テーブル (QTableWidget) に view_df の内容をセットする。
-        NaN/NaT は空文字列として表示する。
-        """
-        # view_df を使う (ソート/フィルターされた状態を表示するため)
+        """view_df を表に入れる。NaN / NaT は空欄で出す。"""
         df = self.view_df
         
-        # ★ blockSignals(True):
-        # これからUIをプログラムで変更する。
-        # この変更によって cellChanged シグナルが発生しないように一時停止する。
+        # 入れている間に cellChanged が出ないように
         self.table_widget.blockSignals(True) 
         
         self.table_widget.setRowCount(len(df))
         self.table_widget.setColumnCount(len(df.columns))
         self.table_widget.setHorizontalHeaderLabels(df.columns)
         
-        # ★ 行ヘッダ (0, 1, 2...) には、マスターdfのインデックス (loc用) を表示
-        # これにより、表示がソートされても、どのデータか追跡できる
+        # 行の見出しは df.index のラベル(並べ替えてもどの行か分かる)
         self.table_widget.setVerticalHeaderLabels([str(i) for i in df.index])
 
         for i in range(len(df)):
-            # 外れ値のマスク機能(項目36): 除外中の行は背景色を変えてひと目で分かるようにする
             is_masked = df.index[i] in self.dataset.masked_row_indices
             for j in range(len(df.columns)):
-                # iloc[i, j] を使って「表示上のi行目」のデータを取得
                 value = df.iloc[i, j]
 
-                # ★ pd.isna で NaN (Not a Number) や NaT (Not a Time) をチェック
                 is_nan = pd.isna(value)
                 item_text = "" if is_nan else str(value)
 
@@ -282,21 +201,17 @@ class DataEditorDialog(QDialog):
                     item.setBackground(_masked_row_background())
                     item.setToolTip("この行はフィット/プロットから除外されています")
                 elif is_nan:
-                    # 欠損値の可視化(項目C-201)。マスク済み行(上の分岐)は既に
-                    # 別の背景色で行全体が示されているため、二重に色を重ねない。
+                    # マスクした行は行全体に色が付いているので重ねない
                     item.setBackground(_nan_cell_background())
                     item.setToolTip("欠損値(NaN)です")
                 self.table_widget.setItem(i, j, item)
         
-        self.table_widget.resizeColumnsToContents() # 列幅を自動調整
+        self.table_widget.resizeColumnsToContents()
 
-        # 列の表示/非表示(項目C-207)。テーブルが再構築されるたびに必ず
-        # 呼ばれるここで再適用することで、ソート・列追加・Undo/Redo後の
-        # 再描画いずれの経路でも非表示状態が失われないようにする。
+        # 表を作り直すたびに隠す列を当て直す(並べ替え・列の追加・Undo の後も消えないように)
         for col_idx, col_name in enumerate(df.columns):
             self.table_widget.setColumnHidden(col_idx, col_name in self._hidden_columns)
 
-        # ソート中の列があれば、ヘッダーに矢印アイコンで表示する
         sort_col, sort_ascending = self.sort_state
         header = self.table_widget.horizontalHeader()
         if sort_col is not None and sort_col in df.columns:
@@ -308,25 +223,19 @@ class DataEditorDialog(QDialog):
         else:
             header.setSortIndicatorShown(False)
 
-        # ★ blockSignals(False): UIの準備が終わったので、シグナルを再開
         self.table_widget.blockSignals(False)
 
     def _on_header_clicked(self, logical_index):
-        """
-        テーブルの列ヘッダーがクリックされたときに呼ばれる。
-        その列を基準に昇順/降順ソートする (同じ列を再度クリックすると昇順/降順を反転)。
-        ソートは表示用の view_df のみに適用され、マスターデータ (dataset.df) や
-        Undo/Redoスタックには影響しない (見た目上の並べ替えのため)。
-        """
+        """その列で並べ替える(同じ列なら昇順と降順を入れ替える)。表示だけで、データと Undo には影響しない。"""
         col_name = self.view_df.columns[logical_index]
         current_col, current_ascending = self.sort_state
         ascending = (not current_ascending) if current_col == col_name else True
 
         try:
-            # kind='mergesort' は安定ソート (同値の行の相対順序を保つ)
+            # 安定な並べ替え(同じ値の行の順を保つ)
             self.view_df = self.view_df.sort_values(by=col_name, ascending=ascending, kind='mergesort')
         except TypeError:
-            # 型が混在する列 (数値とNaN以外の文字列が混じる等) はソートできないことがある
+            # 型の混ざった列は並べ替えられないことがある
             QMessageBox.warning(self, "ソートエラー", f"列 '{col_name}' はソートできませんでした。")
             return
 
@@ -334,11 +243,6 @@ class DataEditorDialog(QDialog):
         self._populate_table()
 
     def _on_header_double_clicked(self, logical_index):
-        """
-        列ヘッダーをダブルクリックすると、列名を変更できるようにする(項目64)。
-        手動データ入力(項目63)で「列1」「列2」のような仮の名前を付けた場合の
-        リネームや、既存データの列名修正を想定している。
-        """
         old_name = self.view_df.columns[logical_index]
         new_name, ok = QInputDialog.getText(self, "列名の変更", "新しい列名:", text=old_name)
         if not ok:
@@ -354,25 +258,15 @@ class DataEditorDialog(QDialog):
         self.undo_stack.push(command)
 
     def get_selected_master_indices(self):
-        """
-        現在テーブルで選択されている行に対応する、マスターDataFrame(dataset.df)の
-        インデックスラベルのリストを返す。view_df はソート済みの場合があるため、
-        表示上の行番号をそのまま使わず view_df.index 経由で変換する。
-        """
+        """選んだ行の dataset.df の index ラベル。view_df は並べ替えてあるので view_df.index を通す。"""
         rows = sorted({index.row() for index in self.table_widget.selectionModel().selectedRows()})
         return [self.view_df.index[r] for r in rows if r < len(self.view_df.index)]
 
     def _on_table_selection_changed(self):
-        """テーブルの選択行が変わるたびに呼ばれ、グラフ側のハイライトを更新するよう通知する"""
         self.rowsHighlighted.emit(self.get_selected_master_indices())
 
     def select_row_by_master_index(self, master_index):
-        """
-        マスターDataFrame(dataset.df)のインデックスラベルを指定して、対応する行を
-        テーブル上で選択・スクロール表示する(グラフ上の点クリックからの逆方向ハイライト用)。
-        プログラムによる選択のため itemSelectionChanged はブロックし、
-        グラフ側への通知が無駄にループしないようにする。
-        """
+        """グラフの点から表の行を選ぶ(逆向きの強調)。通知が往復しないよう itemSelectionChanged を止める。"""
         matches = np.where(self.view_df.index == master_index)[0]
         if len(matches) == 0:
             return
@@ -388,46 +282,28 @@ class DataEditorDialog(QDialog):
             self.table_widget.scrollToItem(item)
 
     def closeEvent(self, event):
-        """閉じるときはグラフ側のハイライトも消す"""
         self.rowsHighlighted.emit([])
         super().closeEvent(event)
 
     def _on_cell_changed(self, row, column):
-        """
-        テーブルのセルがユーザーによって編集されたときに呼び出されるスロット。
-        Undo/Redo コマンド (EditCellCommand) を発行します。
-        """
         try:
-            # 1. 編集されたセルが、マスターDFのどのインデックス/列名に対応するか特定
-            
-            # `row` は表示上の行番号。`view_df.index[row]` で、
-            # マスターDFに対応するインデックス (loc用) を取得。
+            # row は表示上の行番号なので、view_df.index で df のラベルにする
             original_index = self.view_df.index[row]
             col_name = self.view_df.columns[column]
             
-            # 2. 変更「前」の値をマスターDF (dataset.df) から取得
             old_value = self.dataset.df.loc[original_index, col_name]
             
-            # 3. 変更「後」の値をテーブル (QTableWidget) から文字列として取得
             new_value_str = self.table_widget.item(row, column).text()
             
-            # 4. 変更後の値を適切な型に変換
             new_value = None
             
             if new_value_str == "":
-                # 空文字列で上書きされたら np.nan (欠損値) として扱う
                 new_value = np.nan
             else:
-                # 元の列のデータ型 (dtype) を取得
                 original_dtype = self.dataset.df[col_name].dtype
                 
-                # 型変換を試みる
                 try:
-                    # ★ バグ修正: bool列は特別扱いが必要。np.dtype(bool).type(s)は
-                    # Pythonのbool("文字列")と同じ「空文字列以外は全てTrue」という
-                    # 挙動になり、"False"や"0"のような入力すら真偽反転せずTrueに
-                    # なってしまう(列の計算/フィルタ機能で "A > 10" のような比較式
-                    # からbool列が作られるため、これは実際に到達しうる列型)。
+                    # bool 列は np.bool_("False") が True になるので自前で読む
                     if np.issubdtype(original_dtype, np.bool_):
                         normalized = new_value_str.strip().lower()
                         if normalized in ("true", "1", "yes"):
@@ -437,42 +313,26 @@ class DataEditorDialog(QDialog):
                         else:
                             raise ValueError(f"'{new_value_str}' を真偽値として解釈できません")
                     else:
-                        # np.dtype(original_dtype).type は、
-                        # np.float64 や np.int64 などの型コンストラクタを返す
                         new_value = np.dtype(original_dtype).type(new_value_str)
                 except (ValueError, TypeError):
-                    # 型変換に失敗した場合 (例: 数値列に "abc" と入力)
-                    # もし元の型が数値系(number)またはbool系ならNaNにする
-                    # (boolはnumberのサブタイプではないため個別にチェックする必要がある。
-                    # 素の文字列をbool列にそのまま代入すると列全体がobject dtypeに
-                    # 暗黙アップキャストされてしまうため、数値列と同じくNaN扱いにする)
+                    # 数値と bool の列は NaN にする(文字列のまま入れると列全体が object 型になる)
                     if np.issubdtype(original_dtype, np.number) or np.issubdtype(original_dtype, np.bool_):
                         new_value = np.nan
                     else:
-                        # 文字列型 (object) の場合は、入力された文字列をそのまま使う
                         new_value = new_value_str
             
-            # 5. 変更があったかどうかのチェック
-            #    (NaN 同士は `old_value != new_value` では比較できないため、
-            #     pd.isna で個別にチェックする必要がある)
+            # NaN 同士は != で比べられない
             is_nan_old = pd.isna(old_value)
             is_nan_new = pd.isna(new_value)
             
-            # 変更があった場合:
             if (is_nan_old and not is_nan_new) or \
                (not is_nan_old and is_nan_new) or \
                (not is_nan_old and not is_nan_new and old_value != new_value):
-                
-                # 6. ★★★ Undo/Redo コマンドを作成し、スタックに push する ★★★
-                #    (元のコードにあった self.dataset.df への直接代入は削除)
                 command = EditCellCommand(self.dataset, original_index, col_name, old_value, new_value)
                 self.undo_stack.push(command)
-                # -> push されると、自動的に command.redo() が呼ばれ、
-                #    EditCellCommand 側でデータが更新され、dataChanged.emit() される。
             
             else:
-                # 変更がなかった場合 (例: "1.0" を "1.0" に編集)
-                # 元の値を再表示 (UIの正規化のため)
+                # 変わっていなくても表示を整える("1.0" を "1.0" に編集したときなど)
                 self.table_widget.blockSignals(True)
                 item_text = "" if is_nan_old else str(old_value)
                 self.table_widget.item(row, column).setText(item_text)
@@ -494,48 +354,32 @@ class DataEditorDialog(QDialog):
                 self.table_widget.blockSignals(False)
 
     def _reset_view(self):
-        """
-        view_df をマスターから再コピーし、ソート状態をリセットし、
-        テーブルUIを再描画する。
-        """
+        """view_df を dataset.df から取り直し、並べ替えを戻して描き直す。"""
         self.view_df = self.dataset.df.copy()
         self.sort_state = (None, True)
         self._populate_table()
 
     def _on_undo_stack_changed(self, index):
-        """
-        QUndoStack の push/undo/redo で現在位置が変わるたびに呼ばれるスロット。
-        コマンド (core/commands.py) は Dataset だけを更新して GUI を一切知らないため、
-        テーブルUIの再描画と外部への通知はここで一元的に行う。
-        """
         self._reset_view()
         self.dataChanged.emit()
 
     def _on_add_row(self):
-        """行追加ボタンが押された -> AddRowCommand を発行する"""
         command = AddRowCommand(self.dataset)
         self.undo_stack.push(command)
 
     def _on_delete_rows(self):
-        """行削除ボタンが押された -> DeleteRowsCommand を発行する"""
-        
-        # 1. テーブル (UI) で選択されているアイテムを取得
         selected_items = self.table_widget.selectedItems()
         if not selected_items: return
             
-        # 2. 選択されている「表示上の行番号 (view_rows)」を重複なく取得
         view_rows = sorted(list(set(item.row() for item in selected_items)))
         
-        # 3. 「表示上の行番号」を「マスターDFのインデックス (loc用)」に変換
-        #    (view_df.index がこのマッピングを持っている)
         try:
             original_indices_attempt = [self.view_df.index[row] for row in view_rows]
         except IndexError:
              QMessageBox.warning(self, "削除エラー", "行インデックスの取得に失敗しました。")
              return
 
-        # 4. ★★★ 安全性チェック ★★★
-        # (万が一、view_df と dataset.df のインデックスがズレている場合に備える)
+        # view_df と dataset.df の index がずれていた場合に備える
         valid_indices_to_delete = [
             idx for idx in original_indices_attempt 
             if idx in self.dataset.df.index
@@ -545,19 +389,14 @@ class DataEditorDialog(QDialog):
             QMessageBox.warning(self, "削除エラー", "削除対象のデータがマスターに見つかりませんでした。")
             return 
 
-        # 5. Undo のために、削除するデータを「先に」コピーして保存
+        # Undo のため、消す前に写しを取る
         deleted_data = self.dataset.df.loc[valid_indices_to_delete].copy()
         
-        # 6. コマンドを発行
         command = DeleteRowsCommand(self.dataset, valid_indices_to_delete, deleted_data)
         self.undo_stack.push(command)
 
     def _on_toggle_mask_rows(self):
-        """
-        「選択行を除外/解除」ボタンが押された処理(項目36: 外れ値のマスク機能)。
-        選択中の行それぞれについて、フィット/プロットからの除外(マスク)状態を
-        反転させる。行そのものは削除しない非破壊的な操作で、Undo/Redo可能。
-        """
+        """選んだ行のマスクを反転する(行は消さない。Undo できる)。"""
         selected_items = self.table_widget.selectedItems()
         if not selected_items:
             return
@@ -584,34 +423,25 @@ class DataEditorDialog(QDialog):
         self.undo_stack.push(command)
 
     def _on_add_column(self):
-        """列追加ボタンが押された -> AddColumnCommand を発行する"""
-        
-        # 1. QInputDialog で新しい列名をユーザーに入力させる
         col_name, ok = QInputDialog.getText(self, "列の追加", "新しい列名を入力してください:")
         
-        if ok and col_name: # OKが押され、かつ文字列が空でない
-            # 2. 列名の重複チェック
+        if ok and col_name:
             if col_name in self.dataset.df.columns:
                 QMessageBox.warning(self, "エラー", f"列名 '{col_name}' は既に存在します。")
                 return
             
-            # 3. コマンドを発行
             command = AddColumnCommand(self.dataset, col_name)
             self.undo_stack.push(command)
 
     def _on_delete_column(self):
-        """列削除ボタンが押された -> DeleteColumnCommand を発行する"""
-        
-        # 1. 現在選択されている列（のインデックス）を取得
         current_col_index = self.table_widget.currentColumn()
         if current_col_index == -1:
             QMessageBox.warning(self,"エラー", "削除する列が選択されていません。")
             return
             
-        # 2. 表示上の列インデックスから、列名を取得
         col_name = self.view_df.columns[current_col_index]
         
-        # 3. ★ 安全性チェック: プロットに使用中の列は削除させない
+        # 描画に使っている列は消させない
         if (col_name == self.dataset.x_col_name or 
             col_name == self.dataset.y_col_name):
             
@@ -619,25 +449,15 @@ class DataEditorDialog(QDialog):
                                 f"列 '{col_name}' は現在プロットに使用されているため削除できません。")
             return
 
-        # 4. Undo のために、削除する列データ (Series) をコピーして保存
         deleted_column_data = self.dataset.df[col_name].copy()
         
-        # 5. コマンドを発行
         command = DeleteColumnCommand(self.dataset, col_name, deleted_column_data)
         self.undo_stack.push(command)
 
 
     def _on_calculate_column(self):
-        """
-        列計算ボタンが押された -> ColumnCalculatorDialog を表示し、
-        safe_eval_column_formula() で計算式を実行する。
+        """列の計算。Undo できない。"""
 
-        【★ 指摘 ★】
-        この操作は Undo/Redo スタックを経由しないため、「元に戻す」ことができません。
-        対応するには CalculateColumnCommand(QUndoCommand) の実装が必要です。
-        """
-
-        # 1. 現在の列名を計算ダイアログに渡す
         dialog = ColumnCalculatorDialog(self.dataset.df.columns.tolist(), self)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -648,41 +468,23 @@ class DataEditorDialog(QDialog):
                 return
 
             try:
-                # 2. ★ 列名を変数として計算式を評価 ★
-                # log() や sin() などの関数、mean()/rolling().mean() などの
-                # 許可されたSeriesメソッドが使える(詳細は core/safe_eval.py)。
-                #
-                # .dataset.df[output_col] = ... と代入することで、
-                # 既存列の上書き、または新規列の作成が自動的に行われます。
                 self.dataset.df[output_col] = safe_eval_column_formula(self.dataset.df, formula)
                 self.dataset.invalidate_visible_df_cache()
 
                 logger.info("計算完了: %s = %s", output_col, formula)
                 
-                # 3. テーブルUIを更新
-                self._reset_view() # (列が追加された可能性があるので _reset_view)
+                self._reset_view()
                 
-                # 4. メインウィンドウに通知
                 self.dataChanged.emit() 
                 
             except Exception as e:
-                # 計算式の評価に失敗した場合 (例: "A +", 未知の列/関数名)
                 logger.exception("計算エラー")
                 QMessageBox.critical(self, "計算エラー", 
                                      f"計算式の実行に失敗しました:\n\n{e}\n\n"
                                      "列名 (A, B など) や関数 (log(A) など) が正しいか確認してください。")
     
     def _on_calculate_replicate_error(self):
-        """
-        「誤差の自動計算...」ボタンが押されたときの処理。
-        同一条件で複数回測定した列 (反復測定列) から、行ごとの平均と誤差
-        (SD/SEM/95%信頼区間) を計算し、新しい2つの列 (平均・誤差) として追加する。
-        計算した誤差列は、プロパティ欄の「誤差(エラーバー)の列」からY誤差列として
-        選択すれば、そのままグラフにエラーバー表示できる。
-
-        【★ 指摘 ★】_on_calculate_column と同様、この操作はUndo/Redoスタックを
-        経由しないため「元に戻す」ことができない(既知の制限。列計算機能と同じ扱い)。
-        """
+        """反復測定の列から行ごとの平均と誤差(SD / SEM / 95%CI)を2つの列として足す。Undo できない。"""
         dialog = ReplicateErrorDialog(self.dataset.df.columns.tolist(), self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -708,17 +510,16 @@ class DataEditorDialog(QDialog):
             return
 
         try:
-            # 選択列を数値として扱い、行ごと(反復測定間)の平均・標準偏差・有効データ数を計算
             values = self.dataset.df[selected_cols].apply(pd.to_numeric, errors='coerce')
             mean = values.mean(axis=1)
-            std = values.std(axis=1, ddof=1)  # 標本標準偏差 (不偏推定)
+            std = values.std(axis=1, ddof=1)
             n = values.notna().sum(axis=1)
 
             if stat_type == "SD":
                 error = std
             elif stat_type == "SEM":
                 error = std / np.sqrt(n)
-            else:  # 95%CI: t分布の臨界値を使う (反復回数が少ない場合に正規近似より正確)
+            else:  # 95%CI は t 分布で(反復が少ないと正規近似より正確)
                 dof = (n - 1).clip(lower=1)
                 t_crit = pd.Series(scipy_stats.t.ppf(0.975, dof), index=dof.index)
                 error = t_crit * std / np.sqrt(n)
@@ -732,7 +533,7 @@ class DataEditorDialog(QDialog):
                 mean_col_name, error_col_name, selected_cols, stat_type
             )
 
-            self._reset_view() # (列が追加されたので再描画)
+            self._reset_view()
             self.dataChanged.emit()
 
         except Exception as e:
@@ -740,13 +541,7 @@ class DataEditorDialog(QDialog):
             QMessageBox.critical(self, "計算エラー", f"誤差の計算に失敗しました:\n{e}")
 
     def _on_column_string_ops(self):
-        """
-        「文字列操作...」ボタンが押されたときの処理(項目C-205: 列の分割・結合・
-        文字列操作)。「列の分割」「列の結合」「数値抽出」のいずれかを行い、
-        結果を新しい列として追加する(既存列は上書きしない)。
-        _on_calculate_column/_on_calculate_replicate_errorと同様、この操作は
-        Undo/Redo非対応(既知の制限、列計算機能と同じ扱い)。
-        """
+        """列の分割・結合・数値の抽出。結果は新しい列に入れる(既存の列は上書きしない)。Undo できない。"""
         dialog = ColumnStringOpsDialog(self.dataset.df.columns.tolist(), self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -799,7 +594,7 @@ class DataEditorDialog(QDialog):
             self.dataset.invalidate_visible_df_cache()
             logger.info("列の結合完了: %s -> %s (区切り文字: %r)", selected_cols, output_col, separator)
 
-        else:  # MODE_EXTRACT_NUMERIC
+        else:
             source_col, pattern, output_col = dialog.get_extract_settings()
             if not pattern:
                 QMessageBox.warning(self, "入力エラー", "正規表現が空です。")
@@ -825,11 +620,7 @@ class DataEditorDialog(QDialog):
         self.dataChanged.emit()
 
     def _on_toggle_column_visibility(self):
-        """
-        「列の表示/非表示...」ボタンが押されたときの処理(項目C-207)。
-        チェックを外した列をテーブル上で非表示にする(ビュー専用の状態、
-        ソート状態(sort_state)と同様マスターデータ(dataset.df)には影響しない)。
-        """
+        """チェックを外した列を隠す(表示だけ)。"""
         dialog = ColumnVisibilityDialog(self.view_df.columns.tolist(), self._hidden_columns, self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -838,11 +629,7 @@ class DataEditorDialog(QDialog):
             self.table_widget.setColumnHidden(col_idx, col_name in self._hidden_columns)
 
     def _on_open_find_replace(self):
-        """
-        「検索/置換...」ボタンが押されたときの処理(項目C-208)。非モーダルな
-        FindReplaceDialogを開く(既に開いていれば前面に出すだけで、
-        新しいダイアログは作り直さない)。
-        """
+        """開いていれば前面に出すだけ。"""
         if self._find_replace_dialog is None:
             self._find_replace_dialog = FindReplaceDialog(self.dataset.df.columns.tolist(), self)
             self._find_replace_dialog.find_next_button.clicked.connect(self._on_find_next)
@@ -852,13 +639,7 @@ class DataEditorDialog(QDialog):
         self._find_replace_dialog.activateWindow()
 
     def _on_find_next(self):
-        """
-        FindReplaceDialogの「次を検索」ボタンの処理(項目C-208)。テーブル上の
-        セルを行優先(表示上の行0列0、行0列1、...)で走査し、前回見つけた
-        位置の次から大文字小文字を区別せず部分一致するセルを探す。1周しても
-        見つからなければ「見つかりませんでした」を表示する。検索文字列が
-        前回と変わった場合は探索位置をリセットする。
-        """
+        """前回見つけた位置の次から、行優先で大文字小文字を区別せず部分一致で探す。検索語が変われば最初から。"""
         dialog = self._find_replace_dialog
         query = dialog.get_search_text()
         if not query:
@@ -897,14 +678,9 @@ class DataEditorDialog(QDialog):
         dialog.set_status("見つかりませんでした")
 
     def _on_replace_all(self):
-        """
-        FindReplaceDialogの「すべて置換」ボタンの処理(項目C-208)。一致する
-        全セルの値を置換する。既存セルの直接編集(_on_cell_changed)と同じ
-        EditCellCommandを使うため、通常のセル編集と同様にUndo/Redo可能
-        (1回の「すべて置換」を1つのUndoマクロにまとめる)。
-        置換後の値は常に文字列として書き込むため、対象を文字列(object)型の
-        列に限定する(数値/真偽値/日付列は列全体がobject型に暗黙変換されて
-        しまうのを避けるため、検索(_on_find_next)はできるが置換の対象外とする)。
+        """一致する全セルを置き換え、1つの Undo にまとめる。
+
+        置き換えた値は文字列なので、対象は文字列の列だけ(数値などの列は丸ごと object 型になってしまう)。
         """
         dialog = self._find_replace_dialog
         query = dialog.get_search_text()
@@ -942,10 +718,7 @@ class DataEditorDialog(QDialog):
         dialog.set_status(f"{len(matches)}件を置換しました{note}")
 
     def _on_jump_to_row(self):
-        """
-        「行へ移動...」ボタンが押されたときの処理(項目C-208: 行ジャンプ)。
-        表示上の行番号(1始まり)を入力させ、その行を選択・スクロールして表示する。
-        """
+        """表示上の行番号(1始まり)の行を選んで見せる。"""
         if len(self.view_df) == 0:
             QMessageBox.information(self, "行へ移動", "テーブルにデータがありません。")
             return
@@ -962,12 +735,7 @@ class DataEditorDialog(QDialog):
             self.table_widget.scrollToItem(item)
 
     def _on_save_as_csv(self):
-        """現在のDataFrameをCSVファイルとして保存する"""
-        
-        # 1. 保存ダイアログのデフォルトファイル名を提案
-        # (例: data.csv -> data_edited.csv)
         base_name = os.path.splitext(self.dataset.name)[0]
-        # (copy) などが含まれていたらそれも削除
         base_name = base_name.split(' (')[0] 
         suggested_name = f"{base_name}_edited.csv"
         
@@ -979,12 +747,10 @@ class DataEditorDialog(QDialog):
         )
         
         if not file_path:
-            return # キャンセルされた
+            return
 
         try:
-            # 2. DataFrame を CSV に保存
-            # index=False : pandas のインデックス（0, 1, 2...）をファイルに保存しない
-            # encoding='utf-8-sig' : Excel で開いたときの文字化け（特に日本語）を防ぐ
+            # utf-8-sig でないと Excel で開いたとき日本語が化ける
             self.dataset.df.to_csv(file_path, index=False, encoding='utf-8-sig')
             
             QMessageBox.information(self, "保存完了", f"データをCSVファイルとして保存しました:\n{file_path}")

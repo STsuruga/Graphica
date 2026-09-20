@@ -1,17 +1,6 @@
-# gui/export_preview_panel.py
-"""
-「常時表示のエクスポートプレビュー」ドックパネル。
+"""書き出しのプレビューのドック。設定を変えるたびに全サブプロットの完成形を描き直し、ここから保存とコピーもできる。
 
-これまでの「名前を付けてエクスポート」ダイアログ (ExportDialog) は、開くたびに
-手動で「プレビュー更新」ボタンを押す必要があり、かつプレビューは「現在アクティブな
-1つのサブプロット」のみが対象だった。
-
-このパネルはドックとして常設し、幅・高さ・単位・DPIを変更するたびに自動で
-プレビューを再生成する。プレビューは全サブプロットをまとめた完成形を表示する。
-実際の保存/クリップボードコピーも、この設定のままここから直接行える。
-
-一時的な MplCanvas を新しく作って描画することで、画面表示用の本体キャンバス
-(main_window.canvas) には一切手を加えずに済んでいる。
+一時的な MplCanvas に描くので、画面のキャンバスには触れない。
 """
 import io
 import os
@@ -30,14 +19,11 @@ from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
 
-# プレビュー更新をまとめるための遅延(ms)。スピンボックスの矢印連打などで
-# 毎回すぐに重い再描画が走らないようにする。
+# 矢印の連打などで毎回重い描き直しが走らないよう、まとめるまでの待ち(ms)
 PREVIEW_DEBOUNCE_MS = 150
 
 
 class ExportPreviewPanel(QWidget):
-    """エクスポート設定 + 常時プレビュー + 保存/コピーをまとめたドック用ウィジェット"""
-
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
         self.main_window = main_window
@@ -68,22 +54,17 @@ class ExportPreviewPanel(QWidget):
         self.dpi_spinbox.setSuffix(" dpi")
         form.addRow("解像度", self.dpi_spinbox)
 
-        # 背景の透過(項目108): 保存・コピーする画像に適用する
         self.transparent_checkbox = QCheckBox("背景を透過")
         self.transparent_checkbox.setChecked(True)
         form.addRow(self.transparent_checkbox)
 
-        # SVG出力時の文字の扱い(項目88): ExportDialogと同じオプション
         self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
         self.svg_text_as_path_checkbox.setToolTip(
             "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
-        # フル解像度エクスポート: ExportDialogと同じオプション。ライブプレビュー
-        # 自体はスピンボックス変更のたびに自動再描画されるため、応答性を優先して
-        # 常に間引き済みで描画する(このチェックは「名前を付けて保存」/「コピー」の
-        # 実際の出力にのみ適用される)。
+        # プレビューは応答を優先して常に間引いて描く。このチェックは保存とコピーだけに効く
         self.full_resolution_checkbox = QCheckBox("フル解像度で保存/コピー(間引きなし)")
         self.full_resolution_checkbox.setToolTip(
             "「名前を付けて保存」「コピー」の出力にのみ適用されます(常時更新される"
@@ -104,8 +85,7 @@ class ExportPreviewPanel(QWidget):
         layout.addWidget(self.preview_label, 1)
 
         button_row = QHBoxLayout()
-        # コピー形式(項目108): PNG(ラスター)に加えてSVG(ベクター)も選べるようにする。
-        # SVGはIllustrator/Inkscape等、ベクター画像を受け付けるアプリに貼り付けられる。
+        # SVG はベクター画像を受け付けるアプリ(Illustrator、Inkscape など)に貼れる
         self.copy_format_combo = QComboBox()
         self.copy_format_combo.addItems(["PNG", "SVG"])
         self.copy_format_combo.setToolTip("クリップボードにコピーする形式を選択します")
@@ -132,7 +112,7 @@ class ExportPreviewPanel(QWidget):
         self._refresh_timer.timeout.connect(self._render_preview)
 
     def get_options(self):
-        """ExportDialogと同じ形式の設定辞書を返す(main_window._calculate_size_in_inchesと互換)"""
+        """ExportDialog と同じ形の設定(_calculate_size_in_inches で使える)。"""
         return {
             "width": self.width_spinbox.value(),
             "height": self.height_spinbox.value(),
@@ -144,11 +124,7 @@ class ExportPreviewPanel(QWidget):
         }
 
     def refresh_preview(self):
-        """
-        プレビューの再生成をリクエストする(実際の描画は少し遅延させてまとめて行う)。
-        パネルが非表示のときは無駄な描画を避けるため何もしない
-        (再表示された際に別途 refresh_preview が呼ばれる)。
-        """
+        """少し待ってまとめて描く。隠れている間は描かない(表示したときに refresh_preview が呼ばれる)。"""
         if not self.isVisible():
             return
         self._refresh_timer.start()
@@ -174,7 +150,6 @@ class ExportPreviewPanel(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # ドックの大きさが変わったら、既存のプレビュー画像をラベルサイズに合わせて再スケールする
         if self._current_pixmap is not None and not self._current_pixmap.isNull():
             self.preview_label.setPixmap(
                 self._current_pixmap.scaled(self.preview_label.size(),
@@ -183,17 +158,9 @@ class ExportPreviewPanel(QWidget):
             )
 
     def _make_temp_canvas_for_full_figure(self, width_in, height_in, dpi, full_resolution=False):
-        """
-        現在の全プロット(全サブプロット)を指定したサイズ・DPIで描画した、
-        一時的な MplCanvas を作って返す(呼び出し側が保存/コピー形式に応じて
-        savefig するために使う)。画面表示用の本体キャンバス(main_window.canvas)
-        には一切影響を与えない。有効なプロットが無ければ None を返す。
+        """全サブプロットを描いた一時的な MplCanvas。描けるものが無ければ None。
 
-        full_resolution=True: LTTB/2Dグリッド間引きを無視して全データ点/全解像度で
-        描画する。呼び出し側は、常時更新されるライブプレビュー(_render_preview→
-        _render_full_figure_pixmap)では応答性のため常にFalseを渡し、実際の保存/
-        コピー(_on_save_clicked/_on_copy_clicked経由の_render_full_figure_bytes)
-        でのみget_options()['full_resolution']を渡すこと。
+        full_resolution=True は間引かない。常に描き直すプレビューでは False、保存とコピーでだけ設定の値を渡す。
         """
         mw = self.main_window
         layout_mode = getattr(mw.project, 'layout_mode', 'grid')
@@ -217,11 +184,7 @@ class ExportPreviewPanel(QWidget):
         return temp_canvas
 
     def _render_full_figure_pixmap(self, width_in, height_in, dpi):
-        """
-        現在の全プロットを、指定したサイズ・DPIで新規にレンダリングしQPixmapとして返す。
-        オンスクリーンのプレビュー表示専用で、常に不透明(figureの背景色)で描画する
-        (透過の有無は保存/コピー時にのみ選べるようにする、項目108)。
-        """
+        """画面のプレビュー用。常に不透明で描く(透過は保存とコピーのときだけ選べる)。"""
         try:
             temp_canvas = self._make_temp_canvas_for_full_figure(width_in, height_in, dpi)
             if temp_canvas is None:
@@ -245,12 +208,7 @@ class ExportPreviewPanel(QWidget):
 
     def _render_full_figure_bytes(self, width_in, height_in, dpi, fmt, transparent, svg_text_as_path=False,
                                    full_resolution=False):
-        """
-        現在の全プロットを、指定した形式('png'または'svg')・透過設定で保存し、
-        そのバイト列を返す(コピー/保存で共有するヘルパー)。SVGの場合は
-        svg.fonttype を一時的に適用し、目盛りの数字や凡例の文字をテキスト要素
-        (既定、項目108)またはパス(svg_text_as_path=True、項目88)として出力する。
-        """
+        """'png' か 'svg' で書いたバイト列(保存とコピーで共有)。"""
         try:
             temp_canvas = self._make_temp_canvas_for_full_figure(width_in, height_in, dpi, full_resolution=full_resolution)
             if temp_canvas is None:
@@ -289,23 +247,8 @@ class ExportPreviewPanel(QWidget):
                 return
             mime_data = QMimeData()
             mime_data.setData("image/svg+xml", QByteArray(svg_bytes))
-            # ★ 実機フィードバック: 「エクスポートのコピーボタンがsvgだとコピー
-            #   されない」。Word/PowerPoint等ほとんどのアプリはクリップボードの
-            #   image/svg+xmlを認識せず、SVG単体だと貼り付けても何も起きない。
-            #   同じQMimeDataにPNG版もsetImageData()経由(Qt標準の画像系
-            #   フォーマットとして広く認識される)で併せて持たせておくことで、
-            #   SVGを解釈できないアプリではPNGとして貼り付けられ、対応アプリ
-            #   (Illustrator等)ではSVGとして扱える。
-            # ★ さらなる実機フィードバック: 「背景を透過」が既定でONのため、
-            #   透過PNGをそのままクリップボードに乗せると、Qt/macOSの
-            #   クリップボード連携(NSPasteboard)がアルファチャンネルを
-            #   正しく引き継がず、貼り付け先で真っ黒な画像になっていた
-            #   (透過部分のRGBが0,0,0でアルファだけ失われるとこう見える、
-            #   既知のQt/macOSクリップボード周りの弱点)。
-            #   クリップボードへコピーする用途に限っては常に不透過(Figureの
-            #   実際の背景色、ライト/ダークモードに連動)でレンダリングし、
-            #   この問題を回避する(ファイル保存時は影響を受けないため、
-            #   透過設定はそのまま尊重する)。
+            # SVG だけでは Word や PowerPoint が貼り付けられないので、PNG も同じ QMimeData に載せる。
+            # その PNG は透過にしない(macOS のクリップボードはアルファを引き継がず、貼ると真っ黒になる)
             png_fallback_bytes = self._render_full_figure_bytes(
                 width_in, height_in, options["dpi"], fmt='png', transparent=False,
                 full_resolution=options["full_resolution"]
@@ -318,10 +261,7 @@ class ExportPreviewPanel(QWidget):
             QApplication.clipboard().setMimeData(mime_data)
             self.main_window.statusBar().showMessage("プレビュー画像をSVG形式でクリップボードにコピーしました", 3000)
         else:
-            # ★ 実機フィードバック: 上のSVGコピー分岐と同じ理由(Qt/macOSの
-            #   クリップボード連携が透過PNGのアルファチャンネルを正しく
-            #   引き継がず、貼り付け先で真っ黒な画像になる)で、PNGコピーも
-            #   常に不透過でレンダリングする。
+            # 上と同じ理由で透過にしない
             png_bytes = self._render_full_figure_bytes(
                 width_in, height_in, options["dpi"], fmt='png', transparent=False,
                 full_resolution=options["full_resolution"]
@@ -367,7 +307,6 @@ class ExportPreviewPanel(QWidget):
             save_kwargs = {'transparent': options["transparent"], 'bbox_inches': 'tight'}
             if file_ext not in ('pdf', 'svg'):
                 save_kwargs['dpi'] = options["dpi"]
-            # PDF のフォント埋め込みもメインのエクスポートと同じ設定を使う(以前はここだけ抜けていた)
             with mpl.rc_context(export_rc_params(file_ext, options.get("svg_text_as_path", False))):
                 temp_canvas.fig.savefig(file_path, **save_kwargs)
             self.main_window.statusBar().showMessage(f"保存しました: {file_path}", 3000)

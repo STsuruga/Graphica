@@ -1,18 +1,7 @@
-# gui/mixins/slice_extraction_mixin.py
-"""
-2Dマップ(ヒートマップ/等高線、項目C-508/C-509)上でのドラッグによる1Dスライス
-抽出(項目C-511)。既存のモード切替系Mixin(cursor_mixin.py/annotation_mixin.py/
-range_select_mixin.py/peak_placement_mixin.py)と同じ「モードトグル+
-mpl_connect('button_press/motion_notify/button_release_event', ...)+
-他モードとの相互排他」パターンを踏襲する。
+"""スライス抽出モード: 2D マップの上でドラッグした線分に沿った断面を、新しい1次元のデータセットにする。
 
-対象となる2Dデータセットは、range_select_mixin.pyの_apply_range_maskと同じ
-「カレントデータセットが、ドラッグしたAxes上に実際に描画されているか」という
-判定方式を使う(複数の2Dデータセットが同じAxesに重なっている場合の曖昧さを、
-「今選択しているものを対象にする」という単純なルールで解消する)。
-
-線分がほぼ水平/垂直ならその軸のスライスとして、斜めならcore/grid_data.pyの
-extract_slice()が返す「始点からの距離」を新規データセットのX軸として使う。
+対象は今選んでいるデータセット(その軸に描かれていること)。線分がほぼ水平・垂直ならその軸の値、
+斜めなら始点からの距離を X にする。
 """
 import logging
 
@@ -24,10 +13,9 @@ from graphica.core.grid_data import extract_slice, GridDataError
 
 logger = logging.getLogger(__name__)
 
-# スライス抽出時にサンプリングする点数
 SLICE_EXTRACTION_N_POINTS = 200
 
-# 軸の種類(extract_slice()の'axis_kind')ごとの、新規データセットのX軸列名・ラベル
+# extract_slice() の 'axis_kind' ごとの、新しいデータセットの X の列名とラベル
 _AXIS_KIND_LABELS = {
     'x': 'X',
     'y': 'Y',
@@ -37,12 +25,9 @@ _AXIS_KIND_LABELS = {
 
 class SliceExtractionMixin:
     def _toggle_slice_extraction_mode(self, checked):
-        """「スライス抽出」ツールバーボタンが押されたときの処理。"""
         self.slice_extraction_mode_enabled = checked
 
         if checked:
-            # 排他制御は登録簿(gui/mixins/mouse_mode_mixin.py の MOUSE_MODES)に
-            # 集約している。8つ目のモードを足すときもここは変更不要。
             self._deactivate_other_mouse_modes('slice_extraction')
 
             self._slice_extraction_press_cid = self.canvas.mpl_connect(
@@ -70,9 +55,7 @@ class SliceExtractionMixin:
             self._slice_extraction_start = None
 
     def _clear_slice_extraction_preview(self):
-        """ドラッグ中のプレビュー線を取り除く。fig.clf()で既に破棄されている
-        場合(再描画がドラッグ中に割り込んだ場合)に備えてValueError/
-        NotImplementedErrorは無視する(range_select_mixin.pyと同じ防御)。"""
+        """ドラッグ中のプレビューを消す。描き直しで既に消えていても例外にしない。"""
         artist = getattr(self, '_slice_extraction_preview_artist', None)
         if artist is not None:
             try:
@@ -118,18 +101,12 @@ class SliceExtractionMixin:
             return
         end = (event.xdata, event.ydata)
         if start == end:
-            return  # クリックのみ(ドラッグなし)は抽出とみなさない
+            return  # クリックだけ(ドラッグなし)
 
         self._apply_slice_extraction(axes, start, end)
 
     def _apply_slice_extraction(self, axes, start, end):
-        """
-        ドラッグ確定した線分[start, end]から、カレントデータセット(2Dグリッド)の
-        1Dスライスを抽出し、新規データセットとして追加する。カレントデータセットが
-        2Dグリッドでない、またはこのAxes上に描画されていない場合は、紛らわしい
-        誤爆を避けるため何もせず案内を出す(range_select_mixin.pyの
-        _apply_range_maskと同じ方針)。
-        """
+        """今のデータセットが 2D の格子でないか、この軸に描かれていなければ、何もせず案内を出す。"""
         dataset = self._get_current_dataset()
         if dataset is None or dataset.data_kind != '2d_grid':
             QMessageBox.information(
@@ -172,10 +149,6 @@ class SliceExtractionMixin:
         self._create_slice_dataset(dataset, start, end, result)
 
     def _create_slice_dataset(self, source_dataset, start, end, result):
-        """
-        extract_slice()の結果から新規1Dデータセットを作成し、プロジェクトに追加する
-        (曲線フィットなど、他の派生データセット生成箇所と同じパターン)。
-        """
         import pandas as pd
 
         axis_kind = result['axis_kind']

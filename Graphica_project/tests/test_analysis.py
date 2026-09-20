@@ -17,7 +17,7 @@ from graphica.core.analysis import (calculate_curve_fit, calculate_peaks, calcul
                             calculate_iqr_outliers,
                             calculate_confidence_band, calculate_resample_to_grid,
                             calculate_lttb_downsample,
-                            calculate_multi_peak_fit, get_multi_peak_param_names,
+                            calculate_multi_peak_fit,
                             multi_peak_fit_task, calculate_histogram, calculate_kde,
                             calculate_error_propagation, calculate_cross_correlation_alignment,
                             assign_peak_label_levels)
@@ -2219,41 +2219,6 @@ def test_multi_peak_fit_rejects_unknown_p0_override_param_name():
             x, y, 'gaussian', [{'center': 0, 'height': 5, 'width': 1}], baseline_type='none',
             p0_overrides={'not_a_real_param': 1.0},
         )
-
-
-# --- get_multi_peak_param_names ---
-
-def test_get_multi_peak_param_names_gaussian_two_components_constant_baseline():
-    names = get_multi_peak_param_names('gaussian', 2, baseline_type='constant')
-    assert names == ['a1', 'b1', 'c1', 'a2', 'b2', 'c2', 'baseline_c']
-
-
-def test_get_multi_peak_param_names_voigt_one_component_linear_baseline():
-    names = get_multi_peak_param_names('voigt', 1, baseline_type='linear')
-    assert names == ['a1', 'b1', 'sigma1', 'gamma1', 'baseline_m', 'baseline_b']
-
-
-def test_get_multi_peak_param_names_no_baseline():
-    names = get_multi_peak_param_names('pseudo_voigt', 1, baseline_type='none')
-    assert names == ['a1', 'b1', 'c1', 'eta1']
-
-
-def test_get_multi_peak_param_names_matches_calculate_multi_peak_fit():
-    """get_multi_peak_param_names()が実際のフィット結果のparam_namesと一致すること
-    (get_fit_param_names()とcalculate_curve_fitの関係と同じ整合性チェック)。"""
-    x = np.linspace(-10, 10, 200)
-    y = 5.0 * np.exp(-((x - 2.0) ** 2) / (2 * 1.5 ** 2)) + 3.0 * np.exp(-((x + 3.0) ** 2) / (2 * 1.0 ** 2)) + 0.5
-    initial_guesses = [
-        {'center': 2.0, 'height': 5.0, 'width': 1.5},
-        {'center': -3.0, 'height': 3.0, 'width': 1.0},
-    ]
-    result = calculate_multi_peak_fit(x, y, 'gaussian', initial_guesses, baseline_type='constant')
-    assert get_multi_peak_param_names('gaussian', 2, baseline_type='constant') == result['param_names']
-
-
-def test_get_multi_peak_param_names_rejects_zero_components():
-    with pytest.raises(ValueError, match="1以上"):
-        get_multi_peak_param_names('gaussian', 0)
 
 
 # --- multi_peak_fit_task (TaskRunner用ラッパー) ---
