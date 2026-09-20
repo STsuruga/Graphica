@@ -18,6 +18,7 @@ pytest tests/test_dataset.py      # run a single test file
 pytest tests/test_dataset.py::test_name -v   # run a single test
 pytest tests/test_dataset.py -k waterfall    # run a filtered subset
 bash scripts/run_tests_chunked.sh            # the ONLY supported way to run the whole suite
+bash scripts/run_coverage.sh                 # same suite with coverage; fails under COVERAGE_MIN (92%)
 ```
 
 **Do not run bare `pytest` over the whole suite** — a single process degrades until it never finishes (see "Full-suite execution" below). Always use `scripts/run_tests_chunked.sh`.
@@ -206,6 +207,7 @@ Two consequences worth knowing before working on a plugin:
 
 - **Small, isolated changes** (a single-component QSS/style tweak, a docstring, a change confined to one function with no shared/global state involved): run the changed test file(s) plus a relevant broader `pytest -k <keyword>` subset (e.g. `-k "quick_access or main_window"` for a GUI mixin change). That's sufficient before committing.
 - **Changes touching shared or global state, or core mechanisms** (anything in `core/`, `gui/theme.py`, the plugin registry singleton, `models/project.py` serialization, or anything else many other modules depend on): run the full suite before considering the change done. This isn't theoretical — two real bugs in this project only surfaced when running the full suite (global plugin-registry singleton state leaking between test files depending on execution order; a test-mock lambda whose fixed signature broke after an unrelated signature change elsewhere) and were invisible in any subset run.
+- **The coverage floor is enforced, not just published** (item F-3): `scripts/run_coverage.sh` ends with `coverage report --fail-under`, default 92% against a measured 93.8%, so only real gaps (deleted tests, a large untested addition) trip it. The CI runs it on master pushes only, where a drop now fails `build-macos` and blocks the Pages deploy. Raise the floor by exporting `COVERAGE_MIN` once the measured value is reliably higher.
 - **Regardless of the above**: run the full suite at some regular cadence before pushing — not necessarily after every single item, but every few items or at a natural phase/task boundary — so breakage never accumulates silently across several unverified commits.
 
 **Full-suite execution and progress reporting**: The suite is currently **~92 test files / 2,896 tests**, which `scripts/run_tests_chunked.sh` splits into roughly **98 chunks** and finishes in about **17-18 minutes**. Never run it as a single `pytest -q` process: `tests/test_export_preview_panel.py` segfaults at interpreter teardown (see below), so one process would lose every test scheduled after it. Always run it chunked — one fresh process per test file, and per `CHUNK_SIZE` (150) tests for the big files.

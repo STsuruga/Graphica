@@ -1,10 +1,10 @@
 # テストカバレッジ詳細
 
-計測日: 2026-09-17  
+計測日: 2026-09-20  
 要約は [`COVERAGE.md`](COVERAGE.md)。このファイルも `bash scripts/run_coverage.sh` が自動生成する。
 ソースと並べた色付き表示は https://stsuruga.github.io/Graphica/coverage/ (CI が master の push ごとに更新)。
 
-全体: 行 **93.4%** / 分岐 88.6%
+全体: 行 **93.8%** / 分岐 89.2%
 
 ## モジュール別
 
@@ -12,250 +12,330 @@
 
 | モジュール | 行数 | 未到達 | 行カバレッジ | 分岐 | 部分分岐 | 分岐カバレッジ |
 |---|---:|---:|---:|---:|---:|---:|
-| `gui/color_picker_widget.py` | 138 | 32 | 73.2% | 26 | 2 | 53.8% |
-| `gui/dialogs/analysis.py` | 873 | 209 | 75.4% | 84 | 4 | 69.0% |
-| `gui/mathtext_preview.py` | 72 | 10 | 84.1% | 10 | 1 | 70.0% |
-| `gui/mixins/settings_mixin.py` | 511 | 49 | 86.7% | 96 | 14 | 66.7% |
-| `core/json_utils.py` | 11 | 1 | 88.2% | 6 | 1 | 83.3% |
-| `gui/mixins/region_highlight_mixin.py` | 129 | 12 | 88.3% | 50 | 9 | 82.0% |
-| `gui/mixins/slice_extraction_mixin.py` | 97 | 10 | 88.8% | 28 | 4 | 85.7% |
-| `core/label_utils.py` | 12 | 1 | 88.9% | 6 | 1 | 83.3% |
-| `gui/mixins/layout_edit_mixin.py` | 166 | 11 | 89.1% | 54 | 13 | 75.9% |
-| `gui/mixins/ui_setup_mixin.py` | 463 | 27 | 89.3% | 96 | 21 | 65.6% |
-| `gui/mixins/export_mixin.py` | 360 | 30 | 89.4% | 92 | 14 | 80.4% |
-| `gui/main_app_window.py` | 123 | 7 | 89.9% | 26 | 6 | 69.2% |
-| `core/safe_eval.py` | 97 | 6 | 91.3% | 52 | 7 | 86.5% |
-| `gui/dialogs/appearance.py` | 549 | 36 | 91.7% | 92 | 9 | 81.5% |
-| `gui/mixins/peak_placement_mixin.py` | 71 | 6 | 91.8% | 26 | 2 | 92.3% |
-| `gui/mixins/dataset_mixin.py` | 2,101 | 128 | 92.4% | 712 | 64 | 87.9% |
-| `core/excel_utils.py` | 36 | 2 | 92.6% | 18 | 2 | 88.9% |
-| `gui/mixins/mouse_mode_mixin.py` | 28 | 1 | 93.2% | 16 | 2 | 87.5% |
-| `core/methods_text.py` | 78 | 5 | 93.5% | 46 | 1 | 93.5% |
-| `gui/mixins/range_select_mixin.py` | 105 | 5 | 94.2% | 34 | 3 | 91.2% |
-| `gui/mixins/cursor_mixin.py` | 151 | 6 | 94.4% | 62 | 6 | 90.3% |
-| `gui/workers.py` | 97 | 4 | 94.4% | 28 | 3 | 89.3% |
-| `core/diagnostics.py` | 57 | 3 | 94.7% | 18 | 1 | 94.4% |
-| `gui/main_window.py` | 2,024 | 84 | 94.7% | 414 | 38 | 88.9% |
-| `core/script_export.py` | 149 | 6 | 94.8% | 80 | 6 | 92.5% |
-| `gui/data_editor.py` | 525 | 23 | 94.8% | 144 | 12 | 91.7% |
-| `core/dataset.py` | 257 | 9 | 94.8% | 90 | 9 | 90.0% |
-| `gui/minimap_widget.py` | 96 | 5 | 94.9% | 22 | 1 | 95.5% |
-| `gui/app_context.py` | 37 | 1 | 95.1% | 4 | 1 | 75.0% |
-| `gui/mixins/project_io_mixin.py` | 183 | 7 | 95.3% | 74 | 5 | 93.2% |
-| `core/analysis.py` | 931 | 29 | 95.8% | 378 | 24 | 93.1% |
-| `gui/dialogs/data_import.py` | 417 | 14 | 95.9% | 72 | 6 | 91.7% |
-| `core/named_colors.py` | 88 | 2 | 96.7% | 34 | 2 | 94.1% |
-| `core/plugin_install.py` | 46 | 1 | 96.9% | 18 | 1 | 94.4% |
-| `gui/theme.py` | 213 | 3 | 97.7% | 46 | 3 | 93.5% |
-| `gui/dialogs/app.py` | 542 | 3 | 97.8% | 104 | 11 | 89.4% |
-| `gui/mixins/help_mixin.py` | 87 | 1 | 98.1% | 18 | 1 | 94.4% |
-| `core/plugin_api.py` | 232 | 3 | 98.2% | 46 | 2 | 95.7% |
-| `gui/dialogs/export.py` | 260 | 3 | 98.2% | 18 | 0 | 88.9% |
-| `gui/mixins/quick_access_mixin.py` | 125 | 0 | 98.2% | 44 | 3 | 93.2% |
-| `gui/canvas.py` | 972 | 10 | 98.3% | 388 | 13 | 96.6% |
-| `gui/mixins/annotation_mixin.py` | 128 | 1 | 98.3% | 52 | 2 | 96.2% |
-| `gui/export_preview_panel.py` | 211 | 0 | 98.4% | 44 | 4 | 90.9% |
-| `models/project.py` | 141 | 1 | 98.8% | 32 | 1 | 96.9% |
-| `core/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
-| `core/app_paths.py` | 13 | 0 | 100.0% | 2 | 0 | 100.0% |
-| `core/caption_export.py` | 18 | 0 | 100.0% | 6 | 0 | 100.0% |
-| `core/color_palettes.py` | 1 | 0 | 100.0% | 0 | 0 | — |
-| `core/commands.py` | 140 | 0 | 100.0% | 8 | 0 | 100.0% |
-| `core/cvd_simulation.py` | 16 | 0 | 100.0% | 2 | 0 | 100.0% |
-| `core/grid_data.py` | 69 | 0 | 100.0% | 20 | 0 | 100.0% |
-| `core/i18n.py` | 21 | 0 | 100.0% | 4 | 0 | 100.0% |
-| `core/plugin_manifest.py` | 23 | 0 | 100.0% | 8 | 0 | 100.0% |
-| `core/plugin_testing.py` | 45 | 0 | 100.0% | 16 | 0 | 100.0% |
-| `core/plugin_types.py` | 72 | 0 | 100.0% | 0 | 0 | — |
-| `core/report_export.py` | 16 | 0 | 100.0% | 2 | 0 | 100.0% |
-| `core/translations_en.py` | 1 | 0 | 100.0% | 0 | 0 | — |
-| `core/unit_conversion.py` | 23 | 0 | 100.0% | 6 | 0 | 100.0% |
-| `core/update_check.py` | 22 | 0 | 100.0% | 2 | 0 | 100.0% |
-| `core/version.py` | 3 | 0 | 100.0% | 0 | 0 | — |
-| `gui/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
-| `gui/color_history.py` | 23 | 0 | 100.0% | 10 | 0 | 100.0% |
-| `gui/crash_handler.py` | 39 | 0 | 100.0% | 6 | 0 | 100.0% |
-| `gui/cvd_preview.py` | 15 | 0 | 100.0% | 0 | 0 | — |
-| `gui/dataset_style_icon.py` | 43 | 0 | 100.0% | 6 | 0 | 100.0% |
-| `gui/detached_canvas_window.py` | 11 | 0 | 100.0% | 0 | 0 | — |
-| `gui/dialogs/__init__.py` | 7 | 0 | 100.0% | 0 | 0 | — |
-| `gui/dialogs/data_edit.py` | 354 | 0 | 100.0% | 30 | 0 | 100.0% |
-| `gui/export_settings.py` | 7 | 0 | 100.0% | 4 | 0 | 100.0% |
-| `gui/icon_utils.py` | 29 | 0 | 100.0% | 4 | 0 | 100.0% |
-| `gui/mixins/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
-| `gui/provenance_panel.py` | 44 | 0 | 100.0% | 8 | 0 | 100.0% |
-| `gui/residual_panel.py` | 43 | 0 | 100.0% | 4 | 0 | 100.0% |
-| `gui/task_runner.py` | 22 | 0 | 100.0% | 0 | 0 | — |
-| `models/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/plugins/example_plugin/__init__.py` | 15 | 8 | 41.2% | 2 | 0 | 0.0% |
+| `graphica/__main__.py` | 39 | 21 | 41.9% | 4 | 0 | 0.0% |
+| `graphica/core/color_palettes.py` | 16 | 4 | 69.2% | 10 | 4 | 60.0% |
+| `graphica/gui/color_picker_widget.py` | 138 | 32 | 73.2% | 26 | 2 | 53.8% |
+| `graphica/gui/dialogs/analysis.py` | 880 | 210 | 75.5% | 84 | 4 | 69.0% |
+| `graphica/gui/menu_bar.py` | 176 | 25 | 82.2% | 60 | 5 | 71.7% |
+| `graphica/gui/datasets/fitting.py` | 255 | 39 | 82.9% | 72 | 11 | 76.4% |
+| `graphica/gui/mathtext_preview.py` | 72 | 10 | 84.1% | 10 | 1 | 70.0% |
+| `graphica/gui/mixins/settings_mixin.py` | 503 | 45 | 87.1% | 96 | 14 | 66.7% |
+| `graphica/gui/mixins/region_highlight_mixin.py` | 129 | 12 | 88.3% | 50 | 9 | 82.0% |
+| `graphica/core/json_utils.py` | 12 | 1 | 88.9% | 6 | 1 | 83.3% |
+| `graphica/core/label_utils.py` | 12 | 1 | 88.9% | 6 | 1 | 83.3% |
+| `graphica/gui/mixins/slice_extraction_mixin.py` | 98 | 10 | 88.9% | 28 | 4 | 85.7% |
+| `graphica/gui/mixins/layout_edit_mixin.py` | 167 | 11 | 89.1% | 54 | 13 | 75.9% |
+| `graphica/gui/mixins/export_mixin.py` | 362 | 28 | 89.9% | 92 | 14 | 80.4% |
+| `graphica/gui/datasets/colors.py` | 137 | 10 | 90.5% | 64 | 5 | 85.9% |
+| `graphica/gui/datasets/transfer.py` | 152 | 14 | 91.0% | 60 | 5 | 91.7% |
+| `graphica/core/safe_eval.py` | 98 | 6 | 91.3% | 52 | 7 | 86.5% |
+| `graphica/gui/dialogs/appearance.py` | 549 | 36 | 91.7% | 92 | 9 | 81.5% |
+| `graphica/gui/mixins/peak_placement_mixin.py` | 71 | 6 | 91.8% | 26 | 2 | 92.3% |
+| `graphica/core/excel_utils.py` | 36 | 2 | 92.6% | 18 | 2 | 88.9% |
+| `graphica/core/methods_text.py` | 81 | 6 | 92.9% | 46 | 1 | 93.5% |
+| `graphica/gui/mixins/ui_setup_mixin.py` | 294 | 8 | 93.1% | 68 | 17 | 75.0% |
+| `graphica/gui/mixins/mouse_mode_mixin.py` | 28 | 1 | 93.2% | 16 | 2 | 87.5% |
+| `graphica/gui/main_app_window.py` | 121 | 3 | 93.2% | 26 | 7 | 73.1% |
+| `graphica/gui/datasets/processing.py` | 576 | 36 | 93.8% | 192 | 12 | 93.8% |
+| `graphica/gui/minimap_widget.py` | 97 | 6 | 94.1% | 22 | 1 | 95.5% |
+| `graphica/gui/mixins/range_select_mixin.py` | 105 | 5 | 94.2% | 34 | 3 | 91.2% |
+| `graphica/gui/mixins/cursor_mixin.py` | 151 | 6 | 94.4% | 62 | 6 | 90.3% |
+| `graphica/gui/workers.py` | 97 | 4 | 94.4% | 28 | 3 | 89.3% |
+| `graphica/gui/plugin_context.py` | 80 | 4 | 94.4% | 10 | 1 | 90.0% |
+| `graphica/plugin/testing.py` | 18 | 1 | 94.4% | 0 | 0 | — |
+| `graphica/core/diagnostics.py` | 58 | 3 | 94.7% | 18 | 1 | 94.4% |
+| `graphica/gui/data_editor.py` | 525 | 23 | 94.8% | 144 | 12 | 91.7% |
+| `graphica/core/script_export.py` | 151 | 6 | 94.8% | 80 | 6 | 92.5% |
+| `graphica/core/dataset.py` | 265 | 9 | 94.9% | 90 | 9 | 90.0% |
+| `graphica/gui/mixins/project_io_mixin.py` | 183 | 7 | 95.3% | 74 | 5 | 93.2% |
+| `graphica/gui/dialogs/data_import.py` | 419 | 14 | 95.9% | 72 | 6 | 91.7% |
+| `graphica/core/analysis.py` | 916 | 27 | 96.0% | 368 | 22 | 93.5% |
+| `graphica/gui/datasets/property_panel.py` | 447 | 9 | 96.3% | 94 | 11 | 88.3% |
+| `graphica/gui/datasets/host.py` | 98 | 2 | 96.4% | 14 | 2 | 85.7% |
+| `graphica/gui/mixins/dataset_mixin.py` | 253 | 3 | 96.6% | 104 | 9 | 91.3% |
+| `graphica/core/plugin_testing.py` | 124 | 5 | 96.7% | 28 | 0 | 100.0% |
+| `graphica/core/named_colors.py` | 89 | 2 | 96.7% | 34 | 2 | 94.1% |
+| `graphica/gui/main_window.py` | 2,078 | 44 | 96.8% | 420 | 37 | 91.2% |
+| `graphica/core/plugin_install.py` | 46 | 1 | 96.9% | 18 | 1 | 94.4% |
+| `graphica/gui/plot_type_drawers.py` | 63 | 1 | 97.5% | 18 | 1 | 94.4% |
+| `graphica/gui/theme.py` | 213 | 3 | 97.7% | 46 | 3 | 93.5% |
+| `graphica/gui/dialogs/app.py` | 542 | 3 | 97.8% | 104 | 11 | 89.4% |
+| `graphica/gui/datasets/peaks.py` | 78 | 1 | 98.0% | 22 | 1 | 95.5% |
+| `graphica/gui/mixins/help_mixin.py` | 87 | 1 | 98.1% | 18 | 1 | 94.4% |
+| `graphica/core/plugin_api.py` | 221 | 3 | 98.1% | 46 | 2 | 95.7% |
+| `graphica/gui/dialogs/export.py` | 260 | 3 | 98.2% | 18 | 0 | 88.9% |
+| `graphica/gui/mixins/quick_access_mixin.py` | 125 | 0 | 98.2% | 44 | 3 | 93.2% |
+| `graphica/gui/mixins/annotation_mixin.py` | 129 | 1 | 98.3% | 52 | 2 | 96.2% |
+| `graphica/gui/canvas.py` | 960 | 10 | 98.4% | 352 | 11 | 96.9% |
+| `graphica/gui/export_preview_panel.py` | 211 | 0 | 98.4% | 44 | 4 | 90.9% |
+| `graphica/models/project.py` | 142 | 1 | 98.9% | 32 | 1 | 96.9% |
+| `graphica/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/assets/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/assets/icons/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/core/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/core/app_paths.py` | 19 | 0 | 100.0% | 2 | 0 | 100.0% |
+| `graphica/core/axis_settings.py` | 12 | 0 | 100.0% | 4 | 0 | 100.0% |
+| `graphica/core/caption_export.py` | 18 | 0 | 100.0% | 6 | 0 | 100.0% |
+| `graphica/core/commands.py` | 141 | 0 | 100.0% | 8 | 0 | 100.0% |
+| `graphica/core/cvd_simulation.py` | 16 | 0 | 100.0% | 2 | 0 | 100.0% |
+| `graphica/core/grid_data.py` | 70 | 0 | 100.0% | 20 | 0 | 100.0% |
+| `graphica/core/i18n.py` | 21 | 0 | 100.0% | 4 | 0 | 100.0% |
+| `graphica/core/plugin_context.py` | 21 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/core/plugin_manifest.py` | 33 | 0 | 100.0% | 10 | 0 | 100.0% |
+| `graphica/core/plugin_types.py` | 79 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/core/provenance.py` | 4 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/core/report_export.py` | 17 | 0 | 100.0% | 2 | 0 | 100.0% |
+| `graphica/core/translations_en.py` | 1 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/core/unit_conversion.py` | 24 | 0 | 100.0% | 6 | 0 | 100.0% |
+| `graphica/core/update_check.py` | 23 | 0 | 100.0% | 2 | 0 | 100.0% |
+| `graphica/core/version.py` | 3 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/gui/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/gui/color_history.py` | 23 | 0 | 100.0% | 10 | 0 | 100.0% |
+| `graphica/gui/crash_handler.py` | 39 | 0 | 100.0% | 6 | 0 | 100.0% |
+| `graphica/gui/cvd_preview.py` | 15 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/gui/dataset_style_icon.py` | 43 | 0 | 100.0% | 6 | 0 | 100.0% |
+| `graphica/gui/datasets/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/gui/datasets/actions_menu.py` | 68 | 0 | 100.0% | 24 | 0 | 100.0% |
+| `graphica/gui/datasets/overlays.py` | 38 | 0 | 100.0% | 10 | 0 | 100.0% |
+| `graphica/gui/datasets/plugin_runs.py` | 64 | 0 | 100.0% | 26 | 0 | 100.0% |
+| `graphica/gui/detached_canvas_window.py` | 11 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/gui/dialogs/__init__.py` | 7 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/gui/dialogs/data_edit.py` | 354 | 0 | 100.0% | 30 | 0 | 100.0% |
+| `graphica/gui/export_settings.py` | 7 | 0 | 100.0% | 4 | 0 | 100.0% |
+| `graphica/gui/icon_utils.py` | 28 | 0 | 100.0% | 4 | 0 | 100.0% |
+| `graphica/gui/mixins/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/gui/provenance_panel.py` | 44 | 0 | 100.0% | 8 | 0 | 100.0% |
+| `graphica/gui/residual_panel.py` | 43 | 0 | 100.0% | 4 | 0 | 100.0% |
+| `graphica/gui/task_runner.py` | 22 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/models/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/plugin/__init__.py` | 6 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/sample_data/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
 
 ## 未到達の行
 
 テストで一度も実行されなかった行の番号(パス順)。すべて到達しているモジュールは省略。
 
-### `core/analysis.py` (29 行)
+### `graphica/__main__.py` (21 行)
 
-46, 285, 378, 451, 577-578, 580, 684, 696, 736, 742, 749, 753, 756, 863, 896, 938, 1089, 1216, 1299, 1911, 1915, 2084, 2091-2092, 2203-2206
+25-26, 28-30, 36, 44, 46, 49-50, 52-55, 57, 60, 62, 65, 67-68, 70
 
-### `core/dataset.py` (9 行)
+### `graphica/core/analysis.py` (27 行)
 
-179, 477, 479, 604-605, 616, 618, 654-655
+33, 219, 267, 324, 429-430, 432, 526, 532, 537, 541, 544, 646, 673, 686, 802, 882, 941, 1325, 1329, 1428, 1435-1436, 1498-1501
 
-### `core/diagnostics.py` (3 行)
+### `graphica/core/color_palettes.py` (4 行)
 
-38-39, 50
+38, 42, 44, 46
 
-### `core/excel_utils.py` (2 行)
+### `graphica/core/dataset.py` (9 行)
 
-58, 70
+117, 301, 303, 403-404, 415-416, 442-443
 
-### `core/json_utils.py` (1 行)
+### `graphica/core/diagnostics.py` (3 行)
 
-23
+39-40, 51
 
-### `core/label_utils.py` (1 行)
+### `graphica/core/excel_utils.py` (2 行)
 
-34
+36, 48
 
-### `core/methods_text.py` (5 行)
+### `graphica/core/json_utils.py` (1 行)
 
-72-73, 76-77, 81
+24
 
-### `core/named_colors.py` (2 行)
+### `graphica/core/label_utils.py` (1 行)
 
-146, 173
+20
 
-### `core/plugin_api.py` (3 行)
+### `graphica/core/methods_text.py` (6 行)
 
-504, 537-538
+65-69, 73
 
-### `core/plugin_install.py` (1 行)
+### `graphica/core/named_colors.py` (2 行)
 
-87
+99, 120
 
-### `core/safe_eval.py` (6 行)
+### `graphica/core/plugin_api.py` (3 行)
 
-101, 107, 116, 126, 158, 177
+389, 415-416
 
-### `core/script_export.py` (6 行)
+### `graphica/core/plugin_install.py` (1 行)
 
-34-35, 196, 198, 208, 280
+62
 
-### `gui/app_context.py` (1 行)
+### `graphica/core/plugin_testing.py` (5 行)
 
-46
+161, 183, 189, 207, 213
 
-### `gui/canvas.py` (10 行)
+### `graphica/core/safe_eval.py` (6 行)
 
-332, 1138-1139, 1262-1264, 1512, 1697, 1780, 2281
+79, 85, 94, 104, 133, 144
 
-### `gui/color_picker_widget.py` (32 行)
+### `graphica/core/script_export.py` (6 行)
 
-66, 129-130, 135-136, 138-139, 141-142, 144-146, 148-154, 158, 171-177, 183, 185, 210-212
+21-22, 152, 154, 161, 224
 
-### `gui/data_editor.py` (23 行)
+### `graphica/gui/canvas.py` (10 行)
 
-764-767, 772, 785-786, 794-797, 805-806, 808-809, 811-812, 865-866, 872-873, 886, 925
+287, 814-815, 896-898, 968, 1080, 1161, 1569
 
-### `gui/dialogs/analysis.py` (209 行)
+### `graphica/gui/color_picker_widget.py` (32 行)
 
-327, 512-514, 771-772, 810-813, 815-816, 818-822, 824-825, 828-845, 848-858, 861-863, 867-870, 873-887, 891-894, 896, 898-901, 903-904, 906, 908-910, 912, 927-930, 935-937, 941-943, 945-946, 950, 1051-1053, 1055-1056, 1058-1061, 1063-1068, 1070-1076, 1078, 1081, 1089, 1091, 1094-1095, 1097, 1099-1101, 1103, 1111-1114, 1273-1276, 1278-1279, 1281-1285, 1287-1288, 1291-1296, 1299-1303, 1306-1313, 1315-1320, 1322-1326, 1328-1329, 1331, 1333-1337, 1339-1340, 1347, 1349-1352, 1354, 1356-1358, 1360, 1373-1376, 1378-1379, 1384-1386, 1564
+51, 90-91, 94-95, 97-98, 100-101, 103-105, 107-113, 116, 128-134, 139, 141, 161-163
 
-### `gui/dialogs/app.py` (3 行)
+### `graphica/gui/data_editor.py` (23 行)
 
-823-824, 912
+559-562, 567, 580-581, 589-592, 600-601, 603-604, 606-607, 646-647, 653-654, 667, 701
 
-### `gui/dialogs/appearance.py` (36 行)
+### `graphica/gui/datasets/colors.py` (10 行)
 
-330, 350, 355-358, 568, 718, 722, 730, 734-736, 740-745, 747-755, 760-761, 764-766, 772, 775-776
+53, 62, 93, 114-120
 
-### `gui/dialogs/data_import.py` (14 行)
+### `graphica/gui/datasets/fitting.py` (39 行)
 
-113-114, 122-124, 127-129, 142, 294, 397-398, 650-651
+72-73, 138-147, 152-155, 157-158, 163-170, 187-188, 208-209, 268-269, 300-301, 314, 434-435, 438-439
 
-### `gui/dialogs/export.py` (3 行)
+### `graphica/gui/datasets/host.py` (2 行)
 
-444, 447-448
+55, 65
 
-### `gui/main_app_window.py` (7 行)
+### `graphica/gui/datasets/peaks.py` (1 行)
 
-129-130, 196, 200-202, 206
+114
 
-### `gui/main_window.py` (84 行)
+### `graphica/gui/datasets/processing.py` (36 行)
 
-46, 2241, 2244-2246, 2287, 2325-2333, 2338-2346, 2350-2358, 2367, 2375-2383, 2509-2510, 2522, 2577, 2579-2581, 2583-2587, 2589-2590, 2657-2664, 2754-2755, 3311, 3334, 3338, 3556, 3559, 3755, 3757, 4021, 4026, 4055-4057, 4150-4152, 4212, 4217
+89-90, 100, 102, 104, 109-110, 182, 186, 203-205, 480, 484-485, 497-499, 549, 598, 602, 641-642, 666-668, 707-709, 761-763, 804-806, 828
 
-### `gui/mathtext_preview.py` (10 行)
+### `graphica/gui/datasets/property_panel.py` (9 行)
 
-101-103, 105, 120-124, 126
+71, 536, 556, 559-560, 582, 600, 652-653
 
-### `gui/minimap_widget.py` (5 行)
+### `graphica/gui/datasets/transfer.py` (14 行)
 
-196-197, 199, 212, 214
+50, 71, 73, 85-88, 106-107, 110, 200-203
 
-### `gui/mixins/annotation_mixin.py` (1 行)
+### `graphica/gui/dialogs/analysis.py` (210 行)
 
-220
+259, 391-394, 569-570, 599-602, 604-605, 607-611, 613-614, 616-633, 635-645, 647-649, 653-656, 658-672, 676-679, 681, 683-686, 688-689, 691, 693-695, 697, 704-707, 712-714, 718-720, 722-723, 727, 807-809, 811-812, 814-817, 819-824, 826-832, 834, 837, 845, 847, 850-851, 853, 855-857, 859, 863-866, 986-989, 991-992, 994-998, 1000-1001, 1003-1008, 1010-1014, 1016-1023, 1025-1030, 1032-1036, 1038-1040, 1042-1046, 1048-1049, 1056, 1058-1061, 1063, 1065-1067, 1069, 1076-1079, 1081-1082, 1087-1089, 1237
 
-### `gui/mixins/cursor_mixin.py` (6 行)
+### `graphica/gui/dialogs/app.py` (3 行)
 
-61, 79, 246, 311, 362-363
+682-683, 751
 
-### `gui/mixins/dataset_mixin.py` (128 行)
+### `graphica/gui/dialogs/appearance.py` (36 行)
 
-248, 255, 535, 556, 558, 570-572, 590-591, 594, 766-768, 862-863, 873, 875, 877, 882-883, 968, 972, 989-991, 1330, 1334-1335, 1347-1349, 1399, 1462, 1466, 1515-1516, 1542-1544, 1592-1594, 1656-1658, 1706-1708, 1730, 2037-2038, 2075-2077, 2100, 2118-2124, 2126-2129, 2134-2136, 2138-2140, 2142-2156, 2158, 2165-2167, 2180, 2182, 2345, 2464, 2600, 2609, 2772, 2793-2799, 3350, 3375, 3378-3379, 3405, 3428, 3497-3498, 3533-3534, 3761, 3879-3880, 3909, 3912, 3914, 3916, 4018, 4022, 4026, 4030, 4043
+201, 221, 226-229, 394, 523, 527, 534, 538-540, 544-549, 551-559, 564-565, 568-570, 576, 579-580
 
-### `gui/mixins/export_mixin.py` (30 行)
+### `graphica/gui/dialogs/data_import.py` (14 行)
 
-127-128, 132-133, 213-215, 230, 284, 298-300, 319, 330-333, 337, 349-351, 457-458, 541-542, 608, 617-618, 623-624
+73-74, 82-84, 87-89, 101, 244, 332-333, 542-543
 
-### `gui/mixins/help_mixin.py` (1 行)
+### `graphica/gui/dialogs/export.py` (3 行)
 
-95
+357, 360-361
 
-### `gui/mixins/layout_edit_mixin.py` (11 行)
+### `graphica/gui/main_app_window.py` (3 行)
 
-48-49, 102, 106, 130, 208, 241, 246, 274, 280, 333
+82-83, 136
 
-### `gui/mixins/mouse_mode_mixin.py` (1 行)
+### `graphica/gui/main_window.py` (44 行)
 
-98
+35, 1652, 1655-1657, 1696, 1724, 1732-1740, 1824-1825, 1837, 1879, 1885, 1888, 1972-1974, 2041-2042, 2412, 2428, 2432, 2579, 2582, 2758, 2760, 2966, 2971, 2990-2992, 3069-3071, 3122, 3124
 
-### `gui/mixins/peak_placement_mixin.py` (6 行)
+### `graphica/gui/mathtext_preview.py` (10 行)
 
-72, 136, 143-144, 154-155
+37-40, 55-59, 61
 
-### `gui/mixins/project_io_mixin.py` (7 行)
+### `graphica/gui/menu_bar.py` (25 行)
 
-211, 326, 336-338, 374-375
+232, 269, 274-287, 290-297, 301
 
-### `gui/mixins/range_select_mixin.py` (5 行)
+### `graphica/gui/minimap_widget.py` (6 行)
 
-81-82, 141, 169, 205
+128-130, 132, 142, 144
 
-### `gui/mixins/region_highlight_mixin.py` (12 行)
+### `graphica/gui/mixins/annotation_mixin.py` (1 行)
 
-85-86, 94, 106, 124-125, 137, 144, 157, 191, 200, 204
+171
 
-### `gui/mixins/settings_mixin.py` (49 行)
+### `graphica/gui/mixins/cursor_mixin.py` (6 行)
 
-106-109, 113, 127, 210, 300, 442, 450, 533-536, 552-554, 556, 568-571, 575-577, 579, 667, 670, 687-697, 699-704, 714-715, 719-720
+43, 55, 166, 205, 239-240
 
-### `gui/mixins/slice_extraction_mixin.py` (10 行)
+### `graphica/gui/mixins/dataset_mixin.py` (3 行)
 
-79-80, 109, 117, 141, 159-160, 167-169
+154, 160, 271
 
-### `gui/mixins/ui_setup_mixin.py` (27 行)
+### `graphica/gui/mixins/export_mixin.py` (28 行)
 
-628, 638-648, 654-659, 667, 761-762, 796, 805, 834, 836, 869, 873
+99-100, 104-105, 174-176, 187, 226, 240-242, 253, 263-266, 270, 282-284, 366-367, 423-424, 471, 485-486
 
-### `gui/theme.py` (3 行)
+### `graphica/gui/mixins/help_mixin.py` (1 行)
 
-888, 973, 1131
+73
 
-### `gui/workers.py` (4 行)
+### `graphica/gui/mixins/layout_edit_mixin.py` (11 行)
 
-65, 112, 148-149
+30-31, 65, 69, 89, 145, 174, 179, 205, 211, 250
 
-### `models/project.py` (1 行)
+### `graphica/gui/mixins/mouse_mode_mixin.py` (1 行)
 
-88
+68
+
+### `graphica/gui/mixins/peak_placement_mixin.py` (6 行)
+
+45, 95, 102-103, 112-113
+
+### `graphica/gui/mixins/project_io_mixin.py` (7 行)
+
+160, 257, 267-269, 295-296
+
+### `graphica/gui/mixins/range_select_mixin.py` (5 行)
+
+56-57, 107, 130, 161
+
+### `graphica/gui/mixins/region_highlight_mixin.py` (12 行)
+
+63-64, 72, 84, 102-103, 115, 122, 135, 161, 170, 174
+
+### `graphica/gui/mixins/settings_mixin.py` (45 行)
+
+75-78, 82, 88, 137, 179, 284, 291, 338-341, 352-355, 365-368, 371-374, 422, 425, 437-447, 449-454
+
+### `graphica/gui/mixins/slice_extraction_mixin.py` (10 行)
+
+63-64, 93, 101, 119, 137-138, 145-147
+
+### `graphica/gui/mixins/ui_setup_mixin.py` (8 行)
+
+268-269, 289, 294, 309, 311, 332, 336
+
+### `graphica/gui/plot_type_drawers.py` (1 行)
+
+113
+
+### `graphica/gui/plugin_context.py` (4 行)
+
+33, 91, 94, 97
+
+### `graphica/gui/theme.py` (3 行)
+
+627, 688, 795
+
+### `graphica/gui/workers.py` (4 行)
+
+35, 68, 94-95
+
+### `graphica/models/project.py` (1 行)
+
+77
+
+### `graphica/plugin/testing.py` (1 行)
+
+57
+
+### `graphica/plugins/example_plugin/__init__.py` (8 行)
+
+15, 19-20, 24-28

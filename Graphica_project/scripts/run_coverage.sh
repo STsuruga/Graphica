@@ -45,11 +45,21 @@ python -m coverage report
 
 python scripts/write_coverage_summary.py
 
+# 下限を切ったら失敗させる(CI の master のランで効く)。実測より1〜2ポイント低い値にしてあり、
+# テストを減らしたり大きな未テストのコードを足したときだけ止まる。上げるのは実測が安定して上がってから。
+coverage_min="${COVERAGE_MIN:-92}"
+coverage_status=0
+python -m coverage report --fail-under="$coverage_min" > /dev/null || coverage_status=1
+
 echo
 echo "HTML: htmlcov/index.html"
 echo "要約: docs/COVERAGE.md"
 echo "詳細: docs/COVERAGE_DETAILS.md"
 if [ "$suite_status" -ne 0 ]; then
   echo "※ テスト側が非0で終了している。上のログを確認すること。"
+fi
+if [ "$coverage_status" -ne 0 ]; then
+  echo "!!! 行カバレッジが下限 ${coverage_min}% を下回った(上の表を参照)。"
+  exit 1
 fi
 exit "$suite_status"
