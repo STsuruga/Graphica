@@ -94,7 +94,10 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   Dataset の None 既定のフィールドは Optional に、プラグインの記録の callback 類は object から Callable に。
   配列の引数はリスト・Series・ndarray が来るので Any。gui/ は対象外(少しずつ広げる、CLAUDE.md に記載)。
 - J はすべて完了・取り込み済み。
-- 次: F-3(カバレッジの下限を CI で守る)。その後はボードの項目は K の未着手分だけになる。
+- F-3 完了(4f71b5f、未マージ): scripts/run_coverage.sh の最後に coverage report --fail-under を追加。下限は 92%
+  (環境変数 COVERAGE_MIN で変えられる)。このブランチの実測は 93.8% で、docs/COVERAGE.md と COVERAGE_DETAILS.md も
+  その計測で更新。CI は master の push でだけ計測するので、そこで下がると build-macos が失敗し Pages への公開も止まる。
+- ボードの F〜J はすべて完了。残りは K の未着手分(K-3, K-5〜K-10, K-16, K-17)だけで、いずれも着手前に直し方の確認が要る。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree
