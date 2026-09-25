@@ -13,21 +13,18 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-25): R の再設計を始める準備が済んだ
+## 現在地(2026-09-25): R-0(特性テスト)の作業中
 
 **再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
 (原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
-**引き継ぎ**: `docs/dev/REFACTOR_HANDOFF.md`(作業ルール、R-0 の指針、最終の動作確認表、新チャットの最初の命令)。
+**引き継ぎ**: `docs/dev/REFACTOR_HANDOFF.md`(作業ルール、R-0 の指針、最終の動作確認表)。
 
-- ブランチ `refactor/architecture`(`42c597d` から分岐)、作業フォルダ `D:\ユーザー\shuta\ドキュメント\PlotterApp-refactor`。
-  段階ごとの作業ブランチを切ってここへ PR で取り込み、**master への統合は全段階とテスト・配布物・動作確認(M6)が済んでから 1 回だけ**(ユーザー指示)。
-- 絶対条件(ユーザー指示): 機能・入出力・副作用・エッジケースを完全に維持。内部構造は根本から変えてよい。
-  見つけた不具合は直さずに K として登録して提案する。挙動の維持は R-0 の特性テストで示す。
-- 順番: M0 準備(P-1 済み、P-2 CI、P-3 環境の記録)→ M1 R-0 → M2 R-2・R-4・R-5 → M3 R-3・R-6 → M4 R-1・R-7 → M5 R-9・R-8 → M6 確認と統合。
-- K: 保守性ボードの未対応分(K-3, K-5〜K-10, K-16〜K-20)をロードマップの db に移し、計画の解析で見つけた K-21〜K-26 を追加。
-  それぞれ直す時期(`when`)を決めてある。以後の K はロードマップの db に登録する(保守性ボードの db には足さない)。
-- 次: 新しいチャットで REFACTOR_HANDOFF.md の最初の命令を送り、P-2・P-3 → R-0.1 から。
-- 旧ブランチ `refactor/maintainability` と `PlotterApp-maintenance` は役目を終えた(消すのはユーザーの指示後)。
+- 統合ブランチ `refactor/architecture`、作業フォルダ `D:\ユーザー\shuta\ドキュメント\PlotterApp-refactor`。
+  **master への統合は M6 の確認後に 1 回だけ**(ユーザー指示)。PR の作成とマージはユーザーの承認を待つ。
+- 絶対条件(ユーザー指示): 機能・入出力・副作用・エッジケースを完全に維持。見つけた不具合は直さずに K として db に登録して提案する。
+- 作業ブランチ `refactor/r0-characterization`(統合ブランチから分岐、push 済み)。
+- M0 完了: P-2(`26d3146`、CI の pull_request に統合ブランチを追加)、P-3(`2ef015c`、`tests/characterization/ENVIRONMENT.md`)。
+- 次: R-0.1(conftest に設定の一括隔離・モーダルの仕掛け線・ID と時刻の固定)から R-0.8 まで順に。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
 
