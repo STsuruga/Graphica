@@ -60,11 +60,15 @@ class Setting:
     def read_for_export(self, settings: QSettings) -> Any:
         default = self.default if self.export_default is _TABLE_DEFAULT else self.export_default
         if self.export_as is list:
-            value = settings.value(self.key, default)
-            if isinstance(value, str):
-                value = [value] if value else []
-            return value
+            return as_list(settings.value(self.key, default))
         return settings.value(self.key, default, type=self.export_as)
+
+
+def as_list(value: Any) -> Any:
+    """要素 1 つのリストが文字列で返ったのを直す。空の文字列は空のリスト(設定の書き出し・最近使った色の読み方)。"""
+    if isinstance(value, str):
+        return [value] if value else []
+    return value
 
 
 def as_list_keeping_empty_string(value: Any) -> list[Any]:
