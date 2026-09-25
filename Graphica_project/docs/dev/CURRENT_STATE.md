@@ -29,7 +29,10 @@
 - 新しい K: K-27(注釈と統計ラベルの日本語が □ になる。直す時期は R-8 のあと)。
 - R-0.2 完了(`20fc2c3`): `tests/characterization/` の recorder.py・scenario.py・conftest.py と
   `scripts/update_characterization.py`。ランナーが特性テストも回す。CLAUDE.md に説明を追加(`e837781`)。
-- 次: R-0.3(画面の組み立て)→ R-0.8。R-0.3・R-0.4 のテストは作業フォルダに下書き済み(未コミット)。
+- R-0.3 完了(`298c57c`・`dd89082`): 画面の組み立ての基準 14 シナリオ(`golden/ui/`)。OS で違う記録(画面・描画)は
+  `pytest.mark.pinned_os` で Windows のときだけ比べる。
+- 次: R-0.4(描画)→ R-0.8。R-0.4 のテストは作業フォルダに下書き済み(未コミット)。
+  CI(macOS / Windows Server)で特性テストがどう振る舞うかは、R-0.8 の PR で初めて分かる。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
 
