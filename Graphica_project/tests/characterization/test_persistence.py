@@ -204,7 +204,6 @@ def test_load_broken_projects(app_env, modal_log, norm, tmp_path):
     recorder.check("persistence/project_broken", results, norm)
 
 
-@pytest.mark.pinned_os  # エラー文言は OS ごとに違う
 def test_save_to_unwritable_path(app_env, modal_log, norm, tmp_path):
     tab = app_env.tab()
     folder = tmp_path / "is_a_folder.graphica"
@@ -279,7 +278,6 @@ def test_recovery_from_autosave_at_startup(app_env, modal_log, norm, tmp_path, a
 
 # --- アプリの設定 ---
 
-@pytest.mark.pinned_os  # ウィンドウの位置とドックの配置のバイト列は OS ごとに違う
 def test_settings_written_by_startup_and_close(app_env, modal_log, norm, isolated_settings_file):
     main = app_env.main_window()
     after_start = settings_dump(isolated_settings_file)

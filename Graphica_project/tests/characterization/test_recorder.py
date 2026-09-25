@@ -8,6 +8,8 @@ from PySide6.QtWidgets import QDialog, QLabel, QMessageBox, QPushButton, QVBoxLa
 
 import recorder
 
+pytestmark = pytest.mark.any_os
+
 
 @pytest.fixture(autouse=True)
 def _compare_mode(monkeypatch):
