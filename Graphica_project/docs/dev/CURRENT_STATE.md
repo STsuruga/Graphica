@@ -27,7 +27,9 @@
 - R-0.1 完了(`55a0147`): conftest が QSettings を一時 INI に差し替え(K-22)、差し替え忘れのモーダルは例外にして
   テストを失敗させる(K-23)。ID と時刻を固定する fixture `deterministic_ids_and_time`。フルスイート 118 チャンク・3,147 件緑。
 - 新しい K: K-27(注釈と統計ラベルの日本語が □ になる。直す時期は R-8 のあと)。
-- 次: R-0.2(記録器・基準の更新スクリプト)→ R-0.3〜R-0.8。R-0.3・R-0.4 のテストは作業フォルダに下書き済み(未コミット)。
+- R-0.2 完了(`20fc2c3`): `tests/characterization/` の recorder.py・scenario.py・conftest.py と
+  `scripts/update_characterization.py`。ランナーが特性テストも回す。CLAUDE.md に説明を追加(`e837781`)。
+- 次: R-0.3(画面の組み立て)→ R-0.8。R-0.3・R-0.4 のテストは作業フォルダに下書き済み(未コミット)。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
 
