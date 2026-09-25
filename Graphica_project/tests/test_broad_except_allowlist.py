@@ -11,9 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 ALLOWED = {
-    "graphica/core/analysis.py": 1,
     "graphica/core/diagnostics.py": 1,
     "graphica/core/excel_utils.py": 1,
+    "graphica/core/fit_models.py": 1,
     "graphica/core/plugin_api.py": 3,
     "graphica/gui/canvas.py": 4,
     "graphica/gui/crash_handler.py": 1,
