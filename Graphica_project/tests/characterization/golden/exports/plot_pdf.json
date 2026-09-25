@@ -1,0 +1,25 @@
+{
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "ExportDialog",
+   "title": "プロットのエクスポート"
+  },
+  {
+   "kind": "QFileDialog.getSaveFileName",
+   "caption": "プロットを保存",
+   "filter": "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)"
+  },
+  {
+   "kind": "QMessageBox.warning",
+   "title": "ベクター出力時の注意",
+   "text": "グラデーション塗り(項目79)が有効なデータセットが含まれています。\nこの部分は画像(ラスタ)として埋め込まれるため、拡大すると他の要素のようにはくっきり表示されません。\n\nエクスポートは続行します。"
+  }
+ ],
+ "status": "",
+ "canvas_size_after": [
+  7.92,
+  3.83
+ ],
+ "pdf_pages": 1
+}

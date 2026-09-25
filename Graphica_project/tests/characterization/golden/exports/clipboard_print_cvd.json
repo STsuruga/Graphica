@@ -1,0 +1,22 @@
+{
+ "clipboard_modals": [],
+ "status": "",
+ "clipboard_size": [
+  1172,
+  558
+ ],
+ "print_modals": [
+  {
+   "kind": "exec",
+   "class": "QPrintDialog",
+   "title": "Print"
+  }
+ ],
+ "cvd_modals": [
+  {
+   "kind": "exec",
+   "class": "CVDSimulationDialog",
+   "title": "色覚シミュレーションプレビュー"
+  }
+ ]
+}
