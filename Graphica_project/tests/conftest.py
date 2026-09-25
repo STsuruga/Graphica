@@ -23,6 +23,7 @@ import tempfile
 
 import pytest
 from PySide6 import QtCore
+from PySide6.QtPrintSupport import QPageSetupDialog, QPrintDialog
 from PySide6.QtWidgets import (
     QApplication,
     QColorDialog,
@@ -97,6 +98,9 @@ _MODAL_TRIPWIRES = (
     (QColorDialog, ("getColor",)),
     (QFontDialog, ("getFont",)),
     (QDialog, ("exec", "exec_")),
+    # 印刷の 2 つは exec を自前で持つので、QDialog.exec の差し替えをすり抜ける
+    (QPrintDialog, ("exec", "exec_")),
+    (QPageSetupDialog, ("exec", "exec_")),
     (QMenu, ("exec", "exec_")),
 )
 

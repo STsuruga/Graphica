@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Any
 
+from PySide6.QtPrintSupport import QPageSetupDialog, QPrintDialog
 from PySide6.QtWidgets import QDialog, QFileDialog, QInputDialog, QMenu, QMessageBox
 
 
@@ -120,7 +121,9 @@ def _dialog_exec(log: ModalLog):
             entry["icon"] = self.icon().name
             entry["buttons"] = [b.text() for b in self.buttons()]
         log.record(entry)
-        answer = log._next("exec", QDialog.DialogCode.Rejected, QDialog.DialogCode.Accepted)
+        # 印刷は「既定値で OK」でも受けない(本物のプリンタに送らないため)
+        printing = isinstance(self, (QPrintDialog, QPageSetupDialog))
+        answer = log._next("exec", QDialog.DialogCode.Rejected, None if printing else QDialog.DialogCode.Accepted)
         if callable(answer):
             return answer(self)
         return int(answer.value) if hasattr(answer, "value") else answer
@@ -148,7 +151,8 @@ def install_modal_log(monkeypatch) -> ModalLog:
     for kind, default in (("getText", ("", False)), ("getInt", (0, False)), ("getDouble", (0.0, False)),
                           ("getItem", ("", False)), ("getMultiLineText", ("", False))):
         monkeypatch.setattr(QInputDialog, kind, _input_dialog(log, kind, default))
-    monkeypatch.setattr(QDialog, "exec", _dialog_exec(log))
+    for cls in (QDialog, QPrintDialog, QPageSetupDialog):
+        monkeypatch.setattr(cls, "exec", _dialog_exec(log))
     monkeypatch.setattr(QMenu, "exec", _menu_exec(log))
     return log
 

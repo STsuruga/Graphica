@@ -208,6 +208,18 @@ def test_an_unpatched_modal_raises_instead_of_hanging(modal_tripwire):
     modal_tripwire.clear()
 
 
+def test_print_dialogs_do_not_slip_past_the_tripwire(modal_tripwire):
+    """QPrintDialog と QPageSetupDialog は exec を自前で持つので、別に差し替えてある。"""
+    from PySide6.QtPrintSupport import QPageSetupDialog, QPrintDialog, QPrinter
+
+    printer = QPrinter()
+    with pytest.raises(AssertionError, match="QPrintDialog.exec"):
+        QPrintDialog(printer).exec()
+    with pytest.raises(AssertionError, match="QPageSetupDialog.exec"):
+        QPageSetupDialog(printer).exec()
+    modal_tripwire.clear()
+
+
 def test_a_test_own_patch_wins_over_the_tripwire(monkeypatch):
     from PySide6.QtWidgets import QMessageBox
 
