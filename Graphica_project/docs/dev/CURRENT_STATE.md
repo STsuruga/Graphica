@@ -38,7 +38,11 @@
 - R-0.7 完了(`6b33bdc`): 書き出しの 8 シナリオ(`golden/exports/`)。基準のファイルは `.gitattributes` で LF に固定。
   途中で仕掛け線の漏れ(QPrintDialog・QPageSetupDialog は exec を自前で持つ)を塞いだ(`13efff5`)。
 - 新しい K: K-29(保存前の Python スクリプトの書き出しがサブプロットを 1×1 と見なし、2 枚目以降が抜ける。R-1 のあと)。
-- 次: R-0.8(フルスイート、特性テストを 2 回続けて一致、所要時間、基準を取ったコミットの記録)→ PR はユーザーの承認後。
+- R-0.8 の検証済み(`0e6ffef`): 特性テスト 105 件が 2 回続けて一致(約 2 分 10 秒)、フルスイート 124 チャンク・3,254 件緑(約 19 分)。
+  基準のコミット `6b33bdc` を `tests/characterization/ENVIRONMENT.md` に記録。
+- 次: `refactor/r0-characterization` → `refactor/architecture` の PR(**ユーザーの承認待ち**)。PR の CI で macOS と
+  Windows Server での特性テストの振る舞いを確かめる(OS で違う記録は pinned_os で飛ばす設計)。
+  そのあと K-22・K-23 は済みなので、R-0 のあとに直す K は無し。M2(R-2・R-4・R-5)へ。
   CI(macOS / Windows Server)で特性テストがどう振る舞うかは、R-0.8 の PR で初めて分かる。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
