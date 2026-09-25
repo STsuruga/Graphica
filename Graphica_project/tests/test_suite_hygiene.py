@@ -249,3 +249,8 @@ def test_ids_and_time_are_deterministic(deterministic_ids_and_time):
     second = Dataset(name="b", df=pd.DataFrame({"x": [1], "y": [2]}), x_col_name="x", y_col_name="y")
     assert (first.dataset_id, second.dataset_id) == ("0" * 31 + "1", "0" * 31 + "2")
     assert build_provenance("op", {}, [first])["timestamp"] == "2026-01-01T00:00:00+00:00"
+
+
+def test_chunk_runner_also_runs_the_characterization_tests():
+    """特性テストはサブフォルダにあるので、ランナーの対象に入れておかないと CI で回らない。"""
+    assert "tests/characterization/test_*.py" in _runner_source()
