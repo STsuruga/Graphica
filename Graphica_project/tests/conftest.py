@@ -17,14 +17,146 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # monkeypatch で "1" に戻す。
 os.environ["GRAPHICA_CONFIRM_UNSAVED_CHANGES"] = "0"
 
+import itertools
+import shutil
+import tempfile
+
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6 import QtCore
+from PySide6.QtWidgets import (
+    QApplication,
+    QColorDialog,
+    QDialog,
+    QFileDialog,
+    QFontDialog,
+    QInputDialog,
+    QMenu,
+    QMessageBox,
+)
+
+# QSettings("Graphica", "Graphica") は setDefaultFormat を無視して常にレジストリへ書くので、
+# クラスそのものを差し替えて一時 INI に向ける。本体とテストが import する前でなければ効かない。
+# ファイル名を明示した呼び出し(テスト側の IsolatedQSettings)はそのまま通す。
+# このファイルは tests.conftest としても import されるので、状態はクラスに持たせて二重に差し替えない。
+if not getattr(QtCore.QSettings, "redirects_to_test_ini", False):
+    _RealQSettings = QtCore.QSettings
+
+    class _TestIsolatedQSettings(_RealQSettings):
+        redirects_to_test_ini = True
+        root = tempfile.mkdtemp(prefix="graphica-test-settings-")
+        current_file = os.path.join(root, "session.ini")
+        counter = itertools.count()
+
+        def __init__(self, *args, **kwargs):
+            names_a_file = (
+                (len(args) >= 2 and isinstance(args[0], str) and isinstance(args[1], _RealQSettings.Format))
+                or "fileName" in kwargs
+            )
+            if names_a_file:
+                super().__init__(*args, **kwargs)
+                return
+            parent = kwargs.get("parent")
+            if parent is None:
+                parent = next((a for a in args if isinstance(a, QtCore.QObject)), None)
+            super().__init__(type(self).current_file, _RealQSettings.Format.IniFormat, parent)
+
+    QtCore.QSettings = _TestIsolatedQSettings
+    _RealQSettings.setDefaultFormat(_RealQSettings.Format.IniFormat)
+    _RealQSettings.setPath(_RealQSettings.Format.IniFormat, _RealQSettings.Scope.UserScope,
+                           _TestIsolatedQSettings.root)
+
+SETTINGS_CLASS = QtCore.QSettings
 
 
 @pytest.fixture(scope="session", autouse=True)
 def qapp():
     app = QApplication.instance() or QApplication([])
     yield app
+    shutil.rmtree(SETTINGS_CLASS.root, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings_file():
+    """テストごとに空の設定ファイルから始める(前のテストが書いた設定を持ち越さない)。"""
+    SETTINGS_CLASS.current_file = os.path.join(SETTINGS_CLASS.root, f"test{next(SETTINGS_CLASS.counter)}.ini")
+    yield SETTINGS_CLASS.current_file
+
+
+class UnpatchedModalError(AssertionError):
+    pass
+
+
+# オフスクリーンのモーダルは誰も閉じないので、差し替え忘れはチャンクごと止まる。
+# 呼ばれた時点で例外にし、アプリ側が例外を握りつぶしてもテストの終わりに失敗させる。
+# テストが自分で差し替えたものは、この fixture より後に入るのでそちらが優先される。
+_MODAL_TRIPWIRES = (
+    (QMessageBox, ("warning", "information", "critical", "question", "about", "aboutQt")),
+    (QFileDialog, ("getOpenFileName", "getOpenFileNames", "getSaveFileName", "getExistingDirectory",
+                   "getOpenFileUrl", "getOpenFileUrls", "getSaveFileUrl", "getExistingDirectoryUrl")),
+    (QInputDialog, ("getText", "getInt", "getDouble", "getItem", "getMultiLineText")),
+    (QColorDialog, ("getColor",)),
+    (QFontDialog, ("getFont",)),
+    (QDialog, ("exec", "exec_")),
+    (QMenu, ("exec", "exec_")),
+)
+
+
+def _describe_modal_args(args):
+    texts = [a for a in args if isinstance(a, str)]
+    owner = next((a for a in args if isinstance(a, QtCore.QObject)), None)
+    if owner is not None and not texts and hasattr(owner, "windowTitle"):
+        texts = [owner.windowTitle()]
+    return " / ".join(texts)[:200]
+
+
+@pytest.fixture(autouse=True)
+def modal_tripwire():
+    calls = []
+
+    def make_tripwire(qualname):
+        def tripwire(*args, **kwargs):
+            message = f"差し替えられていないモーダル {qualname} が呼ばれた: {_describe_modal_args(args)}"
+            calls.append(message)
+            raise UnpatchedModalError(message)
+        return tripwire
+
+    with pytest.MonkeyPatch.context() as mp:
+        for cls, names in _MODAL_TRIPWIRES:
+            for name in names:
+                mp.setattr(cls, name, make_tripwire(f"{cls.__name__}.{name}"))
+        yield calls
+    if calls:
+        pytest.fail("\n".join(calls), pytrace=False)
+
+
+@pytest.fixture
+def deterministic_ids_and_time(monkeypatch):
+    """特性テスト用: uuid4 を連番にし、保存物・書き出しに入る現在時刻を固定する。"""
+    import datetime as datetime_module
+    import uuid
+
+    counter = itertools.count(1)
+    monkeypatch.setattr(uuid, "uuid4", lambda: uuid.UUID(int=next(counter)))
+
+    fixed_utc = datetime_module.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime_module.timezone.utc)
+
+    class FixedDatetime(datetime_module.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_utc.astimezone(tz) if tz is not None else fixed_utc.replace(tzinfo=None)
+
+    class FixedDatetimeModule:
+        def __getattr__(self, name):
+            return FixedDatetime if name == "datetime" else getattr(datetime_module, name)
+
+    from graphica.core import diagnostics, provenance, report_export
+    from graphica.gui.mixins import export_mixin, help_mixin
+
+    for module in (provenance, diagnostics, help_mixin):
+        monkeypatch.setattr(module, "datetime", FixedDatetime)
+    for module in (report_export, export_mixin):
+        monkeypatch.setattr(module, "datetime", FixedDatetimeModule())
+    return fixed_utc
 
 
 @pytest.fixture(autouse=True)
