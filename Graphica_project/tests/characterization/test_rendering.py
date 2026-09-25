@@ -6,8 +6,6 @@ import pytest
 import recorder
 from scenario import dispose, pump
 
-pytestmark = pytest.mark.pinned_os
-
 PLOT_TYPES = ["Line", "Scatter", "Line+Scatter", "Area", "Bar", "Step", "Density Scatter", "Z-Color Scatter"]
 
 

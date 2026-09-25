@@ -16,8 +16,17 @@ def _characterization_determinism(deterministic_ids_and_time):
 
 
 def pytest_configure(config):
+    config.addinivalue_line("markers", "pinned_os: 基準を取った OS(ENVIRONMENT.md)でだけ比べる")
     config.addinivalue_line(
-        "markers", "pinned_os: 標準ショートカットやフォントで結果が OS ごとに違うので、基準を取った OS でだけ比べる")
+        "markers", "any_os: 記録器そのもののテストなど、どの OS でも同じ結果になるもの")
+
+
+def pytest_collection_modifyitems(config, items):
+    # 数値は libm と SIMD の違いで最後の桁が変わり、条件の悪いフィットはそれを大きくする。画面の大きさはフォントで
+    # 変わる。どれも OS ごとの基準を持つ意味が無いので、基準を取った OS でだけ比べる
+    for item in items:
+        if "characterization" in str(item.path) and not item.get_closest_marker("any_os"):
+            item.add_marker(pytest.mark.pinned_os)
 
 
 @pytest.fixture(autouse=True)
