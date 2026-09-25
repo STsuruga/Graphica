@@ -3,8 +3,8 @@ import logging
 import weakref
 from dataclasses import fields
 
-from PySide6.QtWidgets import QMessageBox
 
+from graphica.gui import notify
 from graphica.core.app_paths import get_plugin_data_dir
 from graphica.core.color_palettes import normalize_palettes
 from graphica.core.commands import SetDatasetPropertiesCommand
@@ -91,10 +91,10 @@ class TabPluginContext(PluginContext):
         return self._app_ref()
 
     def show_message(self, text, title=None):
-        QMessageBox.information(self.parent_widget, title or self._plugin_name, text)
+        notify.information(self.parent_widget, title or self._plugin_name, text)
 
     def show_error(self, text, title=None):
-        QMessageBox.warning(self.parent_widget, title or self._plugin_name, text)
+        notify.warning(self.parent_widget, title or self._plugin_name, text)
 
     @property
     def data_dir(self):

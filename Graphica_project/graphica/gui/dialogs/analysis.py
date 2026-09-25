@@ -10,12 +10,10 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSpinBox,
@@ -27,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFont
+from graphica.gui import notify
 from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
@@ -380,17 +379,17 @@ class MultiPeakFitDialog(QDialog):
             )
         except Exception as e:
             logger.exception("ピークの自動検出に失敗しました")
-            QMessageBox.warning(self, "ピーク検出", f"ピーク検出に失敗しました:\n{e}")
+            notify.warning(self, "ピーク検出", f"ピーク検出に失敗しました:\n{e}")
             return
         if len(result['peak_x']) == 0:
-            QMessageBox.information(self, "ピーク検出", "条件に一致するピークが見つかりませんでした。")
+            notify.information(self, "ピーク検出", "条件に一致するピークが見つかりませんでした。")
             return
         for x, y, fwhm in zip(result['peak_x'], result['peak_y'], result['fwhm']):
             self._add_guess_row(center=float(x), height=float(y), width=float(fwhm) or 1.0)
 
     def _on_accept(self):
         if self.guess_table.rowCount() == 0:
-            QMessageBox.warning(self, "多峰分離フィット", "少なくとも1つのピークの初期値が必要です。")
+            notify.warning(self, "多峰分離フィット", "少なくとも1つのピークの初期値が必要です。")
             return
         self.accept()
 
@@ -562,17 +561,17 @@ class ResultDialog(QDialog):
         QTimer.singleShot(1200, _restore)
 
     def _on_save_csv(self):
-        file_path, _ = QFileDialog.getSaveFileName(
+        file_path, _ = notify.get_save_file_name(
             self, "CSVとして保存", "", "CSV Files (*.csv);;All Files (*)"
         )
         if not file_path:
             return
         try:
             self.csv_data.to_csv(file_path, index=False, encoding='utf-8-sig')
-            QMessageBox.information(self, "保存完了", f"CSVファイルとして保存しました:\n{file_path}")
+            notify.information(self, "保存完了", f"CSVファイルとして保存しました:\n{file_path}")
         except Exception as e:
             logger.exception("結果の CSV 保存に失敗しました")
-            QMessageBox.warning(self, "保存エラー", f"CSV保存中にエラーが発生しました:\n{e}")
+            notify.warning(self, "保存エラー", f"CSV保存中にエラーが発生しました:\n{e}")
 
 
 class BaselineCorrectionDialog(QDialog):

@@ -3,8 +3,9 @@ import functools
 import logging
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QDialog, QFontDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QFontDialog
 
+from graphica.gui import notify
 from graphica.core.axis_settings import axis_setting
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES
 from graphica.gui import theme
@@ -319,7 +320,7 @@ class SettingsMixin:
         family = font.family()
         _resolved_name, _stretch, resolved = _resolve_font_family_for_matplotlib(family)
         if not resolved:
-            QMessageBox.warning(
+            notify.warning(
                 self, "フォントが見つかりません",
                 f"フォント「{family}」はグラフの描画エンジン(matplotlib)には認識されず、"
                 "代わりに既定のフォントで表示されます。\n\n"
@@ -443,7 +444,7 @@ class SettingsMixin:
             _, secondary_labels = self.canvas.all_secondary_axes[axis_index].get_legend_handles_labels()
             labels = labels + secondary_labels
         if not labels:
-            QMessageBox.information(self, "凡例の順序", "この軸には凡例に表示するデータセットがありません。")
+            notify.information(self, "凡例の順序", "この軸には凡例に表示するデータセットがありません。")
             return
 
         current_order = axis_setting(self.project.all_plot_settings[axis_index], 'legend_order') or []
@@ -715,7 +716,7 @@ class SettingsMixin:
             self._on_grid_visibility_changed()
 
         except Exception as e:
-            QMessageBox.warning(self, "設定適用エラー", f"設定の適用中にエラーが発生しました:\n{e}")
+            notify.warning(self, "設定適用エラー", f"設定の適用中にエラーが発生しました:\n{e}")
             logger.exception("設定の適用中にエラー")
         finally:
             # 途中で失敗しても必ず戻す

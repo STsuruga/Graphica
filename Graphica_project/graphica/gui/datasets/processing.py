@@ -2,8 +2,9 @@
 import logging
 import numpy as np
 import pandas as pd
-from PySide6.QtWidgets import (QDialog, QMessageBox, QInputDialog)
+from PySide6.QtWidgets import (QDialog, QMessageBox)
 
+from graphica.gui import notify
 from graphica.core.provenance import build_provenance
 from graphica.core.analysis import (calculate_savgol,
                            calculate_baseline_als, calculate_baseline_polynomial,
@@ -38,7 +39,7 @@ class ProcessingController:
         """選んだ2件 A・B の差・和・積・商を、B を A の X に線形補間してから計算し、新しいデータセットにする。"""
         selected = self._host.selected_datasets()
         if len(selected) != 2:
-            QMessageBox.information(self._host.parent_widget, "データセット間演算", "演算対象として、データセットをちょうど2つ選択してください。")
+            notify.information(self._host.parent_widget, "データセット間演算", "演算対象として、データセットをちょうど2つ選択してください。")
             return
         ds_a, ds_b = selected[0], selected[1]
 
@@ -47,7 +48,7 @@ class ProcessingController:
             return
         operation, output_name = dialog.get_settings()
         if not output_name:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
         xa = np.asarray(ds_a.x_data, dtype=float)
@@ -73,12 +74,12 @@ class ProcessingController:
             err_b_full = err_b_full[valid_b]
 
         if len(xa) == 0 or len(xb) == 0:
-            QMessageBox.warning(self._host.parent_widget, "データセット間演算", "有効なデータ点がありません。")
+            notify.warning(self._host.parent_widget, "データセット間演算", "有効なデータ点がありません。")
             return
 
         lo, hi = max(np.min(xa), np.min(xb)), min(np.max(xa), np.max(xb))
         if lo > hi:
-            QMessageBox.warning(self._host.parent_widget, "データセット間演算", "2つのデータセットのX軸の範囲が重なっていないため演算できません。")
+            notify.warning(self._host.parent_widget, "データセット間演算", "2つのデータセットのX軸の範囲が重なっていないため演算できません。")
             return
 
         mask = (xa >= lo) & (xa <= hi)
@@ -86,7 +87,7 @@ class ProcessingController:
         if propagate_errors:
             err_a_sub = err_a_full[mask]
         if len(xa_sub) == 0:
-            QMessageBox.warning(self._host.parent_widget, "データセット間演算", "重なる範囲にA側のデータ点がありません。")
+            notify.warning(self._host.parent_widget, "データセット間演算", "重なる範囲にA側のデータ点がありません。")
             return
 
         order_b = np.argsort(xb)
@@ -127,7 +128,7 @@ class ProcessingController:
         """選んだ2件のうち B を、A との相互相関で求めた X のずれだけ動かした新しいデータセットを作る(A が基準)。"""
         selected = self._host.selected_datasets()
         if len(selected) != 2:
-            QMessageBox.information(self._host.parent_widget, "X軸アライメント", "位置合わせ対象として、データセットをちょうど2つ選択してください。")
+            notify.information(self._host.parent_widget, "X軸アライメント", "位置合わせ対象として、データセットをちょうど2つ選択してください。")
             return
         ds_a, ds_b = selected[0], selected[1]
 
@@ -136,7 +137,7 @@ class ProcessingController:
             return
         output_name = dialog.get_settings()
         if not output_name:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
         xa = np.asarray(ds_a.x_data, dtype=float)
@@ -147,7 +148,7 @@ class ProcessingController:
         try:
             result = calculate_cross_correlation_alignment(xa, ya, xb, yb)
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "X軸アライメント", str(e))
+            notify.warning(self._host.parent_widget, "X軸アライメント", str(e))
             return
 
         shift = result['shift']
@@ -169,7 +170,7 @@ class ProcessingController:
         """
         selected = self._host.selected_datasets()
         if len(selected) < 2:
-            QMessageBox.information(self._host.parent_widget, "平均±SD生成", "平均±SDの生成には、データセットを2つ以上選択してください。")
+            notify.information(self._host.parent_widget, "平均±SD生成", "平均±SDの生成には、データセットを2つ以上選択してください。")
             return
 
         x_arrays, y_arrays = [], []
@@ -179,7 +180,7 @@ class ProcessingController:
             valid = ~(np.isnan(x) | np.isnan(y))
             x, y = x[valid], y[valid]
             if len(x) < 2:
-                QMessageBox.warning(
+                notify.warning(
                     self._host.parent_widget, "平均±SD生成",
                     f"「{ds.name}」に有効なデータ点が不足しています(最低2点必要)。"
                 )
@@ -190,7 +191,7 @@ class ProcessingController:
         x_min = max(float(np.min(x)) for x in x_arrays)
         x_max = min(float(np.max(x)) for x in x_arrays)
         if x_min >= x_max:
-            QMessageBox.warning(self._host.parent_widget, "平均±SD生成", "選択したデータセット間でX軸の範囲が重なっていません。")
+            notify.warning(self._host.parent_widget, "平均±SD生成", "選択したデータセット間でX軸の範囲が重なっていません。")
             return
 
         num_points = max(len(x) for x in x_arrays)
@@ -201,7 +202,7 @@ class ProcessingController:
             try:
                 resampled.append(calculate_resample_to_grid(x, y, common_x, method='linear', extrapolate=False))
             except ValueError as e:
-                QMessageBox.warning(self._host.parent_widget, "平均±SD生成", str(e))
+                notify.warning(self._host.parent_widget, "平均±SD生成", str(e))
                 return
         stacked = np.vstack(resampled)  # (データセット数, num_points)
 
@@ -209,7 +210,7 @@ class ProcessingController:
         std_y = np.nanstd(stacked, axis=0, ddof=1)
 
         default_name = f"{selected[0].name} 他{len(selected) - 1}件の平均±SD"
-        output_name, ok = QInputDialog.getText(self._host.parent_widget, "平均±SD生成", "出力データセット名:", text=default_name)
+        output_name, ok = notify.get_text(self._host.parent_widget, "平均±SD生成", "出力データセット名:", text=default_name)
         if not ok or not output_name.strip():
             return
 
@@ -236,7 +237,7 @@ class ProcessingController:
         x_data, y_data = x_data[valid], y_data[valid]
 
         if len(x_data) == 0:
-            QMessageBox.warning(self._host.parent_widget, "規格化(ノーマライズ)", "有効なデータ点がありません。")
+            notify.warning(self._host.parent_widget, "規格化(ノーマライズ)", "有効なデータ点がありません。")
             return
 
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
@@ -245,14 +246,14 @@ class ProcessingController:
             return
         mode, reference_x, output_name = dialog.get_settings()
         if not output_name:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
         if mode == NormalizeDatasetDialog.MODE_MAX:
             reference_value = float(np.max(y_data))
         else:
             if reference_x < x_min or reference_x > x_max:
-                QMessageBox.warning(
+                notify.warning(
                     self._host.parent_widget, "規格化(ノーマライズ)",
                     f"指定されたX値 ({reference_x}) がデータセットのX軸範囲 "
                     f"({x_min} 〜 {x_max}) の外にあるため、規格化できません。"
@@ -262,7 +263,7 @@ class ProcessingController:
             reference_value = float(np.interp(reference_x, x_data[order], y_data[order]))
 
         if abs(reference_value) < 1e-12:
-            QMessageBox.warning(self._host.parent_widget, "規格化(ノーマライズ)", "基準値が0に近すぎるため、規格化できません。")
+            notify.warning(self._host.parent_widget, "規格化(ノーマライズ)", "基準値が0に近すぎるため、規格化できません。")
             return
 
         result_df = pd.DataFrame({'x': x_data, 'y': y_data / reference_value})
@@ -289,7 +290,7 @@ class ProcessingController:
         x_data, y_data = x_data[valid], y_data[valid]
 
         if len(x_data) < 3:
-            QMessageBox.warning(self._host.parent_widget, "Savitzky-Golayフィルタ", "有効なデータ点が不足しています。")
+            notify.warning(self._host.parent_widget, "Savitzky-Golayフィルタ", "有効なデータ点が不足しています。")
             return
 
         dialog = SavGolDialog(original_dataset.name, max_window=len(x_data), parent=self._host.parent_widget)
@@ -297,13 +298,13 @@ class ProcessingController:
             return
         window_length, polyorder, deriv, output_name = dialog.get_settings()
         if not output_name:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
         try:
             x_sorted, y_result = calculate_savgol(x_data, y_data, window_length, polyorder, deriv=deriv)
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "Savitzky-Golayフィルタ", str(e))
+            notify.warning(self._host.parent_widget, "Savitzky-Golayフィルタ", str(e))
             return
 
         result_df = pd.DataFrame({'x': x_sorted, 'y': y_result})
@@ -330,7 +331,7 @@ class ProcessingController:
         x_data, y_data = x_data[valid], y_data[valid]
 
         if len(x_data) < 3:
-            QMessageBox.warning(self._host.parent_widget, "ベースライン補正", "有効なデータ点が不足しています。")
+            notify.warning(self._host.parent_widget, "ベースライン補正", "有効なデータ点が不足しています。")
             return
 
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
@@ -339,7 +340,7 @@ class ProcessingController:
             return
         method, params, output_name, add_baseline_dataset = dialog.get_settings()
         if not output_name:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
         try:
@@ -363,7 +364,7 @@ class ProcessingController:
                     x_data, y_data, anchor_x=anchor_x, method=params["method"]
                 )
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "ベースライン補正", str(e))
+            notify.warning(self._host.parent_widget, "ベースライン補正", str(e))
             return
 
         result_df = pd.DataFrame({'x': x_sorted, 'y': corrected})
@@ -394,7 +395,7 @@ class ProcessingController:
         x_data, y_data = x_data[valid], y_data[valid]
 
         if len(x_data) < 2:
-            QMessageBox.warning(self._host.parent_widget, "区間積分", "有効なデータ点が不足しています(最低2点必要)。")
+            notify.warning(self._host.parent_widget, "区間積分", "有効なデータ点が不足しています(最低2点必要)。")
             return
 
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
@@ -408,7 +409,7 @@ class ProcessingController:
                 x_data, y_data, x_range, method=method, subtract_baseline=subtract_baseline
             )
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "区間積分", str(e))
+            notify.warning(self._host.parent_widget, "区間積分", str(e))
             return
 
         method_label = "台形則(Trapezoidal)" if method == "trapezoid" else "Simpson則"
@@ -443,7 +444,7 @@ class ProcessingController:
         x_data, y_data = x_data[valid], y_data[valid]
 
         if len(x_data) < 2:
-            QMessageBox.warning(self._host.parent_widget, "累積積分", "有効なデータ点が不足しています(最低2点必要)。")
+            notify.warning(self._host.parent_widget, "累積積分", "有効なデータ点が不足しています(最低2点必要)。")
             return
 
         dialog = CumulativeIntegralDialog(original_dataset.name, parent=self._host.parent_widget)
@@ -451,13 +452,13 @@ class ProcessingController:
             return
         method, output_name = dialog.get_settings()
         if not output_name:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
         try:
             result = calculate_cumulative_integral(x_data, y_data, method=method)
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "累積積分", str(e))
+            notify.warning(self._host.parent_widget, "累積積分", str(e))
             return
 
         result_df = pd.DataFrame({'x': result['x_used'], 'y': result['y_cumulative']})
@@ -481,10 +482,10 @@ class ProcessingController:
 
         columns = list(original_dataset.df.columns)
         if not columns:
-            QMessageBox.warning(self._host.parent_widget, "系列に分割", "分割に使える列がありません。")
+            notify.warning(self._host.parent_widget, "系列に分割", "分割に使える列がありません。")
             return
 
-        split_col, ok = QInputDialog.getItem(
+        split_col, ok = notify.get_item(
             self._host.parent_widget, "列の値で系列に分割",
             "分割に使う列(この列の値ごとに別々の系列になります):",
             columns, 0, False,
@@ -495,12 +496,12 @@ class ProcessingController:
         try:
             result = split_dataframe_by_column(original_dataset.df, split_col)
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "系列に分割", str(e))
+            notify.warning(self._host.parent_widget, "系列に分割", str(e))
             return
 
         groups = result['groups']
         if len(groups) < 2:
-            QMessageBox.information(
+            notify.information(
                 self._host.parent_widget, "系列に分割",
                 f"列「{split_col}」の値は{len(groups)}種類しかないため、"
                 "分割しても系列は増えません。",
@@ -508,7 +509,7 @@ class ProcessingController:
             return
 
         if len(groups) > SPLIT_BY_COLUMN_CONFIRM_THRESHOLD:
-            answer = QMessageBox.question(
+            answer = notify.question(
                 self._host.parent_widget, "系列に分割",
                 f"列「{split_col}」の値は{len(groups)}種類あります。\n"
                 f"同じ数({len(groups)}件)のデータセットを追加しますが、よろしいですか?\n\n"
@@ -561,7 +562,7 @@ class ProcessingController:
         x_data, y_data = x_data[valid], y_data[valid]
 
         if len(x_data) < 2:
-            QMessageBox.warning(self._host.parent_widget, "共通X格子へのリサンプリング/補間", "有効なデータ点が不足しています(最低2点必要)。")
+            notify.warning(self._host.parent_widget, "共通X格子へのリサンプリング/補間", "有効なデータ点が不足しています(最低2点必要)。")
             return
 
         other_dataset_names = [
@@ -576,7 +577,7 @@ class ProcessingController:
             return
         source, params, method, extrapolate, output_name = dialog.get_settings()
         if not output_name:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
         if source == "dataset":
@@ -587,7 +588,7 @@ class ProcessingController:
                 None
             )
             if target_dataset is None:
-                QMessageBox.warning(
+                notify.warning(
                     self._host.parent_widget, "共通X格子へのリサンプリング/補間",
                     "リサンプリング先のデータセットを選択してください。"
                 )
@@ -595,7 +596,7 @@ class ProcessingController:
             target_x = np.asarray(target_dataset.x_data, dtype=float)
             target_x = target_x[~np.isnan(target_x)]
             if len(target_x) == 0:
-                QMessageBox.warning(
+                notify.warning(
                     self._host.parent_widget, "共通X格子へのリサンプリング/補間",
                     f"「{target_dataset_name}」に有効なX値がありません。"
                 )
@@ -603,7 +604,7 @@ class ProcessingController:
         else:  # "linspace"
             start, stop, num_points = params["start"], params["stop"], params["num_points"]
             if start == stop:
-                QMessageBox.warning(
+                notify.warning(
                     self._host.parent_widget, "共通X格子へのリサンプリング/補間", "開始Xと終了Xが同じ値です。"
                 )
                 return
@@ -614,7 +615,7 @@ class ProcessingController:
                 x_data, y_data, target_x, method=method, extrapolate=extrapolate
             )
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "共通X格子へのリサンプリング/補間", str(e))
+            notify.warning(self._host.parent_widget, "共通X格子へのリサンプリング/補間", str(e))
             return
 
         # 選んだ格子の並び順をそのまま使う(並べ替えない)
@@ -638,7 +639,7 @@ class ProcessingController:
 
         numeric_columns = original_dataset.df.select_dtypes(include=[np.number]).columns.tolist()
         if not numeric_columns:
-            QMessageBox.warning(self._host.parent_widget, "ヒストグラム / KDE", "数値列がありません。")
+            notify.warning(self._host.parent_widget, "ヒストグラム / KDE", "数値列がありません。")
             return
         default_column = original_dataset.y_col_name if original_dataset.y_col_name in numeric_columns else numeric_columns[0]
 
@@ -647,7 +648,7 @@ class ProcessingController:
             return
         settings = dialog.get_settings()
         if not settings['output_name']:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
             return
 
         column_data = original_dataset.visible_df[settings['column']]
@@ -664,7 +665,7 @@ class ProcessingController:
                 params = {'column': settings['column'], 'n_points': settings['n_points']}
                 plot_type = 'Line'
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "ヒストグラム / KDE", str(e))
+            notify.warning(self._host.parent_widget, "ヒストグラム / KDE", str(e))
             return
 
         new_dataset = Dataset(
@@ -688,7 +689,7 @@ class ProcessingController:
         duplicated_mask = original_dataset.df[x_col].duplicated(keep=False)
         n_duplicate_rows = int(duplicated_mask.sum())
         if n_duplicate_rows == 0:
-            QMessageBox.information(self._host.parent_widget, "重複X値の検出", "重複するX値を持つ行は見つかりませんでした。")
+            notify.information(self._host.parent_widget, "重複X値の検出", "重複するX値を持つ行は見つかりませんでした。")
             return
 
         dialog = DuplicateXDialog(original_dataset.name, n_duplicate_rows, parent=self._host.parent_widget)
@@ -698,14 +699,14 @@ class ProcessingController:
 
         if mode == "average":
             if not output_name:
-                QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
+                notify.warning(self._host.parent_widget, "入力エラー", "出力データセット名が空です。")
                 return
             x_data = np.asarray(original_dataset.x_data, dtype=float)
             y_data = np.asarray(original_dataset.y_data, dtype=float)
             try:
                 result = calculate_average_duplicate_x(x_data, y_data)
             except ValueError as e:
-                QMessageBox.warning(self._host.parent_widget, "重複X値の検出", str(e))
+                notify.warning(self._host.parent_widget, "重複X値の検出", str(e))
                 return
             result_df = pd.DataFrame({'x': result['x_used'], 'y': result['y_averaged']})
             new_dataset = Dataset(
@@ -724,7 +725,7 @@ class ProcessingController:
             old_masked = list(original_dataset.masked_row_indices)
             new_masked = sorted(set(old_masked) | set(to_mask_indices))
             if new_masked == old_masked:
-                QMessageBox.information(self._host.parent_widget, "重複X値の検出", "既にすべてマスク済みです。")
+                notify.information(self._host.parent_widget, "重複X値の検出", "既にすべてマスク済みです。")
                 return
             command = SetMaskedRowsCommand(
                 original_dataset, old_masked, new_masked,
@@ -745,21 +746,21 @@ class ProcessingController:
             return
         formula = dialog.get_formula()
         if not formula:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "条件式が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "条件式が空です。")
             return
 
         try:
             match_result = safe_eval_column_formula(original_dataset.df, formula)
         except Exception as e:
             logger.exception("行フィルタの条件式を評価できませんでした")
-            QMessageBox.warning(self._host.parent_widget, "行フィルタ", f"条件式の評価に失敗しました:\n{e}")
+            notify.warning(self._host.parent_widget, "行フィルタ", f"条件式の評価に失敗しました:\n{e}")
             return
 
         # 真偽値以外が返ったら pandas の規約で bool にする。NaN は偽(=除外する側)に倒す。
         try:
             match_bool = match_result.astype(bool)
         except (TypeError, ValueError):
-            QMessageBox.warning(self._host.parent_widget, "行フィルタ", "条件式の結果を真偽値に変換できませんでした。")
+            notify.warning(self._host.parent_widget, "行フィルタ", "条件式の結果を真偽値に変換できませんでした。")
             return
         match_bool = match_bool.fillna(False) if hasattr(match_bool, 'fillna') else match_bool
 
@@ -767,7 +768,7 @@ class ProcessingController:
         old_masked = list(original_dataset.masked_row_indices)
         new_masked = sorted(set(old_masked) | set(to_mask_indices))
         if new_masked == old_masked:
-            QMessageBox.information(self._host.parent_widget, "行フィルタ", "条件を満たさない(新たにマスクされる)行はありませんでした。")
+            notify.information(self._host.parent_widget, "行フィルタ", "条件を満たさない(新たにマスクされる)行はありませんでした。")
             return
 
         command = SetMaskedRowsCommand(
@@ -786,7 +787,7 @@ class ProcessingController:
 
         y_data = np.asarray(original_dataset.y_data, dtype=float)
         if len(y_data) < 2:
-            QMessageBox.warning(self._host.parent_widget, "外れ値検出", "有効なデータ点が不足しています(最低2点必要)。")
+            notify.warning(self._host.parent_widget, "外れ値検出", "有効なデータ点が不足しています(最低2点必要)。")
             return
 
         dialog = OutlierDetectionDialog(original_dataset.name, parent=self._host.parent_widget)
@@ -802,7 +803,7 @@ class ProcessingController:
                 result = calculate_iqr_outliers(y_data, multiplier=value)
                 method_label = f"IQR(係数 {value:g})"
         except ValueError as e:
-            QMessageBox.warning(self._host.parent_widget, "外れ値検出", str(e))
+            notify.warning(self._host.parent_widget, "外れ値検出", str(e))
             return
 
         is_outlier = result['is_outlier']
@@ -844,7 +845,7 @@ class ProcessingController:
         """選んだデータセットすべてに同じ計算式で列を足す。データエディタの列計算と同じく Undo の対象ではない。"""
         selected = self._host.selected_datasets()
         if len(selected) < 2:
-            QMessageBox.information(self._host.parent_widget, "バッチ列計算", "2つ以上のデータセットを選択してください。")
+            notify.information(self._host.parent_widget, "バッチ列計算", "2つ以上のデータセットを選択してください。")
             return
 
         # 式の候補には、選んだデータセットすべてにある列だけを出す
@@ -857,7 +858,7 @@ class ProcessingController:
             return
         output_col, formula = dialog.get_formula()
         if not output_col or not formula:
-            QMessageBox.warning(self._host.parent_widget, "入力エラー", "出力列または計算式が空です。")
+            notify.warning(self._host.parent_widget, "入力エラー", "出力列または計算式が空です。")
             return
 
         succeeded, failed = [], []
@@ -875,4 +876,4 @@ class ProcessingController:
         message = f"{len(succeeded)}件のデータセットに適用しました。"
         if failed:
             message += "\n\n失敗:\n" + "\n".join(failed)
-        QMessageBox.information(self._host.parent_widget, "バッチ列計算", message)
+        notify.information(self._host.parent_widget, "バッチ列計算", message)

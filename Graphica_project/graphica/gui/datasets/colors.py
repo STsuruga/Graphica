@@ -2,8 +2,9 @@
 import json
 import logging
 import matplotlib as mpl
-from PySide6.QtWidgets import (QDialog, QInputDialog)
+from PySide6.QtWidgets import (QDialog)
 
+from graphica.gui import notify
 from graphica.core.color_palettes import BUILTIN_PALETTES
 from graphica.core.named_colors import POPUP_LIMIT, load_named_colors
 from graphica.gui import app_settings
@@ -150,7 +151,7 @@ class ColorController:
         if not selected_datasets:
             return
 
-        cmap_name, ok = QInputDialog.getItem(
+        cmap_name, ok = notify.get_item(
             self._host.parent_widget, "カラーマップから自動配色", "使用するカラーマップを選択してください:",
             RECOMMENDED_COLORMAPS, 0, False
         )

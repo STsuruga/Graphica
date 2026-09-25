@@ -5,8 +5,8 @@
 """
 import logging
 
-from PySide6.QtWidgets import QMessageBox
 
+from graphica.gui import notify
 from graphica.core.provenance import build_provenance
 from graphica.core.dataset import Dataset
 from graphica.core.grid_data import extract_slice, GridDataError
@@ -109,7 +109,7 @@ class SliceExtractionMixin:
         """今のデータセットが 2D の格子でないか、この軸に描かれていなければ、何もせず案内を出す。"""
         dataset = self._get_current_dataset()
         if dataset is None or dataset.data_kind != '2d_grid':
-            QMessageBox.information(
+            notify.information(
                 self, "スライス抽出", "スライス抽出の対象となる2Dマップのデータセットを選択してください。"
             )
             return
@@ -126,7 +126,7 @@ class SliceExtractionMixin:
                 if 0 <= target_axis < len(self.all_axes) else None
             )
         if axes is not expected_axes:
-            QMessageBox.information(
+            notify.information(
                 self, "スライス抽出",
                 "ドラッグしたサブプロットに、選択中の2Dマップが描画されていません。"
             )
@@ -134,7 +134,7 @@ class SliceExtractionMixin:
 
         grid = dataset.z_grid
         if grid is None:
-            QMessageBox.warning(self, "スライス抽出", "有効な2Dグリッドデータがありません。")
+            notify.warning(self, "スライス抽出", "有効な2Dグリッドデータがありません。")
             return
 
         try:
@@ -143,7 +143,7 @@ class SliceExtractionMixin:
                 start=start, end=end, n_points=SLICE_EXTRACTION_N_POINTS,
             )
         except GridDataError as e:
-            QMessageBox.warning(self, "スライス抽出", f"スライスの抽出に失敗しました:\n{e}")
+            notify.warning(self, "スライス抽出", f"スライスの抽出に失敗しました:\n{e}")
             return
 
         self._create_slice_dataset(dataset, start, end, result)

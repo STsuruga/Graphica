@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -24,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPixmap
+from graphica.gui import notify
 from graphica.gui.theme import apply_form_spacing
 from graphica.core.cvd_simulation import CVD_TYPE_LABELS
 from graphica.gui.cvd_preview import simulate_qimage
@@ -252,7 +252,7 @@ class BatchExportDialog(QDialog):
         apply_form_spacing(self)
 
     def _on_add_project_files(self):
-        paths, _ = QFileDialog.getOpenFileNames(
+        paths, _ = notify.get_open_file_names(
             self, "プロジェクトファイルを選択", "", "Project Files (*.graphica *.pkl)"
         )
         for path in paths:
@@ -263,7 +263,7 @@ class BatchExportDialog(QDialog):
             self.project_files_list.takeItem(self.project_files_list.row(item))
 
     def _on_browse_output_dir(self):
-        directory = QFileDialog.getExistingDirectory(self, "出力先フォルダを選択")
+        directory = notify.get_existing_directory(self, "出力先フォルダを選択")
         if directory:
             self.output_dir_edit.setText(directory)
 
@@ -354,7 +354,7 @@ class CaptionGeneratorDialog(QDialog):
         apply_form_spacing(self)
 
     def _on_browse_image(self):
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_path, _ = notify.get_open_file_name(
             self, "画像ファイルを選択", "", "画像ファイル (*.pdf *.svg *.png *.eps)"
         )
         if file_path:

@@ -4,6 +4,7 @@ import pandas as pd
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
+from graphica.gui import notify
 from graphica.core.analysis import (calculate_confidence_band, calculate_curve_fit, fit_curve_task,
                                     multi_peak_fit_task)
 from graphica.core.dataset import Dataset
@@ -195,7 +196,7 @@ class FittingController:
         self.result_dialog.show()
 
     def _busy(self):
-        QMessageBox.information(self._host.parent_widget, "実行中", "別のフィット処理が実行中です。完了までお待ちください。")
+        notify.information(self._host.parent_widget, "実行中", "別のフィット処理が実行中です。完了までお待ちください。")
 
     # --- 単発フィット ---
 
@@ -240,7 +241,7 @@ class FittingController:
 
     def _on_fit_failed(self, error_message):
         self._finish_fit_runner()
-        QMessageBox.warning(self._host.parent_widget, "フィットエラー", f"フィッティングに失敗しました:\n{error_message}")
+        notify.warning(self._host.parent_widget, "フィットエラー", f"フィッティングに失敗しました:\n{error_message}")
 
     def _on_fit_succeeded(self, source, fit_type, custom_formula, sigma, x_range,
                           p0_overrides, fixed_params, bounds, band_type, loss, fit):
@@ -262,10 +263,10 @@ class FittingController:
         parent = self._host.parent_widget
         selected = self._host.selected_datasets()
         if len(selected) < 2:
-            QMessageBox.information(parent, "バッチカーブフィット", "2つ以上のデータセットを選択してください。")
+            notify.information(parent, "バッチカーブフィット", "2つ以上のデータセットを選択してください。")
             return
         if self.batch_fit_runner is not None:
-            QMessageBox.information(parent, "実行中", "別のバッチフィット処理が実行中です。完了までお待ちください。")
+            notify.information(parent, "実行中", "別のバッチフィット処理が実行中です。完了までお待ちください。")
             return
         (fit_type, custom_formula, use_weighted, x_range,
          p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(parent)
@@ -298,7 +299,7 @@ class FittingController:
 
     def _on_batch_failed(self, error_message, progress):
         self._finish_batch_runner(progress)
-        QMessageBox.warning(self._host.parent_widget, "バッチカーブフィット",
+        notify.warning(self._host.parent_widget, "バッチカーブフィット",
                             f"バッチフィット処理に失敗しました:\n{error_message}")
 
     def _on_batch_succeeded(self, results, target_folder, progress):
@@ -315,7 +316,7 @@ class FittingController:
         message = f"{len(succeeded)}件のフィットに成功しました。"
         if failed:
             message += "\n\n失敗:\n" + "\n".join(failed)
-        QMessageBox.information(self._host.parent_widget, "バッチカーブフィット", message)
+        notify.information(self._host.parent_widget, "バッチカーブフィット", message)
 
     # --- 多峰分離フィット ---
 
@@ -356,7 +357,7 @@ class FittingController:
 
     def _on_multi_peak_fit_failed(self, error_message):
         self._finish_multi_peak_runner()
-        QMessageBox.warning(self._host.parent_widget, "多峰分離フィットエラー",
+        notify.warning(self._host.parent_widget, "多峰分離フィットエラー",
                             f"フィッティングに失敗しました:\n{error_message}")
 
     def _on_multi_peak_fit_succeeded(self, source, fit):
@@ -396,7 +397,7 @@ class FittingController:
         fit_result = dataset.fit_result
         if fit_result is None:
             # メニューは無効化しているが、別の経路から呼ばれたときのため
-            QMessageBox.information(
+            notify.information(
                 parent, title,
                 "このデータセットは曲線フィットの結果を持っていません。\n"
                 "曲線フィットで生成されたデータセット(名前が「Fit (...)」の\n"
@@ -411,7 +412,7 @@ class FittingController:
         self._show_result(title, format_fit_result_text(fit_result), csv_data,
                           fit_result.get('residual_x'), fit_result.get('residuals'))
 
-        reply = QMessageBox.question(
+        reply = notify.question(
             parent, title,
             "このフィット結果の要約(パラメータ値±誤差・R^2)を、\n"
             "グラフ上のテキスト注釈として焼き込みますか?\n"
@@ -431,11 +432,11 @@ class FittingController:
         parent = self._host.parent_widget
         axis_index = dataset.subplot_target
         if axis_index is None or axis_index >= self._host.axis_count():
-            QMessageBox.warning(parent, title, "注釈を追加する対象のプロットが見つかりませんでした。")
+            notify.warning(parent, title, "注釈を追加する対象のプロットが見つかりませんでした。")
             return
         x_data, y_data = dataset.x_data, dataset.y_data
         if len(x_data) == 0:
-            QMessageBox.warning(parent, title, "フィット曲線にデータ点が無いため、注釈を追加できませんでした。")
+            notify.warning(parent, title, "フィット曲線にデータ点が無いため、注釈を追加できませんでした。")
             return
         mid = len(x_data) // 2
         anchor = (float(x_data[mid]), float(y_data[mid]))

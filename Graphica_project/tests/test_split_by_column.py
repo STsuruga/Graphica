@@ -13,6 +13,7 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
 import graphica.gui.datasets.processing as processing_module
 from graphica.gui.main_window import PlotterApp
@@ -141,7 +142,7 @@ def _choose_column(monkeypatch, column, accepted=True):
     踏んでいる。docs/dev/CURRENT_STATE.md の C-407 の記述参照)。
     """
     monkeypatch.setattr(
-        processing_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (column, accepted)),
     )
 

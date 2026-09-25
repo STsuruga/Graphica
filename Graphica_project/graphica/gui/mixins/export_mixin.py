@@ -7,11 +7,12 @@ import logging
 import matplotlib as mpl
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QPainter, QImage
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QMessageBox, QProgressDialog
+from PySide6.QtWidgets import QApplication, QDialog, QProgressDialog
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_pdf import PdfPages
 
+from graphica.gui import notify
 from graphica.core.axis_settings import axis_setting
 from graphica.gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
 from graphica.gui.canvas import _HeadlessRenderCanvas
@@ -48,7 +49,7 @@ class ExportMixin:
             self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
         except Exception as e:
             logger.exception("グラフのクリップボードコピーに失敗しました。")
-            QMessageBox.warning(self, "コピーエラー", f"グラフのコピー中にエラーが発生しました:\n{e}")
+            notify.warning(self, "コピーエラー", f"グラフのコピー中にエラーが発生しました:\n{e}")
             return
         buf.seek(0)
 
@@ -65,7 +66,7 @@ class ExportMixin:
             self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
         except Exception as e:
             logger.exception("色覚シミュレーションプレビュー用の画像生成に失敗しました。")
-            QMessageBox.warning(self, "プレビューエラー", f"プレビュー画像の生成中にエラーが発生しました:\n{e}")
+            notify.warning(self, "プレビューエラー", f"プレビュー画像の生成中にエラーが発生しました:\n{e}")
             return
         buf.seek(0)
         image = QImage()
@@ -87,7 +88,7 @@ class ExportMixin:
             self.canvas.fig.savefig(buf, format='png', dpi=PRINT_RENDER_DPI, bbox_inches='tight')
         except Exception as e:
             logger.exception("印刷用画像の生成に失敗しました。")
-            QMessageBox.warning(self, "印刷エラー", f"印刷用の画像生成中にエラーが発生しました:\n{e}")
+            notify.warning(self, "印刷エラー", f"印刷用の画像生成中にエラーが発生しました:\n{e}")
             return
         buf.seek(0)
 
@@ -96,12 +97,12 @@ class ExportMixin:
         buf.close()
 
         if pixmap.isNull():
-            QMessageBox.warning(self, "印刷エラー", "印刷用の画像生成に失敗しました。")
+            notify.warning(self, "印刷エラー", "印刷用の画像生成に失敗しました。")
             return
 
         painter = QPainter()
         if not painter.begin(printer):
-            QMessageBox.warning(self, "印刷エラー", "プリンターへの描画を開始できませんでした。")
+            notify.warning(self, "印刷エラー", "プリンターへの描画を開始できませんでした。")
             return
         try:
             page_rect = printer.pageRect(QPrinter.Unit.DevicePixel).toRect()
@@ -122,7 +123,7 @@ class ExportMixin:
         rc_context はプロセス全体の rcParams を書き換えるので、並列にはしない。
         """
         if self._batch_export_task_runner is not None:
-            QMessageBox.information(self, "実行中", "別のバッチエクスポート処理が実行中です。完了までお待ちください。")
+            notify.information(self, "実行中", "別のバッチエクスポート処理が実行中です。完了までお待ちください。")
             return
 
         extra_formats = [exp.format_name for exp in get_registered_exporters()]
@@ -132,21 +133,21 @@ class ExportMixin:
 
         options = dialog.get_common_options()
         if not options['output_dir']:
-            QMessageBox.warning(self, "バッチエクスポート", "出力先フォルダを指定してください。")
+            notify.warning(self, "バッチエクスポート", "出力先フォルダを指定してください。")
             return
 
         mode = dialog.get_mode()
         if mode == "subplots":
             indices = dialog.get_selected_subplot_indices()
             if not indices:
-                QMessageBox.warning(self, "バッチエクスポート", "書き出すサブプロットを選択してください。")
+                notify.warning(self, "バッチエクスポート", "書き出すサブプロットを選択してください。")
                 return
             items = indices
             worker_fn = self._batch_export_subplots
         else:
             paths = dialog.get_project_file_paths()
             if not paths:
-                QMessageBox.warning(self, "バッチエクスポート", "プロジェクトファイルを追加してください。")
+                notify.warning(self, "バッチエクスポート", "プロジェクトファイルを追加してください。")
                 return
             items = paths
             worker_fn = self._batch_export_project_files
@@ -173,7 +174,7 @@ class ExportMixin:
     def _on_batch_export_failed(self, error_message, progress_dialog):
         self._cleanup_batch_export_task_runner()
         progress_dialog.close()
-        QMessageBox.warning(self, "バッチエクスポート", f"バッチエクスポート処理に失敗しました:\n{error_message}")
+        notify.warning(self, "バッチエクスポート", f"バッチエクスポート処理に失敗しました:\n{error_message}")
 
     def _on_batch_export_succeeded(self, results, progress_dialog):
         """結果は [(出力ファイル名, エラーか None), ...]。キャンセルなら終わった分だけ。"""
@@ -189,7 +190,7 @@ class ExportMixin:
         message = f"{len(succeeded)}件を書き出しました。"
         if failed:
             message += "\n\n失敗:\n" + "\n".join(f"{name}: {error}" for name, error in failed)
-        QMessageBox.information(self, "バッチエクスポート完了", message)
+        notify.information(self, "バッチエクスポート完了", message)
 
     def _save_figure_with_options(self, fig, out_path, options):
         """bbox_inches='tight' で保存する。rc の設定は export_rc_params(SVG の文字の扱い、PDF の TrueType 埋め込み)。
@@ -286,7 +287,7 @@ class ExportMixin:
 
     def _on_export_python_script(self):
         """matplotlib だけで図を再現するスクリプトを書き出す(生成は core/script_export.py)。"""
-        file_path, _ = QFileDialog.getSaveFileName(
+        file_path, _ = notify.get_save_file_name(
             self, "Pythonスクリプトとしてエクスポート", "", "Python Files (*.py)"
         )
         if not file_path:
@@ -299,7 +300,7 @@ class ExportMixin:
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(script_text)
         except Exception as e:
-            QMessageBox.warning(self, "保存エラー", f"スクリプトの書き出し中にエラーが発生しました:\n{e}")
+            notify.warning(self, "保存エラー", f"スクリプトの書き出し中にエラーが発生しました:\n{e}")
             logger.exception("Pythonスクリプトの書き出し中にエラー")
             return
 
@@ -323,7 +324,7 @@ class ExportMixin:
             settings = self.project.all_plot_settings[self.project.active_axis_index]
         title = axis_setting(settings, 'title') or "実験レポート"
 
-        file_path, _ = QFileDialog.getSaveFileName(
+        file_path, _ = notify.get_save_file_name(
             self, "実験レポートを生成", "", "HTML Files (*.html);;PDF Files (*.pdf)"
         )
         if not file_path:
@@ -346,7 +347,7 @@ class ExportMixin:
                     f.write(html_text)
         except Exception as e:
             logger.exception("実験レポートの生成中にエラーが発生しました。")
-            QMessageBox.warning(self, "保存エラー", f"実験レポートの生成中にエラーが発生しました:\n{e}")
+            notify.warning(self, "保存エラー", f"実験レポートの生成中にエラーが発生しました:\n{e}")
             return
 
         self.statusBar().showMessage(f"実験レポートを書き出しました: {file_path}", 3000)
@@ -384,7 +385,7 @@ class ExportMixin:
                 filter_parts = ["PNG (*.png)", "PDF (*.pdf)", "SVG (*.svg)"]
                 for exp in get_registered_exporters():
                     filter_parts.append(f"{exp.format_name} (*{exp.extension})")
-                file_path, _ = QFileDialog.getSaveFileName(
+                file_path, _ = notify.get_save_file_name(
                     self, "プロットを保存", "", ";;".join(filter_parts)
                 )
                 if not file_path:
@@ -393,7 +394,7 @@ class ExportMixin:
                 # グラデーションの塗りはベクター形式でもラスタで埋め込まれる。書き出しは続け、知らせるだけ
                 export_ext = os.path.splitext(file_path)[1].lower()
                 if export_ext in ('.svg', '.pdf') and _project_has_raster_gradient_fill(self.project):
-                    QMessageBox.warning(
+                    notify.warning(
                         self, "ベクター出力時の注意",
                         "グラデーション塗り(項目79)が有効なデータセットが含まれています。\n"
                         "この部分は画像(ラスタ)として埋め込まれるため、拡大すると"
@@ -438,7 +439,7 @@ class ExportMixin:
                         self.canvas.fig.savefig(file_path, **save_kwargs)
                 except Exception as e:
                     logger.exception("エクスポートに失敗しました")
-                    QMessageBox.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
+                    notify.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
                 finally:
                     # 失敗しても画面の大きさに戻す
                     self.canvas.fig.set_size_inches(original_size)

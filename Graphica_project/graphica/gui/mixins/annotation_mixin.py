@@ -6,8 +6,9 @@
 import uuid
 import logging
 
-from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QMessageBox
 
+from graphica.gui import notify
 from graphica.core.axis_settings import axis_setting
 from graphica.core.commands import SetAnnotationsCommand
 from graphica.gui.app_settings import DEFAULT_SNAP_GRID_INTERVAL_PX
@@ -99,7 +100,7 @@ class AnnotationMixin:
         drag_distance_px = ((end_px[0] - start_px[0]) ** 2 + (end_px[1] - start_px[1]) ** 2) ** 0.5
 
         if drag_distance_px < ANNOTATION_CLICK_THRESHOLD_PX:
-            text, ok = QInputDialog.getText(self, "テキスト注釈の追加", "表示するテキスト:")
+            text, ok = notify.get_text(self, "テキスト注釈の追加", "表示するテキスト:")
             if not ok or not text.strip():
                 return
             snapped_x, snapped_y = self._snap_point_to_grid(start_ax, start_x, start_y)
@@ -185,7 +186,7 @@ class AnnotationMixin:
             label = "インセット(拡大図)"
         else:
             label = target.get('text') or ("矢印注釈" if target.get('type') == 'arrow' else "テキスト注釈")
-        reply = QMessageBox.question(
+        reply = notify.question(
             self, "注釈の削除", f"この注釈を削除しますか?\n\n{label}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes

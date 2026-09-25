@@ -13,6 +13,7 @@ from PySide6.QtCore import QSettings, Qt, QUrl, QPoint, QPointF, QMimeData
 from PySide6.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
 
+import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
 import graphica.gui.main_window as main_window_module
 from graphica.core.dataset import Dataset
@@ -299,7 +300,7 @@ def test_apply_filename_regex_columns_string_value_when_not_numeric(tmp_path, mo
 def test_import_folder_no_directory_selected_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: "")
     )
     before_count = len(window._flatten_dataset_tree())
@@ -314,7 +315,7 @@ def test_import_folder_no_matching_files_shows_info(tmp_path, monkeypatch):
     empty_dir = tmp_path / "empty_folder"
     empty_dir.mkdir()
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: str(empty_dir))
     )
     info_calls = []
@@ -334,7 +335,7 @@ def test_import_folder_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
     folder.mkdir()
     (folder / "a.csv").write_text("x,y\n1,2\n", encoding="utf-8")
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: str(folder))
     )
 
@@ -369,7 +370,7 @@ def test_import_folder_queues_all_matching_files_non_recursive(tmp_path, monkeyp
     (sub / "c.csv").write_text("x,y\n9,10\n", encoding="utf-8")  # サブフォルダは対象外
 
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: str(folder))
     )
 
@@ -397,7 +398,7 @@ def test_import_folder_applies_regex_columns_to_each_imported_dataset(tmp_path, 
     (folder / "sample_25C.csv").write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
 
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: str(folder))
     )
 
@@ -1417,7 +1418,7 @@ def test_load_dock_layout_presets_empty_by_default(tmp_path, monkeypatch):
 
 def test_save_dock_layout_preset_persists_current_state(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module.QInputDialog, "getText",
+    monkeypatch.setattr(notify_module.QInputDialog, "getText",
                          staticmethod(lambda *a, **k: ("My Layout", True)))
 
     window._on_save_dock_layout_preset()
@@ -1430,7 +1431,7 @@ def test_save_dock_layout_preset_persists_current_state(tmp_path, monkeypatch):
 
 def test_save_dock_layout_preset_cancelled_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module.QInputDialog, "getText",
+    monkeypatch.setattr(notify_module.QInputDialog, "getText",
                          staticmethod(lambda *a, **k: ("", False)))
 
     window._on_save_dock_layout_preset()
@@ -1440,7 +1441,7 @@ def test_save_dock_layout_preset_cancelled_does_nothing(tmp_path, monkeypatch):
 
 def test_save_dock_layout_preset_empty_name_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module.QInputDialog, "getText",
+    monkeypatch.setattr(notify_module.QInputDialog, "getText",
                          staticmethod(lambda *a, **k: ("   ", True)))
 
     window._on_save_dock_layout_preset()
@@ -2023,7 +2024,7 @@ def test_update_autosave_path_default_uses_app_data_dir_not_cwd_relative(tmp_pat
 
 def test_manual_save_cancelled_dialog_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: ("", "")))
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: ("", "")))
     calls = []
     monkeypatch.setattr(window.project, "save_project", lambda path: calls.append(path))
     window.manual_save()
@@ -2034,7 +2035,7 @@ def test_manual_save_success_infers_graphica_extension_and_adds_recent_file(tmp_
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     target = str(tmp_path / "myproject")  # 拡張子なし
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (target, "Graphica Project (*.graphica)")),
     )
     saved_paths = []
@@ -2050,7 +2051,7 @@ def test_manual_save_exception_shows_critical_dialog(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     target = str(tmp_path / "myproject.graphica")
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (target, "Graphica Project (*.graphica)")),
     )
 
@@ -2078,7 +2079,7 @@ def test_manual_save_overwrites_current_project_path_without_dialog(tmp_path, mo
 
     dialog_calls = []
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: dialog_calls.append(1) or ("", "")),
     )
     saved_paths = []
@@ -2095,7 +2096,7 @@ def test_manual_save_without_current_project_path_falls_back_to_save_as(tmp_path
     assert window._current_project_path is None
     target = str(tmp_path / "newproject.graphica")
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (target, "Graphica Project (*.graphica)")),
     )
     saved_paths = []
@@ -2127,7 +2128,7 @@ def test_failed_load_does_not_leave_the_previous_file_as_save_target(tmp_path, m
 
     dialog_calls = []
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: dialog_calls.append(1) or ("", "")),
     )
     saved_paths = []
@@ -2144,7 +2145,7 @@ def test_manual_save_as_always_shows_dialog_even_with_current_project_path(tmp_p
     window._current_project_path = str(tmp_path / "existing.graphica")
     new_target = str(tmp_path / "copy.graphica")
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (new_target, "Graphica Project (*.graphica)")),
     )
     saved_paths = []
@@ -2158,7 +2159,7 @@ def test_manual_save_as_always_shows_dialog_even_with_current_project_path(tmp_p
 
 def test_manual_load_cancelled_dialog_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("", "")))
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: ("", "")))
     calls = []
     monkeypatch.setattr(window, "_load_project_from_path", lambda *a, **k: calls.append(a))
     window.manual_load()
@@ -2168,7 +2169,7 @@ def test_manual_load_cancelled_dialog_does_nothing(tmp_path, monkeypatch):
 def test_manual_load_selected_file_delegates_to_load_project_from_path(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     target = str(tmp_path / "myproject.graphica")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (target, "")))
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName", staticmethod(lambda *a, **k: (target, "")))
     calls = []
     monkeypatch.setattr(window, "_load_project_from_path", lambda path: calls.append(path))
     window.manual_load()

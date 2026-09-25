@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QDialog
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 from matplotlib.figure import Figure
 
+import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
 import graphica.core.plugin_api as plugin_api_module
 import graphica.gui.mixins.export_mixin as export_mixin_module
@@ -198,7 +199,7 @@ def test_copy_plot_to_clipboard_shows_warning_on_savefig_failure(tmp_path, monke
 
     monkeypatch.setattr(window.canvas.fig, "savefig", broken_savefig)
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_copy_plot_to_clipboard()
@@ -258,7 +259,7 @@ def test_print_plot_shows_warning_on_savefig_failure(tmp_path, monkeypatch):
 
     monkeypatch.setattr(window.canvas.fig, "savefig", broken_savefig)
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_print_plot()
@@ -324,7 +325,7 @@ def test_batch_export_shows_info_and_returns_when_already_running(tmp_path, monk
 
     monkeypatch.setattr(export_mixin_module, "BatchExportDialog", _fail_if_called)
     info_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
@@ -348,7 +349,7 @@ def test_batch_export_warns_when_output_dir_missing(tmp_path, monkeypatch):
     _patch_batch_export_dialog(monkeypatch, accepted=True, output_dir="")
 
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_batch_export()
@@ -365,7 +366,7 @@ def test_batch_export_warns_when_no_subplots_selected(tmp_path, monkeypatch):
                                 mode_index=0, subplot_checked=[False])
 
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_batch_export()
@@ -381,7 +382,7 @@ def test_batch_export_warns_when_no_project_files_added(tmp_path, monkeypatch):
     _patch_batch_export_dialog(monkeypatch, accepted=True, output_dir=str(out_dir), mode_index=1)
 
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_batch_export()
@@ -399,7 +400,7 @@ def test_batch_export_subplots_writes_image_and_reports_completion(tmp_path, mon
                                 prefix="myexport", format_index=0, subplot_checked=[True])
 
     info_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
@@ -422,7 +423,7 @@ def test_batch_export_subplots_passes_full_resolution_option_through(tmp_path, m
     out_dir.mkdir()
     _patch_batch_export_dialog(monkeypatch, accepted=True, output_dir=str(out_dir), mode_index=0,
                                 subplot_checked=[True], full_resolution=True)
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: None))
 
     calls = []
@@ -455,7 +456,7 @@ def test_batch_export_subplots_reports_failure_without_crashing(tmp_path, monkey
     monkeypatch.setattr(export_mixin_module.ExportMixin, "_save_figure_with_options", broken_save)
 
     info_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
@@ -517,7 +518,7 @@ def test_batch_export_project_files_writes_image_from_saved_project(tmp_path, mo
                                 prefix="proj", format_index=0, project_file_paths=[str(project_path)])
 
     info_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
@@ -568,7 +569,7 @@ def test_batch_export_project_files_reports_failure_for_missing_file(tmp_path, m
                                 project_file_paths=[missing_path])
 
     info_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_batch_export()
@@ -622,7 +623,7 @@ def test_export_plot_cancelled_save_file_dialog_writes_nothing(tmp_path, monkeyp
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     _patch_export_dialog(monkeypatch, accepted=True)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: ("", "")))
 
     window._on_export_plot()
@@ -636,7 +637,7 @@ def test_export_plot_writes_png_with_requested_size(tmp_path, monkeypatch):
     out_path = tmp_path / "out.png"
     original_size = tuple(window.canvas.fig.get_size_inches())
     _patch_export_dialog(monkeypatch, accepted=True, width=400, height=300, unit="ピクセル (px)", dpi=100)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
 
     window._on_export_plot()
@@ -651,7 +652,7 @@ def test_export_plot_writes_svg_with_text_as_path_option(tmp_path, monkeypatch):
     _add_dataset(window)
     out_path = tmp_path / "out.svg"
     _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)", svg_text_as_path=True)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "SVG (*.svg)")))
 
     window._on_export_plot()
@@ -707,10 +708,10 @@ def test_export_plot_warns_on_svg_with_gradient_fill_area_dataset(tmp_path, monk
     _add_gradient_fill_area_dataset(window)
     out_path = tmp_path / "out.svg"
     _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)")
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "SVG (*.svg)")))
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_export_plot()
@@ -725,10 +726,10 @@ def test_export_plot_no_warning_on_png_even_with_gradient_fill(tmp_path, monkeyp
     _add_gradient_fill_area_dataset(window)
     out_path = tmp_path / "out.png"
     _patch_export_dialog(monkeypatch, accepted=True, width=400, height=300, unit="ピクセル (px)", dpi=100)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_export_plot()
@@ -742,10 +743,10 @@ def test_export_plot_no_warning_on_svg_without_gradient_fill(tmp_path, monkeypat
     _add_dataset(window)  # 通常のLineデータセット
     out_path = tmp_path / "out.svg"
     _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)")
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "SVG (*.svg)")))
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_export_plot()
@@ -761,7 +762,7 @@ def test_export_plot_full_resolution_option_redraws_full_and_restores_display(tm
     _add_dataset(window)
     out_path = tmp_path / "out.png"
     _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)", full_resolution=True)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
 
     calls = []
@@ -787,7 +788,7 @@ def test_export_plot_without_full_resolution_option_does_not_touch_update_plot(t
     _add_dataset(window)
     out_path = tmp_path / "out.png"
     _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)", full_resolution=False)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
 
     calls = []
@@ -804,7 +805,7 @@ def test_export_plot_writes_pdf_with_truetype_fonts(tmp_path, monkeypatch):
     _add_dataset(window)
     out_path = tmp_path / "out.pdf"
     _patch_export_dialog(monkeypatch, accepted=True, width=10, height=8, unit="センチメートル (cm)")
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PDF (*.pdf)")))
 
     window._on_export_plot()
@@ -823,7 +824,7 @@ def test_export_plot_uses_registered_plugin_exporter_for_matching_extension(tmp_
     plugin_api_module._singleton_api = api
 
     _patch_export_dialog(monkeypatch, accepted=True)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "MyFormat (*.myf)")))
 
     window._on_export_plot()
@@ -838,7 +839,7 @@ def test_export_plot_shows_warning_and_restores_size_on_savefig_failure(tmp_path
     out_path = tmp_path / "out.png"
     original_size = tuple(window.canvas.fig.get_size_inches())
     _patch_export_dialog(monkeypatch, accepted=True)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
 
     def broken_savefig(*a, **k):
@@ -846,7 +847,7 @@ def test_export_plot_shows_warning_and_restores_size_on_savefig_failure(tmp_path
 
     monkeypatch.setattr(window.canvas.fig, "savefig", broken_savefig)
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_export_plot()
@@ -963,7 +964,7 @@ def test_show_cvd_simulation_shows_warning_on_render_failure(tmp_path, monkeypat
 
     monkeypatch.setattr(window.canvas.fig, "savefig", broken_savefig)
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_show_cvd_simulation()
@@ -976,7 +977,7 @@ def test_show_cvd_simulation_shows_warning_on_render_failure(tmp_path, monkeypat
 def test_generate_report_cancelled_dialog_writes_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: ("", "")))
 
     window._on_generate_report()
@@ -989,7 +990,7 @@ def test_generate_report_writes_self_contained_html(tmp_path, monkeypatch):
     window.project.all_plot_settings[0]['title'] = "My Experiment"
     _add_dataset(window)
     out_path = tmp_path / "report.html"
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "HTML Files (*.html)")))
 
     window._on_generate_report()
@@ -1004,7 +1005,7 @@ def test_generate_report_appends_html_extension_for_unknown_extension(tmp_path, 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     out_path_no_ext = tmp_path / "report"
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path_no_ext), "")))
 
     window._on_generate_report()
@@ -1020,7 +1021,7 @@ def test_generate_report_writes_pdf_with_two_pages(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     out_path = tmp_path / "report.pdf"
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PDF Files (*.pdf)")))
 
     window._on_generate_report()
@@ -1037,10 +1038,10 @@ def test_generate_report_write_failure_shows_warning(tmp_path, monkeypatch):
     _add_dataset(window)
     bad_path = tmp_path / "a_directory.html"
     bad_path.mkdir()
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(bad_path), "")))
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_generate_report()
@@ -1057,7 +1058,7 @@ def test_generate_report_includes_methods_text_for_processed_dataset(tmp_path, m
     )
     window._add_dataset(ds_processed, None, select=False)
     out_path = tmp_path / "report.html"
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "HTML Files (*.html)")))
 
     window._on_generate_report()
@@ -1072,7 +1073,7 @@ def test_generate_report_includes_methods_text_for_processed_dataset(tmp_path, m
 def test_export_python_script_cancelled_dialog_writes_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
 
     window._on_export_python_script()
 
@@ -1083,7 +1084,7 @@ def test_export_python_script_writes_runnable_script(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     out_path = tmp_path / "exported.py"
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path), "Python Files (*.py)"))
 
     window._on_export_python_script()
@@ -1098,7 +1099,7 @@ def test_export_python_script_appends_py_extension_if_missing(tmp_path, monkeypa
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     out_path_no_ext = tmp_path / "exported"
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path_no_ext), "Python Files (*.py)"))
 
     window._on_export_python_script()
@@ -1111,11 +1112,11 @@ def test_export_python_script_write_failure_shows_warning(tmp_path, monkeypatch)
     _add_dataset(window)
     bad_path = tmp_path / "a_directory.py"
     bad_path.mkdir()
-    monkeypatch.setattr(export_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(bad_path), ""))
 
     warn_calls = []
-    monkeypatch.setattr(export_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_export_python_script()

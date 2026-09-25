@@ -288,7 +288,7 @@ def test_registering_a_duplicate_name_warns_and_keeps_the_original(window, monke
     monkeypatch.setattr(QInputDialog, "getText",
                         staticmethod(lambda *a, **k: ("試料A", True)))
     warned = []
-    monkeypatch.setattr("graphica.gui.color_picker_widget.QMessageBox.warning",
+    monkeypatch.setattr("graphica.gui.notify.QMessageBox.warning",
                         staticmethod(lambda *a, **k: warned.append(a)))
 
     picker._on_register_current_color()

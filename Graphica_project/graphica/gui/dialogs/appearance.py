@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGridLayout,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QFont
+from graphica.gui import notify
 from graphica.gui import icon_utils
 from graphica.gui.theme import apply_form_spacing
 from graphica.gui.mathtext_preview import FitWidthPixmapLabel
@@ -375,11 +375,11 @@ class ColorPaletteDialog(QDialog):
         self._update_button_states()
 
     def _on_new_palette(self):
-        name, ok = QInputDialog.getText(self, "新規パレット", "パレット名")
+        name, ok = notify.get_text(self, "新規パレット", "パレット名")
         if not ok or not name:
             return
         if self._is_readonly_palette(name) or name in self.palettes:
-            QMessageBox.warning(self, "エラー", f"パレット名 '{name}' は既に使われています。")
+            notify.warning(self, "エラー", f"パレット名 '{name}' は既に使われています。")
             return
         self.palettes[name] = []
         self.palette_combo.addItem(name)
@@ -389,11 +389,11 @@ class ColorPaletteDialog(QDialog):
         old_name = self.palette_combo.currentText()
         if self._is_readonly_palette(old_name):
             return
-        new_name, ok = QInputDialog.getText(self, "名前を変更", "新しいパレット名", text=old_name)
+        new_name, ok = notify.get_text(self, "名前を変更", "新しいパレット名", text=old_name)
         if not ok or not new_name or new_name == old_name:
             return
         if self._is_readonly_palette(new_name) or new_name in self.palettes:
-            QMessageBox.warning(self, "エラー", f"パレット名 '{new_name}' は既に使われています。")
+            notify.warning(self, "エラー", f"パレット名 '{new_name}' は既に使われています。")
             return
         self.palettes[new_name] = self.palettes.pop(old_name)
         self.palette_combo.setItemText(self.palette_combo.currentIndex(), new_name)
@@ -402,7 +402,7 @@ class ColorPaletteDialog(QDialog):
         name = self.palette_combo.currentText()
         if self._is_readonly_palette(name):
             return
-        reply = QMessageBox.question(
+        reply = notify.question(
             self, "パレットを削除", f"パレット '{name}' を削除しますか?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
@@ -521,7 +521,7 @@ class NamedColorManagerDialog(QDialog):
         chosen = QColorDialog.getColor(QColor(color), self, tr("色を選択"))
         if not chosen.isValid():
             return None
-        text, ok = QInputDialog.getText(
+        text, ok = notify.get_text(
             self, title, tr("登録名"), text=name)
         if not ok:
             return None
@@ -536,14 +536,14 @@ class NamedColorManagerDialog(QDialog):
         try:
             entries = add_named_color(self.entries, name, color)
         except NamedColorError as e:
-            QMessageBox.warning(self, tr("色を登録"), str(e))
+            notify.warning(self, tr("色を登録"), str(e))
             return
         self._commit(entries, len(entries) - 1)
 
     def _on_edit(self):
         index = self._current_index()
         if index < 0:
-            QMessageBox.information(self, tr("色名の管理"), tr("編集する登録を選んでください。"))
+            notify.information(self, tr("色名の管理"), tr("編集する登録を選んでください。"))
             return
         current = self.entries[index]
         result = self._ask_name_and_color(
@@ -554,19 +554,19 @@ class NamedColorManagerDialog(QDialog):
         try:
             entries = update_named_color(self.entries, index, name, color)
         except NamedColorError as e:
-            QMessageBox.warning(self, tr("登録を編集"), str(e))
+            notify.warning(self, tr("登録を編集"), str(e))
             return
         self._commit(entries, index)
 
     def _on_delete(self):
         index = self._current_index()
         if index < 0:
-            QMessageBox.information(self, tr("色名の管理"), tr("削除する登録を選んでください。"))
+            notify.information(self, tr("色名の管理"), tr("削除する登録を選んでください。"))
             return
         try:
             entries = remove_named_color(self.entries, index)
         except NamedColorError as e:
-            QMessageBox.warning(self, tr("色名の管理"), str(e))
+            notify.warning(self, tr("色名の管理"), str(e))
             return
         self._commit(entries, min(index, len(entries) - 1))
 

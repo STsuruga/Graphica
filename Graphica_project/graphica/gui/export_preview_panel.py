@@ -11,8 +11,9 @@ from PySide6.QtCore import Qt, QTimer, QByteArray, QMimeData
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout,
                                QLabel, QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox,
-                               QPushButton, QFileDialog, QMessageBox, QApplication)
+                               QPushButton, QApplication)
 
+from graphica.gui import notify
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.export_settings import export_rc_params
 from graphica.gui.theme import apply_form_spacing
@@ -234,7 +235,7 @@ class ExportPreviewPanel(QWidget):
         options = self.get_options()
         width_in, height_in = self.main_window._calculate_size_in_inches(options)
         if width_in <= 0 or height_in <= 0:
-            QMessageBox.warning(self, "コピーエラー", "コピーする画像がありません。")
+            notify.warning(self, "コピーエラー", "コピーする画像がありません。")
             return
 
         if self.copy_format_combo.currentText() == "SVG":
@@ -243,7 +244,7 @@ class ExportPreviewPanel(QWidget):
                 svg_text_as_path=options["svg_text_as_path"], full_resolution=options["full_resolution"]
             )
             if svg_bytes is None:
-                QMessageBox.warning(self, "コピーエラー", "コピーする画像がありません。")
+                notify.warning(self, "コピーエラー", "コピーする画像がありません。")
                 return
             mime_data = QMimeData()
             mime_data.setData("image/svg+xml", QByteArray(svg_bytes))
@@ -267,7 +268,7 @@ class ExportPreviewPanel(QWidget):
                 full_resolution=options["full_resolution"]
             )
             if png_bytes is None:
-                QMessageBox.warning(self, "コピーエラー", "コピーする画像がありません。")
+                notify.warning(self, "コピーエラー", "コピーする画像がありません。")
                 return
             pixmap = QPixmap()
             pixmap.loadFromData(png_bytes)
@@ -281,16 +282,16 @@ class ExportPreviewPanel(QWidget):
         layout_mode = getattr(self.main_window.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
             if not self.main_window.project.all_plot_settings:
-                QMessageBox.warning(self, "保存エラー", "有効なプロットがありません。")
+                notify.warning(self, "保存エラー", "有効なプロットがありません。")
                 return
         else:
             rows = self.main_window.subplot_rows_spinbox.value()
             cols = self.main_window.subplot_cols_spinbox.value()
             if rows * cols == 0:
-                QMessageBox.warning(self, "保存エラー", "有効なプロットがありません。")
+                notify.warning(self, "保存エラー", "有効なプロットがありません。")
                 return
 
-        file_path, _ = QFileDialog.getSaveFileName(
+        file_path, _ = notify.get_save_file_name(
             self, "プロットを保存", "", "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)"
         )
         if not file_path:
@@ -301,7 +302,7 @@ class ExportPreviewPanel(QWidget):
             width_in, height_in, options["dpi"], full_resolution=options["full_resolution"]
         )
         if temp_canvas is None:
-            QMessageBox.warning(self, "保存エラー", "有効なプロットがありません。")
+            notify.warning(self, "保存エラー", "有効なプロットがありません。")
             return
         try:
             save_kwargs = {'transparent': options["transparent"], 'bbox_inches': 'tight'}
@@ -312,6 +313,6 @@ class ExportPreviewPanel(QWidget):
             self.main_window.statusBar().showMessage(f"保存しました: {file_path}", 3000)
         except Exception as e:
             logger.exception("エクスポートプレビューパネルからの保存に失敗しました。")
-            QMessageBox.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
+            notify.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
         finally:
             temp_canvas.deleteLater()

@@ -1,7 +1,8 @@
 """データセットに結びつけて図に重ねる表示: 統計値ラベルと拡大図(インセット)。"""
 import numpy as np
-from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QDialog
 
+from graphica.gui import notify
 from graphica.gui.dialogs import InsetDialog
 
 # 表示名 -> 描画側(canvas の _compute_stat_label_text)が解釈するキー
@@ -26,7 +27,7 @@ class OverlayController:
         if dataset is None:
             return
 
-        choice, ok = QInputDialog.getItem(
+        choice, ok = notify.get_item(
             self._host.parent_widget, "統計値アンカーラベルの追加", "表示する統計値:",
             list(STAT_LABEL_CHOICES.keys()), 0, False
         )
@@ -54,7 +55,7 @@ class OverlayController:
         x_data = np.asarray(dataset.x_data, dtype=float)
         x_data = x_data[~np.isnan(x_data)]
         if len(x_data) < 2:
-            QMessageBox.warning(self._host.parent_widget, "インセット(拡大図)", "有効なデータ点が不足しています(最低2点必要)。")
+            notify.warning(self._host.parent_widget, "インセット(拡大図)", "有効なデータ点が不足しています(最低2点必要)。")
             return
         x_min, x_max = float(np.min(x_data)), float(np.max(x_data))
         span = x_max - x_min

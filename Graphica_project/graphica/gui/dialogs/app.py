@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -14,7 +13,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QTabWidget,
@@ -26,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QEvent, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QKeySequence
+from graphica.gui import notify
 from graphica.gui import icon_utils
 from graphica.gui.theme import apply_form_spacing
 
@@ -248,7 +247,7 @@ class PreferencesDialog(QDialog):
 
     def _on_browse_autosave_dir(self):
         from graphica.core.i18n import tr
-        directory = QFileDialog.getExistingDirectory(
+        directory = notify.get_existing_directory(
             self, tr("オートセーブの保存先を選択"), self._autosave_dir or ""
         )
         if directory:
@@ -261,7 +260,7 @@ class PreferencesDialog(QDialog):
 
     def _on_install_plugin(self):
         from graphica.core.i18n import tr
-        zip_path, _ = QFileDialog.getOpenFileName(
+        zip_path, _ = notify.get_open_file_name(
             self, tr("プラグインをインストール"), "", tr("Zip files (*.zip)")
         )
         if not zip_path:
@@ -271,10 +270,10 @@ class PreferencesDialog(QDialog):
         try:
             installed_name = install_plugin_zip(zip_path)
         except PluginInstallError as e:
-            QMessageBox.critical(self, tr("インストール失敗"), str(e))
+            notify.critical(self, tr("インストール失敗"), str(e))
             return
 
-        QMessageBox.information(
+        notify.information(
             self, tr("インストール完了"),
             tr("プラグイン '{name}' をインストールしました。次回起動時に有効になります。").format(
                 name=installed_name

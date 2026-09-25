@@ -5,8 +5,9 @@ import os
 import re
 import uuid
 import pandas as pd
-from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication
 
+from graphica.gui import notify
 from graphica.core.methods_text import generate_methods_text
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class TransferController:
         if len(selected) == 1:
             dataset = selected[0]
             default_name = re.sub(r'[\\/:*?"<>|]', '_', dataset.name) or "dataset"
-            file_path, selected_filter = QFileDialog.getSaveFileName(
+            file_path, selected_filter = notify.get_save_file_name(
                 self._host.parent_widget, "データ表を書き出す", default_name,
                 "CSV Files (*.csv);;Excel Files (*.xlsx)"
             )
@@ -51,12 +52,12 @@ class TransferController:
                     dataset.df.to_csv(file_path, index=False, encoding='utf-8-sig')
             except Exception as e:
                 logger.exception("データセットの書き出しに失敗しました")
-                QMessageBox.warning(self._host.parent_widget, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
+                notify.warning(self._host.parent_widget, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
                 return
-            QMessageBox.information(self._host.parent_widget, "書き出し完了", f"書き出しました:\n{file_path}")
+            notify.information(self._host.parent_widget, "書き出し完了", f"書き出しました:\n{file_path}")
             return
 
-        format_choice, ok = QInputDialog.getItem(
+        format_choice, ok = notify.get_item(
             self._host.parent_widget, "データ表を書き出す", "書き出し形式を選択してください:",
             ["CSV (データセットごとに別ファイル)", "Excel (1ブックにシート分け)"], 0, False
         )
@@ -64,7 +65,7 @@ class TransferController:
             return
 
         if format_choice.startswith("Excel"):
-            file_path, _ = QFileDialog.getSaveFileName(
+            file_path, _ = notify.get_save_file_name(
                 self._host.parent_widget, "データ表を書き出す", "datasets.xlsx", "Excel Files (*.xlsx)"
             )
             if not file_path:
@@ -84,11 +85,11 @@ class TransferController:
                         dataset.df.to_excel(writer, sheet_name=sheet_name, index=False)
             except Exception as e:
                 logger.exception("データセットの書き出しに失敗しました")
-                QMessageBox.warning(self._host.parent_widget, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
+                notify.warning(self._host.parent_widget, "書き出しエラー", f"ファイルの書き出しに失敗しました:\n{e}")
                 return
-            QMessageBox.information(self._host.parent_widget, "書き出し完了", f"{len(selected)}件を書き出しました:\n{file_path}")
+            notify.information(self._host.parent_widget, "書き出し完了", f"{len(selected)}件を書き出しました:\n{file_path}")
         else:
-            dir_path = QFileDialog.getExistingDirectory(self._host.parent_widget, "書き出し先フォルダを選択")
+            dir_path = notify.get_existing_directory(self._host.parent_widget, "書き出し先フォルダを選択")
             if not dir_path:
                 return
             succeeded, failed = [], []
@@ -108,7 +109,7 @@ class TransferController:
             message = f"{len(succeeded)}件を書き出しました。"
             if failed:
                 message += "\n\n失敗:\n" + "\n".join(failed)
-            QMessageBox.information(self._host.parent_widget, "書き出し完了", message)
+            notify.information(self._host.parent_widget, "書き出し完了", message)
 
     def copy_or_move_to_tab(self, move):
         """
@@ -122,12 +123,12 @@ class TransferController:
 
         sibling_tabs = self._host.sibling_tabs()
         if not sibling_tabs:
-            QMessageBox.information(self._host.parent_widget, "タブ間のデータセット転送", "コピー/移動先の他のタブがありません。")
+            notify.information(self._host.parent_widget, "タブ間のデータセット転送", "コピー/移動先の他のタブがありません。")
             return
 
         tab_titles = [title for title, _ in sibling_tabs]
         action_label = "移動" if move else "コピー"
-        choice, ok = QInputDialog.getItem(
+        choice, ok = notify.get_item(
             self._host.parent_widget, f"別のタブへ{action_label}", "転送先のタブ:", tab_titles, 0, False
         )
         if not ok:
@@ -184,7 +185,7 @@ class TransferController:
             return
 
         if not os.path.exists(dataset.source_file):
-            QMessageBox.warning(
+            notify.warning(
                 self._host.parent_widget, "再読み込み",
                 f"元ファイルが見つかりません:\n{dataset.source_file}"
             )
@@ -199,7 +200,7 @@ class TransferController:
                 new_df = read_data_file(dataset.source_file)
         except Exception as e:
             logger.exception("元ファイルからの再読み込みに失敗しました")
-            QMessageBox.warning(self._host.parent_widget, "再読み込み", f"ファイルの読み込みに失敗しました:\n{e}")
+            notify.warning(self._host.parent_widget, "再読み込み", f"ファイルの読み込みに失敗しました:\n{e}")
             return
 
         required_columns = (
@@ -208,7 +209,7 @@ class TransferController:
         )
         missing = [col for col in required_columns if col and col not in new_df.columns]
         if missing:
-            QMessageBox.warning(
+            notify.warning(
                 self._host.parent_widget, "再読み込み",
                 "再読み込みしたファイルに、現在使用中の列が見つかりませんでした:\n"
                 + "\n".join(missing)
