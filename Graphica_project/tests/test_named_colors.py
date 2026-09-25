@@ -201,7 +201,7 @@ def test_named_colors_use_a_separate_key_from_the_palette_manager():
     ★ 配色パレット(順序付きの色のリスト)とは目的が違うので、同じキーに
     相乗りさせない。混ぜるとパレット管理側の意味が壊れる。
     """
-    from graphica.gui.datasets.colors import COLOR_PALETTES_SETTINGS_KEY
+    from graphica.gui.app_settings import COLOR_PALETTES_SETTINGS_KEY
     assert NAMED_COLORS_SETTINGS_KEY != COLOR_PALETTES_SETTINGS_KEY
 
 

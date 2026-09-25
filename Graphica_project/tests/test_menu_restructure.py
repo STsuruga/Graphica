@@ -24,9 +24,8 @@ import graphica.gui.app_settings as app_settings_module
 from graphica.gui.main_window import PlotterApp
 from graphica.core.dataset import Dataset
 from graphica.gui.datasets.actions_menu import populate_dataset_actions_menu
-from graphica.gui.mixins.quick_access_mixin import (
-    QUICK_ACCESS_SETTINGS_KEY, quick_access_action_identifier,
-)
+from graphica.gui.app_settings import QUICK_ACCESS_SETTINGS_KEY
+from graphica.gui.mixins.quick_access_mixin import quick_access_action_identifier
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):

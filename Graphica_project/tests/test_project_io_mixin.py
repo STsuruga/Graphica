@@ -246,7 +246,7 @@ def test_on_show_preferences_language_change_shows_restart_notice(tmp_path, monk
 
 def test_on_show_preferences_disabled_plugin_names_are_persisted(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    from graphica.gui.main_window import DISABLED_PLUGINS_SETTINGS_KEY
+    from graphica.gui.app_settings import DISABLED_PLUGINS_SETTINGS_KEY
 
     new_settings = (
         window.canvas.dark_mode, 0, "ja", "", 1000, False, 10,
