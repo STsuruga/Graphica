@@ -1,8 +1,9 @@
 """曲線フィットのモデルの表。種類の判定・パラメータ名・関数・初期値の推定をここ 1 か所に持つ。
 
-種類は表示名(例「ガウシアン (y = …)」)で渡され、保存ファイルと方法の文章にもそのまま入る。判定は語の部分一致で、
-表の順に見る(「2成分指数」を「指数関数」より、「擬似フォークト」を「フォークト」より、「ボルツマン」を
-「シグモイド」より先に)。カスタム数式が最初、プラグインの関数(名前の完全一致)が最後。
+種類は表示名(例「ガウシアン (y = …)」)で渡され、保存ファイルと方法の文章にもそのまま入る。判定の順は、
+プラグインの関数(名前の完全一致)→ カスタム数式 → 組み込み(語の部分一致、表の順:「2成分指数」を「指数関数」より、
+「擬似フォークト」を「フォークト」より、「ボルツマン」を「シグモイド」より先に)。プラグインを先に見ないと、
+「二重ガウシアン」のような名前が黙って組み込みのガウシアンになる。
 初期値の式は結果の popt が 1 ビットも変わらないよう、演算の順まで変えないこと。
 """
 import re
@@ -244,7 +245,7 @@ MENU_ORDER: tuple[str, ...] = (
     "擬似フォークト", "フォークト", "2成分指数", "ボルツマン", "シグモイド", "ヒル",
 )
 
-# プラグインの関数名がこれらと同じだと取り違えるので、登録を断る(部分一致は断らない: K-20)
+# プラグインの関数名がこれらと同じだと、保存済みの組み込みの種類を取り違えるので、登録を断る
 RESERVED_FIT_TYPE_NAMES: tuple[str, ...] = (CUSTOM_FORMULA_KEYWORD,) + tuple(m.keyword for m in BUILTIN_FIT_MODELS)
 
 
@@ -308,13 +309,13 @@ def _identify(fit_type: str, model_id: str | None,
         plugin_name = model_id[len(PLUGIN_MODEL_ID_PREFIX):]
         if model_id.startswith(PLUGIN_MODEL_ID_PREFIX) and plugin_name in plugin_functions:
             return ("plugin", plugin_name)
+    if fit_type in plugin_functions:
+        return ("plugin", fit_type)
     if is_custom_formula_type(fit_type):
         return ("custom", None)
     for model in BUILTIN_FIT_MODELS:
         if model.keyword in fit_type:
             return ("builtin", model)
-    if fit_type in plugin_functions:
-        return ("plugin", fit_type)
     return None
 
 
