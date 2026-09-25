@@ -40,10 +40,13 @@
 - 新しい K: K-29(保存前の Python スクリプトの書き出しがサブプロットを 1×1 と見なし、2 枚目以降が抜ける。R-1 のあと)。
 - R-0.8 の検証済み(`0e6ffef`): 特性テスト 105 件が 2 回続けて一致(約 2 分 10 秒)、フルスイート 124 チャンク・3,254 件緑(約 19 分)。
   基準のコミット `6b33bdc` を `tests/characterization/ENVIRONMENT.md` に記録。
-- 次: `refactor/r0-characterization` → `refactor/architecture` の PR(**ユーザーの承認待ち**)。PR の CI で macOS と
-  Windows Server での特性テストの振る舞いを確かめる(OS で違う記録は pinned_os で飛ばす設計)。
-  そのあと K-22・K-23 は済みなので、R-0 のあとに直す K は無し。M2(R-2・R-4・R-5)へ。
-  CI(macOS / Windows Server)で特性テストがどう振る舞うかは、R-0.8 の PR で初めて分かる。
+- R-0 の PR: https://github.com/STsuruga/Graphica/pull/25 。最初の CI で、macOS は数値の最後の桁・ファイルのバイト列・
+  図の大きさが、Windows は zlib の版による SVG/PDF のバイト列が食い違った。特性テストは基準の OS(Windows)でだけ比べ(`7bd7a1e`)、
+  圧縮は展開した中身で比べる(`ce39db7`)ように直して再実行中。緑ならマージしてよい(ユーザー承認済み)。
+- R-2 の実装と検証は済み(ブランチ `refactor/r2-fit-models`): `core/fit_models.py` のモデルの表(`d5c8c3b`)、ダイアログの選択肢も表から(`7a8bcb5`)。
+  先に全モデルを float.hex で基準化(`487fa79`)し、変更後も 1 ビット一致。PR は R-0 のマージ後に作る。
+- R-2 のあとに直す K: K-20(プラグイン名の取り違え)・K-6(標準誤差の表示)・K-25(表示名が識別子を兼ねる)。選択肢を示す。
+- 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
 
