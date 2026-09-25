@@ -1,0 +1,6294 @@
+{
+ "AboutDialog": {
+  "tree": {
+   "class": "AboutDialog",
+   "window_title": "About Graphica",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "<h2>Graphica</h2>",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "Version <VERSION>",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QTextBrowser",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ArrowAnnotationDialog": {
+  "tree": {
+   "class": "ArrowAnnotationDialog",
+   "window_title": "矢印注釈の追加",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "ラベル(空欄可):",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "矢印の形状",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "通常(片矢印)",
+      "両矢印",
+      "ブラケット(有意差表示等)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "曲率",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "0.00",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "0で直線。正/負で曲がる向きが変わります(matplotlibのarc3 rad相当)。",
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "0.00",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "AutosaveHistoryDialog": {
+  "tree": {
+   "class": "AutosaveHistoryDialog",
+   "window_title": "自動バックアップ履歴",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "復元する世代を選んでください(現在の未保存の変更は失われます):",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": false
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "BaselineCorrectionDialog": {
+  "tree": {
+   "class": "BaselineCorrectionDialog",
+   "window_title": "ベースライン補正",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "手法",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "ALS(Asymmetric Least Squares)",
+      "多項式(反復フィット)",
+      "ラバーバンド(下側凸包)",
+      "手動点"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QStackedWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "アンカー点のX座標をカンマ区切りで入力してください(2点以上):",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QPlainTextEdit",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "補間方法",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QComboBox",
+         "items": [
+          "直線",
+          "3次スプライン"
+         ],
+         "current": 0,
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QFrame",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListView",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "各アンカー点のYは、指定したX位置での実データを線形補間して自動的に求めます(3次スプラインには3点以上必要です)。",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "データ点群の下側凸包(convex hull)を結んだ曲線をベースラインとします。設定できるパラメータはありません。",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "次数",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QSpinBox",
+         "value": "3",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "3",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "反復回数",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QSpinBox",
+         "value": "10",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "10",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "lam(平滑さ)",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "100000",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "100000",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "p(非対称重み)",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "0.0100",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "0.0100",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "反復回数",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QSpinBox",
+         "value": "10",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "10",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "出力データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "ds_baseline_corrected",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QCheckBox",
+     "text": "推定したベースライン曲線も別データセットとして追加する",
+     "checked": false,
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "BatchExportDialog": {
+  "tree": {
+   "class": "BatchExportDialog",
+   "window_title": "バッチエクスポート",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QComboBox",
+     "items": [
+      "現在のプロジェクトの各サブプロットを個別に書き出す",
+      "複数のプロジェクトファイルをまとめて書き出す"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QStackedWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "書き出すプロジェクトファイル(.graphica/.pkl)を追加してください:",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QListWidget",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QPushButton",
+         "text": "追加...",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QPushButton",
+         "text": "削除",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "書き出すサブプロットを選択してください:",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QListWidget",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "出力先フォルダ",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "参照...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "ファイル名の接頭辞",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "export",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "形式",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "PNG",
+      "PDF",
+      "SVG"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "解像度(ラスター形式時)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QSpinBox",
+     "value": "150 dpi",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "150 dpi",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QCheckBox",
+     "text": "背景を透過",
+     "checked": true,
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QCheckBox",
+     "text": "文字をアウトライン化する(SVG)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "SVG出力時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。PNG/PDF形式には影響しません。"
+    },
+    {
+     "class": "QCheckBox",
+     "text": "フル解像度でエクスポート(間引きなし)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/等高線)は画面表示同様に間引いて描画されます。このチェックを入れると間引きを無効化し、常に全データ点/全解像度でエクスポートします(処理が遅くなる場合があります)。Scatter/Line+Scatterのマーカーはこの設定に関わらず常に全点描画されます。"
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "実行",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "CVDSimulationDialog": {
+  "tree": {
+   "class": "CVDSimulationDialog",
+   "window_title": "色覚シミュレーションプレビュー",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "表示モード",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "通常(変換なし)",
+      "1型(P型、赤色覚異常)",
+      "2型(D型、緑色覚異常)",
+      "3型(T型、青色覚異常)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "sRGB値への直接変換による簡易的な近似シミュレーションです。実際の見え方を完全に再現するものではありません。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Close",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "CalcHelpDialog": {
+  "tree": {
+   "class": "CalcHelpDialog",
+   "window_title": "列計算機能 リファレンス",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QTextBrowser",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Close",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "CaptionGeneratorDialog": {
+  "tree": {
+   "class": "CaptionGeneratorDialog",
+   "window_title": "LaTeX/Word用キャプションを生成",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "キャプション",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "caption",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "画像ファイル名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "参照...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "LaTeXラベル",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "fig:1",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "幅(\\includegraphics)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "\\linewidth",
+      "0.8\\linewidth",
+      "0.5\\linewidth",
+      "\\textwidth"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "LaTeXプレビュー",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPlainTextEdit",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "LaTeXをコピー",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "キャプション文をコピー(Word用)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Close",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ColorPaletteDialog": {
+  "tree": {
+   "class": "ColorPaletteDialog",
+   "window_title": "配色パレットの管理",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "パレット",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "Matplotlib既定",
+      "ColorBrewer Dark2",
+      "ColorBrewer Paired",
+      "ColorBrewer Set2",
+      "Okabe-Ito(色覚多様性対応)",
+      "Tableau 10",
+      "p"
+     ],
+     "current": 6,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "新規パレット...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "名前を変更...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "削除",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLabel",
+           "text": "",
+           "visible": false,
+           "enabled": true
+          },
+          {
+           "class": "QLabel",
+           "text": "#ff0000",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLabel",
+           "text": "",
+           "visible": false,
+           "enabled": true
+          },
+          {
+           "class": "QLabel",
+           "text": "#00ff00",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLabel",
+           "text": "",
+           "visible": true,
+           "enabled": true
+          },
+          {
+           "class": "QLabel",
+           "text": "#ff0000",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLabel",
+           "text": "",
+           "visible": true,
+           "enabled": true
+          },
+          {
+           "class": "QLabel",
+           "text": "#00ff00",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "色を追加...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "選択した色を削除",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "「OK」を押すと、選択中のパレットが以後「自動配色」ボタンで使われます。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ColumnCalculatorDialog": {
+  "tree": {
+   "class": "ColumnCalculatorDialog",
+   "window_title": "列の計算",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "出力先の列 (既存または新規)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "x",
+      "y",
+      "label"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QLineEdit",
+       "text": "x",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "計算式 (例: A + B * 2)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "列名はそのまま使えます (例: `A`)。\n数値や `log(A)`, `sin(A)` なども利用可能です。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QGroupBox",
+     "title": "プリセット (対象列を選んでボタンを押すと計算式が自動入力されます)",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLabel",
+       "text": "対象列",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QComboBox",
+       "items": [
+        "x",
+        "y",
+        "label"
+       ],
+       "current": 0,
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QFrame",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QListView",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QWidget",
+             "name": "qt_scrollarea_viewport",
+             "visible": false,
+             "enabled": true
+            }
+           ]
+          },
+          {
+           "class": "QWidget",
+           "visible": false,
+           "enabled": true
+          },
+          {
+           "class": "QWidget",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "class": "QLabel",
+       "text": "移動平均の窓幅",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QSpinBox",
+       "value": "5",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLineEdit",
+         "name": "qt_spinbox_lineedit",
+         "text": "5",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QPushButton",
+       "text": "移動平均",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "微分(差分)",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "正規化",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "累積和",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ColumnPreviewDialog": {
+  "tree": {
+   "class": "ColumnPreviewDialog",
+   "window_title": "列の選択: data.csv",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "3行 × 3列 が見つかりました。プレビューを確認し、X軸・Y軸に使う列を選択してください。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QTableWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QHeaderView",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QHeaderView",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "X軸の列",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "x",
+      "y",
+      "label"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "Y軸の列",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "x",
+      "y",
+      "label"
+     ],
+     "current": 1,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ColumnStringOpsDialog": {
+  "tree": {
+   "class": "ColumnStringOpsDialog",
+   "window_title": "文字列操作",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "操作",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "列の分割",
+      "列の結合",
+      "数値抽出"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QStackedWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "対象列",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QComboBox",
+         "items": [
+          "x",
+          "y",
+          "label"
+         ],
+         "current": 0,
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QFrame",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListView",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "正規表現",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QLineEdit",
+         "text": "[-+]?\\d*\\.?\\d+",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QLabel",
+         "text": "既定は数値(整数/小数、符号付き)を抽出します。例: \"400nm\" → 400",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QLabel",
+         "text": "出力列名",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QLineEdit",
+         "text": "",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "結合する列を2つ以上選択してください:",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QListWidget",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "区切り文字",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QLineEdit",
+         "text": "",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QLabel",
+         "text": "出力列名",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QLineEdit",
+         "text": "",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "対象列",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QComboBox",
+         "items": [
+          "x",
+          "y",
+          "label"
+         ],
+         "current": 0,
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QFrame",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListView",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "区切り文字",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QLineEdit",
+         "text": "",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QLabel",
+         "text": "出力列名の接頭辞",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QLineEdit",
+         "text": "",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ColumnTypeDialog": {
+  "tree": {
+   "class": "ColumnTypeDialog",
+   "window_title": "列の型を確認",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "各列について、現在検出されている型を表示しています。日付が数値として読み込まれている場合など、意図と異なる場合は「上書き後の型」で変換方法を選択してください。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QTableWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QComboBox",
+         "items": [
+          "自動 (変換しない)",
+          "数値",
+          "文字列",
+          "日付"
+         ],
+         "current": 0,
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QFrame",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListView",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "class": "QComboBox",
+         "items": [
+          "自動 (変換しない)",
+          "数値",
+          "文字列",
+          "日付"
+         ],
+         "current": 0,
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QFrame",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListView",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "class": "QComboBox",
+         "items": [
+          "自動 (変換しない)",
+          "数値",
+          "文字列",
+          "日付"
+         ],
+         "current": 0,
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QFrame",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListView",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "class": "QHeaderView",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QHeaderView",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ColumnVisibilityDialog": {
+  "tree": {
+   "class": "ColumnVisibilityDialog",
+   "window_title": "列の表示/非表示",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "表示する列にチェックを入れてください:",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "CommandPaletteDialog": {
+  "tree": {
+   "class": "CommandPaletteDialog",
+   "window_title": "コマンドパレット",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "CumulativeIntegralDialog": {
+  "tree": {
+   "class": "CumulativeIntegralDialog",
+   "window_title": "累積積分",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "積分方法",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "台形則(Trapezoidal)",
+      "Simpson則"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "出力データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "ds_cumsum",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "Xの各点までの積分値 ∫[x_min, x_i] y dx を新しいデータセットとして追加します。\n範囲を絞りたい場合は「区間積分」を使ってください。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "DatasetArithmeticDialog": {
+  "tree": {
+   "class": "DatasetArithmeticDialog",
+   "window_title": "データセット間演算",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "A: a\nB: b",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "演算",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "A - B",
+      "B - A",
+      "A + B",
+      "A × B",
+      "A ÷ B",
+      "B ÷ A"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "出力データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "a vs b",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "B側のY値を、A側のX値に線形補間してから演算します。2つのデータセットのX軸の値が重なる範囲のみが対象になります。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "DuplicateXDialog": {
+  "tree": {
+   "class": "DuplicateXDialog",
+   "window_title": "重複X値の検出",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "重複するX値を持つ行: 3件",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "処理方法",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "平均化(新しいデータセットを作成)",
+      "除去(先頭以外をマスク)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QStackedWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "同じX値のうち最初に出現した行だけを残し、残りをマスク(除外)します。",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "出力データセット名",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QLineEdit",
+         "text": "ds_averaged",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ExcelMultiSheetDialog": {
+  "tree": {
+   "class": "ExcelMultiSheetDialog",
+   "window_title": "シートの選択",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "読み込むシートを選択してください(複数選択可)。\n2つ以上選択すると、シートごとに別々のデータセットとして追加されます。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ExportDialog": {
+  "tree": {
+   "class": "ExportDialog",
+   "window_title": "プロットのエクスポート",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "サイズプリセット",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "カスタム",
+      "学術誌 単段 (85mm)",
+      "学術誌 1.5段 (114mm)",
+      "学術誌 2段 (170mm)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "幅",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "800.0",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "800.0",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "高さ",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "600.0",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "600.0",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "単位",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "ピクセル (px)",
+      "インチ (in)",
+      "センチメートル (cm)",
+      "ミリメートル (mm)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "解像度",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QSpinBox",
+     "value": "300 dpi",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "300 dpi",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QCheckBox",
+     "text": "背景を透過",
+     "checked": true,
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QCheckBox",
+     "text": "文字をアウトライン化する(SVG)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "SVG出力時、目盛りの数字やラベルの文字をテキスト要素ではなくパス(輪郭線)として出力します。フォントが無い環境でも見た目が崩れませんが、テキストとしての検索・編集はできなくなります。"
+    },
+    {
+     "class": "QCheckBox",
+     "text": "フル解像度でエクスポート(間引きなし)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/等高線)は画面表示同様に間引いて描画されます。このチェックを入れると間引きを無効化し、常に全データ点/全解像度でエクスポートします(処理が遅くなる場合があります)。Scatter/Line+Scatterのマーカーはこの設定に関わらず常に全点描画されます。"
+    },
+    {
+     "class": "QPushButton",
+     "text": "プレビュー更新",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "現在の設定でプレビュー画像を生成します。"
+    },
+    {
+     "class": "QLabel",
+     "text": "プレビューがここに表示されます",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Save",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "FindReplaceDialog": {
+  "tree": {
+   "class": "FindReplaceDialog",
+   "window_title": "検索/置換",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "検索文字列",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "置換後の文字列",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "対象列",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "(すべての列)",
+      "x",
+      "y",
+      "label"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "次を検索",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "すべて置換",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "閉じる",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    }
+   ]
+  },
+  "modals": []
+ },
+ "FitDialog": {
+  "tree": {
+   "class": "FitDialog",
+   "window_title": "曲線フィット",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "フィットする関数の種類を選択してください:",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "線形 (y = ax + b)",
+      "2次多項式 (y = ax^2 + bx + c)",
+      "3次多項式 (y = ax^3 + bx^2 + cx + d)",
+      "指数関数 (y = a * exp(bx))",
+      "対数 (y = a * ln(x) + b)",
+      "べき乗 (y = a * x^b)",
+      "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
+      "ローレンツ関数 (y = a / (1 + ((x-b)/c)^2) + d)",
+      "擬似フォークト関数 (y = a*(η/(1+((x-b)/c)^2) + (1-η)*exp(-4ln2*((x-b)/c)^2)) + d)",
+      "フォークト関数 (y = a*Re[wofz((x-b+iγ)/(σ√2))] / (σ√(2π)) + d)",
+      "2成分指数関数 (y = a1*exp(b1*x) + a2*exp(b2*x) + c)",
+      "ボルツマンシグモイド (y = a2 + (a1-a2) / (1 + exp((x-x0)/dx)))",
+      "シグモイド (y = a / (1 + exp(-b(x-c))))",
+      "ヒルの式 (y = vmax*x^n / (k^n + x^n))",
+      "カスタム数式..."
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "数式 (xとパラメータ名を使って入力、例: a*exp(-b*x)+c)",
+     "visible": false,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": false,
+     "enabled": true
+    },
+    {
+     "class": "QCheckBox",
+     "text": "Y誤差列を重みとして使用する(設定されている場合)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "誤差が大きい点ほどフィットへの影響を小さくする(scipy.optimize.curve_fitのsigma)。\n対象データセットにY誤差列が設定されていない場合はチェックしても効果がありません。"
+    },
+    {
+     "class": "QLabel",
+     "text": "損失関数",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "通常の最小二乗(既定)",
+      "ロバスト(Soft L1)",
+      "ロバスト(Huber)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "外れ値に引きずられにくい損失関数に切り替える(scipy.optimize.least_squares)。\nSoft L1/Huberはいずれも外れ値の寄与を線形二乗より抑える点で似ているが、\nHuberの方が正常値付近では通常の最小二乗に近い挙動になる。",
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QCheckBox",
+     "text": "フィット範囲を指定する",
+     "checked": false,
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "最小X",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "0.000000",
+     "visible": true,
+     "enabled": false,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "0.000000",
+       "visible": true,
+       "enabled": false
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "最大X",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "10.000000",
+     "visible": true,
+     "enabled": false,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "10.000000",
+       "visible": true,
+       "enabled": false
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "パラメータごとの初期値・固定・範囲拘束(収束しない場合に指定してください):",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QTableWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QDoubleSpinBox",
+         "value": "1.000000",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "1.000000",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QCheckBox",
+         "text": "",
+         "checked": false,
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QCheckBox",
+         "text": "",
+         "checked": false,
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "-1000000000000.000000",
+         "visible": true,
+         "enabled": false,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "-1000000000000.000000",
+           "visible": true,
+           "enabled": false
+          }
+         ]
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "1000000000000.000000",
+         "visible": true,
+         "enabled": false,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "1000000000000.000000",
+           "visible": true,
+           "enabled": false
+          }
+         ]
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "1.000000",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "1.000000",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QCheckBox",
+         "text": "",
+         "checked": false,
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QCheckBox",
+         "text": "",
+         "checked": false,
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "-1000000000000.000000",
+         "visible": true,
+         "enabled": false,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "-1000000000000.000000",
+           "visible": true,
+           "enabled": false
+          }
+         ]
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "1000000000000.000000",
+         "visible": true,
+         "enabled": false,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "1000000000000.000000",
+           "visible": true,
+           "enabled": false
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "class": "QHeaderView",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QHeaderView",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "信頼帯/予測帯",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "表示しない",
+      "信頼帯 (95%)",
+      "予測帯 (95%)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "信頼帯: 真の回帰曲線が収まると考えられる範囲(パラメータの不確かさのみ)。\n予測帯: 次に測定する新しい1点が収まると考えられる範囲\n(パラメータの不確かさに加え、観測ノイズの分散も加味するため信頼帯より広くなる)。",
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "FolderImportDialog": {
+  "tree": {
+   "class": "FolderImportDialog",
+   "window_title": "フォルダから一括インポート",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "フォルダ: <CASE>",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "対象ファイル: 2件",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "ファイル名から抽出する正規表現(任意、名前付きグループが新しい列になります):",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "(正規表現が未入力のため、列は追加されません)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "HelpDialog": {
+  "tree": {
+   "class": "HelpDialog",
+   "window_title": "mathtext クイックリファレンス",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QTextBrowser",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Close",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "HistogramKDEDialog": {
+  "tree": {
+   "class": "HistogramKDEDialog",
+   "window_title": "ヒストグラム / KDE",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "対象列",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "x",
+      "y",
+      "label"
+     ],
+     "current": 1,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "モード",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "ヒストグラム",
+      "カーネル密度推定(KDE)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QStackedWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "評価点数",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QSpinBox",
+         "value": "200",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "200",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QCheckBox",
+         "text": "ビン数を自動決定",
+         "checked": true,
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QLabel",
+         "text": "ビン数",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QSpinBox",
+         "value": "10",
+         "visible": true,
+         "enabled": false,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "10",
+           "visible": true,
+           "enabled": false
+          }
+         ]
+        },
+        {
+         "class": "QCheckBox",
+         "text": "確率密度で正規化する(合計面積 = 1)",
+         "checked": false,
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "出力データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "ds_hist",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "InsetDialog": {
+  "tree": {
+   "class": "InsetDialog",
+   "window_title": "インセット(拡大図)を追加",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "データのX範囲: 0 〜 10\n拡大表示したいX範囲と、インセットを表示する位置を選んでください。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "拡大範囲(最小)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "2.0000",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "2.0000",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "拡大範囲(最大)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "4.0000",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "4.0000",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "表示位置",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "右上",
+      "左上",
+      "右下",
+      "左下"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "大きさ(軸に対する比率)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "0.35",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "0.35",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "IntervalIntegralDialog": {
+  "tree": {
+   "class": "IntervalIntegralDialog",
+   "window_title": "区間積分",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "積分方法",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "台形則(Trapezoidal)",
+      "Simpson則"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "最小X",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "0.000000",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "0.000000",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "最大X",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "10.000000",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "10.000000",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QCheckBox",
+     "text": "ベースラインを差し引く(範囲の両端を結ぶ直線を差し引いてから積分)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "積分範囲の両端のY値(実データを線形補間して求めた値)を結ぶ直線を\nベースラインとしてYから差し引いてから積分します。\nスペクトルのピーク面積など「傾いた背景の上のピーク」を求める用途向けの\n簡易オプションです。ALS等の本格的なベースライン補正を使いたい場合は、\n先に「ベースライン補正...」で補正したデータセットに対してこの機能を\n使ってください。"
+    },
+    {
+     "class": "QLabel",
+     "text": "台形則・Simpson則いずれもデータ点数の偶奇による制約はありません。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "LabelEditDialog": {
+  "tree": {
+   "class": "LabelEditDialog",
+   "window_title": "X軸ラベル",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLineEdit",
+     "text": "x ($\\mu$m)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "FitWidthPixmapLabel",
+     "name": "mathtext_preview_label",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "太字"
+    },
+    {
+     "class": "QPushButton",
+     "text": "",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "イタリック"
+    },
+    {
+     "class": "QPushButton",
+     "text": "",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "上付き文字"
+    },
+    {
+     "class": "QPushButton",
+     "text": "",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "下付き文字"
+    },
+    {
+     "class": "QToolButton",
+     "text": "Ω",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "ギリシャ文字・数学記号を挿入",
+     "children": [
+      {
+       "class": "QMenu",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QToolButton",
+           "text": "α",
+           "visible": false,
+           "enabled": true,
+           "tooltip": "\\\\alpha"
+          },
+          {
+           "class": "QToolButton",
+           "text": "β",
+           "visible": false,
+           "enabled": true,
+           "tooltip": "\\\\beta"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "LegendOrderDialog": {
+  "tree": {
+   "class": "LegendOrderDialog",
+   "window_title": "凡例の順序",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "ドラッグして凡例の表示順序を変更できます:",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "描画順にリセット",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "MultiPeakFitDialog": {
+  "tree": {
+   "class": "MultiPeakFitDialog",
+   "window_title": "多峰分離フィット",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "成分タイプ(全ピーク共通)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "ガウシアン",
+      "ローレンツ",
+      "擬似フォークト",
+      "フォークト"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "ベースライン",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "なし",
+      "定数",
+      "1次"
+     ],
+     "current": 1,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "各ピークの初期値(中心X・高さ・おおよその幅[FWHM]):",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QTableWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QHeaderView",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QHeaderView",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "行を追加",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "選択行を削除",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "ピーク検出から自動配置...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "NamedColorManagerDialog": {
+  "tree": {
+   "class": "NamedColorManagerDialog",
+   "window_title": "色名の管理",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "よく使う色に名前を付けて登録します。データセットの色欄でスウォッチを押すと、ここに登録した色を名前から選べます。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "追加...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "編集...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "削除",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "上へ",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "下へ",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "並び順は、色欄のポップアップにそのまま反映されます。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Close",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "NamedColorPickerDialog": {
+  "tree": {
+   "class": "NamedColorPickerDialog",
+   "window_title": "登録色を選択",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QToolButton",
+       "text": "",
+       "visible": false,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "NewDatasetDialog": {
+  "tree": {
+   "class": "NewDatasetDialog",
+   "window_title": "新規データセットを作成",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "新規データセット",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "列名 (カンマ区切り)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "X, Y",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "カンマ区切りで列名を入力してください(例: X, Y, 誤差)"
+    },
+    {
+     "class": "QLabel",
+     "text": "初期の空行数",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QSpinBox",
+     "value": "5",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "5",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "NormalizeDatasetDialog": {
+  "tree": {
+   "class": "NormalizeDatasetDialog",
+   "window_title": "規格化(ノーマライズ)",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "基準",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "最大値基準",
+      "特定X値での強度基準"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "基準X値",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "0.000000",
+     "visible": true,
+     "enabled": false,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "0.000000",
+       "visible": true,
+       "enabled": false
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "出力データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "ds_normalized",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "最大値基準: Yの最大値が1.0になるよう規格化します(マスク中の行は除外)。\n特定X値での強度基準: 指定したX値でのYを線形補間し、その値が1.0になるよう規格化します。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "OutlierDetectionDialog": {
+  "tree": {
+   "class": "OutlierDetectionDialog",
+   "window_title": "外れ値検出",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds(Y値をもとに検出します)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "検出方法",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "Z-score",
+      "IQR(四分位範囲)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QStackedWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "係数(IQR ×)",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "1.50",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "1.50",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "しきい値(|Z| >)",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "3.00",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "3.00",
+           "visible": true,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QCheckBox",
+     "text": "検出した外れ値をマスク(除外)に適用する",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "チェックを外すと検出結果を表示するだけでマスクは変更しません。\nマスクは非破壊(項目36と同じ仕組み)で、いつでも解除できます。"
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "PeakSettingsDialog": {
+  "tree": {
+   "class": "PeakSettingsDialog",
+   "window_title": "ピーク検出 設定",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "検出タイプ",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "上に凸 (Peaks)",
+      "下に凸 (Valleys)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "Y値の閾値 (Height)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "なし",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "検出するピーク/谷の最小高さ (Y値)。「なし」は高さで絞らない。\n例: 5 を指定すると Y > 5 のピークのみ検出。\n例: -10 を指定すると Y < -10 の谷のみ検出。",
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "なし",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "最小X距離 (Distance)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "1.0000",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "隣接するピーク/谷の間の最小距離 (X軸の値)。\n近すぎるピーク/谷を間引きます。",
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "1.0000",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "最小突出度 (Prominence)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "0.0000",
+     "visible": true,
+     "enabled": true,
+     "tooltip": "ピーク/谷の突出度 (周囲のデータからの際立ち)。\nノイズのような小さなピーク/谷を除去するのに有効です。",
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "0.0000",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "PluginParamDialog": {
+  "tree": {
+   "class": "PluginParamDialog",
+   "window_title": "設定",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "回数",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QSpinBox",
+     "value": "3",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "3",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "k",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "a",
+      "b"
+     ],
+     "current": 1,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "有効",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QCheckBox",
+     "text": "",
+     "checked": true,
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "PreferencesDialog": {
+  "tree": {
+   "class": "PreferencesDialog",
+   "window_title": "Preferences",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QTabWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QStackedWidget",
+       "name": "qt_tabwidget_stackedwidget",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QPushButton",
+           "text": "プラグインをインストール...",
+           "visible": false,
+           "enabled": true
+          },
+          {
+           "class": "QPushButton",
+           "text": "プラグインフォルダを開く",
+           "visible": false,
+           "enabled": true
+          },
+          {
+           "class": "QGroupBox",
+           "title": "読み込み済みプラグイン",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListWidget",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
+           "title": "フック単位の登録エラー",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListWidget",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QGroupBox",
+           "title": "Appearance",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QCheckBox",
+             "text": "Enable dark mode",
+             "checked": false,
+             "visible": true,
+             "enabled": true
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
+           "title": "Language",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "Display language",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QComboBox",
+             "items": [
+              "日本語",
+              "English"
+             ],
+             "current": 1,
+             "visible": true,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QFrame",
+               "visible": false,
+               "enabled": true,
+               "children": [
+                {
+                 "class": "QListView",
+                 "visible": false,
+                 "enabled": true,
+                 "children": [
+                  {
+                   "class": "QWidget",
+                   "name": "qt_scrollarea_viewport",
+                   "visible": false,
+                   "enabled": true
+                  }
+                 ]
+                },
+                {
+                 "class": "QWidget",
+                 "visible": false,
+                 "enabled": true
+                },
+                {
+                 "class": "QWidget",
+                 "visible": false,
+                 "enabled": true
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "class": "QLabel",
+             "text": "* The language change takes effect after restarting the app.",
+             "visible": true,
+             "enabled": true
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
+           "title": "Save",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "Autosave interval",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QSpinBox",
+             "value": "5 min",
+             "visible": true,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QLineEdit",
+               "name": "qt_spinbox_lineedit",
+               "text": "5 min",
+               "visible": true,
+               "enabled": true
+              }
+             ]
+            },
+            {
+             "class": "QLabel",
+             "text": "オートセーブ保存先",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QLineEdit",
+             "text": "",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "参照...",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "既定に戻す",
+             "visible": true,
+             "enabled": true
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
+           "title": "パフォーマンス",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "データ点ラベルの表示上限",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QSpinBox",
+             "value": "1000 点",
+             "visible": true,
+             "enabled": true,
+             "tooltip": "データ点にラベルを表示する機能は、データ点数が多いと描画が重くなり、アプリがフリーズする場合があります。この件数を超えるデータセットには、ラベルを有効にしていても自動的に表示しません。",
+             "children": [
+              {
+               "class": "QLineEdit",
+               "name": "qt_spinbox_lineedit",
+               "text": "1000 点",
+               "visible": true,
+               "enabled": true
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
+           "title": "注釈",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QCheckBox",
+             "text": "スナップ・トゥ・グリッドを有効にする",
+             "checked": false,
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QLabel",
+             "text": "グリッド間隔",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QSpinBox",
+             "value": "10 px",
+             "visible": true,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QLineEdit",
+               "name": "qt_spinbox_lineedit",
+               "text": "10 px",
+               "visible": true,
+               "enabled": true
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "class": "QTabBar",
+       "name": "qt_tabwidget_tabbar",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QToolButton",
+         "name": "ScrollLeftButton",
+         "text": "",
+         "visible": true,
+         "enabled": false
+        },
+        {
+         "class": "QToolButton",
+         "name": "ScrollRightButton",
+         "text": "",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "QuickAccessManagerDialog": {
+  "tree": {
+   "class": "QuickAccessManagerDialog",
+   "window_title": "クイックアクセスの管理",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "チェックした項目がクイックアクセスツールバーに表示されます。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Close",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ReplicateErrorDialog": {
+  "tree": {
+   "class": "ReplicateErrorDialog",
+   "window_title": "誤差の自動計算 (反復測定)",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "反復測定として扱う列を2つ以上選んでください:",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "誤差の種類",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "SD (標準偏差)",
+      "SEM (標準誤差)",
+      "95%CI (信頼区間)"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "出力列名 (ベース)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "measurement",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "「平均」列と「誤差」列の2つが追加されます (例: measurement_mean, measurement_SD)。NaNを含む行は、その行にある有効な測定値だけで計算します。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ResampleDatasetDialog": {
+  "tree": {
+   "class": "ResampleDatasetDialog",
+   "window_title": "共通X格子へのリサンプリング/補間",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "リサンプリング先の格子",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "他のデータセットのX格子",
+      "等間隔グリッド"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QStackedWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "開始X",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "0.000000",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "0.000000",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "終了X",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QDoubleSpinBox",
+         "value": "10.000000",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "10.000000",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QLabel",
+         "text": "点数",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QSpinBox",
+         "value": "100",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QLineEdit",
+           "name": "qt_spinbox_lineedit",
+           "text": "100",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "class": "QWidget",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QLabel",
+         "text": "データセット",
+         "visible": true,
+         "enabled": true
+        },
+        {
+         "class": "QComboBox",
+         "items": [
+          "other"
+         ],
+         "current": 0,
+         "visible": true,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QFrame",
+           "visible": false,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QListView",
+             "visible": false,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QWidget",
+               "name": "qt_scrollarea_viewport",
+               "visible": false,
+               "enabled": true
+              }
+             ]
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            },
+            {
+             "class": "QWidget",
+             "visible": false,
+             "enabled": true
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "補間方法",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "線形補間",
+      "3次スプライン補間"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QCheckBox",
+     "text": "範囲外を外挿する(既定はNaNにする)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "元データのX範囲外にある格子点の扱いです。\nオフ(既定): 範囲外はNaNになります(安全側)。\nオン: 線形補間は両端の傾きで、3次スプラインはscipy標準の\n区間多項式の延長で外挿します(いずれも範囲から離れるほど\n不正確になりうる点に注意してください)。"
+    },
+    {
+     "class": "QLabel",
+     "text": "出力データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "ds_resampled",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ResultDialog": {
+  "tree": {
+   "class": "ResultDialog",
+   "window_title": "結果",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QPlainTextEdit",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "コピー",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "閉じる",
+     "visible": true,
+     "enabled": true
+    }
+   ]
+  },
+  "modals": []
+ },
+ "RowFilterDialog": {
+  "tree": {
+   "class": "RowFilterDialog",
+   "window_title": "行フィルタ",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "条件式を満たさない行をマスク(除外)します(非破壊、いつでも解除できます)。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "列名はそのまま使えます(例: y)。比較演算子(>, <, ==, != 等)や\nand / or / not が使えます(core/safe_eval.pyの安全な数式評価器)。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "利用可能な列: x, y, label",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "SavGolDialog": {
+  "tree": {
+   "class": "SavGolDialog",
+   "window_title": "Savitzky-Golayフィルタ",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "対象: ds",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "種類",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QComboBox",
+     "items": [
+      "平滑化",
+      "1次微分",
+      "2次微分"
+     ],
+     "current": 0,
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QFrame",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QListView",
+         "visible": false,
+         "enabled": true,
+         "children": [
+          {
+           "class": "QWidget",
+           "name": "qt_scrollarea_viewport",
+           "visible": false,
+           "enabled": true
+          }
+         ]
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        },
+        {
+         "class": "QWidget",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "窓幅(奇数)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QSpinBox",
+     "value": "5",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "5",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "多項式の次数",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QSpinBox",
+     "value": "2",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "2",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "出力データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "ds_smoothed",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "窓幅は奇数かつ多項式の次数より大きい値を指定してください。\n微分はX軸の間隔が概ね等間隔であることを前提とします。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
+ "ShortcutsDialog": {
+  "tree": {
+   "class": "ShortcutsDialog",
+   "window_title": "キーボードショートカット一覧",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QTableWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QHeaderView",
+       "visible": false,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": false,
+         "enabled": true
+        }
+       ]
+      },
+      {
+       "class": "QHeaderView",
+       "visible": true,
+       "enabled": true,
+       "children": [
+        {
+         "class": "QWidget",
+         "name": "qt_scrollarea_viewport",
+         "visible": true,
+         "enabled": true
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "閉じる",
+     "visible": true,
+     "enabled": true
+    }
+   ]
+  },
+  "modals": []
+ },
+ "WelcomeDialog": {
+  "tree": {
+   "class": "WelcomeDialog",
+   "window_title": "Welcome to Graphica",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "<h2>Welcome to Graphica</h2>",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QTextBrowser",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QPushButton",
+     "text": "Open Sample Data",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "書式テンプレートを開く...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
+     "text": "Close",
+     "visible": true,
+     "enabled": true
+    }
+   ]
+  },
+  "modals": []
+ },
+ "XAxisAlignmentDialog": {
+  "tree": {
+   "class": "XAxisAlignmentDialog",
+   "window_title": "X軸アライメント(相互相関)",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "基準(移動しない): a\n位置合わせ対象(移動する): b",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "出力データセット名",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "b_aligned",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "2つのデータセットの相互相関が最大になるよう、位置合わせ対象のX値をシフトした新しいデータセットを作成します(元のデータセットは変更しません)。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ }
+}

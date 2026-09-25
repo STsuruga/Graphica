@@ -312,6 +312,18 @@ def signal_receivers(obj) -> dict[str, int]:
     return counts
 
 
+# スクロールバーの入れ物と表の角のボタンは Qt の内部の部品で、表示されたことがあるかどうかで状態が揺れる
+_QT_INTERNAL_NAMES = {"qt_scrollarea_vcontainer", "qt_scrollarea_hcontainer"}
+
+
+def _is_qt_internal(widget) -> bool:
+    from PySide6.QtWidgets import QTableView
+
+    if widget.objectName() in _QT_INTERNAL_NAMES:
+        return True
+    return type(widget).__name__ == "QAbstractButton" and isinstance(widget.parent(), QTableView)
+
+
 def widget_tree(widget, root=None, signals: bool = False) -> dict[str, Any]:
     """ウィジェットの木。子は Qt の子の順(= 作られた順)に並べる。"""
     from PySide6.QtWidgets import (
@@ -351,7 +363,8 @@ def widget_tree(widget, root=None, signals: bool = False) -> dict[str, Any]:
         receivers = signal_receivers(widget)
         if receivers:
             node["receivers"] = receivers
-    children = [widget_tree(child, root, signals) for child in widget.children() if isinstance(child, QWidget)]
+    children = [widget_tree(child, root, signals) for child in widget.children()
+                if isinstance(child, QWidget) and not _is_qt_internal(child)]
     if children:
         node["children"] = children
     return node

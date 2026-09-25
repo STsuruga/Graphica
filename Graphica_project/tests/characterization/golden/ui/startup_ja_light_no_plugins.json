@@ -1,0 +1,551 @@
+{
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "WelcomeDialog",
+   "title": "Graphica へようこそ"
+  }
+ ],
+ "menus": [
+  {
+   "title": "ファイル(&F)",
+   "items": [
+    {
+     "text": "データファイルを開く(&D)...",
+     "tooltip": "データファイルを開く(D)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "プロジェクトを開く(&O)...",
+     "shortcut": "Ctrl+O",
+     "tooltip": "プロジェクトを開く(O)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "上書き保存(&P)",
+     "shortcut": "Ctrl+S",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "名前を付けて保存(&A)...",
+     "shortcut": "Ctrl+Shift+S",
+     "tooltip": "名前を付けて保存(A)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "クリップボードから貼り付け(&V)...",
+     "tooltip": "クリップボードから貼り付け(V)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "フォルダから一括インポート(&F)...",
+     "tooltip": "フォルダから一括インポート(F)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "最近使ったファイル",
+     "receivers": {
+      "changed()": 1,
+      "triggered(bool)": 1,
+      "triggered()": 1,
+      "hovered()": 1
+     },
+     "submenu": [
+      {
+       "text": "(履歴なし)",
+       "enabled": false,
+       "receivers": {
+        "triggered(bool)": 1,
+        "triggered()": 1,
+        "hovered()": 1
+       }
+      }
+     ]
+    },
+    {
+     "text": "スタートアップ画面(&W)...",
+     "tooltip": "スタートアップ画面(W)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "書式テンプレートを保存(&T)...",
+     "tooltip": "書式テンプレートを保存(T)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "書式テンプレートを適用(&A)...",
+     "tooltip": "書式テンプレートを適用(A)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "エクスポート",
+     "receivers": {
+      "changed()": 1,
+      "triggered(bool)": 1,
+      "triggered()": 1,
+      "hovered()": 1
+     },
+     "submenu": [
+      {
+       "text": "名前を付けてエクスポート(&S)...",
+       "tooltip": "名前を付けてエクスポート(S)",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      },
+      {
+       "text": "グラフをコピー(&C)",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      },
+      {
+       "text": "印刷(&R)...",
+       "shortcut": "Ctrl+P",
+       "tooltip": "印刷(R)",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      },
+      {
+       "text": "バッチエクスポート(&B)...",
+       "tooltip": "バッチエクスポート(B)",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      },
+      {
+       "text": "Pythonスクリプトとしてエクスポート...",
+       "tooltip": "Pythonスクリプトとしてエクスポート",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      },
+      {
+       "text": "LaTeX/Word用キャプションを生成...",
+       "tooltip": "LaTeX/Word用キャプションを生成",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      },
+      {
+       "text": "実験レポートを生成 (HTML/PDF)...",
+       "tooltip": "実験レポートを生成 (HTML/PDF)",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      }
+     ]
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "オートセーブ: 5分間隔(&I)...",
+     "tooltip": "オートセーブ: 5分間隔(I)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "自動バックアップ履歴から復元(&H)...",
+     "tooltip": "自動バックアップ履歴から復元(H)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "設定・スタイルをエクスポート(&X)...",
+     "tooltip": "設定・スタイルをエクスポート(X)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "設定・スタイルをインポート(&M)...",
+     "tooltip": "設定・スタイルをインポート(M)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    }
+   ]
+  },
+  {
+   "title": "編集(&E)",
+   "items": [
+    {
+     "text": "元に戻す",
+     "shortcut": "Ctrl+Z",
+     "enabled": false,
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "やり直し",
+     "shortcut": "Ctrl+Y",
+     "enabled": false,
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "環境設定(&P)...",
+     "tooltip": "環境設定(P)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "コマンドパレット(&K)...",
+     "shortcut": "Ctrl+Shift+P",
+     "tooltip": "コマンドパレット(K)",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    }
+   ]
+  },
+  {
+   "title": "データセット(&D)",
+   "items": [
+    {
+     "text": "新しいフォルダ",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    }
+   ]
+  },
+  {
+   "title": "表示(&V)",
+   "items": [
+    {
+     "text": "プロパティパネル",
+     "checked": true,
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "エクスポートプレビュー",
+     "checked": false,
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "残差プロット",
+     "checked": false,
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "処理履歴",
+     "checked": false,
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "ミニマップ(レンジスライダー)",
+     "checked": true,
+     "receivers": {
+      "triggered(bool)": 1,
+      "triggered()": 1,
+      "hovered()": 1,
+      "toggled(bool)": 1
+     }
+    },
+    {
+     "text": "キャンバスを別ウィンドウに切り離す",
+     "checked": false,
+     "receivers": {
+      "triggered(bool)": 1,
+      "triggered()": 1,
+      "hovered()": 1,
+      "toggled(bool)": 1
+     }
+    },
+    {
+     "text": "パネルラベルを自動表示 ((a)(b)(c)...)",
+     "checked": false,
+     "tooltip": "パネルラベルを自動表示 ((a)(b)(c))",
+     "receivers": {
+      "triggered(bool)": 1,
+      "triggered()": 1,
+      "hovered()": 1,
+      "toggled(bool)": 1
+     }
+    },
+    {
+     "text": "色覚シミュレーションプレビュー...",
+     "tooltip": "色覚シミュレーションプレビュー",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "ドックレイアウト",
+     "receivers": {
+      "changed()": 1,
+      "triggered(bool)": 1,
+      "triggered()": 1,
+      "hovered()": 1
+     },
+     "submenu": [
+      {
+       "text": "現在のレイアウトを保存...",
+       "tooltip": "現在のレイアウトを保存",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      },
+      {
+       "text": "レイアウトを読み込み",
+       "receivers": {
+        "changed()": 1,
+        "triggered(bool)": 1,
+        "triggered()": 1,
+        "hovered()": 1
+       },
+       "submenu": []
+      },
+      {
+       "separator": true
+      },
+      {
+       "text": "既定のレイアウトにリセット",
+       "receivers": {
+        "triggered(bool)": 2,
+        "triggered()": 2,
+        "hovered()": 1
+       }
+      }
+     ]
+    },
+    {
+     "text": "クイックアクセスツールバー",
+     "checked": true,
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "ダークモード",
+     "checked": false,
+     "receivers": {
+      "triggered(bool)": 1,
+      "triggered()": 1,
+      "hovered()": 1,
+      "toggled(bool)": 1
+     }
+    }
+   ]
+  },
+  {
+   "title": "ヘルプ(&H)",
+   "items": [
+    {
+     "text": "mathtext リファレンス...",
+     "tooltip": "mathtext リファレンス",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "列計算機能 リファレンス...",
+     "tooltip": "列計算機能 リファレンス",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "キーボードショートカット一覧...",
+     "tooltip": "キーボードショートカット一覧",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "診断情報をエクスポート...",
+     "tooltip": "診断情報をエクスポート",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "アップデートを確認...",
+     "tooltip": "アップデートを確認",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "Graphica について...",
+     "tooltip": "Graphica について",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    }
+   ]
+  }
+ ],
+ "tab_docks": [
+  {
+   "name": "control_dock_widget",
+   "title": "プロパティ",
+   "area": "RightDockWidgetArea",
+   "floating": false,
+   "visible": true,
+   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
+   "tabified_with": []
+  },
+  {
+   "name": "ExportPreviewDockWidget",
+   "title": "エクスポートプレビュー",
+   "area": "RightDockWidgetArea",
+   "floating": true,
+   "visible": false,
+   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
+   "tabified_with": []
+  },
+  {
+   "name": "ResidualDockWidget",
+   "title": "残差プロット",
+   "area": "BottomDockWidgetArea",
+   "floating": false,
+   "visible": false,
+   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
+   "tabified_with": []
+  },
+  {
+   "name": "ProvenanceDockWidget",
+   "title": "処理履歴",
+   "area": "RightDockWidgetArea",
+   "floating": false,
+   "visible": false,
+   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
+   "tabified_with": []
+  }
+ ]
+}

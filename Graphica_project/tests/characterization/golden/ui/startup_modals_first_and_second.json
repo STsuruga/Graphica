@@ -1,0 +1,10 @@
+{
+ "first": [
+  {
+   "kind": "exec",
+   "class": "WelcomeDialog",
+   "title": "Graphica へようこそ"
+  }
+ ],
+ "second": []
+}
