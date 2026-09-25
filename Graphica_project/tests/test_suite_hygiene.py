@@ -266,3 +266,22 @@ def test_ids_and_time_are_deterministic(deterministic_ids_and_time):
 def test_chunk_runner_also_runs_the_characterization_tests():
     """特性テストはサブフォルダにあるので、ランナーの対象に入れておかないと CI で回らない。"""
     assert "tests/characterization/test_*.py" in _runner_source()
+
+
+def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
+    """import で落ちたテストファイルを黙って飛ばすと、その分のテストが消えたまま緑になる(K-30)。"""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_ok.py").write_text("def test_ok():\n    pass\n", encoding="utf-8")
+    (tests_dir / "test_broken.py").write_text(
+        "from graphica.no_such_module import nothing\n\n\ndef test_never():\n    pass\n", encoding="utf-8")
+    (tests_dir / "test_empty.py").write_text("# テストが無いだけのファイルは失敗にしない\n", encoding="utf-8")
+    result = subprocess.run(
+        ["bash", str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+    )
+    assert result.returncode != 0, result.stdout
+    assert "!!! FAILED: tests/test_broken.py" in result.stdout
+    assert "no_such_module" in result.stdout
+    assert "!!! FAILED: tests/test_empty.py" not in result.stdout
+    assert "1 passed" in result.stdout
