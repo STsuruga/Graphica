@@ -1,0 +1,109 @@
+{
+ "dark_mode": true,
+ "language": "en",
+ "autosave": [
+  true,
+  720000
+ ],
+ "autosave_file": "<APPDATA>/autosave.graphica",
+ "point_label_max_points": 300,
+ "snap": [
+  true,
+  24
+ ],
+ "minimap_visible": false,
+ "recent_files": [
+  "<CASE>/a.graphica",
+  "<CASE>/b.graphica"
+ ],
+ "recent_menu": [
+  "<CASE>/a.graphica",
+  "<CASE>/b.graphica",
+  "",
+  "履歴をクリア"
+ ],
+ "quick_access_ids": [
+  "ファイル/上書き保存(P)"
+ ],
+ "quick_access_toolbar": [],
+ "disabled_plugins": [
+  "Example Plugin"
+ ],
+ "collapsed_sections": [
+  "map",
+  "waterfall"
+ ],
+ "dock_presets": [],
+ "palettes": {
+  "研究室": [
+   "#112233",
+   "#445566"
+  ]
+ },
+ "active_color_cycle": [
+  "#112233",
+  "#445566"
+ ],
+ "named_colors": [
+  {
+   "name": "水",
+   "color": "#1f77b4"
+  }
+ ],
+ "custom_colors": [
+  "#ff0000",
+  "#00ff00",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff"
+ ],
+ "had_clean_exit": true,
+ "canvas_detached": false,
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "WelcomeDialog",
+   "title": "Welcome to Graphica"
+  }
+ ],
+ "settings_after_start": {
+  "active_color_palette": "研究室",
+  "autosave_interval_min": 12,
+  "clean_exit": false,
+  "custom_color_palettes_json": "{\"\\u7814\\u7a76\\u5ba4\": [\"#112233\", \"#445566\"]}",
+  "dark_mode": true,
+  "dataset_property_collapsed_sections": "[\"waterfall\", \"map\"]",
+  "disabled_plugins": [
+   "Example Plugin"
+  ],
+  "has_shown_welcome": true,
+  "language": "en",
+  "minimap_visible": false,
+  "named_colors_json": "[{\"name\": \"\\u6c34\", \"color\": \"#1f77b4\"}]",
+  "point_label_max_points": 300,
+  "quick_access_pinned_actions": [
+   "ファイル/上書き保存(P)"
+  ],
+  "recent_colors": [
+   "#ff0000",
+   "#00ff00"
+  ],
+  "recent_files": [
+   "<CASE>/a.graphica",
+   "<CASE>/b.graphica"
+  ],
+  "snap_grid_interval_px": 24,
+  "snap_to_grid_enabled": true
+ }
+}

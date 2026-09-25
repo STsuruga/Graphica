@@ -1,0 +1,88 @@
+{
+ "dark_mode": true,
+ "language": "en",
+ "autosave": [
+  true,
+  420000
+ ],
+ "autosave_file": "<APPDATA>/autosave.graphica",
+ "point_label_max_points": 50,
+ "snap": [
+  false,
+  16
+ ],
+ "minimap_visible": false,
+ "recent_files": [
+  "<CASE>/only.graphica"
+ ],
+ "recent_menu": [
+  "<CASE>/only.graphica",
+  "",
+  "履歴をクリア"
+ ],
+ "quick_access_ids": [
+  "ファイル/上書き保存(P)"
+ ],
+ "quick_access_toolbar": [],
+ "disabled_plugins": [
+  "Example Plugin"
+ ],
+ "collapsed_sections": [],
+ "dock_presets": [],
+ "palettes": {},
+ "active_color_cycle": [
+  "#1f77b4",
+  "#ff7f0e",
+  "#2ca02c",
+  "#d62728",
+  "#9467bd",
+  "#8c564b",
+  "#e377c2",
+  "#7f7f7f",
+  "#bcbd22",
+  "#17becf"
+ ],
+ "named_colors": [],
+ "custom_colors": [
+  "#000000",
+  "#000000",
+  "#000000",
+  "#000000",
+  "#000000",
+  "#000000",
+  "#000000",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff",
+  "#ffffff"
+ ],
+ "had_clean_exit": true,
+ "canvas_detached": false,
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "WelcomeDialog",
+   "title": "Welcome to Graphica"
+  }
+ ],
+ "settings_after_start": {
+  "autosave_interval_min": "7",
+  "clean_exit": false,
+  "dark_mode": "true",
+  "disabled_plugins": "Example Plugin",
+  "has_shown_welcome": true,
+  "language": "en",
+  "minimap_visible": "false",
+  "point_label_max_points": "50",
+  "quick_access_pinned_actions": "ファイル/上書き保存(P)",
+  "recent_colors": "#abcdef",
+  "recent_files": "<CASE>/only.graphica",
+  "snap_grid_interval_px": "16",
+  "snap_to_grid_enabled": "false"
+ }
+}
