@@ -93,15 +93,16 @@ CI の `pull_request` は今 master 向けにしか動かない。P-2 で `.gith
 
 **R-0.1(テストの土台)** 既存テストの中身は変えずに `tests/conftest.py` に足す。
 
-- 設定の一括の隔離(K-22): セッションの始めに `QSettings.setDefaultFormat(QSettings.Format.IniFormat)` と、
-  `QSettings.setPath(IniFormat, UserScope, <一時フォルダ>)`。各テストの前にその INI を消す。
-  `QSettings("Graphica", "Graphica")` は既定の形式を使うので、これで本物のレジストリに届かなくなる。
-  既存の 46 か所の `IsolatedQSettings` は残してよい(二重でも害はない)。
+- 設定の一括の隔離(K-22、実施済み): `QSettings("Graphica", "Graphica")` は `setDefaultFormat` を**無視して**
+  レジストリへ行くので、`tests/conftest.py` は本体とテストが import する前に `PySide6.QtCore.QSettings` を
+  部分クラスに差し替え、テストごとに新しい一時 INI に向ける(ファイル名を明示した呼び出しはそのまま通す)。
+  `test_suite_hygiene.py` が `tests.conftest` をもう一度 import するので、状態はクラスの属性に持つ。
 - モーダルの仕掛け線(K-23): 差し替えられていない `QMessageBox.warning/information/critical/question/about`、
   `QMessageBox.exec`、`QFileDialog.getOpenFileName/getOpenFileNames/getSaveFileName/getExistingDirectory`、
   `QInputDialog.getText/getInt/getDouble/getItem`、`QDialog.exec` を、呼ばれたら即座に例外にするものに
   クラスの属性として差し替える(autouse の fixture)。テストが個別に差し替えればそちらが優先される。
   入れた結果、落ちるテストが出たら、それは今ハングしうるテスト。記録してユーザーに知らせる。
+  (実施済み。QColorDialog.getColor・QFontDialog.getFont・QMenu.exec も対象。今のスイートで落ちたテストは 0 件)
 - ID と時刻: 特性テストだけで使う fixture として、`uuid.uuid4` を連番に、`graphica.core.provenance` の時刻を固定値にする。
 
 **R-0.2(仕組み)** `tests/characterization/` に `recorder.py` と観点ごとのテスト、`golden/*.json`。

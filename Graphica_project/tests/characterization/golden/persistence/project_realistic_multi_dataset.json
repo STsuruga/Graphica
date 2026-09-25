@@ -1,0 +1,824 @@
+{
+ "loaded": {
+  "status": "プロジェクトを読み込みました",
+  "title": "realistic_multi_dataset.graphica",
+  "unsaved": false,
+  "datasets": [
+   {
+    "columns": [
+     "時間(s)",
+     "電圧(V)"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     20,
+     2
+    ],
+    "index": {
+     "shape": [
+      20
+     ],
+     "dtype": "int64",
+     "sha256": "0b49aed2c5e39995"
+    },
+    "values": {
+     "時間(s)": {
+      "shape": [
+       20
+      ],
+      "dtype": "float64",
+      "sha256": "fe33878c5c2976ae"
+     },
+     "電圧(V)": {
+      "shape": [
+       20
+      ],
+      "dtype": "float64",
+      "sha256": "e16e48e58cbef571"
+     }
+    },
+    "name": "測定1",
+    "x_col_name": "時間(s)",
+    "y_col_name": "電圧(V)",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "faadb08493d849dd8e7d1bba6f1e070e"
+   },
+   {
+    "columns": [
+     "時間(s)",
+     "電流(mA)"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     15,
+     2
+    ],
+    "index": {
+     "shape": [
+      15
+     ],
+     "dtype": "int64",
+     "sha256": "1f5404071a9697df"
+    },
+    "values": {
+     "時間(s)": {
+      "shape": [
+       15
+      ],
+      "dtype": "float64",
+      "sha256": "b0c99f04754f5d46"
+     },
+     "電流(mA)": {
+      "shape": [
+       15
+      ],
+      "dtype": "float64",
+      "sha256": "a6cfa331287589fa"
+     }
+    },
+    "name": "測定2",
+    "x_col_name": "時間(s)",
+    "y_col_name": "電流(mA)",
+    "plot_type": "Line",
+    "color": "#ff7f0e",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 1,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "e1fa6077a1a2409bb33616371c79a436"
+   }
+  ],
+  "group_tree": {
+   "name": "",
+   "children": [
+    {
+     "name": "実験A",
+     "children": [
+      {
+       "dataset": "測定1"
+      },
+      {
+       "dataset": "測定2"
+      }
+     ]
+    }
+   ]
+  },
+  "tree_widget": [
+   {
+    "text": "実験A",
+    "checked": "Unchecked",
+    "children": [
+     {
+      "text": "測定1",
+      "checked": "Unchecked"
+     },
+     {
+      "text": "測定2",
+      "checked": "Unchecked"
+     }
+    ]
+   }
+  ],
+  "all_plot_settings": [
+   {
+    "title": "電圧プロット",
+    "annotations": [
+     {
+      "type": "text",
+      "text": "ピーク",
+      "xy": [
+       5.0,
+       6.5
+      ],
+      "xytext": [
+       6.0,
+       7.0
+      ]
+     }
+    ],
+    "legend_order": [
+     "測定1"
+    ],
+    "free_rect": null
+   },
+   {
+    "title": "電流プロット",
+    "annotations": [],
+    "legend_order": [
+     "測定2"
+    ],
+    "free_rect": null
+   }
+  ],
+  "layout": [
+   1,
+   2,
+   "grid",
+   false,
+   false,
+   false,
+   0
+  ],
+  "undo_count": 0,
+  "modals": []
+ },
+ "saved": {
+  "status": "保存しました: <CASE>/resaved.graphica",
+  "title": "resaved.graphica",
+  "unsaved": false,
+  "file": {
+   "sha256": "480ae2a2e694354059143ac7b1ae1d1f2209546aa9ebbb6aa5f3f1c964047c15",
+   "content": {
+    "format_version": 1,
+    "datasets": [
+     {
+      "name": "測定1",
+      "x_col_name": "時間(s)",
+      "y_col_name": "電圧(V)",
+      "plot_type": "Line",
+      "color": "#1f77b4",
+      "linestyle": "-",
+      "linewidth": 1.5,
+      "marker": "o",
+      "markersize": 6.0,
+      "smoothing": false,
+      "smoothing_method": "cubic_spline",
+      "alpha": 1.0,
+      "gradient_enabled": false,
+      "gradient_color2": "#ffffff",
+      "gradient_target": "line",
+      "waterfall_enabled": false,
+      "waterfall_offset_x": 0.0,
+      "waterfall_offset_y": 1.0,
+      "waterfall_occlusion_enabled": true,
+      "waterfall_depth_shrink_enabled": false,
+      "waterfall_depth_shrink_ratio": 0.03,
+      "show_point_labels": false,
+      "point_label_col_name": null,
+      "x_err_col_name": null,
+      "y_err_col_name": null,
+      "error_display": "bar",
+      "masked_row_indices": [],
+      "fit_info": null,
+      "fit_result": null,
+      "fit_band_display": null,
+      "source_plugin": null,
+      "source_file": null,
+      "source_sheet": null,
+      "nan_policy": "gap",
+      "provenance": null,
+      "use_secondary_y": false,
+      "subplot_target": 0,
+      "data_kind": "1d",
+      "z_col_name": null,
+      "grid_interp_method": "linear",
+      "grid_resolution": null,
+      "colormap": "viridis",
+      "vmin": null,
+      "vmax": null,
+      "map_display_mode": "heatmap",
+      "contour_levels": 10,
+      "visible": true,
+      "dataset_id": "faadb08493d849dd8e7d1bba6f1e070e",
+      "df": {
+       "columns": [
+        "時間(s)",
+        "電圧(V)"
+       ],
+       "index": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+       ],
+       "index_dtype": "int64",
+       "data": {
+        "時間(s)": [
+         0.0,
+         0.5263157895,
+         1.052631579,
+         1.578947368,
+         2.105263158,
+         2.631578947,
+         3.157894737,
+         3.684210526,
+         4.210526316,
+         4.736842105,
+         5.263157895,
+         5.789473684,
+         6.315789474,
+         6.842105263,
+         7.368421053,
+         7.894736842,
+         8.421052632,
+         8.947368421,
+         9.473684211,
+         10.0
+        ],
+        "電圧(V)": [
+         5.0,
+         6.004702309,
+         6.737459236,
+         6.999933561,
+         6.721080677,
+         5.976378418,
+         4.967397278,
+         3.967240801,
+         3.246623938,
+         3.000597926,
+         3.295755263,
+         4.052204948,
+         5.065196781,
+         6.060541631,
+         6.768826925,
+         6.998339243,
+         6.68695589,
+         5.918959807,
+         4.902226487,
+         3.911957778
+        ]
+       },
+       "dtypes": {
+        "時間(s)": "float64",
+        "電圧(V)": "float64"
+       }
+      }
+     },
+     {
+      "name": "測定2",
+      "x_col_name": "時間(s)",
+      "y_col_name": "電流(mA)",
+      "plot_type": "Line",
+      "color": "#ff7f0e",
+      "linestyle": "-",
+      "linewidth": 1.5,
+      "marker": "o",
+      "markersize": 6.0,
+      "smoothing": false,
+      "smoothing_method": "cubic_spline",
+      "alpha": 1.0,
+      "gradient_enabled": false,
+      "gradient_color2": "#ffffff",
+      "gradient_target": "line",
+      "waterfall_enabled": false,
+      "waterfall_offset_x": 0.0,
+      "waterfall_offset_y": 1.0,
+      "waterfall_occlusion_enabled": true,
+      "waterfall_depth_shrink_enabled": false,
+      "waterfall_depth_shrink_ratio": 0.03,
+      "show_point_labels": false,
+      "point_label_col_name": null,
+      "x_err_col_name": null,
+      "y_err_col_name": null,
+      "error_display": "bar",
+      "masked_row_indices": [],
+      "fit_info": null,
+      "fit_result": null,
+      "fit_band_display": null,
+      "source_plugin": null,
+      "source_file": null,
+      "source_sheet": null,
+      "nan_policy": "gap",
+      "provenance": null,
+      "use_secondary_y": false,
+      "subplot_target": 1,
+      "data_kind": "1d",
+      "z_col_name": null,
+      "grid_interp_method": "linear",
+      "grid_resolution": null,
+      "colormap": "viridis",
+      "vmin": null,
+      "vmax": null,
+      "map_display_mode": "heatmap",
+      "contour_levels": 10,
+      "visible": true,
+      "dataset_id": "e1fa6077a1a2409bb33616371c79a436",
+      "df": {
+       "columns": [
+        "時間(s)",
+        "電流(mA)"
+       ],
+       "index": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+       ],
+       "index_dtype": "int64",
+       "data": {
+        "時間(s)": [
+         0.0,
+         0.7142857143,
+         1.428571429,
+         2.142857143,
+         2.857142857,
+         3.571428571,
+         4.285714286,
+         5.0,
+         5.714285714,
+         6.428571429,
+         7.142857143,
+         7.857142857,
+         8.571428571,
+         9.285714286,
+         10.0
+        ],
+        "電流(mA)": [
+         4.5,
+         4.13334202,
+         3.212618846,
+         2.187951143,
+         1.560275698,
+         1.636448792,
+         2.379231128,
+         3.425493278,
+         4.26374142,
+         4.484175061,
+         3.979029195,
+         2.995258173,
+         2.013805323,
+         1.51448067,
+         1.741392706
+        ]
+       },
+       "dtypes": {
+        "時間(s)": "float64",
+        "電流(mA)": "float64"
+       }
+      }
+     }
+    ],
+    "dataset_group_tree": {
+     "name": "",
+     "children": [
+      {
+       "name": "実験A",
+       "children": [
+        {
+         "dataset_id": "faadb08493d849dd8e7d1bba6f1e070e"
+        },
+        {
+         "dataset_id": "e1fa6077a1a2409bb33616371c79a436"
+        }
+       ]
+      }
+     ]
+    },
+    "all_plot_settings": [
+     {
+      "title": "電圧プロット",
+      "annotations": [
+       {
+        "type": "text",
+        "text": "ピーク",
+        "xy": [
+         5.0,
+         6.5
+        ],
+        "xytext": [
+         6.0,
+         7.0
+        ]
+       }
+      ],
+      "legend_order": [
+       "測定1"
+      ],
+      "free_rect": null
+     },
+     {
+      "title": "電流プロット",
+      "annotations": [],
+      "legend_order": [
+       "測定2"
+      ],
+      "free_rect": null
+     }
+    ],
+    "active_axis_index": 0,
+    "layout_rows": 1,
+    "layout_cols": 2,
+    "layout_mode": "grid",
+    "panel_labels_enabled": false,
+    "share_x_axis": false,
+    "share_y_axis": false
+   }
+  },
+  "modals": []
+ },
+ "reloaded_from_pickle": {
+  "status": "プロジェクトを読み込みました",
+  "title": "resaved.pkl",
+  "unsaved": false,
+  "datasets": [
+   {
+    "columns": [
+     "時間(s)",
+     "電圧(V)"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     20,
+     2
+    ],
+    "index": {
+     "shape": [
+      20
+     ],
+     "dtype": "int64",
+     "sha256": "0b49aed2c5e39995"
+    },
+    "values": {
+     "時間(s)": {
+      "shape": [
+       20
+      ],
+      "dtype": "float64",
+      "sha256": "fe33878c5c2976ae"
+     },
+     "電圧(V)": {
+      "shape": [
+       20
+      ],
+      "dtype": "float64",
+      "sha256": "e16e48e58cbef571"
+     }
+    },
+    "name": "測定1",
+    "x_col_name": "時間(s)",
+    "y_col_name": "電圧(V)",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "faadb08493d849dd8e7d1bba6f1e070e"
+   },
+   {
+    "columns": [
+     "時間(s)",
+     "電流(mA)"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     15,
+     2
+    ],
+    "index": {
+     "shape": [
+      15
+     ],
+     "dtype": "int64",
+     "sha256": "1f5404071a9697df"
+    },
+    "values": {
+     "時間(s)": {
+      "shape": [
+       15
+      ],
+      "dtype": "float64",
+      "sha256": "b0c99f04754f5d46"
+     },
+     "電流(mA)": {
+      "shape": [
+       15
+      ],
+      "dtype": "float64",
+      "sha256": "a6cfa331287589fa"
+     }
+    },
+    "name": "測定2",
+    "x_col_name": "時間(s)",
+    "y_col_name": "電流(mA)",
+    "plot_type": "Line",
+    "color": "#ff7f0e",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 1,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "e1fa6077a1a2409bb33616371c79a436"
+   }
+  ],
+  "group_tree": {
+   "name": "",
+   "children": [
+    {
+     "name": "実験A",
+     "children": [
+      {
+       "dataset": "測定1"
+      },
+      {
+       "dataset": "測定2"
+      }
+     ]
+    }
+   ]
+  },
+  "tree_widget": [
+   {
+    "text": "実験A",
+    "checked": "Unchecked",
+    "children": [
+     {
+      "text": "測定1",
+      "checked": "Unchecked"
+     },
+     {
+      "text": "測定2",
+      "checked": "Unchecked"
+     }
+    ]
+   }
+  ],
+  "all_plot_settings": [
+   {
+    "title": "電圧プロット",
+    "annotations": [
+     {
+      "type": "text",
+      "text": "ピーク",
+      "xy": [
+       5.0,
+       6.5
+      ],
+      "xytext": [
+       6.0,
+       7.0
+      ]
+     }
+    ],
+    "legend_order": [
+     "測定1"
+    ],
+    "free_rect": null
+   },
+   {
+    "title": "電流プロット",
+    "annotations": [],
+    "legend_order": [
+     "測定2"
+    ],
+    "free_rect": null
+   }
+  ],
+  "layout": [
+   1,
+   2,
+   "grid",
+   false,
+   false,
+   false,
+   0
+  ],
+  "undo_count": 0,
+  "modals": []
+ },
+ "recent_files": [
+  "<CASE>/resaved.pkl",
+  "<CASE>/resaved.graphica",
+  "<CASE>/realistic_multi_dataset.graphica"
+ ]
+}

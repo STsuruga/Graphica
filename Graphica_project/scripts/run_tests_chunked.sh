@@ -59,7 +59,7 @@ fi
 ALL_IDS="$TMPDIR/all_ids.txt"
 python -m pytest tests/ --collect-only -q 2>/dev/null | grep "::" > "$ALL_IDS" || true
 
-for f in tests/test_*.py; do
+for f in tests/test_*.py tests/characterization/test_*.py; do
   name=$(basename "$f" .py)
   ids_file="$TMPDIR/${name}_ids.txt"
   # "tests/foo.py::" で始まる行だけを抜く。末尾の ".py::" があるので

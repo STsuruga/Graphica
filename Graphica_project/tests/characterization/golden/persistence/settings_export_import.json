@@ -1,0 +1,72 @@
+{
+ "exported": {
+  "format_version": 1,
+  "settings": {
+   "language": "ja",
+   "dark_mode": false,
+   "autosave_interval_min": 5,
+   "point_label_max_points": 50,
+   "snap_to_grid_enabled": false,
+   "snap_grid_interval_px": 10,
+   "custom_color_palettes_json": "{\"\\u7814\\u7a76\\u5ba4\": [\"#112233\", \"#445566\"]}",
+   "active_color_palette": "研究室",
+   "quick_access_pinned_actions": [
+    "ファイル/上書き保存(&P)"
+   ],
+   "disabled_plugins": [
+    "example_plugin"
+   ]
+  }
+ },
+ "export_modals": [
+  {
+   "kind": "QFileDialog.getSaveFileName",
+   "caption": "設定・スタイルをエクスポート",
+   "filter": "JSON Files (*.json)"
+  },
+  {
+   "kind": "QMessageBox.information",
+   "title": "設定・スタイルをエクスポート",
+   "text": "エクスポートしました:\n<CASE>/exported.json"
+  }
+ ],
+ "import_modals": [
+  {
+   "kind": "QFileDialog.getOpenFileName",
+   "caption": "設定・スタイルをインポート",
+   "filter": "JSON Files (*.json)"
+  },
+  {
+   "kind": "QMessageBox.information",
+   "title": "設定・スタイルをインポート",
+   "text": "4件の設定を反映しました。\n表示言語など一部の設定は、次回起動時に反映されます。"
+  }
+ ],
+ "settings_after_import": {
+  "active_color_palette": "研究室",
+  "autosave_dir": "<CASE>/autosave",
+  "autosave_interval_min": 12,
+  "custom_color_palettes_json": "{\"\\u7814\\u7a76\\u5ba4\": [\"#112233\", \"#445566\"]}",
+  "dark_mode": true,
+  "disabled_plugins": [
+   "example_plugin"
+  ],
+  "language": "en",
+  "point_label_max_points": 50,
+  "quick_access_pinned_actions": [
+   "表示/ダークモード"
+  ]
+ },
+ "broken_import_modals": [
+  {
+   "kind": "QFileDialog.getOpenFileName",
+   "caption": "設定・スタイルをインポート",
+   "filter": "JSON Files (*.json)"
+  },
+  {
+   "kind": "QMessageBox.warning",
+   "title": "設定・スタイルをインポート",
+   "text": "ファイルの読み込みに失敗しました:\nExpecting ',' delimiter: line 1 column 6 (char 5)"
+  }
+ ]
+}

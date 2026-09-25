@@ -1,0 +1,368 @@
+{
+ "loaded": {
+  "status": "プロジェクトを読み込みました",
+  "title": "pre_folder_feature.pkl",
+  "unsaved": false,
+  "datasets": [
+   {
+    "columns": [
+     "wavelength",
+     "absorbance"
+    ],
+    "dtypes": [
+     "int64",
+     "float64"
+    ],
+    "shape": [
+     4,
+     2
+    ],
+    "index": {
+     "shape": [
+      4
+     ],
+     "dtype": "int64",
+     "sha256": "e681d5e4b7174947"
+    },
+    "values": {
+     "wavelength": {
+      "shape": [
+       4
+      ],
+      "dtype": "int64",
+      "sha256": "5b3e2f2a2d9bb384"
+     },
+     "absorbance": {
+      "shape": [
+       4
+      ],
+      "dtype": "float64",
+      "sha256": "85b0ddfe3454a8c3"
+     }
+    },
+    "name": "Sample A",
+    "x_col_name": "wavelength",
+    "y_col_name": "absorbance",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "33d0edd20a05456b83a659dee5591d23"
+   }
+  ],
+  "group_tree": {
+   "name": "",
+   "children": [
+    {
+     "dataset": "Sample A"
+    }
+   ]
+  },
+  "tree_widget": [
+   {
+    "text": "Sample A",
+    "checked": "Unchecked"
+   }
+  ],
+  "all_plot_settings": [
+   {
+    "title": "UV-Vis"
+   }
+  ],
+  "layout": [
+   1,
+   1,
+   "grid",
+   false,
+   false,
+   false,
+   0
+  ],
+  "undo_count": 0,
+  "modals": []
+ },
+ "saved": {
+  "status": "保存しました: <CASE>/resaved.graphica",
+  "title": "resaved.graphica",
+  "unsaved": false,
+  "file": {
+   "sha256": "6321ce4bc9ee6f196bb3cad3e1b828d9d7146df293e9c4f63f7f345690119024",
+   "content": {
+    "format_version": 1,
+    "datasets": [
+     {
+      "name": "Sample A",
+      "x_col_name": "wavelength",
+      "y_col_name": "absorbance",
+      "plot_type": "Line",
+      "color": "#1f77b4",
+      "linestyle": "-",
+      "linewidth": 1.5,
+      "marker": "o",
+      "markersize": 6.0,
+      "smoothing": false,
+      "smoothing_method": "cubic_spline",
+      "alpha": 1.0,
+      "gradient_enabled": false,
+      "gradient_color2": "#ffffff",
+      "gradient_target": "line",
+      "waterfall_enabled": false,
+      "waterfall_offset_x": 0.0,
+      "waterfall_offset_y": 1.0,
+      "waterfall_occlusion_enabled": true,
+      "waterfall_depth_shrink_enabled": false,
+      "waterfall_depth_shrink_ratio": 0.03,
+      "show_point_labels": false,
+      "point_label_col_name": null,
+      "x_err_col_name": null,
+      "y_err_col_name": null,
+      "error_display": "bar",
+      "masked_row_indices": [],
+      "fit_info": null,
+      "fit_result": null,
+      "fit_band_display": null,
+      "source_plugin": null,
+      "source_file": null,
+      "source_sheet": null,
+      "nan_policy": "gap",
+      "provenance": null,
+      "use_secondary_y": false,
+      "subplot_target": 0,
+      "data_kind": "1d",
+      "z_col_name": null,
+      "grid_interp_method": "linear",
+      "grid_resolution": null,
+      "colormap": "viridis",
+      "vmin": null,
+      "vmax": null,
+      "map_display_mode": "heatmap",
+      "contour_levels": 10,
+      "visible": true,
+      "dataset_id": "33d0edd20a05456b83a659dee5591d23",
+      "df": {
+       "columns": [
+        "wavelength",
+        "absorbance"
+       ],
+       "index": [
+        0,
+        1,
+        2,
+        3
+       ],
+       "index_dtype": "int64",
+       "data": {
+        "wavelength": [
+         400,
+         450,
+         500,
+         550
+        ],
+        "absorbance": [
+         0.12,
+         0.34,
+         0.28,
+         0.09
+        ]
+       },
+       "dtypes": {
+        "wavelength": "int64",
+        "absorbance": "float64"
+       }
+      }
+     }
+    ],
+    "dataset_group_tree": {
+     "name": "",
+     "children": [
+      {
+       "dataset_id": "33d0edd20a05456b83a659dee5591d23"
+      }
+     ]
+    },
+    "all_plot_settings": [
+     {
+      "title": "UV-Vis"
+     }
+    ],
+    "active_axis_index": 0,
+    "layout_rows": 1,
+    "layout_cols": 1,
+    "layout_mode": "grid",
+    "panel_labels_enabled": false,
+    "share_x_axis": false,
+    "share_y_axis": false
+   }
+  },
+  "modals": []
+ },
+ "reloaded_from_pickle": {
+  "status": "プロジェクトを読み込みました",
+  "title": "resaved.pkl",
+  "unsaved": false,
+  "datasets": [
+   {
+    "columns": [
+     "wavelength",
+     "absorbance"
+    ],
+    "dtypes": [
+     "int64",
+     "float64"
+    ],
+    "shape": [
+     4,
+     2
+    ],
+    "index": {
+     "shape": [
+      4
+     ],
+     "dtype": "int64",
+     "sha256": "e681d5e4b7174947"
+    },
+    "values": {
+     "wavelength": {
+      "shape": [
+       4
+      ],
+      "dtype": "int64",
+      "sha256": "5b3e2f2a2d9bb384"
+     },
+     "absorbance": {
+      "shape": [
+       4
+      ],
+      "dtype": "float64",
+      "sha256": "85b0ddfe3454a8c3"
+     }
+    },
+    "name": "Sample A",
+    "x_col_name": "wavelength",
+    "y_col_name": "absorbance",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "33d0edd20a05456b83a659dee5591d23"
+   }
+  ],
+  "group_tree": {
+   "name": "",
+   "children": [
+    {
+     "dataset": "Sample A"
+    }
+   ]
+  },
+  "tree_widget": [
+   {
+    "text": "Sample A",
+    "checked": "Unchecked"
+   }
+  ],
+  "all_plot_settings": [
+   {
+    "title": "UV-Vis"
+   }
+  ],
+  "layout": [
+   1,
+   1,
+   "grid",
+   false,
+   false,
+   false,
+   0
+  ],
+  "undo_count": 0,
+  "modals": []
+ },
+ "recent_files": [
+  "<CASE>/resaved.pkl",
+  "<CASE>/resaved.graphica",
+  "<CASE>/pre_folder_feature.pkl"
+ ]
+}

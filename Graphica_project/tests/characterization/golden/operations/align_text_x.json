@@ -1,0 +1,239 @@
+{
+ "exception": "ValueError: could not convert string to float: 'a'",
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "XAxisAlignmentDialog",
+   "title": "X軸アライメント(相互相関)"
+  }
+ ],
+ "after": {
+  "draw_order": [
+   "文字のX",
+   "A"
+  ],
+  "tree": [
+   {
+    "text": "文字のX",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "文字のX",
+    "A"
+   ]
+  },
+  "current": "文字のX",
+  "undo": {
+   "texts": [],
+   "index": 0
+  },
+  "status": "",
+  "datasets": [
+   {
+    "columns": [
+     "name",
+     "value"
+    ],
+    "dtypes": [
+     "object",
+     "float64"
+    ],
+    "shape": [
+     4,
+     2
+    ],
+    "index": {
+     "shape": [
+      4
+     ],
+     "dtype": "int64",
+     "sha256": "e681d5e4b7174947"
+    },
+    "values": {
+     "name": {
+      "shape": [
+       4
+      ],
+      "dtype": "object",
+      "sha256": "1a3858dd725918e2"
+     },
+     "value": {
+      "shape": [
+       4
+      ],
+      "dtype": "float64",
+      "sha256": "79db8882447ea140"
+     }
+    },
+    "name": "文字のX",
+    "x_col_name": "name",
+    "y_col_name": "value",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000001"
+   },
+   {
+    "columns": [
+     "x",
+     "y",
+     "yerr",
+     "grp"
+    ],
+    "dtypes": [
+     "float64",
+     "float64",
+     "float64",
+     "object"
+    ],
+    "shape": [
+     41,
+     4
+    ],
+    "index": {
+     "shape": [
+      41
+     ],
+     "dtype": "int64",
+     "sha256": "d0c758a033ea48e3"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "cba92fb8e4f4121d"
+     },
+     "y": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "4e4790ab15ae5f8e"
+     },
+     "yerr": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "6cfa52f875bb0d16"
+     },
+     "grp": {
+      "shape": [
+       41
+      ],
+      "dtype": "object",
+      "sha256": "61c32a90c773610f"
+     }
+    },
+    "name": "A",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": "yerr",
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000002"
+   }
+  ],
+  "annotations": [
+   []
+  ],
+  "windows": []
+ },
+ "clipboard": ""
+}

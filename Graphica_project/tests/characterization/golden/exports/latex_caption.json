@@ -1,0 +1,39 @@
+{
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "CaptionGeneratorDialog",
+   "title": "LaTeX/Word用キャプションを生成"
+  }
+ ],
+ "dialog": {
+  "initial": {
+   "class": "CaptionGeneratorDialog",
+   "title": "LaTeX/Word用キャプションを生成",
+   "contents": [
+    "キャプション",
+    "Export test",
+    "画像ファイル名",
+    "参照...",
+    "LaTeXラベル",
+    "fig:Export-test",
+    "幅(\\includegraphics)",
+    "LaTeXプレビュー",
+    {
+     "text": "\\begin{figure}[htbp]\n    \\centering\n    \\includegraphics[width=\\linewidth]{figure.pdf}\n    \\caption{Export test}\n    \\label{fig:Export-test}\n\\end{figure}"
+    },
+    "LaTeXをコピー",
+    "キャプション文をコピー(Word用)",
+    "Close"
+   ]
+  },
+  "edited": "\\begin{figure}[htbp]\n    \\centering\n    \\includegraphics[width=\\linewidth]{figs/result.pdf}\n    \\caption{温度 50\\% \\& 時間\\_1 の関係 \\#2}\n    \\label{fig:Export-test}\n\\end{figure}"
+ },
+ "labels": [
+  "fig:Export-test",
+  "fig:plot",
+  "fig:plot",
+  "fig:abc"
+ ],
+ "figure": "\\begin{figure}[htbp]\n    \\centering\n    \\includegraphics[width=\\linewidth]{fig.png}\n    \\caption{説明 100\\% \\_x\\_}\n    \\label{fig:x}\n\\end{figure}"
+}

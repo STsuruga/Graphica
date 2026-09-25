@@ -1,0 +1,368 @@
+{
+ "loaded": {
+  "status": "プロジェクトを読み込みました",
+  "title": "v0_no_format_version.graphica",
+  "unsaved": false,
+  "datasets": [
+   {
+    "columns": [
+     "x",
+     "y"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     4,
+     2
+    ],
+    "index": {
+     "shape": [
+      4
+     ],
+     "dtype": "int64",
+     "sha256": "e681d5e4b7174947"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       4
+      ],
+      "dtype": "float64",
+      "sha256": "79db8882447ea140"
+     },
+     "y": {
+      "shape": [
+       4
+      ],
+      "dtype": "float64",
+      "sha256": "c092490e144d2e52"
+     }
+    },
+    "name": "旧バージョンの測定データ",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#2ca02c",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "6320ac06c3244412bdc9a6d445e12e87"
+   }
+  ],
+  "group_tree": {
+   "name": "",
+   "children": [
+    {
+     "dataset": "旧バージョンの測定データ"
+    }
+   ]
+  },
+  "tree_widget": [
+   {
+    "text": "旧バージョンの測定データ",
+    "checked": "Unchecked"
+   }
+  ],
+  "all_plot_settings": [
+   {
+    "title": "Plot 1"
+   }
+  ],
+  "layout": [
+   1,
+   1,
+   "grid",
+   false,
+   false,
+   false,
+   0
+  ],
+  "undo_count": 0,
+  "modals": []
+ },
+ "saved": {
+  "status": "保存しました: <CASE>/resaved.graphica",
+  "title": "resaved.graphica",
+  "unsaved": false,
+  "file": {
+   "sha256": "5f7ef2dd02f1279d6cf3e5b16cd5560d597f82b147c132a154a4a16798cdb800",
+   "content": {
+    "format_version": 1,
+    "datasets": [
+     {
+      "name": "旧バージョンの測定データ",
+      "x_col_name": "x",
+      "y_col_name": "y",
+      "plot_type": "Line",
+      "color": "#2ca02c",
+      "linestyle": "-",
+      "linewidth": 1.5,
+      "marker": "o",
+      "markersize": 6.0,
+      "smoothing": false,
+      "smoothing_method": "cubic_spline",
+      "alpha": 1.0,
+      "gradient_enabled": false,
+      "gradient_color2": "#ffffff",
+      "gradient_target": "line",
+      "waterfall_enabled": false,
+      "waterfall_offset_x": 0.0,
+      "waterfall_offset_y": 1.0,
+      "waterfall_occlusion_enabled": true,
+      "waterfall_depth_shrink_enabled": false,
+      "waterfall_depth_shrink_ratio": 0.03,
+      "show_point_labels": false,
+      "point_label_col_name": null,
+      "x_err_col_name": null,
+      "y_err_col_name": null,
+      "error_display": "bar",
+      "masked_row_indices": [],
+      "fit_info": null,
+      "fit_result": null,
+      "fit_band_display": null,
+      "source_plugin": null,
+      "source_file": null,
+      "source_sheet": null,
+      "nan_policy": "gap",
+      "provenance": null,
+      "use_secondary_y": false,
+      "subplot_target": 0,
+      "data_kind": "1d",
+      "z_col_name": null,
+      "grid_interp_method": "linear",
+      "grid_resolution": null,
+      "colormap": "viridis",
+      "vmin": null,
+      "vmax": null,
+      "map_display_mode": "heatmap",
+      "contour_levels": 10,
+      "visible": true,
+      "dataset_id": "6320ac06c3244412bdc9a6d445e12e87",
+      "df": {
+       "columns": [
+        "x",
+        "y"
+       ],
+       "index": [
+        0,
+        1,
+        2,
+        3
+       ],
+       "index_dtype": "int64",
+       "data": {
+        "x": [
+         1.0,
+         2.0,
+         3.0,
+         4.0
+        ],
+        "y": [
+         10.0,
+         15.0,
+         13.0,
+         22.0
+        ]
+       },
+       "dtypes": {
+        "x": "float64",
+        "y": "float64"
+       }
+      }
+     }
+    ],
+    "dataset_group_tree": {
+     "name": "",
+     "children": [
+      {
+       "dataset_id": "6320ac06c3244412bdc9a6d445e12e87"
+      }
+     ]
+    },
+    "all_plot_settings": [
+     {
+      "title": "Plot 1"
+     }
+    ],
+    "active_axis_index": 0,
+    "layout_rows": 1,
+    "layout_cols": 1,
+    "layout_mode": "grid",
+    "panel_labels_enabled": false,
+    "share_x_axis": false,
+    "share_y_axis": false
+   }
+  },
+  "modals": []
+ },
+ "reloaded_from_pickle": {
+  "status": "プロジェクトを読み込みました",
+  "title": "resaved.pkl",
+  "unsaved": false,
+  "datasets": [
+   {
+    "columns": [
+     "x",
+     "y"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     4,
+     2
+    ],
+    "index": {
+     "shape": [
+      4
+     ],
+     "dtype": "int64",
+     "sha256": "e681d5e4b7174947"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       4
+      ],
+      "dtype": "float64",
+      "sha256": "79db8882447ea140"
+     },
+     "y": {
+      "shape": [
+       4
+      ],
+      "dtype": "float64",
+      "sha256": "c092490e144d2e52"
+     }
+    },
+    "name": "旧バージョンの測定データ",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#2ca02c",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "6320ac06c3244412bdc9a6d445e12e87"
+   }
+  ],
+  "group_tree": {
+   "name": "",
+   "children": [
+    {
+     "dataset": "旧バージョンの測定データ"
+    }
+   ]
+  },
+  "tree_widget": [
+   {
+    "text": "旧バージョンの測定データ",
+    "checked": "Unchecked"
+   }
+  ],
+  "all_plot_settings": [
+   {
+    "title": "Plot 1"
+   }
+  ],
+  "layout": [
+   1,
+   1,
+   "grid",
+   false,
+   false,
+   false,
+   0
+  ],
+  "undo_count": 0,
+  "modals": []
+ },
+ "recent_files": [
+  "<CASE>/resaved.pkl",
+  "<CASE>/resaved.graphica",
+  "<CASE>/v0_no_format_version.graphica"
+ ]
+}

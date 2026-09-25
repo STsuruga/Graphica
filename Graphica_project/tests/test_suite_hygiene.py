@@ -28,7 +28,11 @@ QApplication は生きたままなので、放っておくとウィジェット�
 | **フルスイート全体** | **約35分 → 約17.5分** |
 """
 import re
+import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 from PySide6.QtWidgets import QApplication, QMainWindow
 
@@ -162,3 +166,103 @@ def test_settings_mixin_bulk_mutation_still_suppresses_redraws():
 
     source = inspect.getsource(module._mutate_every_control)
     assert "_without_live_redraw" in source
+
+
+# --- 設定の一括隔離 ---
+
+def test_app_settings_go_to_a_per_test_ini_not_the_registry(isolated_settings_file):
+    """本体の QSettings("Graphica", "Graphica") がレジストリではなくこのテスト専用の INI を使う。"""
+    from PySide6.QtCore import QSettings
+
+    settings = QSettings("Graphica", "Graphica")
+    assert settings.format() == QSettings.Format.IniFormat
+    assert Path(settings.fileName()) == Path(isolated_settings_file)
+    settings.setValue("probe", "1")
+    settings.sync()
+    assert QSettings("Graphica", "Graphica").value("probe") == "1"
+
+
+def test_each_test_starts_from_empty_settings():
+    from PySide6.QtCore import QSettings
+
+    assert QSettings("Graphica", "Graphica").value("probe") is None
+
+
+def test_an_explicit_ini_path_is_left_alone(tmp_path):
+    from PySide6.QtCore import QSettings
+
+    path = tmp_path / "own.ini"
+    settings = QSettings(str(path), QSettings.Format.IniFormat)
+    assert Path(settings.fileName()) == path
+
+
+# --- モーダルの仕掛け線 ---
+
+def test_an_unpatched_modal_raises_instead_of_hanging(modal_tripwire):
+    from PySide6.QtWidgets import QDialog, QMessageBox
+
+    with pytest.raises(AssertionError, match="QMessageBox.warning"):
+        QMessageBox.warning(None, "題", "本文")
+    with pytest.raises(AssertionError, match="QDialog.exec"):
+        QDialog().exec()
+    modal_tripwire.clear()
+
+
+def test_print_dialogs_do_not_slip_past_the_tripwire(modal_tripwire):
+    """QPrintDialog と QPageSetupDialog は exec を自前で持つので、別に差し替えてある。"""
+    from PySide6.QtPrintSupport import QPageSetupDialog, QPrintDialog, QPrinter
+
+    printer = QPrinter()
+    with pytest.raises(AssertionError, match="QPrintDialog.exec"):
+        QPrintDialog(printer).exec()
+    with pytest.raises(AssertionError, match="QPageSetupDialog.exec"):
+        QPageSetupDialog(printer).exec()
+    modal_tripwire.clear()
+
+
+def test_a_test_own_patch_wins_over_the_tripwire(monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.Yes)
+    assert QMessageBox.question(None, "題", "本文") == QMessageBox.StandardButton.Yes
+
+
+def test_a_swallowed_modal_still_fails_the_test(tmp_path):
+    """アプリ側が例外を握りつぶしても、テストの終わりに失敗になる。"""
+    test_file = tmp_path / "test_swallowed.py"
+    test_file.write_text(
+        "from PySide6.QtWidgets import QMessageBox\n"
+        "def test_x():\n"
+        "    try:\n"
+        "        QMessageBox.information(None, 't', 'm')\n"
+        "    except Exception:\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", str(test_file), "-q", "-p", "tests.conftest",
+         "-p", "no:cacheprovider", "--rootdir", str(tmp_path)],
+        cwd=PROJECT_ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+    )
+    assert result.returncode != 0, result.stdout
+    assert "QMessageBox.information" in result.stdout
+    assert "1 passed, 1 error" in result.stdout
+
+
+# --- 特性テスト用の ID と時刻の固定 ---
+
+def test_ids_and_time_are_deterministic(deterministic_ids_and_time):
+    import pandas as pd
+
+    from graphica.core.dataset import Dataset
+    from graphica.core.provenance import build_provenance
+
+    first = Dataset(name="a", df=pd.DataFrame({"x": [1], "y": [2]}), x_col_name="x", y_col_name="y")
+    second = Dataset(name="b", df=pd.DataFrame({"x": [1], "y": [2]}), x_col_name="x", y_col_name="y")
+    assert (first.dataset_id, second.dataset_id) == ("0" * 31 + "1", "0" * 31 + "2")
+    assert build_provenance("op", {}, [first])["timestamp"] == "2026-01-01T00:00:00+00:00"
+
+
+def test_chunk_runner_also_runs_the_characterization_tests():
+    """特性テストはサブフォルダにあるので、ランナーの対象に入れておかないと CI で回らない。"""
+    assert "tests/characterization/test_*.py" in _runner_source()

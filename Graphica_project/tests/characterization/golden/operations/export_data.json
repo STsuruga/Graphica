@@ -1,0 +1,846 @@
+{
+ "one": {
+  "modals": [
+   {
+    "kind": "QFileDialog.getSaveFileName",
+    "caption": "データ表を書き出す",
+    "filter": "CSV Files (*.csv);;Excel Files (*.xlsx)"
+   },
+   {
+    "kind": "QMessageBox.information",
+    "title": "書き出し完了",
+    "text": "書き出しました:\n<CASE>/one.csv"
+   }
+  ],
+  "after": {
+   "draw_order": [
+    "A",
+    "B"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    },
+    {
+     "text": "B",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "B"
+    ]
+   },
+   "current": "A",
+   "undo": {
+    "texts": [],
+    "index": 0
+   },
+   "status": "",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "4e4790ab15ae5f8e"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": "yerr",
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6b3c2289906473a7"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "3abf469532d70c4d"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "ce747679e07aa95a"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "B",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#ff7f0e",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000002"
+    }
+   ],
+   "annotations": [
+    []
+   ],
+   "windows": []
+  },
+  "clipboard": ""
+ },
+ "to_excel": {
+  "modals": [
+   {
+    "kind": "QInputDialog.getItem",
+    "title": "データ表を書き出す",
+    "label": "書き出し形式を選択してください:",
+    "default": "CSV (データセットごとに別ファイル)",
+    "items": [
+     "CSV (データセットごとに別ファイル)",
+     "Excel (1ブックにシート分け)"
+    ]
+   },
+   {
+    "kind": "QFileDialog.getSaveFileName",
+    "caption": "データ表を書き出す",
+    "filter": "Excel Files (*.xlsx)"
+   },
+   {
+    "kind": "QMessageBox.information",
+    "title": "書き出し完了",
+    "text": "2件を書き出しました:\n<CASE>/book.xlsx"
+   }
+  ],
+  "after": {
+   "draw_order": [
+    "A",
+    "B"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    },
+    {
+     "text": "B",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "B"
+    ]
+   },
+   "current": "A",
+   "undo": {
+    "texts": [],
+    "index": 0
+   },
+   "status": "",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "4e4790ab15ae5f8e"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": "yerr",
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6b3c2289906473a7"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "3abf469532d70c4d"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "ce747679e07aa95a"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "B",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#ff7f0e",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000002"
+    }
+   ],
+   "annotations": [
+    []
+   ],
+   "windows": []
+  },
+  "clipboard": ""
+ },
+ "to_folder": {
+  "modals": [
+   {
+    "kind": "QInputDialog.getItem",
+    "title": "データ表を書き出す",
+    "label": "書き出し形式を選択してください:",
+    "default": "CSV (データセットごとに別ファイル)",
+    "items": [
+     "CSV (データセットごとに別ファイル)",
+     "Excel (1ブックにシート分け)"
+    ]
+   },
+   {
+    "kind": "QFileDialog.getExistingDirectory",
+    "caption": "書き出し先フォルダを選択",
+    "filter": ""
+   },
+   {
+    "kind": "QMessageBox.information",
+    "title": "書き出し完了",
+    "text": "2件を書き出しました。"
+   }
+  ],
+  "after": {
+   "draw_order": [
+    "A",
+    "B"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    },
+    {
+     "text": "B",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "B"
+    ]
+   },
+   "current": "A",
+   "undo": {
+    "texts": [],
+    "index": 0
+   },
+   "status": "",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "4e4790ab15ae5f8e"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": "yerr",
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6b3c2289906473a7"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "3abf469532d70c4d"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "ce747679e07aa95a"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "B",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#ff7f0e",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000002"
+    }
+   ],
+   "annotations": [
+    []
+   ],
+   "windows": []
+  },
+  "clipboard": ""
+ },
+ "files": {
+  "one.csv": "x,y,yerr,grp\n0.0,0.5000111799595163,0.05,a\n0.25,0.6363785468419751,0.052500000000000005,b\n0.5,0.6997083060523989,0.055,a\n0.75,0.6563968857315907,0.0575,b\n1.0,0.5308754805327786,0.060000000000000005,a\n1.25,0.393838930439502,0.0625,b\n1.5,0.3272210087997604,0.065,a\n1.75,0.385684616826069,0.0675,b\n2.0,0.5759277012304371,0.07,a\n2.25,0.8641900808242654,0.07250000000000001,b\n2.5,1.2048648670362065,0.07500000000000001,a\n2.75,1.5695888105711968,0.0775,b\n3.0,1.9559237823631943,0.08,a\n3.25,2.3692623357511313,0.0825,b\n3.5,2.79179353520166,0.085,a\n3.75,3.163472800183277,0.0875,b\n4.0,3.392685416399913,0.09,a\n4.25,3.393554226611756,0.0925,b\n4.5,3.1284895725063184,0.095,a\n4.75,2.6318943947021385,0.0975,b\n5.0,2.0035576533462662,0.1,a\n5.25,1.3766630979795607,0.10250000000000001,b\n5.5,0.874907803207434,0.10500000000000001,a\n5.75,0.5742639717962984,0.10750000000000001,b\n6.0,0.481613351515887,0.11,a\n6.25,0.5375932061316179,0.1125,b\n6.5,0.6438350062767,0.115,a\n6.75,0.7052562165009947,0.11750000000000001,b\n7.0,0.6699826066280163,0.12000000000000001,a\n7.25,0.548545871159923,0.1225,b\n7.5,0.40277440623948607,0.125,a\n7.75,0.3097031028448377,0.1275,b\n8.0,0.3188955075581915,0.13,a\n8.25,0.4253092808125723,0.1325,b\n8.5,0.5718120748653404,0.135,a\n8.75,0.6797806176712488,0.1375,b\n9.0,0.691275195562043,0.14,a\n9.25,0.6001272985211409,0.14250000000000002,b\n9.5,0.455248872126142,0.14500000000000002,a\n9.75,0.3343848983227171,0.14750000000000002,b\n10.0,0.3023936751832582,0.15000000000000002,a\n",
+  "book.xlsx": {
+   "A": {
+    "columns": [
+     "x",
+     "y",
+     "yerr",
+     "grp"
+    ],
+    "values": {
+     "shape": [
+      41,
+      4
+     ],
+     "dtype": "object",
+     "sha256": "479d02eccf4148a9"
+    }
+   },
+   "B": {
+    "columns": [
+     "x",
+     "y",
+     "yerr",
+     "grp"
+    ],
+    "values": {
+     "shape": [
+      41,
+      4
+     ],
+     "dtype": "object",
+     "sha256": "5a4fc759d5308d34"
+    }
+   }
+  },
+  "csv_folder": {
+   "A.csv": "x,y,yerr,grp\n0.0,0.5000111799595163,0.05,a\n0.25,0.6363785468419751,0.052500000000000005,b\n0.5,0.6997083060523989,0.055,a\n0.75,0.6563968857315907,0.0575,b\n1.0,0.5308754805327786,0.060000000000000005,a\n1.25,0.393838930439502,0.0625,b\n1.5,0.3272210087997604,0.065,a\n1.75,0.385684616826069,0.0675,b\n2.0,0.5759277012304371,0.07,a\n2.25,0.8641900808242654,0.07250000000000001,b\n2.5,1.2048648670362065,0.07500000000000001,a\n2.75,1.5695888105711968,0.0775,b\n3.0,1.9559237823631943,0.08,a\n3.25,2.3692623357511313,0.0825,b\n3.5,2.79179353520166,0.085,a\n3.75,3.163472800183277,0.0875,b\n4.0,3.392685416399913,0.09,a\n4.25,3.393554226611756,0.0925,b\n4.5,3.1284895725063184,0.095,a\n4.75,2.6318943947021385,0.0975,b\n5.0,2.0035576533462662,0.1,a\n5.25,1.3766630979795607,0.10250000000000001,b\n5.5,0.874907803207434,0.10500000000000001,a\n5.75,0.5742639717962984,0.10750000000000001,b\n6.0,0.481613351515887,0.11,a\n6.25,0.5375932061316179,0.1125,b\n6.5,0.6438350062767,0.115,a\n6.75,0.7052562165009947,0.11750000000000001,b\n7.0,0.6699826066280163,0.12000000000000001,a\n7.25,0.548545871159923,0.1225,b\n7.5,0.40277440623948607,0.125,a\n7.75,0.3097031028448377,0.1275,b\n8.0,0.3188955075581915,0.13,a\n8.25,0.4253092808125723,0.1325,b\n8.5,0.5718120748653404,0.135,a\n8.75,0.6797806176712488,0.1375,b\n9.0,0.691275195562043,0.14,a\n9.25,0.6001272985211409,0.14250000000000002,b\n9.5,0.455248872126142,0.14500000000000002,a\n9.75,0.3343848983227171,0.14750000000000002,b\n10.0,0.3023936751832582,0.15000000000000002,a\n",
+   "B.csv": "x,y,yerr,grp\n0.5,0.39975003857610614,0.055,a\n0.75,0.3778093893972143,0.0575,b\n1.0,0.3141194541123309,0.060000000000000005,a\n1.25,0.2428690823361197,0.0625,b\n1.5,0.2023271188282762,0.065,a\n1.75,0.21434577642450284,0.0675,b\n2.0,0.2727293754359124,0.07,a\n2.25,0.34677205999193184,0.07250000000000001,b\n2.5,0.39817497991383966,0.07500000000000001,a\n2.75,0.4024325594859594,0.0775,b\n3.0,0.3634298416006603,0.08,a\n3.25,0.31363644240499733,0.0825,b\n3.5,0.2999042912496478,0.085,a\n3.75,0.3623382176853292,0.0875,b\n4.0,0.5170132746731819,0.09,a\n4.25,0.750790247122888,0.0925,b\n4.5,1.0296833773718617,0.095,a\n4.75,1.3150308336565049,0.0975,b\n5.0,1.5780901034409787,0.1,a\n5.25,1.8054767687061306,0.10250000000000001,b\n5.5,1.9938152709322787,0.10500000000000001,a\n5.75,2.1385078218167664,0.10750000000000001,b\n6.0,2.224901275322832,0.11,a\n6.25,2.2285273142628035,0.1125,b\n6.5,2.125547792141151,0.115,a\n6.75,1.9082317151345267,0.11750000000000001,b\n7.0,1.5967268832788726,0.12000000000000001,a\n7.25,1.2395485359461869,0.1225,b\n7.5,0.9005874834706484,0.125,a\n7.75,0.6373564876635393,0.1275,b\n8.0,0.480112730272563,0.13,a\n8.25,0.4217725419580439,0.1325,b\n8.5,0.42377970264903164,0.135,a\n8.75,0.43547863742847137,0.1375,b\n9.0,0.41785558591693495,0.14,a\n9.25,0.3602357870552669,0.14250000000000002,b\n9.5,0.2819994182176861,0.14500000000000002,a\n9.75,0.21896010176614564,0.14750000000000002,b\n10.0,0.2018677628465188,0.15000000000000002,a\n10.25,0.23846042832607245,0.15250000000000002,b\n10.5,0.3084775761639606,0.155,a\n"
+  }
+ }
+}

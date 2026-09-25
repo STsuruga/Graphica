@@ -1,0 +1,724 @@
+{
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "FitDialog",
+   "title": "曲線フィット"
+  },
+  {
+   "kind": "QMessageBox.question",
+   "title": "フィット結果のエクスポート",
+   "text": "このフィット結果の要約(パラメータ値±誤差・R^2)を、\nグラフ上のテキスト注釈として焼き込みますか?\n(焼き込み後は注釈モードで通常の注釈と同様に移動・編集・削除できます)",
+   "buttons": [
+    "Yes",
+    "No"
+   ],
+   "default": "No"
+  }
+ ],
+ "after": {
+  "draw_order": [
+   "A",
+   "B",
+   "Fit (A)"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "Fit (A)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B",
+    "Fit (A)"
+   ]
+  },
+  "current": "Fit (A)",
+  "undo": {
+   "texts": [
+    "フィット結果の注釈焼き込み"
+   ],
+   "index": 1
+  },
+  "status": "フィット結果を注釈として焼き込みました",
+  "datasets": [
+   {
+    "columns": [
+     "x",
+     "y",
+     "yerr",
+     "grp"
+    ],
+    "dtypes": [
+     "float64",
+     "float64",
+     "float64",
+     "object"
+    ],
+    "shape": [
+     41,
+     4
+    ],
+    "index": {
+     "shape": [
+      41
+     ],
+     "dtype": "int64",
+     "sha256": "d0c758a033ea48e3"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "cba92fb8e4f4121d"
+     },
+     "y": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "4e4790ab15ae5f8e"
+     },
+     "yerr": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "6cfa52f875bb0d16"
+     },
+     "grp": {
+      "shape": [
+       41
+      ],
+      "dtype": "object",
+      "sha256": "61c32a90c773610f"
+     }
+    },
+    "name": "A",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": "yerr",
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000001"
+   },
+   {
+    "columns": [
+     "x",
+     "y",
+     "yerr",
+     "grp"
+    ],
+    "dtypes": [
+     "float64",
+     "float64",
+     "float64",
+     "object"
+    ],
+    "shape": [
+     41,
+     4
+    ],
+    "index": {
+     "shape": [
+      41
+     ],
+     "dtype": "int64",
+     "sha256": "d0c758a033ea48e3"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "6b3c2289906473a7"
+     },
+     "y": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "3abf469532d70c4d"
+     },
+     "yerr": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "ce747679e07aa95a"
+     },
+     "grp": {
+      "shape": [
+       41
+      ],
+      "dtype": "object",
+      "sha256": "61c32a90c773610f"
+     }
+    },
+    "name": "B",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#ff7f0e",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000002"
+   },
+   {
+    "columns": [
+     "x_fit",
+     "y_fit"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     200,
+     2
+    ],
+    "index": {
+     "shape": [
+      200
+     ],
+     "dtype": "int64",
+     "sha256": "701f84288dc77d19"
+    },
+    "values": {
+     "x_fit": {
+      "shape": [
+       200
+      ],
+      "dtype": "float64",
+      "sha256": "a13242a7761beb1c"
+     },
+     "y_fit": {
+      "shape": [
+       200
+      ],
+      "dtype": "float64",
+      "sha256": "8ac4845dde2de65f"
+     }
+    },
+    "name": "Fit (A)",
+    "x_col_name": "x_fit",
+    "y_col_name": "y_fit",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "--",
+    "linewidth": 1.5,
+    "marker": "None",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": "[線形 (y = ax + b)] のフィッティング結果:\n  a = -7.2797e-02\n  b =  1.4537e+00\n  R^2 =  0.05094\n",
+    "fit_result": {
+     "fit_type": "線形 (y = ax + b)",
+     "custom_formula": null,
+     "param_names": [
+      "a",
+      "b"
+     ],
+     "params": [
+      -0.07279684689,
+      1.453732678
+     ],
+     "param_errors": [
+      0.05031373746,
+      0.2922963985
+     ],
+     "covariance": [
+      [
+       0.002531472177,
+       -0.01265736077
+      ],
+      [
+       -0.01265736077,
+       0.08543718459
+      ]
+     ],
+     "r_squared": 0.05094246029,
+     "residuals": [
+      -0.9537214982,
+      -0.7991549196,
+      -0.7176259487,
+      -0.7427381573,
+      -0.8500603508,
+      -0.9688976891,
+      -1.017316399,
+      -0.9406535793,
+      -0.7322112832,
+      -0.4257496919,
+      -0.06687569393,
+      0.3160474613,
+      0.7205816448,
+      1.15211941,
+      1.592849821,
+      1.982728298,
+      2.230140126,
+      2.249208148,
+      2.002342705,
+      1.523946739,
+      0.9138092096,
+      0.305113866,
+      -0.1784422171,
+      -0.4608868368,
+      -0.5353382453,
+      -0.461159179,
+      -0.3367181671,
+      -0.2570977452,
+      -0.2741721433,
+      -0.3774096671,
+      -0.5049819203,
+      -0.5798540119,
+      -0.5524623955,
+      -0.4278494105,
+      -0.2631474047,
+      -0.1369796502,
+      -0.1072858606,
+      -0.1802345459,
+      -0.3069137606,
+      -0.4095785227,
+      -0.4233705341
+     ],
+     "residual_x": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0,
+      1.25,
+      1.5,
+      1.75,
+      2.0,
+      2.25,
+      2.5,
+      2.75,
+      3.0,
+      3.25,
+      3.5,
+      3.75,
+      4.0,
+      4.25,
+      4.5,
+      4.75,
+      5.0,
+      5.25,
+      5.5,
+      5.75,
+      6.0,
+      6.25,
+      6.5,
+      6.75,
+      7.0,
+      7.25,
+      7.5,
+      7.75,
+      8.0,
+      8.25,
+      8.5,
+      8.75,
+      9.0,
+      9.25,
+      9.5,
+      9.75,
+      10.0
+     ],
+     "weighted": false,
+     "x_range": null,
+     "source_dataset_id": "00000000000000000000000000000001",
+     "source_dataset_name": "A",
+     "p0_overrides": {},
+     "fixed_params": {},
+     "bounds": {},
+     "loss": "linear"
+    },
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": {
+     "operation": "curve_fit",
+     "params": {
+      "fit_type": "線形 (y = ax + b)",
+      "custom_formula": null,
+      "param_names": [
+       "a",
+       "b"
+      ],
+      "params": [
+       -0.07279684689,
+       1.453732678
+      ],
+      "param_errors": [
+       0.05031373746,
+       0.2922963985
+      ],
+      "covariance": [
+       [
+        0.002531472177,
+        -0.01265736077
+       ],
+       [
+        -0.01265736077,
+        0.08543718459
+       ]
+      ],
+      "r_squared": 0.05094246029,
+      "residuals": [
+       -0.9537214982,
+       -0.7991549196,
+       -0.7176259487,
+       -0.7427381573,
+       -0.8500603508,
+       -0.9688976891,
+       -1.017316399,
+       -0.9406535793,
+       -0.7322112832,
+       -0.4257496919,
+       -0.06687569393,
+       0.3160474613,
+       0.7205816448,
+       1.15211941,
+       1.592849821,
+       1.982728298,
+       2.230140126,
+       2.249208148,
+       2.002342705,
+       1.523946739,
+       0.9138092096,
+       0.305113866,
+       -0.1784422171,
+       -0.4608868368,
+       -0.5353382453,
+       -0.461159179,
+       -0.3367181671,
+       -0.2570977452,
+       -0.2741721433,
+       -0.3774096671,
+       -0.5049819203,
+       -0.5798540119,
+       -0.5524623955,
+       -0.4278494105,
+       -0.2631474047,
+       -0.1369796502,
+       -0.1072858606,
+       -0.1802345459,
+       -0.3069137606,
+       -0.4095785227,
+       -0.4233705341
+      ],
+      "residual_x": [
+       0.0,
+       0.25,
+       0.5,
+       0.75,
+       1.0,
+       1.25,
+       1.5,
+       1.75,
+       2.0,
+       2.25,
+       2.5,
+       2.75,
+       3.0,
+       3.25,
+       3.5,
+       3.75,
+       4.0,
+       4.25,
+       4.5,
+       4.75,
+       5.0,
+       5.25,
+       5.5,
+       5.75,
+       6.0,
+       6.25,
+       6.5,
+       6.75,
+       7.0,
+       7.25,
+       7.5,
+       7.75,
+       8.0,
+       8.25,
+       8.5,
+       8.75,
+       9.0,
+       9.25,
+       9.5,
+       9.75,
+       10.0
+      ],
+      "weighted": false,
+      "x_range": null,
+      "source_dataset_id": "00000000000000000000000000000001",
+      "source_dataset_name": "A",
+      "p0_overrides": {},
+      "fixed_params": {},
+      "bounds": {},
+      "loss": "linear"
+     },
+     "source_dataset_ids": [
+      "00000000000000000000000000000001"
+     ],
+     "source_dataset_names": [
+      "A"
+     ],
+     "timestamp": "2026-01-01T00:00:00+00:00"
+    },
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000003"
+   }
+  ],
+  "annotations": [
+   [
+    {
+     "type": "text",
+     "text": "フィット: 線形 (y = ax + b)\na = -0.0728 ± 0.05031\nb = 1.454 ± 0.2923\nR^2 = 0.05094",
+     "xy": [
+      5.025125628,
+      1.087919377
+     ],
+     "xytext": [
+      5.025125628,
+      1.087919377
+     ],
+     "color": "#000000",
+     "id": "00000000000000000000000000000004"
+    }
+   ]
+  ],
+  "windows": [
+   {
+    "class": "ResultDialog",
+    "title": "フィット結果のエクスポート",
+    "contents": [
+     {
+      "text": "[線形 (y = ax + b)] のフィッティング結果:\n  a = -7.2797e-02\n  b =  1.4537e+00\n  R^2 =  0.05094\n"
+     },
+     "残差プロット (実測値 - フィット値)",
+     "コピー",
+     "CSVとして保存...",
+     "閉じる"
+    ]
+   }
+  ]
+ },
+ "clipboard": "",
+ "after_undo_all": {
+  "draw_order": [
+   "A",
+   "B",
+   "Fit (A)"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "Fit (A)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B",
+    "Fit (A)"
+   ]
+  },
+  "current": "Fit (A)",
+  "undo": {
+   "texts": [
+    "フィット結果の注釈焼き込み"
+   ],
+   "index": 0
+  }
+ },
+ "after_redo_all": {
+  "draw_order": [
+   "A",
+   "B",
+   "Fit (A)"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "Fit (A)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B",
+    "Fit (A)"
+   ]
+  },
+  "current": "Fit (A)",
+  "undo": {
+   "texts": [
+    "フィット結果の注釈焼き込み"
+   ],
+   "index": 1
+  }
+ },
+ "undo_modals": []
+}
