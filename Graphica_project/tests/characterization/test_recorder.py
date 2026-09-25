@@ -39,7 +39,15 @@ def test_normalizer_replaces_case_paths_and_version(tmp_path):
 
     norm = recorder.Normalizer()
     norm.add_path(tmp_path, "<CASE>")
-    assert norm(f"{tmp_path}\\a.csv v{__version__}") == "<CASE>\\a.csv v<VERSION>"
+    assert norm(f"{tmp_path}\\a.csv v{__version__}") == "<CASE>/a.csv v<VERSION>"
+
+
+def test_normalized_paths_use_slashes_even_inside_repr(tmp_path):
+    norm = recorder.Normalizer()
+    norm.add_path(tmp_path, "<CASE>")
+    inner = tmp_path / "sub" / "f.csv"
+    assert norm(f"読み込み: {inner}") == "読み込み: <CASE>/sub/f.csv"
+    assert norm(f"Errno 13: {str(inner)!r}") == "Errno 13: '<CASE>/sub/f.csv'"
 
 
 def test_check_writes_in_update_mode_then_compares(golden_in_tmp, monkeypatch):

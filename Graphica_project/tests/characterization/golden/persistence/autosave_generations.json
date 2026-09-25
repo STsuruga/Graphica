@@ -1,0 +1,69 @@
+{
+ "autosave_file": "<CASE>/autosave/autosave_tab2.graphica",
+ "rounds": [
+  {
+   "status": "オートセーブ完了",
+   "files": {
+    "autosave_tab2.graphica": [
+     "d0"
+    ]
+   }
+  },
+  {
+   "status": "オートセーブ完了",
+   "files": {
+    "autosave_tab2.1.graphica": [
+     "d0"
+    ],
+    "autosave_tab2.graphica": [
+     "d0",
+     "d1"
+    ]
+   }
+  },
+  {
+   "status": "オートセーブ完了",
+   "files": {
+    "autosave_tab2.1.graphica": [
+     "d0",
+     "d1"
+    ],
+    "autosave_tab2.2.graphica": [
+     "d0"
+    ],
+    "autosave_tab2.graphica": [
+     "d0",
+     "d1",
+     "d2"
+    ]
+   }
+  },
+  {
+   "status": "オートセーブ完了",
+   "files": {
+    "autosave_tab2.1.graphica": [
+     "d0",
+     "d1",
+     "d2"
+    ],
+    "autosave_tab2.2.graphica": [
+     "d0",
+     "d1"
+    ],
+    "autosave_tab2.graphica": [
+     "d0",
+     "d1",
+     "d2",
+     "d3"
+    ]
+   }
+  }
+ ],
+ "history_modals": [
+  {
+   "kind": "exec",
+   "class": "AutosaveHistoryDialog",
+   "title": "自動バックアップ履歴"
+  }
+ ]
+}

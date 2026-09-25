@@ -61,6 +61,9 @@ def pixel_environment_matches() -> bool:
 
 # --- 正規化 ---
 
+_TOKEN_PATH = re.compile(r"(<[A-Z]+>)([^\s'\"<>]*)")
+
+
 class Normalizer:
     """一時パスや版の文字列など、実行ごと・環境ごとに変わる部分を置き換える。"""
 
@@ -76,7 +79,10 @@ class Normalizer:
 
     def add_path(self, path: str | os.PathLike, token: str) -> None:
         text = str(path)
-        variants = {text, text.replace("\\", "/"), os.path.realpath(text), os.path.realpath(text).replace("\\", "/")}
+        variants = set()
+        for base in (text, os.path.realpath(text)):
+            # repr() の中のパスは \\ と二重になる
+            variants |= {base, base.replace("\\", "/"), base.replace("\\", "\\\\")}
         for variant in variants:
             if variant:
                 self.replacements[variant] = token
@@ -86,7 +92,8 @@ class Normalizer:
         for old in sorted(self.replacements, key=len, reverse=True):
             if old and old in value:
                 value = value.replace(old, self.replacements[old])
-        return value
+        # 置き換えたパスの続きの区切りは OS によって \ と / が違うので / にそろえる
+        return _TOKEN_PATH.sub(lambda m: m.group(1) + re.sub(r"\\+", "/", m.group(2)), value)
 
     def __call__(self, value: Any) -> Any:
         return to_jsonable(value, self)

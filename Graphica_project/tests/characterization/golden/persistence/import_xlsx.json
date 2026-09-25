@@ -1,0 +1,248 @@
+{
+ "status": "読み込み完了: <CASE>/book.xlsx (1件)",
+ "title": "無題のプロジェクト",
+ "unsaved": true,
+ "datasets": [
+  {
+   "columns": [
+    "a",
+    "b"
+   ],
+   "dtypes": [
+    "int64",
+    "int64"
+   ],
+   "shape": [
+    3,
+    2
+   ],
+   "index": {
+    "shape": [
+     3
+    ],
+    "dtype": "int64",
+    "sha256": "540efeb2de09e941"
+   },
+   "values": {
+    "a": {
+     "shape": [
+      3
+     ],
+     "dtype": "int64",
+     "sha256": "7ee74ca6db4b367e"
+    },
+    "b": {
+     "shape": [
+      3
+     ],
+     "dtype": "int64",
+     "sha256": "702220e6cd4609aa"
+    }
+   },
+   "name": "book.xlsx",
+   "x_col_name": "a",
+   "y_col_name": "b",
+   "plot_type": "Line",
+   "color": "#1f77b4",
+   "linestyle": "-",
+   "linewidth": 1.5,
+   "marker": "o",
+   "markersize": 6.0,
+   "smoothing": false,
+   "smoothing_method": "cubic_spline",
+   "alpha": 1.0,
+   "gradient_enabled": false,
+   "gradient_color2": "#ffffff",
+   "gradient_target": "line",
+   "waterfall_enabled": false,
+   "waterfall_offset_x": 0.0,
+   "waterfall_offset_y": 1.0,
+   "waterfall_occlusion_enabled": true,
+   "waterfall_depth_shrink_enabled": false,
+   "waterfall_depth_shrink_ratio": 0.03,
+   "show_point_labels": false,
+   "point_label_col_name": null,
+   "x_err_col_name": null,
+   "y_err_col_name": null,
+   "error_display": "bar",
+   "masked_row_indices": [],
+   "fit_info": null,
+   "fit_result": null,
+   "fit_band_display": null,
+   "source_plugin": null,
+   "source_file": "<CASE>/book.xlsx",
+   "source_sheet": "one",
+   "nan_policy": "gap",
+   "provenance": null,
+   "use_secondary_y": false,
+   "subplot_target": 0,
+   "data_kind": "1d",
+   "z_col_name": null,
+   "grid_interp_method": "linear",
+   "grid_resolution": null,
+   "colormap": "viridis",
+   "vmin": null,
+   "vmax": null,
+   "map_display_mode": "heatmap",
+   "contour_levels": 10,
+   "visible": true,
+   "artist": "<Line2D>",
+   "dataset_id": "00000000000000000000000000000001"
+  }
+ ],
+ "group_tree": {
+  "name": "",
+  "children": []
+ },
+ "tree_widget": [
+  {
+   "text": "book.xlsx",
+   "checked": "Unchecked"
+  }
+ ],
+ "all_plot_settings": [
+  {
+   "title": "",
+   "x_label": "",
+   "y_label": "",
+   "x_label_visible": true,
+   "y_label_visible": true,
+   "y2_label": "",
+   "x_autoscale": true,
+   "x_min": 0.0,
+   "x_max": 0.0,
+   "x_log": false,
+   "x_invert": false,
+   "x_major_tick_mode": 0,
+   "x_major_tick_interval": 0.0,
+   "x_minor_ticks_visible": false,
+   "x_minor_tick_interval": 0.0,
+   "x_log_minor_subs": "auto",
+   "x_log_minor_labels": false,
+   "x_tick_format_mode": 0,
+   "x_tick_decimals": -1,
+   "x_secondary_axis_source_unit": "none",
+   "x_secondary_axis_target_unit": "none",
+   "y_autoscale": true,
+   "y_min": 0.0,
+   "y_max": 0.0,
+   "y_log": false,
+   "y_invert": false,
+   "y_major_tick_mode": 0,
+   "y_major_tick_interval": 0.0,
+   "y_minor_ticks_visible": false,
+   "y_minor_tick_interval": 0.0,
+   "y_log_minor_subs": "auto",
+   "y_log_minor_labels": false,
+   "y_tick_format_mode": 0,
+   "y_tick_decimals": -1,
+   "legend_visible": true,
+   "legend_loc": "best",
+   "grid_visible": false,
+   "minor_grid_visible": false,
+   "x_major_grid_linestyle": "-",
+   "x_major_grid_width": 0.8,
+   "x_major_grid_alpha": 1.0,
+   "x_minor_grid_linestyle": "--",
+   "x_minor_grid_width": 0.5,
+   "x_minor_grid_alpha": 1.0,
+   "y_major_grid_linestyle": "-",
+   "y_major_grid_width": 0.8,
+   "y_major_grid_alpha": 1.0,
+   "y_minor_grid_linestyle": "--",
+   "y_minor_grid_width": 0.5,
+   "y_minor_grid_alpha": 1.0,
+   "major_tick_direction": "out",
+   "minor_tick_direction": "out",
+   "major_tick_direction_y2": "out",
+   "minor_tick_direction_y2": "out",
+   "x_ticks_visible": true,
+   "x_tick_labels_visible": true,
+   "y_ticks_visible": true,
+   "y_tick_labels_visible": true,
+   "tick_font": {
+    "family": [
+     "DejaVu Sans",
+     "Yu Gothic",
+     "Hiragino Sans",
+     "Hiragino Kaku Gothic ProN",
+     "Meiryo",
+     "MS Gothic",
+     "Noto Sans CJK JP"
+    ],
+    "size": 9,
+    "weight": "normal",
+    "style": "normal"
+   },
+   "tick_color": "#000000",
+   "tick_width": 0.8,
+   "major_tick_length": 3.5,
+   "minor_tick_length": -1,
+   "axis_label_font": {
+    "family": [
+     "DejaVu Sans",
+     "Yu Gothic",
+     "Hiragino Sans",
+     "Hiragino Kaku Gothic ProN",
+     "Meiryo",
+     "MS Gothic",
+     "Noto Sans CJK JP"
+    ],
+    "size": 9,
+    "weight": "normal",
+    "style": "normal"
+   },
+   "axis_label_color": "#000000",
+   "legend_font": {
+    "family": [
+     "DejaVu Sans",
+     "Yu Gothic",
+     "Hiragino Sans",
+     "Hiragino Kaku Gothic ProN",
+     "Meiryo",
+     "MS Gothic",
+     "Noto Sans CJK JP"
+    ],
+    "size": 9,
+    "weight": "normal",
+    "style": "normal"
+   },
+   "legend_color": "#000000",
+   "spine_width": 1.0,
+   "spine_color": "#000000",
+   "colorbar_enabled": true,
+   "colorbar_position": "right",
+   "colorbar_width_fraction": 0.05,
+   "colorbar_label": "",
+   "annotations": [],
+   "legend_order": [],
+   "free_rect": null,
+   "legend_position": null
+  }
+ ],
+ "layout": [
+  1,
+  1,
+  "grid",
+  false,
+  false,
+  false,
+  0
+ ],
+ "undo_count": 0,
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "ExcelMultiSheetDialog",
+   "title": "シートの選択"
+  },
+  {
+   "kind": "exec",
+   "class": "ColumnPreviewDialog",
+   "title": "列の選択: book.xlsx"
+  }
+ ],
+ "recent_files": [
+  "<CASE>/book.xlsx"
+ ]
+}
