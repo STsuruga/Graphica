@@ -1,0 +1,789 @@
+{
+ "plugin_names": [
+  "減衰(初期値リスト)",
+  "減衰(初期値関数)",
+  "減衰(初期値なし)",
+  "二重ガウシアン"
+ ],
+ "減衰(初期値リスト)": {
+  "param_names": [
+   "a",
+   "k",
+   "c"
+  ],
+  "fit": {
+   "param_names": [
+    "a",
+    "k",
+    "c"
+   ],
+   "popt": [
+    "0x1.7f9a873da1f1ep+1",
+    "0x1.98fcb22844cebp-2",
+    "0x1.ff7fdef238ebep-2"
+   ],
+   "pcov": [
+    "0x1.4a08da838fad9p-15",
+    "0x1.abc6b79b78180p-18",
+    "0x1.58b0f1275f0e4p-19",
+    "0x1.abc6b79b78180p-18",
+    "0x1.d7e40020f4488p-19",
+    "0x1.3d913ad334fdbp-18",
+    "0x1.58b0f1275f0e4p-19",
+    "0x1.3d913ad334fdbp-18",
+    "0x1.2e1786fbb7d2fp-17"
+   ],
+   "perr": [
+    "0x1.9b11a8bd20b4ap-8",
+    "0x1.eb894f68c057fp-10",
+    "0x1.89484c111e6d0p-9"
+   ],
+   "r_squared": "0x1.fff0ff826631fp-1",
+   "residuals": [
+    "-0x1.3f53bf9e17800p-10",
+    "-0x1.cb931d8d7c400p-8",
+    "0x1.db1acc72af800p-8",
+    "0x1.0f00583b76900p-7",
+    "-0x1.cf3441194d000p-8",
+    "-0x1.30e0a85567e00p-8",
+    "0x1.36ab062770f80p-7",
+    "0x1.718be44b7a200p-9",
+    "-0x1.448b45db75800p-7",
+    "-0x1.1ee8338d80000p-13",
+    "0x1.3edffd515ca00p-7",
+    "-0x1.7787cb0051400p-9",
+    "-0x1.3743636050a00p-7",
+    "0x1.38d3737ebab00p-8",
+    "0x1.ec95df8c4af00p-8",
+    "-0x1.ed9102e137600p-8",
+    "-0x1.9a5079f2aef00p-8",
+    "0x1.14d441bead700p-7",
+    "0x1.aab4ad8351600p-9",
+    "-0x1.48bca0ef32440p-7",
+    "-0x1.44fa4d626b200p-10",
+    "0x1.3f37a438b5280p-7",
+    "-0x1.fbd288e63dc00p-10",
+    "-0x1.3eda127086080p-7",
+    "0x1.0ca0f7dc81d80p-8",
+    "0x1.0e71d293d0840p-7",
+    "-0x1.b202300112880p-8",
+    "-0x1.b8beb3f335380p-8",
+    "0x1.0e2af15366fc0p-7",
+    "0x1.209ce6d84d680p-8",
+    "-0x1.36650b5cae940p-7",
+    "-0x1.e54cda2951600p-10",
+    "0x1.4929d51145780p-7",
+    "-0x1.708f555ed0800p-11",
+    "-0x1.3ca468e060040p-7",
+    "0x1.d0064c6248500p-9",
+    "0x1.27743db3df100p-7",
+    "-0x1.6f38951894a00p-8",
+    "-0x1.d25534b1be700p-8",
+    "0x1.04aa4e2510b00p-7"
+   ],
+   "x_fit": {
+    "shape": [
+     200
+    ],
+    "dtype": "float64",
+    "sha256": "1c701530117c8892"
+   },
+   "y_fit": [
+    "0x1.7a197aac8bf50p+1",
+    "0x1.167e54e510e1bp+1",
+    "0x1.a4ef884fbb8a4p+0",
+    "0x1.4805155932ba6p+0",
+    "0x1.0890334337b4ap+0",
+    "0x1.ba739cffe0fecp-1",
+    "0x1.7f41d933fc9cdp-1",
+    "0x1.56d4a17b30b13p-1",
+    "0x1.3b38a9fcffedep-1",
+    "0x1.285d9e19af854p-1"
+   ],
+   "fit_func_on_data": [
+    "0x1.7a197aac8bf50p+1",
+    "0x1.0115f675e2e5cp+1",
+    "0x1.6d5f3747d20d2p+0",
+    "0x1.11e3a2d605936p+0",
+    "0x1.b34a553a3e976p-1",
+    "0x1.6e21d64994ac2p-1",
+    "0x1.439d074517318p-1",
+    "0x1.2978fefada594p-1"
+   ],
+   "keys": [
+    "fit_func",
+    "loss",
+    "param_names",
+    "pcov",
+    "perr",
+    "popt",
+    "r_squared",
+    "residuals",
+    "x_data_used",
+    "x_fit",
+    "y_data_used",
+    "y_fit"
+   ],
+   "loss": "linear",
+   "warnings": []
+  }
+ },
+ "減衰(初期値関数)": {
+  "param_names": [
+   "a",
+   "k",
+   "c"
+  ],
+  "fit": {
+   "param_names": [
+    "a",
+    "k",
+    "c"
+   ],
+   "popt": [
+    "0x1.7f9a873ef6c56p+1",
+    "0x1.98fcb22b8ef02p-2",
+    "0x1.ff7fdef4fb92dp-2"
+   ],
+   "pcov": [
+    "0x1.4a08c6db85254p-15",
+    "0x1.abc68d779ddeep-18",
+    "0x1.58b0c1825c082p-19",
+    "0x1.abc68d779ddeep-18",
+    "0x1.d7e3f12efeae6p-19",
+    "0x1.3d9147abad2eap-18",
+    "0x1.58b0c1825c082p-19",
+    "0x1.3d9147abad2eap-18",
+    "0x1.2e17a191b2cdap-17"
+   ],
+   "perr": [
+    "0x1.9b119c7f571c8p-8",
+    "0x1.eb8947a02159ep-10",
+    "0x1.89485d5f58905p-9"
+   ],
+   "r_squared": "0x1.fff0ff826631fp-1",
+   "residuals": [
+    "-0x1.3f53c7104f800p-10",
+    "-0x1.cb931edc09a00p-8",
+    "0x1.db1acb9a62800p-8",
+    "0x1.0f00580027700p-7",
+    "-0x1.cf34414001c00p-8",
+    "-0x1.30e0a83b84400p-8",
+    "0x1.36ab064e1a480p-7",
+    "0x1.718be5366f400p-9",
+    "-0x1.448b459174c00p-7",
+    "-0x1.1ee81e4274000p-13",
+    "0x1.3edffdae3ce00p-7",
+    "-0x1.7787c979ada00p-9",
+    "-0x1.374362fc50c80p-7",
+    "0x1.38d3744757a00p-8",
+    "0x1.ec95e0522b500p-8",
+    "-0x1.ed910220cfe00p-8",
+    "-0x1.9a507939f4a00p-8",
+    "0x1.14d4421654300p-7",
+    "0x1.aab4aecc5b300p-9",
+    "-0x1.48bca0a2d7600p-7",
+    "-0x1.44fa4b31c9200p-10",
+    "0x1.3f37a478424c0p-7",
+    "-0x1.fbd2871f42e00p-10",
+    "-0x1.3eda123e65a00p-7",
+    "0x1.0ca0f83346380p-8",
+    "0x1.0e71d2b883e40p-7",
+    "-0x1.b2022fc4d2900p-8",
+    "-0x1.b8beb3c3d1f80p-8",
+    "0x1.0e2af164d6dc0p-7",
+    "0x1.209ce6ef0eb80p-8",
+    "-0x1.36650b5726400p-7",
+    "-0x1.e54cda2a01000p-10",
+    "0x1.4929d50bcd680p-7",
+    "-0x1.708f56089d800p-11",
+    "-0x1.3ca468efe3c40p-7",
+    "0x1.d0064c1194600p-9",
+    "0x1.27743d9b45e00p-7",
+    "-0x1.6f38955227800p-8",
+    "-0x1.d25534f33ca00p-8",
+    "0x1.04aa4e0094e00p-7"
+   ],
+   "x_fit": {
+    "shape": [
+     200
+    ],
+    "dtype": "float64",
+    "sha256": "1c701530117c8892"
+   },
+   "y_fit": [
+    "0x1.7a197aad7a3c0p+1",
+    "0x1.167e54e527262p+1",
+    "0x1.a4ef884f2bdb0p+0",
+    "0x1.480515586b74ep+0",
+    "0x1.089033427c4c4p+0",
+    "0x1.ba739cfebe70dp-1",
+    "0x1.7f41d93342156p-1",
+    "0x1.56d4a17adcf34p-1",
+    "0x1.3b38a9fd08105p-1",
+    "0x1.285d9e1a05352p-1"
+   ],
+   "fit_func_on_data": [
+    "0x1.7a197aad7a3c0p+1",
+    "0x1.0115f675d5f3fp+1",
+    "0x1.6d5f3747184cap+0",
+    "0x1.11e3a2d5452bep+0",
+    "0x1.b34a553926466p-1",
+    "0x1.6e21d64901deap-1",
+    "0x1.439d074501103p-1",
+    "0x1.2978fefb2b0d3p-1"
+   ],
+   "keys": [
+    "fit_func",
+    "loss",
+    "param_names",
+    "pcov",
+    "perr",
+    "popt",
+    "r_squared",
+    "residuals",
+    "x_data_used",
+    "x_fit",
+    "y_data_used",
+    "y_fit"
+   ],
+   "loss": "linear",
+   "warnings": []
+  }
+ },
+ "減衰(初期値なし)": {
+  "param_names": [
+   "a",
+   "k",
+   "c"
+  ],
+  "fit": {
+   "param_names": [
+    "a",
+    "k",
+    "c"
+   ],
+   "popt": [
+    "0x1.7f9a873bb620cp+1",
+    "0x1.98fcb21d9367cp-2",
+    "0x1.ff7fdee29e257p-2"
+   ],
+   "pcov": [
+    "0x1.4a090d7b037d7p-15",
+    "0x1.abc72a6afb59dp-18",
+    "0x1.58b15993ff0f6p-19",
+    "0x1.abc72a6afb59dp-18",
+    "0x1.d7e43a11b5c1dp-19",
+    "0x1.3d911dc5a8a09p-18",
+    "0x1.58b15993ff0f6p-19",
+    "0x1.3d911dc5a8a09p-18",
+    "0x1.2e173f02bf7fcp-17"
+   ],
+   "perr": [
+    "0x1.9b11c87aa3b82p-8",
+    "0x1.eb896d95e2541p-10",
+    "0x1.89481d37b5d8cp-9"
+   ],
+   "r_squared": "0x1.fff0ff826631fp-1",
+   "residuals": [
+    "-0x1.3f53b08c5a800p-10",
+    "-0x1.cb931b3917c00p-8",
+    "0x1.db1acd9b92400p-8",
+    "0x1.0f005857a5c00p-7",
+    "-0x1.cf34419ed2200p-8",
+    "-0x1.30e0a96d82400p-8",
+    "0x1.36ab05648db00p-7",
+    "0x1.718be0a33b400p-9",
+    "-0x1.448b46df76c00p-7",
+    "-0x1.1ee87842ec000p-13",
+    "0x1.3edffc38f9280p-7",
+    "-0x1.7787cf595a400p-9",
+    "-0x1.3743646e23280p-7",
+    "0x1.38d3717e31f00p-8",
+    "0x1.ec95ddaf10800p-8",
+    "-0x1.ed910494b2600p-8",
+    "-0x1.9a507b7778d00p-8",
+    "0x1.14d4411576b80p-7",
+    "0x1.aab4ab485bf00p-9",
+    "-0x1.48bca1629fe40p-7",
+    "-0x1.44fa501fb7400p-10",
+    "0x1.3f37a3fcf2700p-7",
+    "-0x1.fbd289e623c00p-10",
+    "-0x1.3eda127514f00p-7",
+    "0x1.0ca0f80935f00p-8",
+    "0x1.0e71d2c46ae40p-7",
+    "-0x1.b2022f6ce6280p-8",
+    "-0x1.b8beb32dc5000p-8",
+    "0x1.0e2af1cdd7740p-7",
+    "0x1.209ce7fab6400p-8",
+    "-0x1.36650ab5b1840p-7",
+    "-0x1.e54cd44b1a200p-10",
+    "0x1.4929d5e0d6c00p-7",
+    "-0x1.708f4738f3c00p-11",
+    "-0x1.3ca467ec30100p-7",
+    "0x1.d00650767bd00p-9",
+    "0x1.27743ec8d9d80p-7",
+    "-0x1.6f3892d092e00p-8",
+    "-0x1.d255324d70380p-8",
+    "0x1.04aa4f6486a00p-7"
+   ],
+   "x_fit": {
+    "shape": [
+     200
+    ],
+    "dtype": "float64",
+    "sha256": "1c701530117c8892"
+   },
+   "y_fit": [
+    "0x1.7a197aaaa9bd6p+1",
+    "0x1.167e54e54cdabp+1",
+    "0x1.a4ef8851bccf4p+0",
+    "0x1.4805155b5376bp+0",
+    "0x1.08903344cbf7dp+0",
+    "0x1.ba739d016c6cap-1",
+    "0x1.7f41d933d6d5bp-1",
+    "0x1.56d4a1797bdfep-1",
+    "0x1.3b38a9f9f41ebp-1",
+    "0x1.285d9e1589572p-1"
+   ],
+   "fit_func_on_data": [
+    "0x1.7a197aaaa9bd6p+1",
+    "0x1.0115f6766ef2fp+1",
+    "0x1.6d5f374a02d41p+0",
+    "0x1.11e3a2d7b90e6p+0",
+    "0x1.b34a553b9d3d7p-1",
+    "0x1.6e21d648d242ap-1",
+    "0x1.439d07427b3d4p-1",
+    "0x1.2978fef6c625cp-1"
+   ],
+   "keys": [
+    "fit_func",
+    "loss",
+    "param_names",
+    "pcov",
+    "perr",
+    "popt",
+    "r_squared",
+    "residuals",
+    "x_data_used",
+    "x_fit",
+    "y_data_used",
+    "y_fit"
+   ],
+   "loss": "linear",
+   "warnings": []
+  }
+ },
+ "二重ガウシアン": {
+  "param_names": [
+   "a",
+   "b",
+   "c",
+   "d",
+   "e",
+   "f"
+  ],
+  "fit": {
+   "param_names": [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f"
+   ],
+   "popt": [
+    "0x1.bc1195b0e4237p+0",
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p+0"
+   ],
+   "pcov": [
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf"
+   ],
+   "perr": [
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf",
+    "inf"
+   ],
+   "r_squared": "0x0.0p+0",
+   "residuals": [
+    "-0x1.3c0fc8c5773c8p+0",
+    "-0x1.3c6d13e661f6dp+0",
+    "-0x1.36bf1e81a8ebcp+0",
+    "-0x1.32d6851ec4bacp+0",
+    "-0x1.3064d2dd7b0b5p+0",
+    "-0x1.25115f1a270fcp+0",
+    "-0x1.10362716c10eep+0",
+    "-0x1.eecd3ed435abdp-1",
+    "-0x1.a784549bcc15dp-1",
+    "-0x1.35d8de0474872p-1",
+    "-0x1.411c00d0405fcp-2",
+    "0x1.cf6e624510440p-6",
+    "0x1.c59fc5d4a883cp-2",
+    "0x1.db2cc2b0ca44ep-1",
+    "0x1.6bee0203d7b61p+0",
+    "0x1.e0b27d91d7f6fp+0",
+    "0x1.248ffd121479ep+1",
+    "0x1.4caf6f6b51e12p+1",
+    "0x1.600fb7fd6df98p+1",
+    "0x1.5dce4ea04e662p+1",
+    "0x1.49d924c5266a6p+1",
+    "0x1.2428bc5e0d5f4p+1",
+    "0x1.dc0f9ac229b31p+0",
+    "0x1.60e52ab324d5fp+0",
+    "0x1.cda7b0dccc4bep-1",
+    "0x1.bf78ab4fbc5dcp-2",
+    "0x1.048141d593e00p-8",
+    "-0x1.631c005d7f3ecp-2",
+    "-0x1.3827cccf95b1ep-1",
+    "-0x1.a4fdb3e253119p-1",
+    "-0x1.f8614d59657f0p-1",
+    "-0x1.1427e1e69b398p+0",
+    "-0x1.21e549ebe17f9p+0",
+    "-0x1.2f0544309f42cp+0",
+    "-0x1.376fdad6a20b8p+0",
+    "-0x1.3782c763faf98p+0",
+    "-0x1.37f911e853dd4p+0",
+    "-0x1.3cadd10a68059p+0",
+    "-0x1.3d8b32b1f3193p+0",
+    "-0x1.39e9e17dba656p+0"
+   ],
+   "x_fit": {
+    "shape": [
+     200
+    ],
+    "dtype": "float64",
+    "sha256": "1c701530117c8892"
+   },
+   "y_fit": [
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0"
+   ],
+   "fit_func_on_data": [
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0",
+    "0x1.bc1195b0e4237p+0"
+   ],
+   "keys": [
+    "fit_func",
+    "loss",
+    "param_names",
+    "pcov",
+    "perr",
+    "popt",
+    "r_squared",
+    "residuals",
+    "x_data_used",
+    "x_fit",
+    "y_data_used",
+    "y_fit"
+   ],
+   "loss": "linear",
+   "warnings": [
+    "OptimizeWarning: Covariance of the parameters could not be estimated"
+   ]
+  }
+ },
+ "カスタム数式...": {
+  "param_names": [
+   "a",
+   "k",
+   "c"
+  ],
+  "fit": {
+   "param_names": [
+    "a",
+    "k",
+    "c"
+   ],
+   "popt": [
+    "0x1.7f9a873bb620cp+1",
+    "0x1.98fcb21d9367cp-2",
+    "0x1.ff7fdee29e257p-2"
+   ],
+   "pcov": [
+    "0x1.4a090d7b037d7p-15",
+    "0x1.abc72a6afb59dp-18",
+    "0x1.58b15993ff0f6p-19",
+    "0x1.abc72a6afb59dp-18",
+    "0x1.d7e43a11b5c1dp-19",
+    "0x1.3d911dc5a8a09p-18",
+    "0x1.58b15993ff0f6p-19",
+    "0x1.3d911dc5a8a09p-18",
+    "0x1.2e173f02bf7fcp-17"
+   ],
+   "perr": [
+    "0x1.9b11c87aa3b82p-8",
+    "0x1.eb896d95e2541p-10",
+    "0x1.89481d37b5d8cp-9"
+   ],
+   "r_squared": "0x1.fff0ff826631fp-1",
+   "residuals": [
+    "-0x1.3f53b08c5a800p-10",
+    "-0x1.cb931b3917c00p-8",
+    "0x1.db1acd9b92400p-8",
+    "0x1.0f005857a5c00p-7",
+    "-0x1.cf34419ed2200p-8",
+    "-0x1.30e0a96d82400p-8",
+    "0x1.36ab05648db00p-7",
+    "0x1.718be0a33b400p-9",
+    "-0x1.448b46df76c00p-7",
+    "-0x1.1ee87842ec000p-13",
+    "0x1.3edffc38f9280p-7",
+    "-0x1.7787cf595a400p-9",
+    "-0x1.3743646e23280p-7",
+    "0x1.38d3717e31f00p-8",
+    "0x1.ec95ddaf10800p-8",
+    "-0x1.ed910494b2600p-8",
+    "-0x1.9a507b7778d00p-8",
+    "0x1.14d4411576b80p-7",
+    "0x1.aab4ab485bf00p-9",
+    "-0x1.48bca1629fe40p-7",
+    "-0x1.44fa501fb7400p-10",
+    "0x1.3f37a3fcf2700p-7",
+    "-0x1.fbd289e623c00p-10",
+    "-0x1.3eda127514f00p-7",
+    "0x1.0ca0f80935f00p-8",
+    "0x1.0e71d2c46ae40p-7",
+    "-0x1.b2022f6ce6280p-8",
+    "-0x1.b8beb32dc5000p-8",
+    "0x1.0e2af1cdd7740p-7",
+    "0x1.209ce7fab6400p-8",
+    "-0x1.36650ab5b1840p-7",
+    "-0x1.e54cd44b1a200p-10",
+    "0x1.4929d5e0d6c00p-7",
+    "-0x1.708f4738f3c00p-11",
+    "-0x1.3ca467ec30100p-7",
+    "0x1.d00650767bd00p-9",
+    "0x1.27743ec8d9d80p-7",
+    "-0x1.6f3892d092e00p-8",
+    "-0x1.d255324d70380p-8",
+    "0x1.04aa4f6486a00p-7"
+   ],
+   "x_fit": {
+    "shape": [
+     200
+    ],
+    "dtype": "float64",
+    "sha256": "1c701530117c8892"
+   },
+   "y_fit": [
+    "0x1.7a197aaaa9bd6p+1",
+    "0x1.167e54e54cdabp+1",
+    "0x1.a4ef8851bccf4p+0",
+    "0x1.4805155b5376bp+0",
+    "0x1.08903344cbf7dp+0",
+    "0x1.ba739d016c6cap-1",
+    "0x1.7f41d933d6d5bp-1",
+    "0x1.56d4a1797bdfep-1",
+    "0x1.3b38a9f9f41ebp-1",
+    "0x1.285d9e1589572p-1"
+   ],
+   "fit_func_on_data": [
+    "0x1.7a197aaaa9bd6p+1",
+    "0x1.0115f6766ef2fp+1",
+    "0x1.6d5f374a02d41p+0",
+    "0x1.11e3a2d7b90e6p+0",
+    "0x1.b34a553b9d3d7p-1",
+    "0x1.6e21d648d242ap-1",
+    "0x1.439d07427b3d4p-1",
+    "0x1.2978fef6c625cp-1"
+   ],
+   "keys": [
+    "fit_func",
+    "loss",
+    "param_names",
+    "pcov",
+    "perr",
+    "popt",
+    "r_squared",
+    "residuals",
+    "x_data_used",
+    "x_fit",
+    "y_data_used",
+    "y_fit"
+   ],
+   "loss": "linear",
+   "warnings": []
+  }
+ },
+ "カスタム数式": {
+  "param_names": [
+   "a",
+   "k",
+   "c"
+  ],
+  "fit": {
+   "param_names": [
+    "a",
+    "k",
+    "c"
+   ],
+   "popt": [
+    "0x1.7f9a873bb620cp+1",
+    "0x1.98fcb21d9367cp-2",
+    "0x1.ff7fdee29e257p-2"
+   ],
+   "pcov": [
+    "0x1.4a090d7b037d7p-15",
+    "0x1.abc72a6afb59dp-18",
+    "0x1.58b15993ff0f6p-19",
+    "0x1.abc72a6afb59dp-18",
+    "0x1.d7e43a11b5c1dp-19",
+    "0x1.3d911dc5a8a09p-18",
+    "0x1.58b15993ff0f6p-19",
+    "0x1.3d911dc5a8a09p-18",
+    "0x1.2e173f02bf7fcp-17"
+   ],
+   "perr": [
+    "0x1.9b11c87aa3b82p-8",
+    "0x1.eb896d95e2541p-10",
+    "0x1.89481d37b5d8cp-9"
+   ],
+   "r_squared": "0x1.fff0ff826631fp-1",
+   "residuals": [
+    "-0x1.3f53b08c5a800p-10",
+    "-0x1.cb931b3917c00p-8",
+    "0x1.db1acd9b92400p-8",
+    "0x1.0f005857a5c00p-7",
+    "-0x1.cf34419ed2200p-8",
+    "-0x1.30e0a96d82400p-8",
+    "0x1.36ab05648db00p-7",
+    "0x1.718be0a33b400p-9",
+    "-0x1.448b46df76c00p-7",
+    "-0x1.1ee87842ec000p-13",
+    "0x1.3edffc38f9280p-7",
+    "-0x1.7787cf595a400p-9",
+    "-0x1.3743646e23280p-7",
+    "0x1.38d3717e31f00p-8",
+    "0x1.ec95ddaf10800p-8",
+    "-0x1.ed910494b2600p-8",
+    "-0x1.9a507b7778d00p-8",
+    "0x1.14d4411576b80p-7",
+    "0x1.aab4ab485bf00p-9",
+    "-0x1.48bca1629fe40p-7",
+    "-0x1.44fa501fb7400p-10",
+    "0x1.3f37a3fcf2700p-7",
+    "-0x1.fbd289e623c00p-10",
+    "-0x1.3eda127514f00p-7",
+    "0x1.0ca0f80935f00p-8",
+    "0x1.0e71d2c46ae40p-7",
+    "-0x1.b2022f6ce6280p-8",
+    "-0x1.b8beb32dc5000p-8",
+    "0x1.0e2af1cdd7740p-7",
+    "0x1.209ce7fab6400p-8",
+    "-0x1.36650ab5b1840p-7",
+    "-0x1.e54cd44b1a200p-10",
+    "0x1.4929d5e0d6c00p-7",
+    "-0x1.708f4738f3c00p-11",
+    "-0x1.3ca467ec30100p-7",
+    "0x1.d00650767bd00p-9",
+    "0x1.27743ec8d9d80p-7",
+    "-0x1.6f3892d092e00p-8",
+    "-0x1.d255324d70380p-8",
+    "0x1.04aa4f6486a00p-7"
+   ],
+   "x_fit": {
+    "shape": [
+     200
+    ],
+    "dtype": "float64",
+    "sha256": "1c701530117c8892"
+   },
+   "y_fit": [
+    "0x1.7a197aaaa9bd6p+1",
+    "0x1.167e54e54cdabp+1",
+    "0x1.a4ef8851bccf4p+0",
+    "0x1.4805155b5376bp+0",
+    "0x1.08903344cbf7dp+0",
+    "0x1.ba739d016c6cap-1",
+    "0x1.7f41d933d6d5bp-1",
+    "0x1.56d4a1797bdfep-1",
+    "0x1.3b38a9f9f41ebp-1",
+    "0x1.285d9e1589572p-1"
+   ],
+   "fit_func_on_data": [
+    "0x1.7a197aaaa9bd6p+1",
+    "0x1.0115f6766ef2fp+1",
+    "0x1.6d5f374a02d41p+0",
+    "0x1.11e3a2d7b90e6p+0",
+    "0x1.b34a553b9d3d7p-1",
+    "0x1.6e21d648d242ap-1",
+    "0x1.439d07427b3d4p-1",
+    "0x1.2978fef6c625cp-1"
+   ],
+   "keys": [
+    "fit_func",
+    "loss",
+    "param_names",
+    "pcov",
+    "perr",
+    "popt",
+    "r_squared",
+    "residuals",
+    "x_data_used",
+    "x_fit",
+    "y_data_used",
+    "y_fit"
+   ],
+   "loss": "linear",
+   "warnings": []
+  }
+ },
+ "param_names_is_fresh_list": true,
+ "plugin_param_names_is_registered_list": true
+}

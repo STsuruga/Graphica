@@ -40,10 +40,14 @@
 - 新しい K: K-29(保存前の Python スクリプトの書き出しがサブプロットを 1×1 と見なし、2 枚目以降が抜ける。R-1 のあと)。
 - R-0.8 の検証済み(`0e6ffef`): 特性テスト 105 件が 2 回続けて一致(約 2 分 10 秒)、フルスイート 124 チャンク・3,254 件緑(約 19 分)。
   基準のコミット `6b33bdc` を `tests/characterization/ENVIRONMENT.md` に記録。
-- 次: `refactor/r0-characterization` → `refactor/architecture` の PR(**ユーザーの承認待ち**)。PR の CI で macOS と
-  Windows Server での特性テストの振る舞いを確かめる(OS で違う記録は pinned_os で飛ばす設計)。
-  そのあと K-22・K-23 は済みなので、R-0 のあとに直す K は無し。M2(R-2・R-4・R-5)へ。
-  CI(macOS / Windows Server)で特性テストがどう振る舞うかは、R-0.8 の PR で初めて分かる。
+- **M1(R-0)完了**: PR #25 を統合ブランチにマージ(`317bf4c`)。CI で分かったこと: 特性テストは基準の OS(Windows)でだけ比べる
+  (macOS は数値の最後の桁・ファイルのバイト列・図の大きさが違う)。圧縮は展開して比べ、PDF レポートはフォントの版で変わるのでバイト列を比べない。
+- R-2 の実装と検証は済み(`refactor/r2-fit-models`): `core/fit_models.py` のモデルの表。先に全モデルを float.hex で基準化し、変更後も 1 ビット一致。
+- R-2 のあとの K はユーザーの選択どおり直した(マージ順に積み重ねたブランチ、各 PR は R-2 のあと):
+  K-20 `fix/k20-plugin-fit-name`(プラグイン名の完全一致を先に)→ K-6 `fix/k6-fit-param-errors`(値 ± 誤差)→
+  K-25 `fix/k25-fit-model-id`(安定した model_id を保存)。積み重ねた先端でフルスイート 127 チャンク・3,285 件緑。
+- 次: R-2 の PR → K-20・K-6・K-25 の PR(いずれもユーザーの承認後)→ R-4。
+- 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
 
