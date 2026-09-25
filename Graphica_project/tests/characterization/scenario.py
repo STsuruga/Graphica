@@ -12,18 +12,32 @@ class ModalLog:
 
     台本が空のときの答え: 通知は Ok、ファイル・入力の問い合わせは取り消し、ダイアログの exec は Rejected。
     はい/いいえの問いは答えを決めないと挙動が決まらないので、台本が無ければ失敗にする。
+    accept_defaults() のあとは、利用者が既定値のまま OK / はい を押したときの答えを返す(ファイルの選択は除く)。
     """
 
     def __init__(self) -> None:
         self.entries: list[dict[str, Any]] = []
         self._answers: deque[Any] = deque()
+        self._answers_by_kind: dict[str, deque[Any]] = {}
+        self._accepting = False
 
     def respond(self, *answers: Any) -> None:
         self._answers.extend(answers)
 
-    def _next(self, kind: str, default: Any) -> Any:
+    def respond_to(self, kind: str, *answers: Any) -> None:
+        """種類("getItem"・"getSaveFileName"・"question"・"exec" など)を決めて答えを積む。こちらが先に使われる。"""
+        self._answers_by_kind.setdefault(kind, deque()).extend(answers)
+
+    def accept_defaults(self) -> None:
+        self._accepting = True
+
+    def _next(self, kind: str, default: Any, accepted: Any = None) -> Any:
+        if self._answers_by_kind.get(kind):
+            return self._answers_by_kind[kind].popleft()
         if self._answers:
             return self._answers.popleft()
+        if self._accepting and accepted is not None:
+            return accepted
         if default is _REQUIRED:
             raise AssertionError(f"{kind} に答える台本が無い(ModalLog.respond で積む)")
         return default
@@ -55,7 +69,8 @@ def _message_box_static(log: ModalLog, kind: str, default: Any):
         if defaultButton is not None:
             entry["default"] = getattr(defaultButton, "name", str(defaultButton))
         log.record(entry)
-        return log._next(kind, default)
+        accepted = QMessageBox.StandardButton.Yes if kind == "question" else None
+        return log._next(kind, default, accepted)
     return show
 
 
@@ -72,10 +87,27 @@ def _file_dialog(log: ModalLog, kind: str, default: Any):
     return show
 
 
+def _input_default(kind: str, args: tuple, kwargs: dict) -> Any:
+    """既定値のまま OK を押したときに返る値。"""
+    if kind == "getText":
+        return kwargs.get("text", args[1] if len(args) > 1 else "")
+    if kind == "getMultiLineText":
+        return kwargs.get("text", args[0] if args else "")
+    if kind in ("getInt", "getDouble"):
+        return kwargs.get("value", args[0] if args else 0)
+    items = list(kwargs.get("items", args[0] if args else []))
+    current = kwargs.get("current", args[1] if len(args) > 1 else 0)
+    return items[current] if items else ""
+
+
 def _input_dialog(log: ModalLog, kind: str, default: Any):
     def show(parent, title, label, *args, **kwargs):
-        log.record({"kind": f"QInputDialog.{kind}", "title": title, "label": label})
-        return log._next(kind, default)
+        value = _input_default(kind, args, kwargs)
+        entry = {"kind": f"QInputDialog.{kind}", "title": title, "label": label, "default": value}
+        if kind == "getItem":
+            entry["items"] = list(kwargs.get("items", args[0] if args else []))
+        log.record(entry)
+        return log._next(kind, default, (value, True))
     return show
 
 
@@ -88,7 +120,7 @@ def _dialog_exec(log: ModalLog):
             entry["icon"] = self.icon().name
             entry["buttons"] = [b.text() for b in self.buttons()]
         log.record(entry)
-        answer = log._next("exec", QDialog.DialogCode.Rejected)
+        answer = log._next("exec", QDialog.DialogCode.Rejected, QDialog.DialogCode.Accepted)
         if callable(answer):
             return answer(self)
         return int(answer.value) if hasattr(answer, "value") else answer
@@ -137,8 +169,8 @@ class AppEnvironment:
             settings.setValue(key, value)
         settings.sync()
 
-    def use_plugins(self, example_plugin: bool) -> None:
-        """利用者のプラグインフォルダは読まない。同梱の example_plugin を読むかどうかだけを選ぶ。"""
+    def use_plugins(self, example_plugin: bool, extra_dirs: tuple[str, ...] = ()) -> None:
+        """利用者のプラグインフォルダは読まない。同梱の example_plugin と、シナリオが用意したフォルダだけを読む。"""
         import graphica.core.analysis as analysis_module
         import graphica.core.plugin_api as plugin_api_module
         import graphica.gui.main_window as main_window_module
@@ -146,7 +178,7 @@ class AppEnvironment:
         self.monkeypatch.setattr(plugin_api_module, "_singleton_api", None)
         self.monkeypatch.setattr(plugin_api_module, "_singleton_manager", None)
         self.monkeypatch.setattr(analysis_module, "_PLUGIN_FIT_FUNCTIONS", {})
-        paths = [main_window_module.resource_path("plugins")] if example_plugin else []
+        paths = ([main_window_module.resource_path("plugins")] if example_plugin else []) + list(extra_dirs)
         self.monkeypatch.setattr(main_window_module, "plugin_search_paths", lambda: list(paths))
 
     def main_window(self, *, language: str = "ja", dark: bool = False, example_plugin: bool = True, **settings):
@@ -161,11 +193,11 @@ class AppEnvironment:
         return window
 
     def tab(self, *, language: str = "ja", dark: bool = False, example_plugin: bool = False,
-            size: tuple[int, int] = (1100, 700), **settings):
+            plugin_dirs: tuple[str, ...] = (), size: tuple[int, int] = (1100, 700), **settings):
         from graphica.gui.main_window import PlotterApp
 
         self.settings(language=language, dark_mode=dark, autosave_dir=str(self.tmp_path / "autosave"), **settings)
-        self.use_plugins(example_plugin)
+        self.use_plugins(example_plugin, plugin_dirs)
         window = PlotterApp(run_startup_checks=False, tab_id=2)
         window.resize(*size)
         window.show()

@@ -1,0 +1,533 @@
+{
+ "reloaded": {
+  "modals": [],
+  "after": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 1
+   },
+   "status": "「元」を元ファイルから再読み込みしました",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y"
+     ],
+     "dtypes": [
+      "int64",
+      "int64"
+     ],
+     "shape": [
+      4,
+      2
+     ],
+     "index": {
+      "shape": [
+       4
+      ],
+      "dtype": "int64",
+      "sha256": "e681d5e4b7174947"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        4
+       ],
+       "dtype": "int64",
+       "sha256": "e681d5e4b7174947"
+      },
+      "y": {
+       "shape": [
+        4
+       ],
+       "dtype": "int64",
+       "sha256": "058aa7cd04e3a425"
+      }
+     },
+     "name": "元",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": "<CASE>/source.csv",
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    }
+   ],
+   "annotations": [
+    []
+   ],
+   "windows": []
+  },
+  "clipboard": "",
+  "after_undo_all": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 0
+   }
+  },
+  "after_redo_all": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 1
+   }
+  },
+  "undo_modals": []
+ },
+ "missing_column": {
+  "modals": [
+   {
+    "kind": "QMessageBox.warning",
+    "title": "再読み込み",
+    "text": "再読み込みしたファイルに、現在使用中の列が見つかりませんでした:\nx\ny\n\nファイルの構造(列名/区切り文字/ヘッダー行など)が変わった可能性があります。「データセット追加」から改めてインポートし直すことをお勧めします。再読み込みは中止しました。"
+   }
+  ],
+  "after": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 1
+   },
+   "status": "「元」を元ファイルから再読み込みしました",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y"
+     ],
+     "dtypes": [
+      "int64",
+      "int64"
+     ],
+     "shape": [
+      4,
+      2
+     ],
+     "index": {
+      "shape": [
+       4
+      ],
+      "dtype": "int64",
+      "sha256": "e681d5e4b7174947"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        4
+       ],
+       "dtype": "int64",
+       "sha256": "e681d5e4b7174947"
+      },
+      "y": {
+       "shape": [
+        4
+       ],
+       "dtype": "int64",
+       "sha256": "058aa7cd04e3a425"
+      }
+     },
+     "name": "元",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": "<CASE>/source.csv",
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    }
+   ],
+   "annotations": [
+    []
+   ],
+   "windows": []
+  },
+  "clipboard": "",
+  "after_undo_all": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 0
+   }
+  },
+  "after_redo_all": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 1
+   }
+  },
+  "undo_modals": []
+ },
+ "missing_file": {
+  "modals": [
+   {
+    "kind": "QMessageBox.warning",
+    "title": "再読み込み",
+    "text": "元ファイルが見つかりません:\n<CASE>/source.csv"
+   }
+  ],
+  "after": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 1
+   },
+   "status": "「元」を元ファイルから再読み込みしました",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y"
+     ],
+     "dtypes": [
+      "int64",
+      "int64"
+     ],
+     "shape": [
+      4,
+      2
+     ],
+     "index": {
+      "shape": [
+       4
+      ],
+      "dtype": "int64",
+      "sha256": "e681d5e4b7174947"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        4
+       ],
+       "dtype": "int64",
+       "sha256": "e681d5e4b7174947"
+      },
+      "y": {
+       "shape": [
+        4
+       ],
+       "dtype": "int64",
+       "sha256": "058aa7cd04e3a425"
+      }
+     },
+     "name": "元",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": "<CASE>/source.csv",
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    }
+   ],
+   "annotations": [
+    []
+   ],
+   "windows": []
+  },
+  "clipboard": "",
+  "after_undo_all": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 0
+   }
+  },
+  "after_redo_all": {
+   "draw_order": [
+    "元"
+   ],
+   "tree": [
+    {
+     "text": "元",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "元"
+    ]
+   },
+   "current": "元",
+   "undo": {
+    "texts": [
+     "「元」を再読み込み"
+    ],
+    "index": 1
+   }
+  },
+  "undo_modals": []
+ }
+}

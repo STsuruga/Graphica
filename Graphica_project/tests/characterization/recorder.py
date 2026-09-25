@@ -502,3 +502,49 @@ def environment_line() -> str:
 
     return (f"{platform.platform()} / Python {sys.version.split()[0]} / PySide6 {PySide6.__version__} / "
             f"matplotlib {matplotlib.__version__} / numpy {np.__version__}")
+
+
+def window_contents(window) -> dict[str, Any]:
+    """結果の表示に使われた窓の中身(題・文字・表・一覧)。操作のあとに開いた非モーダルの窓の記録用。"""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import (
+        QAbstractButton,
+        QGroupBox,
+        QLabel,
+        QLineEdit,
+        QListWidget,
+        QPlainTextEdit,
+        QTableView,
+        QTextEdit,
+    )
+
+    texts: list[Any] = []
+
+    def table(view):
+        model = view.model()
+        headers = [str(model.headerData(c, Qt.Orientation.Horizontal)) for c in range(model.columnCount())]
+        rows = [[str(model.index(r, c).data()) for c in range(model.columnCount())] for r in range(model.rowCount())]
+        return {"table": headers, "rows": rows}
+
+    def walk(widget):
+        if _is_qt_internal(widget):
+            return
+        if isinstance(widget, (QTextEdit, QPlainTextEdit)):
+            texts.append({"text": widget.toPlainText()})
+            return
+        if isinstance(widget, QTableView):
+            texts.append(table(widget))
+            return
+        if isinstance(widget, QListWidget):
+            texts.append({"list": [widget.item(i).text() for i in range(widget.count())]})
+            return
+        if isinstance(widget, (QLabel, QLineEdit, QAbstractButton)) and widget.text():
+            texts.append(widget.text())
+        if isinstance(widget, QGroupBox) and widget.title():
+            texts.append(widget.title())
+        for child in widget.children():
+            if hasattr(child, "isWidgetType") and child.isWidgetType():
+                walk(child)
+
+    walk(window)
+    return {"class": type(window).__name__, "title": window.windowTitle(), "contents": texts}

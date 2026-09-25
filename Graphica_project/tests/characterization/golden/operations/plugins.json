@@ -1,0 +1,1611 @@
+{
+ "registered": {
+  "processors": [
+   "倍にする",
+   "失敗する処理"
+  ],
+  "analyzers": [
+   "要約"
+  ],
+  "menu_actions": [
+   "選択中データセットの点数を表示"
+  ],
+  "plugin_menu": [
+   [
+    {
+     "text": "選択中データセットの点数を表示"
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "データ処理",
+     "submenu": [
+      {
+       "text": "general",
+       "submenu": [
+        {
+         "text": "失敗する処理"
+        }
+       ]
+      },
+      {
+       "text": "テスト",
+       "submenu": [
+        {
+         "text": "倍にする"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "解析",
+     "submenu": [
+      {
+       "text": "要約"
+      }
+     ]
+    }
+   ]
+  ]
+ },
+ "processor": {
+  "modals": [
+   {
+    "kind": "exec",
+    "class": "PluginParamDialog",
+    "title": "倍にする"
+   }
+  ],
+  "after": {
+   "draw_order": [
+    "A",
+    "A x2.0"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "A x2.0",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "A x2.0"
+    ]
+   },
+   "current": "A x2.0",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする"
+    ],
+    "index": 1
+   },
+   "status": "「A x2.0」を追加しました",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "4e4790ab15ae5f8e"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": "yerr",
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "f2876a58c1a2a3d1"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A x2.0",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": "char_test_plugin",
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000002"
+    }
+   ],
+   "annotations": [
+    []
+   ],
+   "windows": []
+  },
+  "clipboard": "",
+  "after_undo_all": {
+   "draw_order": [
+    "A"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A"
+    ]
+   },
+   "current": "A",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする"
+    ],
+    "index": 0
+   }
+  },
+  "after_redo_all": {
+   "draw_order": [
+    "A",
+    "A x2.0"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "A x2.0",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "A x2.0"
+    ]
+   },
+   "current": "A x2.0",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする"
+    ],
+    "index": 1
+   }
+  },
+  "undo_modals": []
+ },
+ "broken_processor": {
+  "modals": [
+   {
+    "kind": "QMessageBox.critical",
+    "title": "データ処理エラー",
+    "text": "[char_test_plugin] 「失敗する処理」の実行に失敗しました: わざと失敗"
+   }
+  ],
+  "after": {
+   "draw_order": [
+    "A",
+    "A x2.0"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "A x2.0",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "A x2.0"
+    ]
+   },
+   "current": "A x2.0",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする"
+    ],
+    "index": 1
+   },
+   "status": "「A x2.0」を追加しました",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "4e4790ab15ae5f8e"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": "yerr",
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "f2876a58c1a2a3d1"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A x2.0",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": "char_test_plugin",
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000002"
+    }
+   ],
+   "annotations": [
+    []
+   ],
+   "windows": []
+  },
+  "clipboard": "",
+  "after_undo_all": {
+   "draw_order": [
+    "A"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A"
+    ]
+   },
+   "current": "A",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする"
+    ],
+    "index": 0
+   }
+  },
+  "after_redo_all": {
+   "draw_order": [
+    "A",
+    "A x2.0"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "A x2.0",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "A x2.0"
+    ]
+   },
+   "current": "A x2.0",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする"
+    ],
+    "index": 1
+   }
+  },
+  "undo_modals": []
+ },
+ "analyzer": {
+  "modals": [],
+  "after": {
+   "draw_order": [
+    "A",
+    "A x2.0",
+    "head"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "A x2.0",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "head",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "A x2.0",
+     "head"
+    ]
+   },
+   "current": "head",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする",
+     "解析による追加: 要約",
+     "解析による注釈追加: 要約"
+    ],
+    "index": 3
+   },
+   "status": "「要約」を実行しました",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "4e4790ab15ae5f8e"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": "yerr",
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "f2876a58c1a2a3d1"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A x2.0",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": "char_test_plugin",
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000002"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      3,
+      4
+     ],
+     "index": {
+      "shape": [
+       3
+      ],
+      "dtype": "int64",
+      "sha256": "540efeb2de09e941"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        3
+       ],
+       "dtype": "float64",
+       "sha256": "024e08f216405492"
+      },
+      "y": {
+       "shape": [
+        3
+       ],
+       "dtype": "float64",
+       "sha256": "fb41b2917c69b21f"
+      },
+      "yerr": {
+       "shape": [
+        3
+       ],
+       "dtype": "float64",
+       "sha256": "097e64a3f8a69362"
+      },
+      "grp": {
+       "shape": [
+        3
+       ],
+       "dtype": "object",
+       "sha256": "30ed2beac3f11109"
+      }
+     },
+     "name": "head",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": "char_test_plugin",
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000003"
+    }
+   ],
+   "annotations": [
+    [
+     {
+      "type": "text",
+      "text": "max",
+      "xy": [
+       1.0,
+       6.787108453
+      ],
+      "xytext": [
+       1.0,
+       6.787108453
+      ],
+      "color": "#000000"
+     }
+    ]
+   ],
+   "windows": [
+    {
+     "class": "ResultDialog",
+     "title": "要約",
+     "contents": [
+      {
+       "text": "[要約] の解析結果"
+      },
+      "コピー",
+      "CSVとして保存...",
+      "閉じる"
+     ]
+    }
+   ]
+  },
+  "clipboard": "",
+  "after_undo_all": {
+   "draw_order": [
+    "A"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A"
+    ]
+   },
+   "current": "A",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする",
+     "解析による追加: 要約",
+     "解析による注釈追加: 要約"
+    ],
+    "index": 0
+   }
+  },
+  "after_redo_all": {
+   "draw_order": [
+    "A",
+    "A x2.0",
+    "head"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "A x2.0",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "head",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "A x2.0",
+     "head"
+    ]
+   },
+   "current": "head",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする",
+     "解析による追加: 要約",
+     "解析による注釈追加: 要約"
+    ],
+    "index": 3
+   }
+  },
+  "undo_modals": []
+ },
+ "example_menu_action": {
+  "modals": [
+   {
+    "kind": "QMessageBox.information",
+    "title": "example_plugin",
+    "text": "「head」の表示中の点数: 3"
+   }
+  ],
+  "after": {
+   "draw_order": [
+    "A",
+    "A x2.0",
+    "head"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "A x2.0",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "head",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "A x2.0",
+     "head"
+    ]
+   },
+   "current": "head",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする",
+     "解析による追加: 要約",
+     "解析による注釈追加: 要約"
+    ],
+    "index": 3
+   },
+   "status": "「要約」を実行しました",
+   "datasets": [
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "4e4790ab15ae5f8e"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": "yerr",
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": null,
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000001"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      41,
+      4
+     ],
+     "index": {
+      "shape": [
+       41
+      ],
+      "dtype": "int64",
+      "sha256": "d0c758a033ea48e3"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "cba92fb8e4f4121d"
+      },
+      "y": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "f2876a58c1a2a3d1"
+      },
+      "yerr": {
+       "shape": [
+        41
+       ],
+       "dtype": "float64",
+       "sha256": "6cfa52f875bb0d16"
+      },
+      "grp": {
+       "shape": [
+        41
+       ],
+       "dtype": "object",
+       "sha256": "61c32a90c773610f"
+      }
+     },
+     "name": "A x2.0",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": "char_test_plugin",
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000002"
+    },
+    {
+     "columns": [
+      "x",
+      "y",
+      "yerr",
+      "grp"
+     ],
+     "dtypes": [
+      "float64",
+      "float64",
+      "float64",
+      "object"
+     ],
+     "shape": [
+      3,
+      4
+     ],
+     "index": {
+      "shape": [
+       3
+      ],
+      "dtype": "int64",
+      "sha256": "540efeb2de09e941"
+     },
+     "values": {
+      "x": {
+       "shape": [
+        3
+       ],
+       "dtype": "float64",
+       "sha256": "024e08f216405492"
+      },
+      "y": {
+       "shape": [
+        3
+       ],
+       "dtype": "float64",
+       "sha256": "fb41b2917c69b21f"
+      },
+      "yerr": {
+       "shape": [
+        3
+       ],
+       "dtype": "float64",
+       "sha256": "097e64a3f8a69362"
+      },
+      "grp": {
+       "shape": [
+        3
+       ],
+       "dtype": "object",
+       "sha256": "30ed2beac3f11109"
+      }
+     },
+     "name": "head",
+     "x_col_name": "x",
+     "y_col_name": "y",
+     "plot_type": "Line",
+     "color": "#1f77b4",
+     "linestyle": "-",
+     "linewidth": 1.5,
+     "marker": "o",
+     "markersize": 6.0,
+     "smoothing": false,
+     "smoothing_method": "cubic_spline",
+     "alpha": 1.0,
+     "gradient_enabled": false,
+     "gradient_color2": "#ffffff",
+     "gradient_target": "line",
+     "waterfall_enabled": false,
+     "waterfall_offset_x": 0.0,
+     "waterfall_offset_y": 1.0,
+     "waterfall_occlusion_enabled": true,
+     "waterfall_depth_shrink_enabled": false,
+     "waterfall_depth_shrink_ratio": 0.03,
+     "show_point_labels": false,
+     "point_label_col_name": null,
+     "x_err_col_name": null,
+     "y_err_col_name": null,
+     "error_display": "bar",
+     "masked_row_indices": [],
+     "fit_info": null,
+     "fit_result": null,
+     "fit_band_display": null,
+     "source_plugin": "char_test_plugin",
+     "source_file": null,
+     "source_sheet": null,
+     "nan_policy": "gap",
+     "provenance": null,
+     "use_secondary_y": false,
+     "subplot_target": 0,
+     "data_kind": "1d",
+     "z_col_name": null,
+     "grid_interp_method": "linear",
+     "grid_resolution": null,
+     "colormap": "viridis",
+     "vmin": null,
+     "vmax": null,
+     "map_display_mode": "heatmap",
+     "contour_levels": 10,
+     "visible": true,
+     "artist": "<Line2D>",
+     "dataset_id": "00000000000000000000000000000003"
+    }
+   ],
+   "annotations": [
+    [
+     {
+      "type": "text",
+      "text": "max",
+      "xy": [
+       1.0,
+       6.787108453
+      ],
+      "xytext": [
+       1.0,
+       6.787108453
+      ],
+      "color": "#000000"
+     }
+    ]
+   ],
+   "windows": []
+  },
+  "clipboard": "",
+  "after_undo_all": {
+   "draw_order": [
+    "A"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A"
+    ]
+   },
+   "current": "A",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする",
+     "解析による追加: 要約",
+     "解析による注釈追加: 要約"
+    ],
+    "index": 0
+   }
+  },
+  "after_redo_all": {
+   "draw_order": [
+    "A",
+    "A x2.0",
+    "head"
+   ],
+   "tree": [
+    {
+     "text": "A",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "A x2.0",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": false
+    },
+    {
+     "text": "head",
+     "checked": "Unchecked",
+     "hidden": false,
+     "selected": true
+    }
+   ],
+   "group_tree": {
+    "": [
+     "A",
+     "A x2.0",
+     "head"
+    ]
+   },
+   "current": "head",
+   "undo": {
+    "texts": [
+     "データ処理: 倍にする",
+     "解析による追加: 要約",
+     "解析による注釈追加: 要約"
+    ],
+    "index": 3
+   }
+  },
+  "undo_modals": []
+ }
+}
