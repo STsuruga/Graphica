@@ -70,7 +70,17 @@ def _png_rgba(data):
 _SVG_ID = re.compile(r'id="([^"]+)"')
 
 
+_EMBEDDED_PNG = re.compile(r"data:image/png;base64,([A-Za-z0-9+/=\s]+)")
+
+
+def _pixels_digest(png_bytes):
+    return hashlib.sha256(np.ascontiguousarray(_png_rgba(png_bytes)).tobytes()).hexdigest()[:16]
+
+
 def normalize_svg(text):
+    # 埋め込みの PNG は zlib の版で圧縮後のバイト列が変わるので、画素のハッシュに置き換える
+    text = _EMBEDDED_PNG.sub(
+        lambda m: "data:image/png;pixels," + _pixels_digest(base64.b64decode(re.sub(r"\s", "", m.group(1)))), text)
     ids = []
     for match in _SVG_ID.finditer(text):
         if match.group(1) not in ids:
@@ -78,6 +88,30 @@ def normalize_svg(text):
     for index, original in sorted(enumerate(ids), key=lambda item: -len(item[1])):
         text = re.sub(rf'(?<=["#(]){re.escape(original)}(?=[")])', f"id{index}", text)
     return text
+
+
+_PDF_STREAM = re.compile(rb"(<<(?:(?!>>\s*stream).)*?>>)\s*stream\r?\n(.*?)\r?\nendstream", re.S)
+
+
+def normalize_pdf(data):
+    """圧縮した stream は展開した中身のハッシュにし、長さと相互参照表の位置は消す(どれも zlib の版で変わる)。"""
+    import zlib
+
+    def replace(match):
+        header, body = match.group(1), match.group(2)
+        if b"/FlateDecode" in header:
+            try:
+                body = zlib.decompress(body)
+            except zlib.error:
+                pass
+        header = re.sub(rb"/Length\s+\d+(\s+0\s+R)?", b"/Length ?", header)
+        return header + b" stream " + hashlib.sha256(body).hexdigest().encode() + b" endstream"
+
+    data = _PDF_STREAM.sub(replace, data)
+    data = re.sub(rb"xref.*?trailer", b"xref ? trailer", data, flags=re.S)
+    data = re.sub(rb"startxref\s+\d+", b"startxref ?", data)
+    # /Length を別のオブジェクトに置く書き方では、長さの数だけのオブジェクトができる
+    return re.sub(rb"(\d+ 0 obj\s*)\d+(\s*endobj)", rb"\1?\2", data)
 
 
 def _file_hashes(files):
@@ -109,7 +143,7 @@ def test_export_plot(app_env, modal_log, normalizer, tmp_path, fmt):
         check_file_hashes(f"exports/plot_{fmt}", {"file": normalize_svg(data.decode("utf-8")).encode("utf-8")})
     else:
         record["pdf_pages"] = data.count(b"/Type /Page\n") + data.count(b"/Type /Page ")
-        check_file_hashes(f"exports/plot_{fmt}", {"file": data})
+        check_file_hashes(f"exports/plot_{fmt}", {"file": normalize_pdf(data)})
     recorder.check(f"exports/plot_{fmt}", record, normalizer)
 
 
@@ -212,7 +246,7 @@ def test_methods_text_and_reports(app_env, modal_log, normalizer, tmp_path):
     record["pdf_modals"] = modal_log.take()
     record["pdf_pages"] = pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page ")
     record["status"] = tab.statusBar().currentMessage()
-    check_file_hashes("exports/report_pdf", {"file": pdf})
+    check_file_hashes("exports/report_pdf", {"file": normalize_pdf(pdf)})
     recorder.check("exports/methods_and_reports", record, normalizer)
 
 
