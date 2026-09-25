@@ -329,6 +329,23 @@ def test_register_fit_function_with_callable_p0(clear_plugin_fit_registry):
     assert calls == [(20, 20)]
 
 
+def test_plugin_name_containing_a_builtin_keyword_uses_the_plugin_function(clear_plugin_fit_registry):
+    """K-20: 「二重ガウシアン」は組み込みの「ガウシアン」を含むが、登録した関数そのもので計算する。"""
+    def two_gaussians(x, a1, b1, c1, a2, b2, c2):
+        return (a1 * np.exp(-((x - b1) ** 2) / (2 * c1 ** 2))
+                + a2 * np.exp(-((x - b2) ** 2) / (2 * c2 ** 2)))
+
+    params = ["a1", "b1", "c1", "a2", "b2", "c2"]
+    register_fit_function("二重ガウシアン", two_gaussians, params, p0=[2.0, 3.0, 0.8, 1.0, 7.0, 0.8])
+    assert get_fit_param_names("二重ガウシアン") == params
+
+    x = np.linspace(0, 10, 200)
+    y = two_gaussians(x, 2.0, 3.0, 0.7, 1.0, 7.0, 1.0)
+    result = calculate_curve_fit(x, y, "二重ガウシアン")
+    assert result['param_names'] == params
+    np.testing.assert_allclose(result['popt'], [2.0, 3.0, 0.7, 1.0, 7.0, 1.0], atol=1e-6)
+
+
 def test_register_fit_function_rejects_duplicate_name(clear_plugin_fit_registry):
     register_fit_function("重複テスト", lambda x, a: a * x, ["a"])
     with pytest.raises(ValueError, match="既に登録されています"):
