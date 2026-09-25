@@ -18,6 +18,7 @@ on:
   pull_request:
     branches:
       - master
+      - refactor/architecture
   workflow_dispatch: {}
 
 # 同じ ref の古いランは取り消す。タグは ref が別なので master の push に取り消されない。
