@@ -1,5 +1,5 @@
 """フィットのモデルを固定する: 全種類・プラグインの関数・カスタム数式について、パラメータ名・popt・pcov・R²・残差・
-出た警告、失敗するときの例外の型と文言。数値は float.hex で完全一致を見るので、基準を取った OS でだけ比べる。
+出た警告、失敗するときの例外の型と文言。数値は float.hex で完全一致を見る。
 """
 import warnings
 
@@ -7,8 +7,6 @@ import numpy as np
 import pytest
 
 import recorder
-
-pytestmark = pytest.mark.pinned_os
 
 X = np.linspace(0.5, 10.0, 40)
 _RIPPLE = 0.01 * np.sin(7.0 * X)
