@@ -42,6 +42,10 @@ def updating() -> bool:
     return os.environ.get(UPDATE_ENV) == "1"
 
 
+def pinned_os_matches() -> bool:
+    return platform.system() == PIXEL_ENVIRONMENT["os"]
+
+
 def pixel_environment_matches() -> bool:
     import matplotlib
     import PySide6

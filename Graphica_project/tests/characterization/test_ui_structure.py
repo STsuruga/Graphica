@@ -10,6 +10,8 @@ from PySide6.QtWidgets import QApplication, QDockWidget, QToolBar
 import recorder
 from scenario import pump
 
+pytestmark = pytest.mark.pinned_os
+
 
 def _theme_state(normalizer):
     app = QApplication.instance()

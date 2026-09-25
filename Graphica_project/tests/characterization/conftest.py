@@ -15,6 +15,17 @@ def _characterization_determinism(deterministic_ids_and_time):
     yield
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "pinned_os: 標準ショートカットやフォントで結果が OS ごとに違うので、基準を取った OS でだけ比べる")
+
+
+@pytest.fixture(autouse=True)
+def _skip_on_other_os(request):
+    if request.node.get_closest_marker("pinned_os") and not recorder.pinned_os_matches():
+        pytest.skip(f"基準は {recorder.PIXEL_ENVIRONMENT['os']} で取った(ENVIRONMENT.md)")
+
+
 @pytest.fixture
 def normalizer(tmp_path):
     norm = recorder.Normalizer()
