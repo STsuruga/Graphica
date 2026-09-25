@@ -4,11 +4,12 @@
 """
 import logging
 
-from PySide6.QtCore import Qt, QSettings, QSize
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QUndoGroup
 from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QMessageBox, QDockWidget,
                                QUndoView, QWidget, QHBoxLayout)
 
+from graphica.gui import app_settings
 from graphica.gui.main_window import PlotterApp, resource_path
 from graphica.gui.icon_utils import icon as svg_icon
 from graphica.gui import theme
@@ -28,7 +29,7 @@ class MainAppWindow(QMainWindow):
         self.setWindowIcon(QIcon(icon_path))
 
         # ウィンドウ全体の大きさと位置はここで持つ
-        self._settings = QSettings("Graphica", "Graphica")
+        self._settings = app_settings.open_settings()
 
         # 各タブは自分の QUndoStack を持ち、ここでグループにまとめて、表示中のタブのものを有効にする
         # (履歴パネルはグループを通して表示中のタブの履歴を出す)
@@ -75,7 +76,7 @@ class MainAppWindow(QMainWindow):
         corner_layout.addWidget(add_tab_button)
         self.tab_widget.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
 
-        saved_geometry = self._settings.value("window_geometry")
+        saved_geometry = app_settings.WINDOW_GEOMETRY.read(self._settings)
         if saved_geometry is not None:
             # 先にネイティブのハンドルを作る。窓が実体化する前に restoreGeometry() すると枠の幅が確定しておらず、
             # 画面上の位置の認識がずれて、ポップアップやクリックの位置が全部ずれる
@@ -168,7 +169,7 @@ class MainAppWindow(QMainWindow):
             if not project_window.confirm_unsaved_changes("Graphica を終了する"):
                 event.ignore()
                 return
-        self._settings.setValue("window_geometry", self.saveGeometry())
+        app_settings.WINDOW_GEOMETRY.write(self._settings, self.saveGeometry())
         for index in range(self.tab_widget.count()):
             project_window = self.tab_widget.widget(index)
             if project_window is not None:

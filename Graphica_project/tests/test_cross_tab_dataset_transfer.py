@@ -13,7 +13,7 @@ import pandas as pd
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-import graphica.gui.main_app_window as main_app_window_module
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.datasets.transfer as transfer_module
 from graphica.gui.main_app_window import MainAppWindow
@@ -28,8 +28,7 @@ def _make_isolated_main_app_window(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_app_window_module, "QSettings", IsolatedQSettings)
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
 
     monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
@@ -77,7 +76,7 @@ def test_get_sibling_tabs_standalone_plotter_app_returns_empty(tmp_path, monkeyp
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
 
     assert window._dataset_host.sibling_tabs() == []

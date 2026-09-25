@@ -14,6 +14,7 @@ import json
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QInputDialog
 
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.mixins.project_io_mixin as project_io_mixin_module
 from graphica.gui.main_window import PlotterApp
@@ -27,7 +28,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)
     window.show()

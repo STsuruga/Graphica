@@ -63,17 +63,12 @@ SPIN_BOX_MAX_DECIMALS = 16
 # 列番号は dataset_mixin も使うので gui/dataset_style_icon.py にある(循環 import を避けるため)
 DATASET_TREE_VISIBILITY_COLUMN_WIDTH = 26  # 目のアイコン(16px)+クリックの余白
 
-CANVAS_DETACHED_GEOMETRY_KEY = "canvas_detached_geometry"
-CANVAS_WAS_DETACHED_KEY = "canvas_was_detached"
 DEFAULT_DETACHED_CANVAS_WIDTH = 900
 DEFAULT_DETACHED_CANVAS_HEIGHT = 700
 
 # ドックの既定の配置を変えたら上げる。保存時の値と違えば保存済みの配置を戻さない
 # (戻すと、新しい既定の配置が既存の利用者に届かない)。
 DOCK_LAYOUT_VERSION = 4
-
-# 名前を付けて保存するドック配置(起動時に戻す直近の window_state とは別)
-DOCK_LAYOUT_PRESETS_SETTINGS_KEY = "dock_layout_presets"
 
 # データセットのプロパティ欄の節。行は self._prop_form(キー).addRow で足す(番号指定の挿入はしない)。
 DATASET_PROPERTY_SECTIONS = (
@@ -86,9 +81,6 @@ DATASET_PROPERTY_SECTIONS = (
     ('place',     '配置・情報'),
 )
 
-# 閉じている節のキーの JSON 配列。無い・空なら全部開く(節を足しても既定は開いたまま)
-DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY = "dataset_property_collapsed_sections"
-
 # プラグインの種類名は任意の長さなので、コンボの希望幅を固定して省略表示させる
 # (広がると QFormLayout の列幅を通じてドックに横スクロールバーが出る)。
 PLOT_TYPE_COMBO_MIN_CHARS = 16
@@ -99,7 +91,6 @@ COLORMAP_CHOICES = [
     'gray', 'Blues', 'Greens', 'Reds', 'YlOrRd',
 ]
 
-DEFAULT_AUTOSAVE_INTERVAL_MIN = 5  # 0 で無効
 AUTOSAVE_FILENAME = "autosave.graphica"
 AUTOSAVE_GENERATIONS = 3  # 最新の autosave.graphica を含む
 
@@ -124,12 +115,14 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDial
                                QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction,
                                QStyledItemDelegate, QStyleOptionViewItem, QStyle, QHeaderView)
 from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack, QPainter, QPainterPath
-from PySide6.QtCore import Qt, QTimer, QSettings, QSize, Signal, QRectF, QByteArray
+from PySide6.QtCore import Qt, QTimer, QSize, Signal, QRectF, QByteArray
 from graphica.models.project import ProjectModel
 from graphica.core.version import APP_NAME, __version__
-from graphica.core.i18n import tr, set_language, DEFAULT_LANGUAGE
+from graphica.core.i18n import tr, set_language
 from graphica.core.plugin_api import load_plugins_once, get_registered_importer_extensions
 from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui import app_settings
+from graphica.gui.app_settings import disabled_plugin_names
 from graphica.gui.datasets.colors import ColorController
 from graphica.gui.datasets.transfer import TransferController
 from graphica.gui.datasets.overlays import OverlayController
@@ -149,8 +142,7 @@ from graphica.ui_main_window import Ui_MainWindow
 from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from graphica.core.commands import AddDatasetCommand, RemoveDatasetCommand
-from graphica.gui.canvas import (MplCanvas, DEFAULT_POINT_LABEL_MAX_POINTS, DEFAULT_MAJOR_TICK_LENGTH,
-                        MINOR_TICK_LENGTH_AUTO)
+from graphica.gui.canvas import MplCanvas, DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
 from graphica.gui.minimap_widget import MinimapWidget
 from graphica.gui.detached_canvas_window import DetachedCanvasWindow
 from graphica.gui import theme
@@ -228,9 +220,7 @@ from graphica.gui.mixins.settings_mixin import SettingsMixin
 from graphica.gui.mixins.dataset_mixin import DatasetMixin
 from graphica.gui.mixins.mouse_mode_mixin import MouseModeMixin
 from graphica.gui.mixins.cursor_mixin import CursorMixin
-from graphica.gui.mixins.annotation_mixin import (
-    AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX
-)
+from graphica.gui.mixins.annotation_mixin import AnnotationMixin
 from graphica.gui.mixins.layout_edit_mixin import LayoutEditMixin, MIN_FREE_RECT_SIZE
 from graphica.gui.mixins.range_select_mixin import RangeSelectMixin
 from graphica.gui.mixins.peak_placement_mixin import PeakPlacementMixin
@@ -271,17 +261,6 @@ def plugin_search_paths():
         paths.append(bundled)
     paths.append(get_user_plugins_dir())
     return paths
-
-
-DISABLED_PLUGINS_SETTINGS_KEY = "disabled_plugins"
-
-
-def disabled_plugin_names(settings):
-    """QSettings は要素が1つのリストを文字列で返すことがあるので直す。"""
-    names = settings.value(DISABLED_PLUGINS_SETTINGS_KEY, [])
-    if isinstance(names, str):
-        names = [names]
-    return set(names) if names else set()
 
 
 # core は Qt に依存しないので、area の文字列から Qt の値への変換はここでする
@@ -417,18 +396,18 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.project = ProjectModel()
         # 新しい変更の経路が project.notify_changed() だけで描き直せるように(既存の箇所は _update_plot を直接呼ぶ)
         self.project.changed.connect(self._update_plot)
-        self.settings = QSettings("Graphica", "Graphica")
+        self.settings = app_settings.open_settings()
         self._update_autosave_path()
         load_recent_colors_into_picker(self.settings)
 
         # 以降に作るメニューやボタンの tr() に効くので、画面を組み立てる前に
-        set_language(self.settings.value("language", DEFAULT_LANGUAGE))
+        set_language(app_settings.LANGUAGE.read(self.settings))
 
         # 起動時に False にし、正常に閉じたときだけ closeEvent で True に戻す。次の起動で False なら異常終了とみなし、
         # オートセーブからの復元を勧める。アプリ全体で1つの値なので、2つ目以降のタブは触らない
         if self._run_startup_checks:
-            self._had_clean_exit = self.settings.value("clean_exit", True, type=bool)
-            self.settings.setValue("clean_exit", False)
+            self._had_clean_exit = app_settings.CLEAN_EXIT.read(self.settings)
+            app_settings.CLEAN_EXIT.write(self.settings, False)
         else:
             self._had_clean_exit = True
 
@@ -476,9 +455,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         # メニューを作るときに参照するので、ここで用意する(0分なら止めたまま)
         self.autosave_timer = QTimer(self)
         self.autosave_timer.timeout.connect(self.auto_save)
-        saved_interval_min = self.settings.value(
-            "autosave_interval_min", DEFAULT_AUTOSAVE_INTERVAL_MIN, type=int
-        )
+        saved_interval_min = app_settings.AUTOSAVE_INTERVAL_MIN.read(self.settings)
         if saved_interval_min > 0:
             self.autosave_timer.start(saved_interval_min * 60 * 1000)
 
@@ -502,10 +479,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._annotation_press_cid = None
         self._annotation_release_cid = None
         self._annotation_drag_start = None     # (ax, x, y)
-        self.snap_to_grid_enabled = self.settings.value(
-            "snap_to_grid_enabled", DEFAULT_SNAP_TO_GRID_ENABLED, type=bool)
-        self.snap_grid_interval_px = self.settings.value(
-            "snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, type=int)
+        self.snap_to_grid_enabled = app_settings.SNAP_TO_GRID_ENABLED.read(self.settings)
+        self.snap_grid_interval_px = app_settings.SNAP_GRID_INTERVAL_PX.read(self.settings)
 
         self.layout_edit_mode_enabled = False
         self._layout_edit_press_cid = None
@@ -568,12 +543,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _build_canvas_and_toolbar(self):
         self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
-        self.canvas.dark_mode = self.settings.value("dark_mode", False, type=bool)
+        self.canvas.dark_mode = app_settings.DARK_MODE.read(self.settings)
         # アイコンは作るときにテーマの色を焼き込むので、アイコンを作り始める前にテーマを当てる
         # (当てないと、ダークモードで起動したときツールバーのアイコンがライト用の色になって見えない)
         theme.apply_theme(QApplication.instance(), self.canvas.dark_mode)
-        self.canvas.point_label_max_points = self.settings.value(
-            "point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, type=int)
+        self.canvas.point_label_max_points = app_settings.POINT_LABEL_MAX_POINTS.read(self.settings)
         toolbar = NavigationToolbar(self.canvas, self)
         # matplotlib のツールバーはアイコンの明暗を作ったときに一度だけ決めるので、
         # ダークモードの切り替え(_on_toggle_dark_mode)で作り直せるよう持っておく
@@ -691,7 +665,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.minimap.range_selected.connect(self._on_minimap_range_selected)
         plot_layout.addWidget(self.minimap)
 
-        self.minimap_visible = self.settings.value("minimap_visible", True, type=bool)
+        self.minimap_visible = app_settings.MINIMAP_VISIBLE.read(self.settings)
         self.minimap.setVisible(self.minimap_visible)
         self.minimap_separator.setVisible(self.minimap_visible)
 
@@ -1608,7 +1582,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         QTimer.singleShot(0, self._restore_dock_layout)
 
         # キャンバスを切り離したまま閉じていれば同じ状態に戻す。ダークモードなどと同じ軽い設定なので、どのタブでも戻す
-        if self.settings.value(CANVAS_WAS_DETACHED_KEY, False, type=bool):
+        if app_settings.CANVAS_WAS_DETACHED.read(self.settings):
             QTimer.singleShot(0, lambda: self._detach_canvas(restore_geometry=True))
 
         self.setAcceptDrops(True)
@@ -1627,8 +1601,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _restore_dock_layout(self):
         """前回のドック配置を戻す。タブが最終の大きさになってから呼ぶ(でないとスプリッターの位置がずれる)。"""
-        saved_layout_version = self.settings.value("dock_layout_version", 0, type=int) if self._run_startup_checks else DOCK_LAYOUT_VERSION
-        saved_state = self.settings.value("window_state") if self._run_startup_checks else None
+        saved_layout_version = (app_settings.DOCK_LAYOUT_VERSION.read(self.settings) if self._run_startup_checks
+                                else DOCK_LAYOUT_VERSION)
+        saved_state = app_settings.WINDOW_STATE.read(self.settings) if self._run_startup_checks else None
         state_restored = False
         if saved_state is not None and saved_layout_version == DOCK_LAYOUT_VERSION:
             state_restored = bool(self.restoreState(saved_state))
@@ -1647,7 +1622,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _load_dock_layout_presets(self):
         """{名前: base64 の saveState}"""
-        raw = self.settings.value(DOCK_LAYOUT_PRESETS_SETTINGS_KEY, "{}")
+        raw = app_settings.DOCK_LAYOUT_PRESETS.read(self.settings)
         if not isinstance(raw, str):
             raw = "{}"
         try:
@@ -1658,7 +1633,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         return presets if isinstance(presets, dict) else {}
 
     def _save_dock_layout_presets(self, presets: dict):
-        self.settings.setValue(DOCK_LAYOUT_PRESETS_SETTINGS_KEY, json.dumps(presets))
+        app_settings.DOCK_LAYOUT_PRESETS.write(self.settings, json.dumps(presets))
 
     def _on_save_dock_layout_preset(self):
         name, ok = QInputDialog.getText(self, "レイアウトを保存", "プリセット名:")
@@ -1740,16 +1715,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._update_check_task_runner = None
 
         if self._run_startup_checks:
-            self.settings.setValue("clean_exit", True)
-            self.settings.setValue("window_state", self.saveState())
-            self.settings.setValue("dock_layout_version", DOCK_LAYOUT_VERSION)
+            app_settings.CLEAN_EXIT.write(self.settings, True)
+            app_settings.WINDOW_STATE.write(self.settings, self.saveState())
+            app_settings.DOCK_LAYOUT_VERSION.write(self.settings, DOCK_LAYOUT_VERSION)
 
         # 切り離したまま閉じたら次の起動で同じ状態に戻す。軽い設定なので最初のタブに限らない
         if self.canvas_detached and self._canvas_detach_window is not None:
-            self.settings.setValue(
-                CANVAS_DETACHED_GEOMETRY_KEY, self._canvas_detach_window.saveGeometry()
-            )
-        self.settings.setValue(CANVAS_WAS_DETACHED_KEY, self.canvas_detached)
+            app_settings.CANVAS_DETACHED_GEOMETRY.write(self.settings, self._canvas_detach_window.saveGeometry())
+        app_settings.CANVAS_WAS_DETACHED.write(self.settings, self.canvas_detached)
 
         # 切り離した窓が残らないよう片付ける。_reattach_canvas を通すと、上で保存した「切り離していた」を
         # 消してしまうので通さない。窓と一緒に破棄されないよう、先にキャンバスの親を外す
@@ -1790,9 +1763,9 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._load_project_from_path(autosave_path, add_to_recent=False)
 
     def _check_first_launch(self):
-        if self.settings.value("has_shown_welcome", False, type=bool):
+        if app_settings.HAS_SHOWN_WELCOME.read(self.settings):
             return
-        self.settings.setValue("has_shown_welcome", True)
+        app_settings.HAS_SHOWN_WELCOME.write(self.settings, True)
         self._show_welcome_dialog()
 
     def _on_show_startup_screen(self):
@@ -1859,7 +1832,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         カレントディレクトリは使わない(macOS の .app では書き込めない場所になる)。
         """
-        autosave_dir = self.settings.value("autosave_dir", "", type=str)
+        autosave_dir = app_settings.AUTOSAVE_DIR.read(self.settings)
         if autosave_dir:
             try:
                 os.makedirs(autosave_dir, exist_ok=True)
@@ -2142,7 +2115,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.minimap_visible = checked
         self.minimap.setVisible(checked)
         self.minimap_separator.setVisible(checked)
-        self.settings.setValue("minimap_visible", checked)
+        app_settings.MINIMAP_VISIBLE.write(self.settings, checked)
 
     def _on_toggle_panel_labels(self, checked):
         """QSettings ではなくプロジェクトに保存する。"""
@@ -2179,7 +2152,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self._canvas_detach_window.setCentralWidget(self.canvas)
         self._canvas_detach_window.closed.connect(self._on_detach_window_closed)
 
-        saved_geometry = self.settings.value(CANVAS_DETACHED_GEOMETRY_KEY) if restore_geometry else None
+        saved_geometry = app_settings.CANVAS_DETACHED_GEOMETRY.read(self.settings) if restore_geometry else None
         if saved_geometry is not None:
             # 先にネイティブのハンドルを作る。窓が実体化する前に restoreGeometry() すると位置がずれる
             self._canvas_detach_window.winId()
@@ -2192,7 +2165,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         self.canvas_detached = True
         self._sync_canvas_detach_action()
-        self.settings.setValue(CANVAS_WAS_DETACHED_KEY, True)
+        app_settings.CANVAS_WAS_DETACHED.write(self.settings, True)
 
     def _reattach_canvas(self):
         """「元に戻す」と、切り離した窓を閉じたときの両方から呼ばれる。"""
@@ -2200,9 +2173,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             return
 
         if self._canvas_detach_window is not None:
-            self.settings.setValue(
-                CANVAS_DETACHED_GEOMETRY_KEY, self._canvas_detach_window.saveGeometry()
-            )
+            app_settings.CANVAS_DETACHED_GEOMETRY.write(self.settings, self._canvas_detach_window.saveGeometry())
             self._canvas_detach_window.closed.disconnect(self._on_detach_window_closed)
             self._canvas_detach_window.takeCentralWidget()
             self._canvas_detach_window.close()
@@ -2215,7 +2186,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         self.canvas_detached = False
         self._sync_canvas_detach_action()
-        self.settings.setValue(CANVAS_WAS_DETACHED_KEY, False)
+        app_settings.CANVAS_WAS_DETACHED.write(self.settings, False)
 
     def _on_detach_window_closed(self):
         self._reattach_canvas()
@@ -2397,7 +2368,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             entry['body'].setEnabled(enabled)
 
     def _load_collapsed_property_sections(self):
-        raw = self.settings.value(DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY, "[]")
+        raw = app_settings.DATASET_PROPERTY_COLLAPSED_SECTIONS.read(self.settings)
         try:
             keys = json.loads(raw) if isinstance(raw, str) else list(raw)
         except (ValueError, TypeError):
@@ -2418,8 +2389,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             key for key, _ in DATASET_PROPERTY_SECTIONS
             if not self._prop_sections[key]['toggle'].isChecked()
         )
-        self.settings.setValue(
-            DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY, json.dumps(collapsed))
+        app_settings.DATASET_PROPERTY_COLLAPSED_SECTIONS.write(self.settings, json.dumps(collapsed))
 
     def _update_property_section_visibility(self):
         """中の行が全部隠れた節は見出しごと隠す。"""
@@ -3086,11 +3056,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
 
     def _get_recent_files(self):
-        files = self.settings.value("recent_files", [])
-        if isinstance(files, str):
-            # 要素が1つのリストを文字列で返すことがある
-            files = [files]
-        return list(files) if files else []
+        return app_settings.as_list_keeping_empty_string(app_settings.RECENT_FILES.read(self.settings))
 
     def _add_recent_file(self, file_path):
         file_path = os.path.abspath(file_path)
@@ -3099,7 +3065,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             files.remove(file_path)
         files.insert(0, file_path)
         files = files[:MAX_RECENT_FILES]
-        self.settings.setValue("recent_files", files)
+        app_settings.RECENT_FILES.write(self.settings, files)
         self._update_recent_files_menu()
 
     def _update_recent_files_menu(self):
@@ -3129,7 +3095,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             files = self._get_recent_files()
             if file_path in files:
                 files.remove(file_path)
-                self.settings.setValue("recent_files", files)
+                app_settings.RECENT_FILES.write(self.settings, files)
                 self._update_recent_files_menu()
             return
 
@@ -3141,5 +3107,5 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.load_data(file_path)
 
     def _on_clear_recent_files(self):
-        self.settings.setValue("recent_files", [])
+        app_settings.RECENT_FILES.write(self.settings, [])
         self._update_recent_files_menu()

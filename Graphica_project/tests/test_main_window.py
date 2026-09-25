@@ -13,6 +13,7 @@ from PySide6.QtCore import QSettings, Qt, QUrl, QPoint, QPointF, QMimeData
 from PySide6.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
 
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.main_window as main_window_module
 from graphica.core.dataset import Dataset
 from graphica.gui.main_window import PlotterApp
@@ -26,7 +27,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)
     window.show()
@@ -428,14 +429,14 @@ def test_disabled_plugin_names_empty_by_default(tmp_path):
 
 def test_disabled_plugin_names_reads_stored_list(tmp_path):
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    settings.setValue(main_window_module.DISABLED_PLUGINS_SETTINGS_KEY, ["plugin_a", "plugin_b"])
+    settings.setValue(app_settings_module.DISABLED_PLUGINS_SETTINGS_KEY, ["plugin_a", "plugin_b"])
     assert main_window_module.disabled_plugin_names(settings) == {"plugin_a", "plugin_b"}
 
 
 def test_disabled_plugin_names_handles_single_item_stored_as_string(tmp_path):
     """QSettingsは要素数1のリストを単一の文字列として返すことがある(get_recent_filesと同じ罠)。"""
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    settings.setValue(main_window_module.DISABLED_PLUGINS_SETTINGS_KEY, ["plugin_a"])
+    settings.setValue(app_settings_module.DISABLED_PLUGINS_SETTINGS_KEY, ["plugin_a"])
     assert main_window_module.disabled_plugin_names(settings) == {"plugin_a"}
 
 
@@ -1157,7 +1158,7 @@ def test_constructing_with_dark_mode_already_saved_uses_dark_icon_colors_from_th
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     IsolatedQSettings().setValue("dark_mode", True)  # 「前回はダークモードだった」を再現
 
     theme.apply_theme(QApplication.instance(), dark=False)  # プロセスの残留状態をリセット

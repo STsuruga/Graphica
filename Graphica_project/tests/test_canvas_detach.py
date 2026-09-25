@@ -18,12 +18,9 @@ self.canvas (MplCanvas) はsetParent()で再親付けされるだけで、破棄
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import graphica.gui.main_window as main_window_module
-from graphica.gui.main_window import (
-    PlotterApp,
-    CANVAS_DETACHED_GEOMETRY_KEY,
-    CANVAS_WAS_DETACHED_KEY,
-)
+import graphica.gui.app_settings as app_settings_module
+from graphica.gui.app_settings import CANVAS_DETACHED_GEOMETRY_KEY, CANVAS_WAS_DETACHED_KEY
+from graphica.gui.main_window import PlotterApp
 from graphica.gui.detached_canvas_window import DetachedCanvasWindow
 
 
@@ -41,7 +38,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch, settings_path=None):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)
     window.show()

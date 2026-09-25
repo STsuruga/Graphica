@@ -16,6 +16,7 @@ import matplotlib.ticker as ticker
 import matplotlib.dates as mdates
 
 from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
+from graphica.gui.app_settings import DEFAULT_POINT_LABEL_MAX_POINTS
 from graphica.gui.plot_type_drawers import BUILTIN_PLOT_TYPE_DRAWERS
 from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
 from graphica.core.analysis import (calculate_lttb_downsample, calculate_moving_average_smooth,
@@ -109,9 +110,6 @@ _INSET_CORNER_ORIGINS = {
     '右下': (0.55, 0.05),
     '左下': (0.05, 0.05),
 }
-
-# これより点が多いデータセットには点ラベルを描かない(annotate が点の数だけ呼ばれて固まる)。環境設定で変えられる
-DEFAULT_POINT_LABEL_MAX_POINTS = 1000
 
 # 'Line' の点がこれを超えたら、表示では LTTB で約 TARGET 点に間引く(線の形を保つ方法なので、点の疎密が情報の散布図には使わない)
 LTTB_DOWNSAMPLE_THRESHOLD = 20000

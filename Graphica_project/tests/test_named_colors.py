@@ -30,7 +30,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QColorDialog, QInputDialog
 
-import graphica.gui.main_window as main_window_module
+import graphica.gui.app_settings as app_settings_module
 from graphica.core.dataset import Dataset
 from graphica.core.named_colors import (
     MAX_NAME_LENGTH, NAMED_COLORS_SETTINGS_KEY, POPUP_LIMIT, NamedColorError,
@@ -216,7 +216,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 600)
     window.show()

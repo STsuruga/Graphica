@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import graphica.gui.app_settings as app_settings_module
 from graphica.gui.canvas import MplCanvas
 from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 
@@ -179,7 +180,6 @@ def test_combines_with_waterfall_offsets(canvas):
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
     from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication
-    import graphica.gui.main_window as main_window_module
     from graphica.gui.main_window import PlotterApp
 
     settings_path = str(tmp_path / "test_settings.ini")
@@ -188,7 +188,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 600)
     window.show()

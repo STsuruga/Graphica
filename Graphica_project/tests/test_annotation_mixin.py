@@ -14,12 +14,11 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QInputDialog, QMessageBox
 
-import graphica.gui.main_window as main_window_module
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.mixins.annotation_mixin as annotation_mixin_module
 from graphica.gui.main_window import PlotterApp
-from graphica.gui.mixins.annotation_mixin import (
-    AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX,
-)
+from graphica.gui.app_settings import DEFAULT_SNAP_GRID_INTERVAL_PX, DEFAULT_SNAP_TO_GRID_ENABLED
+from graphica.gui.mixins.annotation_mixin import AnnotationMixin
 from graphica.gui.dialogs import ArrowAnnotationDialog
 
 
@@ -119,7 +118,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)
     window.show()
@@ -234,7 +233,7 @@ def test_snap_to_grid_settings_persist_and_restore_via_qsettings(tmp_path, monke
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
 
     # 事前にQSettingsへ「有効・間隔25px」を書き込んでおく
     pre_settings = IsolatedQSettings()
