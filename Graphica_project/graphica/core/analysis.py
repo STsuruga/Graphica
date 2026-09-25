@@ -1,4 +1,3 @@
-import re
 from typing import Any, Callable
 import numpy as np
 from scipy import sparse
@@ -11,19 +10,12 @@ from scipy.signal import find_peaks, peak_widths, savgol_filter, correlate, corr
 from scipy.special import wofz
 from scipy.stats import gaussian_kde
 
-from graphica.core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
+from graphica.core.fit_models import RESERVED_FIT_TYPE_NAMES, resolve_fit_model, resolve_fit_param_names
 
 CURVE_FIT_MAX_ITERATIONS = 5000
 
 # プラグインのフィット関数。{name: {"func": f(x, *params), "params": [...], "p0": list | callable | None}}
 _PLUGIN_FIT_FUNCTIONS: dict[str, dict[str, Any]] = {}
-
-# 組み込みのフィットタイプは部分一致で判定するので、プラグイン名がこれらを含むと取り違える。
-_BUILTIN_FIT_TYPE_SUBSTRINGS = (
-    "カスタム数式", "線形", "2次多項式", "3次多項式", "2成分指数", "指数関数",
-    "対数", "べき乗", "ガウシアン", "ローレンツ", "擬似フォークト", "フォークト",
-    "ボルツマン", "シグモイド", "ヒル",
-)
 
 
 def register_fit_function(name: str, func: Callable[..., Any], param_names: list[str],
@@ -31,7 +23,7 @@ def register_fit_function(name: str, func: Callable[..., Any], param_names: list
     """p0 は初期値のリストか (x_data, y_data) -> list を返す関数。省略時は全て 1.0。"""
     if not name or not name.strip():
         raise ValueError("フィット関数名が空です。")
-    if name in _BUILTIN_FIT_TYPE_SUBSTRINGS:
+    if name in RESERVED_FIT_TYPE_NAMES:
         raise ValueError(f"'{name}' は組み込みのフィットタイプ名と衝突します。")
     if name in _PLUGIN_FIT_FUNCTIONS:
         raise ValueError(f"フィット関数 '{name}' は既に登録されています。")
@@ -43,76 +35,10 @@ def register_fit_function(name: str, func: Callable[..., Any], param_names: list
 def get_plugin_fit_type_names() -> list[str]:
     return list(_PLUGIN_FIT_FUNCTIONS.keys())
 
-_RESERVED_FORMULA_NAMES = set(DEFAULT_FUNCTIONS.keys()) | {'x'}
-
-
-def _extract_formula_params(formula: str) -> list[str]:
-    """x でも既知の関数名でもない識別子を、出現順にパラメータとして取り出す。"""
-    params = []
-    for name in re.findall(r'[a-zA-Z_][a-zA-Z_0-9]*', formula):
-        if name in _RESERVED_FORMULA_NAMES or name in params:
-            continue
-        params.append(name)
-    if not params:
-        raise ValueError("数式にフィットパラメータ(x以外の文字)が見つかりません。")
-    return params
-
-
-def _build_custom_fit_func(formula: str, param_names: list[str]) -> Callable[..., Any]:
-    def custom_func(x: Any, *params: float) -> Any:
-        variables = {'x': x}
-        variables.update(zip(param_names, params))
-        try:
-            return safe_eval_formula(formula, variables)
-        except Exception as e:
-            raise ValueError(f"数式の評価に失敗しました: {e}") from e
-    return custom_func
-
 
 def get_fit_param_names(fit_type: str, custom_formula: str | None = None) -> list[str]:
-    """フィットせずにパラメータ名を返す(フィットの前に入力欄を組み立てるため)。
-
-    判定の順序とパラメータ名は calculate_curve_fit() の分岐と同じにしておくこと。
-    """
-    if "カスタム数式" in fit_type:
-        if not custom_formula or not custom_formula.strip():
-            raise ValueError("カスタム数式が入力されていません。")
-        return _extract_formula_params(custom_formula)
-    elif "線形" in fit_type:
-        return ['a', 'b']
-    elif "2次多項式" in fit_type:
-        return ['a', 'b', 'c']
-    elif "3次多項式" in fit_type:
-        return ['a', 'b', 'c', 'd']
-    elif "2成分指数" in fit_type:
-        # "2成分指数関数" は "指数関数" を含むので先に判定する
-        return ['a1', 'b1', 'a2', 'b2', 'c']
-    elif "指数関数" in fit_type:
-        return ['a', 'b']
-    elif "対数" in fit_type:
-        return ['a', 'b']
-    elif "べき乗" in fit_type:
-        return ['a', 'b']
-    elif "ガウシアン" in fit_type:
-        return ['a', 'b', 'c', 'd']
-    elif "ローレンツ" in fit_type:
-        return ['a', 'b', 'c', 'd']
-    elif "擬似フォークト" in fit_type:
-        # "擬似フォークト関数" は "フォークト" を含むので先に判定する
-        return ['a', 'b', 'c', 'eta', 'd']
-    elif "フォークト" in fit_type:
-        return ['a', 'b', 'sigma', 'gamma', 'd']
-    elif "ボルツマン" in fit_type:
-        # "ボルツマンシグモイド" は "シグモイド" を含むので先に判定する
-        return ['a1', 'a2', 'x0', 'dx']
-    elif "シグモイド" in fit_type:
-        return ['a', 'b', 'c']
-    elif "ヒル" in fit_type:
-        return ['vmax', 'k', 'n']
-    elif fit_type in _PLUGIN_FIT_FUNCTIONS:
-        return list(_PLUGIN_FIT_FUNCTIONS[fit_type]["params"])
-    else:
-        raise ValueError(f"不明なフィットタイプ: {fit_type}")
+    """フィットせずにパラメータ名を返す(フィットの前に入力欄を組み立てるため)。"""
+    return resolve_fit_param_names(fit_type, custom_formula, _PLUGIN_FIT_FUNCTIONS)
 
 
 _ROBUST_LOSS_FUNCTIONS = ('linear', 'soft_l1', 'huber')
@@ -269,169 +195,11 @@ def calculate_curve_fit(x_data: Any, y_data: Any, fit_type: str, custom_formula:
     if len(x_data) == 0:
         raise ValueError("有効なデータ点がありません(すべて欠損値です)。フィッティングできません。")
 
-    def linear_func(x: Any, a: float, b: float) -> Any:
-        return a * x + b
-
-    def poly2_func(x: Any, a: float, b: float, c: float) -> Any:
-        return a * x**2 + b * x + c
-
-    def poly3_func(x: Any, a: float, b: float, c: float, d: float) -> Any:
-        return a * x**3 + b * x**2 + c * x + d
-
-    def exp_func(x: Any, a: float, b: float) -> Any:
-        return a * np.exp(b * x)
-
-    def log_func(x: Any, a: float, b: float) -> Any:
-        return a * np.log(x) + b
-
-    def power_func(x: Any, a: float, b: float) -> Any:
-        return a * np.power(x, b)
-
-    def gaussian_func(x: Any, a: float, b: float, c: float, d: float) -> Any:
-        return a * np.exp(-((x - b) ** 2) / (2 * c ** 2)) + d
-
-    def sigmoid_func(x: Any, a: float, b: float, c: float) -> Any:
-        return a / (1 + np.exp(-b * (x - c)))
-
-    def multi_exp_func(x: Any, a1: float, b1: float, a2: float, b2: float, c: float) -> Any:
-        return a1 * np.exp(b1 * x) + a2 * np.exp(b2 * x) + c
-
-    def lorentzian_func(x: Any, a: float, b: float, c: float, d: float) -> Any:
-        return a / (1 + ((x - b) / c) ** 2) + d
-
-    def pseudo_voigt_func(x: Any, a: float, b: float, c: float, eta: float, d: float) -> Any:
-        # 共通の中心 b と FWHM c を持つローレンツ型とガウス型を eta で混ぜる
-        lorentzian_shape = 1 / (1 + ((x - b) / c) ** 2)
-        gaussian_shape = np.exp(-4 * np.log(2) * ((x - b) / c) ** 2)
-        return a * (eta * lorentzian_shape + (1 - eta) * gaussian_shape) + d
-
-    def voigt_func(x: Any, a: float, b: float, sigma: float, gamma: float, d: float) -> Any:
-        # Faddeeva 関数による Voigt。この正規化で gamma→0 のとき a がピーク高さになる
-        z = ((x - b) + 1j * gamma) / (sigma * np.sqrt(2))
-        return a * np.real(wofz(z)) / (sigma * np.sqrt(2 * np.pi)) + d
-
-    def boltzmann_sigmoid_func(x: Any, a1: float, a2: float, x0: float, dx: float) -> Any:
-        return a2 + (a1 - a2) / (1 + np.exp((x - x0) / dx))
-
-    def hill_func(x: Any, vmax: float, k: float, n: float) -> Any:
-        return (vmax * np.power(x, n)) / (np.power(k, n) + np.power(x, n))
-
-    def estimate_fwhm(x_arr: Any, y_arr: Any, amplitude: float) -> float:
-        """半値を横切る X の幅を FWHM の粗い推定にする(裾の広い形で誤った局所解に落ちないため)。"""
-        half_level = np.nanmin(y_arr) + amplitude / 2
-        above_half = x_arr[y_arr >= half_level]
-        if len(above_half) == 0:
-            return (np.nanmax(x_arr) - np.nanmin(x_arr)) / 4 or 1.0
-        return (above_half.max() - above_half.min()) or 1.0
-
-    # パラメータ名は get_fit_param_names() と同じにしておくこと
-    if "カスタム数式" in fit_type:
-        if not custom_formula or not custom_formula.strip():
-            raise ValueError("カスタム数式が入力されていません。")
-        params_info = _extract_formula_params(custom_formula)
-        fit_func = _build_custom_fit_func(custom_formula, params_info)
-        # *params 形式ではパラメータ数を推定できないので p0 で数を伝える
-        p0 = [1.0] * len(params_info)
-    elif "線形" in fit_type:
-        fit_func, params_info = linear_func, ['a', 'b']
-        p0 = [1.0, 0.0]
-    elif "2次多項式" in fit_type:
-        fit_func, params_info = poly2_func, ['a', 'b', 'c']
-        p0 = [1.0, 1.0, 0.0]
-    elif "3次多項式" in fit_type:
-        fit_func, params_info = poly3_func, ['a', 'b', 'c', 'd']
-        p0 = [1.0, 1.0, 1.0, 0.0]
-    elif "2成分指数" in fit_type:
-        # "2成分指数関数" は "指数関数" を含むので先に判定する
-        fit_func, params_info = multi_exp_func, ['a1', 'b1', 'a2', 'b2', 'c']
-        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) / 2 or 1.0
-        x_span = (np.nanmax(x_data) - np.nanmin(x_data)) or 1.0
-        # 2成分が同じ初期値だと縮退して収束しないので、符号の違う率から始める
-        rate0 = 2.0 / x_span
-        p0 = [amplitude, rate0, amplitude, -rate0, np.nanmin(y_data)]
-    elif "指数関数" in fit_type:
-        fit_func, params_info = exp_func, ['a', 'b']
-        amplitude = np.nanmean(np.abs(y_data)) or 1.0
-        p0 = [amplitude, 0.01]
-    elif "対数" in fit_type:
-        if np.any(x_data <= 0):
-            raise ValueError("対数フィットは X > 0 のデータにのみ使用できます。")
-        fit_func, params_info = log_func, ['a', 'b']
-        p0 = [1.0, 0.0]
-    elif "べき乗" in fit_type:
-        if np.any(x_data <= 0):
-            raise ValueError("べき乗フィットは X > 0 のデータにのみ使用できます。")
-        fit_func, params_info = power_func, ['a', 'b']
-        p0 = [1.0, 1.0]
-    elif "ガウシアン" in fit_type:
-        fit_func, params_info = gaussian_func, ['a', 'b', 'c', 'd']
-        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) or 1.0
-        center = x_data[np.nanargmax(y_data)] if len(x_data) else 0.0
-        width = (np.nanmax(x_data) - np.nanmin(x_data)) / 4 or 1.0
-        p0 = [amplitude, center, width, np.nanmin(y_data)]
-    elif "ローレンツ" in fit_type:
-        fit_func, params_info = lorentzian_func, ['a', 'b', 'c', 'd']
-        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) or 1.0
-        center = x_data[np.nanargmax(y_data)] if len(x_data) else 0.0
-        # c は HWHM なので FWHM の半分
-        fwhm0 = estimate_fwhm(x_data, y_data, amplitude)
-        p0 = [amplitude, center, fwhm0 / 2, np.nanmin(y_data)]
-    elif "擬似フォークト" in fit_type:
-        # "擬似フォークト関数" は "フォークト" を含むので先に判定する
-        fit_func, params_info = pseudo_voigt_func, ['a', 'b', 'c', 'eta', 'd']
-        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) or 1.0
-        center = x_data[np.nanargmax(y_data)] if len(x_data) else 0.0
-        # この定義の c は FWHM そのもの
-        fwhm0 = estimate_fwhm(x_data, y_data, amplitude)
-        p0 = [amplitude, center, fwhm0, 0.5, np.nanmin(y_data)]
-    elif "フォークト" in fit_type:
-        fit_func, params_info = voigt_func, ['a', 'b', 'sigma', 'gamma', 'd']
-        amplitude = (np.nanmax(y_data) - np.nanmin(y_data)) or 1.0
-        center = x_data[np.nanargmax(y_data)] if len(x_data) else 0.0
-        fwhm0 = estimate_fwhm(x_data, y_data, amplitude)
-        # FWHM をガウス成分とローレンツ成分に大まかに割り振る経験的な初期値
-        sigma0 = (fwhm0 / 2.355) or 1.0
-        gamma0 = (fwhm0 / 4) or 1.0
-        # voigt_func の正規化に合わせ、ピーク高さが振幅に近くなるよう a をスケールする
-        p0 = [amplitude * sigma0 * np.sqrt(2 * np.pi), center, sigma0, gamma0, np.nanmin(y_data)]
-    elif "ボルツマン" in fit_type:
-        # "ボルツマンシグモイド" は "シグモイド" を含むので先に判定する
-        fit_func, params_info = boltzmann_sigmoid_func, ['a1', 'a2', 'x0', 'dx']
-        order = np.argsort(x_data)
-        x_sorted, y_sorted = x_data[order], y_data[order]
-        y_start = y_sorted[0]
-        y_end = y_sorted[-1]
-        mid_level = (y_start + y_end) / 2
-        # 遷移の中心は Y の中点を最初に横切る X から推定する(X の平均だと局所解に落ちやすい)
-        crossing_mask = y_sorted < mid_level if y_start >= y_end else y_sorted > mid_level
-        crossing_indices = np.flatnonzero(crossing_mask)
-        x0 = x_sorted[crossing_indices[0]] if len(crossing_indices) else np.nanmean(x_data)
-        dx0 = (np.nanmax(x_data) - np.nanmin(x_data)) / 10 or 1.0
-        p0 = [y_start, y_end, x0, dx0]
-    elif "シグモイド" in fit_type:
-        fit_func, params_info = sigmoid_func, ['a', 'b', 'c']
-        amplitude = np.nanmax(y_data) or 1.0
-        p0 = [amplitude, 1.0, np.nanmean(x_data)]
-    elif "ヒル" in fit_type:
-        if np.any(x_data < 0):
-            raise ValueError("ヒル式は X >= 0 のデータにのみ使用できます。")
-        fit_func, params_info = hill_func, ['vmax', 'k', 'n']
-        vmax0 = np.nanmax(y_data) or 1.0
-        positive_x = x_data[x_data > 0]
-        k0 = np.nanmedian(positive_x) if len(positive_x) else 1.0
-        p0 = [vmax0, k0, 1.0]
-    elif fit_type in _PLUGIN_FIT_FUNCTIONS:
-        plugin_entry = _PLUGIN_FIT_FUNCTIONS[fit_type]
-        fit_func, params_info = plugin_entry["func"], plugin_entry["params"]
-        plugin_p0 = plugin_entry["p0"]
-        if callable(plugin_p0):
-            p0 = list(plugin_p0(x_data, y_data))
-        elif plugin_p0 is not None:
-            p0 = list(plugin_p0)
-        else:
-            p0 = [1.0] * len(params_info)
-    else:
-        raise ValueError(f"不明なフィットタイプ: {fit_type}")
+    model = resolve_fit_model(fit_type, custom_formula, _PLUGIN_FIT_FUNCTIONS)
+    if model.check_data is not None:
+        model.check_data(x_data)
+    fit_func, params_info = model.func, model.param_names
+    p0 = model.initial_guess(x_data, y_data)
 
     popt, pcov = _run_curve_fit_with_overrides(
         fit_func, params_info, p0, x_data, y_data, sigma,
