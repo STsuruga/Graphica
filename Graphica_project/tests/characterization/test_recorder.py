@@ -140,7 +140,8 @@ def test_modal_log_records_and_answers(modal_log):
     assert modal_log.take() == [
         {"kind": "QMessageBox.warning", "title": "題", "text": "本文"},
         {"kind": "QMessageBox.question", "title": "問", "text": "続ける?", "buttons": ["Yes", "No"]},
-        {"kind": "exec", "class": "QMessageBox", "title": "箱", "text": "中身", "informative": "",
+        # macOS の Qt はメッセージボックスの題を捨てるので、Qt が返す値と比べる
+        {"kind": "exec", "class": "QMessageBox", "title": box.windowTitle(), "text": "中身", "informative": "",
          "icon": "Critical", "buttons": []},
     ]
 

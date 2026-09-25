@@ -246,7 +246,8 @@ def test_methods_text_and_reports(app_env, modal_log, normalizer, tmp_path):
     record["pdf_modals"] = modal_log.take()
     record["pdf_pages"] = pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page ")
     record["status"] = tab.statusBar().currentMessage()
-    check_file_hashes("exports/report_pdf", {"file": normalize_pdf(pdf)})
+    # バイト列は比べない: 日本語の本文が Yu Gothic の部分フォントとして埋め込まれ、フォントの版(Windows 11 と
+    # Windows Server で違う)で変わる。中身はページ数・HTML 版の本文・方法の文で押さえてある
     recorder.check("exports/methods_and_reports", record, normalizer)
 
 
