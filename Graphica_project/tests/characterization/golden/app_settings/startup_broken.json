@@ -57,14 +57,9 @@
  "canvas_detached": false,
  "modals": [
   {
-   "kind": "QMessageBox.question",
-   "title": "オートセーブからの復元",
-   "text": "前回はプロジェクトが正常に終了しなかったようです。\n自動保存されていたデータを復元しますか?",
-   "buttons": [
-    "Yes",
-    "No"
-   ],
-   "default": "Yes"
+   "kind": "exec",
+   "class": "WelcomeDialog",
+   "title": "Graphica へようこそ"
   }
  ],
  "settings_after_start": {
@@ -78,6 +73,7 @@
    "[1",
    "2"
   ],
+  "has_shown_welcome": true,
   "named_colors_json": "[{name: 1}]",
   "point_label_max_points": "-5",
   "snap_grid_interval_px": "x"
