@@ -121,7 +121,8 @@ class OperationContext:
     # --- 結果 ---
 
     def add(self, dataset):
-        self.host.add_dataset(dataset, self.host.target_folder_for_new_dataset())
+        """Undo できる追加。Undo の名前はその処理の題。"""
+        self.host.add_dataset_with_undo(dataset, self.host.target_folder_for_new_dataset(), description=self.title)
 
     def status(self, text, timeout_ms):
         self.host.show_status(text, timeout_ms)

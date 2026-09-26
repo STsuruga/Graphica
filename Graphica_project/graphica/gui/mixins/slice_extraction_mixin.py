@@ -167,8 +167,13 @@ class SliceExtractionMixin:
         )
 
         original_item = self._get_dataset_tree_item(source_dataset)
-        self.dataset_order.append(slice_dataset, original_item.parent() if original_item else None)
-        self._update_plot()
+        folder = original_item.parent() if original_item else None
+
+        def add():
+            self.dataset_order.append(slice_dataset, folder)
+            self._update_plot()
+
+        self._push_dataset_additions(add, [slice_dataset], "スライスの抽出")
         self.statusBar().showMessage(
             f"「{source_dataset.name}」からスライスを抽出しました(X軸: {x_label})", 4000
         )

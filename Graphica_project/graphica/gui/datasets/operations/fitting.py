@@ -231,8 +231,9 @@ def fit_current_dataset(op):
     source = op.current_dataset()
     _ensure_idle(op, FIT_RUNNER, _FIT_BUSY_TEXT)
     x_data, y_data = source.x_data, source.y_data
-    x_min = float(np.min(x_data)) if len(x_data) else None
-    x_max = float(np.max(x_data)) if len(x_data) else None
+    numeric_x = op.as_numbers(source, "x")
+    x_min = float(np.min(numeric_x)) if len(numeric_x) else None
+    x_max = float(np.max(numeric_x)) if len(numeric_x) else None
     (fit_type, custom_formula, use_weighted, x_range,
      p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(op.parent, x_min=x_min, x_max=x_max)
     if fit_type is None:
@@ -268,7 +269,7 @@ def _on_fit_succeeded(op, source, fit_type, custom_formula, sigma, x_range,
     _finish_fit_runner(op)
     dataset, text = _fit_dataset(source, fit, fit_type, custom_formula, sigma, x_range,
                                  p0_overrides, fixed_params, bounds, band_type, loss, 'curve_fit')
-    op.host.add_derived_dataset(dataset, source)
+    op.host.add_derived_dataset(dataset, source, op.title)
     csv_data = pd.DataFrame({
         'パラメータ': list(fit['param_names']) + ['R^2'],
         '値': list(fit['popt']) + [fit['r_squared']],
@@ -325,7 +326,7 @@ def _on_batch_succeeded(op, results, target_folder, progress):
     failed = [f"{r['source_name']}: {r['error']}" for r in results
               if r['fit_dataset'] is None and r['error'] is not None]
     if added:
-        op.host.add_datasets_to_folder(added, target_folder)
+        op.host.add_datasets_to_folder(added, target_folder, op.title)
     if not succeeded and not failed:
         return
     message = f"{len(succeeded)}件のフィットに成功しました。"
@@ -385,7 +386,7 @@ def _on_multi_peak_fit_succeeded(op, source, fit):
         use_secondary_y=source.use_secondary_y, subplot_target=source.subplot_target,
         fit_info=text, fit_result=fit_result,
         provenance=build_provenance('multi_peak_fit', fit_result, [source]),
-    ), source)
+    ), source, op.title)
     csv_data = pd.DataFrame({'パラメータ': list(param_names) + ['R^2'], '値': list(popt) + [r_squared]})
     _show_result(op, "多峰分離フィット完了", text, csv_data, fit['x_data_used'], fit['residuals'])
 

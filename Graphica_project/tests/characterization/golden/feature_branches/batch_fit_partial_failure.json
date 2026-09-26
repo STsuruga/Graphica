@@ -46,8 +46,10 @@
   },
   "current": "A",
   "undo": {
-   "texts": [],
-   "index": 0
+   "texts": [
+    "バッチカーブフィット"
+   ],
+   "index": 1
   },
   "status": "",
   "datasets": [
@@ -755,5 +757,80 @@
   ],
   "windows": []
  },
- "clipboard": ""
+ "clipboard": "",
+ "after_undo_all": {
+  "draw_order": [
+   "A",
+   "2点"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "2点",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "2点"
+   ]
+  },
+  "current": "A",
+  "undo": {
+   "texts": [
+    "バッチカーブフィット"
+   ],
+   "index": 0
+  }
+ },
+ "after_redo_all": {
+  "draw_order": [
+   "A",
+   "2点",
+   "Fit (A)"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "2点",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "Fit (A)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "2点",
+    "Fit (A)"
+   ]
+  },
+  "current": "A",
+  "undo": {
+   "texts": [
+    "バッチカーブフィット"
+   ],
+   "index": 1
+  }
+ },
+ "undo_modals": []
 }

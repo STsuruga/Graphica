@@ -49,8 +49,10 @@
   },
   "current": "新規データセット",
   "undo": {
-   "texts": [],
-   "index": 0
+   "texts": [
+    "新規データセットの作成"
+   ],
+   "index": 1
   },
   "status": "",
   "datasets": [
@@ -640,5 +642,96 @@
    }
   ]
  },
- "clipboard": ""
+ "clipboard": "",
+ "after_undo_all": {
+  "draw_order": [
+   "A",
+   "B",
+   "bb"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "bb",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B",
+    "bb"
+   ]
+  },
+  "current": "bb",
+  "undo": {
+   "texts": [
+    "新規データセットの作成"
+   ],
+   "index": 0
+  }
+ },
+ "after_redo_all": {
+  "draw_order": [
+   "A",
+   "B",
+   "bb",
+   "新規データセット"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "bb",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "新規データセット",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B",
+    "bb",
+    "新規データセット"
+   ]
+  },
+  "current": "新規データセット",
+  "undo": {
+   "texts": [
+    "新規データセットの作成"
+   ],
+   "index": 1
+  }
+ },
+ "undo_modals": []
 }
