@@ -3,15 +3,12 @@ import logging
 import numpy as np
 
 from graphica.core.analysis import sample_standard_deviation
-from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, linestyle_name
+from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.label_utils import infer_axis_label_from_column_name
+from graphica.gui.binding import Binder
+from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL
 
 logger = logging.getLogger(__name__)
-
-# 誤差列の欄で「誤差列を使わない」を表す選択肢
-NO_ERROR_COLUMN_LABEL = "(なし)"
-# データ点ラベルの内容の欄で「Y値そのもの」を表す選択肢
-POINT_LABEL_Y_VALUE_LABEL = "Y値"
 
 
 class DatasetPropertyPanel:
@@ -19,6 +16,11 @@ class DatasetPropertyPanel:
 
     def __init__(self, app):
         self._app = app
+        self._binder = Binder(app, DATASET_PROPERTY_BINDINGS)
+
+    def connect_signals(self):
+        """表(gui/dataset_bindings.py)の欄の変更をつなぐ。"""
+        self._binder.connect(watch=self.watch)
 
     def watch(self, signal, widget):
         """widget が変わったら、その属性だけを選択中のデータセットに当てる。"""
@@ -92,50 +94,10 @@ class DatasetPropertyPanel:
         if not selected_datasets:
             return
 
-        marker_text = self._app.ui.marker_combo.currentText()
-        # ウィジェット -> (属性名, 欄の今の値)
-        field_by_widget = {
-            self._app.ui.plot_type_combo: ('plot_type', self._app.ui.plot_type_combo.currentText()),
-            self._app.ui.linestyle_combo: ('linestyle', self._app.ui.linestyle_combo.currentText()),
-            self._app.ui.linewidth_spinbox: ('linewidth', self._app.ui.linewidth_spinbox.value()),
-            self._app.ui.marker_combo: ('marker', None if marker_text == 'None' else marker_text),
-            self._app.ui.markersize_spinbox: ('markersize', self._app.ui.markersize_spinbox.value()),
-            self._app.ui.smoothing_checkbox: ('smoothing', self._app.ui.smoothing_checkbox.isChecked()),
-            self._app.smoothing_method_combo: ('smoothing_method', self._app.smoothing_method_combo.currentData()),
-            self._app.alpha_spinbox: ('alpha', self._app.alpha_spinbox.value()),
-            self._app.point_labels_checkbox: ('show_point_labels', self._app.point_labels_checkbox.isChecked()),
-            self._app.point_label_col_combo: (
-                'point_label_col_name',
-                None if self._app.point_label_col_combo.currentText() == POINT_LABEL_Y_VALUE_LABEL
-                else self._app.point_label_col_combo.currentText()
-            ),
-            self._app.gradient_checkbox: ('gradient_enabled', self._app.gradient_checkbox.isChecked()),
-            self._app.gradient_target_combo: ('gradient_target', self._app.gradient_target_combo.currentData()),
-            self._app.waterfall_checkbox: ('waterfall_enabled', self._app.waterfall_checkbox.isChecked()),
-            self._app.waterfall_offset_x_spinbox: ('waterfall_offset_x', self._app.waterfall_offset_x_spinbox.value()),
-            self._app.waterfall_offset_y_spinbox: ('waterfall_offset_y', self._app.waterfall_offset_y_spinbox.value()),
-            self._app.waterfall_occlusion_checkbox: (
-                'waterfall_occlusion_enabled', self._app.waterfall_occlusion_checkbox.isChecked()
-            ),
-            self._app.waterfall_depth_checkbox: (
-                'waterfall_depth_shrink_enabled', self._app.waterfall_depth_checkbox.isChecked()
-            ),
-            self._app.waterfall_depth_ratio_spinbox: (
-                'waterfall_depth_shrink_ratio', self._app.waterfall_depth_ratio_spinbox.value()
-            ),
-            self._app.error_display_combo: ('error_display', self._app.error_display_combo.currentData()),
-            self._app.nan_policy_combo: ('nan_policy', self._app.nan_policy_combo.currentData()),
-            # data_kind/z_col_name/vmin/vmax は専用のハンドラが扱う
-            self._app.colormap_combo: ('colormap', self._app.colormap_combo.currentText()),
-            self._app.grid_interp_method_combo: ('grid_interp_method', self._app.grid_interp_method_combo.currentText()),
-            self._app.map_display_mode_combo: ('map_display_mode', self._app.map_display_mode_combo.currentData()),
-            self._app.contour_levels_spinbox: ('contour_levels', self._app.contour_levels_spinbox.value()),
-        }
-
-        changed = field_by_widget.get(widget)
-        if changed is None:
+        binding = self._binder.binding_for(widget)
+        if binding is None:
             return
-        attr_name, new_value = changed
+        attr_name, new_value = binding.key, self._binder.read(binding)
 
         is_batch = len(selected_datasets) > 1
         if is_batch:
@@ -266,126 +228,12 @@ class DatasetPropertyPanel:
             dataset = current_dataset
 
             # 欄に値を入れる間は、変更の通知でデータセットを書き換えないようにする
-            self._app.ui.legend_name_edit.blockSignals(True)
-            self._app.ui.plot_type_combo.blockSignals(True)
-            self._app.color_picker_widget.blockSignals(True)
-            self._app.ui.linestyle_combo.blockSignals(True)
-            self._app.ui.linewidth_spinbox.blockSignals(True)
-            self._app.ui.marker_combo.blockSignals(True)
-            self._app.ui.markersize_spinbox.blockSignals(True)
-            self._app.ui.smoothing_checkbox.blockSignals(True)
-            self._app.smoothing_method_combo.blockSignals(True)
-            self._app.alpha_spinbox.blockSignals(True)
-            self._app.point_labels_checkbox.blockSignals(True)
-            self._app.point_label_col_combo.blockSignals(True)
-            self._app.use_secondary_y_checkbox.blockSignals(True)
-            self._app.subplot_target_combo.blockSignals(True)
-            self._app.gradient_checkbox.blockSignals(True)
-            self._app.gradient_color2_picker.blockSignals(True)
-            self._app.gradient_target_combo.blockSignals(True)
-            self._app.waterfall_checkbox.blockSignals(True)
-            self._app.waterfall_offset_x_spinbox.blockSignals(True)
-            self._app.waterfall_offset_y_spinbox.blockSignals(True)
-            self._app.waterfall_occlusion_checkbox.blockSignals(True)
-            self._app.waterfall_depth_checkbox.blockSignals(True)
-            self._app.waterfall_depth_ratio_spinbox.blockSignals(True)
-            self._app.error_display_combo.blockSignals(True)
-            self._app.nan_policy_combo.blockSignals(True)
-            self._app.data_2d_checkbox.blockSignals(True)
-            self._app.colormap_combo.blockSignals(True)
-            self._app.map_display_mode_combo.blockSignals(True)
-            self._app.contour_levels_spinbox.blockSignals(True)
-            self._app.grid_interp_method_combo.blockSignals(True)
-            self._app.color_range_auto_checkbox.blockSignals(True)
-            self._app.vmin_spinbox.blockSignals(True)
-            self._app.vmax_spinbox.blockSignals(True)
-
-            self._app.ui.legend_name_edit.setText(dataset.name)
-            self._app.ui.plot_type_combo.setCurrentText(dataset.plot_type)
-            # 保存値は '--' と 'dashed' のような表記ゆれを含むため、表示名に揃えて選ぶ。
-            # 線を描かない値('None')はどの項目にも当たらないので、選択なしにする
-            # (直前のデータセットの表示が残って誤解されるのを防ぐ)。
-            shown_linestyle = linestyle_name(dataset.linestyle)
-            if shown_linestyle is None:
-                self._app.ui.linestyle_combo.setCurrentIndex(-1)
-            else:
-                self._app.ui.linestyle_combo.setCurrentText(shown_linestyle)
-            self._app.ui.linewidth_spinbox.setValue(dataset.linewidth)
-            self._app.ui.marker_combo.setCurrentText(dataset.marker if dataset.marker is not None else 'None')
-            self._app.ui.markersize_spinbox.setValue(dataset.markersize)
-            self._app.color_picker_widget.set_color(dataset.color)
-            self._app.ui.smoothing_checkbox.setChecked(dataset.smoothing)
-            smoothing_method_index = self._app.smoothing_method_combo.findData(dataset.smoothing_method)
-            self._app.smoothing_method_combo.setCurrentIndex(smoothing_method_index if smoothing_method_index != -1 else 0)
-            self._app.alpha_spinbox.setValue(dataset.alpha)
-            self._app.gradient_checkbox.setChecked(dataset.gradient_enabled)
-            self._app.gradient_color2_picker.set_color(dataset.gradient_color2)
-            gradient_target_index = self._app.gradient_target_combo.findData(dataset.gradient_target)
-            self._app.gradient_target_combo.setCurrentIndex(gradient_target_index if gradient_target_index != -1 else 0)
-            self._app.waterfall_checkbox.setChecked(dataset.waterfall_enabled)
-            self._app.waterfall_offset_x_spinbox.setValue(dataset.waterfall_offset_x)
-            self._app.waterfall_offset_y_spinbox.setValue(dataset.waterfall_offset_y)
-            self._app.waterfall_occlusion_checkbox.setChecked(dataset.waterfall_occlusion_enabled)
-            self._app.waterfall_depth_checkbox.setChecked(dataset.waterfall_depth_shrink_enabled)
-            self._app.waterfall_depth_ratio_spinbox.setValue(dataset.waterfall_depth_shrink_ratio)
-            self._app.point_labels_checkbox.setChecked(dataset.show_point_labels)
-            self._app.point_label_col_combo.clear()
-            self._app.point_label_col_combo.addItems([POINT_LABEL_Y_VALUE_LABEL] + dataset.df.columns.tolist())
-            self._app.point_label_col_combo.setCurrentText(dataset.point_label_col_name or POINT_LABEL_Y_VALUE_LABEL)
-            self._app.use_secondary_y_checkbox.setChecked(dataset.use_secondary_y)
-            self._app.subplot_target_combo.setCurrentIndex(dataset.subplot_target)
-            error_display_index = self._app.error_display_combo.findData(dataset.error_display)
-            self._app.error_display_combo.setCurrentIndex(error_display_index if error_display_index != -1 else 0)
-            nan_policy_index = self._app.nan_policy_combo.findData(dataset.nan_policy)
-            self._app.nan_policy_combo.setCurrentIndex(nan_policy_index if nan_policy_index != -1 else 0)
-            self._app.data_2d_checkbox.setChecked(dataset.data_kind == '2d_grid')
-            colormap_index = self._app.colormap_combo.findText(dataset.colormap)
-            self._app.colormap_combo.setCurrentIndex(colormap_index if colormap_index != -1 else 0)
-            display_mode_index = self._app.map_display_mode_combo.findData(dataset.map_display_mode)
-            self._app.map_display_mode_combo.setCurrentIndex(display_mode_index if display_mode_index != -1 else 0)
-            self._app.contour_levels_spinbox.setValue(dataset.contour_levels)
-            interp_index = self._app.grid_interp_method_combo.findText(dataset.grid_interp_method)
-            self._app.grid_interp_method_combo.setCurrentIndex(interp_index if interp_index != -1 else 0)
+            self._binder.block_signals(True)
+            self._binder.restore(dataset, getattr)
             is_range_auto = dataset.vmin is None and dataset.vmax is None
-            self._app.color_range_auto_checkbox.setChecked(is_range_auto)
-            self._app.vmin_spinbox.setValue(dataset.vmin if dataset.vmin is not None else 0.0)
-            self._app.vmax_spinbox.setValue(dataset.vmax if dataset.vmax is not None else 1.0)
             self._app.vmin_spinbox.setEnabled(not is_range_auto)
             self._app.vmax_spinbox.setEnabled(not is_range_auto)
-
-            self._app.ui.legend_name_edit.blockSignals(False)
-            self._app.ui.plot_type_combo.blockSignals(False)
-            self._app.color_picker_widget.blockSignals(False)
-            self._app.ui.linestyle_combo.blockSignals(False)
-            self._app.ui.linewidth_spinbox.blockSignals(False)
-            self._app.ui.marker_combo.blockSignals(False)
-            self._app.ui.markersize_spinbox.blockSignals(False)
-            self._app.ui.smoothing_checkbox.blockSignals(False)
-            self._app.smoothing_method_combo.blockSignals(False)
-            self._app.alpha_spinbox.blockSignals(False)
-            self._app.point_labels_checkbox.blockSignals(False)
-            self._app.point_label_col_combo.blockSignals(False)
-            self._app.use_secondary_y_checkbox.blockSignals(False)
-            self._app.subplot_target_combo.blockSignals(False)
-            self._app.gradient_checkbox.blockSignals(False)
-            self._app.gradient_color2_picker.blockSignals(False)
-            self._app.gradient_target_combo.blockSignals(False)
-            self._app.waterfall_checkbox.blockSignals(False)
-            self._app.waterfall_offset_x_spinbox.blockSignals(False)
-            self._app.waterfall_offset_y_spinbox.blockSignals(False)
-            self._app.waterfall_occlusion_checkbox.blockSignals(False)
-            self._app.waterfall_depth_checkbox.blockSignals(False)
-            self._app.waterfall_depth_ratio_spinbox.blockSignals(False)
-            self._app.error_display_combo.blockSignals(False)
-            self._app.nan_policy_combo.blockSignals(False)
-            self._app.data_2d_checkbox.blockSignals(False)
-            self._app.colormap_combo.blockSignals(False)
-            self._app.map_display_mode_combo.blockSignals(False)
-            self._app.contour_levels_spinbox.blockSignals(False)
-            self._app.grid_interp_method_combo.blockSignals(False)
-            self._app.color_range_auto_checkbox.blockSignals(False)
-            self._app.vmin_spinbox.blockSignals(False)
-            self._app.vmax_spinbox.blockSignals(False)
+            self._binder.block_signals(False)
             self.update_gradient_controls_visibility()
             self.update_waterfall_controls_visibility()
             self.update_smoothing_control_visibility()

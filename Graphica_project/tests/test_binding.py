@@ -2,7 +2,7 @@
 import pytest
 from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QLineEdit
 
-from graphica.gui.binding import Binder, check, choice, item_data, number, shown_text, text
+from graphica.gui.binding import WATCH, Binder, Binding, check, choice, item_data, number, shown_text, text
 
 
 class _Owner:
@@ -43,7 +43,7 @@ def test_restore_then_gather_round_trip_in_table_order():
     owner = _Owner()
     binder = _binder(owner)
     values = {"title": "T", "flag": True, "size": 3.14, "where": "left", "unit": "eV", "direction": "in"}
-    binder.restore(values.__getitem__)
+    binder.restore(values, dict.__getitem__)
     assert binder.gather() == {"title": "T", "flag": True, "size": 3.1, "where": "left", "unit": "eV",
                                "direction": "in"}
     assert list(binder.gather()) == ["title", "flag", "size", "where", "unit", "direction"]
@@ -55,7 +55,7 @@ def test_unknown_choices_fall_back_to_the_first_item():
     owner.where.setCurrentIndex(1)
     owner.unit.setCurrentIndex(2)
     binder.restore({"title": "", "flag": False, "size": 99, "where": "middle", "unit": "Hz",
-                    "direction": "sideways"}.__getitem__)
+                    "direction": "sideways"}, dict.__getitem__)
     gathered = binder.gather()
     assert (gathered["where"], gathered["unit"], gathered["size"]) == ("right", "none", 10.0)
     # 選べない文字は今の選択のまま
@@ -66,7 +66,7 @@ def test_a_failing_row_leaves_the_earlier_rows_restored():
     owner = _Owner()
     binder = _binder(owner)
     with pytest.raises(TypeError):
-        binder.restore({"title": "途中", "flag": True, "size": "abc"}.__getitem__)
+        binder.restore({"title": "途中", "flag": True, "size": "abc"}, dict.__getitem__)
     assert owner.title.text() == "途中" and owner.flag.isChecked()
 
 
@@ -81,6 +81,27 @@ def test_connect_follows_the_slot_order_and_block_signals_silences_every_row():
     owner.calls.clear()
     binder.block_signals(True)
     binder.restore({"title": "x", "flag": False, "size": 1.0, "where": "left", "unit": "nm",
-                    "direction": "out"}.__getitem__)
+                    "direction": "out"}, dict.__getitem__)
     binder.block_signals(False)
     assert owner.calls == []
+
+
+def test_rows_with_load_watch_and_restore_only_widgets():
+    owner = _Owner()
+    watched = []
+    binder = Binder(owner, (
+        Binding("label", "title", None, lambda _o, w, v: w.setText(v), "textChanged", ("changed",),
+                load=lambda source: source["first"] + source["second"]),
+        number("size", "size", (WATCH, "also")),
+    ))
+    binder.restore({"first": "a", "second": "b", "size": 2.0}, dict.__getitem__)
+    assert owner.title.text() == "ab" and owner.size.value() == 2.0
+
+    # 欄から値を読む行だけが引き当たる(戻すだけの行は専用の処理が受ける)
+    assert binder.binding_for(owner.title) is None
+    size_row = binder.binding_for(owner.size)
+    assert size_row.key == "size" and binder.read(size_row) == 2.0
+
+    binder.connect(watch=lambda signal, widget: signal.connect(lambda *_: watched.append(widget)))
+    owner.size.setValue(3.0)
+    assert watched == [owner.size] and owner.calls == ["also"]

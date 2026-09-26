@@ -59,50 +59,12 @@ class UISetupMixin:
         self.ui.dataset_list_widget.model().rowsMoved.connect(self._on_dataset_rows_moved)
 
 
-        # textChanged だと1文字ごとに描き直して重いので editingFinished
-        self.ui.legend_name_edit.editingFinished.connect(self.property_panel.on_legend_name_changed)
-
-        self.property_panel.watch(self.ui.plot_type_combo.currentTextChanged, self.ui.plot_type_combo)
-        # 種類によって意味のある欄が変わるので、種類が変わるたびに出し入れし直す
-        self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_gradient_controls_visibility)
-        self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_smoothing_control_visibility)
-        self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_error_display_control_items)
-        self.color_picker_widget.colorChanged.connect(self.colors.on_color_changed)
-        self.property_panel.watch(self.ui.linestyle_combo.currentTextChanged, self.ui.linestyle_combo)
-        self.property_panel.watch(self.ui.linewidth_spinbox.valueChanged, self.ui.linewidth_spinbox)
-        self.property_panel.watch(self.ui.marker_combo.currentTextChanged, self.ui.marker_combo)
-        self.property_panel.watch(self.ui.markersize_spinbox.valueChanged, self.ui.markersize_spinbox)
-        self.property_panel.watch(self.ui.smoothing_checkbox.stateChanged, self.ui.smoothing_checkbox)
-        # 平滑化のチェックで手法の欄の有効/無効も切り替える
-        self.ui.smoothing_checkbox.stateChanged.connect(self.property_panel.update_smoothing_control_visibility)
-        self.property_panel.watch(self.smoothing_method_combo.currentIndexChanged, self.smoothing_method_combo)
-        self.property_panel.watch(self.alpha_spinbox.valueChanged, self.alpha_spinbox)
-        self.property_panel.watch(self.gradient_checkbox.toggled, self.gradient_checkbox)
-        self.gradient_checkbox.toggled.connect(self.property_panel.update_gradient_controls_visibility)
-        self.gradient_color2_picker.colorChanged.connect(self.colors.on_gradient_color2_changed)
-        self.property_panel.watch(self.gradient_target_combo.currentIndexChanged, self.gradient_target_combo)
-        self.property_panel.watch(self.waterfall_checkbox.toggled, self.waterfall_checkbox)
-        self.waterfall_checkbox.toggled.connect(self.property_panel.update_waterfall_controls_visibility)
-        self.property_panel.watch(self.waterfall_offset_x_spinbox.valueChanged, self.waterfall_offset_x_spinbox)
-        self.property_panel.watch(self.waterfall_offset_y_spinbox.valueChanged, self.waterfall_offset_y_spinbox)
-        self.property_panel.watch(self.waterfall_occlusion_checkbox.toggled, self.waterfall_occlusion_checkbox)
-        self.property_panel.watch(self.waterfall_depth_checkbox.toggled, self.waterfall_depth_checkbox)
-        self.waterfall_depth_checkbox.toggled.connect(self.property_panel.update_waterfall_controls_visibility)
-        self.property_panel.watch(self.waterfall_depth_ratio_spinbox.valueChanged, self.waterfall_depth_ratio_spinbox)
-        # 点ラベルは上限の説明の更新もするので専用のハンドラ(中で on_property_changed を呼ぶ)
-        self.point_labels_checkbox.toggled.connect(self.property_panel.on_point_labels_toggled)
-        self.property_panel.watch(self.point_label_col_combo.currentTextChanged, self.point_label_col_combo)
-
-        self.property_panel.watch(self.error_display_combo.currentIndexChanged, self.error_display_combo)
-
-        self.property_panel.watch(self.nan_policy_combo.currentIndexChanged, self.nan_policy_combo)
+        # プロパティの欄は表(gui/dataset_bindings.py)の順につなぐ
+        self.property_panel.connect_signals()
 
         self.fit_curve_button.clicked.connect(self.fitting.fit_current_dataset)
         self.find_peaks_button.clicked.connect(self.peaks.find_peaks)
         self.multi_peak_fit_button.clicked.connect(self.fitting.multi_peak_fit_current_dataset)
-
-        self.use_secondary_y_checkbox.stateChanged.connect(self.property_panel.on_secondary_y_changed)
-        self.subplot_target_combo.currentIndexChanged.connect(self.property_panel.on_subplot_target_changed)
 
         self.duplicate_dataset_button.clicked.connect(self._on_duplicate_dataset)
         self.auto_color_button.clicked.connect(self.colors.auto_assign_colors)
@@ -115,15 +77,7 @@ class UISetupMixin:
         self.x_err_col_combo.currentTextChanged.connect(self.property_panel.on_error_column_changed)
         self.y_err_col_combo.currentTextChanged.connect(self.property_panel.on_error_column_changed)
 
-        self.data_2d_checkbox.toggled.connect(self.property_panel.on_data_2d_toggled)
         self.z_col_combo.currentTextChanged.connect(self.property_panel.on_z_column_changed)
-        self.property_panel.watch(self.colormap_combo.currentTextChanged, self.colormap_combo)
-        self.property_panel.watch(self.grid_interp_method_combo.currentTextChanged, self.grid_interp_method_combo)
-        self.color_range_auto_checkbox.toggled.connect(self.property_panel.on_2d_value_range_changed)
-        self.vmin_spinbox.valueChanged.connect(self.property_panel.on_2d_value_range_changed)
-        self.vmax_spinbox.valueChanged.connect(self.property_panel.on_2d_value_range_changed)
-        self.property_panel.watch(self.map_display_mode_combo.currentIndexChanged, self.map_display_mode_combo)
-        self.property_panel.watch(self.contour_levels_spinbox.valueChanged, self.contour_levels_spinbox)
 
     def _create_menu_bar(self):
         build_menu_bar(self)
