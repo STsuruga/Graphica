@@ -1,13 +1,9 @@
 import os
-import io
 import re
 import types
 import sys
 import logging
-from datetime import datetime
-from pathlib import Path
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -65,30 +61,21 @@ DEFAULT_DETACHED_CANVAS_HEIGHT = 700
 
 
 AUTOSAVE_FILENAME = "autosave.graphica"
-AUTOSAVE_GENERATIONS = 3  # 最新の autosave.graphica を含む
 
-MAX_RECENT_FILES = 10
 
 from graphica.gui import notify
-from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS  # noqa: E402
-SUPPORTED_DATA_FILE_EXTENSIONS = BUILTIN_DATA_FILE_EXTENSIONS
-
-# 未保存の変更の確認を出すか。テストはモーダルなダイアログで止まるので tests/conftest.py が "0" にする
-UNSAVED_CHANGES_PROMPT_ENV = "GRAPHICA_CONFIRM_UNSAVED_CHANGES"
 
 
-def _unsaved_changes_prompt_enabled():
-    return os.environ.get(UNSAVED_CHANGES_PROMPT_ENV, "1") != "0"
 
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget,
-                               QDockWidget, QMessageBox,
-                               QDialog, QLabel, QTreeWidgetItem)
+
+from PySide6.QtWidgets import (QMainWindow, QWidget,
+                               QDockWidget, QLabel, QTreeWidgetItem)
 from PySide6.QtGui import QFont, QIcon, QValidator, QUndoStack
 from PySide6.QtCore import Qt, QTimer, Signal
 from graphica.models.project import ProjectModel
 from graphica.core.version import APP_NAME, __version__
 from graphica.core.i18n import tr, set_language
-from graphica.core.plugin_api import load_plugins_once, get_registered_importer_extensions
+from graphica.core.plugin_api import load_plugins_once
 from graphica.core.plugin_types import PluginExecutionError
 from graphica.gui import app_settings
 from graphica.gui.app_settings import disabled_plugin_names
@@ -100,6 +87,16 @@ from graphica.gui.datasets.property_panel import DatasetPropertyPanel
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.order import DatasetOrder
+from graphica.gui import data_import_flow
+# テストがこのモジュールの属性として引くので残す(使うコードは data_import_flow と project_files に移した)
+import pandas as pd  # noqa: F401
+from PySide6.QtWidgets import QMessageBox  # noqa: F401
+from graphica.core.app_paths import get_app_data_dir  # noqa: F401
+from graphica.gui import project_files
+from graphica.gui.data_import_flow import (  # noqa: F401
+    SUPPORTED_DATA_FILE_EXTENSIONS, find_unevaluated_formula_cells)
+from graphica.gui.project_files import (  # noqa: F401
+    AUTOSAVE_GENERATIONS, MAX_RECENT_FILES, UNSAVED_CHANGES_PROMPT_ENV, _unsaved_changes_prompt_enabled)
 from graphica.gui.builders import axis_panel
 from graphica.gui.builders import canvas_area
 from graphica.gui.builders import dataset_panel
@@ -113,20 +110,17 @@ from graphica.gui.binding import Binder
 from graphica.gui.datasets.peaks import PeakController
 from graphica.gui.datasets.processing import ProcessingController
 from graphica.gui.plugin_context import TabPluginContext
-from graphica.core.app_paths import get_app_data_dir, get_user_plugins_dir
+from graphica.core.app_paths import get_user_plugins_dir
 
 
 from graphica.ui_main_window import Ui_MainWindow
 
-from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.commands import AddDatasetCommand, RemoveDatasetCommand
 from graphica.gui.detached_canvas_window import DetachedCanvasWindow
 from graphica.gui import theme
 from graphica.gui.theme import apply_form_spacing
-from graphica.gui.workers import load_data_file_task, excel_engine_for, is_excel_file
-from graphica.gui.task_runner import TaskRunner
-from graphica.gui.dialogs import (ColumnPreviewDialog, ExcelMultiSheetDialog, WelcomeDialog,
-                         FolderImportDialog, AutosaveHistoryDialog)
+from graphica.gui.dialogs import (WelcomeDialog)
 
 
 # 文字装飾パネルの記号。(表示, mathtext のマクロ名)。引数の要るマクロ(\sqrt{...})は
@@ -147,13 +141,6 @@ LABEL_SYMBOL_PALETTE = [
 
 
 
-def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, max_scan_cells=200_000):
-    """openpyxl の読み込み(約350ms)を起動時に払わないよう、呼ぶときに import する。
-
-    テストがこのモジュール属性を monkeypatch で差し替えるので、名前を変えない。
-    """
-    from graphica.core.excel_utils import find_unevaluated_formula_cells as _impl
-    return _impl(file_path, sheet_name, max_examples, max_scan_cells)
 
 
 from graphica.gui.dataset_style_icon import (
@@ -684,30 +671,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         super().closeEvent(event)
 
     def _check_autosave_recovery(self):
-        """前回が正常に終わらず、オートセーブが残っていれば、復元するか尋ねる(起動時に1回)。
-
-        新しい形式のファイルが無ければ、古い版が残した .pkl を探す。
-        """
-        if self._had_clean_exit:
-            return
-
-        autosave_path = self._autosave_filename
-        if not os.path.exists(autosave_path):
-            legacy_path = os.path.splitext(self._autosave_filename)[0] + '.pkl'
-            if os.path.exists(legacy_path):
-                autosave_path = legacy_path
-            else:
-                return
-
-        reply = notify.question(
-            self, "オートセーブからの復元",
-            "前回はプロジェクトが正常に終了しなかったようです。\n"
-            "自動保存されていたデータを復元しますか?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            self._load_project_from_path(autosave_path, add_to_recent=False)
+        return project_files.check_autosave_recovery(self)
 
     def _check_first_launch(self):
         if app_settings.HAS_SHOWN_WELCOME.read(self.settings):
@@ -729,43 +693,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._on_load_plot_template()
 
     def _on_show_autosave_history(self):
-        """オートセーブの世代を新しい順に見せ、選んだものを読み込む(復元確認と同じく、最近使ったファイルに載せず、上書き保存の対象にもしない)。"""
-        base, ext = os.path.splitext(self._autosave_filename)
-        candidates = [(self._autosave_filename, "現在(最新)")]
-        for gen in range(1, AUTOSAVE_GENERATIONS):
-            candidates.append((f"{base}.{gen}{ext}", f"{gen}世代前"))
-
-        generations = []
-        for path, label in candidates:
-            if not os.path.exists(path):
-                continue
-            try:
-                mtime_text = datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M:%S")
-            except OSError:
-                mtime_text = "(更新日時不明)"
-            generations.append((path, label, mtime_text))
-
-        if not generations:
-            notify.information(self, "自動バックアップ履歴", "自動バックアップファイルが見つかりませんでした。")
-            return
-
-        dialog = AutosaveHistoryDialog(generations, parent=self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        selected_path = dialog.get_selected_path()
-        if not selected_path:
-            return
-
-        reply = notify.question(
-            self, "自動バックアップ履歴",
-            "選択した世代の内容で復元します。現在の未保存の変更は失われます。よろしいですか?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        self._load_project_from_path(selected_path, add_to_recent=False)
+        return project_files.on_show_autosave_history(self)
 
     def _load_sample_data(self):
         sample_path = resource_path(os.path.join("sample_data", "cooling_curve_sample.csv"))
@@ -775,48 +703,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.load_data(sample_path)
 
     def _update_autosave_path(self):
-        """autosave_dir(空なら get_app_data_dir())から保存先を決め、フォルダを作る。
-
-        カレントディレクトリは使わない(macOS の .app では書き込めない場所になる)。
-        """
-        autosave_dir = app_settings.AUTOSAVE_DIR.read(self.settings)
-        if autosave_dir:
-            try:
-                os.makedirs(autosave_dir, exist_ok=True)
-            except OSError as e:
-                logger.warning("オートセーブ保存先フォルダの作成に失敗しました: %s", e)
-                autosave_dir = ""
-        if not autosave_dir:
-            autosave_dir = get_app_data_dir()
-        self._autosave_filename = os.path.join(autosave_dir, self._autosave_base_filename)
+        return project_files.update_autosave_path(self)
 
     def _rotate_autosave_generations(self):
-        """autosave.graphica を autosave.1.graphica, autosave.2.graphica, ... へ押し出す。"""
-        base, ext = os.path.splitext(self._autosave_filename)
-
-        oldest = f"{base}.{AUTOSAVE_GENERATIONS - 1}{ext}"
-        if os.path.exists(oldest):
-            os.remove(oldest)
-
-        for gen in range(AUTOSAVE_GENERATIONS - 2, 0, -1):
-            src = f"{base}.{gen}{ext}"
-            dst = f"{base}.{gen + 1}{ext}"
-            if os.path.exists(src):
-                os.replace(src, dst)
-
-        if os.path.exists(self._autosave_filename):
-            os.replace(self._autosave_filename, f"{base}.1{ext}")
+        return project_files.rotate_autosave_generations(self)
 
     def _sync_project_from_ui(self):
-        """UI にしか無い状態(フォルダ構造、サブプロットの行数と列数)を、保存や比較の前に ProjectModel へ移す。"""
-        self.project.dataset_group_tree = self._capture_dataset_group_tree()
-        self.project.layout_rows = self.subplot_rows_spinbox.value()
-        self.project.layout_cols = self.subplot_cols_spinbox.value()
+        return project_files.sync_project_from_ui(self)
 
     def _remember_saved_content(self):
-        """いまの内容を保存済みとみなす(保存・読み込みの成功直後に呼ぶ)。"""
-        self._sync_project_from_ui()
-        self._saved_content_fingerprint = self.project.content_fingerprint()
+        return project_files.remember_saved_content(self)
 
     def plugin_context(self, plugin_name):
         context = self._plugin_contexts.get(plugin_name)
@@ -844,152 +740,31 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             )))
 
     def document_title(self):
-        if self._current_project_path:
-            return os.path.basename(self._current_project_path)
-        if self._restored_unsaved:
-            return "無題のプロジェクト(復元)"
-        return "無題のプロジェクト"
+        return project_files.document_title(self)
 
     def has_unsaved_changes(self):
-        """データセットが無く、ファイルとも対応していない新しいタブは False。"""
-        if not self.project.datasets and not self._current_project_path:
-            return False
-        if self._saved_content_fingerprint is None:
-            return True
-        self._sync_project_from_ui()
-        return self.project.content_fingerprint() != self._saved_content_fingerprint
+        return project_files.has_unsaved_changes(self)
 
     def confirm_unsaved_changes(self, action_text):
-        """未保存の変更があれば「保存 / 保存しない / キャンセル」を尋ねる。続けてよければ True。"""
-        if not _unsaved_changes_prompt_enabled() or not self.has_unsaved_changes():
-            return True
-        name = self.document_title()
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Warning)
-        box.setWindowTitle("保存されていない変更")
-        box.setText(f"「{name}」には保存されていない変更があります。")
-        box.setInformativeText(f"{action_text}前に保存しますか?")
-        save_button = box.addButton("保存", QMessageBox.ButtonRole.AcceptRole)
-        discard_button = box.addButton("保存しない", QMessageBox.ButtonRole.DestructiveRole)
-        cancel_button = box.addButton("キャンセル", QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(save_button)
-        box.setEscapeButton(cancel_button)
-        box.exec()
-        clicked = box.clickedButton()
-        if clicked is discard_button:
-            return True
-        if clicked is save_button:
-            self.manual_save()
-            return not self.has_unsaved_changes()
-        return False
+        return project_files.confirm_unsaved_changes(self, action_text)
 
     def auto_save(self):
-        try:
-            self._sync_project_from_ui()
-            self._rotate_autosave_generations()
-            self.project.save_project(self._autosave_filename)
-            self.statusBar().showMessage("オートセーブ完了", 3000)
-        except Exception as e:
-            logger.exception("オートセーブに失敗しました")
-            self.statusBar().showMessage(f"オートセーブ失敗: {e}", 3000)
+        return project_files.auto_save(self)
 
     def manual_save(self):
-        """保存先が分かっていればそこへ上書きし、無ければ「名前を付けて保存」にする。"""
-        if not self._current_project_path:
-            self.manual_save_as()
-            return
-        self._save_project_to_path(self._current_project_path)
+        return project_files.manual_save(self)
 
     def manual_save_as(self):
-        # 任意のコードを実行されない .graphica を既定にする。.pkl も選べる
-        filepath, selected_filter = notify.get_save_file_name(
-            self, "名前を付けて保存", "",
-            "Graphica Project (*.graphica);;Project Files (*.pkl)"
-        )
-        if filepath:
-            # 選んだ形式の拡張子を付けないファイルダイアログがある
-            if not os.path.splitext(filepath)[1]:
-                filepath += '.graphica' if 'graphica' in selected_filter else '.pkl'
-            self._save_project_to_path(filepath)
+        return project_files.manual_save_as(self)
 
     def _save_project_to_path(self, filepath):
-        try:
-            self._sync_project_from_ui()
-            self.project.save_project(filepath)
-            self._current_project_path = filepath
-            self._restored_unsaved = False
-            self._saved_content_fingerprint = self.project.content_fingerprint()
-            self.statusBar().showMessage(f"保存しました: {filepath}", 3000)
-            self._add_recent_file(filepath)
-            self.project_state_changed.emit()
-        except Exception as e:
-            logger.exception("プロジェクトの保存に失敗しました: %s", filepath)
-            notify.critical(self, "エラー", f"保存に失敗しました:\n{e}")
+        return project_files.save_project_to_path(self, filepath)
 
     def manual_load(self):
-        if not self.confirm_unsaved_changes("別のプロジェクトを開く"):
-            return
-        filepath, _ = notify.get_open_file_name(
-            self, "プロジェクトを開く", "", "Project Files (*.graphica *.pkl)"
-        )
-        if filepath:
-            self._load_project_from_path(filepath)
+        return project_files.manual_load(self)
 
     def _load_project_from_path(self, filepath, add_to_recent=True):
-        """add_to_recent=False はオートセーブからの復元。最近使ったファイルに載せず、上書き保存の対象にもしない。"""
-        try:
-            self.project.load_project(filepath)
-            # 中身はもう入れ替わっている。この先で失敗したとき前のファイルが保存先に
-            # 残っていると、上書き保存でそのファイルを別の内容で壊してしまう。
-            self._current_project_path = None
-            self._saved_content_fingerprint = None
-            self._restored_unsaved = False
-
-            self._rebuild_dataset_tree_widget()
-
-            self._block_all_signals(True)
-            self.subplot_rows_spinbox.setValue(self.project.layout_rows)
-            self.subplot_cols_spinbox.setValue(self.project.layout_cols)
-            is_free_layout = getattr(self.project, 'layout_mode', 'grid') == 'free'
-            self.free_layout_checkbox.setChecked(is_free_layout)
-            self.subplot_rows_spinbox.setEnabled(not is_free_layout)
-            self.subplot_cols_spinbox.setEnabled(not is_free_layout)
-            self.add_free_subplot_button.setEnabled(is_free_layout)
-            self.remove_free_subplot_button.setEnabled(is_free_layout)
-            self.layout_edit_action.setEnabled(is_free_layout)
-            if not is_free_layout and self.layout_edit_action.isChecked():
-                self.layout_edit_action.setChecked(False)
-                self._toggle_layout_edit_mode(False)
-            self.panel_labels_action.setChecked(self.project.panel_labels_enabled)
-            self.share_x_checkbox.setChecked(getattr(self.project, 'share_x_axis', False))
-            self.share_y_checkbox.setChecked(getattr(self.project, 'share_y_axis', False))
-            self.share_x_checkbox.setEnabled(not is_free_layout)
-            self.share_y_checkbox.setEnabled(not is_free_layout)
-            self._block_all_signals(False)
-
-            if self.project.all_plot_settings:
-                self._apply_settings_to_ui_controls(
-                    self.project.all_plot_settings[self.project.active_axis_index]
-                )
-
-            # 前の文書へのコマンドは datasets をリストごと差し戻すので、残すと
-            # Undo 1回で読み込んだ内容が前の文書に置き換わる。
-            self.undo_stack.clear()
-
-            self.property_panel.update_ui_state()
-            self._update_plot()
-
-            self.statusBar().showMessage("プロジェクトを読み込みました", 3000)
-            if add_to_recent:
-                self._add_recent_file(filepath)
-                self._current_project_path = filepath
-                self._remember_saved_content()
-            else:
-                self._restored_unsaved = True
-            self.project_state_changed.emit()
-        except Exception as e:
-            logger.exception("プロジェクトの読み込みに失敗しました: %s", filepath)
-            notify.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
+        return project_files.load_project_from_path(self, filepath, add_to_recent)
 
     def _reset_zoom(self):
         """設定どおりの表示範囲に戻す。
@@ -1305,356 +1080,60 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.dataset_order.sort_tree_to_draw_order()
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
+        return data_import_flow.dragEnterEvent(self, event)
 
     def dropEvent(self, event):
-        urls = event.mimeData().urls()
-        file_paths = [url.toLocalFile() for url in urls if url.toLocalFile()]
-        if file_paths:
-            self._queue_data_files(file_paths)
+        return data_import_flow.dropEvent(self, event)
 
     def _all_supported_data_file_extensions(self):
-        """組み込みの拡張子に、プラグインの読み込み機能の拡張子を足したもの。"""
-        extensions = list(SUPPORTED_DATA_FILE_EXTENSIONS)
-        for ext in get_registered_importer_extensions():
-            if ext not in extensions:
-                extensions.append(ext)
-        return tuple(extensions)
+        return data_import_flow.all_supported_data_file_extensions(self)
 
     def _queue_data_files(self, file_paths):
-        """対応していない拡張子はまとめて1回だけ知らせ、残りを待ち行列に積む。"""
-        valid_paths = []
-        skipped_names = []
-        allowed_extensions = self._all_supported_data_file_extensions()
-        for file_path in file_paths:
-            if file_path.lower().endswith(allowed_extensions):
-                valid_paths.append(file_path)
-            else:
-                skipped_names.append(os.path.basename(file_path))
-
-        if skipped_names:
-            notify.warning(
-                self, "非対応のファイル形式",
-                "以下のファイルは対応していない形式のため読み込みをスキップしました:\n"
-                + "\n".join(skipped_names)
-            )
-
-        if not valid_paths:
-            return
-
-        self._data_load_queue.extend(valid_paths)
-        self._data_load_queue_total += len(valid_paths)
-
-        if self._data_load_task_runner is None:
-            self._process_next_queued_file()
+        return data_import_flow.queue_data_files(self, file_paths)
 
     def _process_next_queued_file(self):
-        """読み込みの成否によらず、1件終わるたびに呼ばれる。"""
-        if not self._data_load_queue:
-            self._data_load_queue_total = 0
-            self._data_load_queue_done = 0
-            # 待ち行列を使い切ったら戻す(この後の普通の取り込みに引き継がない)
-            self._batch_import_filename_regex = None
-            return
-
-        next_path = self._data_load_queue.pop(0)
-        self._data_load_queue_done += 1
-        self.load_data(next_path, queue_progress=(self._data_load_queue_done, self._data_load_queue_total))
+        return data_import_flow.process_next_queued_file(self)
 
     def load_data(self, file_path, queue_progress=None):
-        """別スレッドで読み込み、終わったらデータセットとして加える(大きいファイルで画面を止めない)。
-
-        queue_progress=(何件目, 総数) はステータスバーの表示に使う。
-        """
-        if self._data_load_task_runner is not None:
-            notify.information(self, "読み込み中", "他のファイルを読み込み中です。完了までお待ちください。")
-            return
-
-        self.ui.add_dataset_button.setEnabled(False)
-        if queue_progress is not None:
-            done, total = queue_progress
-            self.statusBar().showMessage(f"読み込み中 ({done}/{total}): {os.path.basename(file_path)} ...")
-        else:
-            self.statusBar().showMessage(f"読み込み中: {file_path} ...")
-
-        runner = TaskRunner(load_data_file_task, file_path, parent=self)
-        runner.succeeded.connect(lambda df: self._on_data_load_succeeded(df, file_path))
-        runner.failed.connect(lambda msg: self._on_data_load_failed(msg, file_path))
-        self._data_load_task_runner = runner
-        runner.start()
+        return data_import_flow.load_data(self, file_path, queue_progress)
 
     def _on_data_load_succeeded(self, df, file_path):
-        """途中でキャンセルされても、必ず待ち行列の次へ進む。"""
-        self._cleanup_data_load_task_runner()
-        try:
-            self._import_loaded_dataframe(df, file_path)
-        finally:
-            self._process_next_queued_file()
+        return data_import_flow.on_data_load_succeeded(self, df, file_path)
 
     def _import_loaded_dataframe(self, df, file_path):
-        """Excel でシートを複数選ぶと、シートごとに別のデータセットにする。"""
-        dataset_name = os.path.basename(file_path)
-        is_excel = is_excel_file(file_path)
-
-        sheet_names = []
-        if is_excel:
-            try:
-                sheet_names = pd.ExcelFile(file_path, engine=excel_engine_for(file_path)).sheet_names
-            except Exception as e:
-                logger.warning("Excelのシート一覧取得に失敗しました: %s", e)
-
-        # None は「読み込み済みの df をそのまま使う」
-        sheets_to_import = [None]
-        if is_excel and len(sheet_names) > 1:
-            multi_dialog = ExcelMultiSheetDialog(sheet_names, self)
-            if multi_dialog.exec() != QDialog.DialogCode.Accepted:
-                self.statusBar().showMessage("読み込みをキャンセルしました", 3000)
-                return
-            selected_sheets = multi_dialog.get_selected_sheets()
-            if not selected_sheets:
-                self.statusBar().showMessage("シートが選択されなかったため読み込みをキャンセルしました", 3000)
-                return
-            sheets_to_import = selected_sheets
-
-        target_folder = self._get_target_folder_for_new_dataset()
-        added_count = 0
-
-        for sheet_name in sheets_to_import:
-            if sheet_name is None:
-                sheet_df = df
-                preview_name = dataset_name
-            else:
-                try:
-                    sheet_df = pd.read_excel(file_path, sheet_name=sheet_name, engine=excel_engine_for(file_path))
-                except Exception as e:
-                    logger.exception("シート「%s」の読み込みに失敗しました", sheet_name)
-                    notify.warning(self, "読み込みエラー", f"シート「{sheet_name}」の読み込みに失敗しました:\n{e}")
-                    continue
-                if sheet_df.shape[1] < 2:
-                    notify.warning(
-                        self, "読み込みエラー",
-                        f"シート「{sheet_name}」には少なくとも2列必要です。スキップします。"
-                    )
-                    continue
-                preview_name = f"{dataset_name} [{sheet_name}]" if len(sheets_to_import) > 1 else dataset_name
-
-            if is_excel:
-                checked_sheet = sheet_name if sheet_name is not None else (sheet_names[0] if sheet_names else None)
-                found, examples, scanned_all = find_unevaluated_formula_cells(file_path, checked_sheet)
-                if found:
-                    example_text = "\n".join(examples)
-                    more_note = "" if scanned_all else "\n(他にも存在する可能性があります)"
-                    reply = notify.warning(
-                        self, "数式セルの警告",
-                        f"シート「{checked_sheet}」に、計算済みの値を持たない数式セルが見つかりました:\n"
-                        f"{example_text}{more_note}\n\n"
-                        "これらのセルは空欄(NaN)として読み込まれます。Excelで開いて再計算・保存してから"
-                        "読み込み直すことをお勧めします。このまま続行しますか?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.Yes
-                    )
-                    if reply != QMessageBox.StandardButton.Yes:
-                        continue
-
-            # 列の多いファイルで意図しない列が選ばれないよう、プレビューを見せて X/Y の列を選ばせる
-            preview_dialog = ColumnPreviewDialog(sheet_df, preview_name, self, file_path=file_path)
-            if sheet_name is not None and preview_dialog.sheet_combo is not None:
-                preview_dialog.sheet_combo.blockSignals(True)
-                preview_dialog.sheet_combo.setCurrentText(sheet_name)
-                preview_dialog.sheet_combo.blockSignals(False)
-
-            if preview_dialog.exec() != QDialog.DialogCode.Accepted:
-                continue
-
-            x_col, y_col = preview_dialog.get_selected_columns()
-            final_df = preview_dialog.get_dataframe()
-
-            # 再読み込みのために元ファイルとシートを持つ。シートはダイアログで最後に選ばれたもの
-            source_sheet = (
-                preview_dialog.sheet_combo.currentText()
-                if (is_excel and preview_dialog.sheet_combo is not None) else None
-            )
-            if self._batch_import_filename_regex:
-                final_df = self._apply_filename_regex_columns(
-                    final_df, file_path, self._batch_import_filename_regex
-                )
-            new_dataset = Dataset(
-                name=preview_name, df=final_df, x_col_name=x_col, y_col_name=y_col,
-                source_file=os.path.abspath(file_path), source_sheet=source_sheet,
-            )
-            self._add_dataset(new_dataset, target_folder)
-            added_count += 1
-
-        if added_count > 0:
-            self.statusBar().showMessage(f"読み込み完了: {file_path} ({added_count}件)", 3000)
-            self._add_recent_file(file_path)
-        else:
-            self.statusBar().showMessage("読み込みをキャンセルしました", 3000)
+        return data_import_flow.import_loaded_dataframe(self, df, file_path)
 
     @staticmethod
     def _apply_filename_regex_columns(df, file_path, pattern):
-        """フォルダ一括取り込みの正規表現の名前付きグループを、ファイル名から取り出して列にする。
-
-        数値にできれば float の列。パターンが合わなくても取り込みは続けたいので、そのときは df をそのまま返す。
-        """
-        try:
-            match = re.search(pattern, os.path.basename(file_path))
-        except re.error as e:
-            logger.warning("正規表現が不正なため、ファイル名からの列抽出をスキップしました: %s", e)
-            return df
-        if match is None:
-            return df
-        groups = match.groupdict()
-        if not groups:
-            return df
-
-        df = df.copy()
-        for name, value in groups.items():
-            if value is None:
-                continue
-            try:
-                df[name] = float(value)
-            except (TypeError, ValueError):
-                df[name] = value
-        return df
+        return data_import_flow.apply_filename_regex_columns(df, file_path, pattern)
 
     def _on_import_folder(self):
-        """フォルダ内(サブフォルダは除く)の対応ファイルを、確認させてからドラッグ&ドロップと同じ待ち行列に積む。"""
-        dir_path = notify.get_existing_directory(self, "フォルダから一括インポート", "")
-        if not dir_path:
-            return
-
-        allowed_extensions = self._all_supported_data_file_extensions()
-        try:
-            file_paths = sorted(
-                str(p) for p in Path(dir_path).iterdir()
-                if p.is_file() and p.suffix.lower() in allowed_extensions
-            )
-        except OSError as e:
-            notify.warning(self, "フォルダから一括インポート", f"フォルダの読み取りに失敗しました:\n{e}")
-            return
-
-        if not file_paths:
-            notify.information(
-                self, "フォルダから一括インポート",
-                "対応する形式のファイルがフォルダ内に見つかりませんでした。"
-            )
-            return
-
-        file_names = [os.path.basename(p) for p in file_paths]
-        dialog = FolderImportDialog(dir_path, file_names, parent=self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        self._batch_import_filename_regex = dialog.get_regex_pattern()
-        self._queue_data_files(file_paths)
+        return data_import_flow.on_import_folder(self)
 
     def _on_paste_data_from_clipboard(self):
-        """区切り文字はファイル読み込みと同じ判定で決める(Excel からのコピーはタブ区切り)。"""
-        text = QApplication.clipboard().text()
-        if not text.strip():
-            notify.information(self, "クリップボードから貼り付け", "クリップボードにテキストデータがありません。")
-            return
-
-        from graphica.gui.workers import detect_clipboard_delimiter
-        delimiter = detect_clipboard_delimiter(text)
-        try:
-            df = pd.read_csv(io.StringIO(text), sep=delimiter, engine='python')
-        except Exception as e:
-            logger.exception("クリップボードの内容を表として読めませんでした")
-            notify.warning(
-                self, "貼り付けエラー",
-                f"クリップボードの内容を表として解釈できませんでした:\n{e}"
-            )
-            return
-
-        if df.shape[1] < 2:
-            notify.warning(self, "貼り付けエラー", "クリップボードのデータには少なくとも2列必要です。")
-            return
-
-        self._clipboard_paste_counter = getattr(self, '_clipboard_paste_counter', 0) + 1
-        dataset_name = f"クリップボード貼り付け {self._clipboard_paste_counter}"
-
-        preview_dialog = ColumnPreviewDialog(df, dataset_name, self, file_path=None)
-        if preview_dialog.exec() != QDialog.DialogCode.Accepted:
-            self.statusBar().showMessage("貼り付けをキャンセルしました", 3000)
-            return
-
-        x_col, y_col = preview_dialog.get_selected_columns()
-        final_df = preview_dialog.get_dataframe()
-        new_dataset = Dataset(name=dataset_name, df=final_df, x_col_name=x_col, y_col_name=y_col)
-        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
-        self.statusBar().showMessage("クリップボードからデータを貼り付けました", 3000)
+        return data_import_flow.on_paste_data_from_clipboard(self)
 
     def _on_data_load_failed(self, error_message, file_path):
-        self._cleanup_data_load_task_runner()
-        self.statusBar().clearMessage()
-        notify.critical(self, "エラー", f"読み込みエラー: {error_message}")
-        self._process_next_queued_file()
+        return data_import_flow.on_data_load_failed(self, error_message, file_path)
 
     def _localize_navigation_toolbar(self, toolbar):
         return canvas_area.localize_navigation_toolbar(self, toolbar)
 
     def _cleanup_data_load_task_runner(self):
-        self.ui.add_dataset_button.setEnabled(True)
-        if self._data_load_task_runner is not None:
-            self._data_load_task_runner.wait()
-            self._data_load_task_runner.deleteLater()
-            self._data_load_task_runner = None
+        return data_import_flow.cleanup_data_load_task_runner(self)
 
 
     def _get_recent_files(self):
-        return app_settings.as_list_keeping_empty_string(app_settings.RECENT_FILES.read(self.settings))
+        return project_files.get_recent_files(self)
 
     def _add_recent_file(self, file_path):
-        file_path = os.path.abspath(file_path)
-        files = self._get_recent_files()
-        if file_path in files:
-            files.remove(file_path)
-        files.insert(0, file_path)
-        files = files[:MAX_RECENT_FILES]
-        app_settings.RECENT_FILES.write(self.settings, files)
-        self._update_recent_files_menu()
+        return project_files.add_recent_file(self, file_path)
 
     def _update_recent_files_menu(self):
-        try:
-            self.recent_files_menu.clear()
-            files = self._get_recent_files()
-
-            if not files:
-                empty_action = self.recent_files_menu.addAction("(履歴なし)")
-                empty_action.setEnabled(False)
-                return
-
-            for file_path in files:
-                action = self.recent_files_menu.addAction(file_path)
-                action.triggered.connect(lambda checked=False, p=file_path: self._on_open_recent_file(p))
-
-            self.recent_files_menu.addSeparator()
-            clear_action = self.recent_files_menu.addAction("履歴をクリア")
-            clear_action.triggered.connect(self._on_clear_recent_files)
-        except RuntimeError:
-            # まれにメニューの C++ 側が破棄済みのことがある(PySide6 の回収、原因は未特定)。表示が古いだけなので落とさない
-            logger.warning("recent_files_menuの更新に失敗しました(既に破棄されている可能性があります)。", exc_info=True)
+        return project_files.update_recent_files_menu(self)
 
     def _on_open_recent_file(self, file_path):
-        if not os.path.exists(file_path):
-            notify.warning(self, "エラー", f"ファイルが見つかりません:\n{file_path}")
-            files = self._get_recent_files()
-            if file_path in files:
-                files.remove(file_path)
-                app_settings.RECENT_FILES.write(self.settings, files)
-                self._update_recent_files_menu()
-            return
-
-        if file_path.lower().endswith(('.graphica', '.pkl')):
-            if not self.confirm_unsaved_changes("別のプロジェクトを開く"):
-                return
-            self._load_project_from_path(file_path)
-        else:
-            self.load_data(file_path)
+        return project_files.on_open_recent_file(self, file_path)
 
     def _on_clear_recent_files(self):
-        app_settings.RECENT_FILES.write(self.settings, [])
-        self._update_recent_files_menu()
+        return project_files.on_clear_recent_files(self)

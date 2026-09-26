@@ -16,6 +16,8 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
 import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
 import graphica.gui.main_window as main_window_module
+import graphica.gui.data_import_flow as data_import_flow_module
+import graphica.gui.project_files as project_files_module
 from graphica.core.dataset import Dataset
 from graphica.gui.main_window import PlotterApp
 
@@ -212,7 +214,7 @@ def test_drop_event_queues_and_loads_all_supported_files(tmp_path, monkeypatch):
     全ファイルが1つずつ順番に読み込まれ、データセットとして追加されること。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
 
     csv1 = tmp_path / "a.csv"
     csv1.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
@@ -233,7 +235,7 @@ def test_drop_event_skips_unsupported_extension_but_loads_the_rest(tmp_path, mon
     そのファイルだけ警告付きでスキップし、残りのファイルは読み込みが続行されること。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
 
     warning_calls = []
     monkeypatch.setattr(
@@ -343,7 +345,7 @@ def test_import_folder_dialog_cancelled_does_nothing(tmp_path, monkeypatch):
         def __init__(self, *a, **k): pass
         def exec(self): return QDialog.DialogCode.Rejected
 
-    monkeypatch.setattr(main_window_module, "FolderImportDialog", _FakeFolderImportDialogCancelled)
+    monkeypatch.setattr(data_import_flow_module, "FolderImportDialog", _FakeFolderImportDialogCancelled)
     before_count = len(window._flatten_dataset_tree())
 
     window._on_import_folder()
@@ -358,7 +360,7 @@ def test_import_folder_queues_all_matching_files_non_recursive(tmp_path, monkeyp
     再利用するため、ファイルごとにColumnPreviewDialogが表示される。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
 
     folder = tmp_path / "data_folder"
     folder.mkdir()
@@ -380,7 +382,7 @@ def test_import_folder_queues_all_matching_files_non_recursive(tmp_path, monkeyp
         def exec(self): return QDialog.DialogCode.Accepted
         def get_regex_pattern(self): return None
 
-    monkeypatch.setattr(main_window_module, "FolderImportDialog", _FakeFolderImportDialogAccepted)
+    monkeypatch.setattr(data_import_flow_module, "FolderImportDialog", _FakeFolderImportDialogAccepted)
     initial_count = len(window._flatten_dataset_tree())
 
     window._on_import_folder()
@@ -391,7 +393,7 @@ def test_import_folder_queues_all_matching_files_non_recursive(tmp_path, monkeyp
 
 def test_import_folder_applies_regex_columns_to_each_imported_dataset(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
 
     folder = tmp_path / "data_folder"
     folder.mkdir()
@@ -407,7 +409,7 @@ def test_import_folder_applies_regex_columns_to_each_imported_dataset(tmp_path, 
         def exec(self): return QDialog.DialogCode.Accepted
         def get_regex_pattern(self): return r"(?P<temp>\d+)C"
 
-    monkeypatch.setattr(main_window_module, "FolderImportDialog", _FakeFolderImportDialogWithRegex)
+    monkeypatch.setattr(data_import_flow_module, "FolderImportDialog", _FakeFolderImportDialogWithRegex)
 
     window._on_import_folder()
     _pump_events_until_queue_drained(window)
@@ -469,7 +471,7 @@ def test_drop_event_loads_file_with_plugin_registered_extension(tmp_path, monkey
     import pandas as pd
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
 
     api = GraphicaPluginAPI()
     api.register_importer(
@@ -1759,7 +1761,7 @@ def test_show_autosave_history_dialog_cancelled_does_nothing(tmp_path, monkeypat
         def __init__(self, *a, **k): pass
         def exec(self): return QDialog.DialogCode.Rejected
 
-    monkeypatch.setattr(main_window_module, "AutosaveHistoryDialog", _FakeDialogCancelled)
+    monkeypatch.setattr(project_files_module, "AutosaveHistoryDialog", _FakeDialogCancelled)
 
     def _fail_if_called(*a, **k):
         raise AssertionError("キャンセルしたのに読み込みが行われた")
@@ -1780,7 +1782,7 @@ def test_show_autosave_history_confirmed_loads_selected_generation(tmp_path, mon
         def exec(self): return QDialog.DialogCode.Accepted
         def get_selected_path(self): return self.generations[0][0]
 
-    monkeypatch.setattr(main_window_module, "AutosaveHistoryDialog", _FakeDialogAccepted)
+    monkeypatch.setattr(project_files_module, "AutosaveHistoryDialog", _FakeDialogAccepted)
     monkeypatch.setattr(
         main_window_module.QMessageBox, "question",
         staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.Yes)
@@ -1808,7 +1810,7 @@ def test_show_autosave_history_declined_confirmation_does_not_load(tmp_path, mon
         def exec(self): return QDialog.DialogCode.Accepted
         def get_selected_path(self): return self.generations[0][0]
 
-    monkeypatch.setattr(main_window_module, "AutosaveHistoryDialog", _FakeDialogAccepted)
+    monkeypatch.setattr(project_files_module, "AutosaveHistoryDialog", _FakeDialogAccepted)
     monkeypatch.setattr(
         main_window_module.QMessageBox, "question",
         staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.No)
@@ -1836,7 +1838,7 @@ def test_show_autosave_history_lists_multiple_generations_newest_first(tmp_path,
             captured['generations'] = generations
         def exec(self): return QDialog.DialogCode.Rejected
 
-    monkeypatch.setattr(main_window_module, "AutosaveHistoryDialog", _FakeDialogCaptures)
+    monkeypatch.setattr(project_files_module, "AutosaveHistoryDialog", _FakeDialogCaptures)
     window._on_show_autosave_history()
 
     paths = [g[0] for g in captured['generations']]
@@ -2540,7 +2542,7 @@ def test_import_loaded_dataframe_excel_sheet_list_fetch_failure_falls_back_to_si
     """pd.ExcelFile(...).sheet_names の取得に失敗しても(壊れたファイル等)、
     ワーカーが既に読み込み済みのdfをそのまま単一データセットとして追加できる。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
     bad_excel_path = str(tmp_path / "corrupt.xlsx")
     with open(bad_excel_path, "wb") as f:
         f.write(b"not a real xlsx file")
@@ -2560,7 +2562,7 @@ def test_import_loaded_dataframe_multi_sheet_dialog_rejected_cancels_import(tmp_
         "Sheet1": pd.DataFrame({"x": [1, 2], "y": [3, 4]}),
         "Sheet2": pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
     })
-    monkeypatch.setattr(main_window_module, "ExcelMultiSheetDialog", _make_fake_multi_sheet_dialog(accepted=False))
+    monkeypatch.setattr(data_import_flow_module, "ExcelMultiSheetDialog", _make_fake_multi_sheet_dialog(accepted=False))
 
     initial_count = len(window._flatten_dataset_tree())
     window._import_loaded_dataframe(pd.DataFrame(), str(excel_path))
@@ -2575,7 +2577,7 @@ def test_import_loaded_dataframe_multi_sheet_dialog_no_sheets_selected_cancels_i
         "Sheet2": pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
     })
     monkeypatch.setattr(
-        main_window_module, "ExcelMultiSheetDialog",
+        data_import_flow_module, "ExcelMultiSheetDialog",
         _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=[]),
     )
 
@@ -2592,10 +2594,10 @@ def test_import_loaded_dataframe_multi_sheet_success_with_formula_warning_and_sh
         "Sheet2": pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
     })
     monkeypatch.setattr(
-        main_window_module, "ExcelMultiSheetDialog",
+        data_import_flow_module, "ExcelMultiSheetDialog",
         _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=["Sheet1", "Sheet2"]),
     )
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeColumnPreviewDialogWithSheetCombo)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeColumnPreviewDialogWithSheetCombo)
 
     def _fake_find_unevaluated(file_path, checked_sheet):
         # Sheet1では見つかる(Yesと答えて続行)、Sheet2では見つからない
@@ -2603,7 +2605,7 @@ def test_import_loaded_dataframe_multi_sheet_success_with_formula_warning_and_sh
             return True, ["Sheet1!A1"], True
         return False, [], True
 
-    monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", _fake_find_unevaluated)
+    monkeypatch.setattr(data_import_flow_module, "find_unevaluated_formula_cells", _fake_find_unevaluated)
     monkeypatch.setattr(
         main_window_module.QMessageBox, "warning",
         staticmethod(lambda *a, **k: main_window_module.QMessageBox.StandardButton.Yes),
@@ -2619,9 +2621,9 @@ def test_import_loaded_dataframe_formula_warning_reply_no_skips_sheet(tmp_path, 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     excel_path = tmp_path / "single.xlsx"
     _write_multi_sheet_excel(excel_path, {"Sheet1": pd.DataFrame({"x": [1, 2], "y": [3, 4]})})
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
     monkeypatch.setattr(
-        main_window_module, "find_unevaluated_formula_cells",
+        data_import_flow_module, "find_unevaluated_formula_cells",
         lambda file_path, checked_sheet: (True, ["Sheet1!A1"], True),
     )
     monkeypatch.setattr(
@@ -2645,11 +2647,11 @@ def test_import_loaded_dataframe_multi_sheet_skips_sheet_with_read_error_and_ins
         "TooFewCols": pd.DataFrame({"only": [1, 2]}),
     })
     monkeypatch.setattr(
-        main_window_module, "ExcelMultiSheetDialog",
+        data_import_flow_module, "ExcelMultiSheetDialog",
         _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=["Good", "Bad", "TooFewCols"]),
     )
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
-    monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", lambda *a, **k: (False, [], True))
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "find_unevaluated_formula_cells", lambda *a, **k: (False, [], True))
 
     real_read_excel = pd.read_excel
 
@@ -2672,7 +2674,7 @@ def test_import_loaded_dataframe_multi_sheet_skips_sheet_with_read_error_and_ins
 
 def test_import_loaded_dataframe_column_preview_dialog_rejected_shows_cancelled_message(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeRejectedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeRejectedColumnPreviewDialog)
     csv_path = tmp_path / "data.csv"
     csv_path.write_text("x,y\n1,2\n", encoding="utf-8")
     df = pd.DataFrame({"x": [1], "y": [2]})
@@ -2688,7 +2690,7 @@ def test_import_loaded_dataframe_column_preview_dialog_rejected_shows_cancelled_
 
 def test_import_loaded_dataframe_records_source_file_for_csv(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
     csv_path = tmp_path / "data.csv"
     csv_path.write_text("x,y\n1,2\n", encoding="utf-8")
     df = pd.DataFrame({"x": [1], "y": [2]})
@@ -2708,11 +2710,11 @@ def test_import_loaded_dataframe_records_source_sheet_for_excel_multi_sheet(tmp_
         "Sheet2": pd.DataFrame({"x": [5, 6], "y": [7, 8]}),
     })
     monkeypatch.setattr(
-        main_window_module, "ExcelMultiSheetDialog",
+        data_import_flow_module, "ExcelMultiSheetDialog",
         _make_fake_multi_sheet_dialog(accepted=True, selected_sheets=["Sheet1", "Sheet2"]),
     )
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeColumnPreviewDialogWithSheetCombo)
-    monkeypatch.setattr(main_window_module, "find_unevaluated_formula_cells", lambda fp, sheet: (False, [], True))
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeColumnPreviewDialogWithSheetCombo)
+    monkeypatch.setattr(data_import_flow_module, "find_unevaluated_formula_cells", lambda fp, sheet: (False, [], True))
 
     window._import_loaded_dataframe(pd.DataFrame(), str(excel_path))
 
@@ -2764,7 +2766,7 @@ def test_paste_from_clipboard_insufficient_columns_shows_warning(tmp_path, monke
 def test_paste_from_clipboard_dialog_cancelled_shows_status_message(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "x\ty\n1\t2\n")
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeRejectedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeRejectedColumnPreviewDialog)
 
     initial_count = len(window._flatten_dataset_tree())
     window._on_paste_data_from_clipboard()
@@ -2776,7 +2778,7 @@ def test_paste_from_clipboard_dialog_cancelled_shows_status_message(tmp_path, mo
 def test_paste_from_clipboard_success_adds_dataset(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     monkeypatch.setattr(QApplication.clipboard(), "text", lambda mode=None: "x\ty\n1\t2\n3\t4\n")
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
 
     initial_count = len(window._flatten_dataset_tree())
     window._on_paste_data_from_clipboard()
@@ -2796,7 +2798,7 @@ def test_paste_from_clipboard_auto_detects_comma_delimiter(tmp_path, monkeypatch
             captured['df'] = df
             super().__init__(df, file_name, parent=parent, file_path=file_path)
 
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _CapturingColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _CapturingColumnPreviewDialog)
 
     window._on_paste_data_from_clipboard()
 
@@ -2814,7 +2816,7 @@ def test_paste_from_clipboard_auto_detects_semicolon_delimiter(tmp_path, monkeyp
             captured['df'] = df
             super().__init__(df, file_name, parent=parent, file_path=file_path)
 
-    monkeypatch.setattr(main_window_module, "ColumnPreviewDialog", _CapturingColumnPreviewDialog)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _CapturingColumnPreviewDialog)
 
     window._on_paste_data_from_clipboard()
 
