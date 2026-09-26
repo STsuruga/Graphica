@@ -1708,6 +1708,24 @@ def test_multi_peak_fit_dialog_get_multi_peak_fit_settings_rejected_returns_none
 
 # --- ColumnCalculatorDialog(列の計算プリセット) ---
 
+def test_column_calculator_presets_wrap_a_column_name_with_spaces_in_backticks():
+    dlg = ColumnCalculatorDialog(["強度 (a.u.)"])
+    dlg.preset_window_spinbox.setValue(5)
+    dlg._apply_preset_moving_average()
+    assert dlg.formula_edit.text() == "`強度 (a.u.)`.rolling(5).mean()"
+    assert dlg.output_col_combo.currentText() == "強度 (a.u.)_moving_avg5"
+    dlg._apply_preset_normalize()
+    assert dlg.formula_edit.text() == "(`強度 (a.u.)` - `強度 (a.u.)`.mean()) / `強度 (a.u.)`.std()"
+
+
+def test_row_filter_lists_columns_as_they_are_written_in_a_condition():
+    from PySide6.QtWidgets import QLabel
+
+    dialog = RowFilterDialog(["x", "強度 (a.u.)"])
+    labels = [w.text() for w in dialog.findChildren(QLabel)]
+    assert "利用可能な列: x, `強度 (a.u.)`" in labels
+
+
 def test_column_calculator_dialog_moving_average_preset():
     dlg = ColumnCalculatorDialog(["A", "B"])
     dlg.preset_source_combo.setCurrentText("A")

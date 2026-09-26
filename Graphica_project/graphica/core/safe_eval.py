@@ -2,10 +2,13 @@
 
 使えるのは数値・変数・四則演算・べき乗・剰余・比較・and / or / not(要素ごとの & / | / ~)と許した関数。
 列の計算では ALLOWED_SERIES_METHODS のメソッド(A.mean()、A.rolling(5).mean() など)も使える。
-属性の任意呼び出し・添字・lambda・内包表記・import・_ で始まる名前は拒否する。列名のバッククォート記法には対応しない。
+属性の任意呼び出し・添字・lambda・内包表記・import・_ で始まる名前は拒否する。
+列の計算では、空白や記号を含む列名を `強度 (a.u.)` のようにバッククォートで囲んで書ける(pandas の query/eval と同じ)。
 """
 import ast
+import keyword
 import operator
+import re
 
 import numpy as np
 from typing import Any, Callable
@@ -146,8 +149,46 @@ def safe_eval_formula(formula: str, variables: dict[str, Any], functions: dict[s
     return _Evaluator(variables, funcs, allowed_methods=None).eval(node)
 
 
+_BACKTICK_COLUMN = re.compile(r"`([^`]*)`")
+
+
+def column_reference(name: str) -> str:
+    """列の計算の式でその列を指す書き方。名前のまま書けない列名はバッククォートで囲む。"""
+    if name.isidentifier() and not keyword.iskeyword(name) and not name.startswith('_'):
+        return name
+    return f"`{name}`"
+
+
+def _replace_backtick_columns(formula: str, variables: dict[str, Any]) -> str:
+    """`列名` を、ほかの名前とぶつからない変数名に置き換え、その変数を variables に足す。"""
+    taken = set(variables) | set(DEFAULT_FUNCTIONS)
+    placeholders: dict[str, str] = {}
+
+    def replace(match: re.Match[str]) -> str:
+        name = match.group(1)
+        if name not in placeholders:
+            if name not in variables:
+                raise SafeEvalError(f"未定義の列です: {name}")
+            index = len(placeholders)
+            while f"backtick_column_{index}" in taken:
+                index += 1
+            placeholder = f"backtick_column_{index}"
+            taken.add(placeholder)
+            placeholders[name] = placeholder
+        return placeholders[name]
+
+    replaced = _BACKTICK_COLUMN.sub(replace, formula)
+    if "`" in replaced:
+        raise SafeEvalError("列名を囲むバッククォート ` が閉じていません。")
+    for name, placeholder in placeholders.items():
+        variables[placeholder] = variables[name]
+    return replaced
+
+
 def safe_eval_column_formula(df: Any, formula: str) -> Any:
     """列名を変数として列の計算式を評価する(ALLOWED_SERIES_METHODS のメソッドも使える)。"""
     variables = {str(col): df[col] for col in df.columns}
+    if "`" in formula:
+        formula = _replace_backtick_columns(formula, variables)
     node = _parse(formula)
     return _Evaluator(variables, dict(DEFAULT_FUNCTIONS), allowed_methods=ALLOWED_SERIES_METHODS).eval(node)
