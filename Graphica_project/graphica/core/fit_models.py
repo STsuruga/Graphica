@@ -17,6 +17,8 @@ from graphica.core.safe_eval import DEFAULT_FUNCTIONS, safe_eval_formula
 
 CUSTOM_FORMULA_KEYWORD = "カスタム数式"
 CUSTOM_FORMULA_LABEL = "カスタム数式..."
+CUSTOM_FORMULA_MODEL_ID = "custom_formula"
+PLUGIN_MODEL_ID_PREFIX = "plugin:"
 
 
 def is_custom_formula_type(fit_type: str) -> bool:
@@ -202,6 +204,7 @@ def _require_non_negative_x(x: Any) -> None:
 
 @dataclass(frozen=True)
 class FitModel:
+    model_id: str              # 保存用の ID(fit_result['fit_model_id'])。一度決めたら変えない
     keyword: str               # 種類の名前にこの語が含まれればこのモデル
     menu_label: str            # ダイアログの選択肢(= 保存される fit_type)
     param_names: tuple[str, ...]
@@ -212,28 +215,28 @@ class FitModel:
 
 # 判定の順。ダイアログの並びは MENU_ORDER。
 BUILTIN_FIT_MODELS: tuple[FitModel, ...] = (
-    FitModel("線形", "線形 (y = ax + b)", ("a", "b"), _linear, _p0_linear),
-    FitModel("2次多項式", "2次多項式 (y = ax^2 + bx + c)", ("a", "b", "c"), _poly2, _p0_poly2),
-    FitModel("3次多項式", "3次多項式 (y = ax^3 + bx^2 + cx + d)", ("a", "b", "c", "d"), _poly3, _p0_poly3),
-    FitModel("2成分指数", "2成分指数関数 (y = a1*exp(b1*x) + a2*exp(b2*x) + c)", ("a1", "b1", "a2", "b2", "c"),
+    FitModel("linear", "線形", "線形 (y = ax + b)", ("a", "b"), _linear, _p0_linear),
+    FitModel("poly2", "2次多項式", "2次多項式 (y = ax^2 + bx + c)", ("a", "b", "c"), _poly2, _p0_poly2),
+    FitModel("poly3", "3次多項式", "3次多項式 (y = ax^3 + bx^2 + cx + d)", ("a", "b", "c", "d"), _poly3, _p0_poly3),
+    FitModel("two_exponentials", "2成分指数", "2成分指数関数 (y = a1*exp(b1*x) + a2*exp(b2*x) + c)", ("a1", "b1", "a2", "b2", "c"),
              _two_exponentials, _p0_two_exponentials),
-    FitModel("指数関数", "指数関数 (y = a * exp(bx))", ("a", "b"), _exponential, _p0_exponential),
-    FitModel("対数", "対数 (y = a * ln(x) + b)", ("a", "b"), _logarithmic, _p0_logarithmic,
+    FitModel("exponential", "指数関数", "指数関数 (y = a * exp(bx))", ("a", "b"), _exponential, _p0_exponential),
+    FitModel("logarithmic", "対数", "対数 (y = a * ln(x) + b)", ("a", "b"), _logarithmic, _p0_logarithmic,
              _require_positive_x("対数フィットは X > 0 のデータにのみ使用できます。")),
-    FitModel("べき乗", "べき乗 (y = a * x^b)", ("a", "b"), _power, _p0_power,
+    FitModel("power", "べき乗", "べき乗 (y = a * x^b)", ("a", "b"), _power, _p0_power,
              _require_positive_x("べき乗フィットは X > 0 のデータにのみ使用できます。")),
-    FitModel("ガウシアン", "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)", ("a", "b", "c", "d"),
+    FitModel("gaussian", "ガウシアン", "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)", ("a", "b", "c", "d"),
              _gaussian, _p0_gaussian),
-    FitModel("ローレンツ", "ローレンツ関数 (y = a / (1 + ((x-b)/c)^2) + d)", ("a", "b", "c", "d"),
+    FitModel("lorentzian", "ローレンツ", "ローレンツ関数 (y = a / (1 + ((x-b)/c)^2) + d)", ("a", "b", "c", "d"),
              _lorentzian, _p0_lorentzian),
-    FitModel("擬似フォークト", "擬似フォークト関数 (y = a*(η/(1+((x-b)/c)^2) + (1-η)*exp(-4ln2*((x-b)/c)^2)) + d)",
+    FitModel("pseudo_voigt", "擬似フォークト", "擬似フォークト関数 (y = a*(η/(1+((x-b)/c)^2) + (1-η)*exp(-4ln2*((x-b)/c)^2)) + d)",
              ("a", "b", "c", "eta", "d"), _pseudo_voigt, _p0_pseudo_voigt),
-    FitModel("フォークト", "フォークト関数 (y = a*Re[wofz((x-b+iγ)/(σ√2))] / (σ√(2π)) + d)",
+    FitModel("voigt", "フォークト", "フォークト関数 (y = a*Re[wofz((x-b+iγ)/(σ√2))] / (σ√(2π)) + d)",
              ("a", "b", "sigma", "gamma", "d"), _voigt, _p0_voigt),
-    FitModel("ボルツマン", "ボルツマンシグモイド (y = a2 + (a1-a2) / (1 + exp((x-x0)/dx)))",
+    FitModel("boltzmann_sigmoid", "ボルツマン", "ボルツマンシグモイド (y = a2 + (a1-a2) / (1 + exp((x-x0)/dx)))",
              ("a1", "a2", "x0", "dx"), _boltzmann_sigmoid, _p0_boltzmann_sigmoid),
-    FitModel("シグモイド", "シグモイド (y = a / (1 + exp(-b(x-c))))", ("a", "b", "c"), _sigmoid, _p0_sigmoid),
-    FitModel("ヒル", "ヒルの式 (y = vmax*x^n / (k^n + x^n))", ("vmax", "k", "n"), _hill, _p0_hill,
+    FitModel("sigmoid", "シグモイド", "シグモイド (y = a / (1 + exp(-b(x-c))))", ("a", "b", "c"), _sigmoid, _p0_sigmoid),
+    FitModel("hill", "ヒル", "ヒルの式 (y = vmax*x^n / (k^n + x^n))", ("vmax", "k", "n"), _hill, _p0_hill,
              _require_non_negative_x),
 )
 
@@ -292,33 +295,77 @@ def _custom_formula_or_raise(custom_formula: str | None) -> str:
     return custom_formula
 
 
-def resolve_fit_param_names(fit_type: str, custom_formula: str | None,
-                            plugin_functions: Mapping[str, dict[str, Any]]) -> list[str]:
-    """パラメータ名だけを決める(カスタム数式の関数は作らない)。"""
+_BUILTIN_BY_ID = {m.model_id: m for m in BUILTIN_FIT_MODELS}
+
+
+def _identify(fit_type: str, model_id: str | None,
+              plugin_functions: Mapping[str, dict[str, Any]]) -> tuple[str, Any] | None:
+    """("custom", None) / ("builtin", FitModel) / ("plugin", 名前)。ID が分かればそれを先に使う(表示名が変わっても同じモデル)。"""
+    if model_id:
+        if model_id == CUSTOM_FORMULA_MODEL_ID:
+            return ("custom", None)
+        if model_id in _BUILTIN_BY_ID:
+            return ("builtin", _BUILTIN_BY_ID[model_id])
+        plugin_name = model_id[len(PLUGIN_MODEL_ID_PREFIX):]
+        if model_id.startswith(PLUGIN_MODEL_ID_PREFIX) and plugin_name in plugin_functions:
+            return ("plugin", plugin_name)
     if fit_type in plugin_functions:
-        return list(plugin_functions[fit_type]["params"])
+        return ("plugin", fit_type)
     if is_custom_formula_type(fit_type):
-        return extract_formula_params(_custom_formula_or_raise(custom_formula))
+        return ("custom", None)
     for model in BUILTIN_FIT_MODELS:
         if model.keyword in fit_type:
-            return list(model.param_names)
-    raise ValueError(f"不明なフィットタイプ: {fit_type}")
+            return ("builtin", model)
+    return None
+
+
+def fit_model_id(fit_type: str, plugin_functions: Mapping[str, dict[str, Any]]) -> str | None:
+    found = _identify(fit_type, None, plugin_functions)
+    if found is None:
+        return None
+    kind, target = found
+    if kind == "custom":
+        return CUSTOM_FORMULA_MODEL_ID
+    if kind == "builtin":
+        return str(target.model_id)
+    return PLUGIN_MODEL_ID_PREFIX + target
+
+
+def fit_type_label(fit_result: Mapping[str, Any], default: Any = None) -> Any:
+    """保存したフィット結果の種類の表示名。組み込みは ID から今の表示名を引く(表示名を変えても古いファイルとそろう)。"""
+    model = _BUILTIN_BY_ID.get(fit_result.get('fit_model_id') or "")
+    return model.menu_label if model is not None else fit_result.get('fit_type', default)
+
+
+def resolve_fit_param_names(fit_type: str, custom_formula: str | None,
+                            plugin_functions: Mapping[str, dict[str, Any]], model_id: str | None = None) -> list[str]:
+    """パラメータ名だけを決める(カスタム数式の関数は作らない)。"""
+    found = _identify(fit_type, model_id, plugin_functions)
+    if found is None:
+        raise ValueError(f"不明なフィットタイプ: {fit_type}")
+    kind, target = found
+    if kind == "custom":
+        return extract_formula_params(_custom_formula_or_raise(custom_formula))
+    if kind == "builtin":
+        return list(target.param_names)
+    return list(plugin_functions[target]["params"])
 
 
 def resolve_fit_model(fit_type: str, custom_formula: str | None,
-                      plugin_functions: Mapping[str, dict[str, Any]]) -> ResolvedFitModel:
-    if fit_type in plugin_functions:
-        entry = plugin_functions[fit_type]
-        return ResolvedFitModel(entry["params"], entry["func"], _plugin_initial_guess(entry))
-    if is_custom_formula_type(fit_type):
+                      plugin_functions: Mapping[str, dict[str, Any]], model_id: str | None = None) -> ResolvedFitModel:
+    found = _identify(fit_type, model_id, plugin_functions)
+    if found is None:
+        raise ValueError(f"不明なフィットタイプ: {fit_type}")
+    kind, target = found
+    if kind == "custom":
         params = extract_formula_params(_custom_formula_or_raise(custom_formula))
         # *params 形式ではパラメータ数を推定できないので p0 で数を伝える
         return ResolvedFitModel(params, build_custom_fit_func(custom_formula or "", params),
                                 lambda x, y: [1.0] * len(params))
-    for model in BUILTIN_FIT_MODELS:
-        if model.keyword in fit_type:
-            return ResolvedFitModel(list(model.param_names), model.func, model.initial_guess, model.check_data)
-    raise ValueError(f"不明なフィットタイプ: {fit_type}")
+    if kind == "builtin":
+        return ResolvedFitModel(list(target.param_names), target.func, target.initial_guess, target.check_data)
+    entry = plugin_functions[target]
+    return ResolvedFitModel(entry["params"], entry["func"], _plugin_initial_guess(entry))
 
 
 def _plugin_initial_guess(entry: dict[str, Any]) -> Callable[[Any, Any], list[Any]]:

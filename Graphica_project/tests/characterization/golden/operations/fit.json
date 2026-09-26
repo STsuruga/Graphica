@@ -508,6 +508,7 @@
     "fit_info": "[線形 (y = ax + b)] のフィッティング結果:\n  a = -7.2797e-02 ± 5.0e-02\n  b =  1.4537e+00 ± 2.9e-01\n  R^2 =  0.05094\n",
     "fit_result": {
      "fit_type": "線形 (y = ax + b)",
+     "fit_model_id": "linear",
      "custom_formula": null,
      "param_names": [
       "a",
@@ -636,6 +637,7 @@
      "operation": "curve_fit",
      "params": {
       "fit_type": "線形 (y = ax + b)",
+      "fit_model_id": "linear",
       "custom_formula": null,
       "param_names": [
        "a",

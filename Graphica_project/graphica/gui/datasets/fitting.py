@@ -5,8 +5,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox, QProgressDialog
 
 from graphica.core.analysis import (calculate_confidence_band, calculate_curve_fit, fit_curve_task,
-                                    multi_peak_fit_task)
+                                    get_fit_model_id, multi_peak_fit_task)
 from graphica.core.dataset import Dataset
+from graphica.core.fit_models import fit_type_label
 from graphica.core.provenance import build_provenance
 from graphica.gui.dialogs import FitDialog, MultiPeakFitDialog, ResultDialog
 from graphica.gui.task_runner import TaskRunner
@@ -18,6 +19,7 @@ def build_fit_result_dict(fit_type, custom_formula, fit, weighted, x_range, sour
     popt, pcov, perr = fit['popt'], fit['pcov'], fit['perr']
     return {
         'fit_type': fit_type,
+        'fit_model_id': get_fit_model_id(fit_type),
         'custom_formula': custom_formula,
         'param_names': list(fit['param_names']),
         'params': [float(v) for v in popt],
@@ -118,7 +120,7 @@ def multi_peak_summary_text(component_label, n_components, param_names, params, 
 def format_fit_result_text(fit_result):
     """保存済みの fit_result だけから、フィット直後と同じ体裁の結果文を作る(再フィットしない)。"""
     return _fit_summary_text(
-        fit_result.get('fit_type'), fit_result.get('custom_formula'),
+        fit_type_label(fit_result), fit_result.get('custom_formula'),
         fit_result.get('param_names', []), fit_result.get('params', []), fit_result.get('param_errors'),
         fit_result.get('r_squared', float('nan')), fit_result.get('weighted'), fit_result.get('x_range'),
         fit_result.get('fixed_params'), fit_result.get('bounds'), fit_result.get('loss', 'linear'),
@@ -456,7 +458,7 @@ class FittingController:
         mid = len(x_data) // 2
         anchor = (float(x_data[mid]), float(y_data[mid]))
 
-        lines = [f"フィット: {fit_result.get('fit_type', '')}"]
+        lines = [f"フィット: {fit_type_label(fit_result, '')}"]
         params = fit_result.get('params', [])
         errors = fit_result.get('param_errors', [None] * len(params))
         for name, value, err in zip(fit_result.get('param_names', []), params, errors):

@@ -10,7 +10,7 @@ from scipy.signal import find_peaks, peak_widths, savgol_filter, correlate, corr
 from scipy.special import wofz
 from scipy.stats import gaussian_kde
 
-from graphica.core.fit_models import RESERVED_FIT_TYPE_NAMES, resolve_fit_model, resolve_fit_param_names
+from graphica.core.fit_models import RESERVED_FIT_TYPE_NAMES, fit_model_id, resolve_fit_model, resolve_fit_param_names
 
 CURVE_FIT_MAX_ITERATIONS = 5000
 
@@ -36,9 +36,14 @@ def get_plugin_fit_type_names() -> list[str]:
     return list(_PLUGIN_FIT_FUNCTIONS.keys())
 
 
-def get_fit_param_names(fit_type: str, custom_formula: str | None = None) -> list[str]:
-    """フィットせずにパラメータ名を返す(フィットの前に入力欄を組み立てるため)。"""
-    return resolve_fit_param_names(fit_type, custom_formula, _PLUGIN_FIT_FUNCTIONS)
+def get_fit_param_names(fit_type: str, custom_formula: str | None = None, model_id: str | None = None) -> list[str]:
+    """フィットせずにパラメータ名を返す(フィットの前に入力欄を組み立てるため)。model_id が分かればそれを優先する。"""
+    return resolve_fit_param_names(fit_type, custom_formula, _PLUGIN_FIT_FUNCTIONS, model_id)
+
+
+def get_fit_model_id(fit_type: str) -> str | None:
+    """保存用の安定した ID(組み込みは 'gaussian' など、カスタム数式、'plugin:<名前>')。分からなければ None。"""
+    return fit_model_id(fit_type, _PLUGIN_FIT_FUNCTIONS)
 
 
 _ROBUST_LOSS_FUNCTIONS = ('linear', 'soft_l1', 'huber')
@@ -167,7 +172,8 @@ def _run_curve_fit_with_overrides(fit_func: Callable[..., Any], params_info: lis
 def calculate_curve_fit(x_data: Any, y_data: Any, fit_type: str, custom_formula: str | None = None, sigma: Any = None,
                         x_range: tuple[float, float] | None = None, p0_overrides: dict[str, float] | None = None,
                         fixed_params: dict[str, float] | None = None,
-                        bounds: dict[str, tuple[float, float]] | None = None, loss: str = 'linear') -> dict[str, Any]:
+                        bounds: dict[str, tuple[float, float]] | None = None, loss: str = 'linear',
+                        model_id: str | None = None) -> dict[str, Any]:
     """曲線フィット。popt / pcov / perr / x_fit・y_fit / r_squared / residuals などの dict を返す。
 
     x_range は両端を含み、範囲外の点は p0 の推定にも使わない。sigma は absolute_sigma=True で渡す。
@@ -195,7 +201,7 @@ def calculate_curve_fit(x_data: Any, y_data: Any, fit_type: str, custom_formula:
     if len(x_data) == 0:
         raise ValueError("有効なデータ点がありません(すべて欠損値です)。フィッティングできません。")
 
-    model = resolve_fit_model(fit_type, custom_formula, _PLUGIN_FIT_FUNCTIONS)
+    model = resolve_fit_model(fit_type, custom_formula, _PLUGIN_FIT_FUNCTIONS, model_id)
     if model.check_data is not None:
         model.check_data(x_data)
     fit_func, params_info = model.func, model.param_names
