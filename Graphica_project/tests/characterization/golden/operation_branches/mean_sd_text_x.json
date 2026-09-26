@@ -1,13 +1,8 @@
 {
  "modals": [
   {
-   "kind": "exec",
-   "class": "XAxisAlignmentDialog",
-   "title": "X軸アライメント(相互相関)"
-  },
-  {
    "kind": "QMessageBox.warning",
-   "title": "X軸アライメント",
+   "title": "平均±SD生成",
    "text": "X軸の列「name」が数値ではないため、この処理はできません(文字の列はカテゴリ軸として表示だけできます)。"
   }
  ],

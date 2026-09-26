@@ -58,9 +58,29 @@ def test_a_value_error_from_the_calculation_becomes_a_warning_and_stops(warnings
 def test_other_errors_are_not_caught(warnings):
     with pytest.raises(TypeError):
         _run(lambda op: op.calculate(lambda: (_ for _ in ()).throw(TypeError("想定外"))))
-    with pytest.raises(ValueError):
-        _run(lambda op: op.valid_points(type("D", (), {"x_data": ["a"], "y_data": [1.0]})()))
     assert warnings == []
+
+
+def _columns(x, y):
+    return type("D", (), {"x_data": x, "y_data": y, "x_col_name": "名前", "y_col_name": "値"})()
+
+
+def test_a_text_column_stops_with_a_warning_naming_it(warnings):
+    reached = []
+
+    def body(dataset):
+        def run(op):
+            op.valid_points(dataset)
+            reached.append(True)
+        return run
+
+    _run(body(_columns(["a", "b"], [1.0, 2.0])))
+    _run(body(_columns([1.0, 2.0], ["p", "q"])))
+    assert warnings == [
+        ("題", "X軸の列「名前」が数値ではないため、この処理はできません(文字の列はカテゴリ軸として表示だけできます)。"),
+        ("題", "Y軸の列「値」が数値ではないため、この処理はできません。"),
+    ]
+    assert reached == []
 
 
 def test_no_current_dataset_stops_silently(warnings):

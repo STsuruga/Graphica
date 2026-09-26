@@ -1,6 +1,6 @@
 """データセットのデータ処理(規格化・平滑化・ベースライン補正・積分・リサンプリング・データセット間の演算など)の本体。
 
-数値への変換を calculate() の外で行う操作(規格化・データセット間演算・整列など)は、文字の X 列で例外が外に出る。
+列を数に直すのは op.as_numbers() / op.valid_points() で、文字の列ならその処理の題で知らせて止める。
 Undo に積むのは分割(マクロ)と行の除外(マスク)だけ。どちらも今の挙動で、ここでは揃えない。
 """
 import logging
@@ -45,10 +45,10 @@ def arithmetic(op):
     operation, output_name = dialog.get_settings()
     op.require_output_name(output_name)
 
-    xa = np.asarray(ds_a.x_data, dtype=float)
-    ya = np.asarray(ds_a.y_data, dtype=float)
-    xb = np.asarray(ds_b.x_data, dtype=float)
-    yb = np.asarray(ds_b.y_data, dtype=float)
+    xa = op.as_numbers(ds_a, "x")
+    ya = op.as_numbers(ds_a, "y")
+    xb = op.as_numbers(ds_b, "x")
+    yb = op.as_numbers(ds_b, "y")
 
     # 誤差は A・B の両方に誤差列があるときだけ伝播させる(片方だけだと不完全で誤解を招く)。
     # 誤差列は x_data/y_data と行が対応しているので、同じ絞り込みをそのまま掛けられる。
@@ -122,10 +122,10 @@ def align(op):
     output_name = dialog.get_settings()
     op.require_output_name(output_name)
 
-    xa = np.asarray(ds_a.x_data, dtype=float)
-    ya = np.asarray(ds_a.y_data, dtype=float)
-    xb = np.asarray(ds_b.x_data, dtype=float)
-    yb = np.asarray(ds_b.y_data, dtype=float)
+    xa = op.as_numbers(ds_a, "x")
+    ya = op.as_numbers(ds_a, "y")
+    xb = op.as_numbers(ds_b, "x")
+    yb = op.as_numbers(ds_b, "y")
 
     result = op.calculate(lambda: calculate_cross_correlation_alignment(xa, ya, xb, yb))
 
@@ -425,7 +425,7 @@ def resample(op):
         )
         if target_dataset is None:
             op.stop_with_warning("リサンプリング先のデータセットを選択してください。")
-        target_x = np.asarray(target_dataset.x_data, dtype=float)
+        target_x = op.as_numbers(target_dataset, "x")
         target_x = target_x[~np.isnan(target_x)]
         if len(target_x) == 0:
             op.stop_with_warning(f"「{target_dataset_name}」に有効なX値がありません。")
@@ -499,8 +499,8 @@ def detect_duplicate_x(op):
 
     if mode == "average":
         op.require_output_name(output_name)
-        x_data = np.asarray(original_dataset.x_data, dtype=float)
-        y_data = np.asarray(original_dataset.y_data, dtype=float)
+        x_data = op.as_numbers(original_dataset, "x")
+        y_data = op.as_numbers(original_dataset, "y")
         result = op.calculate(lambda: calculate_average_duplicate_x(x_data, y_data))
         op.add_and_report(Dataset(
             name=output_name, df=pd.DataFrame({'x': result['x_used'], 'y': result['y_averaged']}),
@@ -570,7 +570,7 @@ def _outliers(method, value, y_data):
 def detect_outliers(op):
     """Y の外れ値を Z-score か IQR で探して結果を出す。除外(マスク)は利用者が選んだときだけ。"""
     original_dataset = op.current_dataset()
-    y_data = np.asarray(original_dataset.y_data, dtype=float)
+    y_data = op.as_numbers(original_dataset, "y")
     if len(y_data) < 2:
         op.stop_with_warning("有効なデータ点が不足しています(最低2点必要)。")
 
@@ -580,7 +580,7 @@ def detect_outliers(op):
     result, method_label = op.calculate(lambda: _outliers(method, value, y_data))
 
     is_outlier = result['is_outlier']
-    x_data = np.asarray(original_dataset.x_data, dtype=float)
+    x_data = op.as_numbers(original_dataset, "x")
     visible_index = original_dataset.visible_df.index
 
     result_text = f"[{original_dataset.name}] の外れ値検出結果:\n"
