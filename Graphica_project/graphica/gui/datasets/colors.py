@@ -6,12 +6,11 @@ from PySide6.QtWidgets import (QDialog, QInputDialog)
 
 from graphica.core.color_palettes import BUILTIN_PALETTES
 from graphica.core.named_colors import POPUP_LIMIT, load_named_colors
+from graphica.gui import app_settings
 from graphica.gui.dialogs import (ColorPaletteDialog)
 
 logger = logging.getLogger(__name__)
 
-COLOR_PALETTES_SETTINGS_KEY = "custom_color_palettes_json"
-ACTIVE_PALETTE_SETTINGS_KEY = "active_color_palette"
 
 # カラーマップからの自動配色で選ばせる候補(順序のある系列に向く、知覚的に均一なもの中心)。
 RECOMMENDED_COLORMAPS = ['viridis', 'plasma', 'cividis', 'coolwarm', 'turbo', 'rainbow']
@@ -176,7 +175,7 @@ class ColorController:
             self._host.undo_stack.endMacro()
 
     def load_palettes(self):
-        raw = self._host.settings.value(COLOR_PALETTES_SETTINGS_KEY, "")
+        raw = app_settings.CUSTOM_COLOR_PALETTES.read(self._host.settings)
         if not raw:
             return {}
         try:
@@ -186,11 +185,12 @@ class ColorController:
             return {}
 
     def save_palettes(self, palettes: dict):
-        self._host.settings.setValue(COLOR_PALETTES_SETTINGS_KEY, json.dumps(palettes))
+        app_settings.CUSTOM_COLOR_PALETTES.write(self._host.settings, json.dumps(palettes))
 
     def active_color_cycle(self):
         """今のパレットの色。未設定や空なら matplotlib の既定の色の並び。"""
-        active_name = self._host.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+        active_name = app_settings.ACTIVE_COLOR_PALETTE.read(
+            self._host.settings, default=ColorPaletteDialog.DEFAULT_PALETTE_NAME)
         if active_name in BUILTIN_PALETTES:
             return BUILTIN_PALETTES[active_name]
         palettes = self.load_palettes()
@@ -200,13 +200,14 @@ class ColorController:
 
     def manage_palettes(self):
         palettes = self.load_palettes()
-        active_name = self._host.settings.value(ACTIVE_PALETTE_SETTINGS_KEY, ColorPaletteDialog.DEFAULT_PALETTE_NAME)
+        active_name = app_settings.ACTIVE_COLOR_PALETTE.read(
+            self._host.settings, default=ColorPaletteDialog.DEFAULT_PALETTE_NAME)
 
         dialog = ColorPaletteDialog(palettes, active_name, self._host.parent_widget)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             new_palettes, new_active_name = dialog.get_result()
             self.save_palettes(new_palettes)
-            self._host.settings.setValue(ACTIVE_PALETTE_SETTINGS_KEY, new_active_name)
+            app_settings.ACTIVE_COLOR_PALETTE.write(self._host.settings, new_active_name)
 
 
 def _named_color_menu_icon(color_name, size=16):

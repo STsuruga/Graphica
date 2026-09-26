@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QMessageBox
 
 from graphica.core.version import APP_NAME, LOG_FILE_NAME
 from graphica.core.app_paths import get_app_data_dir
+from graphica.gui import app_settings
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ def _handle_uncaught_exception(exc_type, exc_value, exc_traceback):
 
 def should_prompt_safe_mode(settings):
     """前回が正常に終わらなかったか。PlotterApp が clean_exit を False にする前に呼ぶこと(後だと自分を異常終了と見誤る)。"""
-    return not settings.value("clean_exit", True, type=bool)
+    return not app_settings.CLEAN_EXIT.read(settings)
 
 
 def prompt_safe_mode_and_apply(settings, parent=None):

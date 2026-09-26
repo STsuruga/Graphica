@@ -8,11 +8,12 @@ QSettingsへの永続化をテストする。
 from PySide6.QtCore import QSettings, Qt, QPoint
 from PySide6.QtWidgets import QApplication, QMenu
 
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.main_window as main_window_module
 import graphica.gui.mixins.quick_access_mixin as quick_access_mixin_module
 from graphica.gui.main_window import PlotterApp
 from graphica.gui.dialogs import QuickAccessManagerDialog
-from graphica.gui.mixins.quick_access_mixin import QUICK_ACCESS_SETTINGS_KEY
+from graphica.gui.app_settings import QUICK_ACCESS_SETTINGS_KEY
 from graphica.core.plugin_api import GraphicaPluginAPI
 
 
@@ -33,7 +34,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch, settings_path=None, plugin
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
 
     if plugin_api is not None:
         monkeypatch.setattr(

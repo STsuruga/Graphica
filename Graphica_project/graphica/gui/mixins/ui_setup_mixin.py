@@ -1,6 +1,7 @@
 """PlotterApp の一度きりの組み立て(シグナル、メニューバー、初めの画面の状態)と、ダークモードの切り替え。"""
 from PySide6.QtWidgets import QApplication
 
+from graphica.gui import app_settings
 from graphica.gui.theme import apply_theme
 from graphica.gui.dialogs import CommandPaletteDialog
 from graphica.gui.datasets.actions_menu import populate_dataset_actions_menu
@@ -272,7 +273,7 @@ class UISetupMixin:
         """アプリ全体の配色(Qt のパレットと QSS)と、このタブのグラフ・アイコンを切り替える。"""
         apply_theme(QApplication.instance(), checked)
         self.canvas.dark_mode = checked
-        self.settings.setValue("dark_mode", checked)
+        app_settings.DARK_MODE.write(self.settings, checked)
         self._update_plot(light=True)  # 軸の数は変わらないので軽い描き直しでよい
         # 以下は作ったときにテーマの色を焼き込んでいるので、描き直す:
         # タイトルと軸ラベルのプレビュー
@@ -310,7 +311,7 @@ class UISetupMixin:
             if tab.canvas.dark_mode == checked:
                 continue
             tab.canvas.dark_mode = checked
-            tab.settings.setValue("dark_mode", checked)
+            app_settings.DARK_MODE.write(tab.settings, checked)
             # toggled を出すと、そのタブがまたほかのタブへ当て直しを連鎖させるので、シグナルを止めてチェックだけ揃える
             tab.dark_mode_action.blockSignals(True)
             tab.dark_mode_action.setChecked(checked)

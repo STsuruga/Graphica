@@ -5,10 +5,11 @@ import logging
 # Win32 の SetProcessDpiAwareness() を呼ばないこと。DPI の認識モードはプロセスで1回しか設定できず、
 # 先に呼ぶと Qt の設定が失敗して、描画とクリックの位置がずれる。
 
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QGuiApplication
 
+from graphica.gui import app_settings
 from graphica.gui.main_app_window import MainAppWindow
 from graphica.gui.crash_handler import install_crash_handler, prompt_safe_mode_and_apply
 from graphica.gui.theme import disable_scroll_value_change
@@ -62,7 +63,7 @@ def main():
         set_safe_mode(True)
     else:
         # 前回が異常終了なら、プラグインなしで起動するか尋ねる。clean_exit を書き換えるのは PlotterApp だけ
-        prompt_safe_mode_and_apply(QSettings("Graphica", "Graphica"))
+        prompt_safe_mode_and_apply(app_settings.open_settings())
 
     window = MainAppWindow()
     window.show()

@@ -13,7 +13,7 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-25): R-0(特性テスト)の作業中
+## 現在地(2026-09-26): M2(R-2・R-4・R-5)の作業中
 
 **再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
 (原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
@@ -22,32 +22,19 @@
 - 統合ブランチ `refactor/architecture`、作業フォルダ `D:\ユーザー\shuta\ドキュメント\PlotterApp-refactor`。
   **master への統合は M6 の確認後に 1 回だけ**(ユーザー指示)。PR の作成とマージはユーザーの承認を待つ。
 - 絶対条件(ユーザー指示): 機能・入出力・副作用・エッジケースを完全に維持。見つけた不具合は直さずに K として db に登録して提案する。
-- 作業ブランチ `refactor/r0-characterization`(統合ブランチから分岐、push 済み)。
-- M0 完了: P-2(`26d3146`、CI の pull_request に統合ブランチを追加)、P-3(`2ef015c`、`tests/characterization/ENVIRONMENT.md`)。
-- R-0.1 完了(`55a0147`): conftest が QSettings を一時 INI に差し替え(K-22)、差し替え忘れのモーダルは例外にして
-  テストを失敗させる(K-23)。ID と時刻を固定する fixture `deterministic_ids_and_time`。フルスイート 118 チャンク・3,147 件緑。
-- 新しい K: K-27(注釈と統計ラベルの日本語が □ になる。直す時期は R-8 のあと)。
-- R-0.2 完了(`20fc2c3`): `tests/characterization/` の recorder.py・scenario.py・conftest.py と
-  `scripts/update_characterization.py`。ランナーが特性テストも回す。CLAUDE.md に説明を追加(`e837781`)。
-- R-0.3 完了(`298c57c`・`dd89082`): 画面の組み立ての基準 14 シナリオ(`golden/ui/`)。OS で違う記録(画面・描画)は
-  `pytest.mark.pinned_os` で Windows のときだけ比べる。
-- R-0.4 完了(`0496c5a`): 描画 36 ケース × ライト/ダーク(`golden/rendering/`、軸の状態の JSON と画素のハッシュ、約 55 秒)。
-- R-0.5 完了(`ec331de`): 保存と読み込み・アプリの設定の 21 シナリオ(`golden/persistence/`)。
-- 新しい K: K-28(字体の設定が無い古いプロジェクトで凡例・題名の日本語が □。直す時期は R-1 のあと)。
-- R-0.6 完了(`0e90da0`): 操作の 48 シナリオ(`golden/operations/`、約 40 秒)。ModalLog に種類ごとの台本と「既定値で OK」モード。
-- R-0.7 完了(`6b33bdc`): 書き出しの 8 シナリオ(`golden/exports/`)。基準のファイルは `.gitattributes` で LF に固定。
-  途中で仕掛け線の漏れ(QPrintDialog・QPageSetupDialog は exec を自前で持つ)を塞いだ(`13efff5`)。
-- 新しい K: K-29(保存前の Python スクリプトの書き出しがサブプロットを 1×1 と見なし、2 枚目以降が抜ける。R-1 のあと)。
-- R-0.8 の検証済み(`0e6ffef`): 特性テスト 105 件が 2 回続けて一致(約 2 分 10 秒)、フルスイート 124 チャンク・3,254 件緑(約 19 分)。
-  基準のコミット `6b33bdc` を `tests/characterization/ENVIRONMENT.md` に記録。
-- **M1(R-0)完了**: PR #25 を統合ブランチにマージ(`317bf4c`)。CI で分かったこと: 特性テストは基準の OS(Windows)でだけ比べる
-  (macOS は数値の最後の桁・ファイルのバイト列・図の大きさが違う)。圧縮は展開して比べ、PDF レポートはフォントの版で変わるのでバイト列を比べない。
-- R-2 の実装と検証は済み(`refactor/r2-fit-models`): `core/fit_models.py` のモデルの表。先に全モデルを float.hex で基準化し、変更後も 1 ビット一致。
-- R-2 のあとの K はユーザーの選択どおり直した(マージ順に積み重ねたブランチ、各 PR は R-2 のあと):
-  K-20 `fix/k20-plugin-fit-name`(プラグイン名の完全一致を先に)→ K-6 `fix/k6-fit-param-errors`(値 ± 誤差)→
-  K-25 `fix/k25-fit-model-id`(安定した model_id を保存)。積み重ねた先端でフルスイート 127 チャンク・3,285 件緑。
-- 次: R-2 の PR → K-20・K-6・K-25 の PR(いずれもユーザーの承認後)→ R-4。
+- 進み具合と K の状態はロードマップの db が正。ここは要点だけ。
+- **M0・M1(R-0)完了**(PR #25): 特性テスト `tests/characterization/`(基準の OS=Windows でだけ比べる、圧縮は展開して比べる)。
+  conftest が QSettings を一時 INI に向け、差し替え忘れのモーダルは例外にする。
+- **R-2 完了**(PR #26): `core/fit_models.py` のモデルの表。K-20 完了(PR #27)。K-6 は PR #28、K-25 は `fix/k25-fit-model-id` で PR 待ち。
+- **R-4 の実装と検証は済み**(`refactor/r4-app-settings`): `gui/app_settings.py` の設定の表と `open_settings()`。
+  先に設定の読み書きを基準化し、変更後も特性テストが一致、フルスイート 3,276 件緑(集めた件数と一致)。PR は K-30 のあと。
+- K-30(ランナーが集められなかったテストファイルを黙って飛ばす)はユーザー選択で即修正、PR #29。
+  それまでは、フルスイートのあと「集めた件数 = 実行した件数」を手で確かめる。
+- K-24 は `fix/k24-recent-colors`(R-4 の上)で修正済み、PR は R-4 のあと。
+- まだ直さない K(時期つき): K-27・K-9(R-8)、K-28・K-29・K-19(R-1)、K-5・K-18(R-6)、K-21・K-8(R-3)、K-17(R-5)、K-7(R-7)、ほか merge。
+- 次: #28・#29 が緑ならマージ → K-25 の PR → R-4 の PR → K-24 の PR → R-5(通知の窓口)。
 - 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
+  既存ファイルは CRLF なので、複数行の置換は改行をそろえてから行う。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
 

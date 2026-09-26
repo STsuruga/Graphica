@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
 
 from graphica.core.axis_settings import axis_setting
 from graphica.core.commands import SetAnnotationsCommand
+from graphica.gui.app_settings import DEFAULT_SNAP_GRID_INTERVAL_PX
 from graphica.gui.dialogs import ArrowAnnotationDialog
 
 logger = logging.getLogger(__name__)
@@ -18,8 +19,6 @@ logger = logging.getLogger(__name__)
 ANNOTATION_CLICK_THRESHOLD_PX = 5
 ANNOTATION_DELETE_TOLERANCE_PX = 15
 
-DEFAULT_SNAP_TO_GRID_ENABLED = False
-DEFAULT_SNAP_GRID_INTERVAL_PX = 10
 
 
 class AnnotationMixin:
