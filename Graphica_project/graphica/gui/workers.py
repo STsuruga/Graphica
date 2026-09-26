@@ -1,6 +1,8 @@
 """データファイルの読み込み(TaskRunner で別スレッドで動かす関数)と、文字コード・区切り文字の判定。"""
 import csv
 import dataclasses
+import re
+import warnings
 
 import pandas as pd
 
@@ -182,6 +184,38 @@ def has_numeric_column(df):
     return any(pd.api.types.is_numeric_dtype(df[column]) for column in df.columns)
 
 
+# 年(4 桁の数字)を含む値だけを日付とみなす。"12:30" のような時刻だけの文字は、読んだ日の日付が補われてしまう
+_YEAR_PATTERN = re.compile(r"\d{4}")
+
+
+def parse_date_columns(df):
+    """文字の列のうち、空でない値がすべて日付として読める列を日付型にする(Excel の日付の列と同じ扱い)。"""
+    for column in df.columns:
+        series = df[column]
+        if series.dtype != object:
+            continue
+        text = series.dropna().astype(str).str.strip()
+        text = text[text != ""]
+        if text.empty or not text.map(lambda value: _YEAR_PATTERN.search(value) is not None).all():
+            continue
+        with warnings.catch_warnings():
+            # 書式を推測できない警告と、タイムゾーンが混ざった列の将来の仕様変更の警告(その列は下で日付にしない)
+            warnings.simplefilter("ignore", UserWarning)
+            warnings.simplefilter("ignore", FutureWarning)
+            try:
+                # 書式は値ごとに読む(先頭の値の書式に合わせると、時刻のある値と無い値が混ざった列を読めない)
+                parsed = pd.to_datetime(text, errors="coerce", format="mixed")
+            except (ValueError, TypeError):
+                continue
+        # タイムゾーンが混ざると日付型にならない(object のまま)
+        if parsed.isna().any() or not pd.api.types.is_datetime64_any_dtype(parsed):
+            continue
+        converted = pd.Series(pd.NaT, index=series.index, dtype=parsed.dtype)
+        converted.loc[parsed.index] = parsed
+        df[column] = converted
+    return df
+
+
 def read_data_file(file_path):
     """データファイルを DataFrame にする。プラグインがその拡張子を登録していればそちらを使う。"""
     ext = file_path.lower().split('.')[-1]
@@ -219,15 +253,15 @@ def read_data_file(file_path):
                 except UnicodeDecodeError:
                     found = None
                 if found is not None:
-                    return found[0]
+                    return parse_date_columns(found[0])
                 last_error = e
                 continue
             # 普通に読めて数値の列があるファイルは今までどおり。どの列も数値にならないときだけ、前後の説明の行を疑う
             if not has_numeric_column(df):
                 found = read_numeric_table(file_path, encoding)
                 if found is not None:
-                    return found[0]
-            return df
+                    return parse_date_columns(found[0])
+            return parse_date_columns(df)
         raise ValueError(
             f"テキストファイルの文字コードを判定できませんでした "
             f"(試行: {', '.join(CSV_ENCODING_FALLBACKS)})。詳細: {last_error}"
