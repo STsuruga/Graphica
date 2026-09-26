@@ -1,5 +1,6 @@
 """記録器そのもののテスト。ここが緩いと、特性テストが挙動の変化を見逃す。"""
 import json
+import os
 
 import numpy as np
 import pytest
@@ -63,6 +64,70 @@ def test_check_writes_in_update_mode_then_compares(golden_in_tmp, monkeypatch):
     assert "~ /a: 1 -> 2" in message
     assert "- /b[1]: 'x'" in message
     assert "+ /c: True" in message
+
+
+def _last_bits_changed(value):
+    return float.hex(float.fromhex(value) * (1 + 4e-16))
+
+
+def test_other_machines_accept_last_bit_noise_but_not_real_changes():
+    exact = 1.2345678901234
+    expected = {
+        "hex": [(1.5).hex(), (-2.0e-8).hex(), "inf"],
+        "rounded": 0.1234567891,
+        "array": recorder.array_summary(np.linspace(-1.0, 1.0, 40) * exact),
+        "text": "a",
+    }
+    noisy = json.loads(json.dumps(expected))
+    noisy["hex"] = [_last_bits_changed(v) for v in expected["hex"][:2]] + ["inf"]
+    noisy["rounded"] = 0.1234567892
+    noisy["array"] = recorder.array_summary(np.linspace(-1.0, 1.0, 40) * exact * (1 + 1e-13))
+    noisy["array"]["sha256"] = "0" * 16
+    assert recorder.tolerant_diff_summary(expected, noisy) == ""
+    assert recorder.diff_summary(expected, noisy) != ""
+
+    for key, changed in (
+        ("hex", [(1.5 * (1 + 1e-6)).hex(), (-2.0e-8).hex(), "inf"]),
+        ("rounded", 0.1234568),
+        ("array", recorder.array_summary(np.linspace(-1.0, 1.0, 40) * exact * (1 + 1e-6))),
+        ("text", "b"),
+    ):
+        broken = dict(noisy, **{key: changed})
+        assert f"/{key}" in recorder.tolerant_diff_summary(expected, broken)
+
+
+def test_optimizer_results_get_a_looser_tolerance_on_other_machines():
+    expected = {"popt": [(1.5).hex(), (0.25).hex()]}
+    stopped_elsewhere = {"popt": [(1.5 * (1 + 1e-8)).hex(), (0.25).hex()]}
+    assert recorder.tolerant_diff_summary(expected, stopped_elsewhere) != ""
+    assert recorder.tolerant_diff_summary(expected, stopped_elsewhere, recorder.OPTIMIZER_REL_TOL) == ""
+    moved = {"popt": [(1.5 * (1 + 1e-4)).hex(), (0.25).hex()]}
+    assert recorder.tolerant_diff_summary(expected, moved, recorder.OPTIMIZER_REL_TOL) != ""
+
+
+def test_the_machine_that_made_the_goldens_compares_bit_for_bit(golden_in_tmp, monkeypatch):
+    monkeypatch.setenv(recorder.UPDATE_ENV, "1")
+    recorder.check("group/case", {"v": (1.5).hex()})
+    monkeypatch.delenv(recorder.UPDATE_ENV)
+    noisy = {"v": _last_bits_changed((1.5).hex())}
+
+    recorder.check("group/case", noisy)
+    recorder.write_machine_fingerprint()
+    assert recorder.numeric_machine_matches()
+    with pytest.raises(AssertionError, match="/v"):
+        recorder.check("group/case", noisy)
+
+    monkeypatch.setenv("OPENBLAS_CORETYPE", os.environ.get("OPENBLAS_CORETYPE", "") + "_other")
+    assert not recorder.numeric_machine_matches()
+    recorder.check("group/case", noisy)
+
+
+@pytest.mark.skipif(bool(os.environ.get("CI")), reason="CI のランナーは基準を作った機械ではない")
+def test_this_machine_made_the_goldens():
+    """手元で許容差の比較に黙って落ちると、リファクタリングがビット単位で結果を保つことを確かめられなくなる。"""
+    assert recorder.numeric_machine_matches(), (
+        "golden/MACHINE.json と CPU・numpy/scipy の版・計算経路の環境変数が違う。"
+        "ここを基準の機械にするなら scripts/update_characterization.py で全体を作り直す")
 
 
 def test_missing_golden_fails_instead_of_passing(golden_in_tmp):

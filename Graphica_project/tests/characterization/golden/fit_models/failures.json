@@ -86,7 +86,29 @@
     200
    ],
    "dtype": "float64",
-   "sha256": "bf8fd1a92d7f8189"
+   "sha256": "bf8fd1a92d7f8189",
+   "sample": [
+    0.0,
+    0.6206030151,
+    1.288944724,
+    1.909547739,
+    2.530150754,
+    3.150753769,
+    3.819095477,
+    4.439698492,
+    5.060301508,
+    5.680904523,
+    6.349246231,
+    6.969849246,
+    7.590452261,
+    8.211055276,
+    8.879396985,
+    9.5
+   ],
+   "nan_count": 0,
+   "min": 0.0,
+   "max": 9.5,
+   "sum": 950.0
   },
   "y_fit": [
    "0x0.0p+0",
@@ -162,108 +184,13 @@
    "x0",
    "dx"
   ],
-  "popt": [
-   "0x1.3560ada442fedp+4",
-   "-0x1.9205ce4939d62p-6",
-   "0x1.e2eeacffeb1abp-2",
-   "0x1.38540ffc755b0p-7"
-  ],
-  "pcov": [
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf",
-   "inf"
-  ],
   "perr": [
    "inf",
    "inf",
    "inf",
    "inf"
   ],
-  "r_squared": "0x1.5c192cc820610p-5",
-  "residuals": [
-   "-0x1.3c0c000000000p-37",
-   "-0x1.f0ccb136234acp-1",
-   "0x1.00434b0b7bee2p+0",
-   "-0x1.ab9c80caf3421p-1",
-   "0x1.5c96732a9d6e8p-1",
-   "-0x1.72e42f41ccf35p-2",
-   "0x1.a4cdf5427304ep-4",
-   "0x1.0d109ea05d7b6p-2",
-   "-0x1.031ec7567698dp-1",
-   "0x1.96946bfa1bc54p-1",
-   "-0x1.d0138a23d72adp-1",
-   "0x1.05e4eff9c4268p+0",
-   "-0x1.e1b9a57ba5e88p-1",
-   "0x1.b81949884f954p-1",
-   "-0x1.31219906c1169p-1",
-   "0x1.78cbf4e85ba96p-2",
-   "-0x1.d8813adf09500p-8",
-   "-0x1.08cd389780261p-2",
-   "0x1.3022d22f0d07bp-1",
-   "-0x1.8c3b998edfa4cp-1",
-   "0x1.f161fd04b15ebp-1",
-   "-0x1.f36b18396b263p-1",
-   "0x1.f41b9434556a9p-1",
-   "-0x1.916879c9e53f9p-1",
-   "0x1.373d7514db0f1p-1",
-   "-0x1.196f707f5adcap-2",
-   "0x1.3fffa66bb0d97p-7",
-   "0x1.686aa4bb2a13cp-2",
-   "-0x1.2a44989112b08p-1",
-   "0x1.b341041d9bd42p-1",
-   "-0x1.df631aa5a9640p-1",
-   "0x1.0618b12ccd249p+0",
-   "-0x1.d32eab2fb2b8dp-1",
-   "0x1.9c1308fe2f994p-1",
-   "-0x1.0a731d158daeep-1",
-   "0x1.1dea870e8aa9ap-2",
-   "0x1.5f6c72a107af3p-4",
-   "-0x1.62ccda0de6be7p-2",
-   "0x1.55fae296142adp-1",
-   "-0x1.a71b855814286p-1"
-  ],
-  "x_fit": {
-   "shape": [
-    200
-   ],
-   "dtype": "float64",
-   "sha256": "1c701530117c8892"
-  },
-  "y_fit": [
-   "0x1.d36d8f55e78ecp-1",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6"
-  ],
-  "fit_func_on_data": [
-   "0x1.d36d8f55e78ecp-1",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6",
-   "-0x1.9205ce4939d62p-6"
-  ],
+  "poor_fit": true,
   "keys": [
    "fit_func",
    "loss",
@@ -280,19 +207,7 @@
   ],
   "loss": "linear",
   "warnings": [
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
-   "RuntimeWarning: overflow encountered in exp",
    "OptimizeWarning: Covariance of the parameters could not be estimated",
-   "RuntimeWarning: overflow encountered in exp",
    "RuntimeWarning: overflow encountered in exp"
   ]
  },
@@ -383,7 +298,29 @@
     200
    ],
    "dtype": "float64",
-   "sha256": "1c701530117c8892"
+   "sha256": "1c701530117c8892",
+   "sample": [
+    0.5,
+    1.120603015,
+    1.788944724,
+    2.409547739,
+    3.030150754,
+    3.650753769,
+    4.319095477,
+    4.939698492,
+    5.560301508,
+    6.180904523,
+    6.849246231,
+    7.469849246,
+    8.090452261,
+    8.711055276,
+    9.379396985,
+    10.0
+   ],
+   "nan_count": 0,
+   "min": 0.5,
+   "max": 10.0,
+   "sum": 1050.0
   },
   "y_fit": [
    "0x1.fffffff678701p-1",
@@ -509,7 +446,29 @@
     200
    ],
    "dtype": "float64",
-   "sha256": "1c701530117c8892"
+   "sha256": "1c701530117c8892",
+   "sample": [
+    0.5,
+    1.120603015,
+    1.788944724,
+    2.409547739,
+    3.030150754,
+    3.650753769,
+    4.319095477,
+    4.939698492,
+    5.560301508,
+    6.180904523,
+    6.849246231,
+    7.469849246,
+    8.090452261,
+    8.711055276,
+    9.379396985,
+    10.0
+   ],
+   "nan_count": 0,
+   "min": 0.5,
+   "max": 10.0,
+   "sum": 1050.0
   },
   "y_fit": [
    "0x1.0000000105395p+0",

@@ -135,7 +135,8 @@ def test_fit_options(normalizer):
         "nan_rows": lambda: calculate_curve_fit(X, y_nan, gauss),
         "nan_in_sigma": lambda: calculate_curve_fit(X, y, gauss, sigma=np.where(X > 9.5, np.nan, sigma)),
     }
-    recorder.check("fit_models/options", {k: _fit_record(v) for k, v in cases.items()}, normalizer)
+    recorder.check("fit_models/options", {k: _fit_record(v) for k, v in cases.items()}, normalizer,
+                   rel_tol=recorder.OPTIMIZER_REL_TOL)
 
 
 def test_fit_failures(plugin_fits, normalizer):
@@ -163,6 +164,16 @@ def test_fit_failures(plugin_fits, normalizer):
         "flat_gaussian": lambda: analysis.calculate_curve_fit(X, flat, "ガウシアン"),
     }
     record = {k: _fit_record(v) for k, v in cases.items()}
+    # 収束しない当てはめの数値は CPU や BLAS で下位ビットが揺れるので、結果の形だけを残す
+    unstable = record["no_convergence"]
+    record["no_convergence"] = {
+        "param_names": unstable["param_names"],
+        "perr": unstable["perr"],
+        "poor_fit": float.fromhex(unstable["r_squared"]) < 0.1,
+        "keys": unstable["keys"],
+        "loss": unstable["loss"],
+        "warnings": sorted(set(unstable["warnings"])),
+    }
 
     def param_names(*args):
         try:

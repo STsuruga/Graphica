@@ -37,7 +37,17 @@
        4
       ],
       "dtype": "float64",
-      "sha256": "85b0ddfe3454a8c3"
+      "sha256": "85b0ddfe3454a8c3",
+      "sample": [
+       0.12,
+       0.34,
+       0.28,
+       0.09
+      ],
+      "nan_count": 0,
+      "min": 0.09,
+      "max": 0.34,
+      "sum": 0.83
      }
     },
     "name": "Sample A",
@@ -275,7 +285,17 @@
        4
       ],
       "dtype": "float64",
-      "sha256": "85b0ddfe3454a8c3"
+      "sha256": "85b0ddfe3454a8c3",
+      "sample": [
+       0.12,
+       0.34,
+       0.28,
+       0.09
+      ],
+      "nan_count": 0,
+      "min": 0.09,
+      "max": 0.34,
+      "sum": 0.83
      }
     },
     "name": "Sample A",

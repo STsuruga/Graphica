@@ -8,6 +8,23 @@
 版を上げるときは、フルスイートと特性テストを通したうえで、`fix:` ではなく専用のコミットで
 `scripts/update_characterization.py` を回し、この表も同じコミットで書き換える。
 
+## 数値の比べ方
+
+同じ版でも、numpy と OpenBLAS は CPU ごとに別の計算経路(SIMD の命令、BLAS の核)を選ぶので、計算結果の最後の
+数ビットが機械によって変わる。GitHub の Windows ランナーは実行ごとに CPU が違い、同じコードで通ったり落ちたりした。
+そこで、**基準を作った機械(`golden/MACHINE.json`)では数値をビット単位で比べ、ほかの機械では許容差で比べる。**
+
+- 機械の識別: CPU の文字列、numpy が使える SIMD の機能、numpy と scipy の版、`OPENBLAS_CORETYPE` と
+  `NPY_DISABLE_CPU_FEATURES`。
+- 許容差: 相対 1e-9(`NUMERIC_REL_TOL`)。配列の要素は、その配列の最大の大きさに対する絶対差としても使う。
+  範囲制約つき・頑健な損失のフィット(`fit_models/options`)は、`least_squares` が ftol=xtol=1e-8 で止まるため
+  1e-6(`OPTIMIZER_REL_TOL`)。
+- 浮動小数の配列は、ハッシュのほかに等間隔の 16 点・最小・最大・合計・NaN の数を記録し、別の機械ではこちらで比べる。
+- 手元で `OPENBLAS_CORETYPE` を Sandybridge・Prescott・Nehalem にすると CI と同じ種類の差が出る(Haswell・Zen は
+  この機械と同じ)。測った最大の差は `fit_models/options` で 1.2e-8、ほかは 1e-16 以下。
+- 基準を作った機械で許容差の比較に落ちていないかは `test_recorder.py::test_this_machine_made_the_goldens` が見る
+  (`CI` があれば飛ばす)。基準の機械を変えるときは `scripts/update_characterization.py` を `-k` なしで回す。
+
 ## 版
 
 | 項目 | 版 |
@@ -19,6 +36,7 @@
 | numpy | 2.3.1 |
 | pandas | 2.3.1 |
 | scipy | 1.16.0 |
+| CPU | AMD64 Family 23 Model 113(Zen 2、AVX2 まで。AVX-512 なし)、OpenBLAS の核は Zen(Haswell と同じ結果) |
 | openpyxl | 3.1.5 |
 | xlrd | 2.0.2 |
 | Pillow | 11.2.1 |
