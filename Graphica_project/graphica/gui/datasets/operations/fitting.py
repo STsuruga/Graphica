@@ -231,8 +231,9 @@ def fit_current_dataset(op):
     source = op.current_dataset()
     _ensure_idle(op, FIT_RUNNER, _FIT_BUSY_TEXT)
     x_data, y_data = source.x_data, source.y_data
-    x_min = float(np.min(x_data)) if len(x_data) else None
-    x_max = float(np.max(x_data)) if len(x_data) else None
+    numeric_x = op.as_numbers(source, "x")
+    x_min = float(np.min(numeric_x)) if len(numeric_x) else None
+    x_max = float(np.max(numeric_x)) if len(numeric_x) else None
     (fit_type, custom_formula, use_weighted, x_range,
      p0_overrides, fixed_params, bounds, band_type, loss) = FitDialog.get_fit_type(op.parent, x_min=x_min, x_max=x_max)
     if fit_type is None:
