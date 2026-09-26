@@ -40,6 +40,30 @@ WATERFALL_ZORDER_TOP = 1.9
 WATERFALL_DEPTH_SHRINK_MIN_SCALE = 0.2
 
 
+# 軸の位置(図に対する割合)がこれより動かなければ収まったとみなす。1500 画素の図で 0.0002 画素
+_LAYOUT_SETTLED_TOLERANCE = 1e-7
+_LAYOUT_MAX_PASSES = 15
+
+
+def fit_tight_layout(fig):
+    """tight_layout を、軸の位置が動かなくなるまで繰り返す。
+
+    tight_layout は今の配置から計算し直すので、注釈や目盛りの文字がはみ出す図では 1 回で収まらず、
+    描くたびに少しずつ動く(描いた回数で見た目が変わる)。例外はそのまま上げる。
+    """
+    def positions():
+        return [bound for ax in fig.axes for bound in ax.get_position().bounds]
+
+    before = positions()
+    for _ in range(_LAYOUT_MAX_PASSES):
+        fig.tight_layout()
+        after = positions()
+        if len(after) == len(before) and all(abs(a - b) <= _LAYOUT_SETTLED_TOLERANCE
+                                             for a, b in zip(after, before)):
+            return
+        before = after
+
+
 def _waterfall_depth_scale(w_idx, enabled, shrink_ratio):
     """段 w_idx のトレースの Y に掛ける倍率。奥ほど縮めて立体風にする(無効なら 1.0)。"""
     if not enabled:
@@ -473,7 +497,7 @@ class _CanvasDrawingMixin:
             # 自由配置は利用者が決めた位置を tight_layout が上書きするので、グリッドだけ。
             # matplotlib の予備フォント(LastResortHE)が欠けた環境では FileNotFoundError になるので、配置を諦めて続ける
             try:
-                self.fig.tight_layout()
+                fit_tight_layout(self.fig)
             except (ValueError, FileNotFoundError):
                 pass
 
@@ -499,7 +523,7 @@ class _CanvasDrawingMixin:
                 self._draw_annotations(ax, index, settings, datasets=datasets,
                                        allow_reuse=True)
         try:
-            self.fig.tight_layout()
+            fit_tight_layout(self.fig)
         except (ValueError, FileNotFoundError):
             # フォントが欠けた環境の対策(redraw_all 参照)
             pass
@@ -637,7 +661,7 @@ class _CanvasDrawingMixin:
         if not is_free_layout:
             # 自由配置には tight_layout を掛けない・フォントが欠けた環境の対策(redraw_all 参照)
             try:
-                self.fig.tight_layout()
+                fit_tight_layout(self.fig)
             except (ValueError, FileNotFoundError):
                 pass
 
