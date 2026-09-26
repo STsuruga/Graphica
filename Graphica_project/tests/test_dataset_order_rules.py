@@ -37,20 +37,29 @@ def _names(datasets):
     return [ds.name for ds in datasets]
 
 
-def test_adding_into_a_folder_keeps_the_draw_order_at_the_end():
-    """K-18 の今の挙動: ツリーではフォルダの中、描画順では末尾。"""
+def test_adding_into_a_folder_follows_the_tree_in_the_draw_order():
+    """K-18 の再現手順: フォルダ F を先に作り、最上位に A・B、F の中に C。描画順も一覧と同じ C, A, B になる。"""
+    order, project, _tree = _order()
+    folder = order.add_folder("F")
+    order.append(_ds("A"))
+    order.append(_ds("B"))
+    order.append(_ds("C"), folder)
+    assert _names(order.tree_order()) == ["C", "A", "B"]
+    assert _names(project.datasets) == ["C", "A", "B"]
+    order.append(_ds("D"), folder)
+    order.append(_ds("E"))
+    assert _names(project.datasets) == _names(order.tree_order()) == ["C", "D", "A", "B", "E"]
+
+
+def test_adding_at_the_top_level_still_goes_to_the_end_of_the_draw_order():
+    """最上位への追加は一覧でも末尾なので、描画順も末尾(保存済みの食い違いがあっても前には割り込まない)。"""
     order, project, _tree = _order()
     a, b = _ds("A"), _ds("B")
     order.append(a)
-    folder = order.add_folder("F")
-    order.append(b, folder)
+    order.append(b)
+    project.datasets[:] = [b, a]
     order.append(_ds("C"))
-    assert _names(project.datasets) == ["A", "B", "C"]
-    assert _names(order.tree_order()) == ["A", "B", "C"]
-    moved = folder.takeChild(0)
-    order.tree.insertTopLevelItem(0, moved)
-    assert _names(order.tree_order()) == ["B", "A", "C"]
-    assert _names(project.datasets) == ["A", "B", "C"]
+    assert _names(project.datasets) == ["B", "A", "C"]
 
 
 def test_removal_restores_the_draw_order_and_the_tree_positions():

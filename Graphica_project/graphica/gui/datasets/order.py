@@ -2,7 +2,8 @@
 それらを合わせる規則をここに集める。
 
 今の規則(変えるときはここだけ):
-- 追加は描画順の末尾、ツリーでは指定したフォルダの末尾。フォルダの中に足すとツリーと描画順が食い違う(K-18)。
+- 追加はツリーでは指定したフォルダの末尾。描画順は、最上位なら末尾、フォルダの中ならツリーで直前にあるデータセットの
+  すぐ後(一覧と描画の重なりをそろえる。K-18)。保存済みの並びは変えないので、開いたプロジェクトの見た目は変わらない。
 - ドラッグの並べ替えのあとでだけ、描画順をツリーの順(深さ優先)に合わせる。同じフォルダの中の並べ替えだけ Undo できる。
 - 保存用のフォルダ構造は保存・比較の直前にツリーから作り、読み込みではそこからツリーを作り直す。
 - 削除の Undo は、描画順の全体と各項目の親・位置を控えて戻す。
@@ -92,9 +93,25 @@ class DatasetOrder:
     # --- 足す ---
 
     def append(self, dataset, parent_folder=None):
-        """描画順の末尾と、ツリーのフォルダの末尾に足す。"""
-        self._project.datasets.append(dataset)
-        return self._make_dataset_item(dataset, parent_folder)
+        """ツリーのフォルダの末尾と、それに合う描画順の位置に足す。"""
+        item = self._make_dataset_item(dataset, parent_folder)
+        position = len(self._project.datasets) if parent_folder is None else self._draw_position_for(item)
+        self._project.datasets.insert(position, dataset)
+        return item
+
+    def _draw_position_for(self, item):
+        """ツリーで直前にあるデータセットの描画順のすぐ後。前に無ければ直後のものの前、どちらも無ければ末尾。"""
+        leaves = self.dataset_items()
+        index = next(i for i, leaf in enumerate(leaves) if leaf is item)
+        for leaf in reversed(leaves[:index]):
+            row = self.find_row(item_dataset(leaf))
+            if row != -1:
+                return row + 1
+        for leaf in leaves[index + 1:]:
+            row = self.find_row(item_dataset(leaf))
+            if row != -1:
+                return row
+        return len(self._project.datasets)
 
     def add_folder(self, name, parent_item=None):
         from PySide6.QtWidgets import QTreeWidgetItem
