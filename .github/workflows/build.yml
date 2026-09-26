@@ -32,6 +32,8 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
+    # テストがモーダルなどで止まると、既定では 6 時間待ってから落ちる(ふだんは 25 分ほど)
+    timeout-minutes: 60
 
     defaults:
       run:
@@ -83,6 +85,7 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
+    timeout-minutes: 60
 
     defaults:
       run:
@@ -169,6 +172,8 @@ jobs:
     # pip で入れた版(範囲指定の依存)が、まっさらな環境で起動するか。3.10 では範囲の下の方の版、
     # 3.13 では最新の版が入る。テストの本体は固定版の build-* が回すので、ここは起動の確認だけ。
     runs-on: windows-latest
+    # ふだんは 2 分かからない。起動がダイアログで止まったら早く落とす
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
