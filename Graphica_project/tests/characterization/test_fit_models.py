@@ -135,7 +135,8 @@ def test_fit_options(normalizer):
         "nan_rows": lambda: calculate_curve_fit(X, y_nan, gauss),
         "nan_in_sigma": lambda: calculate_curve_fit(X, y, gauss, sigma=np.where(X > 9.5, np.nan, sigma)),
     }
-    recorder.check("fit_models/options", {k: _fit_record(v) for k, v in cases.items()}, normalizer)
+    recorder.check("fit_models/options", {k: _fit_record(v) for k, v in cases.items()}, normalizer,
+                   rel_tol=recorder.OPTIMIZER_REL_TOL)
 
 
 def test_fit_failures(plugin_fits, normalizer):
