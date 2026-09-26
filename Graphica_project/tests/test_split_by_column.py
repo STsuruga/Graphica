@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
-import graphica.gui.datasets.processing as processing_module
+import graphica.gui.datasets.operations.processing as processing_module
 from graphica.gui.main_window import PlotterApp
 from graphica.core.dataset import Dataset
 from graphica.core.analysis import split_dataframe_by_column

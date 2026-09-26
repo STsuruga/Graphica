@@ -21,7 +21,7 @@ ALLOWED = {
     "graphica/gui/datasets/fitting.py": 1,
     "graphica/gui/datasets/peaks.py": 2,
     "graphica/gui/datasets/plugin_runs.py": 2,
-    "graphica/gui/datasets/processing.py": 2,
+    "graphica/gui/datasets/operations/processing.py": 2,
     "graphica/gui/datasets/transfer.py": 4,
     "graphica/gui/dialogs/analysis.py": 2,
     "graphica/gui/dialogs/data_import.py": 6,
