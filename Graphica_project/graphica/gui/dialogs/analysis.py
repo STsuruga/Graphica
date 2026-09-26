@@ -1130,7 +1130,7 @@ class OutlierDetectionDialog(QDialog):
         self.apply_mask_checkbox = QCheckBox("検出した外れ値をマスク(除外)に適用する")
         self.apply_mask_checkbox.setToolTip(
             "チェックを外すと検出結果を表示するだけでマスクは変更しません。\n"
-            "マスクは非破壊(項目36と同じ仕組み)で、いつでも解除できます。"
+            "マスクは非破壊で、いつでも解除できます。"
         )
         layout.addWidget(self.apply_mask_checkbox)
 
