@@ -43,10 +43,8 @@ def main():
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    import graphica.gui.main_app_window as main_app_window_module
-    import graphica.gui.main_window as main_window_module
-    main_window_module.QSettings = IsolatedQSettings
-    main_app_window_module.QSettings = IsolatedQSettings
+    import graphica.gui.app_settings as app_settings_module
+    app_settings_module.QSettings = IsolatedQSettings
     # 初回の案内は、閉じるまで待つダイアログなので出さない
     IsolatedQSettings().setValue("has_shown_welcome", True)
 
