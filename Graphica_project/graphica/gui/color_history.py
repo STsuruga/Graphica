@@ -18,7 +18,7 @@ MAX_RECENT_COLORS = 16
 
 def load_recent_colors_into_picker(settings):
     """起動時に一度呼び、QSettingsに保存された「最近使った色」をカスタムカラー欄に復元する。"""
-    colors = app_settings.RECENT_COLORS.read(settings)
+    colors = app_settings.as_list(app_settings.RECENT_COLORS.read(settings))
     if not colors:
         return
     for i, color_name in enumerate(colors[:MAX_RECENT_COLORS]):
@@ -37,7 +37,7 @@ def get_color_with_history(settings, parent=None, initial=None):
 
     if color.isValid():
         color_name = color.name()
-        colors = [c for c in app_settings.RECENT_COLORS.read(settings) if c != color_name]
+        colors = [c for c in app_settings.as_list(app_settings.RECENT_COLORS.read(settings)) if c != color_name]
         colors.insert(0, color_name)
         colors = colors[:MAX_RECENT_COLORS]
         app_settings.RECENT_COLORS.write(settings, colors)
