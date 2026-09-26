@@ -2520,6 +2520,16 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         command = AddDatasetCommand(do_add, do_remove, description=description)
         self.undo_stack.push(command)
 
+    def _push_dataset_additions(self, add, datasets, description):
+        """add() で足す datasets を、Undo 1回で取り除けるように積む(積むとすぐ add() が走る)。"""
+        def remove():
+            for dataset in reversed(datasets):
+                self.dataset_order.remove_added(dataset)
+            self.property_panel.update_ui_state()
+            self._update_plot()
+
+        self.undo_stack.push(AddDatasetCommand(add, remove, description=description))
+
     def _remove_dataset_items_with_undo(self, top_level_items, description=None):
         """ツリーの項目(データセットかフォルダ)を Undo できるように削除する。
 

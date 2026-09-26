@@ -41,8 +41,10 @@
   },
   "current": "重複_averaged",
   "undo": {
-   "texts": [],
-   "index": 0
+   "texts": [
+    "重複X値の検出"
+   ],
+   "index": 1
   },
   "status": "「重複_averaged」を追加しました",
   "datasets": [
@@ -458,5 +460,80 @@
   ],
   "windows": []
  },
- "clipboard": ""
+ "clipboard": "",
+ "after_undo_all": {
+  "draw_order": [
+   "重複",
+   "B"
+  ],
+  "tree": [
+   {
+    "text": "重複",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "重複",
+    "B"
+   ]
+  },
+  "current": "B",
+  "undo": {
+   "texts": [
+    "重複X値の検出"
+   ],
+   "index": 0
+  }
+ },
+ "after_redo_all": {
+  "draw_order": [
+   "重複",
+   "B",
+   "重複_averaged"
+  ],
+  "tree": [
+   {
+    "text": "重複",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "重複_averaged",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "重複",
+    "B",
+    "重複_averaged"
+   ]
+  },
+  "current": "重複_averaged",
+  "undo": {
+   "texts": [
+    "重複X値の検出"
+   ],
+   "index": 1
+  }
+ },
+ "undo_modals": []
 }

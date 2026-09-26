@@ -41,8 +41,10 @@
   },
   "current": "文字のX_hist",
   "undo": {
-   "texts": [],
-   "index": 0
+   "texts": [
+    "ヒストグラム / KDE"
+   ],
+   "index": 1
   },
   "status": "「文字のX_hist」を追加しました",
   "datasets": [
@@ -431,5 +433,80 @@
   ],
   "windows": []
  },
- "clipboard": ""
+ "clipboard": "",
+ "after_undo_all": {
+  "draw_order": [
+   "文字のX",
+   "B"
+  ],
+  "tree": [
+   {
+    "text": "文字のX",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "文字のX",
+    "B"
+   ]
+  },
+  "current": "B",
+  "undo": {
+   "texts": [
+    "ヒストグラム / KDE"
+   ],
+   "index": 0
+  }
+ },
+ "after_redo_all": {
+  "draw_order": [
+   "文字のX",
+   "B",
+   "文字のX_hist"
+  ],
+  "tree": [
+   {
+    "text": "文字のX",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "文字のX_hist",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "文字のX",
+    "B",
+    "文字のX_hist"
+   ]
+  },
+  "current": "文字のX_hist",
+  "undo": {
+   "texts": [
+    "ヒストグラム / KDE"
+   ],
+   "index": 1
+  }
+ },
+ "undo_modals": []
 }

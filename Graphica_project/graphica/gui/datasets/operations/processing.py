@@ -1,7 +1,7 @@
 """データセットのデータ処理(規格化・平滑化・ベースライン補正・積分・リサンプリング・データセット間の演算など)の本体。
 
 列を数に直すのは op.as_numbers() / op.valid_points() で、文字の列ならその処理の題で知らせて止める。
-Undo に積むのは分割(マクロ)と行の除外(マスク)だけ。どちらも今の挙動で、ここでは揃えない。
+データセットを足す操作は op.add() で Undo できる追加にする(Undo の名前はその処理の題)。
 """
 import logging
 
@@ -273,15 +273,17 @@ def baseline_correction(op):
 
     x_sorted, baseline, corrected = op.calculate(lambda: _baseline(method, params, x_data, y_data))
 
-    op.add(Dataset(
-        name=output_name, df=pd.DataFrame({'x': x_sorted, 'y': corrected}), x_col_name='x', y_col_name='y',
-        provenance=build_provenance(f'baseline_{method}', dict(params), [original_dataset]),
-    ))
-    if add_baseline_dataset:
+    # ベースライン曲線も足すときは、補正したものと合わせて Undo 1回分にする
+    with op.host.undo_macro(op.title, enabled=add_baseline_dataset):
         op.add(Dataset(
-            name=f"{output_name}_baseline", df=pd.DataFrame({'x': x_sorted, 'y': baseline}),
-            x_col_name='x', y_col_name='y',
+            name=output_name, df=pd.DataFrame({'x': x_sorted, 'y': corrected}), x_col_name='x', y_col_name='y',
+            provenance=build_provenance(f'baseline_{method}', dict(params), [original_dataset]),
         ))
+        if add_baseline_dataset:
+            op.add(Dataset(
+                name=f"{output_name}_baseline", df=pd.DataFrame({'x': x_sorted, 'y': baseline}),
+                x_col_name='x', y_col_name='y',
+            ))
     op.status(f"「{output_name}」を追加しました", 3000)
 
 

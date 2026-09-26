@@ -52,9 +52,10 @@
   "current": "Fit (A)",
   "undo": {
    "texts": [
+    "カーブフィット",
     "フィット結果の注釈焼き込み"
    ],
-   "index": 1
+   "index": 2
   },
   "status": "フィット結果を注釈として焼き込みました",
   "datasets": [
@@ -819,8 +820,7 @@
  "after_undo_all": {
   "draw_order": [
    "A",
-   "B",
-   "Fit (A)"
+   "B"
   ],
   "tree": [
    {
@@ -834,24 +834,18 @@
     "checked": "Unchecked",
     "hidden": false,
     "selected": false
-   },
-   {
-    "text": "Fit (A)",
-    "checked": "Unchecked",
-    "hidden": false,
-    "selected": true
    }
   ],
   "group_tree": {
    "": [
     "A",
-    "B",
-    "Fit (A)"
+    "B"
    ]
   },
-  "current": "Fit (A)",
+  "current": "B",
   "undo": {
    "texts": [
+    "カーブフィット",
     "フィット結果の注釈焼き込み"
    ],
    "index": 0
@@ -880,7 +874,7 @@
     "text": "Fit (A)",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": true
+    "selected": false
    }
   ],
   "group_tree": {
@@ -890,12 +884,13 @@
     "Fit (A)"
    ]
   },
-  "current": "Fit (A)",
+  "current": "B",
   "undo": {
    "texts": [
+    "カーブフィット",
     "フィット結果の注釈焼き込み"
    ],
-   "index": 1
+   "index": 2
   }
  },
  "undo_modals": []

@@ -41,8 +41,10 @@
   },
   "current": "A_normalized",
   "undo": {
-   "texts": [],
-   "index": 0
+   "texts": [
+    "規格化(ノーマライズ)"
+   ],
+   "index": 1
   },
   "status": "「方法」文をクリップボードにコピーしました",
   "datasets": [
@@ -536,5 +538,80 @@
   ],
   "windows": []
  },
- "clipboard": "元データ「A」に対し規格化(最大値基準)を実施した(出力データセット: 「A_normalized」)。"
+ "clipboard": "元データ「A」に対し規格化(最大値基準)を実施した(出力データセット: 「A_normalized」)。",
+ "after_undo_all": {
+  "draw_order": [
+   "A",
+   "B"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B"
+   ]
+  },
+  "current": "B",
+  "undo": {
+   "texts": [
+    "規格化(ノーマライズ)"
+   ],
+   "index": 0
+  }
+ },
+ "after_redo_all": {
+  "draw_order": [
+   "A",
+   "B",
+   "A_normalized"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "A_normalized",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B",
+    "A_normalized"
+   ]
+  },
+  "current": "A_normalized",
+  "undo": {
+   "texts": [
+    "規格化(ノーマライズ)"
+   ],
+   "index": 1
+  }
+ },
+ "undo_modals": []
 }
