@@ -1,0 +1,759 @@
+{
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "FitDialog",
+   "title": "曲線フィット"
+  },
+  {
+   "kind": "QMessageBox.information",
+   "title": "バッチカーブフィット",
+   "text": "1件のフィットに成功しました。\n\n失敗:\n2点: データ点数 (2) がフィットに必要なパラメータ数 (4) より少ないため、フィッティングできません。"
+  }
+ ],
+ "after": {
+  "draw_order": [
+   "A",
+   "2点",
+   "Fit (A)"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "2点",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "Fit (A)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "2点",
+    "Fit (A)"
+   ]
+  },
+  "current": "A",
+  "undo": {
+   "texts": [],
+   "index": 0
+  },
+  "status": "",
+  "datasets": [
+   {
+    "columns": [
+     "x",
+     "y",
+     "yerr",
+     "grp"
+    ],
+    "dtypes": [
+     "float64",
+     "float64",
+     "float64",
+     "object"
+    ],
+    "shape": [
+     41,
+     4
+    ],
+    "index": {
+     "shape": [
+      41
+     ],
+     "dtype": "int64",
+     "sha256": "d0c758a033ea48e3"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "cba92fb8e4f4121d",
+      "sample": [
+       0.0,
+       0.75,
+       1.25,
+       2.0,
+       2.75,
+       3.25,
+       4.0,
+       4.75,
+       5.25,
+       6.0,
+       6.75,
+       7.25,
+       8.0,
+       8.75,
+       9.25,
+       10.0
+      ],
+      "nan_count": 0,
+      "min": 0.0,
+      "max": 10.0,
+      "sum": 205.0
+     },
+     "y": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "4e4790ab15ae5f8e",
+      "sample": [
+       0.50001118,
+       0.6563968857,
+       0.3938389304,
+       0.5759277012,
+       1.569588811,
+       2.369262336,
+       3.392685416,
+       2.631894395,
+       1.376663098,
+       0.4816133515,
+       0.7052562165,
+       0.5485458712,
+       0.3188955076,
+       0.6797806177,
+       0.6001272985,
+       0.3023936752
+      ],
+      "nan_count": 0,
+      "min": 0.3023936752,
+      "max": 3.393554227,
+      "sum": 44.67968619
+     },
+     "yerr": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "6cfa52f875bb0d16",
+      "sample": [
+       0.05,
+       0.0575,
+       0.0625,
+       0.07,
+       0.0775,
+       0.0825,
+       0.09,
+       0.0975,
+       0.1025,
+       0.11,
+       0.1175,
+       0.1225,
+       0.13,
+       0.1375,
+       0.1425,
+       0.15
+      ],
+      "nan_count": 0,
+      "min": 0.05,
+      "max": 0.15,
+      "sum": 4.1
+     },
+     "grp": {
+      "shape": [
+       41
+      ],
+      "dtype": "object",
+      "sha256": "61c32a90c773610f"
+     }
+    },
+    "name": "A",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": "yerr",
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000001"
+   },
+   {
+    "columns": [
+     "x",
+     "y"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     2,
+     2
+    ],
+    "index": {
+     "shape": [
+      2
+     ],
+     "dtype": "int64",
+     "sha256": "fff143c4af61e84c"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       2
+      ],
+      "dtype": "float64",
+      "sha256": "a9e042d0ccb24fd2",
+      "sample": [
+       1.0,
+       2.0
+      ],
+      "nan_count": 0,
+      "min": 1.0,
+      "max": 2.0,
+      "sum": 3.0
+     },
+     "y": {
+      "shape": [
+       2
+      ],
+      "dtype": "float64",
+      "sha256": "b9b2230cb45947a6",
+      "sample": [
+       2.0,
+       3.0
+      ],
+      "nan_count": 0,
+      "min": 2.0,
+      "max": 3.0,
+      "sum": 5.0
+     }
+    },
+    "name": "2点",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000002"
+   },
+   {
+    "columns": [
+     "x_fit",
+     "y_fit"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     200,
+     2
+    ],
+    "index": {
+     "shape": [
+      200
+     ],
+     "dtype": "int64",
+     "sha256": "701f84288dc77d19"
+    },
+    "values": {
+     "x_fit": {
+      "shape": [
+       200
+      ],
+      "dtype": "float64",
+      "sha256": "a13242a7761beb1c",
+      "sample": [
+       0.0,
+       0.6532663317,
+       1.35678392,
+       2.010050251,
+       2.663316583,
+       3.316582915,
+       4.020100503,
+       4.673366834,
+       5.326633166,
+       5.979899497,
+       6.683417085,
+       7.336683417,
+       7.989949749,
+       8.64321608,
+       9.346733668,
+       10.0
+      ],
+      "nan_count": 0,
+      "min": 0.0,
+      "max": 10.0,
+      "sum": 1000.0
+     },
+     "y_fit": {
+      "shape": [
+       200
+      ],
+      "dtype": "float64",
+      "sha256": "ad32483496a8c866",
+      "sample": [
+       0.4944914937,
+       0.4951711736,
+       0.5104507617,
+       0.6461484578,
+       1.260975104,
+       2.556708729,
+       3.452874147,
+       2.643696002,
+       1.325729729,
+       0.6656384605,
+       0.5098935941,
+       0.4953290739,
+       0.4944969755,
+       0.4944719928,
+       0.4944715951,
+       0.4944715928
+      ],
+      "nan_count": 0,
+      "min": 0.4944715928,
+      "max": 3.452874147,
+      "sum": 220.315886
+     }
+    },
+    "name": "Fit (A)",
+    "x_col_name": "x_fit",
+    "y_col_name": "y_fit",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "--",
+    "linewidth": 1.5,
+    "marker": "None",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": "[ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)] のフィッティング結果:\n  a =  2.9584e+00 ± 7.7e-02\n  b =  4.0156e+00 ± 2.4e-02\n  c =  8.2279e-01 ± 2.7e-02\n  d =  4.9447e-01 ± 3.0e-02\n  R^2 =  0.97879\n",
+    "fit_result": {
+     "fit_type": "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
+     "fit_model_id": "gaussian",
+     "custom_formula": null,
+     "param_names": [
+      "a",
+      "b",
+      "c",
+      "d"
+     ],
+     "params": [
+      2.95844701,
+      4.01558983,
+      0.8227904181,
+      0.4944715928
+     ],
+     "param_errors": [
+      0.07717751738,
+      0.0238187442,
+      0.0266112418,
+      0.03017235263
+     ],
+     "covariance": [
+      [
+       0.005956369188,
+       6.564490107e-10,
+       -0.0007667802779,
+       -0.0006437368095
+      ],
+      [
+       6.564490107e-10,
+       0.0005673325752,
+       3.019498739e-10,
+       -8.2311248e-10
+      ],
+      [
+       -0.0007667802779,
+       3.019498739e-10,
+       0.0007081581899,
+       -0.0003580552177
+      ],
+      [
+       -0.0006437368095,
+       -8.2311248e-10,
+       -0.0003580552177,
+       0.0009103708631
+      ]
+     ],
+     "r_squared": 0.9787895421,
+     "residuals": [
+      0.00551968625,
+      0.1418232321,
+      0.2049155608,
+      0.1608020113,
+      0.03282150961,
+      -0.1110500683,
+      -0.1948724588,
+      -0.1755678529,
+      -0.06576038993,
+      0.07380398532,
+      0.1680410596,
+      0.168754598,
+      0.08034319091,
+      -0.04414010518,
+      -0.1337403925,
+      -0.139264946,
+      -0.05970218106,
+      0.05829473327,
+      0.1463226976,
+      0.1510491031,
+      0.06288015537,
+      -0.07788248803,
+      -0.2007090246,
+      -0.2409601266,
+      -0.1742795391,
+      -0.03095088835,
+      0.1183707721,
+      0.1989605924,
+      0.1713978316,
+      0.05276962321,
+      -0.09207451446,
+      -0.1848679956,
+      -0.1756000119,
+      -0.0691675579,
+      0.07733943332,
+      0.1853088337,
+      0.196803571,
+      0.1056557009,
+      -0.03922272135,
+      -0.1600866946,
+      -0.1920779176
+     ],
+     "residual_x": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0,
+      1.25,
+      1.5,
+      1.75,
+      2.0,
+      2.25,
+      2.5,
+      2.75,
+      3.0,
+      3.25,
+      3.5,
+      3.75,
+      4.0,
+      4.25,
+      4.5,
+      4.75,
+      5.0,
+      5.25,
+      5.5,
+      5.75,
+      6.0,
+      6.25,
+      6.5,
+      6.75,
+      7.0,
+      7.25,
+      7.5,
+      7.75,
+      8.0,
+      8.25,
+      8.5,
+      8.75,
+      9.0,
+      9.25,
+      9.5,
+      9.75,
+      10.0
+     ],
+     "weighted": false,
+     "x_range": null,
+     "source_dataset_id": "00000000000000000000000000000001",
+     "source_dataset_name": "A",
+     "p0_overrides": {},
+     "fixed_params": {},
+     "bounds": {},
+     "loss": "linear"
+    },
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": {
+     "operation": "batch_curve_fit",
+     "params": {
+      "fit_type": "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
+      "fit_model_id": "gaussian",
+      "custom_formula": null,
+      "param_names": [
+       "a",
+       "b",
+       "c",
+       "d"
+      ],
+      "params": [
+       2.95844701,
+       4.01558983,
+       0.8227904181,
+       0.4944715928
+      ],
+      "param_errors": [
+       0.07717751738,
+       0.0238187442,
+       0.0266112418,
+       0.03017235263
+      ],
+      "covariance": [
+       [
+        0.005956369188,
+        6.564490107e-10,
+        -0.0007667802779,
+        -0.0006437368095
+       ],
+       [
+        6.564490107e-10,
+        0.0005673325752,
+        3.019498739e-10,
+        -8.2311248e-10
+       ],
+       [
+        -0.0007667802779,
+        3.019498739e-10,
+        0.0007081581899,
+        -0.0003580552177
+       ],
+       [
+        -0.0006437368095,
+        -8.2311248e-10,
+        -0.0003580552177,
+        0.0009103708631
+       ]
+      ],
+      "r_squared": 0.9787895421,
+      "residuals": [
+       0.00551968625,
+       0.1418232321,
+       0.2049155608,
+       0.1608020113,
+       0.03282150961,
+       -0.1110500683,
+       -0.1948724588,
+       -0.1755678529,
+       -0.06576038993,
+       0.07380398532,
+       0.1680410596,
+       0.168754598,
+       0.08034319091,
+       -0.04414010518,
+       -0.1337403925,
+       -0.139264946,
+       -0.05970218106,
+       0.05829473327,
+       0.1463226976,
+       0.1510491031,
+       0.06288015537,
+       -0.07788248803,
+       -0.2007090246,
+       -0.2409601266,
+       -0.1742795391,
+       -0.03095088835,
+       0.1183707721,
+       0.1989605924,
+       0.1713978316,
+       0.05276962321,
+       -0.09207451446,
+       -0.1848679956,
+       -0.1756000119,
+       -0.0691675579,
+       0.07733943332,
+       0.1853088337,
+       0.196803571,
+       0.1056557009,
+       -0.03922272135,
+       -0.1600866946,
+       -0.1920779176
+      ],
+      "residual_x": [
+       0.0,
+       0.25,
+       0.5,
+       0.75,
+       1.0,
+       1.25,
+       1.5,
+       1.75,
+       2.0,
+       2.25,
+       2.5,
+       2.75,
+       3.0,
+       3.25,
+       3.5,
+       3.75,
+       4.0,
+       4.25,
+       4.5,
+       4.75,
+       5.0,
+       5.25,
+       5.5,
+       5.75,
+       6.0,
+       6.25,
+       6.5,
+       6.75,
+       7.0,
+       7.25,
+       7.5,
+       7.75,
+       8.0,
+       8.25,
+       8.5,
+       8.75,
+       9.0,
+       9.25,
+       9.5,
+       9.75,
+       10.0
+      ],
+      "weighted": false,
+      "x_range": null,
+      "source_dataset_id": "00000000000000000000000000000001",
+      "source_dataset_name": "A",
+      "p0_overrides": {},
+      "fixed_params": {},
+      "bounds": {},
+      "loss": "linear"
+     },
+     "source_dataset_ids": [
+      "00000000000000000000000000000001"
+     ],
+     "source_dataset_names": [
+      "A"
+     ],
+     "timestamp": "2026-01-01T00:00:00+00:00"
+    },
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000003"
+   }
+  ],
+  "annotations": [
+   []
+  ],
+  "windows": []
+ },
+ "clipboard": ""
+}
