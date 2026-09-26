@@ -220,17 +220,27 @@ class SettingsMixin:
         self._on_axis_setting_changed()
 
     def _on_x_tick_mode_changed(self):
-        is_fixed_interval = (self.ui.x_major_tick_mode_combo.currentIndex() == 1)
-        self.ui.x_major_tick_interval_spinbox.setEnabled(is_fixed_interval)
+        self._refresh_x_tick_mode_state()
         self._update_plot_appearance()
 
+    def _refresh_x_tick_mode_state(self):
+        is_fixed_interval = (self.ui.x_major_tick_mode_combo.currentIndex() == 1)
+        self.ui.x_major_tick_interval_spinbox.setEnabled(is_fixed_interval)
+
     def _on_y_tick_mode_changed(self):
+        self._refresh_y_tick_mode_state()
+        self._update_plot_appearance()
+
+    def _refresh_y_tick_mode_state(self):
         is_fixed_interval = (self.ui.y_major_tick_mode_combo.currentIndex() == 1)
         self.ui.y_major_tick_interval_spinbox.setEnabled(is_fixed_interval)
-        self._update_plot_appearance()
 
     def _on_x_minor_tick_visibility_changed(self):
         """補助目盛の表示と対数表示の両方に依存するので、同じスロットで受ける。"""
+        self._refresh_x_minor_tick_state()
+        self._update_plot_appearance()
+
+    def _refresh_x_minor_tick_state(self):
         is_visible = self.ui.x_minor_ticks_visible_checkbox.isChecked()
         is_log = self.ui.x_log_checkbox.isChecked()
         # 対数軸は MultipleLocator ではなく LogLocator なので間隔は使わない
@@ -240,9 +250,12 @@ class SettingsMixin:
         self.x_log_minor_labels_checkbox.setVisible(is_log)
         self.x_log_minor_subs_combo.setEnabled(is_log and is_visible)
         self.x_log_minor_labels_checkbox.setEnabled(is_log and is_visible)
-        self._update_plot_appearance()
 
     def _on_y_minor_tick_visibility_changed(self):
+        self._refresh_y_minor_tick_state()
+        self._update_plot_appearance()
+
+    def _refresh_y_minor_tick_state(self):
         is_visible = self.ui.y_minor_ticks_visible_checkbox.isChecked()
         is_log = self.ui.y_log_checkbox.isChecked()
         self.ui.y_minor_tick_interval_spinbox.setEnabled(is_visible and not is_log)
@@ -251,9 +264,12 @@ class SettingsMixin:
         self.y_log_minor_labels_checkbox.setVisible(is_log)
         self.y_log_minor_subs_combo.setEnabled(is_log and is_visible)
         self.y_log_minor_labels_checkbox.setEnabled(is_log and is_visible)
-        self._update_plot_appearance()
 
     def _on_legend_visibility_changed(self):
+        self._refresh_legend_state()
+        self._update_plot_appearance()
+
+    def _refresh_legend_state(self):
         is_visible = self.ui.legend_visible_checkbox.isChecked()
 
         self.legend_loc_label.setEnabled(is_visible)
@@ -262,9 +278,6 @@ class SettingsMixin:
         self.legend_font_button.setEnabled(is_visible)
         self.legend_color_label.setEnabled(is_visible)
         self.legend_color_button.setEnabled(is_visible)
-
-        self._update_plot_appearance()
-
 
     def _grid_linestyle_code(self, combo_index: int) -> str:
         choices = self.grid_linestyle_choices
@@ -280,6 +293,10 @@ class SettingsMixin:
         return 0
 
     def _on_grid_visibility_changed(self):
+        self._refresh_grid_state()
+        self._update_plot_appearance()
+
+    def _refresh_grid_state(self):
         is_visible = self.ui.grid_visible_checkbox.isChecked()
 
         self.ui.minor_grid_visible_checkbox.setEnabled(is_visible)
@@ -296,8 +313,6 @@ class SettingsMixin:
             self.y_minor_grid_linestyle_combo, self.y_minor_grid_width_spinbox, self.y_minor_grid_alpha_spinbox,
         ):
             widget.setEnabled(is_minor_visible)
-
-        self._update_plot_appearance()
 
 
     def _warn_if_font_family_unavailable_for_graph(self, font):
@@ -488,12 +503,14 @@ class SettingsMixin:
             # 呼ぶと、オートスケールを切って保存した範囲が今の表示範囲で上書きされる。
             self._refresh_x_autoscale_enabled_state()
             self._refresh_y_autoscale_enabled_state()
-            self._on_x_tick_mode_changed()
-            self._on_y_tick_mode_changed()
-            self._on_x_minor_tick_visibility_changed()
-            self._on_y_minor_tick_visibility_changed()
-            self._on_legend_visibility_changed()
-            self._on_grid_visibility_changed()
+            self._refresh_x_tick_mode_state()
+            self._refresh_y_tick_mode_state()
+            self._refresh_x_minor_tick_state()
+            self._refresh_y_minor_tick_state()
+            self._refresh_legend_state()
+            self._refresh_grid_state()
+            # 欄の状態をそろえてから 1 回だけ描く(どれも同じ設定で描くので、欄ごとに描いても結果は同じ)
+            self._update_plot_appearance()
 
         except Exception as e:
             notify.warning(self, "設定適用エラー", f"設定の適用中にエラーが発生しました:\n{e}")

@@ -76,10 +76,9 @@
   "current": null,
   "undo": {
    "texts": [
-    "プロパティ変更",
     "データセットの並べ替え"
    ],
-   "index": 2
+   "index": 1
   },
   "status": "",
   "datasets": [
@@ -327,7 +326,7 @@
     "waterfall_depth_shrink_enabled": false,
     "waterfall_depth_shrink_ratio": 0.03,
     "show_point_labels": false,
-    "point_label_col_name": "",
+    "point_label_col_name": null,
     "x_err_col_name": null,
     "y_err_col_name": null,
     "error_display": "bar",
@@ -812,7 +811,6 @@
   "current": null,
   "undo": {
    "texts": [
-    "プロパティ変更",
     "データセットの並べ替え"
    ],
    "index": 0
@@ -894,10 +892,9 @@
   "current": null,
   "undo": {
    "texts": [
-    "プロパティ変更",
     "データセットの並べ替え"
    ],
-   "index": 2
+   "index": 1
   }
  },
  "undo_modals": []

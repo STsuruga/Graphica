@@ -292,12 +292,14 @@ class DatasetPropertyPanel:
             self._app.provenance_panel.refresh(dataset, self._app.project)
 
         else:
-            self._app.x_col_combo.clear()
-            self._app.y_col_combo.clear()
-            self._app.x_err_col_combo.clear()
-            self._app.y_err_col_combo.clear()
-            self._app.point_label_col_combo.clear()
-            self._app.z_col_combo.clear()
+            # 空にするのは表示だけ。信号を出すと、フォルダを今の項目にしたままデータセットを選んでいるとき
+            # 点ラベルの列が空の文字としてデータセットに書き込まれる
+            column_combos = (self._app.x_col_combo, self._app.y_col_combo, self._app.x_err_col_combo,
+                             self._app.y_err_col_combo, self._app.point_label_col_combo, self._app.z_col_combo)
+            for combo in column_combos:
+                combo.blockSignals(True)
+                combo.clear()
+                combo.blockSignals(False)
             self.update_2d_controls_visibility()
 
             self._app.fit_info_label.setVisible(False)
@@ -324,6 +326,8 @@ class DatasetPropertyPanel:
 
             self._app.stats_summary_label.setText("-")
             self._app.dataset_mini_stats_label.setText("-")
+            # 行を隠したあとで見出しもそろえる(起動直後もこの経路を通る)
+            self._app._update_property_section_visibility()
 
     def update_stats_summary_label(self, dataset):
         """Y の件数・平均・標準偏差・最小・最大を、プロパティ欄とデータセット一覧の下の1行に出す(NaN は除く)。"""
