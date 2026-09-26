@@ -56,7 +56,7 @@ def find_peaks(op):
         marker='^' if is_valley else 'v', markersize=8,
         use_secondary_y=source.use_secondary_y,
         subplot_target=source.subplot_target,
-    ), source)
+    ), source, op.title)
 
     order = np.argsort(peak_x)
     text = (
