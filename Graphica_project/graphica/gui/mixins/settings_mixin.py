@@ -482,7 +482,7 @@ class SettingsMixin:
             # 欄に値を入れる間は、変更の通知で設定を書き換えないようにする
             self._block_all_signals(True)
 
-            self._axis_binder.restore(lambda key: axis_setting(settings, key))
+            self._axis_binder.restore(settings, axis_setting)
 
             # 復元では _on_x_autoscale_changed(今の表示範囲を欄に入れる)を呼ばない。
             # 呼ぶと、オートスケールを切って保存した範囲が今の表示範囲で上書きされる。
