@@ -5,7 +5,7 @@ import logging
 from graphica.gui import notify
 from graphica.gui import app_settings
 from graphica.gui.dialogs import PreferencesDialog
-from graphica.gui.datasets.transfer import STYLE_ATTRS
+from graphica.gui.datasets.operations.transfer import STYLE_ATTRS
 from graphica.core.i18n import tr, get_language
 
 logger = logging.getLogger(__name__)

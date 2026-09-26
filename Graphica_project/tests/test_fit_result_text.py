@@ -1,5 +1,5 @@
 """フィット結果の文に、パラメータの標準誤差を「値 ± 誤差」で出す(K-6)。"""
-import graphica.gui.datasets.fitting as fitting_module
+import graphica.gui.datasets.operations.fitting as fitting_module
 
 
 def _fit_result(**overrides):
