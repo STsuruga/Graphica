@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QDialog, QMenu)
 from graphica.gui import notify
 from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand)
 from graphica.core.dataset import Dataset
+from graphica.gui.datasets.order import DatasetOrder
 from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
 from graphica.core.plugin_api import get_registered_importer_extensions
 from graphica.gui.data_editor import DataEditorDialog
@@ -63,25 +64,7 @@ class DatasetMixin:
 
     def _on_dataset_search_changed(self, text):
         """名前に検索文字列を含むデータセットだけを出す。フォルダは中に1つでも当たりがあれば出す。"""
-        query = text.strip().lower()
-
-        def apply_filter(item):
-            dataset = item.data(0, Qt.ItemDataRole.UserRole)
-            if dataset is not None:
-                visible = (not query) or (query in dataset.name.lower())
-                item.setHidden(not visible)
-                return visible
-            else:
-                any_child_visible = False
-                for i in range(item.childCount()):
-                    if apply_filter(item.child(i)):
-                        any_child_visible = True
-                item.setHidden(bool(query) and not any_child_visible)
-                return any_child_visible or not query
-
-        root = self.ui.dataset_list_widget.invisibleRootItem()
-        for i in range(root.childCount()):
-            apply_filter(root.child(i))
+        self.dataset_order.filter_by_name(text)
 
     def _on_new_folder(self):
         """選択中がフォルダならその中に、そうでなければ一番上に作る。"""
@@ -168,19 +151,7 @@ class DatasetMixin:
 
     def _top_level_selected_items(self, items):
         """ほかの選択項目の子孫でないものだけを返す(フォルダと中身が両方選ばれていても二重に消さないため)。"""
-        item_set = {id(it) for it in items}
-        result = []
-        for item in items:
-            ancestor = item.parent()
-            nested_under_selected = False
-            while ancestor is not None:
-                if id(ancestor) in item_set:
-                    nested_under_selected = True
-                    break
-                ancestor = ancestor.parent()
-            if not nested_under_selected:
-                result.append(item)
-        return result
+        return DatasetOrder.top_level_items(items)
 
     def _on_remove_dataset(self):
         """選択中のデータセットとフォルダ(中身ごと)を Undo できる形で消す。"""
@@ -191,18 +162,14 @@ class DatasetMixin:
         self._remove_dataset_items_with_undo(self._top_level_selected_items(selected_items))
 
     def _find_dataset_row(self, dataset):
-        """Dataset の == は DataFrame を比べて例外になるので、同一性(is)で探す。"""
-        for i, ds in enumerate(self.project.datasets):
-            if ds is dataset:
-                return i
-        return -1
+        return self.dataset_order.find_row(dataset)
 
     def _on_dataset_rows_moved(self, source_parent, source_start, source_end, dest_parent, dest_row):
         """
         ツリーのドラッグ&ドロップ後、project.datasets をツリーの並び(=描画の重なり順)に合わせる。
         同じフォルダ内の並べ替えだけ Undo でき、フォルダをまたぐ移動はフォルダ構造と同じく Undo の対象外。
         """
-        reordered = [item.data(0, Qt.ItemDataRole.UserRole) for item in self._flatten_dataset_tree()]
+        reordered = self.dataset_order.tree_order()
 
         if len(reordered) != len(self.project.datasets):
             logger.warning(
@@ -332,8 +299,7 @@ class DatasetMixin:
 
             new_dataset.name = f"{original_dataset.name} (copy)"
 
-            self.project.datasets.append(new_dataset)
-            new_item = self._add_dataset_list_item(new_dataset, item.parent())
+            new_item = self.dataset_order.append(new_dataset, item.parent())
             new_items.append(new_item)
 
         self.ui.dataset_list_widget.clearSelection()

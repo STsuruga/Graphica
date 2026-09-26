@@ -130,6 +130,7 @@ from graphica.gui.datasets.plugin_runs import PluginRunController
 from graphica.gui.datasets.property_panel import DatasetPropertyPanel
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
+from graphica.gui.datasets.order import DatasetOrder
 from graphica.gui.datasets.peaks import PeakController
 from graphica.gui.datasets.processing import ProcessingController
 from graphica.gui.plugin_context import TabPluginContext
@@ -442,6 +443,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
         # データセットに対する操作を機能ごとに分けたクラス。窓口(DatasetHost)は本体に使うときに触れるので、
         # 画面を組み立てる前に作っておける(組み立ての途中からも使われる)。
+        self.dataset_order = DatasetOrder(
+            self.project, lambda: self.ui.dataset_list_widget, self._add_dataset_list_item)
         self._dataset_host = DatasetHost(self)
         self.peaks = PeakController(self._dataset_host)
         self.fitting = FittingController(self._dataset_host)
@@ -2495,14 +2498,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _get_target_folder_for_new_dataset(self):
         """選択中の項目がフォルダならそれを返す(新しいデータセットをその中に入れる)。"""
-        current_item = self.ui.dataset_list_widget.currentItem()
-        if current_item is not None and current_item.data(0, Qt.ItemDataRole.UserRole) is None:
-            return current_item
-        return None
+        return self.dataset_order.target_folder()
 
     def _add_dataset(self, dataset, parent_folder=None, select=True):
-        self.project.datasets.append(dataset)
-        new_item = self._add_dataset_list_item(dataset, parent_folder)
+        new_item = self.dataset_order.append(dataset, parent_folder)
         if select:
             self.ui.dataset_list_widget.setCurrentItem(new_item)
         self._update_plot()
@@ -2514,18 +2513,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self._add_dataset(dataset, parent_folder, select=True)
 
         def do_remove():
-            row = self._find_dataset_row(dataset)
-            if row != -1:
-                del self.project.datasets[row]
-            item = self._get_dataset_tree_item(dataset)
-            if item is not None:
-                parent = item.parent()
-                if parent is not None:
-                    parent.removeChild(item)
-                else:
-                    idx = self.ui.dataset_list_widget.indexOfTopLevelItem(item)
-                    if idx != -1:
-                        self.ui.dataset_list_widget.takeTopLevelItem(idx)
+            self.dataset_order.remove_added(dataset)
             self.property_panel.update_ui_state()
             self._update_plot()
 
@@ -2536,34 +2524,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """ツリーの項目(データセットかフォルダ)を Undo できるように削除する。
 
         top_level_items には最上位の対象だけを渡す(フォルダを渡すと中身も一緒に消える)。
-        元に戻すため、datasets のリスト全体(描画順)と、各項目の親と位置を控える。
-        外した QTreeWidgetItem はクロージャが持つので、同じものを差し戻せる。
         """
-        tree = self.ui.dataset_list_widget
-
-        snapshots = []  # [(item, parent_item_or_None, index_in_parent), ...]
-        for item in top_level_items:
-            parent = item.parent()
-            index = parent.indexOfChild(item) if parent is not None else tree.indexOfTopLevelItem(item)
-            if index == -1:
-                continue
-            snapshots.append((item, parent, index))
-        if not snapshots:
+        steps = self.dataset_order.removal(top_level_items)
+        if steps is None:
             return
-
-        def collect_datasets(item, out):
-            dataset = item.data(0, Qt.ItemDataRole.UserRole)
-            if dataset is not None:
-                out.append(dataset)
-            else:
-                for i in range(item.childCount()):
-                    collect_datasets(item.child(i), out)
-
-        removed_datasets = []
-        for item, _parent, _index in snapshots:
-            collect_datasets(item, removed_datasets)
-
-        datasets_before = list(self.project.datasets)
+        remove, restore, removed_datasets = steps
 
         if description is None:
             if len(removed_datasets) == 1:
@@ -2572,41 +2537,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 description = f"{len(removed_datasets)}件のデータセットの削除"
 
         def do_remove():
-            # 操作中に currentItemChanged が出ないように
-            tree.blockSignals(True)
-            try:
-                rows_to_remove = sorted(
-                    {row for ds in removed_datasets if (row := self._find_dataset_row(ds)) != -1},
-                    reverse=True
-                )
-                for row in rows_to_remove:
-                    del self.project.datasets[row]
-
-                # 同じ親の中でずれないよう、後ろから外す
-                for item, parent, _index in sorted(snapshots, key=lambda s: s[2], reverse=True):
-                    if parent is not None:
-                        parent.removeChild(item)
-                    else:
-                        idx = tree.indexOfTopLevelItem(item)
-                        if idx != -1:
-                            tree.takeTopLevelItem(idx)
-            finally:
-                tree.blockSignals(False)
+            remove()
             self.property_panel.update_ui_state()
             self._update_plot()
 
         def do_restore():
-            tree.blockSignals(True)
-            try:
-                for item, parent, index in sorted(snapshots, key=lambda s: s[2]):
-                    if parent is not None:
-                        parent.insertChild(min(index, parent.childCount()), item)
-                    else:
-                        tree.insertTopLevelItem(min(index, tree.topLevelItemCount()), item)
-                # リストの中身だけ差し替える(描画順も戻る)
-                self.project.datasets[:] = datasets_before
-            finally:
-                tree.blockSignals(False)
+            restore()
             self.property_panel.update_ui_state()
             self._update_plot()
 
@@ -2615,120 +2551,30 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         )
 
     def _add_dataset_folder_item(self, name, parent_item=None):
-        item = QTreeWidgetItem([name])
-        item.setData(0, Qt.ItemDataRole.UserRole, None)
-        if parent_item is not None:
-            parent_item.addChild(item)
-        else:
-            self.ui.dataset_list_widget.addTopLevelItem(item)
-        item.setExpanded(True)
-        return item
+        return self.dataset_order.add_folder(name, parent_item)
 
     def _flatten_dataset_tree(self, parent_item=None):
-        """データセットの葉を表示順(深さ優先)に返す。これがそのまま描画順になる。"""
-        items = []
-        tree = self.ui.dataset_list_widget
-        source = tree.invisibleRootItem() if parent_item is None else parent_item
-        for i in range(source.childCount()):
-            child = source.child(i)
-            dataset = child.data(0, Qt.ItemDataRole.UserRole)
-            if dataset is not None:
-                items.append(child)
-            else:
-                items.extend(self._flatten_dataset_tree(child))
-        return items
+        """データセットの葉を表示順(深さ優先)に返す。"""
+        return self.dataset_order.dataset_items(parent_item)
 
     def _get_current_dataset(self):
-        item = self.ui.dataset_list_widget.currentItem()
-        if item is None:
-            return None
-        return item.data(0, Qt.ItemDataRole.UserRole)
+        return self.dataset_order.current_dataset()
 
     def _get_selected_datasets(self):
-        result = []
-        for item in self.ui.dataset_list_widget.selectedItems():
-            dataset = item.data(0, Qt.ItemDataRole.UserRole)
-            if dataset is not None:
-                result.append(dataset)
-        return result
+        return self.dataset_order.selected_datasets()
 
     def _get_dataset_tree_item(self, dataset):
-        for item in self._flatten_dataset_tree():
-            if item.data(0, Qt.ItemDataRole.UserRole) is dataset:
-                return item
-        return None
+        return self.dataset_order.item_for(dataset)
 
     def _capture_dataset_group_tree(self):
-        def walk(parent_item):
-            children = []
-            source = self.ui.dataset_list_widget.invisibleRootItem() if parent_item is None else parent_item
-            for i in range(source.childCount()):
-                child = source.child(i)
-                dataset = child.data(0, Qt.ItemDataRole.UserRole)
-                if dataset is not None:
-                    children.append({'dataset': dataset})
-                else:
-                    children.append({'name': child.text(0), 'children': walk(child)})
-            return children
-        return {'name': '', 'children': walk(None)}
+        return self.dataset_order.group_tree()
 
     def _rebuild_dataset_tree_widget(self):
-        tree = self.ui.dataset_list_widget
-        tree.clear()
-
-        def build(node, parent_item):
-            for child_node in node.get('children', []):
-                if 'dataset' in child_node:
-                    self._add_dataset_list_item(child_node['dataset'], parent_item)
-                else:
-                    folder_item = self._add_dataset_folder_item(child_node.get('name', 'フォルダ'), parent_item)
-                    build(child_node, folder_item)
-
-        build(self.project.dataset_group_tree, None)
+        self.dataset_order.rebuild_tree()
 
     def _sync_dataset_list_widget_order(self):
-        """フォルダの中の並びを project.datasets の順に合わせる(並べ替えの Undo/Redo 用)。フォルダ自体は動かさない。"""
-        tree = self.ui.dataset_list_widget
-        order_index = {id(ds): i for i, ds in enumerate(self.project.datasets)}
-        selected_ids = {id(item.data(0, Qt.ItemDataRole.UserRole)) for item in tree.selectedItems()}
-        current_item = tree.currentItem()
-        current_dataset = current_item.data(0, Qt.ItemDataRole.UserRole) if current_item else None
-
-        tree.blockSignals(True)
-
-        def sort_children(parent_item):
-            source = tree.invisibleRootItem() if parent_item is None else parent_item
-            children = [source.child(i) for i in range(source.childCount())]
-
-            dataset_positions = [
-                i for i, c in enumerate(children) if c.data(0, Qt.ItemDataRole.UserRole) is not None
-            ]
-            dataset_items_sorted = sorted(
-                (children[i] for i in dataset_positions),
-                key=lambda it: order_index.get(id(it.data(0, Qt.ItemDataRole.UserRole)), 0)
-            )
-            new_children = list(children)
-            for pos, item in zip(dataset_positions, dataset_items_sorted):
-                new_children[pos] = item
-
-            for _ in range(source.childCount()):
-                source.takeChild(0)
-            for item in new_children:
-                source.addChild(item)
-
-            for item in new_children:
-                if item.data(0, Qt.ItemDataRole.UserRole) is None:
-                    sort_children(item)
-
-        sort_children(None)
-
-        for item in self._flatten_dataset_tree():
-            ds = item.data(0, Qt.ItemDataRole.UserRole)
-            if id(ds) in selected_ids:
-                item.setSelected(True)
-            if ds is current_dataset:
-                tree.setCurrentItem(item)
-        tree.blockSignals(False)
+        """フォルダの中の並びを project.datasets の順に合わせる(並べ替えの Undo/Redo 用)。"""
+        self.dataset_order.sort_tree_to_draw_order()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
