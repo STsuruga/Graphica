@@ -25,8 +25,8 @@ import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
 import graphica.gui.datasets.colors as colors_module
 import graphica.gui.datasets.operations.processing as processing_module
-import graphica.gui.datasets.fitting as fitting_module
-import graphica.gui.datasets.transfer as transfer_module
+import graphica.gui.datasets.operations.fitting as fitting_module
+import graphica.gui.datasets.operations.transfer as transfer_module
 import graphica.gui.datasets.actions_menu as actions_menu_module
 import graphica.gui.datasets.property_panel as property_panel_module
 import graphica.gui.datasets.overlays as overlays_module

@@ -65,7 +65,7 @@ def test_display_label_comes_from_the_id_when_known():
 
 def test_fit_result_records_the_model_id():
     from graphica.core.dataset import Dataset
-    from graphica.gui.datasets.fitting import build_fit_result_dict, format_fit_result_text
+    from graphica.gui.datasets.operations.fitting import build_fit_result_dict, format_fit_result_text
     import pandas as pd
 
     x = np.linspace(0, 10, 20)

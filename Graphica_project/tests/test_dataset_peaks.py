@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 
-import graphica.gui.datasets.peaks as peaks_module
+import graphica.gui.datasets.operations.peaks as peaks_module
 from graphica.core.dataset import Dataset
 from graphica.gui.dialogs import PeakSettingsDialog
 from tests.test_dataset_mixin import (
