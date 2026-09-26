@@ -15,7 +15,7 @@ import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
 import graphica.gui.datasets as datasets_package
 from graphica.core.dataset import Dataset
-from graphica.gui.datasets import processing as processing_module
+from graphica.gui.datasets.operations import processing as processing_module
 from graphica.gui.main_window import PlotterApp
 
 DATASETS_DIR = pathlib.Path(datasets_package.__file__).parent

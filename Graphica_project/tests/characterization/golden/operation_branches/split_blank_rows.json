@@ -1,0 +1,688 @@
+{
+ "modals": [
+  {
+   "kind": "QInputDialog.getItem",
+   "title": "列の値で系列に分割",
+   "label": "分割に使う列(この列の値ごとに別々の系列になります):",
+   "default": "x",
+   "items": [
+    "x",
+    "y",
+    "grp"
+   ]
+  }
+ ],
+ "after": {
+  "draw_order": [
+   "群",
+   "B",
+   "群 (a)",
+   "群 (b)"
+  ],
+  "tree": [
+   {
+    "text": "群",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "群 (a)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "群 (b)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "群",
+    "B",
+    "群 (a)",
+    "群 (b)"
+   ]
+  },
+  "current": "群 (b)",
+  "undo": {
+   "texts": [
+    "列「grp」で系列に分割 (2件)"
+   ],
+   "index": 1
+  },
+  "status": "列「grp」の値で2件の系列に分割しました(「grp」が空の2行は除外)",
+  "datasets": [
+   {
+    "columns": [
+     "x",
+     "y",
+     "grp"
+    ],
+    "dtypes": [
+     "float64",
+     "float64",
+     "object"
+    ],
+    "shape": [
+     5,
+     3
+    ],
+    "index": {
+     "shape": [
+      5
+     ],
+     "dtype": "int64",
+     "sha256": "4565c3e4e04dfe3f"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       5
+      ],
+      "dtype": "float64",
+      "sha256": "b366581a0965f84a",
+      "sample": [
+       0.0,
+       1.0,
+       2.0,
+       3.0,
+       4.0
+      ],
+      "nan_count": 0,
+      "min": 0.0,
+      "max": 4.0,
+      "sum": 10.0
+     },
+     "y": {
+      "shape": [
+       5
+      ],
+      "dtype": "float64",
+      "sha256": "45d46d3265646373",
+      "sample": [
+       0.0,
+       1.0,
+       4.0,
+       9.0,
+       16.0
+      ],
+      "nan_count": 0,
+      "min": 0.0,
+      "max": 16.0,
+      "sum": 30.0
+     },
+     "grp": {
+      "shape": [
+       5
+      ],
+      "dtype": "object",
+      "sha256": "66d073db62698706"
+     }
+    },
+    "name": "群",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000001"
+   },
+   {
+    "columns": [
+     "x",
+     "y",
+     "yerr",
+     "grp"
+    ],
+    "dtypes": [
+     "float64",
+     "float64",
+     "float64",
+     "object"
+    ],
+    "shape": [
+     41,
+     4
+    ],
+    "index": {
+     "shape": [
+      41
+     ],
+     "dtype": "int64",
+     "sha256": "d0c758a033ea48e3"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "6b3c2289906473a7",
+      "sample": [
+       0.5,
+       1.25,
+       1.75,
+       2.5,
+       3.25,
+       3.75,
+       4.5,
+       5.25,
+       5.75,
+       6.5,
+       7.25,
+       7.75,
+       8.5,
+       9.25,
+       9.75,
+       10.5
+      ],
+      "nan_count": 0,
+      "min": 0.5,
+      "max": 10.5,
+      "sum": 225.5
+     },
+     "y": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "3abf469532d70c4d",
+      "sample": [
+       0.3997500386,
+       0.2428690823,
+       0.2143457764,
+       0.3981749799,
+       0.3136364424,
+       0.3623382177,
+       1.029683377,
+       1.805476769,
+       2.138507822,
+       2.125547792,
+       1.239548536,
+       0.6373564877,
+       0.4237797026,
+       0.3602357871,
+       0.2189601018,
+       0.3084775762
+      ],
+      "nan_count": 0,
+      "min": 0.2018677628,
+      "max": 2.228527314,
+      "sum": 32.28947408
+     },
+     "yerr": {
+      "shape": [
+       41
+      ],
+      "dtype": "float64",
+      "sha256": "ce747679e07aa95a",
+      "sample": [
+       0.055,
+       0.0625,
+       0.0675,
+       0.075,
+       0.0825,
+       0.0875,
+       0.095,
+       0.1025,
+       0.1075,
+       0.115,
+       0.1225,
+       0.1275,
+       0.135,
+       0.1425,
+       0.1475,
+       0.155
+      ],
+      "nan_count": 0,
+      "min": 0.055,
+      "max": 0.155,
+      "sum": 4.305
+     },
+     "grp": {
+      "shape": [
+       41
+      ],
+      "dtype": "object",
+      "sha256": "61c32a90c773610f"
+     }
+    },
+    "name": "B",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#ff7f0e",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000002"
+   },
+   {
+    "columns": [
+     "x",
+     "y",
+     "grp"
+    ],
+    "dtypes": [
+     "float64",
+     "float64",
+     "object"
+    ],
+    "shape": [
+     2,
+     3
+    ],
+    "index": {
+     "shape": [
+      2
+     ],
+     "dtype": "int64",
+     "sha256": "fff143c4af61e84c"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       2
+      ],
+      "dtype": "float64",
+      "sha256": "d91d1b43108b894f",
+      "sample": [
+       0.0,
+       3.0
+      ],
+      "nan_count": 0,
+      "min": 0.0,
+      "max": 3.0,
+      "sum": 3.0
+     },
+     "y": {
+      "shape": [
+       2
+      ],
+      "dtype": "float64",
+      "sha256": "affc3ecf978b3dd7",
+      "sample": [
+       0.0,
+       9.0
+      ],
+      "nan_count": 0,
+      "min": 0.0,
+      "max": 9.0,
+      "sum": 9.0
+     },
+     "grp": {
+      "shape": [
+       2
+      ],
+      "dtype": "object",
+      "sha256": "ba919d94baa05790"
+     }
+    },
+    "name": "群 (a)",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": {
+     "operation": "split_by_column",
+     "params": {
+      "split_column": "grp",
+      "group_value": "a"
+     },
+     "source_dataset_ids": [
+      "00000000000000000000000000000001"
+     ],
+     "source_dataset_names": [
+      "群"
+     ],
+     "timestamp": "2026-01-01T00:00:00+00:00"
+    },
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000003"
+   },
+   {
+    "columns": [
+     "x",
+     "y",
+     "grp"
+    ],
+    "dtypes": [
+     "float64",
+     "float64",
+     "object"
+    ],
+    "shape": [
+     1,
+     3
+    ],
+    "index": {
+     "shape": [
+      1
+     ],
+     "dtype": "int64",
+     "sha256": "5feceb66ffc86f38"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       1
+      ],
+      "dtype": "float64",
+      "sha256": "d84bdb34d4eeef40",
+      "sample": [
+       2.0
+      ],
+      "nan_count": 0,
+      "min": 2.0,
+      "max": 2.0,
+      "sum": 2.0
+     },
+     "y": {
+      "shape": [
+       1
+      ],
+      "dtype": "float64",
+      "sha256": "fbd04e1aae9ce0b1",
+      "sample": [
+       4.0
+      ],
+      "nan_count": 0,
+      "min": 4.0,
+      "max": 4.0,
+      "sum": 4.0
+     },
+     "grp": {
+      "shape": [
+       1
+      ],
+      "dtype": "object",
+      "sha256": "c100f95c1913f9c7"
+     }
+    },
+    "name": "群 (b)",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#ff7f0e",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": {
+     "operation": "split_by_column",
+     "params": {
+      "split_column": "grp",
+      "group_value": "b"
+     },
+     "source_dataset_ids": [
+      "00000000000000000000000000000001"
+     ],
+     "source_dataset_names": [
+      "群"
+     ],
+     "timestamp": "2026-01-01T00:00:00+00:00"
+    },
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000004"
+   }
+  ],
+  "annotations": [
+   []
+  ],
+  "windows": []
+ },
+ "clipboard": "",
+ "after_undo_all": {
+  "draw_order": [
+   "群",
+   "B"
+  ],
+  "tree": [
+   {
+    "text": "群",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "群",
+    "B"
+   ]
+  },
+  "current": "B",
+  "undo": {
+   "texts": [
+    "列「grp」で系列に分割 (2件)"
+   ],
+   "index": 0
+  }
+ },
+ "after_redo_all": {
+  "draw_order": [
+   "群",
+   "B",
+   "群 (a)",
+   "群 (b)"
+  ],
+  "tree": [
+   {
+    "text": "群",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "群 (a)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "群 (b)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "群",
+    "B",
+    "群 (a)",
+    "群 (b)"
+   ]
+  },
+  "current": "群 (b)",
+  "undo": {
+   "texts": [
+    "列「grp」で系列に分割 (2件)"
+   ],
+   "index": 1
+  }
+ },
+ "undo_modals": []
+}
