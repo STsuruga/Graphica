@@ -256,6 +256,8 @@ def test_dialog_initial_states(app_env, modal_log, normalizer, tmp_path, languag
 
     i18n.set_language(language)
     normalizer.add_path(tmp_path, "<CASE>")
+    # フィットのダイアログはプロセス全体のプラグインのフィット関数を並べるので、先に流れたテストの登録を持ち込まない
+    app_env.use_plugins(example_plugin=False)
     states = {}
     for name, factory in _dialog_factories(tmp_path).items():
         try:

@@ -101,6 +101,7 @@ CASES = {
     "fit_weighted_in_range": (_one(fit), [("exec", fill(fit_type_combo=GAUSSIAN, weighted_checkbox=True,
                                                          range_checkbox=True, range_min_spinbox=1.0,
                                                          range_max_spinbox=8.0))]),
+    "fit_text_x": (_one(fit, ds_text_x), []),
     "batch_fit_needs_two": (_one(batch_fit), []),
     "batch_fit_busy": (_pair(busy("batch_fit_runner", batch_fit)), []),
     "batch_fit_cancel": (_pair(batch_fit), [("exec", REJECT)]),

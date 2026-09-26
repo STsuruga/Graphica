@@ -33,11 +33,16 @@ class DatasetHost:
     def current_dataset(self):
         return self._app._get_current_dataset()
 
-    def add_derived_dataset(self, dataset, source):
-        """source と同じフォルダにデータセットを足して描き直す(Undo の対象にはしない)。"""
+    def add_derived_dataset(self, dataset, source, description):
+        """source と同じフォルダにデータセットを足して描き直す(Undo できる。今の選択は変えない)。"""
         source_item = self._app._get_dataset_tree_item(source)
-        self._app.dataset_order.append(dataset, source_item.parent() if source_item else None)
-        self._app._update_plot()
+        folder = source_item.parent() if source_item else None
+
+        def add():
+            self._app.dataset_order.append(dataset, folder)
+            self._app._update_plot()
+
+        self._app._push_dataset_additions(add, [dataset], description)
 
     def add_annotation(self, axis_index, annotation, description):
         self._app._add_annotation(axis_index, annotation, description=description)
@@ -72,11 +77,14 @@ class DatasetHost:
         """ツリーで選ばれているのがフォルダならそのフォルダ(新しいデータセットの置き場所)、それ以外は None。"""
         return self._app._get_target_folder_for_new_dataset()
 
-    def add_datasets_to_folder(self, datasets, folder):
-        """まとめて足してから1回だけ描き直す(1件ずつ描き直すと件数分のフル再描画になる)。"""
-        for dataset in datasets:
-            self._app.dataset_order.append(dataset, folder)
-        self._app._update_plot()
+    def add_datasets_to_folder(self, datasets, folder, description):
+        """まとめて足してから1回だけ描き直す(1件ずつ描き直すと件数分のフル再描画になる)。Undo 1回で消える。"""
+        def add():
+            for dataset in datasets:
+                self._app.dataset_order.append(dataset, folder)
+            self._app._update_plot()
+
+        self._app._push_dataset_additions(add, list(datasets), description)
 
     def axis_count(self):
         return len(self._app.project.all_plot_settings)

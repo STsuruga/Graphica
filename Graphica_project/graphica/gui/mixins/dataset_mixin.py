@@ -58,7 +58,8 @@ class DatasetMixin:
         y_col_name = column_names[1] if len(column_names) > 1 else column_names[0]
 
         new_dataset = Dataset(name=name, df=df, x_col_name=x_col_name, y_col_name=y_col_name)
-        self._add_dataset(new_dataset, self._get_target_folder_for_new_dataset())
+        self._add_dataset_with_undo(new_dataset, self._get_target_folder_for_new_dataset(),
+                                    description="新規データセットの作成")
 
         self._on_show_data_editor()
 
@@ -289,27 +290,27 @@ class DatasetMixin:
         if not selected_items:
             return
 
-        self.ui.dataset_list_widget.blockSignals(True)
-        new_items = []
+        copies = []
         for item in selected_items:
             original_dataset = item.data(0, Qt.ItemDataRole.UserRole)
-
             # DataFrame まで独立させる
             new_dataset = copy.deepcopy(original_dataset)
-
             new_dataset.name = f"{original_dataset.name} (copy)"
+            copies.append((new_dataset, item.parent()))
 
-            new_item = self.dataset_order.append(new_dataset, item.parent())
-            new_items.append(new_item)
+        def add():
+            tree = self.ui.dataset_list_widget
+            tree.blockSignals(True)
+            new_items = [self.dataset_order.append(new_dataset, folder) for new_dataset, folder in copies]
+            tree.clearSelection()
+            for new_item in new_items:
+                new_item.setSelected(True)
+            tree.setCurrentItem(new_items[-1])
+            tree.blockSignals(False)
+            self.property_panel.update_ui_state()
+            self._update_plot()
 
-        self.ui.dataset_list_widget.clearSelection()
-        for item in new_items:
-            item.setSelected(True)
-        self.ui.dataset_list_widget.setCurrentItem(new_items[-1])
-        self.ui.dataset_list_widget.blockSignals(False)
-
-        self.property_panel.update_ui_state()
-        self._update_plot()
+        self._push_dataset_additions(add, [new_dataset for new_dataset, _ in copies], "データセットの複製")
 
     def _on_show_data_editor(self):
         dataset = self._get_current_dataset()

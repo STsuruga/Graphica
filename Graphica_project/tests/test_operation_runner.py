@@ -24,8 +24,8 @@ class _Host:
     def target_folder_for_new_dataset(self):
         return "folder"
 
-    def add_dataset(self, dataset, folder):
-        self.added.append((dataset, folder))
+    def add_dataset_with_undo(self, dataset, folder, description):
+        self.added.append((dataset, folder, description))
 
     def show_status(self, text, timeout_ms):
         self.status.append((text, timeout_ms))
@@ -94,11 +94,11 @@ def test_selection_count_and_empty_name_messages(warnings):
     assert warnings == [("題", "2つ選んで"), ("入力エラー", "出力データセット名が空です。")]
 
 
-def test_add_and_report_uses_the_target_folder_and_the_name():
+def test_add_and_report_adds_undoably_under_the_operation_title():
     host = _Host()
     dataset = type("D", (), {"name": "結果"})()
     run_operation(Operation("題", lambda op: op.add_and_report(dataset)), host, OperationState())
-    assert host.added == [(dataset, "folder")]
+    assert host.added == [(dataset, "folder", "題")]
     assert host.status == [("「結果」を追加しました", 3000)]
 
 

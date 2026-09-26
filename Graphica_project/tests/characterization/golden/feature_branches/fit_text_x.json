@@ -1,120 +1,92 @@
 {
  "modals": [
   {
-   "kind": "exec",
-   "class": "DuplicateXDialog",
-   "title": "重複X値の検出"
+   "kind": "QMessageBox.warning",
+   "title": "カーブフィット",
+   "text": "X軸の列「name」が数値ではないため、この処理はできません(文字の列はカテゴリ軸として表示だけできます)。"
   }
  ],
  "after": {
   "draw_order": [
-   "重複",
-   "B",
-   "重複_averaged"
+   "文字のX",
+   "B"
   ],
   "tree": [
    {
-    "text": "重複",
+    "text": "文字のX",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false
+    "selected": true
    },
    {
     "text": "B",
     "checked": "Unchecked",
     "hidden": false,
     "selected": false
-   },
-   {
-    "text": "重複_averaged",
-    "checked": "Unchecked",
-    "hidden": false,
-    "selected": true
    }
   ],
   "group_tree": {
    "": [
-    "重複",
-    "B",
-    "重複_averaged"
+    "文字のX",
+    "B"
    ]
   },
-  "current": "重複_averaged",
+  "current": "文字のX",
   "undo": {
-   "texts": [
-    "重複X値の検出"
-   ],
-   "index": 1
+   "texts": [],
+   "index": 0
   },
-  "status": "「重複_averaged」を追加しました",
+  "status": "",
   "datasets": [
    {
     "columns": [
-     "x",
-     "y"
+     "name",
+     "value"
     ],
     "dtypes": [
-     "float64",
+     "object",
      "float64"
     ],
     "shape": [
-     8,
+     4,
      2
     ],
     "index": {
      "shape": [
-      8
+      4
      ],
      "dtype": "int64",
-     "sha256": "043de327b1f022bb"
+     "sha256": "e681d5e4b7174947"
     },
     "values": {
-     "x": {
+     "name": {
       "shape": [
-       8
+       4
+      ],
+      "dtype": "object",
+      "sha256": "1a3858dd725918e2"
+     },
+     "value": {
+      "shape": [
+       4
       ],
       "dtype": "float64",
-      "sha256": "ce166c0c7126607d",
+      "sha256": "79db8882447ea140",
       "sample": [
-       0.0,
-       1.0,
        1.0,
        2.0,
-       3.0,
-       3.0,
        3.0,
        4.0
       ],
       "nan_count": 0,
-      "min": 0.0,
-      "max": 4.0,
-      "sum": 17.0
-     },
-     "y": {
-      "shape": [
-       8
-      ],
-      "dtype": "float64",
-      "sha256": "11bd215d18054c74",
-      "sample": [
-       1.0,
-       2.0,
-       4.0,
-       3.0,
-       5.0,
-       6.0,
-       7.0,
-       2.0
-      ],
-      "nan_count": 0,
       "min": 1.0,
-      "max": 7.0,
-      "sum": 30.0
+      "max": 4.0,
+      "sum": 10.0
      }
     },
-    "name": "重複",
-    "x_col_name": "x",
-    "y_col_name": "y",
+    "name": "文字のX",
+    "x_col_name": "name",
+    "y_col_name": "value",
     "plot_type": "Line",
     "color": "#1f77b4",
     "linestyle": "-",
@@ -331,128 +303,6 @@
     "visible": true,
     "artist": "<Line2D>",
     "dataset_id": "00000000000000000000000000000002"
-   },
-   {
-    "columns": [
-     "x",
-     "y"
-    ],
-    "dtypes": [
-     "float64",
-     "float64"
-    ],
-    "shape": [
-     5,
-     2
-    ],
-    "index": {
-     "shape": [
-      5
-     ],
-     "dtype": "int64",
-     "sha256": "4565c3e4e04dfe3f"
-    },
-    "values": {
-     "x": {
-      "shape": [
-       5
-      ],
-      "dtype": "float64",
-      "sha256": "b366581a0965f84a",
-      "sample": [
-       0.0,
-       1.0,
-       2.0,
-       3.0,
-       4.0
-      ],
-      "nan_count": 0,
-      "min": 0.0,
-      "max": 4.0,
-      "sum": 10.0
-     },
-     "y": {
-      "shape": [
-       5
-      ],
-      "dtype": "float64",
-      "sha256": "57de5250d95f6908",
-      "sample": [
-       1.0,
-       3.0,
-       3.0,
-       6.0,
-       2.0
-      ],
-      "nan_count": 0,
-      "min": 1.0,
-      "max": 6.0,
-      "sum": 15.0
-     }
-    },
-    "name": "重複_averaged",
-    "x_col_name": "x",
-    "y_col_name": "y",
-    "plot_type": "Line",
-    "color": "#1f77b4",
-    "linestyle": "-",
-    "linewidth": 1.5,
-    "marker": "o",
-    "markersize": 6.0,
-    "smoothing": false,
-    "smoothing_method": "cubic_spline",
-    "alpha": 1.0,
-    "gradient_enabled": false,
-    "gradient_color2": "#ffffff",
-    "gradient_target": "line",
-    "waterfall_enabled": false,
-    "waterfall_offset_x": 0.0,
-    "waterfall_offset_y": 1.0,
-    "waterfall_occlusion_enabled": true,
-    "waterfall_depth_shrink_enabled": false,
-    "waterfall_depth_shrink_ratio": 0.03,
-    "show_point_labels": false,
-    "point_label_col_name": null,
-    "x_err_col_name": null,
-    "y_err_col_name": null,
-    "error_display": "bar",
-    "masked_row_indices": [],
-    "fit_info": null,
-    "fit_result": null,
-    "fit_band_display": null,
-    "source_plugin": null,
-    "source_file": null,
-    "source_sheet": null,
-    "nan_policy": "gap",
-    "provenance": {
-     "operation": "average_duplicate_x",
-     "params": {
-      "n_duplicate_groups": 2,
-      "n_points_in": 8,
-      "n_points_out": 5
-     },
-     "source_dataset_ids": [
-      "00000000000000000000000000000001"
-     ],
-     "source_dataset_names": [
-      "重複"
-     ],
-     "timestamp": "2026-01-01T00:00:00+00:00"
-    },
-    "use_secondary_y": false,
-    "subplot_target": 0,
-    "data_kind": "1d",
-    "z_col_name": null,
-    "grid_interp_method": "linear",
-    "grid_resolution": null,
-    "colormap": "viridis",
-    "vmin": null,
-    "vmax": null,
-    "map_display_mode": "heatmap",
-    "contour_levels": 10,
-    "visible": true,
-    "artist": "<Line2D>",
-    "dataset_id": "00000000000000000000000000000003"
    }
   ],
   "annotations": [
@@ -460,80 +310,5 @@
   ],
   "windows": []
  },
- "clipboard": "",
- "after_undo_all": {
-  "draw_order": [
-   "重複",
-   "B"
-  ],
-  "tree": [
-   {
-    "text": "重複",
-    "checked": "Unchecked",
-    "hidden": false,
-    "selected": false
-   },
-   {
-    "text": "B",
-    "checked": "Unchecked",
-    "hidden": false,
-    "selected": false
-   }
-  ],
-  "group_tree": {
-   "": [
-    "重複",
-    "B"
-   ]
-  },
-  "current": "B",
-  "undo": {
-   "texts": [
-    "重複X値の検出"
-   ],
-   "index": 0
-  }
- },
- "after_redo_all": {
-  "draw_order": [
-   "重複",
-   "B",
-   "重複_averaged"
-  ],
-  "tree": [
-   {
-    "text": "重複",
-    "checked": "Unchecked",
-    "hidden": false,
-    "selected": false
-   },
-   {
-    "text": "B",
-    "checked": "Unchecked",
-    "hidden": false,
-    "selected": false
-   },
-   {
-    "text": "重複_averaged",
-    "checked": "Unchecked",
-    "hidden": false,
-    "selected": true
-   }
-  ],
-  "group_tree": {
-   "": [
-    "重複",
-    "B",
-    "重複_averaged"
-   ]
-  },
-  "current": "重複_averaged",
-  "undo": {
-   "texts": [
-    "重複X値の検出"
-   ],
-   "index": 1
-  }
- },
- "undo_modals": []
+ "clipboard": ""
 }

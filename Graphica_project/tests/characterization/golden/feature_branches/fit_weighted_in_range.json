@@ -41,8 +41,10 @@
   },
   "current": "A",
   "undo": {
-   "texts": [],
-   "index": 0
+   "texts": [
+    "カーブフィット"
+   ],
+   "index": 1
   },
   "status": "",
   "datasets": [
@@ -790,5 +792,80 @@
    }
   ]
  },
- "clipboard": ""
+ "clipboard": "",
+ "after_undo_all": {
+  "draw_order": [
+   "A",
+   "B"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B"
+   ]
+  },
+  "current": "A",
+  "undo": {
+   "texts": [
+    "カーブフィット"
+   ],
+   "index": 0
+  }
+ },
+ "after_redo_all": {
+  "draw_order": [
+   "A",
+   "B",
+   "Fit (A)"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "B",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "Fit (A)",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    "B",
+    "Fit (A)"
+   ]
+  },
+  "current": "A",
+  "undo": {
+   "texts": [
+    "カーブフィット"
+   ],
+   "index": 1
+  }
+ },
+ "undo_modals": []
 }
