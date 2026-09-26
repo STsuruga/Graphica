@@ -35,9 +35,8 @@ class DatasetHost:
 
     def add_derived_dataset(self, dataset, source):
         """source と同じフォルダにデータセットを足して描き直す(Undo の対象にはしない)。"""
-        self._app.project.datasets.append(dataset)
         source_item = self._app._get_dataset_tree_item(source)
-        self._app._add_dataset_list_item(dataset, source_item.parent() if source_item else None)
+        self._app.dataset_order.append(dataset, source_item.parent() if source_item else None)
         self._app._update_plot()
 
     def add_annotation(self, axis_index, annotation, description):
@@ -76,8 +75,7 @@ class DatasetHost:
     def add_datasets_to_folder(self, datasets, folder):
         """まとめて足してから1回だけ描き直す(1件ずつ描き直すと件数分のフル再描画になる)。"""
         for dataset in datasets:
-            self._app.project.datasets.append(dataset)
-            self._app._add_dataset_list_item(dataset, folder)
+            self._app.dataset_order.append(dataset, folder)
         self._app._update_plot()
 
     def axis_count(self):

@@ -166,9 +166,8 @@ class SliceExtractionMixin:
             provenance=build_provenance('2d_slice', params, [source_dataset]),
         )
 
-        self.project.datasets.append(slice_dataset)
         original_item = self._get_dataset_tree_item(source_dataset)
-        self._add_dataset_list_item(slice_dataset, original_item.parent() if original_item else None)
+        self.dataset_order.append(slice_dataset, original_item.parent() if original_item else None)
         self._update_plot()
         self.statusBar().showMessage(
             f"「{source_dataset.name}」からスライスを抽出しました(X軸: {x_label})", 4000
