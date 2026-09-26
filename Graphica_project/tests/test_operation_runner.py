@@ -92,3 +92,26 @@ def test_every_menu_entry_runs_an_operation_in_the_table():
         getattr(controller, name)()
     assert sorted(called) == sorted(PROCESSING_OPERATIONS)
     assert all(op.title for op in PROCESSING_OPERATIONS.values())
+
+
+@pytest.mark.parametrize("module_name, controller_name, table_name", [
+    ("peaks", "PeakController", "PEAK_OPERATIONS"),
+    ("transfer", "TransferController", "TRANSFER_OPERATIONS"),
+    ("fitting", "FittingController", "FITTING_OPERATIONS"),
+])
+def test_the_other_controllers_only_run_their_tables(module_name, controller_name, table_name, monkeypatch):
+    import importlib
+
+    controller_module = importlib.import_module(f"graphica.gui.datasets.{module_name}")
+    table = getattr(importlib.import_module(f"graphica.gui.datasets.operations.{module_name}"), table_name)
+    ran = []
+    monkeypatch.setattr(controller_module, "run_operation", lambda operation, host, state: ran.append(operation))
+    controller = getattr(controller_module, controller_name)(_Host())
+    for name, member in inspect.getmembers(type(controller), inspect.isfunction):
+        if name.startswith("_") or name == "shutdown":
+            continue
+        calls = {"copy_or_move_to_tab": [(False,), (True,)], "burn_fit_result_annotation": [(None, None)]}
+        for args in calls.get(name, [()]):
+            getattr(controller, name)(*args)
+    assert set(table.values()) <= set(ran)
+    assert all(isinstance(op, Operation) and op.title for op in ran)
