@@ -107,7 +107,7 @@ def test_the_other_controllers_only_run_their_tables(module_name, controller_nam
     ran = []
     monkeypatch.setattr(controller_module, "run_operation", lambda operation, host, state: ran.append(operation))
     controller = getattr(controller_module, controller_name)(_Host())
-    for name, member in inspect.getmembers(type(controller), inspect.isfunction):
+    for name, _member in inspect.getmembers(type(controller), inspect.isfunction):
         if name.startswith("_") or name == "shutdown":
             continue
         calls = {"copy_or_move_to_tab": [(False,), (True,)], "burn_fit_result_annotation": [(None, None)]}
