@@ -295,6 +295,8 @@ class ExportMixin:
         if not file_path.endswith('.py'):
             file_path += '.py'
 
+        # サブプロットの行数と列数は画面にしか無いことがある(保存の前)。古い値のままだと 2 つ目以降の軸が抜ける
+        self._sync_project_from_ui()
         try:
             script_text = generate_python_script(self.project)
             with open(file_path, 'w', encoding='utf-8') as f:
