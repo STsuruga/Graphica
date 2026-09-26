@@ -40,7 +40,17 @@
       4
      ],
      "dtype": "float64",
-     "sha256": "472a030a11479c4f"
+     "sha256": "472a030a11479c4f",
+     "sample": [
+      1.0,
+      "NaN",
+      3.5,
+      -2.0
+     ],
+     "nan_count": 1,
+     "min": -2.0,
+     "max": 3.5,
+     "sum": 2.5
     },
     "label": {
      "shape": [
