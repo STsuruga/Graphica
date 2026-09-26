@@ -24,6 +24,8 @@ class OperationState:
 
     def __init__(self):
         self.result_windows = {}
+        self.copied_style = None  # スタイルのコピーの控え(貼り付けるまで持つ)
+        self.runners = {}  # バックグラウンドで動いている計算。終わるまで同じ種類の計算は始めない
 
 
 @dataclass(frozen=True)
@@ -69,9 +71,12 @@ class OperationContext:
             self.stop()
         return dataset
 
-    def selected_datasets(self, *, exactly=None, at_least=None, message):
+    def selected_datasets(self, *, exactly=None, at_least=None, message=None):
+        """数が合わなければ止める。message が無ければ何も言わずに止める。"""
         selected = self.host.selected_datasets()
         if (exactly is not None and len(selected) != exactly) or (at_least is not None and len(selected) < at_least):
+            if message is None:
+                self.stop()
             self.stop_with_information(message)
         return selected
 
