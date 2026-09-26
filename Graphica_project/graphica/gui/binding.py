@@ -12,20 +12,27 @@ class Binding:
     key: str
     # 持ち主からの属性の道筋("ui.x_min_spinbox")。None は欄を持たず持ち主の属性に持つもの(フォントと色)
     widget: str | None
-    read: Callable[[Any, Any], Any]
+    # 欄から値を読む。None は戻すだけの欄(変更は専用の処理が受ける)
+    read: Callable[[Any, Any], Any] | None
     write: Callable[[Any, Any, Any], None]
     # 変更の信号の名前。None ならここではつながない
     signal: str | None = None
-    # 信号につなぐ持ち主のメソッドの名前。つないだ順に呼ばれる
-    slots: tuple[str, ...] = ()
+    # 信号につなぐ持ち主のメソッドの道筋("property_panel.on_x")か WATCH。つないだ順に呼ばれる
+    slots: tuple[Any, ...] = ()
+    # 保存元から値を取り出す。None ならキーで引く
+    load: Callable[[Any], Any] | None = None
+
+
+# slots に置くと、Binder.connect に渡した watch(signal, widget) でつなぐ
+WATCH = object()
 
 
 def text(key, widget, slots):
     return Binding(key, widget, lambda _o, w: w.text(), lambda _o, w, v: w.setText(v), 'textChanged', slots)
 
 
-def check(key, widget, slots):
-    return Binding(key, widget, lambda _o, w: w.isChecked(), lambda _o, w, v: w.setChecked(v), 'stateChanged', slots)
+def check(key, widget, slots, signal='stateChanged'):
+    return Binding(key, widget, lambda _o, w: w.isChecked(), lambda _o, w, v: w.setChecked(v), signal, slots)
 
 
 def number(key, widget, slots):
@@ -48,6 +55,14 @@ def item_data(key, widget, slots):
         found = combo.findData(value)
         combo.setCurrentIndex(found if found != -1 else 0)
     return Binding(key, widget, lambda _o, w: w.currentData(), write, 'currentIndexChanged', slots)
+
+
+def found_text(key, widget, slots):
+    """選択肢の文字。見つからない値は先頭の選択肢にする。"""
+    def write(_owner, combo, value):
+        found = combo.findText(value)
+        combo.setCurrentIndex(found if found != -1 else 0)
+    return Binding(key, widget, lambda _o, w: w.currentText(), write, 'currentTextChanged', slots)
 
 
 def choice(key, widget, choices, slots):
@@ -83,10 +98,22 @@ class Binder:
     def gather(self):
         return {b.key: b.read(self._owner, self._widget(b)) for b in self._bindings}
 
-    def restore(self, value_of):
-        """value_of(key) の値を表の順に戻す。例外はそのまま上げる(そこまでに入れた欄はそのまま残る)。"""
+    def binding_for(self, widget):
+        """欄から値を読む行のうち、その欄のもの。無ければ None。"""
         for binding in self._bindings:
-            binding.write(self._owner, self._widget(binding), value_of(binding.key))
+            if binding.read is not None and binding.widget is not None and self._widget(binding) is widget:
+                return binding
+        return None
+
+    def read(self, binding):
+        return binding.read(self._owner, self._widget(binding))
+
+    def restore(self, source, lookup):
+        """source の値を表の順に戻す(行に load が無ければ lookup(source, key) で引く)。
+        例外はそのまま上げる(そこまでに入れた欄はそのまま残る)。"""
+        for binding in self._bindings:
+            value = binding.load(source) if binding.load is not None else lookup(source, binding.key)
+            binding.write(self._owner, self._widget(binding), value)
 
     def block_signals(self, block):
         for binding in self._bindings:
@@ -95,10 +122,14 @@ class Binder:
         for path in self._also_blocked:
             resolve(self._owner, path).blockSignals(block)
 
-    def connect(self):
+    def connect(self, watch=None):
         for binding in self._bindings:
             if binding.signal is None:
                 continue
-            signal = getattr(self._widget(binding), binding.signal)
+            widget = self._widget(binding)
+            signal = getattr(widget, binding.signal)
             for slot in binding.slots:
-                signal.connect(getattr(self._owner, slot))
+                if slot is WATCH:
+                    watch(signal, widget)
+                else:
+                    signal.connect(resolve(self._owner, slot))
