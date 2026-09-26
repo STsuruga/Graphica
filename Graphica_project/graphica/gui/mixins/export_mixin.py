@@ -15,7 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from graphica.gui import notify
 from graphica.core.axis_settings import axis_setting
 from graphica.gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
-from graphica.gui.canvas import _HeadlessRenderCanvas
+from graphica.gui.canvas import _HeadlessRenderCanvas, fit_tight_layout
 from graphica.gui.export_settings import export_rc_params
 from graphica.gui.task_runner import TaskRunner
 from graphica.models.project import ProjectModel
@@ -482,7 +482,7 @@ class ExportMixin:
                 self.canvas.all_secondary_axes = original_secondary
 
             try:
-                temp_fig.tight_layout()
+                fit_tight_layout(temp_fig)
             except ValueError:
                 pass
 
