@@ -80,11 +80,22 @@ class OperationContext:
             self.stop_with_information(message)
         return selected
 
-    @staticmethod
-    def valid_points(dataset):
-        """X と Y を数に直し、どちらかが NaN の点を除く。数に直せない列は例外がそのまま外に出る。"""
-        x = np.asarray(dataset.x_data, dtype=float)
-        y = np.asarray(dataset.y_data, dtype=float)
+    def as_numbers(self, dataset, axis):
+        """X か Y の列を数に直す。文字の列(カテゴリ軸)なら、その処理の題で知らせて止める。"""
+        values, column = (dataset.x_data, dataset.x_col_name) if axis == "x" else (dataset.y_data, dataset.y_col_name)
+        try:
+            return np.asarray(values, dtype=float)
+        except (TypeError, ValueError):
+            if axis == "x":
+                self.stop_with_warning(
+                    f"X軸の列「{column}」が数値ではないため、この処理はできません"
+                    "(文字の列はカテゴリ軸として表示だけできます)。")
+            self.stop_with_warning(f"Y軸の列「{column}」が数値ではないため、この処理はできません。")
+
+    def valid_points(self, dataset):
+        """X と Y を数に直し、どちらかが NaN の点を除く。"""
+        x = self.as_numbers(dataset, "x")
+        y = self.as_numbers(dataset, "y")
         valid = ~(np.isnan(x) | np.isnan(y))
         return x[valid], y[valid]
 

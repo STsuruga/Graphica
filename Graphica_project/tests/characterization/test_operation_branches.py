@@ -84,6 +84,10 @@ def ds_spike():
     return _ds("とげ", np.arange(20, dtype=float), y)
 
 
+def ds_text_dup():
+    return _ds("文字の重複X", ["a", "a", "b"], [1.0, 2.0, 3.0])
+
+
 def ds_nan_x():
     return _ds("Xが空", [np.nan] * 3, [1.0, 2.0, 3.0])
 
@@ -278,6 +282,17 @@ CASES = {
     "outliers_mask_none_found": (_one(op("detect_outliers")), [("exec", fill(apply_mask_checkbox=True))]),
     "outliers_constant": (_one(op("detect_outliers"), ds_zero), []),
     "outliers_twice": (_one(_twice(op("detect_outliers")), ds_spike), []),
+    # 文字の X 列(カテゴリ軸)
+    "mean_sd_text_x": (_pair(op("mean_and_sd_of_selected"), ds_text_x, ds_a), []),
+    "savgol_text_x": (_one(op("savgol_smooth"), ds_text_x), []),
+    "baseline_text_x": (_one(op("baseline_correction"), ds_text_x), []),
+    "interval_integral_text_x": (_one(op("interval_integral"), ds_text_x), []),
+    "cumulative_integral_text_x": (_one(op("cumulative_integral"), ds_text_x), []),
+    "resample_text_x": (_one(op("resample"), ds_text_x), []),
+    "resample_onto_text_x": (_one(op("resample"), others=(ds_text_x,)),
+                             [("exec", fill(source_combo="他のデータセットのX格子"))]),
+    "outliers_text_x": (_one(op("detect_outliers"), ds_text_x), []),
+    "duplicate_x_average_text_x": (_one(op("detect_duplicate_x"), ds_text_dup), []),
     # バッチ列計算
     "batch_column_needs_two": (_one(op("batch_column_calculate")), []),
     "batch_column_cancel": (_pair(op("batch_column_calculate")), [("exec", REJECT)]),

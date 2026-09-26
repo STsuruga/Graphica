@@ -1,10 +1,14 @@
 {
- "exception": "ValueError: could not convert string to float: 'a'",
  "modals": [
   {
    "kind": "exec",
    "class": "DatasetArithmeticDialog",
    "title": "データセット間演算"
+  },
+  {
+   "kind": "QMessageBox.warning",
+   "title": "データセット間演算",
+   "text": "X軸の列「name」が数値ではないため、この処理はできません(文字の列はカテゴリ軸として表示だけできます)。"
   }
  ],
  "after": {
