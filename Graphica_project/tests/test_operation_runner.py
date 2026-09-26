@@ -1,0 +1,94 @@
+"""データセットの処理の実行役(gui/datasets/operations/)の決まりごと。"""
+import inspect
+
+import pytest
+
+import graphica.gui.notify as notify_module
+from graphica.gui.datasets.operations.processing import PROCESSING_OPERATIONS
+from graphica.gui.datasets.operations.runner import Operation, OperationState, run_operation
+from graphica.gui.datasets.processing import ProcessingController
+
+
+class _Host:
+    parent_widget = None
+
+    def __init__(self):
+        self.added, self.status = [], []
+
+    def current_dataset(self):
+        return None
+
+    def selected_datasets(self):
+        return []
+
+    def target_folder_for_new_dataset(self):
+        return "folder"
+
+    def add_dataset(self, dataset, folder):
+        self.added.append((dataset, folder))
+
+    def show_status(self, text, timeout_ms):
+        self.status.append((text, timeout_ms))
+
+
+@pytest.fixture
+def warnings(monkeypatch):
+    shown = []
+    monkeypatch.setattr(notify_module, "warning", lambda parent, title, text, *a: shown.append((title, text)))
+    monkeypatch.setattr(notify_module, "information", lambda parent, title, text, *a: shown.append((title, text)))
+    return shown
+
+
+def _run(body):
+    run_operation(Operation("題", body), _Host(), OperationState())
+
+
+def test_a_value_error_from_the_calculation_becomes_a_warning_and_stops(warnings):
+    reached = []
+
+    def body(op):
+        op.calculate(lambda: (_ for _ in ()).throw(ValueError("点が足りない")))
+        reached.append(True)
+
+    _run(body)
+    assert warnings == [("題", "点が足りない")]
+    assert reached == []
+
+
+def test_other_errors_are_not_caught(warnings):
+    with pytest.raises(TypeError):
+        _run(lambda op: op.calculate(lambda: (_ for _ in ()).throw(TypeError("想定外"))))
+    with pytest.raises(ValueError):
+        _run(lambda op: op.valid_points(type("D", (), {"x_data": ["a"], "y_data": [1.0]})()))
+    assert warnings == []
+
+
+def test_no_current_dataset_stops_silently(warnings):
+    _run(lambda op: op.current_dataset())
+    assert warnings == []
+
+
+def test_selection_count_and_empty_name_messages(warnings):
+    _run(lambda op: op.selected_datasets(exactly=2, message="2つ選んで"))
+    _run(lambda op: op.require_output_name(""))
+    assert warnings == [("題", "2つ選んで"), ("入力エラー", "出力データセット名が空です。")]
+
+
+def test_add_and_report_uses_the_target_folder_and_the_name():
+    host = _Host()
+    dataset = type("D", (), {"name": "結果"})()
+    run_operation(Operation("題", lambda op: op.add_and_report(dataset)), host, OperationState())
+    assert host.added == [(dataset, "folder")]
+    assert host.status == [("「結果」を追加しました", 3000)]
+
+
+def test_every_menu_entry_runs_an_operation_in_the_table():
+    controller = ProcessingController(_Host())
+    called = []
+    controller._run = called.append
+    entries = [name for name, member in inspect.getmembers(ProcessingController, inspect.isfunction)
+               if not name.startswith("_")]
+    for name in entries:
+        getattr(controller, name)()
+    assert sorted(called) == sorted(PROCESSING_OPERATIONS)
+    assert all(op.title for op in PROCESSING_OPERATIONS.values())
