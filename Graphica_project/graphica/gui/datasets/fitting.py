@@ -76,12 +76,25 @@ def add_band_columns_to_fit_df(fit_df, fit, band_type):
     return band_type
 
 
-def _fit_summary_text(fit_type, custom_formula, param_names, params, r_squared,
+def _param_lines(param_names, params, errors, fixed_params=None):
+    """「名前 = 値 ± 標準誤差」。固定したパラメータと、誤差を持たない古い結果は値だけ。"""
+    fixed = fixed_params or {}
+    if errors is None:
+        errors = [None] * len(params)
+    text = ""
+    for name, value, err in zip(param_names, params, errors):
+        if err is None or name in fixed:
+            text += f"  {name} = {value: .4e}\n"
+        else:
+            text += f"  {name} = {value: .4e} ± {err:.1e}\n"
+    return text
+
+
+def _fit_summary_text(fit_type, custom_formula, param_names, params, param_errors, r_squared,
                       weighted, x_range, fixed_params, bounds, loss):
     fit_label = fit_type if custom_formula is None else f"{fit_type} {custom_formula}"
     text = f"[{fit_label}] のフィッティング結果:\n"
-    for name, value in zip(param_names, params):
-        text += f"  {name} = {value: .4e}\n"
+    text += _param_lines(param_names, params, param_errors, fixed_params)
     text += f"  R^2 = {r_squared: .5f}\n"
     if weighted:
         text += "  (Y誤差列を重みとして使用)\n"
@@ -96,11 +109,17 @@ def _fit_summary_text(fit_type, custom_formula, param_names, params, r_squared,
     return text
 
 
+def multi_peak_summary_text(component_label, n_components, param_names, params, param_errors, r_squared):
+    text = f"[多峰分離({component_label} x{n_components})] のフィッティング結果:\n"
+    text += _param_lines(param_names, params, param_errors)
+    return text + f"  R^2 = {r_squared: .5f}\n"
+
+
 def format_fit_result_text(fit_result):
     """保存済みの fit_result だけから、フィット直後と同じ体裁の結果文を作る(再フィットしない)。"""
     return _fit_summary_text(
         fit_result.get('fit_type'), fit_result.get('custom_formula'),
-        fit_result.get('param_names', []), fit_result.get('params', []),
+        fit_result.get('param_names', []), fit_result.get('params', []), fit_result.get('param_errors'),
         fit_result.get('r_squared', float('nan')), fit_result.get('weighted'), fit_result.get('x_range'),
         fit_result.get('fixed_params'), fit_result.get('bounds'), fit_result.get('loss', 'linear'),
     )
@@ -114,7 +133,7 @@ def _fit_dataset(source, fit, fit_type, custom_formula, sigma, x_range,
         weighted=sigma is not None, x_range=x_range, source_dataset=source,
         p0_overrides=p0_overrides, fixed_params=fixed_params, bounds=bounds, loss=loss,
     )
-    text = _fit_summary_text(fit_type, custom_formula, fit['param_names'], fit['popt'], fit['r_squared'],
+    text = _fit_summary_text(fit_type, custom_formula, fit['param_names'], fit['popt'], fit['perr'], fit['r_squared'],
                              sigma is not None, x_range, fixed_params, bounds, loss)
     fit_df = pd.DataFrame({'x_fit': fit['x_fit'], 'y_fit': fit['y_fit']})
     applied_band_type = add_band_columns_to_fit_df(fit_df, fit, band_type)
@@ -363,10 +382,7 @@ class FittingController:
         self._finish_multi_peak_runner()
         popt, param_names, r_squared = fit['popt'], fit['param_names'], fit['r_squared']
         component_label = dict(MultiPeakFitDialog.COMPONENT_TYPES).get(fit['component_type'], fit['component_type'])
-        text = f"[多峰分離({component_label} x{fit['n_components']})] のフィッティング結果:\n"
-        for name, value in zip(param_names, popt):
-            text += f"  {name} = {value: .4e}\n"
-        text += f"  R^2 = {r_squared: .5f}\n"
+        text = multi_peak_summary_text(component_label, fit['n_components'], param_names, popt, fit['perr'], r_squared)
 
         fit_result = build_multi_peak_fit_result_dict(fit, source_dataset=source)
         self._host.add_derived_dataset(Dataset(
