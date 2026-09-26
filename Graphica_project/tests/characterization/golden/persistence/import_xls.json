@@ -36,7 +36,18 @@
       5
      ],
      "dtype": "float64",
-     "sha256": "4ba7d921b6439075"
+     "sha256": "4ba7d921b6439075",
+     "sample": [
+      20.0,
+      21.5,
+      23.0,
+      24.5,
+      26.0
+     ],
+     "nan_count": 0,
+     "min": 20.0,
+     "max": 26.0,
+     "sum": 115.0
     }
    },
    "name": "legacy_two_sheets.xls",
