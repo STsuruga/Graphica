@@ -15,7 +15,6 @@ gui/mixins/settings_mixin.py(1,058行)に対するテスト(改善ボード B-4)
 `test_axis_range_survives_a_round_trip_with_autoscale_off`がその回帰テスト。
 """
 import contextlib
-import inspect
 
 import matplotlib
 matplotlib.use("Agg")
@@ -26,7 +25,7 @@ from PySide6.QtWidgets import QApplication
 
 import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
-import graphica.gui.mixins.settings_mixin as settings_mixin_module
+from graphica.gui.axis_bindings import AXIS_BINDINGS, CARRIED_AXIS_KEYS
 from graphica.gui.main_window import PlotterApp
 
 
@@ -286,22 +285,15 @@ def test_refreshing_the_enabled_state_never_touches_the_values(window):
 # 構造的な検査(キーの取りこぼしを機械的に防ぐ)
 # =============================================================================
 
-def test_every_gathered_key_is_consumed_by_apply(window):
-    """
-    ★ collect したキーを apply 側が読んでいないと、そのキーは
-    「サブプロットを切り替えた瞬間に既定値へ戻る」という形で静かに失われる。
-    apply のソースにキー名のリテラルが現れるかで機械的に確認する
-    (将来キーを追加したときも、このテストが自動的に効く)。
-    """
+def test_every_gathered_key_is_restored_by_the_table(window):
+    """集めるキーはどれも表の行が戻す。戻さないキーは、サブプロットを切り替えた瞬間に既定値へ戻って静かに失われる。"""
     gathered = window._gather_settings_from_ui()
-    apply_source = inspect.getsource(
-        settings_mixin_module.SettingsMixin._apply_settings_to_ui_controls)
+    restored = [binding.key for binding in AXIS_BINDINGS]
 
-    missing = [
-        key for key in gathered
-        if key not in NON_UI_KEYS and f"'{key}'" not in apply_source
-    ]
-    assert not missing, f"_apply_settings_to_ui_controls が読んでいないキー: {missing}"
+    assert len(restored) == len(set(restored))
+    missing = [key for key in gathered if key not in NON_UI_KEYS and key not in restored]
+    assert not missing, f"表に戻す行が無いキー: {missing}"
+    assert set(NON_UI_KEYS) == set(CARRIED_AXIS_KEYS)
 
 
 def test_applying_settings_does_not_fire_the_change_handler(window, monkeypatch):
