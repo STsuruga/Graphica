@@ -38,14 +38,34 @@
       4
      ],
      "dtype": "float64",
-     "sha256": "2955568554ecf849"
+     "sha256": "2955568554ecf849",
+     "sample": [
+      1.5,
+      2.5,
+      2.0,
+      3.5
+     ],
+     "nan_count": 0,
+     "min": 1.5,
+     "max": 3.5,
+     "sum": 9.5
     },
     "noise": {
      "shape": [
       4
      ],
      "dtype": "float64",
-     "sha256": "e9fc832733fb990f"
+     "sha256": "e9fc832733fb990f",
+     "sample": [
+      0.1,
+      0.2,
+      0.1,
+      0.3
+     ],
+     "nan_count": 0,
+     "min": 0.1,
+     "max": 0.3,
+     "sum": 0.7
     }
    },
    "name": "data.csv",

@@ -29,14 +29,30 @@
       2
      ],
      "dtype": "float64",
-     "sha256": "a9e042d0ccb24fd2"
+     "sha256": "a9e042d0ccb24fd2",
+     "sample": [
+      1.0,
+      2.0
+     ],
+     "nan_count": 0,
+     "min": 1.0,
+     "max": 2.0,
+     "sum": 3.0
     },
     "y": {
      "shape": [
       2
      ],
      "dtype": "float64",
-     "sha256": "00b599b5f73ec5b7"
+     "sha256": "00b599b5f73ec5b7",
+     "sample": [
+      5.0,
+      6.0
+     ],
+     "nan_count": 0,
+     "min": 5.0,
+     "max": 6.0,
+     "sum": 11.0
     }
    },
    "name": "残っていた",
