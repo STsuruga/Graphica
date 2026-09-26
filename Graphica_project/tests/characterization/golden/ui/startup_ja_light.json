@@ -2287,7 +2287,7 @@
                        },
                        {
                         "class": "QWidget",
-                        "visible": true,
+                        "visible": false,
                         "enabled": true,
                         "children": [
                          {
@@ -2295,7 +2295,7 @@
                           "name": "property_subsection_toggle",
                           "text": "グラデーション",
                           "checked": true,
-                          "visible": true,
+                          "visible": false,
                           "enabled": true,
                           "receivers": {
                            "pressed()": 1,
@@ -2305,7 +2305,7 @@
                          },
                          {
                           "class": "QWidget",
-                          "visible": true,
+                          "visible": false,
                           "enabled": false,
                           "children": [
                            {
@@ -2423,7 +2423,7 @@
                        },
                        {
                         "class": "QWidget",
-                        "visible": true,
+                        "visible": false,
                         "enabled": true,
                         "children": [
                          {
@@ -2431,7 +2431,7 @@
                           "name": "property_subsection_toggle",
                           "text": "ウォーターフォール",
                           "checked": true,
-                          "visible": true,
+                          "visible": false,
                           "enabled": true,
                           "receivers": {
                            "pressed()": 1,
@@ -2441,7 +2441,7 @@
                          },
                          {
                           "class": "QWidget",
-                          "visible": true,
+                          "visible": false,
                           "enabled": false,
                           "children": [
                            {

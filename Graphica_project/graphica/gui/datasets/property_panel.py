@@ -326,6 +326,8 @@ class DatasetPropertyPanel:
 
             self._app.stats_summary_label.setText("-")
             self._app.dataset_mini_stats_label.setText("-")
+            # 行を隠したあとで見出しもそろえる(起動直後もこの経路を通る)
+            self._app._update_property_section_visibility()
 
     def update_stats_summary_label(self, dataset):
         """Y の件数・平均・標準偏差・最小・最大を、プロパティ欄とデータセット一覧の下の1行に出す(NaN は除く)。"""
