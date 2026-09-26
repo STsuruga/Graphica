@@ -268,6 +268,19 @@ def test_chunk_runner_also_runs_the_characterization_tests():
     assert "tests/characterization/test_*.py" in _runner_source()
 
 
+def _bash():
+    """Windows では PATH の bash が WSL(System32)のことがあるので、Git の bash を優先する。"""
+    import shutil
+
+    found = shutil.which("bash")
+    if found and "system32" not in found.lower():
+        return found
+    for candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe"):
+        if Path(candidate).exists():
+            return candidate
+    pytest.skip("Git の bash が見つからない")
+
+
 def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
     """import で落ちたテストファイルを黙って飛ばすと、その分のテストが消えたまま緑になる(K-30)。"""
     tests_dir = tmp_path / "tests"
@@ -277,7 +290,7 @@ def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
         "from graphica.no_such_module import nothing\n\n\ndef test_never():\n    pass\n", encoding="utf-8")
     (tests_dir / "test_empty.py").write_text("# テストが無いだけのファイルは失敗にしない\n", encoding="utf-8")
     result = subprocess.run(
-        ["bash", str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
+        [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
     )
     assert result.returncode != 0, result.stdout
