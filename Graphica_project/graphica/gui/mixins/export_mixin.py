@@ -396,7 +396,7 @@ class ExportMixin:
                 if export_ext in ('.svg', '.pdf') and _project_has_raster_gradient_fill(self.project):
                     notify.warning(
                         self, "ベクター出力時の注意",
-                        "グラデーション塗り(項目79)が有効なデータセットが含まれています。\n"
+                        "グラデーション塗りが有効なデータセットが含まれています。\n"
                         "この部分は画像(ラスタ)として埋め込まれるため、拡大すると"
                         "他の要素のようにはくっきり表示されません。\n\n"
                         "エクスポートは続行します。"
