@@ -35,6 +35,12 @@ PIXEL_ENVIRONMENT = {
 
 # OS 間で最後の桁が揺れる計算結果を同じ値として扱うための有効桁数。
 FLOAT_DIGITS = 10
+# 基準を作った機械と CPU が違うときの許容差(相対)。配列では要素の最大の大きさに対する絶対差としても使う。
+NUMERIC_REL_TOL = 1e-9
+# 範囲制約つき・頑健な損失のフィット(least_squares)は ftol=xtol=1e-8 で止まるので、計算経路の違いがその大きさで
+# 結果に残る(OpenBLAS の核を変えて測ると最大 1.2e-8)。
+OPTIMIZER_REL_TOL = 1e-6
+ARRAY_SAMPLE_SIZE = 16
 MAX_DIFF_LINES = 40
 
 
@@ -57,6 +63,39 @@ def pixel_environment_matches() -> bool:
         "numpy": np.__version__,
     }
     return actual == PIXEL_ENVIRONMENT
+
+
+def machine_fingerprint() -> dict[str, Any]:
+    """数値の最後のビットを決めるもの。同じ版でも CPU が違えば numpy と OpenBLAS は別の計算経路を選ぶ。"""
+    import scipy
+
+    try:
+        from numpy._core._multiarray_umath import __cpu_features__
+        features = sorted(name for name, enabled in __cpu_features__.items() if enabled)
+    except ImportError:
+        features = []
+    return {
+        "processor": platform.processor(),
+        "cpu_features": features,
+        "numpy": np.__version__,
+        "scipy": scipy.__version__,
+        "OPENBLAS_CORETYPE": os.environ.get("OPENBLAS_CORETYPE", ""),
+        "NPY_DISABLE_CPU_FEATURES": os.environ.get("NPY_DISABLE_CPU_FEATURES", ""),
+    }
+
+
+def machine_file() -> Path:
+    return GOLDEN_DIR / "MACHINE.json"
+
+
+def write_machine_fingerprint() -> None:
+    machine_file().write_text(_dump(machine_fingerprint()), encoding="utf-8", newline="\n")
+
+
+def numeric_machine_matches() -> bool:
+    """基準を作った機械なら数値をビット単位で比べ、違えば許容差で比べる。"""
+    path = machine_file()
+    return path.exists() and json.loads(path.read_text(encoding="utf-8")) == machine_fingerprint()
 
 
 # --- 正規化 ---
@@ -155,6 +194,17 @@ def array_summary(values: Any) -> dict[str, Any]:
     else:
         payload = "|".join(str(v) for v in array.ravel().tolist())
     summary["sha256"] = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+    if array.dtype.kind == "f" and array.size:
+        # ハッシュは許容差で比べられないので、別の CPU ではこちらで比べる
+        flat = array.astype(float).ravel()
+        finite = flat[np.isfinite(flat)]
+        picks = np.unique(np.linspace(0, flat.size - 1, min(flat.size, ARRAY_SAMPLE_SIZE)).round().astype(int))
+        summary["sample"] = [_float(v) for v in flat[picks]]
+        summary["nan_count"] = int(np.isnan(flat).sum())
+        if finite.size:
+            summary["min"] = _float(finite.min())
+            summary["max"] = _float(finite.max())
+            summary["sum"] = _float(finite.sum())
     return summary
 
 
@@ -194,6 +244,81 @@ def diff_summary(expected: Any, actual: Any, limit: int = MAX_DIFF_LINES) -> str
     return "\n".join(lines)
 
 
+_HEX_FLOAT = re.compile(r"-?0x[0-9a-f]\.[0-9a-f]+p[+-]\d+")
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, float):
+        return value
+    if isinstance(value, str) and _HEX_FLOAT.fullmatch(value):
+        return float.fromhex(value)
+    return None
+
+
+def _last_digit(value: Any, number: float) -> float:
+    # FLOAT_DIGITS 桁に丸めた値は、丸めの境目で最後の桁が 1 つ動くことがある。float.hex の文字列は丸めていない
+    if isinstance(value, str) or number == 0:
+        return 0.0
+    return 10.0 ** (math.floor(math.log10(abs(number))) - (FLOAT_DIGITS - 1))
+
+
+def _close(expected: Any, actual: Any, abs_tol: float, rel_tol: float) -> bool:
+    left, right = _number(expected), _number(actual)
+    if left is None or right is None:
+        return expected == actual
+    if not (math.isfinite(left) and math.isfinite(right)):
+        return left == right
+    allowed = rel_tol * max(abs(left), abs(right)) + abs_tol
+    allowed += max(_last_digit(expected, left), _last_digit(actual, right))
+    return abs(left - right) <= allowed
+
+
+def _scale(values: list[Any]) -> float:
+    numbers = [abs(n) for n in map(_number, values) if n is not None and math.isfinite(n)]
+    return max(numbers, default=0.0)
+
+
+def _tolerant_diff(expected: Any, actual: Any, path: str, lines: list[str], rel_tol: float,
+                   abs_tol: float = 0.0) -> None:
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        array = "sample" in expected and "sha256" in expected
+        scale = _scale([expected.get("min"), expected.get("max")]) if array else 0.0
+        size = math.prod(expected.get("shape") or [1]) if array else 1
+        for key in sorted(set(expected) | set(actual)):
+            if key not in actual:
+                lines.append(f"- {path}/{key}: {expected[key]!r}")
+            elif key not in expected:
+                lines.append(f"+ {path}/{key}: {actual[key]!r}")
+            elif not (array and key == "sha256"):
+                tol = rel_tol * scale * (size if key == "sum" else 1)
+                _tolerant_diff(expected[key], actual[key], f"{path}/{key}", lines, rel_tol, tol)
+        return
+    if isinstance(expected, list) and isinstance(actual, list):
+        tol = max(abs_tol, rel_tol * _scale(expected))
+        for index in range(max(len(expected), len(actual))):
+            if index >= len(actual):
+                lines.append(f"- {path}[{index}]: {expected[index]!r}")
+            elif index >= len(expected):
+                lines.append(f"+ {path}[{index}]: {actual[index]!r}")
+            else:
+                _tolerant_diff(expected[index], actual[index], f"{path}[{index}]", lines, rel_tol, tol)
+        return
+    if type(expected) is not type(actual) and not (_number(expected) is not None and _number(actual) is not None):
+        lines.append(f"~ {path or '/'}: {expected!r} -> {actual!r}")
+    elif not _close(expected, actual, abs_tol, rel_tol):
+        lines.append(f"~ {path or '/'}: {expected!r} -> {actual!r}")
+
+
+def tolerant_diff_summary(expected: Any, actual: Any, rel_tol: float = NUMERIC_REL_TOL,
+                          limit: int = MAX_DIFF_LINES) -> str:
+    """基準を作った機械と CPU が違うときの比較。数値は rel_tol の範囲なら同じとみなす。"""
+    lines: list[str] = []
+    _tolerant_diff(expected, actual, "", lines, rel_tol)
+    if len(lines) > limit:
+        lines = lines[:limit] + [f"... ほか {len(lines) - limit} 件"]
+    return "\n".join(lines)
+
+
 def golden_path(name: str) -> Path:
     if not re.fullmatch(r"[A-Za-z0-9_\-/.]+", name) or ".." in name:
         raise ValueError(f"基準の名前に使えない文字がある: {name!r}")
@@ -204,8 +329,8 @@ def _dump(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, indent=1, sort_keys=False) + "\n"
 
 
-def check(name: str, value: Any, normalizer: Normalizer | None = None) -> None:
-    """value(正規化済みでなくてよい)を基準 golden/<name>.json と比べる。"""
+def check(name: str, value: Any, normalizer: Normalizer | None = None, rel_tol: float = NUMERIC_REL_TOL) -> None:
+    """value(正規化済みでなくてよい)を基準 golden/<name>.json と比べる。rel_tol は別の機械でだけ使う。"""
     actual = to_jsonable(value, normalizer or Normalizer())
     # 一度 JSON を往復させ、キーの型などを基準と同じ形にそろえる
     actual = json.loads(_dump(actual))
@@ -217,8 +342,14 @@ def check(name: str, value: Any, normalizer: Normalizer | None = None) -> None:
     if not path.exists():
         raise AssertionError(f"基準 {path.name} が無い。scripts/update_characterization.py で作る")
     expected = json.loads(path.read_text(encoding="utf-8"))
-    if expected != actual:
+    if expected == actual:
+        return
+    if numeric_machine_matches():
         raise AssertionError(f"特性テスト {name} が基準と違う:\n{diff_summary(expected, actual)}")
+    differences = tolerant_diff_summary(expected, actual, rel_tol)
+    if differences:
+        raise AssertionError(
+            f"特性テスト {name} が基準と違う(基準を作った機械と違うので許容差で比べた):\n{differences}")
 
 
 # --- 画素 ---

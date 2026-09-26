@@ -44,14 +44,30 @@
        2
       ],
       "dtype": "float64",
-      "sha256": "a9e042d0ccb24fd2"
+      "sha256": "a9e042d0ccb24fd2",
+      "sample": [
+       1.0,
+       2.0
+      ],
+      "nan_count": 0,
+      "min": 1.0,
+      "max": 2.0,
+      "sum": 3.0
      },
      "y": {
       "shape": [
        2
       ],
       "dtype": "float64",
-      "sha256": "5794100146330d7f"
+      "sha256": "5794100146330d7f",
+      "sample": [
+       3.0,
+       4.0
+      ],
+      "nan_count": 0,
+      "min": 3.0,
+      "max": 4.0,
+      "sum": 7.0
      }
     },
     "name": "d",

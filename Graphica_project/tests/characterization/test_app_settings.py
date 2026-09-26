@@ -109,12 +109,14 @@ SEEDS = {"empty": lambda env, ini, case: None, "typed": _seed_typed, "raw_string
 
 
 @pytest.mark.parametrize("seed", list(SEEDS))
-def test_startup_reads(app_env, modal_log, normalizer, isolated_settings_file, tmp_path, seed):
+def test_startup_reads(app_env, modal_log, normalizer, isolated_settings_file, tmp_path, monkeypatch, seed):
     from pathlib import Path
 
     from graphica.core.app_paths import get_app_data_dir
 
-    # オートセーブの保存先を決めていないときは利用者のフォルダになるので、記録では置き換える
+    # オートセーブの保存先を決めていないときは利用者のフォルダになる。本物を見ると、そこに残っている
+    # オートセーブの有無で復元の確認が出るかどうかが機械ごとに変わるので、空の一時フォルダに向ける
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "localappdata"))
     normalizer.add_path(get_app_data_dir(), "<APPDATA>")
     ini = Path(isolated_settings_file)
     SEEDS[seed](app_env, ini, tmp_path)

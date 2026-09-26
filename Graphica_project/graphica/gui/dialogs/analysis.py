@@ -45,26 +45,13 @@ class FitDialog(QDialog):
         layout.addWidget(QLabel("フィットする関数の種類を選択してください:"))
         
         self.fit_type_combo = QComboBox()
-        self.fit_type_combo.addItems([
-            "線形 (y = ax + b)",
-            "2次多項式 (y = ax^2 + bx + c)",
-            "3次多項式 (y = ax^3 + bx^2 + cx + d)",
-            "指数関数 (y = a * exp(bx))",
-            "対数 (y = a * ln(x) + b)",
-            "べき乗 (y = a * x^b)",
-            "ガウシアン (y = a * exp(-(x-b)^2 / (2c^2)) + d)",
-            "ローレンツ関数 (y = a / (1 + ((x-b)/c)^2) + d)",
-            "擬似フォークト関数 (y = a*(η/(1+((x-b)/c)^2) + (1-η)*exp(-4ln2*((x-b)/c)^2)) + d)",
-            "フォークト関数 (y = a*Re[wofz((x-b+iγ)/(σ√2))] / (σ√(2π)) + d)",
-            "2成分指数関数 (y = a1*exp(b1*x) + a2*exp(b2*x) + c)",
-            "ボルツマンシグモイド (y = a2 + (a1-a2) / (1 + exp((x-x0)/dx)))",
-            "シグモイド (y = a / (1 + exp(-b(x-c))))",
-            "ヒルの式 (y = vmax*x^n / (k^n + x^n))",
-        ])
-        # プラグインのフィット関数は、組み込みと「カスタム数式...」の間に入れる
+        # scipy を読み込むので、ダイアログを開くときまで遅らせる
         from graphica.core.analysis import get_plugin_fit_type_names
+        from graphica.core.fit_models import CUSTOM_FORMULA_LABEL, builtin_menu_labels
+        # プラグインのフィット関数は、組み込みと「カスタム数式...」の間に入れる
+        self.fit_type_combo.addItems(builtin_menu_labels())
         self.fit_type_combo.addItems(get_plugin_fit_type_names())
-        self.fit_type_combo.addItem("カスタム数式...")
+        self.fit_type_combo.addItem(CUSTOM_FORMULA_LABEL)
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
         layout.addWidget(self.fit_type_combo)
 
@@ -153,7 +140,8 @@ class FitDialog(QDialog):
         self._rebuild_param_table()
 
     def _on_fit_type_changed(self, text):
-        is_custom = "カスタム数式" in text
+        from graphica.core.fit_models import is_custom_formula_type
+        is_custom = is_custom_formula_type(text)
         self.custom_formula_label.setVisible(is_custom)
         self.custom_formula_edit.setVisible(is_custom)
 
@@ -163,8 +151,9 @@ class FitDialog(QDialog):
         値の欄は、「固定」が外れていれば初期値(触った行だけ p0_overrides に入る)、入っていれば固定値。
         固定したパラメータには範囲拘束を付けられない。
         """
+        from graphica.core.fit_models import is_custom_formula_type
         fit_type = self.fit_type_combo.currentText()
-        custom_formula = self.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
+        custom_formula = self.custom_formula_edit.text().strip() if is_custom_formula_type(fit_type) else None
         try:
             from graphica.core.analysis import get_fit_param_names
             param_names = get_fit_param_names(fit_type, custom_formula)
@@ -282,8 +271,9 @@ class FitDialog(QDialog):
         """
         dialog = FitDialog(parent, x_min=x_min, x_max=x_max)
         if dialog.exec() == QDialog.DialogCode.Accepted:
+            from graphica.core.fit_models import is_custom_formula_type
             fit_type = dialog.fit_type_combo.currentText()
-            custom_formula = dialog.custom_formula_edit.text().strip() if "カスタム数式" in fit_type else None
+            custom_formula = dialog.custom_formula_edit.text().strip() if is_custom_formula_type(fit_type) else None
             p0_overrides, fixed_params, bounds = dialog.get_param_settings()
             return (fit_type, custom_formula, dialog.get_weighted(), dialog.get_x_range(),
                     p0_overrides, fixed_params, bounds, dialog.get_band_type(), dialog.get_loss())
