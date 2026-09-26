@@ -1,0 +1,263 @@
+{
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "DatasetArithmeticDialog",
+   "title": "データセット間演算"
+  },
+  {
+   "kind": "QMessageBox.warning",
+   "title": "データセット間演算",
+   "text": "重なる範囲にA側のデータ点がありません。"
+  }
+ ],
+ "after": {
+  "draw_order": [
+   "まばら",
+   "狭い"
+  ],
+  "tree": [
+   {
+    "text": "まばら",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "狭い",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   }
+  ],
+  "group_tree": {
+   "": [
+    "まばら",
+    "狭い"
+   ]
+  },
+  "current": "まばら",
+  "undo": {
+   "texts": [],
+   "index": 0
+  },
+  "status": "",
+  "datasets": [
+   {
+    "columns": [
+     "x",
+     "y"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     2,
+     2
+    ],
+    "index": {
+     "shape": [
+      2
+     ],
+     "dtype": "int64",
+     "sha256": "fff143c4af61e84c"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       2
+      ],
+      "dtype": "float64",
+      "sha256": "0d30e051168f2d33",
+      "sample": [
+       0.0,
+       10.0
+      ],
+      "nan_count": 0,
+      "min": 0.0,
+      "max": 10.0,
+      "sum": 10.0
+     },
+     "y": {
+      "shape": [
+       2
+      ],
+      "dtype": "float64",
+      "sha256": "a9e042d0ccb24fd2",
+      "sample": [
+       1.0,
+       2.0
+      ],
+      "nan_count": 0,
+      "min": 1.0,
+      "max": 2.0,
+      "sum": 3.0
+     }
+    },
+    "name": "まばら",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000001"
+   },
+   {
+    "columns": [
+     "x",
+     "y"
+    ],
+    "dtypes": [
+     "float64",
+     "float64"
+    ],
+    "shape": [
+     5,
+     2
+    ],
+    "index": {
+     "shape": [
+      5
+     ],
+     "dtype": "int64",
+     "sha256": "4565c3e4e04dfe3f"
+    },
+    "values": {
+     "x": {
+      "shape": [
+       5
+      ],
+      "dtype": "float64",
+      "sha256": "73a550a0a2f31fc3",
+      "sample": [
+       4.1,
+       4.125,
+       4.15,
+       4.175,
+       4.2
+      ],
+      "nan_count": 0,
+      "min": 4.1,
+      "max": 4.2,
+      "sum": 20.75
+     },
+     "y": {
+      "shape": [
+       5
+      ],
+      "dtype": "float64",
+      "sha256": "0db38fcb93c5c5ed",
+      "sample": [
+       8.2,
+       8.25,
+       8.3,
+       8.35,
+       8.4
+      ],
+      "nan_count": 0,
+      "min": 8.2,
+      "max": 8.4,
+      "sum": 41.5
+     }
+    },
+    "name": "狭い",
+    "x_col_name": "x",
+    "y_col_name": "y",
+    "plot_type": "Line",
+    "color": "#1f77b4",
+    "linestyle": "-",
+    "linewidth": 1.5,
+    "marker": "o",
+    "markersize": 6.0,
+    "smoothing": false,
+    "smoothing_method": "cubic_spline",
+    "alpha": 1.0,
+    "gradient_enabled": false,
+    "gradient_color2": "#ffffff",
+    "gradient_target": "line",
+    "waterfall_enabled": false,
+    "waterfall_offset_x": 0.0,
+    "waterfall_offset_y": 1.0,
+    "waterfall_occlusion_enabled": true,
+    "waterfall_depth_shrink_enabled": false,
+    "waterfall_depth_shrink_ratio": 0.03,
+    "show_point_labels": false,
+    "point_label_col_name": null,
+    "x_err_col_name": null,
+    "y_err_col_name": null,
+    "error_display": "bar",
+    "masked_row_indices": [],
+    "fit_info": null,
+    "fit_result": null,
+    "fit_band_display": null,
+    "source_plugin": null,
+    "source_file": null,
+    "source_sheet": null,
+    "nan_policy": "gap",
+    "provenance": null,
+    "use_secondary_y": false,
+    "subplot_target": 0,
+    "data_kind": "1d",
+    "z_col_name": null,
+    "grid_interp_method": "linear",
+    "grid_resolution": null,
+    "colormap": "viridis",
+    "vmin": null,
+    "vmax": null,
+    "map_display_mode": "heatmap",
+    "contour_levels": 10,
+    "visible": true,
+    "artist": "<Line2D>",
+    "dataset_id": "00000000000000000000000000000002"
+   }
+  ],
+  "annotations": [
+   []
+  ],
+  "windows": []
+ },
+ "clipboard": ""
+}
