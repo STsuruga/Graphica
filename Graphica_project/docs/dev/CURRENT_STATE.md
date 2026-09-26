@@ -13,27 +13,27 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-26): M3 の途中(R-3 完了、R-6 の作業中)
+## 現在地(2026-09-27): M4 の途中(R-1 完了、R-7 の PR)
 
 **再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
 (原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
 **引き継ぎ**: `docs/dev/REFACTOR_HANDOFF.md`(作業ルール、R-0 の指針、最終の動作確認表)。
 
 - 統合ブランチ `refactor/architecture`、作業フォルダ `D:\ユーザー\shuta\ドキュメント\PlotterApp-refactor`。
-  **master への統合は M6 の確認後に 1 回だけ**(ユーザー指示)。PR の作成とマージはユーザーの承認を待つ。
+  **master への統合は M6 の確認後に 1 回だけ**(ユーザー指示)。PR は CI が緑ならマージしてよい(ユーザー承認済みの進め方)。
 - 絶対条件(ユーザー指示): 機能・入出力・副作用・エッジケースを完全に維持。見つけた不具合は直さずに K として db に登録して提案する。
 - 進み具合と K の状態はロードマップの db が正。ここは要点だけ。
-- **M0・M1・M2 完了**。R-0 特性テスト(#25)、R-2 フィットのモデルの表(#26)、R-4 設定の表(#31)、R-5 通知の窓口(#34)。
-- **R-3 完了**(#38・#39): `gui/datasets/operations/` の実行役と操作の表。先に途中で止まる流れを 88 件・43 件の特性テストで基準化した。
-- 完了した K: K-20・K-6・K-30・K-25・K-24・K-17・K-32・K-31(測定情報つき TXT)・K-21(文字の X 列で 11 操作が落ちる)・K-8(式の列名をバッククォートで)。
+- **M0〜M3 完了**。R-0(#25)、R-2(#26)、R-4(#31)、R-5(#34)、R-3(#38・#39)、R-6(#42)。
+- **M4**: R-1a(#46 軸の設定の表 `gui/axis_bindings.py`)、R-1b(#48 プロパティ欄の表 `gui/dataset_bindings.py`、部品は `gui/binding.py`)完了。
+  R-7(`main_window.py` の分割: `gui/builders/`・`gui/dock_layout.py`・`gui/data_import_flow.py`・`gui/project_files.py`、2,971→約 1,150 行)は PR 中。
+- 完了した K(この区切り): K-18(#43)・K-5(#44)・K-33(#45)・K-36(#47)・K-35 と K-37(#49、描き直し 1 回・配置が収まるまで tight_layout)・K-19 と K-34(#50)。K-28 は直さないと決定。
+- 作業中の K: K-29(#51、スクリプトの書き出しの前に行数・列数を同期)。次: K-7(CSV の日付の列、R-7 のあと、全部日付に読める列だけ日付型に)。
+- まだ直さない K(時期つき): K-27・K-9(R-8)、K-3・K-10・K-16・K-26 ほか(db の when を見る)。
 - 特性テストの数値は、基準を作った機械(`golden/MACHINE.json`、この PC)ではビット単位、CI などでは許容差で比べる(#32)。
-- **R-6 の作業中**(`refactor/r6-dataset-order`): 先に並びの特性テスト 10 件(`test_dataset_order.py`)、`gui/datasets/order.py` の `DatasetOrder` に 3 つの表現と同期の規則を集めた。
-- 新しい K: K-33(文字の X 列で単発フィットが落ちる、R-6 のあとに小さな PR)、K-34(フォルダ内の並べ替えで余計な「プロパティ変更」、R-1)。
-- 次: R-6 の PR → K-18・K-5 の選択肢 → K-33 → M4(R-1・R-7)。
-- まだ直さない K(時期つき): K-27・K-9(R-8)、K-28・K-29・K-19・K-34(R-1)、K-5・K-18(R-6)、K-7(R-7)、ほか merge。
 - 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
   既存ファイルは CRLF なので、複数行の置換は改行をそろえてから行う。CI の結果は `gh pr checks` で見る(`jq` は無いので `--jq` を使う)。
-  ruff はアプリだけでなくテストにも掛ける(`ruff check .`)。
+  ruff はアプリだけでなくテストにも掛ける(`ruff check .`)。コードを別モジュールへ移したら、`pyproject.toml` の packages と
+  `tests/test_broad_except_allowlist.py` の数も合わせる。テストの差し替えは、移したコードが名前を引くモジュールに向ける。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
 
