@@ -1,0 +1,145 @@
+{
+ "before": {
+  "draw_order": [
+   "A",
+   "B",
+   "c",
+   "D"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": true
+   },
+   {
+    "text": "F1",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false,
+    "children": [
+     {
+      "text": "B",
+      "checked": "Unchecked",
+      "hidden": false,
+      "selected": false
+     },
+     {
+      "text": "F2",
+      "checked": "Unchecked",
+      "hidden": false,
+      "selected": false,
+      "children": [
+       {
+        "text": "c",
+        "checked": "Unchecked",
+        "hidden": false,
+        "selected": false
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "text": "D",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    {
+     "F1": [
+      "B",
+      {
+       "F2": [
+        "c"
+       ]
+      }
+     ]
+    },
+    "D"
+   ]
+  },
+  "current": "A",
+  "undo": {
+   "texts": [],
+   "index": 0
+  }
+ },
+ "after_load": {
+  "draw_order": [
+   "A",
+   "B",
+   "c",
+   "D"
+  ],
+  "tree": [
+   {
+    "text": "A",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   },
+   {
+    "text": "F1",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false,
+    "children": [
+     {
+      "text": "B",
+      "checked": "Unchecked",
+      "hidden": false,
+      "selected": false
+     },
+     {
+      "text": "F2",
+      "checked": "Unchecked",
+      "hidden": false,
+      "selected": false,
+      "children": [
+       {
+        "text": "c",
+        "checked": "Unchecked",
+        "hidden": false,
+        "selected": false
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "text": "D",
+    "checked": "Unchecked",
+    "hidden": false,
+    "selected": false
+   }
+  ],
+  "group_tree": {
+   "": [
+    "A",
+    {
+     "F1": [
+      "B",
+      {
+       "F2": [
+        "c"
+       ]
+      }
+     ]
+    },
+    "D"
+   ]
+  },
+  "current": null,
+  "undo": {
+   "texts": [],
+   "index": 0
+  }
+ },
+ "modals": []
+}
