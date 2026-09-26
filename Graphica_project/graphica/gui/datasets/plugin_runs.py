@@ -1,7 +1,8 @@
 """プラグインが登録したデータ処理と解析の実行。結果の追加は Undo できる。"""
 import logging
-from PySide6.QtWidgets import QDialog, QMessageBox
+from PySide6.QtWidgets import QDialog
 
+from graphica.gui import notify
 from graphica.core.dataset import Dataset
 from graphica.core.plugin_types import AnalysisResult, PluginExecutionError
 from graphica.gui.dialogs import PluginParamDialog, ResultDialog
@@ -20,7 +21,7 @@ class PluginRunController:
         """processor が返したデータセットを Undo できる形で足す(プラグイン側は Undo を意識しない)。"""
         dataset = self._host.current_dataset()
         if dataset is None:
-            QMessageBox.information(self._host.parent_widget, processor.name, "データセットを選択してください。")
+            notify.information(self._host.parent_widget, processor.name, "データセットを選択してください。")
             return
 
         params = {}
@@ -36,7 +37,7 @@ class PluginRunController:
                 raise TypeError(f"Datasetを返しませんでした(型: {type(new_dataset).__name__})。")
         except Exception as e:
             logger.exception("[plugin:%s] processor の実行に失敗しました", processor.plugin_name)
-            QMessageBox.critical(
+            notify.critical(
                 self._host.parent_widget, "データ処理エラー",
                 str(PluginExecutionError(processor.plugin_name, f"「{processor.name}」の実行に失敗しました: {e}"))
             )
@@ -54,7 +55,7 @@ class PluginRunController:
         """analyzer の結果(派生データセット・注釈・表)を、それぞれ Undo できる形や結果の窓で反映する。"""
         dataset = self._host.current_dataset()
         if dataset is None:
-            QMessageBox.information(self._host.parent_widget, analyzer.name, "データセットを選択してください。")
+            notify.information(self._host.parent_widget, analyzer.name, "データセットを選択してください。")
             return
 
         params = {}
@@ -70,7 +71,7 @@ class PluginRunController:
                 raise TypeError(f"AnalysisResultを返しませんでした(型: {type(result).__name__})。")
         except Exception as e:
             logger.exception("[plugin:%s] analyzer の実行に失敗しました", analyzer.plugin_name)
-            QMessageBox.critical(
+            notify.critical(
                 self._host.parent_widget, "解析エラー",
                 str(PluginExecutionError(analyzer.plugin_name, f"「{analyzer.name}」の実行に失敗しました: {e}"))
             )

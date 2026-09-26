@@ -3,8 +3,8 @@ import logging
 
 import numpy as np
 import pandas as pd
-from PySide6.QtWidgets import QMessageBox
 
+from graphica.gui import notify
 from graphica.core.analysis import assign_peak_label_levels, calculate_peak_quantification, calculate_peaks
 from graphica.core.dataset import Dataset
 from graphica.gui.dialogs import PeakSettingsDialog, ResultDialog
@@ -23,13 +23,13 @@ class PeakController:
     def _ask_settings(self, dataset, title):
         """点数の確認と設定ダイアログ。続けられないときは None。"""
         if len(dataset.x_data) < 3:
-            QMessageBox.warning(self._host.parent_widget, title, "データ点数が少なすぎます (最低3点必要)。")
+            notify.warning(self._host.parent_widget, title, "データ点数が少なすぎます (最低3点必要)。")
             return None
         return PeakSettingsDialog.get_peak_settings(self._host.parent_widget)
 
     def _warn_failure(self, error):
         logger.exception("ピーク検出に失敗しました")
-        QMessageBox.warning(self._host.parent_widget, "ピーク検出エラー", f"エラーが発生しました:\n{error}")
+        notify.warning(self._host.parent_widget, "ピーク検出エラー", f"エラーが発生しました:\n{error}")
 
     def find_peaks(self):
         """現在のデータセットのピーク(または谷)を探し、位置のデータセットと定量結果の表を出す。"""
@@ -50,7 +50,7 @@ class PeakController:
         peak_x, peak_y = quant['peak_x'], quant['peak_y']
         fwhm, area, centroid = quant['fwhm'], quant['area'], quant['centroid']
         if len(peak_x) == 0:
-            QMessageBox.information(self._host.parent_widget, "ピーク検出",
+            notify.information(self._host.parent_widget, "ピーク検出",
                                     f"指定された条件で {peak_type} は見つかりませんでした。")
             return
 
@@ -102,7 +102,7 @@ class PeakController:
             self._warn_failure(e)
             return
         if len(peak_x) == 0:
-            QMessageBox.information(self._host.parent_widget, title,
+            notify.information(self._host.parent_widget, title,
                                     f"指定された条件で {peak_type} は見つかりませんでした。")
             return
 

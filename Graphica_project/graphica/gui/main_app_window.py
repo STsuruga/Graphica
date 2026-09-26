@@ -6,9 +6,10 @@ import logging
 
 from PySide6.QtCore import Qt, QSize
 from PySide6.QtGui import QIcon, QUndoGroup
-from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QMessageBox, QDockWidget,
+from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QDockWidget,
                                QUndoView, QWidget, QHBoxLayout)
 
+from graphica.gui import notify
 from graphica.gui import app_settings
 from graphica.gui.main_window import PlotterApp, resource_path
 from graphica.gui.icon_utils import icon as svg_icon
@@ -143,7 +144,7 @@ class MainAppWindow(QMainWindow):
     def _on_tab_close_requested(self, index):
         """最後の1つは閉じられない。"""
         if self.tab_widget.count() <= 1:
-            QMessageBox.information(
+            notify.information(
                 self, "タブを閉じる", "最後の1つのタブは閉じられません。"
             )
             return

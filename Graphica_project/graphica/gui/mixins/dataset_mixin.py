@@ -11,8 +11,9 @@ import logging
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtWidgets import (QDialog, QFileDialog, QInputDialog, QMenu)
+from PySide6.QtWidgets import (QDialog, QMenu)
 
+from graphica.gui import notify
 from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand)
 from graphica.core.dataset import Dataset
 from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS
@@ -34,7 +35,7 @@ class DatasetMixin:
         plugin_extensions = get_registered_importer_extensions()
         plugin_pattern = ''.join(f' *{ext}' for ext in plugin_extensions)
         builtin_pattern = ' '.join(f'*{ext}' for ext in BUILTIN_DATA_FILE_EXTENSIONS)
-        file_path, _ = QFileDialog.getOpenFileName(
+        file_path, _ = notify.get_open_file_name(
             self, "データファイルを選択", "",
             f"Data Files ({builtin_pattern}{plugin_pattern});;All Files (*)"
         )
@@ -84,7 +85,7 @@ class DatasetMixin:
 
     def _on_new_folder(self):
         """選択中がフォルダならその中に、そうでなければ一番上に作る。"""
-        name, ok = QInputDialog.getText(self, "新しいフォルダ", "フォルダ名:", text="新しいフォルダ")
+        name, ok = notify.get_text(self, "新しいフォルダ", "フォルダ名:", text="新しいフォルダ")
         if not ok or not name:
             return
 
@@ -104,7 +105,7 @@ class DatasetMixin:
         if current_item is None or current_item.data(0, Qt.ItemDataRole.UserRole) is not None:
             return
         old_name = current_item.text(0)
-        new_name, ok = QInputDialog.getText(self, "フォルダ名を変更", "新しいフォルダ名:", text=old_name)
+        new_name, ok = notify.get_text(self, "フォルダ名を変更", "新しいフォルダ名:", text=old_name)
         if not ok or not new_name:
             return
         current_item.setText(0, new_name)

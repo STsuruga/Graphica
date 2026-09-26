@@ -24,6 +24,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
+import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
 import graphica.gui.mixins.settings_mixin as settings_mixin_module
 from graphica.gui.main_window import PlotterApp
@@ -336,7 +337,7 @@ def test_signals_are_unblocked_even_when_apply_raises(window, monkeypatch):
     その場合でも finally でシグナルが必ず戻ること(戻らないとUIが無反応になる)。"""
     shown = []
     monkeypatch.setattr(
-        settings_mixin_module.QMessageBox, "warning",
+        notify_module.QMessageBox, "warning",
         staticmethod(lambda *a, **k: shown.append(a)),
     )
     monkeypatch.setattr(

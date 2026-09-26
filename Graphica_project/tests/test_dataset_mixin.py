@@ -21,6 +21,7 @@ from PySide6.QtCore import QSettings, QPoint, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QMenu, QMessageBox
 
+import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
 import graphica.gui.datasets.colors as colors_module
 import graphica.gui.datasets.processing as processing_module
@@ -1455,7 +1456,7 @@ def test_export_dataset_data_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: calls.append(1) or ("", ""))
     )
     window.transfer.export_data()
@@ -1468,7 +1469,7 @@ def test_export_single_dataset_csv(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     out_path = str(tmp_path / "out.csv")
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "CSV Files (*.csv)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1485,7 +1486,7 @@ def test_export_single_dataset_excel_via_filter_appends_extension(tmp_path, monk
     _add_and_select_dataset(window, ds)
     out_path_no_ext = str(tmp_path / "outbook")
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path_no_ext, "Excel Files (*.xlsx)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1501,7 +1502,7 @@ def test_export_single_dataset_cancelled_writes_nothing(tmp_path, monkeypatch):
     ds = _make_simple_dataset("mydata")
     _add_and_select_dataset(window, ds)
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: ("", ""))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1517,7 +1518,7 @@ def test_export_single_dataset_write_error_shows_warning(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     out_path = str(tmp_path / "out.csv")
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "CSV Files (*.csv)"))
     )
 
@@ -1542,11 +1543,11 @@ def test_export_multi_datasets_csv_per_file_with_name_collision(tmp_path, monkey
     window._add_dataset(ds2, None, select=False)
     _select_items(window, [ds1, ds2])
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", True))
     )
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: str(tmp_path))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1566,12 +1567,12 @@ def test_export_multi_datasets_excel_workbook_with_sheet_collision(tmp_path, mon
     window._add_dataset(ds2, None, select=False)
     _select_items(window, [ds1, ds2])
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("Excel (1ブックにシート分け)", True))
     )
     out_path = str(tmp_path / "book.xlsx")
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "Excel Files (*.xlsx)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1591,7 +1592,7 @@ def test_export_multi_datasets_format_choice_cancelled_writes_nothing(tmp_path, 
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", False))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1608,11 +1609,11 @@ def test_export_multi_datasets_csv_dir_cancelled_writes_nothing(tmp_path, monkey
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", True))
     )
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: "")
     )
     info_calls = _patch_info_capture(monkeypatch)

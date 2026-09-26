@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -21,6 +20,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 from PySide6.QtCore import Qt
+from graphica.gui import notify
 from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
@@ -278,7 +278,7 @@ class ColumnPreviewDialog(QDialog):
                 )
         except Exception as e:
             logger.exception("CSV のプレビューを読み込めませんでした")
-            QMessageBox.warning(
+            notify.warning(
                 self, "読み込みエラー",
                 f"指定した条件(文字コード/区切り文字/ヘッダー行/固定長)では読み込めませんでした:\n{e}"
             )
@@ -301,7 +301,7 @@ class ColumnPreviewDialog(QDialog):
             )
         except Exception as e:
             logger.exception("Excel のプレビューを読み込めませんでした")
-            QMessageBox.warning(
+            notify.warning(
                 self, "読み込みエラー",
                 f"指定した条件(シート/ヘッダー行/使用する列/最大行数)では読み込めませんでした:\n{e}"
             )
@@ -585,10 +585,10 @@ class NewDatasetDialog(QDialog):
     def _on_accept(self):
         from graphica.core.i18n import tr
         if not self.get_dataset_name():
-            QMessageBox.warning(self, tr("新規データセットを作成"), tr("データセット名を入力してください。"))
+            notify.warning(self, tr("新規データセットを作成"), tr("データセット名を入力してください。"))
             return
         if not self.get_column_names():
-            QMessageBox.warning(self, tr("新規データセットを作成"), tr("列名を1つ以上入力してください。"))
+            notify.warning(self, tr("新規データセットを作成"), tr("列名を1つ以上入力してください。"))
             return
         self.accept()
 

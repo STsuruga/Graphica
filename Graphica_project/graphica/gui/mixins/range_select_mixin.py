@@ -6,8 +6,8 @@ SpanSelector は Axes に束縛されるので、Axes を作り直す redraw_all
 import logging
 
 from matplotlib.patches import Rectangle
-from PySide6.QtWidgets import QMessageBox
 
+from graphica.gui import notify
 from graphica.core.commands import SetMaskedRowsCommand
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class RangeSelectMixin:
         """[x_min, x_max] の点をマスクに加える。今のデータセットがこの軸に描かれていなければ、何もせず案内を出す。"""
         dataset = self._get_current_dataset()
         if dataset is None:
-            QMessageBox.information(self, "範囲選択", "マスク対象のデータセットを選択してください。")
+            notify.information(self, "範囲選択", "マスク対象のデータセットを選択してください。")
             return
 
         target_axis = dataset.subplot_target
@@ -138,7 +138,7 @@ class RangeSelectMixin:
             )
 
         if axes is not expected_axes:
-            QMessageBox.information(
+            notify.information(
                 self, "範囲選択",
                 "ドラッグしたサブプロットに、選択中のデータセットが描画されていません。"
             )

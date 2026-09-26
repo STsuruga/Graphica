@@ -96,6 +96,7 @@ AUTOSAVE_GENERATIONS = 3  # 最新の autosave.graphica を含む
 
 MAX_RECENT_FILES = 10
 
+from graphica.gui import notify
 from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS  # noqa: E402
 SUPPORTED_DATA_FILE_EXTENSIONS = BUILTIN_DATA_FILE_EXTENSIONS
 
@@ -106,13 +107,12 @@ UNSAVED_CHANGES_PROMPT_ENV = "GRAPHICA_CONFIRM_UNSAVED_CHANGES"
 def _unsaved_changes_prompt_enabled():
     return os.environ.get(UNSAVED_CHANGES_PROMPT_ENV, "1") != "0"
 
-from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QFileDialog,
-                               QComboBox, QLabel, QSpinBox, QDoubleSpinBox, QPushButton,
+from PySide6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QComboBox, QLabel, QSpinBox, QDoubleSpinBox, QPushButton,
                                QTextEdit, QCheckBox, QGroupBox, QSizePolicy, QWidget,
                                QDockWidget, QScrollArea, QMessageBox,
                                QLineEdit, QHBoxLayout, QFormLayout, QAbstractItemView,
                                QDialog, QTreeWidget, QTreeWidgetItem, QGridLayout,
-                               QInputDialog, QMenu, QFrame, QToolButton, QWidgetAction,
+                               QMenu, QFrame, QToolButton, QWidgetAction,
                                QStyledItemDelegate, QStyleOptionViewItem, QStyle, QHeaderView)
 from PySide6.QtGui import QFont, QIcon, QAction, QValidator, QUndoStack, QPainter, QPainterPath
 from PySide6.QtCore import Qt, QTimer, QSize, Signal, QRectF, QByteArray
@@ -1636,7 +1636,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         app_settings.DOCK_LAYOUT_PRESETS.write(self.settings, json.dumps(presets))
 
     def _on_save_dock_layout_preset(self):
-        name, ok = QInputDialog.getText(self, "レイアウトを保存", "プリセット名:")
+        name, ok = notify.get_text(self, "レイアウトを保存", "プリセット名:")
         name = name.strip()
         if not ok or not name:
             return
@@ -1665,10 +1665,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         try:
             state_bytes = base64.b64decode(state_b64)
         except (ValueError, TypeError):
-            QMessageBox.warning(self, "レイアウトの復元", "保存されたレイアウトデータが壊れています。")
+            notify.warning(self, "レイアウトの復元", "保存されたレイアウトデータが壊れています。")
             return
         if not self.restoreState(QByteArray(state_bytes)):
-            QMessageBox.warning(self, "レイアウトの復元", "レイアウトの復元に失敗しました。")
+            notify.warning(self, "レイアウトの復元", "レイアウトの復元に失敗しました。")
 
     def _on_reset_dock_layout(self):
         """組み立てた直後、配置を戻す前に控えた状態(_pristine_dock_state)に戻す。"""
@@ -1752,7 +1752,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             else:
                 return
 
-        reply = QMessageBox.question(
+        reply = notify.question(
             self, "オートセーブからの復元",
             "前回はプロジェクトが正常に終了しなかったようです。\n"
             "自動保存されていたデータを復元しますか?",
@@ -1799,7 +1799,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             generations.append((path, label, mtime_text))
 
         if not generations:
-            QMessageBox.information(self, "自動バックアップ履歴", "自動バックアップファイルが見つかりませんでした。")
+            notify.information(self, "自動バックアップ履歴", "自動バックアップファイルが見つかりませんでした。")
             return
 
         dialog = AutosaveHistoryDialog(generations, parent=self)
@@ -1809,7 +1809,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         if not selected_path:
             return
 
-        reply = QMessageBox.question(
+        reply = notify.question(
             self, "自動バックアップ履歴",
             "選択した世代の内容で復元します。現在の未保存の変更は失われます。よろしいですか?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -1823,7 +1823,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     def _load_sample_data(self):
         sample_path = resource_path(os.path.join("sample_data", "cooling_curve_sample.csv"))
         if not os.path.exists(sample_path):
-            QMessageBox.warning(self, "サンプルデータ", "サンプルデータファイルが見つかりませんでした。")
+            notify.warning(self, "サンプルデータ", "サンプルデータファイルが見つかりませんでした。")
             return
         self.load_data(sample_path)
 
@@ -1892,7 +1892,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             menu_action.callback(self.plugin_context(menu_action.plugin_name))
         except Exception as e:
             logger.exception("[plugin:%s] メニュー「%s」の実行に失敗しました", menu_action.plugin_name, menu_action.text)
-            QMessageBox.critical(self, "プラグインのエラー", str(PluginExecutionError(
+            notify.critical(self, "プラグインのエラー", str(PluginExecutionError(
                 menu_action.plugin_name, f"「{menu_action.text}」の実行に失敗しました: {e}"
             )))
 
@@ -1955,7 +1955,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def manual_save_as(self):
         # 任意のコードを実行されない .graphica を既定にする。.pkl も選べる
-        filepath, selected_filter = QFileDialog.getSaveFileName(
+        filepath, selected_filter = notify.get_save_file_name(
             self, "名前を付けて保存", "",
             "Graphica Project (*.graphica);;Project Files (*.pkl)"
         )
@@ -1977,12 +1977,12 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.project_state_changed.emit()
         except Exception as e:
             logger.exception("プロジェクトの保存に失敗しました: %s", filepath)
-            QMessageBox.critical(self, "エラー", f"保存に失敗しました:\n{e}")
+            notify.critical(self, "エラー", f"保存に失敗しました:\n{e}")
 
     def manual_load(self):
         if not self.confirm_unsaved_changes("別のプロジェクトを開く"):
             return
-        filepath, _ = QFileDialog.getOpenFileName(
+        filepath, _ = notify.get_open_file_name(
             self, "プロジェクトを開く", "", "Project Files (*.graphica *.pkl)"
         )
         if filepath:
@@ -2042,7 +2042,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             self.project_state_changed.emit()
         except Exception as e:
             logger.exception("プロジェクトの読み込みに失敗しました: %s", filepath)
-            QMessageBox.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
+            notify.critical(self, "エラー", f"読み込みに失敗しました:\n{e}")
 
     def _reset_zoom(self):
         """設定どおりの表示範囲に戻す。
@@ -2760,7 +2760,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 skipped_names.append(os.path.basename(file_path))
 
         if skipped_names:
-            QMessageBox.warning(
+            notify.warning(
                 self, "非対応のファイル形式",
                 "以下のファイルは対応していない形式のため読み込みをスキップしました:\n"
                 + "\n".join(skipped_names)
@@ -2794,7 +2794,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         queue_progress=(何件目, 総数) はステータスバーの表示に使う。
         """
         if self._data_load_task_runner is not None:
-            QMessageBox.information(self, "読み込み中", "他のファイルを読み込み中です。完了までお待ちください。")
+            notify.information(self, "読み込み中", "他のファイルを読み込み中です。完了までお待ちください。")
             return
 
         self.ui.add_dataset_button.setEnabled(False)
@@ -2855,10 +2855,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                     sheet_df = pd.read_excel(file_path, sheet_name=sheet_name, engine=excel_engine_for(file_path))
                 except Exception as e:
                     logger.exception("シート「%s」の読み込みに失敗しました", sheet_name)
-                    QMessageBox.warning(self, "読み込みエラー", f"シート「{sheet_name}」の読み込みに失敗しました:\n{e}")
+                    notify.warning(self, "読み込みエラー", f"シート「{sheet_name}」の読み込みに失敗しました:\n{e}")
                     continue
                 if sheet_df.shape[1] < 2:
-                    QMessageBox.warning(
+                    notify.warning(
                         self, "読み込みエラー",
                         f"シート「{sheet_name}」には少なくとも2列必要です。スキップします。"
                     )
@@ -2871,7 +2871,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 if found:
                     example_text = "\n".join(examples)
                     more_note = "" if scanned_all else "\n(他にも存在する可能性があります)"
-                    reply = QMessageBox.warning(
+                    reply = notify.warning(
                         self, "数式セルの警告",
                         f"シート「{checked_sheet}」に、計算済みの値を持たない数式セルが見つかりました:\n"
                         f"{example_text}{more_note}\n\n"
@@ -2947,7 +2947,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _on_import_folder(self):
         """フォルダ内(サブフォルダは除く)の対応ファイルを、確認させてからドラッグ&ドロップと同じ待ち行列に積む。"""
-        dir_path = QFileDialog.getExistingDirectory(self, "フォルダから一括インポート", "")
+        dir_path = notify.get_existing_directory(self, "フォルダから一括インポート", "")
         if not dir_path:
             return
 
@@ -2958,11 +2958,11 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
                 if p.is_file() and p.suffix.lower() in allowed_extensions
             )
         except OSError as e:
-            QMessageBox.warning(self, "フォルダから一括インポート", f"フォルダの読み取りに失敗しました:\n{e}")
+            notify.warning(self, "フォルダから一括インポート", f"フォルダの読み取りに失敗しました:\n{e}")
             return
 
         if not file_paths:
-            QMessageBox.information(
+            notify.information(
                 self, "フォルダから一括インポート",
                 "対応する形式のファイルがフォルダ内に見つかりませんでした。"
             )
@@ -2980,7 +2980,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         """区切り文字はファイル読み込みと同じ判定で決める(Excel からのコピーはタブ区切り)。"""
         text = QApplication.clipboard().text()
         if not text.strip():
-            QMessageBox.information(self, "クリップボードから貼り付け", "クリップボードにテキストデータがありません。")
+            notify.information(self, "クリップボードから貼り付け", "クリップボードにテキストデータがありません。")
             return
 
         from graphica.gui.workers import detect_clipboard_delimiter
@@ -2989,14 +2989,14 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
             df = pd.read_csv(io.StringIO(text), sep=delimiter, engine='python')
         except Exception as e:
             logger.exception("クリップボードの内容を表として読めませんでした")
-            QMessageBox.warning(
+            notify.warning(
                 self, "貼り付けエラー",
                 f"クリップボードの内容を表として解釈できませんでした:\n{e}"
             )
             return
 
         if df.shape[1] < 2:
-            QMessageBox.warning(self, "貼り付けエラー", "クリップボードのデータには少なくとも2列必要です。")
+            notify.warning(self, "貼り付けエラー", "クリップボードのデータには少なくとも2列必要です。")
             return
 
         self._clipboard_paste_counter = getattr(self, '_clipboard_paste_counter', 0) + 1
@@ -3016,7 +3016,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
     def _on_data_load_failed(self, error_message, file_path):
         self._cleanup_data_load_task_runner()
         self.statusBar().clearMessage()
-        QMessageBox.critical(self, "エラー", f"読み込みエラー: {error_message}")
+        notify.critical(self, "エラー", f"読み込みエラー: {error_message}")
         self._process_next_queued_file()
 
     def _localize_navigation_toolbar(self, toolbar):
@@ -3091,7 +3091,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _on_open_recent_file(self, file_path):
         if not os.path.exists(file_path):
-            QMessageBox.warning(self, "エラー", f"ファイルが見つかりません:\n{file_path}")
+            notify.warning(self, "エラー", f"ファイルが見つかりません:\n{file_path}")
             files = self._get_recent_files()
             if file_path in files:
                 files.remove(file_path)
