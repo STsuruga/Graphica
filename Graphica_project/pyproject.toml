@@ -70,6 +70,7 @@ packages = [
     "graphica.plugin",
     "graphica.core",
     "graphica.gui",
+    "graphica.gui.builders",
     "graphica.gui.datasets",
     "graphica.gui.datasets.operations",
     "graphica.gui.dialogs",
