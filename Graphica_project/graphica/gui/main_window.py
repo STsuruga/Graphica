@@ -131,6 +131,8 @@ from graphica.gui.datasets.property_panel import DatasetPropertyPanel
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.order import DatasetOrder
+from graphica.gui.axis_bindings import AXIS_BINDINGS, AXIS_BUTTONS
+from graphica.gui.binding import Binder
 from graphica.gui.datasets.peaks import PeakController
 from graphica.gui.datasets.processing import ProcessingController
 from graphica.gui.plugin_context import TabPluginContext
@@ -454,6 +456,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.overlays = OverlayController(self._dataset_host)
         self.plugin_runs = PluginRunController(self._dataset_host)
         self.property_panel = DatasetPropertyPanel(self)
+        # 軸の設定の欄と値の対応(集める・戻す・止める・つなぐ)
+        self._axis_binder = Binder(self, AXIS_BINDINGS, also_blocked=AXIS_BUTTONS)
 
         # メニューを作るときに参照するので、ここで用意する(0分なら止めたまま)
         self.autosave_timer = QTimer(self)

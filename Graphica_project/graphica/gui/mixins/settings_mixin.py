@@ -6,10 +6,9 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFontDialog
 
 from graphica.gui import notify
-from graphica.core.axis_settings import axis_setting
-from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES
+from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
 from graphica.gui import theme
-from graphica.gui.canvas import MINOR_TICK_LENGTH_AUTO
+from graphica.gui.axis_bindings import CARRIED_AXIS_KEYS
 from graphica.gui.color_history import get_color_with_history
 from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
 
@@ -58,17 +57,6 @@ def _resolve_font_family_for_matplotlib(family_name: str):
                 pass
 
     return family_name, None, False
-
-
-def _qfont_from_family_props(font_props: dict) -> QFont:
-    """'family' は候補のリストか、古いプロジェクトでは1つの名前。QFont(list) は無いので setFamilies() を使う。"""
-    family = font_props.get('family', 'Sans Serif')
-    if isinstance(family, (list, tuple)):
-        font = QFont()
-        if family:
-            font.setFamilies(list(family))
-        return font
-    return QFont(family)
 
 
 def _order_labels(labels, order):
@@ -479,108 +467,14 @@ class SettingsMixin:
         return result
 
     def _gather_settings_from_ui(self) -> dict:
-        """今の軸の設定を、画面の欄から集めた辞書(保存形式そのもの)で返す。キーは AXIS_SETTING_DEFAULTS と同じ。"""
-        settings = {
-            'title': self.ui.title_text_edit.text(),
-            'x_label': self.ui.x_label_text_edit.text(),
-            'y_label': self.ui.y_label_text_edit.text(),
-            'x_label_visible': self.x_label_visible_checkbox.isChecked(),
-            'y_label_visible': self.y_label_visible_checkbox.isChecked(),
-            'y2_label': self.y2_label_text_edit.text(),
-
-            'x_autoscale': self.ui.x_autoscale_checkbox.isChecked(),
-            'x_min': self.ui.x_min_spinbox.value(),
-            'x_max': self.ui.x_max_spinbox.value(),
-            'x_log': self.ui.x_log_checkbox.isChecked(),
-            'x_invert': self.ui.x_invert_checkbox.isChecked(),
-            'x_major_tick_mode': self.ui.x_major_tick_mode_combo.currentIndex(),
-            'x_major_tick_interval': self.ui.x_major_tick_interval_spinbox.value(),
-            'x_minor_ticks_visible': self.ui.x_minor_ticks_visible_checkbox.isChecked(),
-            'x_minor_tick_interval': self.ui.x_minor_tick_interval_spinbox.value(),
-            # 対数軸のときだけ効く
-            'x_log_minor_subs': self.x_log_minor_subs_combo.currentData(),
-            'x_log_minor_labels': self.x_log_minor_labels_checkbox.isChecked(),
-            'x_tick_format_mode': self.x_tick_format_combo.currentIndex(),
-            'x_tick_decimals': self.x_tick_decimals_spinbox.value(),
-            'x_secondary_axis_source_unit':
-                X_AXIS_UNIT_CHOICES[self.x_secondary_axis_source_unit_combo.currentIndex()],
-            'x_secondary_axis_target_unit':
-                X_AXIS_UNIT_CHOICES[self.x_secondary_axis_target_unit_combo.currentIndex()],
-
-            'y_autoscale': self.ui.y_autoscale_checkbox.isChecked(),
-            'y_min': self.ui.y_min_spinbox.value(),
-            'y_max': self.ui.y_max_spinbox.value(),
-            'y_log': self.ui.y_log_checkbox.isChecked(),
-            'y_invert': self.ui.y_invert_checkbox.isChecked(),
-            'y_major_tick_mode': self.ui.y_major_tick_mode_combo.currentIndex(),
-            'y_major_tick_interval': self.ui.y_major_tick_interval_spinbox.value(),
-            'y_minor_ticks_visible': self.ui.y_minor_ticks_visible_checkbox.isChecked(),
-            'y_minor_tick_interval': self.ui.y_minor_tick_interval_spinbox.value(),
-            'y_log_minor_subs': self.y_log_minor_subs_combo.currentData(),
-            'y_log_minor_labels': self.y_log_minor_labels_checkbox.isChecked(),
-            'y_tick_format_mode': self.y_tick_format_combo.currentIndex(),
-            'y_tick_decimals': self.y_tick_decimals_spinbox.value(),
-
-            'legend_visible': self.ui.legend_visible_checkbox.isChecked(),
-            'legend_loc': self.legend_loc_combo.currentText(),
-            'grid_visible': self.ui.grid_visible_checkbox.isChecked(),
-            'minor_grid_visible': self.ui.minor_grid_visible_checkbox.isChecked(),
-
-            'x_major_grid_linestyle': self._grid_linestyle_code(self.x_major_grid_linestyle_combo.currentIndex()),
-            'x_major_grid_width': self.x_major_grid_width_spinbox.value(),
-            'x_major_grid_alpha': self.x_major_grid_alpha_spinbox.value(),
-            'x_minor_grid_linestyle': self._grid_linestyle_code(self.x_minor_grid_linestyle_combo.currentIndex()),
-            'x_minor_grid_width': self.x_minor_grid_width_spinbox.value(),
-            'x_minor_grid_alpha': self.x_minor_grid_alpha_spinbox.value(),
-            'y_major_grid_linestyle': self._grid_linestyle_code(self.y_major_grid_linestyle_combo.currentIndex()),
-            'y_major_grid_width': self.y_major_grid_width_spinbox.value(),
-            'y_major_grid_alpha': self.y_major_grid_alpha_spinbox.value(),
-            'y_minor_grid_linestyle': self._grid_linestyle_code(self.y_minor_grid_linestyle_combo.currentIndex()),
-            'y_minor_grid_width': self.y_minor_grid_width_spinbox.value(),
-            'y_minor_grid_alpha': self.y_minor_grid_alpha_spinbox.value(),
-            'major_tick_direction': self.major_tick_direction_combo.currentText(),
-            'minor_tick_direction': self.minor_tick_direction_combo.currentText(),
-            'major_tick_direction_y2': self.major_tick_direction_y2_combo.currentText(),
-            'minor_tick_direction_y2': self.minor_tick_direction_y2_combo.currentText(),
-            'x_ticks_visible': self.x_ticks_visible_checkbox.isChecked(),
-            'x_tick_labels_visible': self.x_tick_labels_visible_checkbox.isChecked(),
-            'y_ticks_visible': self.y_ticks_visible_checkbox.isChecked(),
-            'y_tick_labels_visible': self.y_tick_labels_visible_checkbox.isChecked(),
-
-            'tick_font': self._font_props_to_dict(self._tick_font),
-            'tick_color': self._tick_color,
-            'tick_width': self.ui.tick_width_spinbox.value(),
-            'major_tick_length': self.major_tick_length_spinbox.value(),
-            # 負値(スピンボックスの「自動」)は -1 に正規化して保存する
-            'minor_tick_length': (self.minor_tick_length_spinbox.value()
-                                  if self.minor_tick_length_spinbox.value() >= 0 else -1),
-            'axis_label_font': self._font_props_to_dict(self._axis_label_font),
-            'axis_label_color': self._axis_label_color,
-            'legend_font': self._font_props_to_dict(self._legend_font),
-            'legend_color': self._legend_color,
-            'spine_width': self.ui.spine_width_spinbox.value(),
-            'spine_color': self._spine_color,
-
-            # 2Dマップが無い軸では効かない
-            'colorbar_enabled': self.colorbar_enabled_checkbox.isChecked(),
-            'colorbar_position': self.colorbar_position_combo.currentData(),
-            'colorbar_width_fraction': self.colorbar_width_spinbox.value(),
-            'colorbar_label': self.colorbar_label_edit.text(),
-        }
-
+        """今の軸の設定を、画面の欄から集めた辞書(保存形式そのもの)で返す。キーは AXIS_SETTING_DEFAULTS と同じ順。"""
+        values = self._axis_binder.gather()
         # 欄を持たず操作から直接書き込まれるもの。辞書は丸ごと入れ替わるので、引き継がないと消える。
-        if self.project.active_axis_index < len(self.project.all_plot_settings):
-            current = self.project.all_plot_settings[self.project.active_axis_index]
-            settings['annotations'] = axis_setting(current, 'annotations')
-            settings['legend_order'] = axis_setting(current, 'legend_order')
-            settings['free_rect'] = axis_setting(current, 'free_rect')
-            settings['legend_position'] = axis_setting(current, 'legend_position')
-        else:
-            settings['annotations'] = []
-            settings['legend_order'] = []
-            settings['free_rect'] = None
-            settings['legend_position'] = None
-        return settings
+        settings_list = self.project.all_plot_settings
+        current = settings_list[self.project.active_axis_index] if self.project.active_axis_index < len(settings_list) else {}
+        for key in CARRIED_AXIS_KEYS:
+            values[key] = axis_setting(current, key)
+        return {key: values[key] for key in AXIS_SETTING_DEFAULTS}
 
     def _apply_settings_to_ui_controls(self, settings: dict):
         """設定の辞書を画面の欄に戻す。無いキーは AXIS_SETTING_DEFAULTS の既定値になる。"""
@@ -588,121 +482,7 @@ class SettingsMixin:
             # 欄に値を入れる間は、変更の通知で設定を書き換えないようにする
             self._block_all_signals(True)
 
-            self.ui.title_text_edit.setText(axis_setting(settings, 'title'))
-            self.ui.x_label_text_edit.setText(axis_setting(settings, 'x_label'))
-            self.ui.y_label_text_edit.setText(axis_setting(settings, 'y_label'))
-            self.x_label_visible_checkbox.setChecked(axis_setting(settings, 'x_label_visible'))
-            self.y_label_visible_checkbox.setChecked(axis_setting(settings, 'y_label_visible'))
-            self.y2_label_text_edit.setText(axis_setting(settings, 'y2_label'))
-
-            self.ui.x_autoscale_checkbox.setChecked(axis_setting(settings, 'x_autoscale'))
-            self.ui.x_min_spinbox.setValue(axis_setting(settings, 'x_min'))
-            self.ui.x_max_spinbox.setValue(axis_setting(settings, 'x_max'))
-            self.ui.x_log_checkbox.setChecked(axis_setting(settings, 'x_log'))
-            self.ui.x_invert_checkbox.setChecked(axis_setting(settings, 'x_invert'))
-            self.ui.x_major_tick_mode_combo.setCurrentIndex(axis_setting(settings, 'x_major_tick_mode'))
-            self.ui.x_major_tick_interval_spinbox.setValue(axis_setting(settings, 'x_major_tick_interval'))
-            self.ui.x_minor_ticks_visible_checkbox.setChecked(axis_setting(settings, 'x_minor_ticks_visible'))
-            self.ui.x_minor_tick_interval_spinbox.setValue(axis_setting(settings, 'x_minor_tick_interval'))
-            _x_log_minor_subs_idx = self.x_log_minor_subs_combo.findData(axis_setting(settings, 'x_log_minor_subs'))
-            self.x_log_minor_subs_combo.setCurrentIndex(_x_log_minor_subs_idx if _x_log_minor_subs_idx != -1 else 0)
-            self.x_log_minor_labels_checkbox.setChecked(axis_setting(settings, 'x_log_minor_labels'))
-            self.x_tick_format_combo.setCurrentIndex(axis_setting(settings, 'x_tick_format_mode'))
-            self.x_tick_decimals_spinbox.setValue(axis_setting(settings, 'x_tick_decimals'))
-            _source_unit = axis_setting(settings, 'x_secondary_axis_source_unit')
-            self.x_secondary_axis_source_unit_combo.setCurrentIndex(
-                X_AXIS_UNIT_CHOICES.index(_source_unit) if _source_unit in X_AXIS_UNIT_CHOICES else 0)
-            _target_unit = axis_setting(settings, 'x_secondary_axis_target_unit')
-            self.x_secondary_axis_target_unit_combo.setCurrentIndex(
-                X_AXIS_UNIT_CHOICES.index(_target_unit) if _target_unit in X_AXIS_UNIT_CHOICES else 0)
-
-            self.ui.y_autoscale_checkbox.setChecked(axis_setting(settings, 'y_autoscale'))
-            self.ui.y_min_spinbox.setValue(axis_setting(settings, 'y_min'))
-            self.ui.y_max_spinbox.setValue(axis_setting(settings, 'y_max'))
-            self.ui.y_log_checkbox.setChecked(axis_setting(settings, 'y_log'))
-            self.ui.y_invert_checkbox.setChecked(axis_setting(settings, 'y_invert'))
-            self.ui.y_major_tick_mode_combo.setCurrentIndex(axis_setting(settings, 'y_major_tick_mode'))
-            self.ui.y_major_tick_interval_spinbox.setValue(axis_setting(settings, 'y_major_tick_interval'))
-            self.ui.y_minor_ticks_visible_checkbox.setChecked(axis_setting(settings, 'y_minor_ticks_visible'))
-            self.ui.y_minor_tick_interval_spinbox.setValue(axis_setting(settings, 'y_minor_tick_interval'))
-            _y_log_minor_subs_idx = self.y_log_minor_subs_combo.findData(axis_setting(settings, 'y_log_minor_subs'))
-            self.y_log_minor_subs_combo.setCurrentIndex(_y_log_minor_subs_idx if _y_log_minor_subs_idx != -1 else 0)
-            self.y_log_minor_labels_checkbox.setChecked(axis_setting(settings, 'y_log_minor_labels'))
-            self.y_tick_format_combo.setCurrentIndex(axis_setting(settings, 'y_tick_format_mode'))
-            self.y_tick_decimals_spinbox.setValue(axis_setting(settings, 'y_tick_decimals'))
-
-            self.ui.legend_visible_checkbox.setChecked(axis_setting(settings, 'legend_visible'))
-            self.legend_loc_combo.setCurrentText(axis_setting(settings, 'legend_loc'))
-            self.ui.grid_visible_checkbox.setChecked(axis_setting(settings, 'grid_visible'))
-            self.ui.minor_grid_visible_checkbox.setChecked(axis_setting(settings, 'minor_grid_visible'))
-
-            self.x_major_grid_linestyle_combo.setCurrentIndex(
-                self._grid_linestyle_index(axis_setting(settings, 'x_major_grid_linestyle')))
-            self.x_major_grid_width_spinbox.setValue(axis_setting(settings, 'x_major_grid_width'))
-            self.x_major_grid_alpha_spinbox.setValue(axis_setting(settings, 'x_major_grid_alpha'))
-            self.x_minor_grid_linestyle_combo.setCurrentIndex(
-                self._grid_linestyle_index(axis_setting(settings, 'x_minor_grid_linestyle')))
-            self.x_minor_grid_width_spinbox.setValue(axis_setting(settings, 'x_minor_grid_width'))
-            self.x_minor_grid_alpha_spinbox.setValue(axis_setting(settings, 'x_minor_grid_alpha'))
-            self.y_major_grid_linestyle_combo.setCurrentIndex(
-                self._grid_linestyle_index(axis_setting(settings, 'y_major_grid_linestyle')))
-            self.y_major_grid_width_spinbox.setValue(axis_setting(settings, 'y_major_grid_width'))
-            self.y_major_grid_alpha_spinbox.setValue(axis_setting(settings, 'y_major_grid_alpha'))
-            self.y_minor_grid_linestyle_combo.setCurrentIndex(
-                self._grid_linestyle_index(axis_setting(settings, 'y_minor_grid_linestyle')))
-            self.y_minor_grid_width_spinbox.setValue(axis_setting(settings, 'y_minor_grid_width'))
-            self.y_minor_grid_alpha_spinbox.setValue(axis_setting(settings, 'y_minor_grid_alpha'))
-            self.major_tick_direction_combo.setCurrentText(axis_setting(settings, 'major_tick_direction'))
-            self.minor_tick_direction_combo.setCurrentText(axis_setting(settings, 'minor_tick_direction'))
-            self.major_tick_direction_y2_combo.setCurrentText(axis_setting(settings, 'major_tick_direction_y2'))
-            self.minor_tick_direction_y2_combo.setCurrentText(axis_setting(settings, 'minor_tick_direction_y2'))
-            self.x_ticks_visible_checkbox.setChecked(axis_setting(settings, 'x_ticks_visible'))
-            self.x_tick_labels_visible_checkbox.setChecked(
-                axis_setting(settings, 'x_tick_labels_visible'))
-            self.y_ticks_visible_checkbox.setChecked(axis_setting(settings, 'y_ticks_visible'))
-            self.y_tick_labels_visible_checkbox.setChecked(
-                axis_setting(settings, 'y_tick_labels_visible'))
-
-            tick_font_props = axis_setting(settings, 'tick_font')
-            self._tick_font = _qfont_from_family_props(tick_font_props)
-            self._tick_font.setPointSize(tick_font_props.get('size', 10))
-            self._tick_font.setBold(tick_font_props.get('weight') == 'bold')
-            self._tick_font.setItalic(tick_font_props.get('style') == 'italic')
-
-            label_font_props = axis_setting(settings, 'axis_label_font')
-            self._axis_label_font = _qfont_from_family_props(label_font_props)
-            self._axis_label_font.setPointSize(label_font_props.get('size', 10))
-            self._axis_label_font.setBold(label_font_props.get('weight') == 'bold')
-            self._axis_label_font.setItalic(label_font_props.get('style') == 'italic')
-
-            legend_font_props = axis_setting(settings, 'legend_font')
-            self._legend_font = _qfont_from_family_props(legend_font_props)
-            if 'size' in legend_font_props:
-                self._legend_font.setPointSize(legend_font_props.get('size', 10))
-            self._legend_font.setBold(legend_font_props.get('weight') == 'bold')
-            self._legend_font.setItalic(legend_font_props.get('style') == 'italic')
-
-            self._tick_color = axis_setting(settings, 'tick_color')
-            self._tick_width = axis_setting(settings, 'tick_width')
-            self.ui.tick_width_spinbox.setValue(self._tick_width)
-            self.major_tick_length_spinbox.setValue(axis_setting(settings, 'major_tick_length'))
-            minor_tick_length = axis_setting(settings, 'minor_tick_length')
-            self.minor_tick_length_spinbox.setValue(
-                MINOR_TICK_LENGTH_AUTO if minor_tick_length is None or minor_tick_length < 0 else minor_tick_length)
-
-            self._axis_label_color = axis_setting(settings, 'axis_label_color')
-            self._legend_color = axis_setting(settings, 'legend_color')
-
-            self._spine_width = axis_setting(settings, 'spine_width')
-            self.ui.spine_width_spinbox.setValue(self._spine_width)
-            self._spine_color = axis_setting(settings, 'spine_color')
-
-            self.colorbar_enabled_checkbox.setChecked(axis_setting(settings, 'colorbar_enabled'))
-            _cb_position = axis_setting(settings, 'colorbar_position')
-            _cb_position_index = self.colorbar_position_combo.findData(_cb_position)
-            self.colorbar_position_combo.setCurrentIndex(_cb_position_index if _cb_position_index != -1 else 0)
-            self.colorbar_width_spinbox.setValue(axis_setting(settings, 'colorbar_width_fraction'))
-            self.colorbar_label_edit.setText(axis_setting(settings, 'colorbar_label'))
+            self._axis_binder.restore(lambda key: axis_setting(settings, key))
 
             # 復元では _on_x_autoscale_changed(今の表示範囲を欄に入れる)を呼ばない。
             # 呼ぶと、オートスケールを切って保存した範囲が今の表示範囲で上書きされる。
@@ -723,78 +503,4 @@ class SettingsMixin:
             self._block_all_signals(False)
 
     def _block_all_signals(self, block: bool):
-        self.ui.x_autoscale_checkbox.blockSignals(block)
-        self.ui.x_min_spinbox.blockSignals(block)
-        self.ui.x_max_spinbox.blockSignals(block)
-        self.ui.x_log_checkbox.blockSignals(block)
-        self.ui.x_invert_checkbox.blockSignals(block)
-        self.ui.x_major_tick_mode_combo.blockSignals(block)
-        self.ui.x_major_tick_interval_spinbox.blockSignals(block)
-        self.ui.x_minor_ticks_visible_checkbox.blockSignals(block)
-        self.ui.x_minor_tick_interval_spinbox.blockSignals(block)
-        self.x_log_minor_subs_combo.blockSignals(block)
-        self.x_log_minor_labels_checkbox.blockSignals(block)
-        self.x_tick_format_combo.blockSignals(block)
-        self.x_tick_decimals_spinbox.blockSignals(block)
-        self.x_ticks_visible_checkbox.blockSignals(block)
-        self.x_tick_labels_visible_checkbox.blockSignals(block)
-        self.x_secondary_axis_source_unit_combo.blockSignals(block)
-        self.x_secondary_axis_target_unit_combo.blockSignals(block)
-
-        self.ui.y_autoscale_checkbox.blockSignals(block)
-        self.ui.y_min_spinbox.blockSignals(block)
-        self.ui.y_max_spinbox.blockSignals(block)
-        self.ui.y_log_checkbox.blockSignals(block)
-        self.ui.y_invert_checkbox.blockSignals(block)
-        self.ui.y_major_tick_mode_combo.blockSignals(block)
-        self.ui.y_major_tick_interval_spinbox.blockSignals(block)
-        self.ui.y_minor_ticks_visible_checkbox.blockSignals(block)
-        self.ui.y_minor_tick_interval_spinbox.blockSignals(block)
-        self.y_log_minor_subs_combo.blockSignals(block)
-        self.y_log_minor_labels_checkbox.blockSignals(block)
-        self.y_tick_format_combo.blockSignals(block)
-        self.y_tick_decimals_spinbox.blockSignals(block)
-        self.y_ticks_visible_checkbox.blockSignals(block)
-        self.y_tick_labels_visible_checkbox.blockSignals(block)
-
-        self.ui.title_text_edit.blockSignals(block)
-        self.ui.x_label_text_edit.blockSignals(block)
-        self.ui.y_label_text_edit.blockSignals(block)
-        self.x_label_visible_checkbox.blockSignals(block)
-        self.y_label_visible_checkbox.blockSignals(block)
-        self.y2_label_text_edit.blockSignals(block)
-        self.ui.tick_font_button.blockSignals(block)
-        self.ui.tick_color_button.blockSignals(block)
-        self.ui.tick_width_spinbox.blockSignals(block)
-        self.major_tick_length_spinbox.blockSignals(block)
-        self.minor_tick_length_spinbox.blockSignals(block)
-        self.ui.axis_label_font_button.blockSignals(block)
-        self.ui.axis_label_color_button.blockSignals(block)
-        self.legend_font_button.blockSignals(block)
-        self.legend_color_button.blockSignals(block)
-        self.ui.legend_visible_checkbox.blockSignals(block)
-        self.legend_loc_combo.blockSignals(block)
-        self.ui.grid_visible_checkbox.blockSignals(block)
-        self.ui.minor_grid_visible_checkbox.blockSignals(block)
-        self.x_major_grid_linestyle_combo.blockSignals(block)
-        self.x_major_grid_width_spinbox.blockSignals(block)
-        self.x_major_grid_alpha_spinbox.blockSignals(block)
-        self.x_minor_grid_linestyle_combo.blockSignals(block)
-        self.x_minor_grid_width_spinbox.blockSignals(block)
-        self.x_minor_grid_alpha_spinbox.blockSignals(block)
-        self.y_major_grid_linestyle_combo.blockSignals(block)
-        self.y_major_grid_width_spinbox.blockSignals(block)
-        self.y_major_grid_alpha_spinbox.blockSignals(block)
-        self.y_minor_grid_linestyle_combo.blockSignals(block)
-        self.y_minor_grid_width_spinbox.blockSignals(block)
-        self.y_minor_grid_alpha_spinbox.blockSignals(block)
-        self.ui.spine_width_spinbox.blockSignals(block)
-        self.ui.spine_color_button.blockSignals(block)
-        self.major_tick_direction_combo.blockSignals(block)
-        self.minor_tick_direction_combo.blockSignals(block)
-        self.major_tick_direction_y2_combo.blockSignals(block)
-        self.minor_tick_direction_y2_combo.blockSignals(block)
-        self.colorbar_enabled_checkbox.blockSignals(block)
-        self.colorbar_position_combo.blockSignals(block)
-        self.colorbar_width_spinbox.blockSignals(block)
-        self.colorbar_label_edit.blockSignals(block)
+        self._axis_binder.block_signals(block)

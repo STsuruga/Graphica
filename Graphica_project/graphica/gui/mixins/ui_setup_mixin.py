@@ -34,112 +34,17 @@ class UISetupMixin:
         self.free_layout_height_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
 
     def _connect_axis_setting_signals(self):
-        # ほとんどの欄は、変わったら _on_axis_setting_changed で今の軸の設定に書き戻す
-
-        self.ui.x_autoscale_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_autoscale_checkbox.stateChanged.connect(self._on_x_autoscale_changed)
-
-        self.ui.y_autoscale_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_autoscale_checkbox.stateChanged.connect(self._on_y_autoscale_changed)
-
-        self.ui.x_major_tick_mode_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_major_tick_mode_combo.currentIndexChanged.connect(self._on_x_tick_mode_changed)
-
-        self.ui.y_major_tick_mode_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_major_tick_mode_combo.currentIndexChanged.connect(self._on_y_tick_mode_changed)
-
-        self.ui.x_minor_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_minor_ticks_visible_checkbox.stateChanged.connect(self._on_x_minor_tick_visibility_changed)
-
-        self.ui.y_minor_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_minor_ticks_visible_checkbox.stateChanged.connect(self._on_y_minor_tick_visibility_changed)
-
-        self.ui.x_log_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        # 対数軸の補助目盛りの欄は対数表示にも左右されるので、対数表示のチェックにもつなぐ
-        self.ui.x_log_checkbox.stateChanged.connect(self._on_x_minor_tick_visibility_changed)
-        self.ui.x_invert_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_min_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_max_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_log_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_log_checkbox.stateChanged.connect(self._on_y_minor_tick_visibility_changed)
-        self.ui.y_invert_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_min_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_max_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_major_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_major_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.x_log_minor_subs_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.x_log_minor_labels_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y_log_minor_subs_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.y_log_minor_labels_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.x_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.y_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.x_tick_decimals_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.y_tick_decimals_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.x_secondary_axis_source_unit_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.x_secondary_axis_target_unit_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        # タイトルと軸ラベルの編集ボタンは _build_label_editors でつないでいる
-        self.ui.y_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-
-        self.ui.title_text_edit.textChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_label_text_edit.textChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_label_text_edit.textChanged.connect(self._on_axis_setting_changed)
-        self.x_label_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y_label_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y2_label_text_edit.textChanged.connect(self._on_axis_setting_changed) # 第2Y軸ラベル
+        # 値を持つ欄は表(gui/axis_bindings.py)の順につなぐ。タイトルと軸ラベルの編集ボタンは _build_label_editors でつなぐ
+        self._axis_binder.connect()
 
         self.ui.tick_font_button.clicked.connect(self._on_change_tick_font)
         self.ui.tick_color_button.clicked.connect(self._on_change_tick_color)
-        self.ui.tick_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.major_tick_length_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.minor_tick_length_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-
         self.ui.axis_label_font_button.clicked.connect(self._on_change_axis_label_font)
         self.ui.axis_label_color_button.clicked.connect(self._on_change_axis_label_color)
-
         self.legend_font_button.clicked.connect(self._on_change_legend_font)
         self.legend_color_button.clicked.connect(self._on_change_legend_color)
         self.legend_order_button.clicked.connect(self._on_edit_legend_order)
-
-        self.ui.legend_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.legend_visible_checkbox.stateChanged.connect(self._on_legend_visibility_changed)
-        self.legend_loc_combo.currentTextChanged.connect(self._on_legend_loc_changed)
-
-        self.ui.grid_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        # グリッドのチェックは補助グリッドと詳細の欄の有効/無効も切り替える
-        self.ui.grid_visible_checkbox.stateChanged.connect(self._on_grid_visibility_changed)
-        self.ui.minor_grid_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.minor_grid_visible_checkbox.stateChanged.connect(self._on_grid_visibility_changed)
-
-        for grid_style_widget in (
-            self.x_major_grid_linestyle_combo, self.x_minor_grid_linestyle_combo,
-            self.y_major_grid_linestyle_combo, self.y_minor_grid_linestyle_combo,
-        ):
-            grid_style_widget.currentIndexChanged.connect(self._on_axis_setting_changed)
-        for grid_style_widget in (
-            self.x_major_grid_width_spinbox, self.x_major_grid_alpha_spinbox,
-            self.x_minor_grid_width_spinbox, self.x_minor_grid_alpha_spinbox,
-            self.y_major_grid_width_spinbox, self.y_major_grid_alpha_spinbox,
-            self.y_minor_grid_width_spinbox, self.y_minor_grid_alpha_spinbox,
-        ):
-            grid_style_widget.valueChanged.connect(self._on_axis_setting_changed)
-
-        self.ui.spine_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
         self.ui.spine_color_button.clicked.connect(self._on_change_spine_color)
-
-        self.major_tick_direction_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-        self.minor_tick_direction_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-        self.major_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-        self.minor_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-        self.x_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.x_tick_labels_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y_tick_labels_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-
-        self.colorbar_enabled_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.colorbar_position_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.colorbar_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.colorbar_label_edit.textChanged.connect(self._on_axis_setting_changed)
 
     def _connect_dataset_signals(self):
         self.ui.add_dataset_button.clicked.connect(self._on_add_dataset)
