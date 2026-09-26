@@ -170,3 +170,45 @@ def test_safe_eval_column_formula_and_or_not_match_help_dialog_examples():
 def test_safe_eval_formula_supports_comparison_too():
     """カーブフィット用の評価器でも比較演算子自体は禁止しない(属性アクセスのみ禁止)。"""
     assert safe_eval_formula("a > 1", {'a': 2.0}) is True
+
+
+# --- 空白や記号を含む列名(バッククォートで囲む) ---
+
+def _spaced_df():
+    return pd.DataFrame({"強度 (a.u.)": [1.0, 2.0, 3.0], "x": [10.0, 20.0, 30.0], "2θ": [5.0, 6.0, 7.0]})
+
+
+def test_backticks_refer_to_a_column_with_spaces_and_symbols():
+    result = safe_eval_column_formula(_spaced_df(), "`強度 (a.u.)` * 2 + x")
+    assert result.tolist() == [12.0, 24.0, 36.0]
+
+
+def test_the_same_backtick_column_twice_and_with_a_method():
+    df = _spaced_df()
+    result = safe_eval_column_formula(df, "(`2θ` - `2θ`.mean()) / `2θ`.std()")
+    expected = (df["2θ"] - df["2θ"].mean()) / df["2θ"].std()
+    assert result.tolist() == expected.tolist()
+
+
+def test_backticks_work_in_a_row_filter_condition():
+    result = safe_eval_column_formula(_spaced_df(), "`強度 (a.u.)` > 1.5")
+    assert result.tolist() == [False, True, True]
+
+
+def test_an_unknown_or_unclosed_backtick_column_is_an_error():
+    with pytest.raises(SafeEvalError, match="未定義の列です: 無い列"):
+        safe_eval_column_formula(_spaced_df(), "`無い列` + 1")
+    with pytest.raises(SafeEvalError, match="閉じていません"):
+        safe_eval_column_formula(_spaced_df(), "`強度 (a.u.) + 1")
+
+
+def test_the_stand_in_name_never_hides_a_real_column():
+    df = pd.DataFrame({"backtick_column_0": [100.0], "a b": [1.0]})
+    assert safe_eval_column_formula(df, "`a b` + backtick_column_0").tolist() == [101.0]
+
+
+def test_column_reference_wraps_only_names_that_need_it():
+    from graphica.core.safe_eval import column_reference
+
+    assert [column_reference(n) for n in ("A", "強度", "a b", "2θ", "if", "_x")] == \
+        ["A", "強度", "`a b`", "`2θ`", "`if`", "`_x`"]

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from PySide6.QtCore import Qt
+from graphica.core.safe_eval import column_reference
 from graphica.gui.theme import apply_form_spacing
 
 
@@ -92,34 +93,38 @@ class ColumnCalculatorDialog(QDialog):
         layout.addWidget(button_box)
 
     def _apply_preset_moving_average(self):
-        col = self.preset_source_combo.currentText()
-        if not col:
+        name = self.preset_source_combo.currentText()
+        if not name:
             return
+        col = column_reference(name)
         window = self.preset_window_spinbox.value()
         self.formula_edit.setText(f"{col}.rolling({window}).mean()")
-        self.output_col_combo.setCurrentText(f"{col}_moving_avg{window}")
+        self.output_col_combo.setCurrentText(f"{name}_moving_avg{window}")
 
     def _apply_preset_diff(self):
-        col = self.preset_source_combo.currentText()
-        if not col:
+        name = self.preset_source_combo.currentText()
+        if not name:
             return
+        col = column_reference(name)
         self.formula_edit.setText(f"{col}.diff()")
-        self.output_col_combo.setCurrentText(f"{col}_diff")
+        self.output_col_combo.setCurrentText(f"{name}_diff")
 
     def _apply_preset_normalize(self):
         """平均0・標準偏差1にする式。"""
-        col = self.preset_source_combo.currentText()
-        if not col:
+        name = self.preset_source_combo.currentText()
+        if not name:
             return
+        col = column_reference(name)
         self.formula_edit.setText(f"({col} - {col}.mean()) / {col}.std()")
-        self.output_col_combo.setCurrentText(f"{col}_normalized")
+        self.output_col_combo.setCurrentText(f"{name}_normalized")
 
     def _apply_preset_cumsum(self):
-        col = self.preset_source_combo.currentText()
-        if not col:
+        name = self.preset_source_combo.currentText()
+        if not name:
             return
+        col = column_reference(name)
         self.formula_edit.setText(f"{col}.cumsum()")
-        self.output_col_combo.setCurrentText(f"{col}_cumsum")
+        self.output_col_combo.setCurrentText(f"{name}_cumsum")
 
     def get_formula(self):
         """(出力先の列名, 式)"""
@@ -153,7 +158,7 @@ class CalcHelpDialog(QDialog):
         <hr>
         
         <h2>1. 基本的な算術演算子 🧮</h2>
-        <p>列名（例: <code>A</code>, <code>B</code>）や数値をそのまま使えます。</p>
+        <p>列名（例: <code>A</code>, <code>B</code>）や数値をそのまま使えます。空白や記号を含む列名は <code>`強度 (a.u.)`</code> のようにバッククォートで囲みます。</p>
         
         <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
             <tr class="header-row"><th>計算式 (入力例)</th><th>実行内容</th></tr>
@@ -409,7 +414,7 @@ class RowFilterDialog(QDialog):
         layout.addWidget(help_text)
 
         if column_names:
-            columns_label = QLabel("利用可能な列: " + ", ".join(str(c) for c in column_names))
+            columns_label = QLabel("利用可能な列: " + ", ".join(column_reference(str(c)) for c in column_names))
             columns_label.setWordWrap(True)
             columns_label.setStyleSheet("font-size: 9pt; color: gray;")
             layout.addWidget(columns_label)
