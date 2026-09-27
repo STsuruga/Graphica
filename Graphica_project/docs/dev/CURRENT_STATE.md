@@ -13,7 +13,7 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-27): M5 の途中(R-9・R-8a 完了、R-8b の PR)
+## 現在地(2026-09-27): M6 の途中(R はすべて完了、統合の前の確認)
 
 **再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
 (原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
@@ -23,13 +23,14 @@
   **master への統合は M6 の確認後に 1 回だけ**(ユーザー指示)。PR は CI が緑ならマージしてよい(ユーザー承認済みの進め方)。
 - 絶対条件(ユーザー指示): 機能・入出力・副作用・エッジケースを完全に維持。見つけた不具合は直さずに K として db に登録して提案する。
 - 進み具合と K の状態はロードマップの db が正。ここは要点だけ。
-- **M0〜M4 完了**。R-1(#46・#48)、R-7(#52 ほか、`main_window.py` を `gui/builders/` などへ分割)。
-- **M5**: R-9(#55 `gui/rendering/`)、R-8a(#56 マウスの 7 モードを `gui/tools/` のツールに)完了。
-  R-8b(`SettingsMixin`・`DatasetMixin` を `gui/panels/` の部品にし、信号の配線も各部品へ。mixin は 5 個)は PR 中。
-  R-8c(`DatasetHost`・`TabPluginContext` が本体の公開メソッドだけを使う)はブランチ `refactor/r8c-host` に用意済み。
-- R-8 のあと: K-9(注釈の色。作るときのダイアログと右クリックのメニュー、ユーザー決定済み)をブランチ `feature/k9-annotation-color` で作成中。
-  K-40(`.graphica` のドロップで開く、#57)は PR 中。
-- master 統合(M6)のあとにやる K: K-38(関連付け)・K-39(起動画面)・K-41(`.pkl` の対応をやめる)・K-42(拡張子を `.gra` に)。
+- **M0〜M5 完了**。R-1(#46・#48)、R-7(#52 ほか)、R-9(#55 `gui/rendering/`)、R-8a(#56 `gui/tools/`)、
+  R-8b(#58 `gui/panels/`、mixin は 5 個)、R-8c(#60 DatasetHost・TabPluginContext は本体の公開メソッドだけ)。
+- R-8 のあとの K: K-9(#59 注釈の色)、K-40(#57 `.graphica` のドロップで開く)完了。K-27(注釈の日本語の字体)は PR 中。
+- **M6(確認と master 統合)の途中**: master に新しいコミットは無い(取り込むものなし)。V-1(フルスイート・カバレッジ・ruff・mypy)→
+  V-2(exe・.app・wheel の起動)→ V-3(プラグインのリポジトリのテスト)→ V-4(ユーザーが exe で確認)→ V-5(文書)→
+  V-6(ユーザーの承認を得て master へ PR・マージ)。
+- master 統合(M6)のあとにやる K: K-38(関連付け)・K-39(起動画面)・K-41(`.pkl` の対応をやめる)・K-42(拡張子を `.gra` に)、
+  K-3・K-10・K-16・K-26。
 - 特性テストの数値は、基準を作った機械(`golden/MACHINE.json`、この PC)ではビット単位、CI などでは許容差で比べる(#32)。
 - 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
   既存ファイルは CRLF なので、複数行の置換は改行をそろえてから行う。CI の結果は `gh pr checks` で見る(`jq` は無いので `--jq` を使う)。
