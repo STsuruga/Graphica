@@ -17,9 +17,17 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # monkeypatch で "1" に戻す。
 os.environ["GRAPHICA_CONFIRM_UNSAVED_CHANGES"] = "0"
 
+import atexit
 import itertools
 import shutil
 import tempfile
+
+# アプリが書く場所(オートセーブ・ログ・入れたプラグイン)は get_app_data_dir() が呼ぶたびに環境変数から決める。
+# 利用者の %LOCALAPPDATA%\Graphica に書かない・そこにあるプラグインを読まないよう、プロセスごとの一時フォルダに向ける。
+_TEST_APP_DATA_BASE = tempfile.mkdtemp(prefix="graphica-test-appdata-")
+os.environ["LOCALAPPDATA"] = _TEST_APP_DATA_BASE
+os.environ["XDG_DATA_HOME"] = _TEST_APP_DATA_BASE
+atexit.register(shutil.rmtree, _TEST_APP_DATA_BASE, ignore_errors=True)
 
 import pytest
 from PySide6 import QtCore
