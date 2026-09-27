@@ -43,7 +43,7 @@
  "tab_docks": [
   {
    "name": "control_dock_widget",
-   "title": "プロパティ",
+   "title": "Properties",
    "area": "RightDockWidgetArea",
    "floating": false,
    "visible": true,
@@ -61,7 +61,7 @@
   },
   {
    "name": "ResidualDockWidget",
-   "title": "残差プロット",
+   "title": "Residual Plot",
    "area": "BottomDockWidgetArea",
    "floating": false,
    "visible": false,
@@ -70,7 +70,7 @@
   },
   {
    "name": "ProvenanceDockWidget",
-   "title": "処理履歴",
+   "title": "Processing History",
    "area": "RightDockWidgetArea",
    "floating": false,
    "visible": false,
@@ -172,36 +172,36 @@
      "checked": false
     },
     {
-     "text": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
-     "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+     "text": "Range Select (mask the dragged range of the current dataset)",
+     "tooltip": "Range Select (mask the dragged range of the current dataset)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
-     "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
+     "text": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
+     "tooltip": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
-     "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
+     "text": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
+     "tooltip": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
-     "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+     "text": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
+     "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "表示をリセット (拡大/パンを元に戻す)",
-     "tooltip": "表示をリセット (拡大/パンを元に戻す)",
+     "text": "Reset View (undo zoom/pan)",
+     "tooltip": "Reset View (undo zoom/pan)",
      "enabled": true,
      "visible": true
     },
@@ -218,13 +218,13 @@
   },
   {
    "name": "quick_access_toolbar",
-   "title": "クイックアクセス",
+   "title": "Quick Access",
    "visible": true,
    "area": "TopToolBarArea",
    "actions": [
     {
-     "text": "クイックアクセスの管理...",
-     "tooltip": "クイックアクセスの管理",
+     "text": "Manage Quick Access...",
+     "tooltip": "Manage Quick Access",
      "enabled": true,
      "visible": true
     },
@@ -239,8 +239,8 @@
    "title": "&File",
    "items": [
     {
-     "text": "データファイルを開く(&D)...",
-     "tooltip": "データファイルを開く(D)",
+     "text": "Open &Data File...",
+     "tooltip": "Open Data File",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -289,8 +289,8 @@
      }
     },
     {
-     "text": "フォルダから一括インポート(&F)...",
-     "tooltip": "フォルダから一括インポート(F)",
+     "text": "Import &Folder...",
+     "tooltip": "Import Folder",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -307,7 +307,7 @@
      },
      "submenu": [
       {
-       "text": "(履歴なし)",
+       "text": "(No history)",
        "enabled": false,
        "receivers": {
         "triggered(bool)": 1,
@@ -318,8 +318,8 @@
      ]
     },
     {
-     "text": "スタートアップ画面(&W)...",
-     "tooltip": "スタートアップ画面(W)",
+     "text": "&Welcome Screen...",
+     "tooltip": "Welcome Screen",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -351,7 +351,7 @@
      "separator": true
     },
     {
-     "text": "エクスポート",
+     "text": "Export",
      "receivers": {
       "changed()": 1,
       "triggered(bool)": 1,
@@ -396,8 +396,8 @@
        }
       },
       {
-       "text": "Pythonスクリプトとしてエクスポート...",
-       "tooltip": "Pythonスクリプトとしてエクスポート",
+       "text": "Export as Python Script...",
+       "tooltip": "Export as Python Script",
        "receivers": {
         "triggered(bool)": 2,
         "triggered()": 2,
@@ -405,8 +405,8 @@
        }
       },
       {
-       "text": "LaTeX/Word用キャプションを生成...",
-       "tooltip": "LaTeX/Word用キャプションを生成",
+       "text": "Generate Caption for LaTeX/Word...",
+       "tooltip": "Generate Caption for LaTeX/Word",
        "receivers": {
         "triggered(bool)": 2,
         "triggered()": 2,
@@ -414,8 +414,8 @@
        }
       },
       {
-       "text": "実験レポートを生成 (HTML/PDF)...",
-       "tooltip": "実験レポートを生成 (HTML/PDF)",
+       "text": "Generate Report (HTML/PDF)...",
+       "tooltip": "Generate Report (HTML/PDF)",
        "receivers": {
         "triggered(bool)": 2,
         "triggered()": 2,
@@ -437,8 +437,8 @@
      }
     },
     {
-     "text": "自動バックアップ履歴から復元(&H)...",
-     "tooltip": "自動バックアップ履歴から復元(H)",
+     "text": "Restore from Autosave &History...",
+     "tooltip": "Restore from Autosave History",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -449,8 +449,8 @@
      "separator": true
     },
     {
-     "text": "設定・スタイルをエクスポート(&X)...",
-     "tooltip": "設定・スタイルをエクスポート(X)",
+     "text": "E&xport Settings and Styles...",
+     "tooltip": "Export Settings and Styles",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -458,8 +458,8 @@
      }
     },
     {
-     "text": "設定・スタイルをインポート(&M)...",
-     "tooltip": "設定・スタイルをインポート(M)",
+     "text": "I&mport Settings and Styles...",
+     "tooltip": "Import Settings and Styles",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -516,10 +516,10 @@
    ]
   },
   {
-   "title": "データセット(&D)",
+   "title": "&Dataset",
    "items": [
     {
-     "text": "新しいフォルダ",
+     "text": "New Folder",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -550,7 +550,7 @@
      }
     },
     {
-     "text": "残差プロット",
+     "text": "Residual Plot",
      "checked": false,
      "receivers": {
       "triggered(bool)": 2,
@@ -559,7 +559,7 @@
      }
     },
     {
-     "text": "処理履歴",
+     "text": "Processing History",
      "checked": false,
      "receivers": {
       "triggered(bool)": 2,
@@ -568,7 +568,7 @@
      }
     },
     {
-     "text": "ミニマップ(レンジスライダー)",
+     "text": "Minimap (Range Slider)",
      "checked": true,
      "receivers": {
       "triggered(bool)": 1,
@@ -578,7 +578,7 @@
      }
     },
     {
-     "text": "キャンバスを別ウィンドウに切り離す",
+     "text": "Detach Canvas to a Window",
      "checked": false,
      "receivers": {
       "triggered(bool)": 1,
@@ -588,9 +588,9 @@
      }
     },
     {
-     "text": "パネルラベルを自動表示 ((a)(b)(c)...)",
+     "text": "Automatic Panel Labels ((a)(b)(c)...)",
      "checked": false,
-     "tooltip": "パネルラベルを自動表示 ((a)(b)(c))",
+     "tooltip": "Automatic Panel Labels ((a)(b)(c))",
      "receivers": {
       "triggered(bool)": 1,
       "triggered()": 1,
@@ -599,8 +599,8 @@
      }
     },
     {
-     "text": "色覚シミュレーションプレビュー...",
-     "tooltip": "色覚シミュレーションプレビュー",
+     "text": "Color Vision Simulation Preview...",
+     "tooltip": "Color Vision Simulation Preview",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -608,7 +608,7 @@
      }
     },
     {
-     "text": "ドックレイアウト",
+     "text": "Dock Layout",
      "receivers": {
       "changed()": 1,
       "triggered(bool)": 1,
@@ -617,8 +617,8 @@
      },
      "submenu": [
       {
-       "text": "現在のレイアウトを保存...",
-       "tooltip": "現在のレイアウトを保存",
+       "text": "Save Current Layout...",
+       "tooltip": "Save Current Layout",
        "receivers": {
         "triggered(bool)": 2,
         "triggered()": 2,
@@ -626,7 +626,7 @@
        }
       },
       {
-       "text": "レイアウトを読み込み",
+       "text": "Load Layout",
        "receivers": {
         "changed()": 1,
         "triggered(bool)": 1,
@@ -639,7 +639,7 @@
        "separator": true
       },
       {
-       "text": "既定のレイアウトにリセット",
+       "text": "Reset to Default Layout",
        "receivers": {
         "triggered(bool)": 2,
         "triggered()": 2,
@@ -649,7 +649,7 @@
      ]
     },
     {
-     "text": "クイックアクセスツールバー",
+     "text": "Quick Access Toolbar",
      "checked": true,
      "receivers": {
       "triggered(bool)": 2,
@@ -719,8 +719,8 @@
      "separator": true
     },
     {
-     "text": "診断情報をエクスポート...",
-     "tooltip": "診断情報をエクスポート",
+     "text": "Export Diagnostics...",
+     "tooltip": "Export Diagnostics",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -728,8 +728,8 @@
      }
     },
     {
-     "text": "アップデートを確認...",
-     "tooltip": "アップデートを確認",
+     "text": "Check for Updates...",
+     "tooltip": "Check for Updates",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -844,7 +844,7 @@
             "text": "",
             "visible": true,
             "enabled": true,
-            "tooltip": "データ追加",
+            "tooltip": "Add Data",
             "receivers": {
              "clicked(bool)": 1,
              "clicked()": 1
@@ -856,7 +856,7 @@
             "text": "",
             "visible": true,
             "enabled": false,
-            "tooltip": "データ削除",
+            "tooltip": "Remove Data",
             "receivers": {
              "clicked(bool)": 1,
              "clicked()": 1
@@ -1057,11 +1057,11 @@
                },
                {
                 "class": "QToolButton",
-                "text": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                "text": "Range Select (mask the dragged range of the current dataset)",
                 "checked": false,
                 "visible": true,
                 "enabled": true,
-                "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                "tooltip": "Range Select (mask the dragged range of the current dataset)",
                 "receivers": {
                  "pressed()": 1,
                  "released()": 1,
@@ -1070,11 +1070,11 @@
                },
                {
                 "class": "QToolButton",
-                "text": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
+                "text": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
                 "checked": false,
                 "visible": true,
                 "enabled": true,
-                "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
+                "tooltip": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
                 "receivers": {
                  "pressed()": 1,
                  "released()": 1,
@@ -1083,11 +1083,11 @@
                },
                {
                 "class": "QToolButton",
-                "text": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
+                "text": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
                 "checked": false,
                 "visible": true,
                 "enabled": true,
-                "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
+                "tooltip": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
                 "receivers": {
                  "pressed()": 1,
                  "released()": 1,
@@ -1096,11 +1096,11 @@
                },
                {
                 "class": "QToolButton",
-                "text": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+                "text": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
                 "checked": false,
                 "visible": true,
                 "enabled": true,
-                "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+                "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
                 "receivers": {
                  "pressed()": 1,
                  "released()": 1,
@@ -1109,10 +1109,10 @@
                },
                {
                 "class": "QToolButton",
-                "text": "表示をリセット (拡大/パンを元に戻す)",
+                "text": "Reset View (undo zoom/pan)",
                 "visible": true,
                 "enabled": true,
-                "tooltip": "表示をリセット (拡大/パンを元に戻す)",
+                "tooltip": "Reset View (undo zoom/pan)",
                 "receivers": {
                  "pressed()": 1,
                  "released()": 1,
@@ -1129,7 +1129,7 @@
                 "text": "",
                 "visible": true,
                 "enabled": true,
-                "tooltip": "統計情報 (選択中データセットのY列の要約統計量)",
+                "tooltip": "Statistics (summary of the Y column of the selected dataset)",
                 "receivers": {
                  "pressed()": 1,
                  "released()": 1
@@ -1147,7 +1147,7 @@
                     "children": [
                      {
                       "class": "QLabel",
-                      "text": "統計 (Y列)",
+                      "text": "Statistics (Y)",
                       "visible": false,
                       "enabled": true
                      },
@@ -1281,7 +1281,7 @@
             "text": "",
             "visible": true,
             "enabled": true,
-            "tooltip": "新規データセット作成...",
+            "tooltip": "Create New Dataset...",
             "receivers": {
              "clicked(bool)": 1,
              "clicked()": 1
@@ -1342,7 +1342,7 @@
             "text": "",
             "visible": true,
             "enabled": true,
-            "tooltip": "多峰フィット",
+            "tooltip": "Multi-peak Fit",
             "receivers": {
              "clicked(bool)": 1,
              "clicked()": 1
@@ -1381,7 +1381,7 @@
             "text": "⋯",
             "visible": true,
             "enabled": true,
-            "tooltip": "その他の操作",
+            "tooltip": "More Actions",
             "receivers": {
              "pressed()": 1,
              "released()": 1
@@ -1509,7 +1509,7 @@
                      {
                       "class": "QPushButton",
                       "name": "color_button",
-                      "text": "色を選択…",
+                      "text": "Choose Color…",
                       "visible": false,
                       "enabled": true
                      },
@@ -1526,7 +1526,7 @@
                          {
                           "class": "QToolButton",
                           "name": "property_subsection_toggle",
-                          "text": "データ列",
+                          "text": "Data columns",
                           "checked": true,
                           "visible": true,
                           "enabled": true,
@@ -1543,7 +1543,7 @@
                           "children": [
                            {
                             "class": "QLabel",
-                            "text": "X軸の列",
+                            "text": "X column",
                             "visible": true,
                             "enabled": false
                            },
@@ -1601,7 +1601,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "Y軸の列",
+                            "text": "Y column",
                             "visible": true,
                             "enabled": false
                            },
@@ -1659,7 +1659,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "X誤差列",
+                            "text": "X error column",
                             "visible": true,
                             "enabled": false
                            },
@@ -1717,7 +1717,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "Y誤差列",
+                            "text": "Y error column",
                             "visible": true,
                             "enabled": false
                            },
@@ -1775,17 +1775,17 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "欠損値の扱い",
+                            "text": "Missing values",
                             "visible": true,
                             "enabled": false,
-                            "tooltip": "欠損値(NaN)を含む点の描画方法"
+                            "tooltip": "How to draw points with missing values (NaN)"
                            },
                            {
                             "class": "QComboBox",
                             "items": [
-                             "線を切る(既定)",
-                             "前の値で埋める",
-                             "無視してつなぐ"
+                             "Break the line (default)",
+                             "Fill with the previous value",
+                             "Skip and connect"
                             ],
                             "current": 0,
                             "visible": true,
@@ -1848,7 +1848,7 @@
                          {
                           "class": "QToolButton",
                           "name": "property_subsection_toggle",
-                          "text": "基本スタイル",
+                          "text": "Basic style",
                           "checked": true,
                           "visible": true,
                           "enabled": true,
@@ -1866,7 +1866,7 @@
                            {
                             "class": "QLabel",
                             "name": "legend_name_label",
-                            "text": "凡例名",
+                            "text": "Legend name",
                             "visible": true,
                             "enabled": false
                            },
@@ -1883,7 +1883,7 @@
                            {
                             "class": "QLabel",
                             "name": "plot_type_label",
-                            "text": "種別",
+                            "text": "Plot type",
                             "visible": true,
                             "enabled": false
                            },
@@ -1952,7 +1952,7 @@
                            {
                             "class": "QLabel",
                             "name": "color_label",
-                            "text": "色",
+                            "text": "Color",
                             "visible": true,
                             "enabled": false
                            },
@@ -1969,7 +1969,7 @@
                               "text": "",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "クリックしてパレットを開く",
+                              "tooltip": "Click to open the palette",
                               "receivers": {
                                "clicked(bool)": 1,
                                "clicked()": 1
@@ -1990,7 +1990,7 @@
                            {
                             "class": "QLabel",
                             "name": "linestyle_label",
-                            "text": "線の種類",
+                            "text": "Line style",
                             "visible": true,
                             "enabled": false
                            },
@@ -2055,7 +2055,7 @@
                            {
                             "class": "QLabel",
                             "name": "linewidth_label",
-                            "text": "線の太さ",
+                            "text": "Line width",
                             "visible": true,
                             "enabled": false
                            },
@@ -2085,7 +2085,7 @@
                            {
                             "class": "QLabel",
                             "name": "marker_label",
-                            "text": "マーカー",
+                            "text": "Marker",
                             "visible": true,
                             "enabled": false
                            },
@@ -2152,7 +2152,7 @@
                            {
                             "class": "QLabel",
                             "name": "makersize_label",
-                            "text": "マーカーサイズ",
+                            "text": "Marker size",
                             "visible": true,
                             "enabled": false
                            },
@@ -2181,7 +2181,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "透明度",
+                            "text": "Opacity",
                             "visible": true,
                             "enabled": false
                            },
@@ -2210,7 +2210,7 @@
                            {
                             "class": "QCheckBox",
                             "name": "smoothing_checkbox",
-                            "text": "平滑化",
+                            "text": "Smoothing",
                             "checked": false,
                             "visible": true,
                             "enabled": false,
@@ -2220,17 +2220,17 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "平滑化の手法",
+                            "text": "Smoothing method",
                             "visible": true,
                             "enabled": false
                            },
                            {
                             "class": "QComboBox",
                             "items": [
-                             "CubicSpline(既定)",
-                             "移動平均",
-                             "中央値フィルタ",
-                             "ガウシアンフィルタ"
+                             "Cubic spline (default)",
+                             "Moving average",
+                             "Median filter",
+                             "Gaussian filter"
                             ],
                             "current": 0,
                             "visible": true,
@@ -2293,7 +2293,7 @@
                          {
                           "class": "QToolButton",
                           "name": "property_subsection_toggle",
-                          "text": "グラデーション",
+                          "text": "Gradient",
                           "checked": true,
                           "visible": false,
                           "enabled": true,
@@ -2310,7 +2310,7 @@
                           "children": [
                            {
                             "class": "QCheckBox",
-                            "text": "グラデーションを適用",
+                            "text": "Apply gradient",
                             "checked": false,
                             "visible": false,
                             "enabled": false,
@@ -2320,7 +2320,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "終端色",
+                            "text": "End color",
                             "visible": false,
                             "enabled": false
                            },
@@ -2337,7 +2337,7 @@
                               "text": "",
                               "visible": false,
                               "enabled": false,
-                              "tooltip": "クリックしてパレットを開く",
+                              "tooltip": "Click to open the palette",
                               "receivers": {
                                "clicked(bool)": 1,
                                "clicked()": 1
@@ -2357,16 +2357,16 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "対象",
+                            "text": "Target",
                             "visible": false,
                             "enabled": false
                            },
                            {
                             "class": "QComboBox",
                             "items": [
-                             "線",
-                             "塗り",
-                             "両方"
+                             "Line",
+                             "Fill",
+                             "Both"
                             ],
                             "current": 0,
                             "visible": false,
@@ -2429,7 +2429,7 @@
                          {
                           "class": "QToolButton",
                           "name": "property_subsection_toggle",
-                          "text": "ウォーターフォール",
+                          "text": "Waterfall",
                           "checked": true,
                           "visible": false,
                           "enabled": true,
@@ -2446,7 +2446,7 @@
                           "children": [
                            {
                             "class": "QCheckBox",
-                            "text": "ウォーターフォール表示(積み重ね)",
+                            "text": "Waterfall (stacked)",
                             "checked": false,
                             "visible": false,
                             "enabled": false,
@@ -2456,7 +2456,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "Xオフセット",
+                            "text": "X offset",
                             "visible": false,
                             "enabled": false
                            },
@@ -2484,7 +2484,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "Yオフセット",
+                            "text": "Y offset",
                             "visible": false,
                             "enabled": false
                            },
@@ -2512,7 +2512,7 @@
                            },
                            {
                             "class": "QCheckBox",
-                            "text": "背面のトレースを隠す(オクルージョン)",
+                            "text": "Hide traces behind (occlusion)",
                             "checked": true,
                             "visible": false,
                             "enabled": false,
@@ -2522,7 +2522,7 @@
                            },
                            {
                             "class": "QCheckBox",
-                            "text": "奥行き効果(奥のトレースをわずかに縮小)",
+                            "text": "Depth effect (shrink traces further back)",
                             "checked": false,
                             "visible": false,
                             "enabled": false,
@@ -2532,7 +2532,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "1段あたりの縮小率",
+                            "text": "Shrink per step",
                             "visible": false,
                             "enabled": false
                            },
@@ -2570,7 +2570,7 @@
                          {
                           "class": "QToolButton",
                           "name": "property_subsection_toggle",
-                          "text": "2Dマップ・値による配色",
+                          "text": "2D map and color by value",
                           "checked": true,
                           "visible": true,
                           "enabled": true,
@@ -2587,7 +2587,7 @@
                           "children": [
                            {
                             "class": "QCheckBox",
-                            "text": "2Dグリッドデータとして扱う(ヒートマップ)",
+                            "text": "Treat as 2D grid data (heat map)",
                             "checked": false,
                             "visible": true,
                             "enabled": false,
@@ -2597,7 +2597,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "Z軸の列",
+                            "text": "Z column",
                             "visible": false,
                             "enabled": false
                            },
@@ -2655,7 +2655,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "カラーマップ",
+                            "text": "Colormap",
                             "visible": false,
                             "enabled": false
                            },
@@ -2729,17 +2729,17 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "表示方式",
+                            "text": "Display",
                             "visible": false,
                             "enabled": false
                            },
                            {
                             "class": "QComboBox",
                             "items": [
-                             "ヒートマップ",
-                             "等高線(線)",
-                             "等高線(塗りつぶし)",
-                             "ヒートマップ+等高線"
+                             "Heat map",
+                             "Contour (lines)",
+                             "Contour (filled)",
+                             "Heat map + contour"
                             ],
                             "current": 0,
                             "visible": false,
@@ -2792,7 +2792,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "等高線レベル数",
+                            "text": "Contour levels",
                             "visible": false,
                             "enabled": false
                            },
@@ -2820,7 +2820,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "補間方法",
+                            "text": "Interpolation",
                             "visible": false,
                             "enabled": false
                            },
@@ -2882,7 +2882,7 @@
                            },
                            {
                             "class": "QCheckBox",
-                            "text": "値域を自動",
+                            "text": "Auto value range",
                             "checked": true,
                             "visible": false,
                             "enabled": false,
@@ -2892,7 +2892,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "値域の最小",
+                            "text": "Min value",
                             "visible": false,
                             "enabled": false
                            },
@@ -2920,7 +2920,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "値域の最大",
+                            "text": "Max value",
                             "visible": false,
                             "enabled": false
                            },
@@ -2958,7 +2958,7 @@
                          {
                           "class": "QToolButton",
                           "name": "property_subsection_toggle",
-                          "text": "表示の追加要素",
+                          "text": "Extra elements",
                           "checked": true,
                           "visible": true,
                           "enabled": true,
@@ -2975,7 +2975,7 @@
                           "children": [
                            {
                             "class": "QCheckBox",
-                            "text": "データ点にラベルを表示",
+                            "text": "Label data points",
                             "checked": false,
                             "visible": true,
                             "enabled": false,
@@ -2992,7 +2992,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "ラベルの内容",
+                            "text": "Label content",
                             "visible": true,
                             "enabled": false
                            },
@@ -3050,16 +3050,16 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "誤差の表示形式",
+                            "text": "Error display",
                             "visible": true,
                             "enabled": false
                            },
                            {
                             "class": "QComboBox",
                             "items": [
-                             "エラーバー",
-                             "誤差バンド",
-                             "両方"
+                             "Error bars",
+                             "Error band",
+                             "Both"
                             ],
                             "current": 0,
                             "visible": true,
@@ -3122,7 +3122,7 @@
                          {
                           "class": "QToolButton",
                           "name": "property_subsection_toggle",
-                          "text": "配置・情報",
+                          "text": "Placement and info",
                           "checked": true,
                           "visible": true,
                           "enabled": true,
@@ -3139,7 +3139,7 @@
                           "children": [
                            {
                             "class": "QCheckBox",
-                            "text": "第2Y軸 (右側) を使用",
+                            "text": "Use secondary Y axis (right)",
                             "checked": false,
                             "visible": true,
                             "enabled": false,
@@ -3149,14 +3149,14 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "描画先プロット",
+                            "text": "Target plot",
                             "visible": true,
                             "enabled": false
                            },
                            {
                             "class": "QComboBox",
                             "items": [
-                             "プロット 1"
+                             "Plot 1"
                             ],
                             "current": 0,
                             "visible": true,
@@ -3209,7 +3209,7 @@
                            },
                            {
                             "class": "QLabel",
-                            "text": "フィット情報",
+                            "text": "Fit information",
                             "visible": false,
                             "enabled": false
                            },
@@ -3290,14 +3290,14 @@
                              {
                               "class": "QLabel",
                               "name": "y_min_label",
-                              "text": "最小値",
+                              "text": "Minimum",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QLabel",
                               "name": "y_max_label",
-                              "text": "最大値",
+                              "text": "Maximum",
                               "visible": false,
                               "enabled": true
                              },
@@ -3350,7 +3350,7 @@
                              {
                               "class": "QCheckBox",
                               "name": "y_autoscale_checkbox",
-                              "text": "自動スケール",
+                              "text": "Autoscale",
                               "checked": true,
                               "visible": false,
                               "enabled": true,
@@ -3361,7 +3361,7 @@
                              {
                               "class": "QCheckBox",
                               "name": "y_log_checkbox",
-                              "text": "対数表示",
+                              "text": "Log scale",
                               "checked": false,
                               "visible": false,
                               "enabled": true,
@@ -3372,7 +3372,7 @@
                              {
                               "class": "QCheckBox",
                               "name": "y_invert_checkbox",
-                              "text": "軸を反転",
+                              "text": "Invert axis",
                               "checked": false,
                               "visible": false,
                               "enabled": true,
@@ -3407,8 +3407,8 @@
                               "class": "QComboBox",
                               "name": "y_major_tick_mode_combo",
                               "items": [
-                               "自動",
-                               "固定間隔"
+                               "Auto",
+                               "Fixed interval"
                               ],
                               "current": 0,
                               "visible": false,
@@ -3462,21 +3462,21 @@
                              {
                               "class": "QLabel",
                               "name": "y_major_tick_label",
-                              "text": "主目盛",
+                              "text": "Major ticks",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QLabel",
                               "name": "y_major_tick_interval_label",
-                              "text": "間隔",
+                              "text": "Interval",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QCheckBox",
                               "name": "y_minor_ticks_visible_checkbox",
-                              "text": "補助目盛を表示",
+                              "text": "Show minor ticks",
                               "checked": false,
                               "visible": false,
                               "enabled": true,
@@ -3487,7 +3487,7 @@
                              {
                               "class": "QLabel",
                               "name": "y_minor_tick_interval_label",
-                              "text": "間隔",
+                              "text": "Interval",
                               "visible": false,
                               "enabled": true
                              },
@@ -3516,17 +3516,17 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "目盛り表記",
+                              "text": "Tick notation",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "自動",
-                               "軸端にまとめて指数表記 (×10ⁿ)",
-                               "目盛りごとに指数表記 (例: 1.0×10¹⁰)",
-                               "常に小数表記"
+                               "Auto",
+                               "Exponent at the axis end (×10ⁿ)",
+                               "Exponent on each tick (e.g. 1.0×10¹⁰)",
+                               "Always decimal"
                               ],
                               "current": 0,
                               "visible": false,
@@ -3579,7 +3579,7 @@
                              },
                              {
                               "class": "QCheckBox",
-                              "text": "目盛を表示",
+                              "text": "Show ticks",
                               "checked": true,
                               "visible": false,
                               "enabled": true,
@@ -3589,7 +3589,7 @@
                              },
                              {
                               "class": "QCheckBox",
-                              "text": "目盛の数値を表示",
+                              "text": "Show tick labels",
                               "checked": true,
                               "visible": false,
                               "enabled": true,
@@ -3599,16 +3599,16 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "小数桁数",
+                              "text": "Decimal places",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QSpinBox",
-                              "value": "自動",
+                              "value": "Auto",
                               "visible": false,
                               "enabled": true,
-                              "tooltip": "目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)",
+                              "tooltip": "Decimal places of tick labels (anything but \"Auto\" overrides the exponent notation)",
                               "receivers": {
                                "valueChanged(int)": 1
                               },
@@ -3616,7 +3616,7 @@
                                {
                                 "class": "QLineEdit",
                                 "name": "qt_spinbox_lineedit",
-                                "text": "自動",
+                                "text": "Auto",
                                 "visible": false,
                                 "enabled": true,
                                 "receivers": {
@@ -3628,18 +3628,18 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "対数補助目盛",
+                              "text": "Log minor ticks",
                               "visible": false,
                               "enabled": true,
-                              "tooltip": "対数軸の補助目盛りをどこに打つか"
+                              "tooltip": "Where to put minor ticks on a log axis"
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "自動(既定)",
-                               "全て(2〜9)",
-                               "少なめ(2, 5)",
-                               "最小限(5)"
+                               "Auto (default)",
+                               "All (2–9)",
+                               "Fewer (2, 5)",
+                               "Minimal (5)"
                               ],
                               "current": 0,
                               "visible": false,
@@ -3692,7 +3692,7 @@
                              },
                              {
                               "class": "QCheckBox",
-                              "text": "補助目盛りに数値ラベルを表示",
+                              "text": "Label minor ticks",
                               "checked": false,
                               "visible": false,
                               "enabled": false,
@@ -3734,21 +3734,21 @@
                              {
                               "class": "QLabel",
                               "name": "x_min_label",
-                              "text": "最小値",
+                              "text": "Minimum",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QLabel",
                               "name": "x_max_label",
-                              "text": "最大値",
+                              "text": "Maximum",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QCheckBox",
                               "name": "x_autoscale_checkbox",
-                              "text": "自動スケール",
+                              "text": "Autoscale",
                               "checked": true,
                               "visible": false,
                               "enabled": true,
@@ -3782,7 +3782,7 @@
                              {
                               "class": "QCheckBox",
                               "name": "x_log_checkbox",
-                              "text": "対数表示",
+                              "text": "Log scale",
                               "checked": false,
                               "visible": false,
                               "enabled": true,
@@ -3793,7 +3793,7 @@
                              {
                               "class": "QCheckBox",
                               "name": "x_invert_checkbox",
-                              "text": "軸を反転",
+                              "text": "Invert axis",
                               "checked": false,
                               "visible": false,
                               "enabled": true,
@@ -3804,7 +3804,7 @@
                              {
                               "class": "QLabel",
                               "name": "x_major_tick_label",
-                              "text": "主目盛",
+                              "text": "Major ticks",
                               "visible": false,
                               "enabled": true
                              },
@@ -3812,8 +3812,8 @@
                               "class": "QComboBox",
                               "name": "x_major_tick_mode_combo",
                               "items": [
-                               "自動",
-                               "固定間隔"
+                               "Auto",
+                               "Fixed interval"
                               ],
                               "current": 0,
                               "visible": false,
@@ -3890,14 +3890,14 @@
                              {
                               "class": "QLabel",
                               "name": "x_major_tick_interval_label",
-                              "text": "間隔",
+                              "text": "Interval",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QCheckBox",
                               "name": "x_minor_ticks_visible_checkbox",
-                              "text": "補助目盛を表示",
+                              "text": "Show minor ticks",
                               "checked": false,
                               "visible": false,
                               "enabled": true,
@@ -3908,7 +3908,7 @@
                              {
                               "class": "QLabel",
                               "name": "x_minor_tick_interval_label",
-                              "text": "間隔",
+                              "text": "Interval",
                               "visible": false,
                               "enabled": true
                              },
@@ -3937,17 +3937,17 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "目盛り表記",
+                              "text": "Tick notation",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "自動",
-                               "軸端にまとめて指数表記 (×10ⁿ)",
-                               "目盛りごとに指数表記 (例: 1.0×10¹⁰)",
-                               "常に小数表記"
+                               "Auto",
+                               "Exponent at the axis end (×10ⁿ)",
+                               "Exponent on each tick (e.g. 1.0×10¹⁰)",
+                               "Always decimal"
                               ],
                               "current": 0,
                               "visible": false,
@@ -4000,7 +4000,7 @@
                              },
                              {
                               "class": "QCheckBox",
-                              "text": "目盛を表示",
+                              "text": "Show ticks",
                               "checked": true,
                               "visible": false,
                               "enabled": true,
@@ -4010,7 +4010,7 @@
                              },
                              {
                               "class": "QCheckBox",
-                              "text": "目盛の数値を表示",
+                              "text": "Show tick labels",
                               "checked": true,
                               "visible": false,
                               "enabled": true,
@@ -4020,16 +4020,16 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "小数桁数",
+                              "text": "Decimal places",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QSpinBox",
-                              "value": "自動",
+                              "value": "Auto",
                               "visible": false,
                               "enabled": true,
-                              "tooltip": "目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)",
+                              "tooltip": "Decimal places of tick labels (anything but \"Auto\" overrides the exponent notation)",
                               "receivers": {
                                "valueChanged(int)": 1
                               },
@@ -4037,7 +4037,7 @@
                                {
                                 "class": "QLineEdit",
                                 "name": "qt_spinbox_lineedit",
-                                "text": "自動",
+                                "text": "Auto",
                                 "visible": false,
                                 "enabled": true,
                                 "receivers": {
@@ -4049,18 +4049,18 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "対数補助目盛",
+                              "text": "Log minor ticks",
                               "visible": false,
                               "enabled": true,
-                              "tooltip": "対数軸の補助目盛りをどこに打つか"
+                              "tooltip": "Where to put minor ticks on a log axis"
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "自動(既定)",
-                               "全て(2〜9)",
-                               "少なめ(2, 5)",
-                               "最小限(5)"
+                               "Auto (default)",
+                               "All (2–9)",
+                               "Fewer (2, 5)",
+                               "Minimal (5)"
                               ],
                               "current": 0,
                               "visible": false,
@@ -4113,7 +4113,7 @@
                              },
                              {
                               "class": "QCheckBox",
-                              "text": "補助目盛りに数値ラベルを表示",
+                              "text": "Label minor ticks",
                               "checked": false,
                               "visible": false,
                               "enabled": false,
@@ -4123,23 +4123,23 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "X軸単位",
+                              "text": "X-axis unit",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "なし",
-                               "nm(波長)",
-                               "eV(エネルギー)",
-                               "cm⁻¹(波数)",
-                               "Hz(周波数)"
+                               "None",
+                               "nm (wavelength)",
+                               "eV (energy)",
+                               "cm⁻¹ (wavenumber)",
+                               "Hz (frequency)"
                               ],
                               "current": 0,
                               "visible": false,
                               "enabled": true,
-                              "tooltip": "X軸データが表している物理量の単位",
+                              "tooltip": "Unit of the quantity on the X axis",
                               "receivers": {
                                "currentIndexChanged(int)": 1
                               },
@@ -4188,23 +4188,23 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "第2X軸単位",
+                              "text": "2nd X-axis unit",
                               "visible": false,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "なし",
-                               "nm(波長)",
-                               "eV(エネルギー)",
-                               "cm⁻¹(波数)",
-                               "Hz(周波数)"
+                               "None",
+                               "nm (wavelength)",
+                               "eV (energy)",
+                               "cm⁻¹ (wavenumber)",
+                               "Hz (frequency)"
                               ],
                               "current": 0,
                               "visible": false,
                               "enabled": true,
-                              "tooltip": "上部に追加する第2X軸に変換して表示する単位",
+                              "tooltip": "Unit shown on the secondary X axis added at the top",
                               "receivers": {
                                "currentIndexChanged(int)": 1
                               },
@@ -4262,35 +4262,35 @@
                              {
                               "class": "QLabel",
                               "name": "title_text_label",
-                              "text": "タイトル",
+                              "text": "Title",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QLabel",
                               "name": "x_label_text_label",
-                              "text": "X軸ラベル",
+                              "text": "X-axis label",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QLabel",
                               "name": "y_label_text_label",
-                              "text": "Y軸ラベル",
+                              "text": "Y-axis label",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QLabel",
                               "name": "tick_format_label",
-                              "text": "目盛数値",
+                              "text": "Tick labels",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QPushButton",
                               "name": "tick_font_button",
-                              "text": "フォント…",
+                              "text": "Font…",
                               "visible": true,
                               "enabled": true,
                               "receivers": {
@@ -4301,7 +4301,7 @@
                              {
                               "class": "QPushButton",
                               "name": "tick_color_button",
-                              "text": "色…",
+                              "text": "Color…",
                               "visible": true,
                               "enabled": true,
                               "receivers": {
@@ -4312,14 +4312,14 @@
                              {
                               "class": "QLabel",
                               "name": "axis_label_format_label",
-                              "text": "軸ラベル",
+                              "text": "Axis labels",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QPushButton",
                               "name": "axis_label_font_button",
-                              "text": "フォント…",
+                              "text": "Font…",
                               "visible": true,
                               "enabled": true,
                               "receivers": {
@@ -4330,7 +4330,7 @@
                              {
                               "class": "QPushButton",
                               "name": "axis_label_color_button",
-                              "text": "色…",
+                              "text": "Color…",
                               "visible": true,
                               "enabled": true,
                               "receivers": {
@@ -4341,7 +4341,7 @@
                              {
                               "class": "QCheckBox",
                               "name": "legend_visible_checkbox",
-                              "text": "凡例を表示",
+                              "text": "Show legend",
                               "checked": true,
                               "visible": true,
                               "enabled": true,
@@ -4352,7 +4352,7 @@
                              {
                               "class": "QCheckBox",
                               "name": "grid_visible_checkbox",
-                              "text": "グリッドを表示",
+                              "text": "Show grid",
                               "checked": false,
                               "visible": true,
                               "enabled": true,
@@ -4363,7 +4363,7 @@
                              {
                               "class": "QLabel",
                               "name": "spine_format_label",
-                              "text": "外枠",
+                              "text": "Frame",
                               "visible": true,
                               "enabled": true
                              },
@@ -4393,7 +4393,7 @@
                              {
                               "class": "QPushButton",
                               "name": "spine_color_button",
-                              "text": "色…",
+                              "text": "Color…",
                               "visible": true,
                               "enabled": true,
                               "receivers": {
@@ -4404,7 +4404,7 @@
                              {
                               "class": "QLabel",
                               "name": "tick_width_label",
-                              "text": "目盛の太さ",
+                              "text": "Tick width",
                               "visible": true,
                               "enabled": true
                              },
@@ -4434,7 +4434,7 @@
                              {
                               "class": "QCheckBox",
                               "name": "minor_grid_visible_checkbox",
-                              "text": "補助グリッドの表示",
+                              "text": "Show minor grid",
                               "checked": false,
                               "visible": true,
                               "enabled": false,
@@ -4444,7 +4444,7 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "凡例の位置",
+                              "text": "Legend position",
                               "visible": true,
                               "enabled": true
                              },
@@ -4509,13 +4509,13 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "凡例フォント",
+                              "text": "Legend font",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QPushButton",
-                              "text": "フォント選択...",
+                              "text": "Choose Font...",
                               "visible": true,
                               "enabled": true,
                               "receivers": {
@@ -4525,13 +4525,13 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "凡例 文字色",
+                              "text": "Legend text color",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QPushButton",
-                              "text": "色選択...",
+                              "text": "Choose Color...",
                               "visible": true,
                               "enabled": true,
                               "receivers": {
@@ -4541,7 +4541,7 @@
                              },
                              {
                               "class": "QPushButton",
-                              "text": "凡例の順序...",
+                              "text": "Legend Order...",
                               "visible": true,
                               "enabled": true,
                               "receivers": {
@@ -4551,7 +4551,7 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "第2Y軸ラベル",
+                              "text": "Secondary Y-axis label",
                               "visible": false,
                               "enabled": true
                              },
@@ -4566,7 +4566,7 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "主軸目盛(主/補助)",
+                              "text": "Ticks (major/minor)",
                               "visible": true,
                               "enabled": true
                              },
@@ -4684,7 +4684,7 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "第2軸目盛(主/補助)",
+                              "text": "2nd-axis ticks",
                               "visible": false,
                               "enabled": true
                              },
@@ -4802,22 +4802,22 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "X軸主目盛",
+                              "text": "X major ticks",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "実線",
-                               "破線",
-                               "点線",
-                               "一点鎖線"
+                               "Solid",
+                               "Dashed",
+                               "Dotted",
+                               "Dash-dot"
                               ],
                               "current": 0,
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "線種",
+                              "tooltip": "Line style",
                               "receivers": {
                                "currentIndexChanged(int)": 1
                               },
@@ -4869,7 +4869,7 @@
                               "value": "0.8",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "太さ",
+                              "tooltip": "Width",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -4892,7 +4892,7 @@
                               "value": "1.00",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "透過度(アルファ)",
+                              "tooltip": "Opacity (alpha)",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -4912,22 +4912,22 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "X軸補助目盛",
+                              "text": "X minor ticks",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "実線",
-                               "破線",
-                               "点線",
-                               "一点鎖線"
+                               "Solid",
+                               "Dashed",
+                               "Dotted",
+                               "Dash-dot"
                               ],
                               "current": 1,
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "線種",
+                              "tooltip": "Line style",
                               "receivers": {
                                "currentIndexChanged(int)": 1
                               },
@@ -4979,7 +4979,7 @@
                               "value": "0.5",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "太さ",
+                              "tooltip": "Width",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -5002,7 +5002,7 @@
                               "value": "1.00",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "透過度(アルファ)",
+                              "tooltip": "Opacity (alpha)",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -5022,22 +5022,22 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "Y軸主目盛",
+                              "text": "Y major ticks",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "実線",
-                               "破線",
-                               "点線",
-                               "一点鎖線"
+                               "Solid",
+                               "Dashed",
+                               "Dotted",
+                               "Dash-dot"
                               ],
                               "current": 0,
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "線種",
+                              "tooltip": "Line style",
                               "receivers": {
                                "currentIndexChanged(int)": 1
                               },
@@ -5089,7 +5089,7 @@
                               "value": "0.8",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "太さ",
+                              "tooltip": "Width",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -5112,7 +5112,7 @@
                               "value": "1.00",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "透過度(アルファ)",
+                              "tooltip": "Opacity (alpha)",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -5132,22 +5132,22 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "Y軸補助目盛",
+                              "text": "Y minor ticks",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "実線",
-                               "破線",
-                               "点線",
-                               "一点鎖線"
+                               "Solid",
+                               "Dashed",
+                               "Dotted",
+                               "Dash-dot"
                               ],
                               "current": 1,
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "線種",
+                              "tooltip": "Line style",
                               "receivers": {
                                "currentIndexChanged(int)": 1
                               },
@@ -5199,7 +5199,7 @@
                               "value": "0.5",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "太さ",
+                              "tooltip": "Width",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -5222,7 +5222,7 @@
                               "value": "1.00",
                               "visible": true,
                               "enabled": false,
-                              "tooltip": "透過度(アルファ)",
+                              "tooltip": "Opacity (alpha)",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -5242,7 +5242,7 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "目盛の長さ(主/補助)",
+                              "text": "Tick length",
                               "visible": true,
                               "enabled": true
                              },
@@ -5251,7 +5251,7 @@
                               "value": "3.5 pt",
                               "visible": true,
                               "enabled": true,
-                              "tooltip": "主目盛の線の長さ(pt)",
+                              "tooltip": "Major tick length (pt)",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -5271,10 +5271,10 @@
                              },
                              {
                               "class": "QDoubleSpinBox",
-                              "value": "自動",
+                              "value": "Auto",
                               "visible": true,
                               "enabled": true,
-                              "tooltip": "補助目盛の線の長さ(pt)。「自動」は主目盛の長さの約0.57倍",
+                              "tooltip": "Minor tick length (pt). \"Auto\" is about 0.57 × the major tick length",
                               "receivers": {
                                "valueChanged(double)": 1
                               },
@@ -5282,7 +5282,7 @@
                                {
                                 "class": "QLineEdit",
                                 "name": "qt_spinbox_lineedit",
-                                "text": "自動",
+                                "text": "Auto",
                                 "visible": true,
                                 "enabled": true,
                                 "receivers": {
@@ -5294,7 +5294,7 @@
                              },
                              {
                               "class": "QCheckBox",
-                              "text": "カラーバーを表示",
+                              "text": "Show colorbar",
                               "checked": true,
                               "visible": true,
                               "enabled": true,
@@ -5304,17 +5304,17 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "カラーバーの位置",
+                              "text": "Colorbar position",
                               "visible": true,
                               "enabled": true
                              },
                              {
                               "class": "QComboBox",
                               "items": [
-                               "右",
-                               "左",
-                               "上",
-                               "下"
+                               "Right",
+                               "Left",
+                               "Top",
+                               "Bottom"
                               ],
                               "current": 0,
                               "visible": true,
@@ -5367,7 +5367,7 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "カラーバーの幅(割合)",
+                              "text": "Colorbar width (fraction)",
                               "visible": true,
                               "enabled": true
                              },
@@ -5395,7 +5395,7 @@
                              },
                              {
                               "class": "QLabel",
-                              "text": "カラーバーのラベル",
+                              "text": "Colorbar label",
                               "visible": true,
                               "enabled": true
                              },
@@ -5429,7 +5429,7 @@
                                 "text": "",
                                 "visible": true,
                                 "enabled": true,
-                                "tooltip": "クリックして編集",
+                                "tooltip": "Click to edit",
                                 "receivers": {
                                  "clicked()": 1
                                 }
@@ -5439,7 +5439,7 @@
                                 "text": "Aa",
                                 "visible": true,
                                 "enabled": true,
-                                "tooltip": "タイトル/ラベルを編集(書式・記号入力)",
+                                "tooltip": "Edit title/label (formatting and symbols)",
                                 "receivers": {
                                  "pressed()": 1,
                                  "released()": 1,
@@ -5470,7 +5470,7 @@
                                 "text": "",
                                 "visible": true,
                                 "enabled": true,
-                                "tooltip": "クリックして編集",
+                                "tooltip": "Click to edit",
                                 "receivers": {
                                  "clicked()": 1
                                 }
@@ -5481,7 +5481,7 @@
                                 "checked": true,
                                 "visible": true,
                                 "enabled": true,
-                                "tooltip": "ラベルの表示/非表示(テキスト自体は保持されます)",
+                                "tooltip": "Show/hide the label (the text is kept)",
                                 "receivers": {
                                  "stateChanged(int)": 1
                                 }
@@ -5491,7 +5491,7 @@
                                 "text": "Aa",
                                 "visible": true,
                                 "enabled": true,
-                                "tooltip": "タイトル/ラベルを編集(書式・記号入力)",
+                                "tooltip": "Edit title/label (formatting and symbols)",
                                 "receivers": {
                                  "pressed()": 1,
                                  "released()": 1,
@@ -5522,7 +5522,7 @@
                                 "text": "",
                                 "visible": true,
                                 "enabled": true,
-                                "tooltip": "クリックして編集",
+                                "tooltip": "Click to edit",
                                 "receivers": {
                                  "clicked()": 1
                                 }
@@ -5533,7 +5533,7 @@
                                 "checked": true,
                                 "visible": true,
                                 "enabled": true,
-                                "tooltip": "ラベルの表示/非表示(テキスト自体は保持されます)",
+                                "tooltip": "Show/hide the label (the text is kept)",
                                 "receivers": {
                                  "stateChanged(int)": 1
                                 }
@@ -5543,7 +5543,7 @@
                                 "text": "Aa",
                                 "visible": true,
                                 "enabled": true,
-                                "tooltip": "タイトル/ラベルを編集(書式・記号入力)",
+                                "tooltip": "Edit title/label (formatting and symbols)",
                                 "receivers": {
                                  "pressed()": 1,
                                  "released()": 1,
@@ -5617,7 +5617,7 @@
                                },
                                {
                                 "class": "QCheckBox",
-                                "text": "X軸を共有(グリッドレイアウト時)",
+                                "text": "Share X axes (grid)",
                                 "checked": false,
                                 "visible": true,
                                 "enabled": true,
@@ -5627,7 +5627,7 @@
                                },
                                {
                                 "class": "QCheckBox",
-                                "text": "Y軸を共有(グリッドレイアウト時)",
+                                "text": "Share Y axes (grid)",
                                 "checked": false,
                                 "visible": true,
                                 "enabled": true,
@@ -5667,7 +5667,7 @@
                                },
                                {
                                 "class": "QGroupBox",
-                                "title": "選択中のサブプロットの位置・サイズ",
+                                "title": "Position and size of the selected subplot",
                                 "visible": false,
                                 "enabled": true,
                                 "children": [
@@ -5729,7 +5729,7 @@
                                  },
                                  {
                                   "class": "QLabel",
-                                  "text": "幅",
+                                  "text": "Width",
                                   "visible": false,
                                   "enabled": true
                                  },
@@ -5757,7 +5757,7 @@
                                  },
                                  {
                                   "class": "QLabel",
-                                  "text": "高さ",
+                                  "text": "Height",
                                   "visible": false,
                                   "enabled": true
                                  },
@@ -5796,7 +5796,7 @@
                                {
                                 "class": "QComboBox",
                                 "items": [
-                                 "プロット 1"
+                                 "Plot 1"
                                 ],
                                 "current": 0,
                                 "visible": true,
@@ -5949,7 +5949,7 @@
             "children": [
              {
               "class": "QLabel",
-              "text": "幅",
+              "text": "Width",
               "visible": false,
               "enabled": true
              },
@@ -5977,7 +5977,7 @@
              },
              {
               "class": "QLabel",
-              "text": "高さ",
+              "text": "Height",
               "visible": false,
               "enabled": true
              },
@@ -6005,16 +6005,16 @@
              },
              {
               "class": "QLabel",
-              "text": "単位",
+              "text": "Unit",
               "visible": false,
               "enabled": true
              },
              {
               "class": "QComboBox",
               "items": [
-               "ピクセル (px)",
-               "インチ (in)",
-               "センチメートル (cm)"
+               "Pixels (px)",
+               "Inches (in)",
+               "Centimeters (cm)"
               ],
               "current": 0,
               "visible": false,
@@ -6067,7 +6067,7 @@
              },
              {
               "class": "QLabel",
-              "text": "解像度",
+              "text": "Resolution",
               "visible": false,
               "enabled": true
              },
@@ -6095,30 +6095,30 @@
              },
              {
               "class": "QCheckBox",
-              "text": "背景を透過",
+              "text": "Transparent background",
               "checked": true,
               "visible": false,
               "enabled": true
              },
              {
               "class": "QCheckBox",
-              "text": "文字をアウトライン化する(SVG)",
+              "text": "Convert text to outlines (SVG)",
               "checked": false,
               "visible": false,
               "enabled": true,
-              "tooltip": "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
+              "tooltip": "When saving or copying SVG, write tick numbers and label text as paths (outlines)."
              },
              {
               "class": "QCheckBox",
-              "text": "フル解像度で保存/コピー(間引きなし)",
+              "text": "Save/copy at full resolution (no downsampling)",
               "checked": false,
               "visible": false,
               "enabled": true,
-              "tooltip": "「名前を付けて保存」「コピー」の出力にのみ適用されます(常時更新されるプレビュー自体は応答性のため常に間引いたまま表示します)。点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/等高線)の間引きを無効化し、常に全データ点/全解像度で保存/コピーします。"
+              "tooltip": "Applies only to \"Save As\" and \"Copy\" (the live preview always stays downsampled to remain responsive). Turns off downsampling of large Line datasets and 2D maps (heat maps/contours) so every point is saved or copied at full resolution."
              },
              {
               "class": "QLabel",
-              "text": "プレビューがここに表示されます",
+              "text": "The preview appears here",
               "visible": false,
               "enabled": true
              },
@@ -6131,7 +6131,7 @@
               "current": 0,
               "visible": false,
               "enabled": true,
-              "tooltip": "クリップボードにコピーする形式を選択します",
+              "tooltip": "Choose the format copied to the clipboard",
               "children": [
                {
                 "class": "QFrame",
@@ -6177,10 +6177,10 @@
              },
              {
               "class": "QPushButton",
-              "text": "コピー",
+              "text": "Copy",
               "visible": false,
               "enabled": true,
-              "tooltip": "現在の設定でレンダリングした画像をクリップボードにコピーします",
+              "tooltip": "Copy the image rendered with the current settings to the clipboard",
               "receivers": {
                "clicked(bool)": 1,
                "clicked()": 1
@@ -6188,7 +6188,7 @@
              },
              {
               "class": "QPushButton",
-              "text": "名前を付けて保存...",
+              "text": "Save As...",
               "visible": false,
               "enabled": true,
               "receivers": {
@@ -6235,7 +6235,7 @@
             "children": [
              {
               "class": "QLabel",
-              "text": "曲線フィットの結果を持つデータセットを選択すると、\nここに残差(実測値 - フィット値)が表示されます。",
+              "text": "Select a dataset with a curve-fit result to see\nits residuals (measured - fitted) here.",
               "visible": false,
               "enabled": true
              },
@@ -6283,7 +6283,7 @@
             "children": [
              {
               "class": "QLabel",
-              "text": "処理履歴(フィット・ベースライン補正・平滑化等で生成された\nデータセット)を選択すると、ここに処理の流れが表示されます。",
+              "text": "Select a dataset created by processing (fitting, baseline\ncorrection, smoothing, ...) to see its history here.",
               "visible": false,
               "enabled": true
              },
@@ -6487,10 +6487,10 @@
            },
            {
             "class": "QToolButton",
-            "text": "クイックアクセスの管理",
+            "text": "Manage Quick Access",
             "visible": true,
             "enabled": true,
-            "tooltip": "クイックアクセスの管理",
+            "tooltip": "Manage Quick Access",
             "receivers": {
              "pressed()": 1,
              "released()": 1,
@@ -6547,7 +6547,7 @@
            },
            {
             "class": "QPushButton",
-            "text": "書式テンプレートを開く...",
+            "text": "Open Style Template...",
             "visible": false,
             "enabled": true,
             "receivers": {

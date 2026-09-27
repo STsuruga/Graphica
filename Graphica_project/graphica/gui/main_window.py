@@ -88,6 +88,7 @@ from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.order import DatasetOrder
 from graphica.gui.panels import create_panels, expose_panel_names
+from graphica.gui.widget_translation import translate_widget_texts
 from graphica.gui.tools import MOUSE_MODES, ToolManager, create_tools, expose_tool_names
 from graphica.gui import data_import_flow
 # テストがこのモジュールの属性として引くので残す(使うコードは data_import_flow と project_files に移した)
@@ -255,6 +256,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._arrange_property_docks()
         self._rebuild_label_tab()
         self._connect_and_initialize()
+        # 英語表示のとき、組み立てた画面の文字をまとめて訳す(Designer の部品にも効かせる)
+        translate_widget_texts(self)
 
     def _load_designer_ui(self):
         self.ui = Ui_MainWindow()
