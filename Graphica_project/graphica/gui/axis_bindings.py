@@ -157,4 +157,17 @@ AXIS_BINDINGS = (
     item_data('colorbar_position', 'colorbar_position_combo', _CHANGED),
     number('colorbar_width_fraction', 'colorbar_width_spinbox', _CHANGED),
     text('colorbar_label', 'colorbar_label_edit', _CHANGED),
+
+    # 第 2 Y 軸。見え方(有効・無効)の切り替えもつなぐ
+    # 範囲を欄に入れてから設定を集め直す(_on_y2_autoscale_changed が最後に _on_axis_setting_changed を呼ぶ)。
+    # 先に描き直すと、欄の古い値で範囲が決まってしまい、今の範囲を入れられない
+    check('y2_autoscale', 'y2_autoscale_checkbox', ('_on_y2_autoscale_changed',)),
+    number('y2_min', 'y2_min_spinbox', _CHANGED),
+    number('y2_max', 'y2_max_spinbox', _CHANGED),
+    check('y2_log', 'y2_log_checkbox', _CHANGED + ('_on_y2_axis_state_changed',)),
+    check('y2_invert', 'y2_invert_checkbox', _CHANGED),
+    index('y2_major_tick_mode', 'y2_major_tick_mode_combo', _CHANGED + ('_on_y2_axis_state_changed',)),
+    number('y2_major_tick_interval', 'y2_major_tick_interval_spinbox', _CHANGED),
+    check('y2_minor_ticks_visible', 'y2_minor_ticks_visible_checkbox', _CHANGED + ('_on_y2_axis_state_changed',)),
+    number('y2_minor_tick_interval', 'y2_minor_tick_interval_spinbox', _CHANGED),
 )

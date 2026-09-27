@@ -2,7 +2,8 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFrame, QGridLayout, QHeaderView, QLabel, QLineEdit,
+    QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox, QHeaderView,
+    QLabel, QLineEdit,
     QMenu, QPushButton, QSpinBox, QTextEdit, QToolButton, QTreeWidget, QVBoxLayout, QWidget, QWidgetAction)
 from graphica.core.i18n import tr
 from graphica.gui.builders.common import (
@@ -313,6 +314,45 @@ def build_fit_info_and_stats(app):
     app.mpl_toolbar.addWidget(app.stats_toolbar_button)
 
 
+def _y2_value_spinbox(decimals=2):
+    spinbox = QDoubleSpinBox()
+    spinbox.setRange(-2147483648.0, 2147483648.0)
+    spinbox.setDecimals(decimals)
+    return spinbox
+
+
+def _build_secondary_y_axis_group(app):
+    """「Y軸」タブの末尾に、第 2 Y 軸の範囲と目盛りの欄を足す(主の Y 軸の欄と同じ並び)。"""
+    app.y2_axis_group = QGroupBox(tr("第2Y軸"))
+    form = QFormLayout(app.y2_axis_group)
+    app.y2_autoscale_checkbox = QCheckBox(tr("自動スケール"))
+    app.y2_autoscale_checkbox.setChecked(True)
+    form.addRow(app.y2_autoscale_checkbox)
+    app.y2_min_spinbox = _y2_value_spinbox()
+    form.addRow(tr("最小値"), app.y2_min_spinbox)
+    app.y2_max_spinbox = _y2_value_spinbox()
+    app.y2_max_spinbox.setValue(1.0)
+    form.addRow(tr("最大値"), app.y2_max_spinbox)
+    app.y2_log_checkbox = QCheckBox(tr("対数表示"))
+    form.addRow(app.y2_log_checkbox)
+    app.y2_invert_checkbox = QCheckBox(tr("軸を反転"))
+    form.addRow(app.y2_invert_checkbox)
+    app.y2_major_tick_mode_combo = QComboBox()
+    # 選んだ番号で値を持つ(index の束ね)ので、表示を訳してよい
+    app.y2_major_tick_mode_combo.addItems([tr("自動"), tr("固定間隔")])
+    form.addRow(tr("主目盛"), app.y2_major_tick_mode_combo)
+    app.y2_major_tick_interval_spinbox = _y2_value_spinbox()
+    app.y2_major_tick_interval_spinbox.setValue(1.0)
+    form.addRow(tr("間隔"), app.y2_major_tick_interval_spinbox)
+    app.y2_minor_ticks_visible_checkbox = QCheckBox(tr("補助目盛を表示"))
+    form.addRow(app.y2_minor_ticks_visible_checkbox)
+    app.y2_minor_tick_interval_spinbox = _y2_value_spinbox()
+    app.y2_minor_tick_interval_spinbox.setValue(0.5)
+    form.addRow(tr("補助目盛の間隔"), app.y2_minor_tick_interval_spinbox)
+    layout = app.ui.gridLayout_3
+    layout.addWidget(app.y2_axis_group, layout.rowCount(), 0, 1, layout.columnCount() or 1)
+
+
 def build_secondary_y_controls(app):
     app.use_secondary_y_checkbox = QCheckBox("第2Y軸 (右側) を使用")
     app._prop_form('place').addRow(app.use_secondary_y_checkbox)
@@ -322,6 +362,7 @@ def build_secondary_y_controls(app):
     _insert_form_row_after(app.ui.formLayout_3, app.ui.y_label_text_edit,
                            app.y2_label_text_label, app.y2_label_text_edit)
 
+    _build_secondary_y_axis_group(app)
 
 def add_subplot_target_row(app):
     app.subplot_target_label = QLabel("描画先プロット")

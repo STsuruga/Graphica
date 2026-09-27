@@ -96,6 +96,16 @@ AXIS_SETTING_DEFAULTS = {
     'legend_order': [],
     'free_rect': None,
     'legend_position': None,
+    # 第 2 Y 軸(主の Y 軸と同じ意味)。既定は範囲・目盛りとも自動
+    'y2_autoscale': True,
+    'y2_min': 0,
+    'y2_max': 1,
+    'y2_log': False,
+    'y2_invert': False,
+    'y2_major_tick_mode': 0,
+    'y2_major_tick_interval': 1,
+    'y2_minor_ticks_visible': False,
+    'y2_minor_tick_interval': 0.5,
 }
 
 # 軸ごとに分ける前の共通キー。新しいキーが無いプロジェクトでは、その値を X/Y 両方に使う。

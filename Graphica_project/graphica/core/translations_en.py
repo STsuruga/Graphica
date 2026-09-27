@@ -513,4 +513,6 @@ TRANSLATIONS = {
     "チェックした項目がクイックアクセスツールバーに表示されます。": "Checked items appear on the Quick Access toolbar.",
     "コマンドを検索...": "Search commands...",
     "ミリメートル (mm)": "Millimeters (mm)",
+    "第2Y軸": "Secondary Y axis",
+    "補助目盛の間隔": "Minor tick interval",
 }
