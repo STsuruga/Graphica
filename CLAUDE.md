@@ -140,7 +140,7 @@ The app's 47 dialogs live in a **package**, not one module (item B-2 split the f
 
 ### Icons
 
-`gui/icon_utils.py` renders bundled Tabler Icons SVGs (`assets/icons/*.svg`, MIT-licensed, `stroke="currentColor"`) into themed `QIcon`s by string-replacing `currentColor` before feeding the SVG to `QSvgRenderer`. Path resolution is anchored to `icon_utils.py`'s own file location (not `cwd`) for the same reason described below — icons must resolve correctly regardless of the process's working directory.
+`gui/icon_utils.py` renders bundled Tabler Icons SVGs (`assets/icons/*.svg`, MIT-licensed, `stroke="currentColor"`) into themed `QIcon`s by string-replacing `currentColor` before feeding the SVG to `QSvgRenderer`. Paths go through `resource_path()` (item K-44): anchoring them to `icon_utils.py`'s own file location stopped working in the exe after I-1, because `graphica.spec` bundles the icons at `sys._MEIPASS/assets/icons` while the module lives under `sys._MEIPASS/graphica/gui/`, so every `icon_utils.icon()` button (data editor, preferences, palette dialog, the tab bar's + button) came out blank. `tests/test_icon_utils.py` fakes that layout.
 
 ### `resource_path()` is cwd-independent by design
 
