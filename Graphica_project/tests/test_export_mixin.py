@@ -331,6 +331,8 @@ def test_batch_export_shows_info_and_returns_when_already_running(tmp_path, monk
     window._on_batch_export()
 
     assert len(info_calls) == 1
+    # 模した object() のままだと、後片付けで閉じるときの closeEvent が落ちる(PySide6 6.11 からは表に出る)
+    window._batch_export_task_runner = None
 
 
 def test_batch_export_cancelled_does_nothing(tmp_path, monkeypatch):
