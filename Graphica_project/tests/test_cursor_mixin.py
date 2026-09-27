@@ -121,7 +121,7 @@ def test_toggle_cursor_mode_on_swallows_set_picker_attribute_error(tmp_path, mon
 
     monkeypatch.setattr(line, "set_picker", _raise_attribute_error)
 
-    with caplog.at_level("WARNING", logger="graphica.gui.mixins.cursor_mixin"):
+    with caplog.at_level("WARNING", logger="graphica.gui.tools.cursor"):
         window._toggle_cursor_mode(True)  # 例外が伝播しないこと
 
     assert window.cursor_connection_id is not None

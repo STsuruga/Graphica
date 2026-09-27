@@ -13,35 +13,55 @@ from graphica.core.commands import SetMaskedRowsCommand
 logger = logging.getLogger(__name__)
 
 
-class RangeSelectMixin:
+class RangeSelectTool:
+    """状態はこのツールが持ち、PlotterApp の同じ名前は窓口(gui/tools/__init__.py)。"""
+
+    # PlotterApp から同じ名前で読み書きできるもの(テスト・メニュー・ほかの mixin が使う)
+    EXPOSED_NAMES = (
+        '_apply_range_mask', '_clear_range_select_preview', '_on_range_select_motion', '_on_range_select_press',
+        '_on_range_select_release', '_range_select_axes', '_range_select_background', '_range_select_motion_cid',
+        '_range_select_press_cid', '_range_select_preview_artist', '_range_select_release_cid',
+        '_range_select_start_x', '_toggle_range_select_mode', 'range_select_mode_enabled',
+    )
+
+    def __init__(self, app):
+        self._app = app
+        self.range_select_mode_enabled = False
+        self._range_select_press_cid = None
+        self._range_select_motion_cid = None
+        self._range_select_release_cid = None
+        self._range_select_axes = None
+        self._range_select_start_x = None
+        self._range_select_preview_artist = None
+
     def _toggle_range_select_mode(self, checked):
         self.range_select_mode_enabled = checked
 
         if checked:
-            self._deactivate_other_mouse_modes('range_select')
+            self._app._deactivate_other_mouse_modes('range_select')
 
-            self._range_select_press_cid = self.canvas.mpl_connect(
+            self._range_select_press_cid = self._app.canvas.mpl_connect(
                 'button_press_event', self._on_range_select_press
             )
-            self._range_select_motion_cid = self.canvas.mpl_connect(
+            self._range_select_motion_cid = self._app.canvas.mpl_connect(
                 'motion_notify_event', self._on_range_select_motion
             )
-            self._range_select_release_cid = self.canvas.mpl_connect(
+            self._range_select_release_cid = self._app.canvas.mpl_connect(
                 'button_release_event', self._on_range_select_release
             )
-            self.statusBar().showMessage(
+            self._app.statusBar().showMessage(
                 "範囲選択モード: カレントデータセット上でドラッグした範囲を"
                 "マスク(除外)します", 5000
             )
         else:
             if getattr(self, '_range_select_press_cid', None) is not None:
-                self.canvas.mpl_disconnect(self._range_select_press_cid)
+                self._app.canvas.mpl_disconnect(self._range_select_press_cid)
                 self._range_select_press_cid = None
             if getattr(self, '_range_select_motion_cid', None) is not None:
-                self.canvas.mpl_disconnect(self._range_select_motion_cid)
+                self._app.canvas.mpl_disconnect(self._range_select_motion_cid)
                 self._range_select_motion_cid = None
             if getattr(self, '_range_select_release_cid', None) is not None:
-                self.canvas.mpl_disconnect(self._range_select_release_cid)
+                self._app.canvas.mpl_disconnect(self._range_select_release_cid)
                 self._range_select_release_cid = None
             self._clear_range_select_preview()
             self._range_select_axes = None
@@ -56,7 +76,7 @@ class RangeSelectMixin:
             except (ValueError, NotImplementedError):
                 pass
             self._range_select_preview_artist = None
-            self.canvas.draw_idle()
+            self._app.canvas.draw_idle()
         self._range_select_background = None
 
     def _on_range_select_press(self, event):
@@ -67,8 +87,8 @@ class RangeSelectMixin:
         self._range_select_axes = event.inaxes
         self._range_select_start_x = event.xdata
         # 始めに1回だけ背景を撮り、以降は選択の矩形だけを blit で描き直す(毎回全体を描くと系列が多いほど重い)
-        self.canvas.draw()
-        self._range_select_background = self.canvas.copy_from_bbox(event.inaxes.bbox)
+        self._app.canvas.draw()
+        self._range_select_background = self._app.canvas.copy_from_bbox(event.inaxes.bbox)
 
     def _on_range_select_motion(self, event):
         axes = getattr(self, '_range_select_axes', None)
@@ -94,12 +114,12 @@ class RangeSelectMixin:
         background = getattr(self, '_range_select_background', None)
         if background is None:
             # 背景が撮れていなければ全体を描き直す
-            self.canvas.draw_idle()
+            self._app.canvas.draw_idle()
             return
 
-        self.canvas.restore_region(background)
+        self._app.canvas.restore_region(background)
         axes.draw_artist(rect)
-        self.canvas.blit(axes.bbox)
+        self._app.canvas.blit(axes.bbox)
 
     def _on_range_select_release(self, event):
         axes = getattr(self, '_range_select_axes', None)
@@ -120,7 +140,7 @@ class RangeSelectMixin:
 
     def _apply_range_mask(self, axes, x_min, x_max):
         """[x_min, x_max] の点をマスクに加える。今のデータセットがこの軸に描かれていなければ、何もせず案内を出す。"""
-        dataset = self._get_current_dataset()
+        dataset = self._app._get_current_dataset()
         if dataset is None:
             notify.information(self, "範囲選択", "マスク対象のデータセットを選択してください。")
             return
@@ -128,13 +148,13 @@ class RangeSelectMixin:
         target_axis = dataset.subplot_target
         if dataset.use_secondary_y:
             expected_axes = (
-                self.all_secondary_axes[target_axis]
-                if 0 <= target_axis < len(self.all_secondary_axes) else None
+                self._app.all_secondary_axes[target_axis]
+                if 0 <= target_axis < len(self._app.all_secondary_axes) else None
             )
         else:
             expected_axes = (
-                self.all_axes[target_axis]
-                if 0 <= target_axis < len(self.all_axes) else None
+                self._app.all_axes[target_axis]
+                if 0 <= target_axis < len(self._app.all_axes) else None
             )
 
         if axes is not expected_axes:
@@ -145,8 +165,8 @@ class RangeSelectMixin:
             return
 
         # ドラッグの x はウォーターフォールのずらしが掛かった表示座標なので、データ座標に戻して比べる
-        data_x_min, _ = self.canvas.display_to_data(dataset, x_min, 0.0)
-        data_x_max, _ = self.canvas.display_to_data(dataset, x_max, 0.0)
+        data_x_min, _ = self._app.canvas.display_to_data(dataset, x_min, 0.0)
+        data_x_max, _ = self._app.canvas.display_to_data(dataset, x_max, 0.0)
 
         x_data = dataset.x_data
         visible_index = dataset.visible_df.index
@@ -164,8 +184,8 @@ class RangeSelectMixin:
             dataset, old_masked, new_masked,
             description=f"範囲選択でのマスク({len(newly_masked)}件)",
         )
-        self.undo_stack.push(command)
-        self._update_plot()
-        self.statusBar().showMessage(
+        self._app.undo_stack.push(command)
+        self._app._update_plot()
+        self._app.statusBar().showMessage(
             f"「{dataset.name}」の{len(newly_masked)}点をマスクしました", 3000
         )

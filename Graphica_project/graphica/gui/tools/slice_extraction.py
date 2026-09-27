@@ -23,23 +23,44 @@ _AXIS_KIND_LABELS = {
 }
 
 
-class SliceExtractionMixin:
+class SliceExtractionTool:
+    """状態はこのツールが持ち、PlotterApp の同じ名前は窓口(gui/tools/__init__.py)。"""
+
+    # PlotterApp から同じ名前で読み書きできるもの(テスト・メニュー・ほかの mixin が使う)
+    EXPOSED_NAMES = (
+        '_apply_slice_extraction', '_clear_slice_extraction_preview', '_create_slice_dataset',
+        '_on_slice_extraction_motion', '_on_slice_extraction_press', '_on_slice_extraction_release',
+        '_slice_extraction_axes', '_slice_extraction_motion_cid', '_slice_extraction_press_cid',
+        '_slice_extraction_preview_artist', '_slice_extraction_release_cid', '_slice_extraction_start',
+        '_toggle_slice_extraction_mode', 'slice_extraction_mode_enabled',
+    )
+
+    def __init__(self, app):
+        self._app = app
+        self.slice_extraction_mode_enabled = False
+        self._slice_extraction_press_cid = None
+        self._slice_extraction_motion_cid = None
+        self._slice_extraction_release_cid = None
+        self._slice_extraction_axes = None
+        self._slice_extraction_start = None         # (x, y) データ座標
+        self._slice_extraction_preview_artist = None
+
     def _toggle_slice_extraction_mode(self, checked):
         self.slice_extraction_mode_enabled = checked
 
         if checked:
-            self._deactivate_other_mouse_modes('slice_extraction')
+            self._app._deactivate_other_mouse_modes('slice_extraction')
 
-            self._slice_extraction_press_cid = self.canvas.mpl_connect(
+            self._slice_extraction_press_cid = self._app.canvas.mpl_connect(
                 'button_press_event', self._on_slice_extraction_press
             )
-            self._slice_extraction_motion_cid = self.canvas.mpl_connect(
+            self._slice_extraction_motion_cid = self._app.canvas.mpl_connect(
                 'motion_notify_event', self._on_slice_extraction_motion
             )
-            self._slice_extraction_release_cid = self.canvas.mpl_connect(
+            self._slice_extraction_release_cid = self._app.canvas.mpl_connect(
                 'button_release_event', self._on_slice_extraction_release
             )
-            self.statusBar().showMessage(
+            self._app.statusBar().showMessage(
                 "スライス抽出モード: カレントの2Dマップ上でドラッグした線分に沿って"
                 "1Dデータセットを抽出します", 5000
             )
@@ -48,7 +69,7 @@ class SliceExtractionMixin:
                          '_slice_extraction_release_cid'):
                 cid = getattr(self, attr, None)
                 if cid is not None:
-                    self.canvas.mpl_disconnect(cid)
+                    self._app.canvas.mpl_disconnect(cid)
                     setattr(self, attr, None)
             self._clear_slice_extraction_preview()
             self._slice_extraction_axes = None
@@ -63,7 +84,7 @@ class SliceExtractionMixin:
             except (ValueError, NotImplementedError):
                 pass
             self._slice_extraction_preview_artist = None
-            self.canvas.draw_idle()
+            self._app.canvas.draw_idle()
 
     def _on_slice_extraction_press(self, event):
         if not getattr(self, 'slice_extraction_mode_enabled', False):
@@ -85,7 +106,7 @@ class SliceExtractionMixin:
             color='#E4572E', linestyle='--', linewidth=1.5, zorder=100,
         )
         self._slice_extraction_preview_artist = line
-        self.canvas.draw_idle()
+        self._app.canvas.draw_idle()
 
     def _on_slice_extraction_release(self, event):
         axes = getattr(self, '_slice_extraction_axes', None)
@@ -107,7 +128,7 @@ class SliceExtractionMixin:
 
     def _apply_slice_extraction(self, axes, start, end):
         """今のデータセットが 2D の格子でないか、この軸に描かれていなければ、何もせず案内を出す。"""
-        dataset = self._get_current_dataset()
+        dataset = self._app._get_current_dataset()
         if dataset is None or dataset.data_kind != '2d_grid':
             notify.information(
                 self, "スライス抽出", "スライス抽出の対象となる2Dマップのデータセットを選択してください。"
@@ -117,13 +138,13 @@ class SliceExtractionMixin:
         target_axis = dataset.subplot_target
         if dataset.use_secondary_y:
             expected_axes = (
-                self.all_secondary_axes[target_axis]
-                if 0 <= target_axis < len(self.all_secondary_axes) else None
+                self._app.all_secondary_axes[target_axis]
+                if 0 <= target_axis < len(self._app.all_secondary_axes) else None
             )
         else:
             expected_axes = (
-                self.all_axes[target_axis]
-                if 0 <= target_axis < len(self.all_axes) else None
+                self._app.all_axes[target_axis]
+                if 0 <= target_axis < len(self._app.all_axes) else None
             )
         if axes is not expected_axes:
             notify.information(
@@ -166,14 +187,14 @@ class SliceExtractionMixin:
             provenance=build_provenance('2d_slice', params, [source_dataset]),
         )
 
-        original_item = self._get_dataset_tree_item(source_dataset)
+        original_item = self._app._get_dataset_tree_item(source_dataset)
         folder = original_item.parent() if original_item else None
 
         def add():
-            self.dataset_order.append(slice_dataset, folder)
-            self._update_plot()
+            self._app.dataset_order.append(slice_dataset, folder)
+            self._app._update_plot()
 
-        self._push_dataset_additions(add, [slice_dataset], "スライスの抽出")
-        self.statusBar().showMessage(
+        self._app._push_dataset_additions(add, [slice_dataset], "スライスの抽出")
+        self._app.statusBar().showMessage(
             f"「{source_dataset.name}」からスライスを抽出しました(X軸: {x_label})", 4000
         )

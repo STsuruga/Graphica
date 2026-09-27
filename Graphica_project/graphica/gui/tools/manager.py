@@ -38,38 +38,41 @@ MOUSE_MODES = (
 MOUSE_MODES_BY_NAME = {mode.name: mode for mode in MOUSE_MODES}
 
 
-class MouseModeMixin:
-    MOUSE_MODES = MOUSE_MODES
+class ToolManager:
+    """モードの排他。タブの MOUSE_MODES の表を見て、フラグ・QAction・切り替えはタブの名前(ツールへの窓口)で触る。"""
 
-    def _deactivate_other_mouse_modes(self, active_name):
+    def __init__(self, app):
+        self._app = app
+
+    def deactivate_others(self, active_name):
         """active_name 以外のモードを解除する。有効でないモードには何もしないので、解除から呼び戻されて循環しない。"""
         if active_name not in MOUSE_MODES_BY_NAME:
             # 表への登録漏れ。動作は続けるが、開発中に気づけるようログに残す
             logger.warning(
-                "未登録のマウスモード名です: %s (gui/mixins/mouse_mode_mixin.py の "
+                "未登録のマウスモード名です: %s (gui/tools/manager.py の "
                 "MOUSE_MODES に追加してください)", active_name
             )
 
-        for mode in self.MOUSE_MODES:
+        for mode in self._app.MOUSE_MODES:
             if mode.name == active_name:
                 continue
-            if not getattr(self, mode.flag_attr, False):
+            if not getattr(self._app, mode.flag_attr, False):
                 continue
 
-            action = getattr(self, mode.action_attr, None)
+            action = getattr(self._app, mode.action_attr, None)
             if action is not None:
                 action.setChecked(False)
 
-            toggle = getattr(self, mode.toggle_method, None)
+            toggle = getattr(self._app, mode.toggle_method, None)
             if callable(toggle):
                 toggle(False)
             else:
                 # メソッドが無くても、フラグは落として「2つ有効」を残さない
-                setattr(self, mode.flag_attr, False)
+                setattr(self._app, mode.flag_attr, False)
 
-    def _active_mouse_mode(self):
+    def active_name(self):
         """有効なモードの名前。無ければ None。"""
-        for mode in self.MOUSE_MODES:
-            if getattr(self, mode.flag_attr, False):
+        for mode in self._app.MOUSE_MODES:
+            if getattr(self._app, mode.flag_attr, False):
                 return mode.name
         return None

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication
 
 import graphica.gui.app_settings as app_settings_module
 from graphica.gui.main_window import PlotterApp
-from graphica.gui.mixins.mouse_mode_mixin import MOUSE_MODES, MOUSE_MODES_BY_NAME
+from graphica.gui.tools import MOUSE_MODES, MOUSE_MODES_BY_NAME
 
 MODE_NAMES = [mode.name for mode in MOUSE_MODES]
 

@@ -15,10 +15,10 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QInputDialog, QMessageBox
 
 import graphica.gui.app_settings as app_settings_module
-import graphica.gui.mixins.annotation_mixin as annotation_mixin_module
+import graphica.gui.tools.annotation as annotation_mixin_module
 from graphica.gui.main_window import PlotterApp
 from graphica.gui.app_settings import DEFAULT_SNAP_GRID_INTERVAL_PX, DEFAULT_SNAP_TO_GRID_ENABLED
-from graphica.gui.mixins.annotation_mixin import AnnotationMixin
+from graphica.gui.tools.annotation import AnnotationTool
 from graphica.gui.dialogs import ArrowAnnotationDialog
 
 
@@ -41,7 +41,7 @@ def _patch_arrow_dialog(monkeypatch, text="", style="single", curvature=0.0, acc
     monkeypatch.setattr(annotation_mixin_module, "ArrowAnnotationDialog", FakeArrowAnnotationDialog)
 
 
-class _SnapHost(AnnotationMixin):
+class _SnapHost(AnnotationTool):
     """_snap_point_to_grid だけを単体テストするための最小ホスト。"""
     def __init__(self, snap_to_grid_enabled, snap_grid_interval_px):
         self.snap_to_grid_enabled = snap_to_grid_enabled
