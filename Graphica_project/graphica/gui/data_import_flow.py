@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 SUPPORTED_DATA_FILE_EXTENSIONS = BUILTIN_DATA_FILE_EXTENSIONS
+# ドロップで開くプロジェクト。旧形式の .pkl は使われていないので含めない
+DROPPABLE_PROJECT_EXTENSION = '.graphica'
 
 
 def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, max_scan_cells=200_000):
@@ -36,8 +38,26 @@ def dragEnterEvent(app, event):
 def dropEvent(app, event):
     urls = event.mimeData().urls()
     file_paths = [url.toLocalFile() for url in urls if url.toLocalFile()]
-    if file_paths:
-        app._queue_data_files(file_paths)
+    project_paths = [p for p in file_paths if p.lower().endswith(DROPPABLE_PROJECT_EXTENSION)]
+    data_paths = [p for p in file_paths if not p.lower().endswith(DROPPABLE_PROJECT_EXTENSION)]
+    # 先にプロジェクトを開く。一緒に落としたデータはそのプロジェクトに加わる
+    if project_paths:
+        open_dropped_project(app, project_paths)
+    if data_paths:
+        app._queue_data_files(data_paths)
+
+
+def open_dropped_project(app, project_paths):
+    """1 つのタブに開けるプロジェクトは 1 つなので、2 つ目以降は開かずに知らせる。"""
+    if len(project_paths) > 1:
+        notify.information(
+            app, "プロジェクトを開く",
+            "一度に開けるプロジェクトは 1 つです。次のファイルだけを開きます:\n"
+            + os.path.basename(project_paths[0])
+        )
+    if not app.confirm_unsaved_changes("別のプロジェクトを開く"):
+        return
+    app._load_project_from_path(project_paths[0])
 
 
 def all_supported_data_file_extensions(app):
