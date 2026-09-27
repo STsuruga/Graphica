@@ -1,4 +1,6 @@
 """タイトルと軸ラベルのテキスト(mathtext を含む)を、グラフと同じ matplotlib の描画で QPixmap にする。"""
+import re
+
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -14,12 +16,53 @@ _CROP_PADDING_PX = 3
 # ("Yu Gothic UI")は matplotlib では見つからないので使わない。先頭から順にグリフのあるフォントが使われ、
 # 無い名前は飛ばされるので OS ごとの候補を並べる(Yu Gothic などは Windows、Hiragino は macOS、Noto は Linux)。
 # グラフ本体の既定フォント(main_window の PLOT_DEFAULT_FONT_FAMILIES)と注釈(rendering/annotations.py)もこれを使う。
-# $...$ を含む文字列では mathtext が独自のフォントで描くので、日本語は □ になる(mathtext.fontset は
-# プロセス全体の設定で、変えると全部の描画に効くので触らない)。
+# $...$ を含む文字列の数式の外の文字は、候補の先頭 1 つで描かれる(families_for_text)。mathtext.fontset は
+# プロセス全体の設定で、変えると全部の描画に効くので触らない。
 JP_CAPABLE_FONT_FAMILIES = [
     "DejaVu Sans", "Yu Gothic", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
     "Meiryo", "MS Gothic", "Noto Sans CJK JP",
 ]
+
+_CJK_PATTERN = re.compile(r"[\u3000-\u30ff\u3400-\u9fff\uf900-\ufaff\uff00-\uffef]")
+# 数式の外の文字を描ける日本語の字体(DejaVu Sans は日本語を持たない)
+_JAPANESE_FONT_FAMILIES = [f for f in JP_CAPABLE_FONT_FAMILIES if f != "DejaVu Sans"]
+
+
+def _has_mathtext(text):
+    """エスケープしていない $ が 2 つ以上あれば、matplotlib はその文字列を数式として描く。"""
+    return len(re.findall(r"(?<!\\)\$", text)) >= 2
+
+
+def families_for_text(text, families):
+    """数式を含む文字列では、matplotlib は数式の外の文字を字体の候補の先頭 1 つだけで描く(ほかの候補に頼らない)。
+    日本語と数式を混ぜたときだけ、日本語の字体を先頭に置いて □ にならないようにする。それ以外は families のまま。"""
+    if not text or not _CJK_PATTERN.search(text) or not _has_mathtext(text):
+        return families
+    if isinstance(families, str):
+        families = [families]
+    families = list(families or [])
+    if families and families[0].lower() in {f.lower() for f in _JAPANESE_FONT_FAMILIES}:
+        return families
+    return _JAPANESE_FONT_FAMILIES + [f for f in families if f not in _JAPANESE_FONT_FAMILIES]
+
+
+def families_for_texts(texts, families):
+    """凡例のように 1 つの字体で複数の文字列を描くとき。どれかが日本語と数式を混ぜていれば、その並びにする。"""
+    for text in texts:
+        adjusted = families_for_text(text, families)
+        if adjusted is not families:
+            return adjusted
+    return families
+
+
+def font_kwargs_for_text(text, font_kwargs):
+    """ax.set_title(text, **font_kwargs) などに渡す字体の辞書を、families_for_text() に合わせて返す(元は変えない)。"""
+    family = font_kwargs.get('family') if font_kwargs else None
+    adjusted = families_for_text(text, family)
+    if adjusted is family:
+        return font_kwargs
+    return dict(font_kwargs, family=adjusted)
+
 
 # これより小さくすると読めないので、そこからは pixmap ごと縮める
 _MIN_FONTSIZE = 7
@@ -50,7 +93,7 @@ def _render_once(text, color, fontsize, dpi):
     display_text = text if text else " "
     try:
         fig.text(0.01, 0.5, display_text, fontsize=fontsize, color=color,
-                  family=JP_CAPABLE_FONT_FAMILIES, va='center', ha='left')
+                  family=families_for_text(display_text, JP_CAPABLE_FONT_FAMILIES), va='center', ha='left')
         canvas.draw()
     except ValueError:  # mathtext の構文エラー。$ をそのまま文字として描き直す
         fig = Figure(figsize=_CANVAS_SIZE_INCHES, dpi=dpi)
