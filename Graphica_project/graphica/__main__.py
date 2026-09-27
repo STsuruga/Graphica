@@ -5,7 +5,7 @@ import logging
 # Win32 の SetProcessDpiAwareness() を呼ばないこと。DPI の認識モードはプロセスで1回しか設定できず、
 # 先に呼ぶと Qt の設定が失敗して、描画とクリックの位置がずれる。
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QGuiApplication
 
@@ -55,6 +55,13 @@ def main():
     app_font.setPointSizeF(APP_FONT_POINT_SIZE)
     app.setFont(app_font)
 
+    # ファイルを開いて起動されたとき、すでに起動中の Graphica があればそちらの新しいタブで開いて、こちらは終わる
+    from graphica.gui.single_instance import (FileOpenEventFilter, InstanceServer, files_to_open, instance_running,
+                                              send_to_running_instance)
+    launch_files = files_to_open(sys.argv)
+    if launch_files and send_to_running_instance(launch_files):
+        return
+
     settings = app_settings.open_settings()
     # 起動画面の文字の言語。最初のタブも同じ値で設定し直す
     set_language(app_settings.LANGUAGE.read(settings))
@@ -83,6 +90,19 @@ def main():
     window.show()
     # 復元の確認やようこそ画面は、イベントループが回ってから出るので、その前に閉じる
     splash.finish(window)
+
+    # あとから起動したアプリが送ってきたファイルは新しいタブで開く。ほかの Graphica がすでに受け付けていれば譲る
+    instance_server = InstanceServer(parent=window)
+    if not instance_running():
+        instance_server.listen()
+    instance_server.open_requested.connect(window.open_files)
+    # macOS の Finder から開いたファイル(起動のきっかけになったものも、起動中のものも)
+    file_open_filter = FileOpenEventFilter(window)
+    file_open_filter.open_requested.connect(lambda paths: window.open_files(paths, reuse_empty_tab=True))
+    app.installEventFilter(file_open_filter)
+    if launch_files:
+        # 復元の確認などの後に開く(どちらもイベントループが回ってから順に動く)
+        QTimer.singleShot(0, lambda: window.open_files(launch_files, reuse_empty_tab=True))
 
     sys.exit(app.exec())
 
