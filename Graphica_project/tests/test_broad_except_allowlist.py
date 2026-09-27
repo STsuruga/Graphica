@@ -15,7 +15,7 @@ ALLOWED = {
     "graphica/core/excel_utils.py": 1,
     "graphica/core/fit_models.py": 1,
     "graphica/core/plugin_api.py": 3,
-    "graphica/gui/canvas.py": 4,
+    "graphica/gui/canvas.py": 2,
     "graphica/gui/crash_handler.py": 1,
     "graphica/gui/data_editor.py": 8,
     "graphica/gui/data_import_flow.py": 3,
@@ -36,6 +36,8 @@ ALLOWED = {
     "graphica/gui/mixins/settings_mixin.py": 1,
     "graphica/gui/plugin_context.py": 1,
     "graphica/gui/project_files.py": 3,
+    "graphica/gui/rendering/annotations.py": 1,
+    "graphica/gui/rendering/data_1d.py": 1,
     "graphica/gui/task_runner.py": 1,
     "graphica/gui/workers.py": 1,
 }

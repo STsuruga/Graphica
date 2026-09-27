@@ -75,6 +75,7 @@ packages = [
     "graphica.gui.datasets.operations",
     "graphica.gui.dialogs",
     "graphica.gui.mixins",
+    "graphica.gui.rendering",
     "graphica.models",
     "graphica.assets",
     "graphica.assets.icons",
