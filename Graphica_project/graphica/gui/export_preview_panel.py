@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout,
                                QLabel, QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox,
                                QPushButton, QApplication)
 
+from graphica.core.i18n import tr
 from graphica.gui import notify
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.export_settings import export_rc_params
@@ -46,7 +47,9 @@ class ExportPreviewPanel(QWidget):
         form.addRow("高さ", self.height_spinbox)
 
         self.unit_combo = QComboBox()
-        self.unit_combo.addItems(["ピクセル (px)", "インチ (in)", "センチメートル (cm)"])
+        # 値は日本語の元の文字(書き出しの処理がそれで単位を見分ける)。表示だけを訳す
+        for unit in ("ピクセル (px)", "インチ (in)", "センチメートル (cm)"):
+            self.unit_combo.addItem(tr(unit), unit)
         form.addRow("単位", self.unit_combo)
 
         self.dpi_spinbox = QSpinBox()
@@ -117,7 +120,7 @@ class ExportPreviewPanel(QWidget):
         return {
             "width": self.width_spinbox.value(),
             "height": self.height_spinbox.value(),
-            "unit": self.unit_combo.currentText(),
+            "unit": self.unit_combo.currentData(),
             "dpi": self.dpi_spinbox.value(),
             "transparent": self.transparent_checkbox.isChecked(),
             "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),

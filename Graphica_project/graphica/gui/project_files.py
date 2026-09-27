@@ -3,6 +3,7 @@ import logging
 import os
 from PySide6.QtWidgets import QDialog, QMessageBox
 from datetime import datetime
+from graphica.core.i18n import tr
 from graphica.core.app_paths import get_app_data_dir
 from graphica.gui import app_settings, notify
 from graphica.gui.dialogs import AutosaveHistoryDialog
@@ -320,7 +321,7 @@ def update_recent_files_menu(app):
         files = app._get_recent_files()
 
         if not files:
-            empty_action = app.recent_files_menu.addAction("(履歴なし)")
+            empty_action = app.recent_files_menu.addAction(tr("(履歴なし)"))
             empty_action.setEnabled(False)
             return
 
@@ -329,7 +330,7 @@ def update_recent_files_menu(app):
             action.triggered.connect(lambda checked=False, p=file_path: app._on_open_recent_file(p))
 
         app.recent_files_menu.addSeparator()
-        clear_action = app.recent_files_menu.addAction("履歴をクリア")
+        clear_action = app.recent_files_menu.addAction(tr("履歴をクリア"))
         clear_action.triggered.connect(app._on_clear_recent_files)
     except RuntimeError:
         # まれにメニューの C++ 側が破棄済みのことがある(PySide6 の回収、原因は未特定)。表示が古いだけなので落とさない

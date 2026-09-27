@@ -2754,10 +2754,10 @@
     {
      "class": "QComboBox",
      "items": [
-      "ピクセル (px)",
-      "インチ (in)",
-      "センチメートル (cm)",
-      "ミリメートル (mm)"
+      "Pixels (px)",
+      "Inches (in)",
+      "Centimeters (cm)",
+      "Millimeters (mm)"
      ],
      "current": 0,
      "visible": true,
@@ -4388,13 +4388,13 @@
  "NamedColorManagerDialog": {
   "tree": {
    "class": "NamedColorManagerDialog",
-   "window_title": "色名の管理",
+   "window_title": "Manage Color Names",
    "visible": false,
    "enabled": true,
    "children": [
     {
      "class": "QLabel",
-     "text": "よく使う色に名前を付けて登録します。データセットの色欄でスウォッチを押すと、ここに登録した色を名前から選べます。",
+     "text": "Give names to colors you use often. Click the swatch in a dataset's color field to pick them by name.",
      "visible": true,
      "enabled": true
     },
@@ -4413,37 +4413,37 @@
     },
     {
      "class": "QPushButton",
-     "text": "追加...",
+     "text": "Add...",
      "visible": true,
      "enabled": true
     },
     {
      "class": "QPushButton",
-     "text": "編集...",
+     "text": "Edit...",
      "visible": true,
      "enabled": true
     },
     {
      "class": "QPushButton",
-     "text": "削除",
+     "text": "Delete",
      "visible": true,
      "enabled": true
     },
     {
      "class": "QPushButton",
-     "text": "上へ",
+     "text": "Up",
      "visible": true,
      "enabled": true
     },
     {
      "class": "QPushButton",
-     "text": "下へ",
+     "text": "Down",
      "visible": true,
      "enabled": true
     },
     {
      "class": "QLabel",
-     "text": "並び順は、色欄のポップアップにそのまま反映されます。",
+     "text": "The order here is the order in the color popup.",
      "visible": true,
      "enabled": true
     },
@@ -4467,7 +4467,7 @@
  "NamedColorPickerDialog": {
   "tree": {
    "class": "NamedColorPickerDialog",
-   "window_title": "登録色を選択",
+   "window_title": "Choose a Registered Color",
    "visible": false,
    "enabled": true,
    "children": [
@@ -4524,25 +4524,25 @@
  "NewDatasetDialog": {
   "tree": {
    "class": "NewDatasetDialog",
-   "window_title": "新規データセットを作成",
+   "window_title": "Create New Dataset",
    "visible": false,
    "enabled": true,
    "children": [
     {
      "class": "QLabel",
-     "text": "データセット名",
+     "text": "Dataset name",
      "visible": true,
      "enabled": true
     },
     {
      "class": "QLineEdit",
-     "text": "新規データセット",
+     "text": "New dataset",
      "visible": true,
      "enabled": true
     },
     {
      "class": "QLabel",
-     "text": "列名 (カンマ区切り)",
+     "text": "Column names (comma-separated)",
      "visible": true,
      "enabled": true
     },
@@ -4551,11 +4551,11 @@
      "text": "X, Y",
      "visible": true,
      "enabled": true,
-     "tooltip": "カンマ区切りで列名を入力してください(例: X, Y, 誤差)"
+     "tooltip": "Enter column names separated by commas (e.g. X, Y, Error)"
     },
     {
      "class": "QLabel",
-     "text": "初期の空行数",
+     "text": "Initial empty rows",
      "visible": true,
      "enabled": true
     },
@@ -5156,19 +5156,19 @@
          "children": [
           {
            "class": "QPushButton",
-           "text": "プラグインをインストール...",
+           "text": "Install Plugin...",
            "visible": false,
            "enabled": true
           },
           {
            "class": "QPushButton",
-           "text": "プラグインフォルダを開く",
+           "text": "Open Plugin Folder",
            "visible": false,
            "enabled": true
           },
           {
            "class": "QGroupBox",
-           "title": "読み込み済みプラグイン",
+           "title": "Loaded plugins",
            "visible": false,
            "enabled": true,
            "children": [
@@ -5189,7 +5189,7 @@
           },
           {
            "class": "QGroupBox",
-           "title": "フック単位の登録エラー",
+           "title": "Registration errors per hook",
            "visible": false,
            "enabled": true,
            "children": [
@@ -5321,7 +5321,7 @@
             },
             {
              "class": "QLabel",
-             "text": "オートセーブ保存先",
+             "text": "Autosave folder",
              "visible": true,
              "enabled": true
             },
@@ -5333,13 +5333,13 @@
             },
             {
              "class": "QPushButton",
-             "text": "参照...",
+             "text": "Browse...",
              "visible": true,
              "enabled": true
             },
             {
              "class": "QPushButton",
-             "text": "既定に戻す",
+             "text": "Reset to Default",
              "visible": true,
              "enabled": true
             }
@@ -5347,27 +5347,27 @@
           },
           {
            "class": "QGroupBox",
-           "title": "パフォーマンス",
+           "title": "Performance",
            "visible": true,
            "enabled": true,
            "children": [
             {
              "class": "QLabel",
-             "text": "データ点ラベルの表示上限",
+             "text": "Point label limit",
              "visible": true,
              "enabled": true
             },
             {
              "class": "QSpinBox",
-             "value": "1000 点",
+             "value": "1000 points",
              "visible": true,
              "enabled": true,
-             "tooltip": "データ点にラベルを表示する機能は、データ点数が多いと描画が重くなり、アプリがフリーズする場合があります。この件数を超えるデータセットには、ラベルを有効にしていても自動的に表示しません。",
+             "tooltip": "Labelling data points slows drawing down and can freeze the app for large datasets. Datasets with more points than this are not labelled even when labels are turned on.",
              "children": [
               {
                "class": "QLineEdit",
                "name": "qt_spinbox_lineedit",
-               "text": "1000 点",
+               "text": "1000 points",
                "visible": true,
                "enabled": true
               }
@@ -5377,20 +5377,20 @@
           },
           {
            "class": "QGroupBox",
-           "title": "注釈",
+           "title": "Annotations",
            "visible": true,
            "enabled": true,
            "children": [
             {
              "class": "QCheckBox",
-             "text": "スナップ・トゥ・グリッドを有効にする",
+             "text": "Snap to grid",
              "checked": false,
              "visible": true,
              "enabled": true
             },
             {
              "class": "QLabel",
-             "text": "グリッド間隔",
+             "text": "Grid spacing",
              "visible": true,
              "enabled": true
             },
@@ -5465,13 +5465,13 @@
  "QuickAccessManagerDialog": {
   "tree": {
    "class": "QuickAccessManagerDialog",
-   "window_title": "クイックアクセスの管理",
+   "window_title": "Manage Quick Access",
    "visible": false,
    "enabled": true,
    "children": [
     {
      "class": "QLabel",
-     "text": "チェックした項目がクイックアクセスツールバーに表示されます。",
+     "text": "Checked items appear on the Quick Access toolbar.",
      "visible": true,
      "enabled": true
     },
@@ -6289,7 +6289,7 @@
     },
     {
      "class": "QPushButton",
-     "text": "書式テンプレートを開く...",
+     "text": "Open Style Template...",
      "visible": true,
      "enabled": true
     },
