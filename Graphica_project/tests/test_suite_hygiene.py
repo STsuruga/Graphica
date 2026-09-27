@@ -182,6 +182,29 @@ def test_app_settings_go_to_a_per_test_ini_not_the_registry(isolated_settings_fi
     assert QSettings("Graphica", "Graphica").value("probe") == "1"
 
 
+def test_app_data_goes_to_a_temporary_folder_not_the_users(tmp_path):
+    """オートセーブ・ログ・入れたプラグインの場所は、利用者の %LOCALAPPDATA%\Graphica ではなく一時フォルダ。"""
+    import tempfile
+
+    from graphica.core.app_paths import get_app_data_dir, get_user_plugins_dir
+
+    temp_root = Path(tempfile.gettempdir()).resolve()
+    assert temp_root in Path(get_app_data_dir()).resolve().parents
+    assert temp_root in Path(get_user_plugins_dir()).resolve().parents
+
+
+def test_a_tab_autosaves_into_the_temporary_folder(tmp_path):
+    import tempfile
+
+    from graphica.gui.main_window import PlotterApp
+
+    window = PlotterApp(run_startup_checks=False, tab_id=2)
+    try:
+        assert Path(tempfile.gettempdir()).resolve() in Path(window._autosave_filename).resolve().parents
+    finally:
+        window.close()
+
+
 def test_each_test_starts_from_empty_settings():
     from PySide6.QtCore import QSettings
 
