@@ -3522,7 +3522,7 @@
                               "children": [
                                {
                                 "class": "QCheckBox",
-                                "text": "自動スケール",
+                                "text": "Autoscale",
                                 "checked": true,
                                 "visible": false,
                                 "enabled": true,
@@ -3532,7 +3532,7 @@
                                },
                                {
                                 "class": "QLabel",
-                                "text": "最小値",
+                                "text": "Minimum",
                                 "visible": false,
                                 "enabled": true
                                },
@@ -3560,7 +3560,7 @@
                                },
                                {
                                 "class": "QLabel",
-                                "text": "最大値",
+                                "text": "Maximum",
                                 "visible": false,
                                 "enabled": true
                                },
@@ -3588,7 +3588,7 @@
                                },
                                {
                                 "class": "QCheckBox",
-                                "text": "対数表示",
+                                "text": "Log scale",
                                 "checked": false,
                                 "visible": false,
                                 "enabled": true,
@@ -3598,7 +3598,7 @@
                                },
                                {
                                 "class": "QCheckBox",
-                                "text": "軸を反転",
+                                "text": "Invert axis",
                                 "checked": false,
                                 "visible": false,
                                 "enabled": true,
@@ -3608,15 +3608,15 @@
                                },
                                {
                                 "class": "QLabel",
-                                "text": "主目盛",
+                                "text": "Major ticks",
                                 "visible": false,
                                 "enabled": true
                                },
                                {
                                 "class": "QComboBox",
                                 "items": [
-                                 "自動",
-                                 "固定間隔"
+                                 "Auto",
+                                 "Fixed interval"
                                 ],
                                 "current": 0,
                                 "visible": false,
@@ -3669,7 +3669,7 @@
                                },
                                {
                                 "class": "QLabel",
-                                "text": "間隔",
+                                "text": "Interval",
                                 "visible": false,
                                 "enabled": true
                                },
@@ -3697,7 +3697,7 @@
                                },
                                {
                                 "class": "QCheckBox",
-                                "text": "補助目盛を表示",
+                                "text": "Show minor ticks",
                                 "checked": false,
                                 "visible": false,
                                 "enabled": true,
