@@ -12,7 +12,7 @@ body:
     attributes:
       label: Graphica のバージョン
       description: ヘルプ ▸ Graphica について... で確認できます。
-      placeholder: 例) 1.4.2
+      placeholder: 例) 2.0.0
     validations:
       required: true
 

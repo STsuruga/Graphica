@@ -1,5 +1,5 @@
 ﻿; Graphica の Windows インストーラー(Inno Setup 6)。CI が PyInstaller の出力 dist\Graphica\ から作る。
-;   iscc /DAppVersion=1.4.2 installer\graphica.iss
+;   iscc /DAppVersion=2.0.0 installer\graphica.iss
 ; 関連付けの名前(Graphica.Project と .gra / .graphica)は graphica/gui/file_association.py と同じにする。
 ; 環境設定のボタンで登録した人がインストーラーで入れ直しても、同じキーを上書きするだけで二重にならない。
 

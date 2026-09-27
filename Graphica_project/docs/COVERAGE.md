@@ -1,6 +1,6 @@
 # テストカバレッジ
 
-計測日: 2026-09-20  
+計測日: 2026-09-28  
 対象: `graphica`(設定は `pyproject.toml` の `[tool.coverage.*]`)
 
 このファイルは `bash scripts/run_coverage.sh` が自動生成する。手で編集しても次回の実行で上書きされる。
@@ -12,32 +12,37 @@ CI が master への push ごとに更新する。このファイルの数字は
 
 | 指標 | 値 |
 |---|---|
-| 行カバレッジ | **93.8%** (14,769 / 15,562 行) |
-| 分岐カバレッジ | 89.2% (3,541 / 3,968) |
-| 対象ファイル数 | 99 |
+| 行カバレッジ | **95.3%** (16,093 / 16,676 行) |
+| 分岐カバレッジ | 90.3% (3,716 / 4,114) |
+| 対象ファイル数 | 134 |
 
 ## パッケージ別
 
 | パッケージ | ファイル | 行カバレッジ |
 |---|---:|---:|
-| `graphica` | 2 | 46.2% |
+| `graphica` | 2 | 27.0% |
 | `graphica/assets` | 1 | 0.0% |
 | `graphica/assets/icons` | 1 | 0.0% |
-| `graphica/core` | 31 | 97.1% |
-| `graphica/gui` | 24 | 96.8% |
-| `graphica/gui/datasets` | 11 | 94.2% |
-| `graphica/gui/dialogs` | 7 | 91.2% |
-| `graphica/gui/mixins` | 16 | 94.6% |
-| `graphica/models` | 2 | 99.3% |
+| `graphica/core` | 32 | 97.4% |
+| `graphica/gui` | 37 | 96.3% |
+| `graphica/gui/builders` | 6 | 99.3% |
+| `graphica/gui/datasets` | 12 | 97.7% |
+| `graphica/gui/datasets/operations` | 6 | 96.3% |
+| `graphica/gui/dialogs` | 7 | 97.6% |
+| `graphica/gui/mixins` | 6 | 95.4% |
+| `graphica/gui/panels` | 3 | 92.4% |
+| `graphica/gui/rendering` | 6 | 98.7% |
+| `graphica/gui/tools` | 9 | 94.2% |
+| `graphica/models` | 2 | 99.1% |
 | `graphica/plugin` | 2 | 95.8% |
-| `graphica/plugins/example_plugin` | 1 | 46.7% |
+| `graphica/plugins/example_plugin` | 1 | 66.7% |
 | `graphica/sample_data` | 1 | 0.0% |
 
 ## カバーが薄いモジュール(行カバレッジ 60% 未満、20行以上のもの)
 
 | モジュール | 行カバレッジ | 行数 |
 |---|---:|---:|
-| `graphica\__main__.py` | 41.9% | 39 |
+| `graphica\__main__.py` | 22.7% | 63 |
 
 ## 数字の読み方
 
