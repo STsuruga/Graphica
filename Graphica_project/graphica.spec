@@ -162,5 +162,13 @@ if IS_MACOS:
             "CFBundleShortVersionString": APP_VERSION,
             "CFBundleVersion": APP_VERSION,
             "NSHighResolutionCapable": True,
+            # Finder で .gra / .graphica を開くと、このアプリに QFileOpenEvent が届く
+            "CFBundleDocumentTypes": [{
+                "CFBundleTypeName": "Graphica Project",
+                "CFBundleTypeExtensions": ["gra", "graphica"],
+                "CFBundleTypeRole": "Editor",
+                "LSHandlerRank": "Owner",
+                "CFBundleTypeIconFile": "Graphica.icns",
+            }],
         },
     )
