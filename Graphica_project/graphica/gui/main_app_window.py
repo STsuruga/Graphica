@@ -15,6 +15,7 @@ from graphica.gui.main_window import PlotterApp, resource_path
 from graphica.gui.icon_utils import icon as svg_icon
 from graphica.gui import theme
 from graphica.core.version import APP_NAME, __version__
+from graphica.models.project import LEGACY_PICKLE_EXTENSION, PROJECT_FILE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +120,37 @@ class MainAppWindow(QMainWindow):
         self.tab_widget.setCurrentIndex(index)
         project_window.show()
         return project_window
+
+    def open_files(self, paths, reuse_empty_tab=False):
+        """外から渡されたファイル(起動の引数・起動中のアプリへの受け渡し・macOS の Finder)を開く。
+
+        プロジェクトは 1 つずつ新しいタブに開き、データファイルは最後に開いたタブ(無ければ新しいタブ)に加える。
+        reuse_empty_tab なら、今のタブが空で未保存の変更も無いときだけ最初のプロジェクトをそこに開く(起動直後)。
+        """
+        project_suffixes = PROJECT_FILE_EXTENSIONS + (LEGACY_PICKLE_EXTENSION,)
+        project_paths = [p for p in paths if p.lower().endswith(project_suffixes)]
+        data_paths = [p for p in paths if not p.lower().endswith(project_suffixes)]
+
+        target = None
+        current = self.tab_widget.currentWidget()
+        if reuse_empty_tab and current is not None and not current.project.datasets \
+                and not current.has_unsaved_changes():
+            target = current
+        for index, path in enumerate(project_paths):
+            if target is None or index > 0:
+                target = self.add_new_project_tab()
+            target._load_project_from_path(path)
+        if data_paths:
+            if target is None:
+                target = current if reuse_empty_tab and current is not None else self.add_new_project_tab()
+            target._queue_data_files(data_paths)
+        self.bring_to_front()
+
+    def bring_to_front(self):
+        if self.isMinimized():
+            self.showNormal()
+        self.raise_()
+        self.activateWindow()
 
     def _tab_title_for(self, project_window):
         return project_window.document_title()

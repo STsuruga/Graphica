@@ -191,7 +191,11 @@ Graphica は、CSV/Excel などのファイルからデータを読み込み、�
 [Releases](https://github.com/STsuruga/Graphica/releases) から、お使いのOSの
 ファイルをダウンロードしてください。インストール作業は不要です。
 
-* **Windows**: zip を展開し、中の `Graphica.exe` を実行します。
+* **Windows**: インストーラー(`Graphica-<版>-setup.exe`)で入れるか、zip を展開して中の `Graphica.exe` を実行します。
+  インストーラーは管理者権限なしで入れられ、`.gra` と `.graphica` のファイルをダブルクリックで開けるようにします
+  (アンインストールで元に戻ります)。zip から使う場合は、**編集 ▸ 環境設定** の「ファイルの関連付け」で同じ登録ができます。
+* **ファイルを開いて起動**: プロジェクトファイルをダブルクリックすると Graphica が開きます。Graphica がすでに起動していれば、
+  そのウィンドウの新しいタブで開きます。macOS では Finder から開くか、`Graphica.app` にドロップしてください。
 * **macOS**: zip を展開し、`Graphica.app` を「アプリケーション」へ移動します。
   **署名していないため、初回は右クリック(またはControlキーを押しながらクリック)して
   「開く」を選んでください。** ダブルクリックだけでは Gatekeeper に阻まれます。

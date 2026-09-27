@@ -135,6 +135,26 @@ class PreferencesDialog(QDialog):
         annotation_layout.addLayout(annotation_form)
         layout.addWidget(annotation_group)
 
+        # exe だけを置いた人向け。インストーラーで入れた人はインストーラーが登録・解除する
+        association_group = QGroupBox(tr("ファイルの関連付け"))
+        association_layout = QVBoxLayout(association_group)
+        self.file_association_status_label = QLabel()
+        self.file_association_status_label.setWordWrap(True)
+        association_layout.addWidget(self.file_association_status_label)
+        association_buttons = QHBoxLayout()
+        self.register_file_association_button = QPushButton(tr(".gra と .graphica を Graphica で開く"))
+        self.register_file_association_button.clicked.connect(self._on_register_file_association)
+        self.register_file_association_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        association_buttons.addWidget(self.register_file_association_button)
+        self.unregister_file_association_button = QPushButton(tr("関連付けを解除"))
+        self.unregister_file_association_button.clicked.connect(self._on_unregister_file_association)
+        self.unregister_file_association_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        association_buttons.addWidget(self.unregister_file_association_button)
+        association_buttons.addStretch()
+        association_layout.addLayout(association_buttons)
+        layout.addWidget(association_group)
+        self._refresh_file_association_state()
+
         layout.addStretch()
 
         plugin_tab = QWidget()
@@ -240,6 +260,40 @@ class PreferencesDialog(QDialog):
             if name is not None and item.checkState() == Qt.CheckState.Unchecked:
                 disabled.add(name)
         return disabled
+
+    def _refresh_file_association_state(self):
+        from graphica.core.i18n import tr
+        from graphica.gui import file_association
+
+        supported = file_association.is_supported()
+        registered = supported and file_association.is_registered()
+        if not supported:
+            text = tr("Windows の Graphica.exe から起動したときだけ登録できます。")
+        elif registered:
+            text = tr(".gra と .graphica のファイルは、ダブルクリックで Graphica が開きます。")
+        else:
+            text = tr("登録すると、.gra と .graphica のファイルをダブルクリックで開けます(この利用者だけ)。")
+        self.file_association_status_label.setText(text)
+        self.register_file_association_button.setEnabled(supported and not registered)
+        self.unregister_file_association_button.setEnabled(registered)
+
+    def _on_register_file_association(self):
+        from graphica.core.i18n import tr
+        from graphica.gui import file_association
+        try:
+            file_association.register()
+        except OSError as e:
+            notify.critical(self, tr("ファイルの関連付け"), tr("登録できませんでした:\n{error}").format(error=e))
+        self._refresh_file_association_state()
+
+    def _on_unregister_file_association(self):
+        from graphica.core.i18n import tr
+        from graphica.gui import file_association
+        try:
+            file_association.unregister()
+        except OSError as e:
+            notify.critical(self, tr("ファイルの関連付け"), tr("解除できませんでした:\n{error}").format(error=e))
+        self._refresh_file_association_state()
 
     def _on_open_plugins_folder(self):
         from graphica.core.app_paths import get_user_plugins_dir

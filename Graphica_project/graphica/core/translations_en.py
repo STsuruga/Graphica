@@ -513,6 +513,18 @@ TRANSLATIONS = {
     "チェックした項目がクイックアクセスツールバーに表示されます。": "Checked items appear on the Quick Access toolbar.",
     "コマンドを検索...": "Search commands...",
     "ミリメートル (mm)": "Millimeters (mm)",
+    # --- 環境設定: ファイルの関連付け ---
+    "ファイルの関連付け": "File association",
+    ".gra と .graphica を Graphica で開く": "Open .gra and .graphica with Graphica",
+    "関連付けを解除": "Remove association",
+    "Windows の Graphica.exe から起動したときだけ登録できます。":
+        "Available only when running Graphica.exe on Windows.",
+    ".gra と .graphica のファイルは、ダブルクリックで Graphica が開きます。":
+        ".gra and .graphica files open in Graphica when double-clicked.",
+    "登録すると、.gra と .graphica のファイルをダブルクリックで開けます(この利用者だけ)。":
+        "Register to open .gra and .graphica files by double-clicking (this user only).",
+    "登録できませんでした:\n{error}": "Could not register:\n{error}",
+    "解除できませんでした:\n{error}": "Could not remove:\n{error}",
     "第2Y軸": "Secondary Y axis",
     "補助目盛の間隔": "Minor tick interval",
 }

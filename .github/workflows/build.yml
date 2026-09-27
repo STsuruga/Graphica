@@ -83,6 +83,41 @@ jobs:
           path: Graphica_project/dist/Graphica/
           if-no-files-found: error
 
+      # 関連付け(.gra / .graphica)を登録するインストーラー。Inno Setup がランナーに無ければ入れる
+      - name: Build installer with Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          $version = python -c "from graphica.core.version import __version__; print(__version__)"
+          & $iscc "/DAppVersion=$version" installer\graphica.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # 黙って入れて、exe と関連付けができ、アンインストールで消えることを確かめる(その利用者だけのインストール)
+      - name: Check the installer
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\Graphica-*-setup.exe | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP "GraphicaInstall"
+          Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/TASKS=fileassoc", "/DIR=$dir" -Wait
+          if (-not (Test-Path (Join-Path $dir "Graphica.exe"))) { throw "Graphica.exe was not installed" }
+          foreach ($ext in ".gra", ".graphica") {
+            $progid = (Get-ItemProperty "HKCU:\Software\Classes\$ext")."(default)"
+            if ($progid -ne "Graphica.Project") { throw "$ext is associated with '$progid'" }
+          }
+          $command = (Get-ItemProperty "HKCU:\Software\Classes\Graphica.Project\shell\open\command")."(default)"
+          if ($command -notlike "*Graphica.exe*%1*") { throw "unexpected open command: $command" }
+          Start-Process (Join-Path $dir "unins000.exe") -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+          Start-Sleep -Seconds 3
+          if (Test-Path "HKCU:\Software\Classes\Graphica.Project") { throw "the association was not removed" }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Graphica-windows-installer
+          path: Graphica_project/dist/Graphica-*-setup.exe
+          if-no-files-found: error
+
   build-macos:
     runs-on: macos-latest
     timeout-minutes: 60
