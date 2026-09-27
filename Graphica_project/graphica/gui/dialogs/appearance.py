@@ -1,7 +1,6 @@
 """見た目と注釈のダイアログ。呼び出し側は `from graphica.gui.dialogs import X` で参照する。"""
 
 import re
-import matplotlib as mpl
 from PySide6.QtWidgets import (
     QColorDialog,
     QComboBox,
@@ -31,7 +30,7 @@ from graphica.gui.color_history import get_color_with_history
 from graphica.gui.theme import apply_form_spacing
 from graphica.gui.mathtext_preview import FitWidthPixmapLabel
 from graphica.core.i18n import tr
-from graphica.core.color_palettes import BUILTIN_PALETTES
+from graphica.core.color_palettes import BUILTIN_PALETTES, default_color_cycle
 from graphica.core.named_colors import (
     NamedColorError,
     add_named_color,
@@ -343,7 +342,7 @@ class ColorPaletteDialog(QDialog):
         self.color_list.clear()
         name = self.palette_combo.currentText()
         if name == self.DEFAULT_PALETTE_NAME:
-            colors = list(mpl.rcParams['axes.prop_cycle'].by_key()['color'])
+            colors = default_color_cycle()
         elif name in BUILTIN_PALETTES:
             colors = BUILTIN_PALETTES[name]
         else:

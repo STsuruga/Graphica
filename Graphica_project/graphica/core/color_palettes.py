@@ -46,3 +46,11 @@ def normalize_palettes(palettes: Any) -> dict[str, list[str]]:
             raise ValueError(f"パレット「{name}」の色はリストで渡してください。")
         result[name] = [normalize_color(c) for c in colors]
     return result
+
+
+def default_color_cycle() -> list[str]:
+    """matplotlib の既定の色の並びを #rrggbb で返す。3.11 からは RGB の組で返り、QColor などに渡せない。"""
+    import matplotlib as mpl
+    from matplotlib.colors import to_hex
+
+    return [to_hex(color) for color in mpl.rcParams['axes.prop_cycle'].by_key()['color']]

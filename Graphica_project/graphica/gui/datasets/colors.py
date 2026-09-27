@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QDialog)
 
 from graphica.core.i18n import tr
 from graphica.gui import notify
-from graphica.core.color_palettes import BUILTIN_PALETTES
+from graphica.core.color_palettes import BUILTIN_PALETTES, default_color_cycle
 from graphica.core.named_colors import POPUP_LIMIT, load_named_colors
 from graphica.gui import app_settings
 from graphica.gui.dialogs import (ColorPaletteDialog)
@@ -198,7 +198,7 @@ class ColorController:
         palettes = self.load_palettes()
         if active_name != ColorPaletteDialog.DEFAULT_PALETTE_NAME and palettes.get(active_name):
             return palettes[active_name]
-        return mpl.rcParams['axes.prop_cycle'].by_key()['color']
+        return default_color_cycle()
 
     def manage_palettes(self):
         palettes = self.load_palettes()

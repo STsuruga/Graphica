@@ -3554,9 +3554,9 @@ def test_load_color_palettes_corrupted_json_returns_empty(tmp_path, monkeypatch)
 
 
 def test_get_active_color_cycle_default_uses_matplotlib_cycle(tmp_path, monkeypatch):
-    import matplotlib as mpl
+    from graphica.core.color_palettes import default_color_cycle
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    expected = mpl.rcParams['axes.prop_cycle'].by_key()['color']
+    expected = default_color_cycle()
     assert window.colors.active_color_cycle() == expected
 
 
@@ -3577,10 +3577,10 @@ def test_get_active_color_cycle_uses_builtin_palette(tmp_path, monkeypatch):
 
 
 def test_get_active_color_cycle_falls_back_when_active_palette_missing(tmp_path, monkeypatch):
-    import matplotlib as mpl
+    from graphica.core.color_palettes import default_color_cycle
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.settings.setValue(app_settings_module.ACTIVE_PALETTE_SETTINGS_KEY, "deleted_palette")
-    expected = mpl.rcParams['axes.prop_cycle'].by_key()['color']
+    expected = default_color_cycle()
 
     assert window.colors.active_color_cycle() == expected
 

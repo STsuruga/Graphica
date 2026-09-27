@@ -32,3 +32,13 @@ def test_includes_okabe_ito_cud_safe_palette():
     matching = [name for name in BUILTIN_PALETTES if "Okabe-Ito" in name]
     assert len(matching) == 1
     assert len(BUILTIN_PALETTES[matching[0]]) == 8
+
+
+def test_default_color_cycle_is_hex_even_when_matplotlib_gives_rgb_tuples():
+    import matplotlib as mpl
+    from cycler import cycler
+    from graphica.core.color_palettes import default_color_cycle
+
+    with mpl.rc_context({'axes.prop_cycle': cycler(color=[(1.0, 0.0, 0.0), '#00FF00', 'tab:blue'])}):
+        assert default_color_cycle() == ['#ff0000', '#00ff00', '#1f77b4']
+    assert all(isinstance(c, str) and c.startswith('#') for c in default_color_cycle())
