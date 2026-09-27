@@ -13,24 +13,21 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-27): M6 の途中(R はすべて完了、統合の前の確認)
+## 現在地(2026-09-27): 再設計(R)を master に統合した
 
 **再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
 (原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
 **引き継ぎ**: `docs/dev/REFACTOR_HANDOFF.md`(作業ルール、R-0 の指針、最終の動作確認表)。
 
-- 統合ブランチ `refactor/architecture`、作業フォルダ `D:\ユーザー\shuta\ドキュメント\PlotterApp-refactor`。
-  **master への統合は M6 の確認後に 1 回だけ**(ユーザー指示)。PR は CI が緑ならマージしてよい(ユーザー承認済みの進め方)。
-- 絶対条件(ユーザー指示): 機能・入出力・副作用・エッジケースを完全に維持。見つけた不具合は直さずに K として db に登録して提案する。
-- 進み具合と K の状態はロードマップの db が正。ここは要点だけ。
-- **M0〜M5 完了**。R-1(#46・#48)、R-7(#52 ほか)、R-9(#55 `gui/rendering/`)、R-8a(#56 `gui/tools/`)、
-  R-8b(#58 `gui/panels/`、mixin は 5 個)、R-8c(#60 DatasetHost・TabPluginContext は本体の公開メソッドだけ)。
-- R-8 のあとの K: K-9(#59 注釈の色)、K-40(#57 `.graphica` のドロップで開く)完了。K-27(注釈の日本語の字体)は PR 中。
-- **M6(確認と master 統合)の途中**: master に新しいコミットは無い(取り込むものなし)。V-1(フルスイート・カバレッジ・ruff・mypy)→
-  V-2(exe・.app・wheel の起動)→ V-3(プラグインのリポジトリのテスト)→ V-4(ユーザーが exe で確認)→ V-5(文書)→
-  V-6(ユーザーの承認を得て master へ PR・マージ)。
-- master 統合(M6)のあとにやる K: K-38(関連付け)・K-39(起動画面)・K-41(`.pkl` の対応をやめる)・K-42(拡張子を `.gra` に)、
-  K-3・K-10・K-16・K-26。
+- **M0〜M6 完了**。`refactor/architecture` を master に 1 回だけ統合した(V-6、ユーザー承認)。
+  R-0〜R-9 の構造は CLAUDE.md のアーキテクチャの節にある(`gui/builders/`・`gui/rendering/`・`gui/tools/`・`gui/panels/`、
+  mixin は 5 個、DatasetHost・TabPluginContext は本体の公開メソッドだけを使う)。
+- 統合の前の確認: フルスイート 3,555 件すべて緑、カバレッジ 95.7%、ruff・mypy 問題なし、wheel の起動、
+  プラグインのリポジトリ(element-constants)のテスト 16 件、ユーザーによる exe の操作確認(38 項目+新機能)。
+- リファクタリング中に直した K と新機能は CHANGELOG の「未リリース」にある。V-4 で見つかった K-44(exe でアイコンが空)も直した。
+- **次にやる K**(ユーザー決定済み、db の findings): K-38(.graphica の関連付け、インストーラーと環境設定のボタン、起動中は新しいタブ)・
+  K-39(起動画面)・K-41(`.pkl` の対応をやめる)・K-42(拡張子を `.gra` に、`.graphica` も開ける)をまとめて。
+  ほかに K-3(日本語と $...$ の混在)・K-10(英語表示の範囲)・K-16(matplotlib 3.11・PySide6 6.11)・K-26(テストが非公開メソッドを呼ぶ)。
 - 特性テストの数値は、基準を作った機械(`golden/MACHINE.json`、この PC)ではビット単位、CI などでは許容差で比べる(#32)。
 - 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
   既存ファイルは CRLF なので、複数行の置換は改行をそろえてから行う。CI の結果は `gh pr checks` で見る(`jq` は無いので `--jq` を使う)。
