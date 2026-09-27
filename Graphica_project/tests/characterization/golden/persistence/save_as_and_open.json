@@ -4,18 +4,18 @@
    {
     "kind": "QFileDialog.getSaveFileName",
     "caption": "名前を付けて保存",
-    "filter": "Graphica Project (*.graphica);;Project Files (*.pkl)"
+    "filter": "Graphica Project (*.gra)"
    }
   ],
   "files": [
    "autosave",
-   "chosen.graphica"
+   "chosen.gra"
   ],
-  "title": "chosen.graphica"
+  "title": "chosen.gra"
  },
  "open": {
   "status": "プロジェクトを読み込みました",
-  "title": "chosen.graphica",
+  "title": "chosen.gra",
   "unsaved": false,
   "datasets": [
    {
@@ -269,7 +269,7 @@
    {
     "kind": "QFileDialog.getOpenFileName",
     "caption": "プロジェクトを開く",
-    "filter": "Project Files (*.graphica *.pkl)"
+    "filter": "Graphica Project (*.gra *.graphica)"
    }
   ]
  }

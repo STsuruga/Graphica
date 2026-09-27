@@ -51,7 +51,7 @@ data to a finished figure stays in one place. Free and open source (MIT), for Wi
   that records the processing steps
 
 **Working safely**
-- Project files (`.graphica`, JSON) that keep data, folders and plot settings
+- Project files (`.gra`, JSON; the older `.graphica` name still opens) that keep data, folders and plot settings
 - Undo/redo, autosave with multiple generations, crash recovery, and a prompt before closing with unsaved changes
 - Plugins that add importers, exporters, processing steps, fit functions, panels and plot types
 

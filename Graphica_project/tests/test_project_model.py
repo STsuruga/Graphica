@@ -1,7 +1,5 @@
 # tests/test_project_model.py
-"""models/project.py (プロジェクトの保存/読込、pickleセキュリティ) に対するテスト。"""
-import os
-import pickle
+"""models/project.py (プロジェクトの保存/読込) に対するテスト。"""
 
 import pandas as pd
 import pytest
@@ -28,7 +26,7 @@ def make_project():
 
 def test_save_and_load_roundtrip(tmp_path):
     project = make_project()
-    path = tmp_path / "project.pkl"
+    path = tmp_path / "project.gra"
     project.save_project(str(path))
 
     reloaded = ProjectModel()
@@ -49,7 +47,7 @@ def test_save_and_load_roundtrip(tmp_path):
 def test_save_updates_current_filepath(tmp_path):
     project = make_project()
     assert project.current_filepath == ""
-    path = tmp_path / "p.pkl"
+    path = tmp_path / "p.gra"
     project.save_project(str(path))
     assert project.current_filepath == str(path)
 
@@ -57,93 +55,7 @@ def test_save_updates_current_filepath(tmp_path):
 def test_load_missing_file_raises_filenotfounderror(tmp_path):
     project = ProjectModel()
     with pytest.raises(FileNotFoundError):
-        project.load_project(str(tmp_path / "does_not_exist.pkl"))
-
-
-def test_load_old_format_without_dataset_group_tree_rebuilds_flat_tree(tmp_path):
-    """
-    フォルダ機能追加前の古い形式の.pklを模倣する: dataset_group_tree キーが無い場合、
-    全データセットがルート直下にあるものとして再構築されることを確認する。
-    """
-    ds = Dataset(name="Legacy", df=pd.DataFrame({'x': [1], 'y': [2]}), x_col_name='x', y_col_name='y')
-    old_format_data = {
-        'datasets': [ds],
-        'all_plot_settings': [{}],
-        'active_axis_index': 0,
-        'layout_rows': 1,
-        'layout_cols': 1,
-        # 'dataset_group_tree' キーは意図的に省略
-    }
-    path = tmp_path / "legacy.pkl"
-    with open(path, 'wb') as f:
-        pickle.dump(old_format_data, f)
-
-    project = ProjectModel()
-    project.load_project(str(path))
-
-    assert project.dataset_group_tree['children'] == [{'dataset': project.datasets[0]}]
-
-
-def test_load_rejects_disallowed_classes(tmp_path):
-    """
-    許可リストにないクラス(このテストでは組み込みの例外クラスを流用)をトップレベルの
-    値として含むpickleは、_RestrictedUnpickler によって拒否されることを確認する。
-    core.dataset / numpy / pandas 以外のオブジェクトの復元を禁止する、pickleの
-    任意コード実行対策のセキュリティ回帰テスト。
-    """
-    path = tmp_path / "malicious.pkl"
-    # ValueError は許可リスト (numpy/pandas/core.dataset) に含まれないクラスの一例
-    with open(path, 'wb') as f:
-        pickle.dump({'datasets': [ValueError("not allowed")]}, f)
-
-    project = ProjectModel()
-    with pytest.raises(pickle.UnpicklingError):
-        project.load_project(str(path))
-
-
-def test_load_rejects_os_system_payload(tmp_path):
-    """
-    より直接的に、os.system のような危険な呼び出し可能オブジェクトを
-    参照するpickleが拒否されることを確認する(実際にコードは実行されない)。
-    """
-    path = tmp_path / "exploit.pkl"
-
-    class _Exploit:
-        def __reduce__(self):
-            # 復元時に os.system('echo pwned') を呼び出そうとするペイロード。
-            # _RestrictedUnpickler が 'os' モジュールの解決を拒否するため、
-            # find_class の時点でUnpicklingErrorになり、実行されない。
-            return (os.system, ("echo pwned",))
-
-    with open(path, 'wb') as f:
-        pickle.dump({'datasets': [_Exploit()]}, f)
-
-    project = ProjectModel()
-    with pytest.raises(pickle.UnpicklingError):
-        project.load_project(str(path))
-
-
-def test_allowed_classes_still_load_correctly(tmp_path):
-    """許可リストにある numpy/pandas/core.dataset のオブジェクトは正しく復元できることを確認する"""
-    import numpy as np
-    path = tmp_path / "allowed.pkl"
-    data = {
-        'datasets': [Dataset(
-            name="D", df=pd.DataFrame({'x': np.array([1, 2, 3])}), x_col_name='x', y_col_name='x'
-        )],
-        'all_plot_settings': [{}],
-        'active_axis_index': 0,
-        'layout_rows': 1,
-        'layout_cols': 1,
-        'dataset_group_tree': {'name': '', 'children': []},
-    }
-    with open(path, 'wb') as f:
-        pickle.dump(data, f)
-
-    project = ProjectModel()
-    project.load_project(str(path))  # 例外を出さずに読み込めることを確認
-    assert project.datasets[0].name == "D"
-    np.testing.assert_array_equal(project.datasets[0].df['x'].values, [1, 2, 3])
+        project.load_project(str(tmp_path / "does_not_exist.gra"))
 
 
 # --- ProjectModelのシグナル化(項目80、C-005、最小スコープ版) ---
@@ -184,31 +96,29 @@ def test_notify_changed_without_any_connection_does_not_raise():
     project.notify_changed()  # 例外にならないこと
 
 
-def test_pkl_saved_before_the_graphica_package_move_still_loads(tmp_path):
-    """パッケージを graphica.* に移す前の .pkl は、Dataset を "core.dataset" の名前で持っている。"""
+def test_legacy_graphica_extension_still_saves_and_loads(tmp_path):
     project = ProjectModel()
-    project.datasets.append(Dataset(name="old", df=pd.DataFrame({"x": [1.0, 2.0], "y": [3.0, 4.0]}),
-                                    x_col_name="x", y_col_name="y"))
-    current = tmp_path / "current.pkl"
-    project.save_project(str(current))
-    with open(current, "rb") as f:
-        data = pickle.load(f)  # テストで作ったファイルなので制限なしで読んでよい
-    # protocol 3 はクラスをモジュール名の文字列で参照するので、旧い名前に置き換えられる
-    legacy_bytes = pickle.dumps(data, protocol=3).replace(b"graphica.core.dataset", b"core.dataset")
-    assert b"core.dataset" in legacy_bytes and b"graphica.core" not in legacy_bytes
-    legacy = tmp_path / "legacy.pkl"
-    legacy.write_bytes(legacy_bytes)
+    project.all_plot_settings = [{'title': 'T'}]
+    path = tmp_path / "old_name.graphica"
+    project.save_project(str(path))
 
     reloaded = ProjectModel()
-    reloaded.load_project(str(legacy))
-
-    assert [ds.name for ds in reloaded.datasets] == ["old"]
-    assert isinstance(reloaded.datasets[0], Dataset)
+    reloaded.load_project(str(path))
+    assert reloaded.all_plot_settings[0]['title'] == 'T'
 
 
-def test_restricted_unpickler_still_rejects_other_old_style_modules(tmp_path):
-    """旧い名前の読み替えは core.dataset だけ。ほかの core.* は許可しない。"""
-    path = tmp_path / "evil.pkl"
-    path.write_bytes(b"ccore.plugin_api\nset_safe_mode\n.")
-    with pytest.raises(pickle.UnpicklingError, match="core.plugin_api"):
+def test_pkl_is_refused_without_unpickling(tmp_path):
+    """.pkl は中身を読まずに断る(細工された .pkl でもコードは実行されない)。"""
+    path = tmp_path / "old.pkl"
+    marker = tmp_path / "ran"
+    path.write_bytes(b"cos\nsystem\n(S'echo > " + str(marker).encode() + b"'\ntR.")
+
+    with pytest.raises(ValueError, match="旧形式"):
         ProjectModel().load_project(str(path))
+    assert not marker.exists()
+
+
+def test_saving_as_pkl_is_refused(tmp_path):
+    with pytest.raises(ValueError):
+        ProjectModel().save_project(str(tmp_path / "x.pkl"))
+    assert not (tmp_path / "x.pkl").exists()

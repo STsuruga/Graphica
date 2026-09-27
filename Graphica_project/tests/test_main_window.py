@@ -323,6 +323,16 @@ def test_drop_event_keeps_the_current_project_when_the_unsaved_prompt_is_cancell
     assert [ds.name for ds in window.project.datasets] == ["unsaved"]
 
 
+def test_drop_event_opens_a_gra_project(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    project_path = tmp_path / "saved.gra"
+    _save_project_with_one_dataset(window, project_path, "from_gra")
+
+    window.dropEvent(_make_drop_event([project_path]))
+
+    assert [ds.name for ds in window.project.datasets] == ["from_gra"]
+
+
 def test_drop_event_does_not_open_a_legacy_pkl_project(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     warning_calls = []
@@ -1764,11 +1774,12 @@ def test_check_autosave_recovery_no_file_returns_silently(tmp_path, monkeypatch)
     window._check_autosave_recovery()  # 例外なく静かに戻ることを確認
 
 
-def test_check_autosave_recovery_falls_back_to_legacy_pkl_and_loads_on_yes(tmp_path, monkeypatch):
+def test_check_autosave_recovery_falls_back_to_the_old_graphica_name_and_loads_on_yes(tmp_path, monkeypatch):
+    """拡張子を .gra に変える前の版が残した autosave.graphica も復元の対象にする。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window._had_clean_exit = False
-    window._autosave_filename = str(tmp_path / "autosave.graphica")  # 新形式は存在しない
-    legacy_path = str(tmp_path / "autosave.pkl")
+    window._autosave_filename = str(tmp_path / "autosave.gra")  # 今の名前のファイルは無い
+    legacy_path = str(tmp_path / "autosave.graphica")
     with open(legacy_path, "wb") as f:
         f.write(b"dummy")
 
@@ -2110,20 +2121,50 @@ def test_manual_save_cancelled_dialog_does_nothing(tmp_path, monkeypatch):
     assert calls == []
 
 
-def test_manual_save_success_infers_graphica_extension_and_adds_recent_file(tmp_path, monkeypatch):
+def test_manual_save_success_infers_gra_extension_and_adds_recent_file(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     target = str(tmp_path / "myproject")  # 拡張子なし
     monkeypatch.setattr(
         notify_module.QFileDialog, "getSaveFileName",
-        staticmethod(lambda *a, **k: (target, "Graphica Project (*.graphica)")),
+        staticmethod(lambda *a, **k: (target, "Graphica Project (*.gra)")),
     )
     saved_paths = []
     monkeypatch.setattr(window.project, "save_project", lambda path: saved_paths.append(path))
 
     window.manual_save()
 
-    assert saved_paths == [target + ".graphica"]
-    assert window._get_recent_files()[0] == os.path.abspath(target + ".graphica")
+    assert saved_paths == [target + ".gra"]
+    assert window._get_recent_files()[0] == os.path.abspath(target + ".gra")
+
+
+def test_manual_save_as_keeps_an_explicit_graphica_extension(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    target = str(tmp_path / "old_name.graphica")
+    monkeypatch.setattr(
+        notify_module.QFileDialog, "getSaveFileName",
+        staticmethod(lambda *a, **k: (target, "Graphica Project (*.gra)")),
+    )
+    saved_paths = []
+    monkeypatch.setattr(window.project, "save_project", lambda path: saved_paths.append(path))
+
+    window.manual_save_as()
+
+    assert saved_paths == [target]
+
+
+def test_opening_a_recent_pkl_reports_it_as_unsupported(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    legacy = tmp_path / "old.pkl"
+    legacy.write_bytes(b"not used")
+    errors = []
+    monkeypatch.setattr(notify_module, "critical", lambda *a, **k: errors.append(a))
+    loaded = []
+    monkeypatch.setattr(window, "load_data", lambda *a, **k: loaded.append(a))
+
+    window._on_open_recent_file(str(legacy))
+
+    assert loaded == []
+    assert len(errors) == 1 and "旧形式" in errors[0][2]
 
 
 def test_manual_save_exception_shows_critical_dialog(tmp_path, monkeypatch):

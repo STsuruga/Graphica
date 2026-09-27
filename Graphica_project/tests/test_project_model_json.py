@@ -1,7 +1,6 @@
 # tests/test_project_model_json.py
 """
 models/project.py の新しいJSON保存形式(.graphica)に対するテスト。
-pickle(.pkl)形式は既存の tests/test_project_model.py で引き続き検証される。
 このファイルでは、JSON形式での往復(round-trip)が
 dtypeフィデリティ・numpy由来の値・オブジェクト同一性を保つことを確認する。
 """
@@ -186,31 +185,6 @@ def test_graphica_roundtrip_dataset_group_tree_shares_same_dataset_instances(tmp
     assert subfolder['name'] == 'サブフォルダ'
     leaf1 = subfolder['children'][0]
     assert leaf1['dataset'] is reloaded.datasets[1]
-
-
-def test_pkl_path_still_works_after_json_support_added(tmp_path):
-    """既存の.pkl保存/読込パスが、コード変更後も完全に同じ挙動であることの回帰確認"""
-    project = ProjectModel()
-    df = pd.DataFrame({'x': [1.0, 2.0], 'y': [3.0, 4.0]})
-    ds = Dataset(name="D1", df=df, x_col_name='x', y_col_name='y', color='#00ff00')
-    project.datasets = [ds]
-    project.dataset_group_tree = {'name': '', 'children': [{'dataset': ds}]}
-    project.all_plot_settings = [{'title': 'T'}]
-    project.active_axis_index = 0
-    project.layout_rows = 1
-    project.layout_cols = 1
-
-    path = tmp_path / "project.pkl"
-    project.save_project(str(path))
-
-    reloaded = ProjectModel()
-    reloaded.load_project(str(path))
-
-    assert reloaded.datasets[0].name == "D1"
-    assert reloaded.datasets[0].color == '#00ff00'
-    pd.testing.assert_frame_equal(reloaded.datasets[0].df, df)
-    assert reloaded.dataset_group_tree['children'][0]['dataset'] is reloaded.datasets[0]
-    assert reloaded.current_filepath == str(path)
 
 
 def test_load_project_unsupported_extension_raises_value_error(tmp_path):

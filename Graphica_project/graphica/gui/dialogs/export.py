@@ -177,7 +177,7 @@ class BatchExportDialog(QDialog):
 
         files_page = QWidget()
         files_page_layout = QVBoxLayout(files_page)
-        files_page_layout.addWidget(QLabel("書き出すプロジェクトファイル(.graphica/.pkl)を追加してください:"))
+        files_page_layout.addWidget(QLabel("書き出すプロジェクトファイル(.gra/.graphica)を追加してください:"))
         self.project_files_list = QListWidget()
         files_page_layout.addWidget(self.project_files_list)
         files_button_row = QHBoxLayout()
@@ -253,7 +253,7 @@ class BatchExportDialog(QDialog):
 
     def _on_add_project_files(self):
         paths, _ = notify.get_open_file_names(
-            self, "プロジェクトファイルを選択", "", "Project Files (*.graphica *.pkl)"
+            self, "プロジェクトファイルを選択", "", "Graphica Project (*.gra *.graphica)"
         )
         for path in paths:
             self.project_files_list.addItem(path)

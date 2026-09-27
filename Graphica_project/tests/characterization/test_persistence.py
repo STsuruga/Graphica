@@ -16,7 +16,7 @@ from scenario import pump
 
 TESTS_DIR = Path(__file__).resolve().parents[1]
 LEGACY_DIR = TESTS_DIR / "fixtures" / "legacy_projects"
-LEGACY_PROJECTS = sorted(p.name for p in LEGACY_DIR.iterdir() if p.suffix in (".graphica", ".pkl"))
+LEGACY_PROJECTS = sorted(p.name for p in LEGACY_DIR.iterdir() if p.suffix in (".gra", ".graphica"))
 ACCEPT = QDialog.DialogCode.Accepted
 
 
@@ -169,14 +169,14 @@ def test_load_legacy_project_and_save_again(app_env, modal_log, norm, tmp_path, 
                   "unsaved": tab.has_unsaved_changes(), "file": saved_json(saved_path),
                   "modals": modal_log.take()}
 
-    pickle_path = tmp_path / "resaved.pkl"
-    tab._save_project_to_path(str(pickle_path))
-    tab._load_project_from_path(str(pickle_path))
+    gra_path = tmp_path / "resaved.gra"
+    tab._save_project_to_path(str(gra_path))
+    tab._load_project_from_path(str(gra_path))
     pump()
-    from_pickle = tab_state(tab)
-    from_pickle["modals"] = modal_log.take()
+    from_gra = tab_state(tab)
+    from_gra["modals"] = modal_log.take()
     recorder.check(f"persistence/project_{Path(name).stem}",
-                   {"loaded": loaded, "saved": after_save, "reloaded_from_pickle": from_pickle,
+                   {"loaded": loaded, "saved": after_save, "reloaded_from_gra": from_gra,
                     "recent_files": tab._get_recent_files()}, norm)
 
 
@@ -219,11 +219,11 @@ def test_save_as_and_open_through_dialogs(app_env, modal_log, norm, tmp_path):
     tab._add_dataset(Dataset(df=pd.DataFrame({"x": [1.0, 2.0], "y": [3.0, 4.0]}), name="d", x_col_name="x",
                              y_col_name="y"))
     target = tmp_path / "chosen"
-    modal_log.respond((str(target), "Graphica Project (*.graphica)"))
+    modal_log.respond((str(target), "Graphica Project (*.gra)"))
     tab.manual_save_as()
     first = {"modals": modal_log.take(), "files": sorted(p.name for p in tmp_path.iterdir()),
              "title": tab.document_title()}
-    modal_log.respond((str(tmp_path / "chosen.graphica"), ""))
+    modal_log.respond((str(tmp_path / "chosen.gra"), ""))
     tab.manual_load()
     pump()
     second = tab_state(tab)
