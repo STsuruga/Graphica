@@ -5410,6 +5410,32 @@
              ]
             }
            ]
+          },
+          {
+           "class": "QGroupBox",
+           "title": "ファイルの関連付け",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "Windows の Graphica.exe から起動したときだけ登録できます。",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": ".gra と .graphica を Graphica で開く",
+             "visible": true,
+             "enabled": false
+            },
+            {
+             "class": "QPushButton",
+             "text": "関連付けを解除",
+             "visible": true,
+             "enabled": false
+            }
+           ]
           }
          ]
         }
