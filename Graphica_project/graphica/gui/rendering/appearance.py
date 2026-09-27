@@ -4,6 +4,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 from graphica.core.axis_settings import axis_setting
 from graphica.core.unit_conversion import X_AXIS_UNIT_LABELS, X_AXIS_UNIT_NONE, convert_x_axis_unit
+from graphica.gui.mathtext_preview import families_for_texts, font_kwargs_for_text
 from graphica.gui.rendering.common import (
     DARK_AXES_FACECOLOR, DARK_GRID_COLOR, DARK_LEGEND_EDGECOLOR, DARK_LEGEND_FACECOLOR, LIGHT_AXES_FACECOLOR,
     LIGHT_GRID_COLOR, LIGHT_LEGEND_EDGECOLOR, LIGHT_LEGEND_FACECOLOR, _AxisStyle, _LOG_MINOR_SUBS_PRESETS,
@@ -129,12 +130,13 @@ def axis_text_and_line_style(canvas, settings):
 
 
 def apply_titles_and_labels(canvas, ax, settings, style):
-    ax.set_title(axis_setting(settings, 'title'), **style.label_font, color=style.label_color)
+    title = axis_setting(settings, 'title')
+    ax.set_title(title, **font_kwargs_for_text(title, style.label_font), color=style.label_color)
     # 非表示にしても文字列は消さない(表示に戻したときに打ち直さなくて済むように)
     x_label_text = axis_setting(settings, 'x_label') if axis_setting(settings, 'x_label_visible') else ''
     y_label_text = axis_setting(settings, 'y_label') if axis_setting(settings, 'y_label_visible') else ''
-    ax.set_xlabel(x_label_text, **style.label_font, color=style.label_color)
-    ax.set_ylabel(y_label_text, **style.label_font, color=style.label_color)
+    ax.set_xlabel(x_label_text, **font_kwargs_for_text(x_label_text, style.label_font), color=style.label_color)
+    ax.set_ylabel(y_label_text, **font_kwargs_for_text(y_label_text, style.label_font), color=style.label_color)
     # タイトルのクリックで、その軸を編集対象にする
     ax.title.set_picker(5)
 
@@ -188,7 +190,7 @@ def apply_legend(canvas, ax, secondary_ax, settings):
     legend_font_dict = axis_setting(settings, 'legend_font')
     legend_color = canvas._effective_text_color(axis_setting(settings, 'legend_color'))
     legend_font_prop = FontProperties(
-        family=legend_font_dict.get('family'),
+        family=families_for_texts(labels_primary + labels_secondary, legend_font_dict.get('family')),
         size=legend_font_dict.get('size'),
         weight=legend_font_dict.get('weight'),
         style=legend_font_dict.get('style'),
@@ -288,7 +290,8 @@ def apply_secondary_y_axis(canvas, ax, secondary_ax, settings, style):
         ax.spines['right'].set_color(style.spine_color)
         return
     _apply_secondary_y_limits_and_ticks(secondary_ax, settings)
-    secondary_ax.set_ylabel(axis_setting(settings, 'y2_label'), **style.label_font, color=style.label_color)
+    y2_label = axis_setting(settings, 'y2_label')
+    secondary_ax.set_ylabel(y2_label, **font_kwargs_for_text(y2_label, style.label_font), color=style.label_color)
     major_dir_y2 = axis_setting(settings, 'major_tick_direction_y2')
     minor_dir_y2 = axis_setting(settings, 'minor_tick_direction_y2')
     for label in secondary_ax.get_yticklabels():
@@ -357,7 +360,7 @@ def apply_colorbar(canvas, ax, axis_index, settings, style):
     cbar = canvas.fig.colorbar(mappable, ax=ax, location=position, fraction=fraction, pad=0.04)
     colorbar_label = axis_setting(settings, 'colorbar_label')
     if colorbar_label:
-        cbar.set_label(colorbar_label, **style.label_font, color=style.label_color)
+        cbar.set_label(colorbar_label, **font_kwargs_for_text(colorbar_label, style.label_font), color=style.label_color)
     for tick_label in cbar.ax.get_yticklabels() + cbar.ax.get_xticklabels():
         tick_label.set(**style.tick_font)
         tick_label.set_color(style.tick_color)

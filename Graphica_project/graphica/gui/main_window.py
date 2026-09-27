@@ -60,7 +60,7 @@ DEFAULT_DETACHED_CANVAS_HEIGHT = 700
 
 
 
-AUTOSAVE_FILENAME = "autosave.graphica"
+AUTOSAVE_FILENAME = "autosave.gra"
 
 
 from graphica.gui import notify
@@ -225,7 +225,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
             run_startup_checks (bool): オートセーブからの復元確認・初回の案内・ドック配置の復元と保存・
                 clean_exit の管理をするか。アプリ全体で1回だけ意味を持つので、2つ目以降のタブでは False。
             tab_id (int, optional): 2つ目以降のタブの番号。オートセーブのファイル名が重ならないようにする。
-                None なら autosave.graphica。
+                None なら autosave.gra。
         """
         super().__init__()
         self._run_startup_checks = run_startup_checks

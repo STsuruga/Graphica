@@ -82,19 +82,6 @@ def test_v0_dataset_missing_optional_fields_backfills_defaults():
     assert isinstance(ds.dataset_id, str) and len(ds.dataset_id) > 0
 
 
-def test_pre_folder_feature_pkl_loads_with_defaults():
-    project = ProjectModel()
-    project.load_project(_fixture_path('pre_folder_feature.pkl'))
-
-    assert project.datasets[0].name == "Sample A"
-    # dataset_group_tree が無い旧世代 -> フラットなツリーとして再構築される
-    assert project.dataset_group_tree == {
-        'name': '', 'children': [{'dataset': project.datasets[0]}]
-    }
-    # layout_mode が無い旧世代 -> デフォルトの'grid'
-    assert project.layout_mode == 'grid'
-
-
 def test_realistic_multi_dataset_project_loads_correctly():
     project = ProjectModel()
     project.load_project(_fixture_path('realistic_multi_dataset.graphica'))
@@ -138,23 +125,3 @@ def test_graphica_corpus_roundtrip_reaches_stable_fixed_point(filename, tmp_path
         second_raw = f.read()
     assert first_raw == second_raw
 
-
-def test_pre_folder_feature_pkl_roundtrip_to_graphica_reaches_stable_fixed_point(tmp_path):
-    """.pklのコーパスを読み込んで.graphicaとして保存した場合も、
-    同様に安定した固定点に達すること。"""
-    project = ProjectModel()
-    project.load_project(_fixture_path('pre_folder_feature.pkl'))
-
-    first_path = tmp_path / "first.graphica"
-    project.save_project(str(first_path))
-
-    reloaded = ProjectModel()
-    reloaded.load_project(str(first_path))
-    second_path = tmp_path / "second.graphica"
-    reloaded.save_project(str(second_path))
-
-    with open(first_path, encoding='utf-8') as f:
-        first_raw = f.read()
-    with open(second_path, encoding='utf-8') as f:
-        second_raw = f.read()
-    assert first_raw == second_raw

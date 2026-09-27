@@ -16,7 +16,6 @@
 """
 import json
 import os
-import pickle
 
 import numpy as np
 import pandas as pd
@@ -31,13 +30,6 @@ def _write_json(filename, data):
     path = os.path.join(HERE, filename)
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    print(f"wrote {path}")
-
-
-def _write_pickle(filename, data):
-    path = os.path.join(HERE, filename)
-    with open(path, 'wb') as f:
-        pickle.dump(data, f)
     print(f"wrote {path}")
 
 
@@ -73,10 +65,6 @@ def make_v0_dataset_missing_optional_fields():
     """
     Dataset側に新しいフィールド(alpha/gradient_enabled/waterfall_enabled/
     dataset_id等)が追加される前に保存された.graphicaを再現する。
-    tests/test_project_model_json_compat.py の
-    test_old_pickle_dataset_missing_dataclass_fields_backfilled_end_to_end は
-    .pkl 経路のみをカバーしており、.graphica(JSON)側の同種コーパスが
-    無かったためこちらに追加する。
     """
     df = pd.DataFrame({'x': [1.0, 2.0], 'y': [3.0, 4.0]})
     ds = Dataset(name="旧バージョンのデータセット", df=df, x_col_name='x', y_col_name='y')
@@ -93,7 +81,7 @@ def make_v0_dataset_missing_optional_fields():
     os.remove(tmp_path)
     del data['format_version']
     # 'dataset_id' は dataset_group_tree 側が参照しているため、ここでは
-    # 意図的に残す(dataset_idの後方互換は別途 .pkl 側のコーパスで検証する)。
+    # 意図的に残す。
     for missing_field in (
         'alpha', 'gradient_enabled', 'gradient_color2', 'gradient_target',
         'waterfall_enabled', 'waterfall_offset_x', 'waterfall_offset_y',
@@ -102,26 +90,6 @@ def make_v0_dataset_missing_optional_fields():
     ):
         data['datasets'][0].pop(missing_field, None)
     _write_json('v0_dataset_missing_optional_fields.graphica', data)
-
-
-def make_pre_folder_feature_pkl():
-    """
-    フォルダ分け機能(dataset_group_tree)・自由レイアウト機能(layout_mode)が
-    追加される前の、最も古い世代の.pkl。当時のコードが実際に書いていた
-    であろう最小のキー集合(datasets/all_plot_settings/active_axis_index/
-    layout_rows/layout_cols のみ)を、save_project()を経由せず直接pickle化する。
-    """
-    df = pd.DataFrame({'wavelength': [400, 450, 500, 550], 'absorbance': [0.12, 0.34, 0.28, 0.09]})
-    ds = Dataset(name="Sample A", df=df, x_col_name='wavelength', y_col_name='absorbance')
-    data = {
-        'datasets': [ds],
-        'all_plot_settings': [{'title': 'UV-Vis'}],
-        'active_axis_index': 0,
-        'layout_rows': 1,
-        'layout_cols': 1,
-        # dataset_group_tree, layout_mode は意図的に省略
-    }
-    _write_pickle('pre_folder_feature.pkl', data)
 
 
 def make_realistic_multi_dataset_project():
@@ -171,5 +139,4 @@ def make_realistic_multi_dataset_project():
 if __name__ == '__main__':
     make_v0_no_format_version()
     make_v0_dataset_missing_optional_fields()
-    make_pre_folder_feature_pkl()
     make_realistic_multi_dataset_project()

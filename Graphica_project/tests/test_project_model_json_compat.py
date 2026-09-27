@@ -7,17 +7,11 @@ dtypeフィデリティ・numpy由来の値・オブジェクト同一性・単�
 スキップを既にカバーしている。このファイルはそれと重複しないよう、
 以下の観点に絞る:
 
-  1. 本当に「移行前の古いコード」が作ったであろう .pkl (現行の
-     save_project() を経由しない、キー集合が古い/フィールドが足りない)
-     が今も読み込めること。
-  2. 手で壊した/不正な .graphica ファイルが、クラッシュせず妥当な
+  1. 手で壊した/不正な .graphica ファイルが、クラッシュせず妥当な
      失敗の仕方をする(または妥当なデフォルトにフォールバックする)こと。
-  3. stage1のテストが試していないと思われるエッジケースデータの往復。
-  4. 同じ状態を .pkl と .graphica の両方で保存し、読み戻した結果が
-     実質的に同じであること。
+  2. stage1のテストが試していないと思われるエッジケースデータの往復。
 """
 import json
-import pickle
 
 import pandas as pd
 import pytest
@@ -31,106 +25,6 @@ def make_dataset(**overrides):
     kwargs = dict(name="D1", df=df, x_col_name='x', y_col_name='y')
     kwargs.update(overrides)
     return Dataset(**kwargs)
-
-
-# ---------------------------------------------------------------------------
-# 1. 本物の「古い .pkl」に対する後方互換性
-# ---------------------------------------------------------------------------
-
-def test_old_pickle_missing_group_tree_and_layout_mode_uses_defaults(tmp_path):
-    """
-    フォルダ機能(dataset_group_tree)・自由レイアウト機能(layout_mode)が
-    追加される「前」の、最も古い世代の.pklを模倣する。
-
-    ProjectModel.save_project() を一切経由せず、pickle.dump() で直接
-    プレーンなdictを書き出す(=当時のコードが実際に書いていたであろう
-    最小のキー集合: datasets/all_plot_settings/active_axis_index/
-    layout_rows/layout_cols のみ)。dataset_group_tree と layout_mode を
-    意図的に省略し、_load_project_pickle の .get(key, default) 側の
-    フォールバックが両方とも正しく効くことを確認する。
-
-    tests/test_project_model.py の
-    test_load_old_format_without_dataset_group_tree_rebuilds_flat_tree は
-    dataset_group_tree の欠落のみを扱っており、layout_mode の欠落は
-    検証していない(そちらのold_format_dataにもlayout_modeは無いが、
-    layout_modeのデフォルト値自体は明示的にアサートしていない)。
-    ここでは両方の欠落を同時に、明示的にアサートする。
-    """
-    ds = make_dataset(name="Legacy")
-    old_format_data = {
-        'datasets': [ds],
-        'all_plot_settings': [{'title': 'Plot 1'}],
-        'active_axis_index': 0,
-        'layout_rows': 1,
-        'layout_cols': 1,
-        # 'dataset_group_tree' と 'layout_mode' は意図的に省略
-        # (この2つの機能が追加される前の.pklを再現するため)
-    }
-    path = tmp_path / "very_old.pkl"
-    with open(path, 'wb') as f:
-        pickle.dump(old_format_data, f)
-
-    project = ProjectModel()
-    project.load_project(str(path))
-
-    assert project.datasets[0].name == "Legacy"
-    # dataset_group_tree が無い場合、全データセットがルート直下にあるものとして
-    # 再構築される
-    assert project.dataset_group_tree == {'name': '', 'children': [{'dataset': project.datasets[0]}]}
-    # layout_mode が無い場合のデフォルトは 'grid'
-    assert project.layout_mode == 'grid'
-
-
-def test_old_pickle_dataset_missing_dataclass_fields_backfilled_end_to_end(tmp_path, monkeypatch):
-    """
-    Dataset側に新しいフィールド(alpha, dataset_id等)が追加される前に
-    保存された古い .pkl を再現し、ProjectModel.load_project() の pickle
-    経路全体(_RestrictedUnpickler -> Dataset.__setstate__)を通しても
-    正しくデフォルト値で補われることを確認する。
-
-    tests/test_dataset.py の test_setstate_backfills_missing_fields_for_old_pickles
-    は Dataset.__setstate__ を直接呼び出すだけで、ProjectModel.load_project()
-    の pickle 経路全体は通していない。ここではあくまで Dataset.__getstate__ を
-    一時的にパッチして「古い保存内容」を再現するが、Dataset自体のコードは
-    変更していない(monkeypatchはこのテスト内でのみ有効)。
-    """
-    ds = make_dataset(name="Legacy2")
-    original_getstate = Dataset.__getstate__
-
-    def stripped_getstate(self):
-        state = original_getstate(self)
-        for missing_field in (
-            'alpha', 'show_point_labels', 'point_label_col_name',
-            'dataset_id', 'masked_row_indices', 'use_secondary_y',
-        ):
-            state.pop(missing_field, None)
-        return state
-
-    monkeypatch.setattr(Dataset, '__getstate__', stripped_getstate)
-
-    old_format_data = {
-        'datasets': [ds],
-        'all_plot_settings': [{}],
-        'active_axis_index': 0,
-        'layout_rows': 1,
-        'layout_cols': 1,
-    }
-    path = tmp_path / "legacy_dataset.pkl"
-    with open(path, 'wb') as f:
-        pickle.dump(old_format_data, f)
-
-    project = ProjectModel()
-    project.load_project(str(path))  # 例外を出さずに読み込めることを確認
-
-    loaded_ds = project.datasets[0]
-    assert loaded_ds.name == "Legacy2"
-    assert loaded_ds.alpha == 1.0
-    assert loaded_ds.show_point_labels is False
-    assert loaded_ds.point_label_col_name is None
-    assert loaded_ds.use_secondary_y is False
-    assert loaded_ds.masked_row_indices == []
-    assert isinstance(loaded_ds.dataset_id, str) and len(loaded_ds.dataset_id) > 0
-    assert project.layout_mode == 'grid'
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +53,7 @@ def test_load_graphica_empty_json_object_falls_back_to_defaults(tmp_path):
     実際にコードを読んだ結果(models/project.py の _load_project_json)、
     datasets/dataset_group_tree/all_plot_settings/active_axis_index/
     layout_rows/layout_cols/layout_mode の全キーが .get(key, default) 経由で
-    読まれており、pickle側の後方互換ロジックと同様にここは既に堅牢である
+    読まれており、ここは既に堅牢である
     ことが分かった。よってこのテストは「ギャップがない」ことを積極的に
     確認する回帰テストとして書く(見つかったギャップではない)。
     """
@@ -424,93 +318,3 @@ def test_roundtrip_multiple_subplots_with_annotations_and_free_rect(tmp_path):
 
     assert settings[2]['annotations'][0]['type'] == 'arrow'
     assert settings[2]['legend_order'] == ['D3']
-
-
-# ---------------------------------------------------------------------------
-# 4. .pkl と .graphica のクロスフォーマット整合性
-# ---------------------------------------------------------------------------
-
-def _normalize_for_comparison(value):
-    """
-    タプルをリストに正規化する。.pkl保存はfree_rect等をtupleのまま保持するが
-    .graphica保存はJSONの都合上リストになる、という既知の・許容された表現の
-    違いを吸収した上で比較するためのヘルパー。それ以外の食い違い(実際の
-    値のズレ)はそのまま検出できるよう、要素ごとに再帰的に正規化する。
-    """
-    if isinstance(value, (tuple, list)):
-        return [_normalize_for_comparison(v) for v in value]
-    if isinstance(value, dict):
-        return {k: _normalize_for_comparison(v) for k, v in value.items()}
-    return value
-
-
-def _make_cross_format_project():
-    df1 = pd.DataFrame({'x': [1.0, 2.0, 3.0], 'y': [10.0, 20.0, 30.0]})
-    df2 = pd.DataFrame({'a': [1, 2], 'b': [3, 4]})
-    ds1 = Dataset(name="データ1", df=df1, x_col_name='x', y_col_name='y', color='#ff0000')
-    ds2 = Dataset(name="データ2", df=df2, x_col_name='a', y_col_name='b', subplot_target=1)
-
-    project = ProjectModel()
-    project.datasets = [ds1, ds2]
-    project.dataset_group_tree = {
-        'name': '', 'children': [
-            {'dataset': ds1},
-            {'name': 'フォルダ', 'children': [{'dataset': ds2}]},
-        ],
-    }
-    project.all_plot_settings = [
-        {
-            'title': 'Plot 1',
-            'annotations': [{'type': 'text', 'text': 'ピーク', 'xy': (1.5, 2.5), 'xytext': (2.0, 3.0)}],
-            'legend_order': ['データ1', 'データ2'],
-            'free_rect': (0.1, 0.1, 0.4, 0.4),
-        },
-        {'title': 'Plot 2', 'annotations': [], 'legend_order': [], 'free_rect': None},
-    ]
-    project.active_axis_index = 1
-    project.layout_rows = 1
-    project.layout_cols = 2
-    project.layout_mode = 'free'
-    return project
-
-
-def test_cross_format_pkl_and_graphica_produce_equivalent_state(tmp_path):
-    """
-    同一のProjectModel状態を .pkl と .graphica の両方に保存し、それぞれを
-    読み戻した結果が実質的に等価であることを確認する
-    (free_rectのtuple/listの違いだけは既知・許容の差異として吸収する)。
-    """
-    project = _make_cross_format_project()
-
-    pkl_path = tmp_path / "project.pkl"
-    graphica_path = tmp_path / "project.graphica"
-    project.save_project(str(pkl_path))
-    project.save_project(str(graphica_path))
-
-    from_pkl = ProjectModel()
-    from_pkl.load_project(str(pkl_path))
-
-    from_json = ProjectModel()
-    from_json.load_project(str(graphica_path))
-
-    # データセット名・スタイル・データ本体
-    assert [d.name for d in from_pkl.datasets] == [d.name for d in from_json.datasets]
-    assert [d.color for d in from_pkl.datasets] == [d.color for d in from_json.datasets]
-    assert [d.subplot_target for d in from_pkl.datasets] == [d.subplot_target for d in from_json.datasets]
-    for ds_pkl, ds_json in zip(from_pkl.datasets, from_json.datasets):
-        pd.testing.assert_frame_equal(ds_pkl.df, ds_json.df, check_dtype=True)
-
-    # フォルダ構造(名前とネストの形)
-    assert from_pkl.dataset_group_tree['children'][1]['name'] == from_json.dataset_group_tree['children'][1]['name']
-
-    # レイアウト・設定
-    assert from_pkl.layout_rows == from_json.layout_rows
-    assert from_pkl.layout_cols == from_json.layout_cols
-    assert from_pkl.layout_mode == from_json.layout_mode
-    assert from_pkl.active_axis_index == from_json.active_axis_index
-
-    # all_plot_settings: free_rectのtuple/list差異のみ吸収して比較
-    assert _normalize_for_comparison(from_pkl.all_plot_settings) == _normalize_for_comparison(from_json.all_plot_settings)
-    # 既知の差異そのものも明示的に確認しておく(pklはtuple、graphicaはlist)
-    assert isinstance(from_pkl.all_plot_settings[0]['free_rect'], tuple)
-    assert isinstance(from_json.all_plot_settings[0]['free_rect'], list)

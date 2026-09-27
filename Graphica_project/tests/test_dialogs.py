@@ -2624,13 +2624,13 @@ def test_legend_order_dialog_reset_clears_custom_order():
 def test_batch_export_dialog_add_project_files(monkeypatch):
     monkeypatch.setattr(
         QFileDialog, "getOpenFileNames",
-        staticmethod(lambda *a, **k: (["a.graphica", "b.pkl"], ""))
+        staticmethod(lambda *a, **k: (["a.gra", "b.graphica"], ""))
     )
     dlg = BatchExportDialog(subplot_count=2)
 
     dlg._on_add_project_files()
 
-    assert dlg.get_project_file_paths() == ["a.graphica", "b.pkl"]
+    assert dlg.get_project_file_paths() == ["a.gra", "b.graphica"]
 
 
 def test_batch_export_dialog_add_project_files_cancelled(monkeypatch):
@@ -2645,7 +2645,7 @@ def test_batch_export_dialog_add_project_files_cancelled(monkeypatch):
 def test_batch_export_dialog_remove_selected_project_files(monkeypatch):
     monkeypatch.setattr(
         QFileDialog, "getOpenFileNames",
-        staticmethod(lambda *a, **k: (["a.graphica", "b.pkl"], ""))
+        staticmethod(lambda *a, **k: (["a.gra", "b.graphica"], ""))
     )
     dlg = BatchExportDialog(subplot_count=2)
     dlg._on_add_project_files()
@@ -2653,7 +2653,7 @@ def test_batch_export_dialog_remove_selected_project_files(monkeypatch):
 
     dlg._on_remove_selected_project_files()
 
-    assert dlg.get_project_file_paths() == ["b.pkl"]
+    assert dlg.get_project_file_paths() == ["b.graphica"]
 
 
 def test_batch_export_dialog_browse_output_dir(monkeypatch, tmp_path):
