@@ -12,8 +12,8 @@ PyInstaller によって下記のライブラリが**同梱**されています�
 
 | ライブラリ | バージョン | ライセンス | 配布元 |
 |---|---|---|---|
-| PySide6 (Qt for Python) | 6.9.1 | **LGPL v3** | https://www.qt.io/qt-for-python |
-| Matplotlib | 3.10.7 | Matplotlib License (PSF ベース、BSD互換) | https://matplotlib.org/stable/users/project/license.html |
+| PySide6 (Qt for Python) | 6.11.2 | **LGPL v3** | https://www.qt.io/qt-for-python |
+| Matplotlib | 3.11.2 | Matplotlib License (PSF ベース、BSD互換) | https://matplotlib.org/stable/users/project/license.html |
 | NumPy | 2.3.1 | BSD 3-Clause | https://numpy.org/doc/stable/license.html |
 | pandas | 2.3.1 | BSD 3-Clause | https://github.com/pandas-dev/pandas/blob/main/LICENSE |
 | SciPy | 1.16.0 | BSD 3-Clause | https://github.com/scipy/scipy/blob/main/LICENSE.txt |

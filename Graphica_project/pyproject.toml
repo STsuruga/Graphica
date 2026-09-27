@@ -32,12 +32,12 @@ classifiers = [
     "Environment :: X11 Applications :: Qt",
 ]
 # 利用者の環境とぶつからないよう範囲で指定する。下限は requires-python の 3.10 でも入る版。
-# 上限は、フルスイートで確かめた範囲まで。PySide6 と matplotlib は minor 版で挙動が変わる
-# (matplotlib 3.11 では描画中にプロセスが落ちる。K-16)ので、確かめた minor 版に留める。
+# 上限は、フルスイートで確かめた範囲まで。PySide6 と matplotlib は minor 版で挙動が変わるので、
+# 確かめた minor 版に留める。matplotlib 3.11 は Python 3.11 以上なので、3.10 では 3.10 系が入る。
 # exe のビルドと CI のテストは requirements.txt の固定版。CI の install-check が 3.10 と 3.13 で起動を確かめる。
 dependencies = [
-    "PySide6>=6.9,<6.10",
-    "matplotlib>=3.10,<3.11",
+    "PySide6>=6.9,<6.12",
+    "matplotlib>=3.10,<3.12",
     "numpy>=2.0,<3",
     "pandas>=2.2,<3",
     "scipy>=1.13,<2",

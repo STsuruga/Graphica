@@ -1,7 +1,7 @@
 # 動作確認済みのバージョンに固定している(間接依存は pip に任せる)。
 
-PySide6==6.9.1
-matplotlib==3.10.7
+PySide6==6.11.2
+matplotlib==3.11.2
 numpy==2.3.1
 pandas==2.3.1
 scipy==1.16.0

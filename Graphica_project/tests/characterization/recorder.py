@@ -28,8 +28,8 @@ IMAGE_CACHE_DIR = Path(__file__).resolve().parents[2] / ".characterization_image
 # 画素はこの版の組み合わせでしか一致しない(ENVIRONMENT.md)。
 PIXEL_ENVIRONMENT = {
     "os": "Windows",
-    "PySide6": "6.9.1",
-    "matplotlib": "3.10.7",
+    "PySide6": "6.11.2",
+    "matplotlib": "3.11.2",
     "numpy": "2.3.1",
 }
 

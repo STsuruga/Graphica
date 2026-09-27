@@ -1035,11 +1035,8 @@ def test_label_preview_pixmap_updates_when_backing_text_changes(tmp_path, monkey
 
     filled_pixmap = preview.pixmap()
     assert filled_pixmap is not None and not filled_pixmap.isNull()
-    # プレースホルダ("タイトルを入力")と実テキストとでは描画結果(サイズ)が
-    # 異なるはずで、textChanged→_refresh_label_preview の配線を検証できる
-    assert (filled_pixmap.width(), filled_pixmap.height()) != (
-        empty_pixmap.width(), empty_pixmap.height(),
-    )
+    # プレースホルダ("タイトルを入力")と同じ文字数なので、フォントによっては大きさまで一致する。中身で比べる
+    assert filled_pixmap.toImage() != empty_pixmap.toImage()
 
 
 def test_refresh_all_label_previews_updates_every_registered_widget(tmp_path, monkeypatch):
