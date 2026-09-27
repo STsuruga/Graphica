@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPixmap
+from graphica.core.i18n import tr
 from graphica.gui import notify
 from graphica.gui.theme import apply_form_spacing
 from graphica.core.cvd_simulation import CVD_TYPE_LABELS
@@ -60,7 +61,9 @@ class ExportDialog(QDialog):
 
         # 学術誌のプリセットを選ぶとミリメートルに切り替わる
         self.unit_combo = QComboBox()
-        self.unit_combo.addItems(["ピクセル (px)", "インチ (in)", "センチメートル (cm)", "ミリメートル (mm)"])
+        # 値は日本語の元の文字(書き出しの処理がそれで単位を見分ける)。表示だけを訳す
+        for unit in ("ピクセル (px)", "インチ (in)", "センチメートル (cm)", "ミリメートル (mm)"):
+            self.unit_combo.addItem(tr(unit), unit)
 
         self.dpi_spinbox = QSpinBox()
         self.dpi_spinbox.setRange(50, 1200)
@@ -126,14 +129,14 @@ class ExportDialog(QDialog):
         """「カスタム」なら入力した値をそのまま残す。"""
         if preset_name == self.JOURNAL_PRESET_CUSTOM:
             return
-        self.unit_combo.setCurrentText("ミリメートル (mm)")
+        self.unit_combo.setCurrentIndex(self.unit_combo.findData("ミリメートル (mm)"))
         self.width_spinbox.setValue(self.JOURNAL_PRESETS[preset_name])
 
     def get_options(self):
         return {
             "width": self.width_spinbox.value(),
             "height": self.height_spinbox.value(),
-            "unit": self.unit_combo.currentText(),
+            "unit": self.unit_combo.currentData(),
             "dpi": self.dpi_spinbox.value(),
             "transparent": self.transparent_checkbox.isChecked(),
             "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),
