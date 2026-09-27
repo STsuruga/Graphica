@@ -250,6 +250,36 @@ def apply_grid(canvas, ax, settings):
             ax.grid(False, which='minor', axis=grid_axis)
 
 
+def _apply_secondary_y_limits_and_ticks(secondary_ax, settings):
+    """主の Y 軸と同じ手順(範囲 → 対数 → 反転 → 目盛り)。既定(自動・線形・目盛り自動)では何も上書きしない。"""
+    if axis_setting(settings, 'y2_autoscale'):
+        secondary_ax.autoscale(enable=True, axis='y', tight=True)
+    else:
+        min_val, max_val = axis_setting(settings, 'y2_min'), axis_setting(settings, 'y2_max')
+        if min_val < max_val:
+            secondary_ax.set_ylim(min_val, max_val)
+    is_log = axis_setting(settings, 'y2_log')
+    # set_yscale は同じ値でも目盛りの Locator を既定に戻すので、変わるときだけ呼ぶ
+    if secondary_ax.get_yscale() != ('log' if is_log else 'linear'):
+        secondary_ax.set_yscale('log' if is_log else 'linear')
+    secondary_ax.yaxis.set_inverted(axis_setting(settings, 'y2_invert'))
+
+    y_min_lim, y_max_lim = secondary_ax.get_ylim()
+    if axis_setting(settings, 'y2_major_tick_mode') == 1:
+        interval = axis_setting(settings, 'y2_major_tick_interval')
+        if interval > 0 and not is_log:
+            secondary_ax.yaxis.set_major_locator(_safe_multiple_locator(interval, y_min_lim, y_max_lim))
+    if axis_setting(settings, 'y2_minor_ticks_visible'):
+        if is_log:
+            secondary_ax.yaxis.set_minor_locator(ticker.LogLocator(base=10.0, subs='auto'))
+        else:
+            interval = axis_setting(settings, 'y2_minor_tick_interval')
+            if interval > 0:
+                secondary_ax.yaxis.set_minor_locator(_safe_multiple_locator(interval, y_min_lim, y_max_lim))
+    elif not is_log:
+        secondary_ax.yaxis.set_minor_locator(ticker.NullLocator())
+
+
 def apply_secondary_y_axis(canvas, ax, secondary_ax, settings, style):
     """第2Y軸があれば右の枠線と目盛りを第2Y軸に任せ、無ければ主軸の右の枠線を出す。"""
     if not secondary_ax:
@@ -257,7 +287,7 @@ def apply_secondary_y_axis(canvas, ax, secondary_ax, settings, style):
         ax.spines['right'].set_linewidth(style.spine_width)
         ax.spines['right'].set_color(style.spine_color)
         return
-    secondary_ax.autoscale(enable=True, axis='y', tight=True)
+    _apply_secondary_y_limits_and_ticks(secondary_ax, settings)
     secondary_ax.set_ylabel(axis_setting(settings, 'y2_label'), **style.label_font, color=style.label_color)
     major_dir_y2 = axis_setting(settings, 'major_tick_direction_y2')
     minor_dir_y2 = axis_setting(settings, 'minor_tick_direction_y2')

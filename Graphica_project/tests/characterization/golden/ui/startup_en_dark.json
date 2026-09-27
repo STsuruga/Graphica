@@ -3515,6 +3515,227 @@
                               ]
                              },
                              {
+                              "class": "QGroupBox",
+                              "title": "Secondary Y axis",
+                              "visible": false,
+                              "enabled": true,
+                              "children": [
+                               {
+                                "class": "QCheckBox",
+                                "text": "自動スケール",
+                                "checked": true,
+                                "visible": false,
+                                "enabled": true,
+                                "receivers": {
+                                 "stateChanged(int)": 1
+                                }
+                               },
+                               {
+                                "class": "QLabel",
+                                "text": "最小値",
+                                "visible": false,
+                                "enabled": true
+                               },
+                               {
+                                "class": "QDoubleSpinBox",
+                                "value": "0.00",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "valueChanged(double)": 1
+                                },
+                                "children": [
+                                 {
+                                  "class": "QLineEdit",
+                                  "name": "qt_spinbox_lineedit",
+                                  "text": "0.00",
+                                  "visible": false,
+                                  "enabled": false,
+                                  "receivers": {
+                                   "textChanged(QString)": 1,
+                                   "cursorPositionChanged(int,int)": 2
+                                  }
+                                 }
+                                ]
+                               },
+                               {
+                                "class": "QLabel",
+                                "text": "最大値",
+                                "visible": false,
+                                "enabled": true
+                               },
+                               {
+                                "class": "QDoubleSpinBox",
+                                "value": "1.00",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "valueChanged(double)": 1
+                                },
+                                "children": [
+                                 {
+                                  "class": "QLineEdit",
+                                  "name": "qt_spinbox_lineedit",
+                                  "text": "1.00",
+                                  "visible": false,
+                                  "enabled": false,
+                                  "receivers": {
+                                   "textChanged(QString)": 1,
+                                   "cursorPositionChanged(int,int)": 2
+                                  }
+                                 }
+                                ]
+                               },
+                               {
+                                "class": "QCheckBox",
+                                "text": "対数表示",
+                                "checked": false,
+                                "visible": false,
+                                "enabled": true,
+                                "receivers": {
+                                 "stateChanged(int)": 2
+                                }
+                               },
+                               {
+                                "class": "QCheckBox",
+                                "text": "軸を反転",
+                                "checked": false,
+                                "visible": false,
+                                "enabled": true,
+                                "receivers": {
+                                 "stateChanged(int)": 1
+                                }
+                               },
+                               {
+                                "class": "QLabel",
+                                "text": "主目盛",
+                                "visible": false,
+                                "enabled": true
+                               },
+                               {
+                                "class": "QComboBox",
+                                "items": [
+                                 "自動",
+                                 "固定間隔"
+                                ],
+                                "current": 0,
+                                "visible": false,
+                                "enabled": true,
+                                "receivers": {
+                                 "currentIndexChanged(int)": 2
+                                },
+                                "children": [
+                                 {
+                                  "class": "QFrame",
+                                  "visible": false,
+                                  "enabled": true,
+                                  "receivers": {
+                                   "itemSelected(QModelIndex)": 1,
+                                   "resetButton()": 1
+                                  },
+                                  "children": [
+                                   {
+                                    "class": "QListView",
+                                    "visible": false,
+                                    "enabled": true,
+                                    "children": [
+                                     {
+                                      "class": "QWidget",
+                                      "name": "qt_scrollarea_viewport",
+                                      "visible": false,
+                                      "enabled": true
+                                     }
+                                    ]
+                                   },
+                                   {
+                                    "class": "QWidget",
+                                    "visible": false,
+                                    "enabled": true,
+                                    "receivers": {
+                                     "doScroll(int)": 1
+                                    }
+                                   },
+                                   {
+                                    "class": "QWidget",
+                                    "visible": false,
+                                    "enabled": true,
+                                    "receivers": {
+                                     "doScroll(int)": 1
+                                    }
+                                   }
+                                  ]
+                                 }
+                                ]
+                               },
+                               {
+                                "class": "QLabel",
+                                "text": "間隔",
+                                "visible": false,
+                                "enabled": true
+                               },
+                               {
+                                "class": "QDoubleSpinBox",
+                                "value": "1.00",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "valueChanged(double)": 1
+                                },
+                                "children": [
+                                 {
+                                  "class": "QLineEdit",
+                                  "name": "qt_spinbox_lineedit",
+                                  "text": "1.00",
+                                  "visible": false,
+                                  "enabled": false,
+                                  "receivers": {
+                                   "textChanged(QString)": 1,
+                                   "cursorPositionChanged(int,int)": 2
+                                  }
+                                 }
+                                ]
+                               },
+                               {
+                                "class": "QCheckBox",
+                                "text": "補助目盛を表示",
+                                "checked": false,
+                                "visible": false,
+                                "enabled": true,
+                                "receivers": {
+                                 "stateChanged(int)": 2
+                                }
+                               },
+                               {
+                                "class": "QLabel",
+                                "text": "Minor tick interval",
+                                "visible": false,
+                                "enabled": true
+                               },
+                               {
+                                "class": "QDoubleSpinBox",
+                                "value": "0.50",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "valueChanged(double)": 1
+                                },
+                                "children": [
+                                 {
+                                  "class": "QLineEdit",
+                                  "name": "qt_spinbox_lineedit",
+                                  "text": "0.50",
+                                  "visible": false,
+                                  "enabled": false,
+                                  "receivers": {
+                                   "textChanged(QString)": 1,
+                                   "cursorPositionChanged(int,int)": 2
+                                  }
+                                 }
+                                ]
+                               }
+                              ]
+                             },
+                             {
                               "class": "QLabel",
                               "text": "目盛り表記",
                               "visible": false,

@@ -76,6 +76,7 @@ class AxisSettingsPanel:
 
     # PlotterApp から同じ名前で使えるもの(テスト・メニュー・ほかの部品が使う)
     EXPOSED_NAMES = (
+        '_on_y2_autoscale_changed', '_on_y2_axis_state_changed', '_refresh_y2_axis_state',
         '_apply_settings_to_ui_controls', '_block_all_signals', '_connect_axis_setting_signals',
         '_connect_layout_signals', '_current_active_axis', '_font_props_to_dict', '_gather_settings_from_ui',
         '_grid_linestyle_code', '_grid_linestyle_index', '_on_active_axis_changed', '_on_axis_setting_changed',
@@ -287,6 +288,31 @@ class AxisSettingsPanel:
         self._app.y_log_minor_labels_checkbox.setVisible(is_log)
         self._app.y_log_minor_subs_combo.setEnabled(is_log and is_visible)
         self._app.y_log_minor_labels_checkbox.setEnabled(is_log and is_visible)
+
+    def _refresh_y2_axis_state(self):
+        """第 2 Y 軸の欄の有効/無効を、自動スケール・目盛りの方式・補助目盛り・対数に合わせる。値は書き換えない。"""
+        app = self._app
+        is_autoscale = app.y2_autoscale_checkbox.isChecked()
+        app.y2_min_spinbox.setEnabled(not is_autoscale)
+        app.y2_max_spinbox.setEnabled(not is_autoscale)
+        app.y2_major_tick_interval_spinbox.setEnabled(app.y2_major_tick_mode_combo.currentIndex() == 1)
+        # 対数軸の補助目盛りは間隔ではなく対数の刻みで打つ
+        app.y2_minor_tick_interval_spinbox.setEnabled(
+            app.y2_minor_ticks_visible_checkbox.isChecked() and not app.y2_log_checkbox.isChecked())
+
+    def _on_y2_axis_state_changed(self):
+        self._refresh_y2_axis_state()
+
+    def _on_y2_autoscale_changed(self):
+        """自動スケールを切った瞬間に、いまの第 2 Y 軸の範囲を最小値・最大値の欄に入れる(主の Y 軸と同じ)。"""
+        self._refresh_y2_axis_state()
+        if not self._app.y2_autoscale_checkbox.isChecked():
+            axis_index = self._app.project.active_axis_index
+            secondary_axes = getattr(self._app.canvas, 'all_secondary_axes', [])
+            secondary = secondary_axes[axis_index] if 0 <= axis_index < len(secondary_axes) else None
+            self._seed_min_max_spinboxes(self._app.y2_min_spinbox, self._app.y2_max_spinbox,
+                                         secondary.get_ylim() if secondary is not None else None)
+        self._on_axis_setting_changed()
 
     def _on_legend_visibility_changed(self):
         self._refresh_legend_state()
@@ -532,6 +558,7 @@ class AxisSettingsPanel:
             self._refresh_y_minor_tick_state()
             self._refresh_legend_state()
             self._refresh_grid_state()
+            self._refresh_y2_axis_state()
             # 欄の状態をそろえてから 1 回だけ描く(どれも同じ設定で描くので、欄ごとに描いても結果は同じ)
             self._app._update_plot_appearance()
 

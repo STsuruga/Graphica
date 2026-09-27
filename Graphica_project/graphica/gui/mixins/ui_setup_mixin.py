@@ -201,5 +201,6 @@ class UISetupMixin:
             self._on_y_minor_tick_visibility_changed()
             self._on_grid_visibility_changed()
             self._on_legend_visibility_changed() # 凡例関連のUIを有効化
+            self._refresh_y2_axis_state()
 
             self.property_panel.update_ui_state()

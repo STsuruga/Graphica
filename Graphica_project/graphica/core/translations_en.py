@@ -111,4 +111,6 @@ TRANSLATIONS = {
     "起動しています…": "Starting…",
     "ライブラリを読み込み中…": "Loading libraries…",
     "ウィンドウを準備中…": "Preparing the window…",
+    "第2Y軸": "Secondary Y axis",
+    "補助目盛の間隔": "Minor tick interval",
 }

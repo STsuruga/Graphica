@@ -228,7 +228,16 @@
    "annotations": [],
    "legend_order": [],
    "free_rect": null,
-   "legend_position": null
+   "legend_position": null,
+   "y2_autoscale": true,
+   "y2_min": 0.0,
+   "y2_max": 1.0,
+   "y2_log": false,
+   "y2_invert": false,
+   "y2_major_tick_mode": 0,
+   "y2_major_tick_interval": 1.0,
+   "y2_minor_ticks_visible": false,
+   "y2_minor_tick_interval": 0.5
   }
  ],
  "layout": [
