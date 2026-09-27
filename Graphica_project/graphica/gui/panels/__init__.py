@@ -27,7 +27,8 @@ class _PanelName:
 
     def __get__(self, app, owner=None):
         if app is None:
-            return self
+            # クラスから引いたとき(メニューの表の検査など)は、部品のクラスの同じ名前を返す
+            return getattr(PANEL_CLASSES[self._panel_key], self._name, self)
         return getattr(app.panels[self._panel_key], self._name)
 
     def __set__(self, app, value):
