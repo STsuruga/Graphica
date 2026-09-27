@@ -87,6 +87,7 @@ from graphica.gui.datasets.property_panel import DatasetPropertyPanel
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.order import DatasetOrder
+from graphica.gui.panels import create_panels, expose_panel_names
 from graphica.gui.tools import MOUSE_MODES, ToolManager, create_tools, expose_tool_names
 from graphica.gui import data_import_flow
 # テストがこのモジュールの属性として引くので残す(使うコードは data_import_flow と project_files に移した)
@@ -164,8 +165,6 @@ def _make_default_plot_font():
     return font
 
 from graphica.gui.mixins.ui_setup_mixin import UISetupMixin
-from graphica.gui.mixins.settings_mixin import SettingsMixin
-from graphica.gui.mixins.dataset_mixin import DatasetMixin
 from graphica.gui.mixins.export_mixin import ExportMixin
 from graphica.gui.mixins.project_io_mixin import ProjectIOMixin
 from graphica.gui.mixins.help_mixin import HelpMixin
@@ -205,7 +204,7 @@ _PLUGIN_PANEL_AREA_MAP = {
 
 
 # 1つのタブ。機能ごとの mixin の役割は CLAUDE.md の「PlotterApp mixin composition」
-class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
+class PlotterApp(QMainWindow, UISetupMixin,
                   ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
     # 保存・読み込みのたびに出す。MainAppWindow がタブ名を更新する
     project_state_changed = Signal()
@@ -295,6 +294,8 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.ui.control_dock_widget)
 
     def _init_state(self):
+        # 軸の設定とデータセットの一覧の部品(状態はタブが持つ。gui/panels/)
+        self.panels = create_panels(self)
         # 非モーダルのダイアログとバックグラウンドの処理は、回収されないよう参照を持っておく
         self.data_editor_dialog = None
         self.help_dialog = None
@@ -1088,3 +1089,5 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
 # 各ツールの名前を PlotterApp の属性として出す(gui/tools/__init__.py)
 expose_tool_names(PlotterApp)
+# 各部品の名前を PlotterApp の属性として出す(gui/panels/__init__.py)
+expose_panel_names(PlotterApp)

@@ -31,8 +31,8 @@ import graphica.gui.datasets.actions_menu as actions_menu_module
 import graphica.gui.datasets.property_panel as property_panel_module
 import graphica.gui.datasets.overlays as overlays_module
 import graphica.gui.datasets.plugin_runs as plugin_runs_module
-import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
-import graphica.gui.mixins.settings_mixin as settings_mixin_module
+import graphica.gui.panels.dataset_tree as dataset_mixin_module
+import graphica.gui.panels.axis_settings as settings_mixin_module
 from graphica.gui.main_window import PlotterApp
 from graphica.gui.dialogs import (
     NormalizeDatasetDialog, PluginParamDialog, DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
