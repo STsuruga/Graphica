@@ -15,6 +15,7 @@ from graphica.gui.single_instance import (FileOpenEventFilter, InstanceServer, f
                                           send_to_running_instance)
 
 
+# macOS はソケットを長い一時フォルダに作り、パスが 104 文字を超えると開けないので、名前は短くする
 def _pump(until, rounds=200):
     for _ in range(rounds):
         QApplication.processEvents()
@@ -32,7 +33,7 @@ def test_paths_sent_by_a_second_launch_reach_the_running_one(qapp, tmp_path):
     import sys
     import time
 
-    name = f"graphica-test-{uuid.uuid4().hex}"
+    name = f"gt-{uuid.uuid4().hex[:8]}"
     server = InstanceServer(name)
     assert server.listen()
     received = []
@@ -56,7 +57,7 @@ def test_paths_sent_by_a_second_launch_reach_the_running_one(qapp, tmp_path):
 
 
 def test_a_running_instance_is_detected(qapp):
-    name = f"graphica-test-{uuid.uuid4().hex}"
+    name = f"gt-{uuid.uuid4().hex[:8]}"
     server = InstanceServer(name)
     assert server.listen()
     try:
@@ -66,7 +67,7 @@ def test_a_running_instance_is_detected(qapp):
 
 
 def test_nothing_is_running_when_no_server_listens(qapp):
-    name = f"graphica-test-{uuid.uuid4().hex}"
+    name = f"gt-{uuid.uuid4().hex[:8]}"
     assert not instance_running(name)
     assert not send_to_running_instance(["x.gra"], name)
 
@@ -74,7 +75,7 @@ def test_nothing_is_running_when_no_server_listens(qapp):
 def test_broken_messages_are_ignored(qapp):
     from PySide6.QtNetwork import QLocalSocket
 
-    name = f"graphica-test-{uuid.uuid4().hex}"
+    name = f"gt-{uuid.uuid4().hex[:8]}"
     server = InstanceServer(name)
     assert server.listen()
     received = []

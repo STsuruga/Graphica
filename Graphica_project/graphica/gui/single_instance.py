@@ -23,7 +23,7 @@ def server_name():
     """利用者ごとに別の名前(同じ PC の別の利用者のアプリには渡さない)。"""
     try:
         user = getpass.getuser()
-    except Exception:  # 利用者名が取れない環境でも起動は止めない
+    except (OSError, KeyError, ImportError):  # 利用者名が取れない環境でも起動は止めない
         user = "user"
     return "Graphica-" + re.sub(r"[^A-Za-z0-9_.-]", "_", user)
 
