@@ -323,6 +323,22 @@ def test_drop_event_keeps_the_current_project_when_the_unsaved_prompt_is_cancell
     assert [ds.name for ds in window.project.datasets] == ["unsaved"]
 
 
+def test_drop_event_does_not_open_a_legacy_pkl_project(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    warning_calls = []
+    monkeypatch.setattr(notify_module, "warning", lambda *args, **kwargs: warning_calls.append(args))
+    loaded = []
+    monkeypatch.setattr(window, "_load_project_from_path", lambda path: loaded.append(path))
+    legacy = tmp_path / "old.pkl"
+    legacy.write_bytes(b"not used")
+
+    window.dropEvent(_make_drop_event([legacy]))
+
+    assert loaded == []
+    assert len(warning_calls) == 1
+    assert "old.pkl" in warning_calls[0][2]
+
+
 # =============================================================================
 # フォルダから一括インポート (_on_import_folder, 項目C-104)
 # =============================================================================

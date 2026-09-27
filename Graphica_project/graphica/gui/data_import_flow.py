@@ -9,7 +9,6 @@ from graphica.core.dataset import Dataset
 from graphica.core.plugin_api import get_registered_importer_extensions
 from graphica.gui import notify
 from graphica.gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, FolderImportDialog
-from graphica.gui.project_files import PROJECT_FILE_EXTENSIONS
 from graphica.gui.task_runner import TaskRunner
 from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS, excel_engine_for, is_excel_file, load_data_file_task
 from pathlib import Path
@@ -18,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 SUPPORTED_DATA_FILE_EXTENSIONS = BUILTIN_DATA_FILE_EXTENSIONS
+# ドロップで開くプロジェクト。旧形式の .pkl は使われていないので含めない
+DROPPABLE_PROJECT_EXTENSION = '.graphica'
 
 
 def find_unevaluated_formula_cells(file_path, sheet_name=None, max_examples=5, max_scan_cells=200_000):
@@ -37,8 +38,8 @@ def dragEnterEvent(app, event):
 def dropEvent(app, event):
     urls = event.mimeData().urls()
     file_paths = [url.toLocalFile() for url in urls if url.toLocalFile()]
-    project_paths = [p for p in file_paths if p.lower().endswith(PROJECT_FILE_EXTENSIONS)]
-    data_paths = [p for p in file_paths if not p.lower().endswith(PROJECT_FILE_EXTENSIONS)]
+    project_paths = [p for p in file_paths if p.lower().endswith(DROPPABLE_PROJECT_EXTENSION)]
+    data_paths = [p for p in file_paths if not p.lower().endswith(DROPPABLE_PROJECT_EXTENSION)]
     # 先にプロジェクトを開く。一緒に落としたデータはそのプロジェクトに加わる
     if project_paths:
         open_dropped_project(app, project_paths)
