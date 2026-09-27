@@ -1,6 +1,7 @@
 """PlotterApp の一度きりの組み立て(シグナル、メニューバー、初めの画面の状態)と、ダークモードの切り替え。"""
 from PySide6.QtWidgets import QApplication
 
+from graphica.gui import app_settings
 from graphica.gui.theme import apply_theme
 from graphica.gui.dialogs import CommandPaletteDialog
 from graphica.gui.datasets.actions_menu import populate_dataset_actions_menu
@@ -13,211 +14,6 @@ class UISetupMixin:
         self._connect_layout_signals()
         self._connect_axis_setting_signals()
         self._connect_dataset_signals()
-
-    def _connect_layout_signals(self):
-        self.subplot_rows_spinbox.valueChanged.connect(self._on_layout_changed)
-        self.subplot_cols_spinbox.valueChanged.connect(self._on_layout_changed)
-
-        self.share_x_checkbox.toggled.connect(self._on_share_axis_changed)
-        self.share_y_checkbox.toggled.connect(self._on_share_axis_changed)
-
-        self.active_axis_combo.currentIndexChanged.connect(self._on_active_axis_changed)
-
-        self.free_layout_checkbox.toggled.connect(self._on_toggle_free_layout)
-        self.add_free_subplot_button.clicked.connect(self._on_add_free_subplot)
-        self.remove_free_subplot_button.clicked.connect(self._on_remove_free_subplot)
-
-        self.free_layout_x_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
-        self.free_layout_y_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
-        self.free_layout_width_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
-        self.free_layout_height_spinbox.valueChanged.connect(self._on_free_layout_position_spinbox_changed)
-
-    def _connect_axis_setting_signals(self):
-        # ほとんどの欄は、変わったら _on_axis_setting_changed で今の軸の設定に書き戻す
-
-        self.ui.x_autoscale_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_autoscale_checkbox.stateChanged.connect(self._on_x_autoscale_changed)
-
-        self.ui.y_autoscale_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_autoscale_checkbox.stateChanged.connect(self._on_y_autoscale_changed)
-
-        self.ui.x_major_tick_mode_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_major_tick_mode_combo.currentIndexChanged.connect(self._on_x_tick_mode_changed)
-
-        self.ui.y_major_tick_mode_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_major_tick_mode_combo.currentIndexChanged.connect(self._on_y_tick_mode_changed)
-
-        self.ui.x_minor_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_minor_ticks_visible_checkbox.stateChanged.connect(self._on_x_minor_tick_visibility_changed)
-
-        self.ui.y_minor_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_minor_ticks_visible_checkbox.stateChanged.connect(self._on_y_minor_tick_visibility_changed)
-
-        self.ui.x_log_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        # 対数軸の補助目盛りの欄は対数表示にも左右されるので、対数表示のチェックにもつなぐ
-        self.ui.x_log_checkbox.stateChanged.connect(self._on_x_minor_tick_visibility_changed)
-        self.ui.x_invert_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_min_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_max_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_log_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_log_checkbox.stateChanged.connect(self._on_y_minor_tick_visibility_changed)
-        self.ui.y_invert_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_min_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_max_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_major_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_major_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.x_log_minor_subs_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.x_log_minor_labels_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y_log_minor_subs_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.y_log_minor_labels_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.x_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.y_tick_format_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.x_tick_decimals_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.y_tick_decimals_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.x_secondary_axis_source_unit_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.x_secondary_axis_target_unit_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        # タイトルと軸ラベルの編集ボタンは _build_label_editors でつないでいる
-        self.ui.y_minor_tick_interval_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-
-        self.ui.title_text_edit.textChanged.connect(self._on_axis_setting_changed)
-        self.ui.x_label_text_edit.textChanged.connect(self._on_axis_setting_changed)
-        self.ui.y_label_text_edit.textChanged.connect(self._on_axis_setting_changed)
-        self.x_label_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y_label_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y2_label_text_edit.textChanged.connect(self._on_axis_setting_changed) # 第2Y軸ラベル
-
-        self.ui.tick_font_button.clicked.connect(self._on_change_tick_font)
-        self.ui.tick_color_button.clicked.connect(self._on_change_tick_color)
-        self.ui.tick_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.major_tick_length_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.minor_tick_length_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-
-        self.ui.axis_label_font_button.clicked.connect(self._on_change_axis_label_font)
-        self.ui.axis_label_color_button.clicked.connect(self._on_change_axis_label_color)
-
-        self.legend_font_button.clicked.connect(self._on_change_legend_font)
-        self.legend_color_button.clicked.connect(self._on_change_legend_color)
-        self.legend_order_button.clicked.connect(self._on_edit_legend_order)
-
-        self.ui.legend_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.legend_visible_checkbox.stateChanged.connect(self._on_legend_visibility_changed)
-        self.legend_loc_combo.currentTextChanged.connect(self._on_legend_loc_changed)
-
-        self.ui.grid_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        # グリッドのチェックは補助グリッドと詳細の欄の有効/無効も切り替える
-        self.ui.grid_visible_checkbox.stateChanged.connect(self._on_grid_visibility_changed)
-        self.ui.minor_grid_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.ui.minor_grid_visible_checkbox.stateChanged.connect(self._on_grid_visibility_changed)
-
-        for grid_style_widget in (
-            self.x_major_grid_linestyle_combo, self.x_minor_grid_linestyle_combo,
-            self.y_major_grid_linestyle_combo, self.y_minor_grid_linestyle_combo,
-        ):
-            grid_style_widget.currentIndexChanged.connect(self._on_axis_setting_changed)
-        for grid_style_widget in (
-            self.x_major_grid_width_spinbox, self.x_major_grid_alpha_spinbox,
-            self.x_minor_grid_width_spinbox, self.x_minor_grid_alpha_spinbox,
-            self.y_major_grid_width_spinbox, self.y_major_grid_alpha_spinbox,
-            self.y_minor_grid_width_spinbox, self.y_minor_grid_alpha_spinbox,
-        ):
-            grid_style_widget.valueChanged.connect(self._on_axis_setting_changed)
-
-        self.ui.spine_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.ui.spine_color_button.clicked.connect(self._on_change_spine_color)
-
-        self.major_tick_direction_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-        self.minor_tick_direction_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-        self.major_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-        self.minor_tick_direction_y2_combo.currentTextChanged.connect(self._on_axis_setting_changed)
-        self.x_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.x_tick_labels_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y_ticks_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.y_tick_labels_visible_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-
-        self.colorbar_enabled_checkbox.stateChanged.connect(self._on_axis_setting_changed)
-        self.colorbar_position_combo.currentIndexChanged.connect(self._on_axis_setting_changed)
-        self.colorbar_width_spinbox.valueChanged.connect(self._on_axis_setting_changed)
-        self.colorbar_label_edit.textChanged.connect(self._on_axis_setting_changed)
-
-    def _connect_dataset_signals(self):
-        self.ui.add_dataset_button.clicked.connect(self._on_add_dataset)
-        self.new_dataset_button.clicked.connect(self._on_create_new_dataset)
-        self.ui.remove_dataset_button.clicked.connect(self._on_remove_dataset)
-        self.new_folder_button.clicked.connect(self._on_new_folder)
-        self.dataset_search_edit.textChanged.connect(self._on_dataset_search_changed)
-        self.ui.dataset_list_widget.currentItemChanged.connect(self.property_panel.on_dataset_selected)
-        self.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
-        self.ui.dataset_list_widget.itemClicked.connect(self._on_dataset_tree_item_clicked)
-        # ドラッグでの並べ替え(描画の重なり順)を project.datasets に合わせる
-        self.ui.dataset_list_widget.model().rowsMoved.connect(self._on_dataset_rows_moved)
-
-
-        # textChanged だと1文字ごとに描き直して重いので editingFinished
-        self.ui.legend_name_edit.editingFinished.connect(self.property_panel.on_legend_name_changed)
-
-        self.property_panel.watch(self.ui.plot_type_combo.currentTextChanged, self.ui.plot_type_combo)
-        # 種類によって意味のある欄が変わるので、種類が変わるたびに出し入れし直す
-        self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_gradient_controls_visibility)
-        self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_smoothing_control_visibility)
-        self.ui.plot_type_combo.currentTextChanged.connect(self.property_panel.update_error_display_control_items)
-        self.color_picker_widget.colorChanged.connect(self.colors.on_color_changed)
-        self.property_panel.watch(self.ui.linestyle_combo.currentTextChanged, self.ui.linestyle_combo)
-        self.property_panel.watch(self.ui.linewidth_spinbox.valueChanged, self.ui.linewidth_spinbox)
-        self.property_panel.watch(self.ui.marker_combo.currentTextChanged, self.ui.marker_combo)
-        self.property_panel.watch(self.ui.markersize_spinbox.valueChanged, self.ui.markersize_spinbox)
-        self.property_panel.watch(self.ui.smoothing_checkbox.stateChanged, self.ui.smoothing_checkbox)
-        # 平滑化のチェックで手法の欄の有効/無効も切り替える
-        self.ui.smoothing_checkbox.stateChanged.connect(self.property_panel.update_smoothing_control_visibility)
-        self.property_panel.watch(self.smoothing_method_combo.currentIndexChanged, self.smoothing_method_combo)
-        self.property_panel.watch(self.alpha_spinbox.valueChanged, self.alpha_spinbox)
-        self.property_panel.watch(self.gradient_checkbox.toggled, self.gradient_checkbox)
-        self.gradient_checkbox.toggled.connect(self.property_panel.update_gradient_controls_visibility)
-        self.gradient_color2_picker.colorChanged.connect(self.colors.on_gradient_color2_changed)
-        self.property_panel.watch(self.gradient_target_combo.currentIndexChanged, self.gradient_target_combo)
-        self.property_panel.watch(self.waterfall_checkbox.toggled, self.waterfall_checkbox)
-        self.waterfall_checkbox.toggled.connect(self.property_panel.update_waterfall_controls_visibility)
-        self.property_panel.watch(self.waterfall_offset_x_spinbox.valueChanged, self.waterfall_offset_x_spinbox)
-        self.property_panel.watch(self.waterfall_offset_y_spinbox.valueChanged, self.waterfall_offset_y_spinbox)
-        self.property_panel.watch(self.waterfall_occlusion_checkbox.toggled, self.waterfall_occlusion_checkbox)
-        self.property_panel.watch(self.waterfall_depth_checkbox.toggled, self.waterfall_depth_checkbox)
-        self.waterfall_depth_checkbox.toggled.connect(self.property_panel.update_waterfall_controls_visibility)
-        self.property_panel.watch(self.waterfall_depth_ratio_spinbox.valueChanged, self.waterfall_depth_ratio_spinbox)
-        # 点ラベルは上限の説明の更新もするので専用のハンドラ(中で on_property_changed を呼ぶ)
-        self.point_labels_checkbox.toggled.connect(self.property_panel.on_point_labels_toggled)
-        self.property_panel.watch(self.point_label_col_combo.currentTextChanged, self.point_label_col_combo)
-
-        self.property_panel.watch(self.error_display_combo.currentIndexChanged, self.error_display_combo)
-
-        self.property_panel.watch(self.nan_policy_combo.currentIndexChanged, self.nan_policy_combo)
-
-        self.fit_curve_button.clicked.connect(self.fitting.fit_current_dataset)
-        self.find_peaks_button.clicked.connect(self.peaks.find_peaks)
-        self.multi_peak_fit_button.clicked.connect(self.fitting.multi_peak_fit_current_dataset)
-
-        self.use_secondary_y_checkbox.stateChanged.connect(self.property_panel.on_secondary_y_changed)
-        self.subplot_target_combo.currentIndexChanged.connect(self.property_panel.on_subplot_target_changed)
-
-        self.duplicate_dataset_button.clicked.connect(self._on_duplicate_dataset)
-        self.auto_color_button.clicked.connect(self.colors.auto_assign_colors)
-        self.manage_palette_action.triggered.connect(self.colors.manage_palettes)
-        self.colormap_assign_action.triggered.connect(self.colors.auto_assign_colors_from_colormap)
-        self.view_edit_data_button.clicked.connect(self._on_show_data_editor)
-
-        self.x_col_combo.currentTextChanged.connect(self.property_panel.on_plot_column_changed)
-        self.y_col_combo.currentTextChanged.connect(self.property_panel.on_plot_column_changed)
-        self.x_err_col_combo.currentTextChanged.connect(self.property_panel.on_error_column_changed)
-        self.y_err_col_combo.currentTextChanged.connect(self.property_panel.on_error_column_changed)
-
-        self.data_2d_checkbox.toggled.connect(self.property_panel.on_data_2d_toggled)
-        self.z_col_combo.currentTextChanged.connect(self.property_panel.on_z_column_changed)
-        self.property_panel.watch(self.colormap_combo.currentTextChanged, self.colormap_combo)
-        self.property_panel.watch(self.grid_interp_method_combo.currentTextChanged, self.grid_interp_method_combo)
-        self.color_range_auto_checkbox.toggled.connect(self.property_panel.on_2d_value_range_changed)
-        self.vmin_spinbox.valueChanged.connect(self.property_panel.on_2d_value_range_changed)
-        self.vmax_spinbox.valueChanged.connect(self.property_panel.on_2d_value_range_changed)
-        self.property_panel.watch(self.map_display_mode_combo.currentIndexChanged, self.map_display_mode_combo)
-        self.property_panel.watch(self.contour_levels_spinbox.valueChanged, self.contour_levels_spinbox)
 
     def _create_menu_bar(self):
         build_menu_bar(self)
@@ -272,7 +68,7 @@ class UISetupMixin:
         """アプリ全体の配色(Qt のパレットと QSS)と、このタブのグラフ・アイコンを切り替える。"""
         apply_theme(QApplication.instance(), checked)
         self.canvas.dark_mode = checked
-        self.settings.setValue("dark_mode", checked)
+        app_settings.DARK_MODE.write(self.settings, checked)
         self._update_plot(light=True)  # 軸の数は変わらないので軽い描き直しでよい
         # 以下は作ったときにテーマの色を焼き込んでいるので、描き直す:
         # タイトルと軸ラベルのプレビュー
@@ -310,7 +106,7 @@ class UISetupMixin:
             if tab.canvas.dark_mode == checked:
                 continue
             tab.canvas.dark_mode = checked
-            tab.settings.setValue("dark_mode", checked)
+            app_settings.DARK_MODE.write(tab.settings, checked)
             # toggled を出すと、そのタブがまたほかのタブへ当て直しを連鎖させるので、シグナルを止めてチェックだけ揃える
             tab.dark_mode_action.blockSignals(True)
             tab.dark_mode_action.setChecked(checked)

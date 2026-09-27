@@ -1,0 +1,52 @@
+{
+ "subplots": {
+  "modals": [
+   {
+    "kind": "exec",
+    "class": "BatchExportDialog",
+    "title": "バッチエクスポート"
+   },
+   {
+    "kind": "QMessageBox.information",
+    "title": "バッチエクスポート完了",
+    "text": "2件を書き出しました。"
+   }
+  ],
+  "files": [
+   "export_P1.png",
+   "export_P2.png"
+  ]
+ },
+ "project_files": {
+  "modals": [
+   {
+    "kind": "exec",
+    "class": "BatchExportDialog",
+    "title": "バッチエクスポート"
+   },
+   {
+    "kind": "QMessageBox.information",
+    "title": "バッチエクスポート完了",
+    "text": "1件を書き出しました。\n\n失敗:\nmissing.graphica: ファイルが見つかりません: <CASE>/missing.graphica"
+   }
+  ],
+  "files": [
+   "export_other.png"
+  ]
+ },
+ "no_output_dir": {
+  "modals": [
+   {
+    "kind": "exec",
+    "class": "BatchExportDialog",
+    "title": "バッチエクスポート"
+   },
+   {
+    "kind": "QMessageBox.warning",
+    "title": "バッチエクスポート",
+    "text": "出力先フォルダを指定してください。"
+   }
+  ],
+  "files": []
+ }
+}

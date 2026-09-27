@@ -15,7 +15,8 @@ import zipfile
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
-import graphica.gui.main_window as main_window_module
+import graphica.gui.notify as notify_module
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.mixins.help_mixin as help_mixin_module
 from graphica.gui.main_window import PlotterApp
 from graphica.gui.dialogs import AboutDialog, ShortcutsDialog, HelpDialog, CalcHelpDialog
@@ -29,7 +30,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)
     window.show()
@@ -144,7 +145,7 @@ def test_on_show_shortcuts_opens_shortcuts_dialog_modally(tmp_path, monkeypatch)
 def test_on_export_diagnostic_bundle_cancelled_does_nothing(tmp_path, monkeypatch):
     """ファイル保存ダイアログでキャンセルした場合、zipは作られず何も起きないこと"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(help_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: ("", "")))
 
     info_calls = []
@@ -162,7 +163,7 @@ def test_on_export_diagnostic_bundle_writes_real_zip_and_appends_extension(tmp_p
     走らせて中身のあるzipファイルが書き出されること。完了メッセージも表示されること。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     out_path_no_ext = str(tmp_path / "diag_bundle")
-    monkeypatch.setattr(help_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (out_path_no_ext, "Zip Files (*.zip)")))
 
     info_calls = []
@@ -187,7 +188,7 @@ def test_on_export_diagnostic_bundle_reports_error_on_failure(tmp_path, monkeypa
     """build_diagnostic_bundleが例外を送出した場合、警告ダイアログが出てクラッシュしないこと"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     out_path = str(tmp_path / "diag_bundle.zip")
-    monkeypatch.setattr(help_mixin_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (out_path, "Zip Files (*.zip)")))
 
     def broken_build(*a, **k):

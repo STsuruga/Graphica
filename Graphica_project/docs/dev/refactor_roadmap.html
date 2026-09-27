@@ -1,0 +1,803 @@
+<title>Graphica 再設計ロードマップ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 保守性ボードと同じ見た目。進み具合は db の steps、改善案は findings に置く */
+:root {
+  --ground: #F4F6FA; --surface: #FFFFFF; --surface-2: #EDF1F7;
+  --ink: #131A22; --ink-2: #3A4553; --muted: #5F6B7A;
+  --line: #DCE3EC; --line-soft: #E8EDF4;
+  --accent: #2563EB; --accent-soft: #E4ECFD;
+  --sev-high: #C2410C; --sev-high-soft: #FBE9E0;
+  --sev-mid: #A16207; --sev-mid-soft: #FAF0DC;
+  --sev-low: #0F766E; --sev-low-soft: #DFF0EE;
+  --done: #15803D; --done-soft: #E0F0E5;
+  --doing: #7C3AED; --doing-soft: #EEE7FD;
+  --shadow: 0 1px 2px rgba(19,26,34,.05), 0 4px 14px rgba(19,26,34,.05);
+  --radius: 10px;
+  --font-body: "Zen Kaku Gothic New", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #0E1319; --surface: #161D26; --surface-2: #1D2733;
+    --ink: #E9EEF5; --ink-2: #C2CCD9; --muted: #8C99A8;
+    --line: #2A3644; --line-soft: #232E3B;
+    --accent: #6098F5; --accent-soft: #1B2A44;
+    --sev-high: #F0854E; --sev-high-soft: #33201A;
+    --sev-mid: #DFAA44; --sev-mid-soft: #2E2617;
+    --sev-low: #4FBFB2; --sev-low-soft: #162C2A;
+    --done: #5BBE7C; --done-soft: #15291C;
+    --doing: #A98BF5; --doing-soft: #251D3B;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #0E1319; --surface: #161D26; --surface-2: #1D2733;
+  --ink: #E9EEF5; --ink-2: #C2CCD9; --muted: #8C99A8;
+  --line: #2A3644; --line-soft: #232E3B;
+  --accent: #6098F5; --accent-soft: #1B2A44;
+  --sev-high: #F0854E; --sev-high-soft: #33201A;
+  --sev-mid: #DFAA44; --sev-mid-soft: #2E2617;
+  --sev-low: #4FBFB2; --sev-low-soft: #162C2A;
+  --done: #5BBE7C; --done-soft: #15291C;
+  --doing: #A98BF5; --doing-soft: #251D3B;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1000px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 80px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.35; }
+h1 { font-size: 30px; font-weight: 700; margin: 0 0 10px; letter-spacing: .01em; }
+h2 { font-size: 20px; font-weight: 700; margin: 0; }
+h3 { font-size: 15px; font-weight: 700; margin: 18px 0 6px; }
+p { margin: 0 0 10px; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+.lead { color: var(--ink-2); max-width: 68ch; margin-bottom: 18px; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); padding-top: 16px; border-top: 1px solid var(--line); }
+.meta b { color: var(--ink-2); font-weight: 500; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 22px 0 8px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.stat .n { font-family: var(--font-mono); font-size: 24px; font-weight: 500; line-height: 1.15; font-variant-numeric: tabular-nums; display: block; }
+.stat .l { font-size: 12px; color: var(--muted); }
+@media (max-width: 640px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 8px; }
+nav.toc a { font-size: 12.5px; color: var(--ink-2); text-decoration: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; }
+nav.toc a:hover, nav.toc a:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+section.block { margin-top: 44px; }
+.sec-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+.sec-head .tag { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .08em; margin-left: 8px; }
+.sec-head p { color: var(--muted); font-size: 13.5px; margin: 0; max-width: 72ch; }
+.rulebox { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--sev-high); border-radius: var(--radius); padding: 16px 20px; }
+.rulebox ul { margin: 6px 0 0; padding-left: 1.2em; }
+.rulebox li { margin: 3px 0; }
+.rulebox .ok { border-left-color: var(--done); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; }
+.card ul, .card ol { margin: 4px 0 0; padding-left: 1.25em; }
+.card li { margin: 3px 0; }
+code { font-family: var(--font-mono); font-size: 12.5px; background: var(--surface-2); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
+
+/* ブランチの図 */
+.lanes { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; overflow-x: auto; }
+.lane { display: grid; grid-template-columns: 190px 1fr; gap: 14px; align-items: center; padding: 8px 0; }
+.lane + .lane { border-top: 1px dashed var(--line); }
+.lane .name { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+.lane .name small { display: block; font-family: var(--font-body); color: var(--muted); font-size: 11.5px; }
+.track { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 560px; }
+.dot { width: 11px; height: 11px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.acc { background: var(--accent); } .dot.ok { background: var(--done); } .dot.hi { background: var(--sev-high); }
+.seg { height: 2px; background: var(--line); flex: 1; min-width: 14px; }
+.pill { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; color: var(--ink-2); background: var(--surface-2); }
+.pill.acc { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.pill.hi { border-color: var(--sev-high); color: var(--sev-high); background: var(--sev-high-soft); }
+
+/* ロードマップ */
+.ms { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+.ms + .ms { margin-top: 12px; }
+.ms.is-current { border-color: var(--accent); }
+.ms.is-complete { opacity: .72; }
+.ms-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.ms-id { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--muted); }
+.ms-title { font-weight: 700; font-size: 16px; }
+.here { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .08em; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 8px; }
+.ms-why { color: var(--ink-2); font-size: 13.5px; margin: 6px 0 10px; }
+.bar { height: 5px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin: 2px 0 12px; }
+.bar i { display: block; height: 100%; background: var(--done); border-radius: 999px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.step { display: grid; grid-template-columns: 66px 1fr auto; gap: 10px; align-items: start; padding: 7px 0; border-top: 1px solid var(--line-soft); }
+.step .sid { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; background: var(--surface-2); color: var(--ink-2); border-radius: 5px; padding: 2px 7px; text-align: center; margin-top: 2px; }
+.step .st { font-size: 14px; }
+.step .sd { font-size: 12.5px; color: var(--muted); }
+.step .snote { font-size: 12px; color: var(--done); margin-top: 2px; }
+.status-btn { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 3px 11px; cursor: pointer; white-space: nowrap; }
+.status-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status-btn[data-state="doing"] { color: var(--doing); border-color: var(--doing); background: var(--doing-soft); }
+.status-btn[data-state="done"] { color: var(--done); border-color: var(--done); background: var(--done-soft); }
+.step.is-done .st { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+.gate { margin-top: 10px; font-size: 12.5px; color: var(--ink-2); background: var(--surface-2); border-radius: 6px; padding: 7px 11px; }
+.gate b { font-weight: 700; }
+.kfix { margin-top: 8px; font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.kchip { font-family: var(--font-mono); font-size: 11px; border-radius: 5px; padding: 1px 7px; border: 1px solid var(--line); color: var(--ink-2); background: var(--surface); }
+.kchip[data-state="done"] { color: var(--done); border-color: var(--done); text-decoration: line-through; }
+
+/* 詳細カード */
+.plan { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.plan + .plan { margin-top: 10px; }
+.plan > .row { display: grid; grid-template-columns: 52px 1fr auto; gap: 12px; align-items: center; padding: 13px 18px; cursor: pointer; }
+.plan > .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius); }
+.plan .pid { font-family: var(--font-mono); font-size: 12px; font-weight: 500; background: var(--surface-2); color: var(--ink-2); border-radius: 5px; padding: 3px 7px; text-align: center; }
+.plan .ptitle { font-weight: 700; font-size: 15px; }
+.plan .pmeta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.plan .chev { transition: transform .15s; display: inline-block; margin-left: 8px; color: var(--muted); }
+.plan.open .chev { transform: rotate(90deg); }
+.plan .body { display: none; padding: 0 18px 18px 82px; }
+.plan.open .body { display: block; }
+@media (max-width: 640px) { .plan .body { padding-left: 18px; } .plan > .row { grid-template-columns: 44px 1fr; } .plan .pmeta { grid-column: 2; } }
+.plan dl { display: grid; grid-template-columns: 96px 1fr; gap: 6px 14px; margin: 0; }
+@media (max-width: 640px) { .plan dl { grid-template-columns: 1fr; } }
+.plan dt { font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: .06em; padding-top: 4px; }
+.plan dd { margin: 0; font-size: 14px; color: var(--ink-2); }
+.plan dd ul, .plan dd ol { margin: 0; padding-left: 1.2em; }
+.plan dd li { margin: 2px 0; }
+
+/* 改善案 */
+.bucket { margin-top: 18px; }
+.bucket h3 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; font-size: 14px; }
+.bucket h3 .why { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.kitem { background: var(--surface); border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px; }
+.kitem + .kitem { margin-top: 6px; }
+.kitem.sev-high { border-left-color: var(--sev-high); } .kitem.sev-mid { border-left-color: var(--sev-mid); } .kitem.sev-low { border-left-color: var(--sev-low); }
+.kitem .row { display: grid; grid-template-columns: 54px 1fr auto; gap: 10px; align-items: start; padding: 9px 14px; cursor: pointer; }
+.kitem .row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.kitem .kid { font-family: var(--font-mono); font-size: 11.5px; font-weight: 500; background: var(--surface-2); color: var(--ink-2); border-radius: 5px; padding: 2px 6px; text-align: center; margin-top: 2px; }
+.kitem .kt { font-size: 14px; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+.badge { font-size: 11px; border-radius: 4px; padding: 1px 7px; font-family: var(--font-mono); background: var(--surface-2); color: var(--muted); }
+.badge.sev-high { background: var(--sev-high-soft); color: var(--sev-high); }
+.badge.sev-mid { background: var(--sev-mid-soft); color: var(--sev-mid); }
+.badge.sev-low { background: var(--sev-low-soft); color: var(--sev-low); }
+.badge.new { background: var(--accent-soft); color: var(--accent); }
+.kitem .kbody { display: none; padding: 0 14px 12px 78px; font-size: 13.5px; color: var(--ink-2); }
+.kitem.open .kbody { display: block; }
+@media (max-width: 640px) { .kitem .kbody { padding-left: 14px; } }
+.kitem.is-done .kt { color: var(--muted); text-decoration: line-through; }
+.kbody .where { margin-top: 6px; }
+.kbody .note { margin-top: 6px; color: var(--done); }
+.empty { color: var(--muted); font-size: 13.5px; }
+.addform { margin-top: 16px; background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); padding: 10px 16px; }
+.addform summary { cursor: pointer; font-size: 13.5px; color: var(--ink-2); }
+.addform .grid { display: grid; gap: 8px; margin-top: 10px; }
+.addform input, .addform textarea, .addform select { font: inherit; font-size: 13.5px; color: var(--ink); background: var(--ground); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; width: 100%; }
+.addform textarea { min-height: 80px; resize: vertical; }
+.addform .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.addform .actions select { width: auto; }
+.addform button, .copy-btn { font: inherit; font-size: 13px; border: 1px solid var(--accent); background: var(--accent); color: #fff; border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+.hint { font-size: 12px; color: var(--muted); }
+
+/* 引き継ぎ */
+.cmd { position: relative; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--radius); padding: 16px 20px; }
+.cmd pre { margin: 0; white-space: pre-wrap; font-family: var(--font-body); font-size: 14px; line-height: 1.8; color: var(--ink); }
+.cmd .actions { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.sync { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+footer { margin-top: 48px; color: var(--muted); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Graphica · Refactor roadmap</p>
+    <h1>Graphica 再設計ロードマップ</h1>
+    <p class="lead">R-0〜R-9 の作り直しを、挙動を一切変えずに最後まで進めるための計画です。各段階の詳しい解析と手順、保守性ボードに残っている改善点(K)、作業の途中で見つけた改善案と、それぞれをいつやるかをまとめています。作業は別チャットで行い、進み具合はこのページに記録します。</p>
+    <div class="meta">
+      <span>ブランチ <b>refactor/architecture</b></span>
+      <span>作業フォルダ <b>PlotterApp-refactor</b></span>
+      <span>分岐元 <b>42c597d</b>(master + 記録 1 件)</span>
+      <span>master への統合 <b>全段階と動作確認が終わってから</b></span>
+      <span class="sync" id="sync">読み込み中</span>
+    </div>
+    <div class="stats" id="stats"></div>
+    <nav class="toc" aria-label="目次">
+      <a href="#rules">絶対条件</a><a href="#branch">ブランチと統合</a><a href="#roadmap">ロードマップ</a><a href="#plans">各段階の詳細</a><a href="#findings">改善案とタイミング</a><a href="#handoff">引き継ぎ</a>
+    </nav>
+  </header>
+
+  <section class="block" id="rules">
+    <div class="sec-head"><h2>絶対条件<span class="tag">RULES</span></h2>
+      <p>ユーザーの指示(2026-09-25)。R のすべてのコミットがこれを満たすこと。</p></div>
+    <div class="two">
+      <div class="rulebox">
+        <b>維持すること</b>
+        <ul>
+          <li>既存のすべての機能、入力と出力の仕様、副作用を完全に維持する。</li>
+          <li>既存のエッジケースの挙動も変えない(いまの不具合も含む)。</li>
+          <li>作業中に見つけた不具合や改善点は直さずに、K として登録して提案する。直すのはユーザーが選んだあと、別の <code>fix:</code> コミットで。</li>
+        </ul>
+      </div>
+      <div class="rulebox" style="border-left-color: var(--done)">
+        <b>変えてよいこと</b>
+        <ul>
+          <li>アーキテクチャ、クラスやモジュールの設計、関数の切り出し方などの内部構造は根本から変えてよい。</li>
+          <li>目標は、読みやすく、直しやすく、使い回しやすい構造にすること。</li>
+          <li>変えていないことの証明は R-0 の特性テストで行う。<code>refactor:</code> コミットでは基準のファイルが 1 バイトも変わらないこと。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="branch">
+    <div class="sec-head"><h2>ブランチと統合<span class="tag">BRANCHING</span></h2>
+      <p>大きな変更なので master から切り離します。master に入れるのは、全段階が終わり、テストと動作確認で問題がないと確かめたあとの 1 回だけです。</p></div>
+    <div class="lanes" role="img" aria-label="master から refactor/architecture を分け、各段階の作業ブランチを refactor/architecture に取り込み、最後に master へ統合する図">
+      <div class="lane"><div class="name">master<small>配布しているもの</small></div>
+        <div class="track"><span class="dot"></span><span class="seg"></span><span class="pill">必要なら緊急の修正だけ</span><span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="dot hi"></span><span class="pill hi">V-6 で 1 回だけ統合</span></div></div>
+      <div class="lane"><div class="name">refactor/architecture<small>統合用(ここに貯める)</small></div>
+        <div class="track"><span class="dot acc"></span><span class="pill acc">P-1 作成済み</span><span class="seg"></span><span class="pill">R-0</span><span class="seg"></span><span class="pill">R-2</span><span class="seg"></span><span class="pill">…</span><span class="seg"></span><span class="pill">R-8</span><span class="seg"></span><span class="pill">V 確認</span><span class="dot ok"></span></div></div>
+      <div class="lane"><div class="name">refactor/r&lt;n&gt;-…<small>段階ごとの作業ブランチ</small></div>
+        <div class="track"><span class="pill">refactor/r0-characterization</span><span class="seg"></span><span class="pill">refactor/r2-fit-models</span><span class="seg"></span><span class="pill">fix/k20-…</span><span class="seg"></span><span class="pill">…</span></div></div>
+    </div>
+    <div class="two" style="margin-top:14px">
+      <div class="card">
+        <b>取り込みの流れ</b>
+        <ol>
+          <li>段階ごとに <code>refactor/architecture</code> から作業ブランチを切る。</li>
+          <li>終わったらフルスイートと特性テストを通し、PR を <code>refactor/architecture</code> 向けに作る(作成とマージはユーザーの承認後)。</li>
+          <li>K の修正は、対応する段階の PR を取り込んだあと、別ブランチ <code>fix/k&lt;n&gt;-…</code> の別 PR にする。</li>
+          <li>マイルストーンの始めに master を <code>refactor/architecture</code> へマージして、ずれをためない。</li>
+          <li>V-1〜V-5 がすべて済んだら、ユーザーの承認を得て <code>refactor/architecture</code> → master の PR を作り、マージする。</li>
+        </ol>
+      </div>
+      <div class="card">
+        <b>決めごと</b>
+        <ul>
+          <li>元の <code>refactor/maintainability</code> は役目を終えた(F〜J はすべて master に統合済み)。以後は使わない。消すのはユーザーの指示があってから。</li>
+          <li>R の期間中、master には緊急の修正以外を入れない。入れたら次のマイルストーンの始めに取り込む。</li>
+          <li>CI の <code>pull_request</code> は今 master 向けにしか動かないので、P-2 で統合ブランチ向けにも動かす。</li>
+          <li>メインのフォルダ <code>PlotterApp</code>(master)には触らない。作業フォルダで <code>pip install -e</code> はしない。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="roadmap">
+    <div class="sec-head"><h2>ロードマップ<span class="tag">ROADMAP</span></h2>
+      <p>上から順に進めます。各ステップの状態ボタンを押すと「未着手 → 作業中 → 完了」と切り替わり、共有の記録に残ります。灰色の枠のチップは、そのマイルストーンのあとに直す改善案です。</p></div>
+    <div id="milestones"></div>
+  </section>
+
+  <section class="block" id="plans">
+    <div class="sec-head"><h2>各段階の詳細<span class="tag">PLANS</span></h2>
+      <p>2026-09-25 時点のコードを解析した結果です。数字は <code>42c597d</code> で数えました。行をクリックすると開きます。</p></div>
+    <div id="planlist"></div>
+  </section>
+
+  <section class="block" id="findings">
+    <div class="sec-head"><h2>改善案とタイミング<span class="tag">FINDINGS</span></h2>
+      <p>保守性ボードで未対応だった K と、今回の解析で見つけた K-21 以降です。どれも R の中では直さず、表の時点でユーザーに選択肢を示してから別の <code>fix:</code> PR で直します。「新規」は今回の解析で見つけたものです。</p></div>
+    <div id="buckets"></div>
+    <div id="addwrap"></div>
+  </section>
+
+  <section class="block" id="handoff">
+    <div class="sec-head"><h2>別チャットへの引き継ぎ<span class="tag">HANDOFF</span></h2>
+      <p>詳しい手順はリポジトリの <code>Graphica_project/docs/dev/REFACTOR_HANDOFF.md</code> にあります。新しいチャットは作業フォルダ <code>D:\ユーザー\shuta\ドキュメント\PlotterApp-refactor</code> で開き、最初に下の文をそのまま送ってください。</p></div>
+    <div class="cmd">
+      <pre id="firstcmd">D:\ユーザー\shuta\ドキュメント\PlotterApp-refactor(ブランチ refactor/architecture)で R のリファクタリングを始めて。
+最初に Graphica_project/docs/dev/REFACTOR_HANDOFF.md と CURRENT_STATE.md を読み、再設計ロードマップ(https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz)の db で steps と findings の状態を確かめてから、M0 の P-2・P-3 を実施して、続けて R-0 に R-0.1 から順に着手して。
+絶対条件(機能・入出力・副作用・エッジケースを完全に維持)を守り、見つけた不具合は直さずに K として登録して提案すること。1 ステップごとにテスト → コミット → プッシュ → ロードマップの db 更新 → 進捗表の表示まで行い、PR の作成とマージは私の承認を待って。</pre>
+      <div class="actions"><button class="copy-btn" type="button" id="copybtn">文をコピー</button><span class="hint" id="copyhint"></span></div>
+    </div>
+    <div class="two" style="margin-top:14px">
+      <div class="card">
+        <b>1 ステップの型</b>
+        <ol>
+          <li>作業ブランチで実装する。</li>
+          <li>関係するテストと特性テストを回す(<code>core/</code> や共有部分ならフルスイート)。</li>
+          <li>コミットしてプッシュする。</li>
+          <li>このページの db の <code>steps/&lt;ID&gt;</code> を <code>done</code> にし、記録を残す。</li>
+          <li><code>CURRENT_STATE.md</code> を更新し、ユーザーに進捗表を見せる。</li>
+        </ol>
+      </div>
+      <div class="card">
+        <b>途中で何か見つけたら</b>
+        <ul>
+          <li>直さない。db の <code>findings</code> に K-27 以降として登録し、<code>when</code> にどの段階のあとで直すのがよいかを入れる。</li>
+          <li>挙動を変える修正は必ず選択肢を示し、再現するテストを先に書く。</li>
+          <li>特性テストの基準を更新してよいのは <code>fix:</code> コミットだけ。コミットの本文に理由を書く。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>元の保守性ボード(F〜J、完了済み): https://claude.ai/artifact/SQ8zoWEC7SBnxEJNL7GDtU ・ このページの原本: Graphica_project/docs/dev/refactor_roadmap.html</footer>
+</div>
+
+<script>
+const MILESTONES = [
+  { id:"M0", title:"準備", why:"作業場所と CI を整え、基準を取る環境を固定する。",
+    steps:[
+      { id:"P-1", t:"統合ブランチ refactor/architecture と作業フォルダ PlotterApp-refactor を作る", d:"このチャットで作成済み。計画の文書とこのページもここにコミットする。" },
+      { id:"P-2", t:"CI を統合ブランチ向けの PR でも動かす", d:"build.yml の pull_request.branches に refactor/architecture を足す。master の push 条件とカバレッジの条件は変えない。" },
+      { id:"P-3", t:"基準を取る環境を記録する", d:"Python・PySide6・matplotlib・numpy・pandas・scipy の版と OS を tests/characterization/ENVIRONMENT.md に書く。画素の基準はこの版でだけ一致させる。" },
+    ],
+    gate:"P-2 は小さいので R-0 の作業ブランチに入れてよい。" },
+  { id:"M1", title:"安全網を張る(R-0)", why:"以降のすべての段階が「挙動を変えていない」ことをこれで証明する。ここを手厚くするほど後が速い。",
+    steps:[
+      { id:"R-0.1", t:"テストの土台: 設定の一括隔離・モーダルの仕掛け線・ID と時刻の固定", d:"K-22・K-23 をここで入れる。既存テストの中身は変えない。" },
+      { id:"R-0.2", t:"記録と比較の仕組み、基準の更新スクリプト", d:"tests/characterization/ に記録器と基準(JSON)を置き、scripts/update_characterization.py で作り直せるようにする。" },
+      { id:"R-0.3", t:"画面の組み立て結果を固定する", d:"ウィジェットの木・メニュー・ツールバー・ドック・プロパティ 7 節の見え方・ダイアログ 47 個の初期状態。ライト/ダーク、日本語/英語。" },
+      { id:"R-0.4", t:"描画を固定する", d:"8 種類 × 主なオプション × ライト/ダーク。軸の状態(JSON)と画素のハッシュ。" },
+      { id:"R-0.5", t:"保存と読み込み・アプリの設定を固定する", d:".graphica のバイト列、.pkl の読み込み、オートセーブ、設定の書き出し JSON、QSettings に書かれる内容。" },
+      { id:"R-0.6", t:"操作ごとの結果とメッセージを固定する", d:"処理 16・フィット・ピーク・色・転送・重ね描き・プラグイン・一覧ツリー・Undo/Redo。出たメッセージ、ステータス表示、作られたデータセット、並び。" },
+      { id:"R-0.7", t:"書き出しを固定する", d:"PNG・SVG・PDF(日時を正規化)、スクリプト、方法の文章、HTML レポート、LaTeX キャプション。" },
+      { id:"R-0.8", t:"安定性を確かめて PR", d:"2 回続けて回して一致すること、追加の所要時間、基準を取ったコミットを記録する。" },
+    ],
+    gate:"PR を refactor/architecture に取り込む。以後、refactor: コミットで基準が変わったらその変更は誤り。", kfix:["K-22","K-23"] },
+  { id:"M2", title:"中核を作り替える(R-2・R-4・R-5)", why:"影響の範囲が狭く、結果を数値や文字列で機械的に比べられるものから始める。",
+    steps:[
+      { id:"R-2", t:"フィットのモデルを登録表にする", d:"1 PR。" },
+      { id:"R-4", t:"アプリの設定を型付きの一覧にする", d:"1 PR。R-0.1 の一括隔離が前提。" },
+      { id:"R-5", t:"利用者への通知を 1 つの窓口に集める", d:"1 PR。R-3 の実行役がこの窓口を使うので先にやる。" },
+    ],
+    gate:"段階ごとに PR。R-2 のあとに K-20・K-6・K-25、R-4 のあとに K-24、R-5 のあとに K-17 の選択肢を示す。", kfix:["K-20","K-6","K-25","K-24","K-17"] },
+  { id:"M3", title:"データセットの層(R-3・R-6)", why:"Undo の抜け(K-5)や並びの食い違い(K-18)を 1 か所で直せる形にする。",
+    steps:[
+      { id:"R-3", t:"データセットの処理を「操作の定義+実行役」にする", d:"2 PR(処理 16 → フィット・ピーク・転送)。" },
+      { id:"R-6", t:"データセットの並びを 1 つのクラスに閉じ込める", d:"1〜2 PR。" },
+    ],
+    gate:"段階ごとに PR。R-3 のあとに K-21・K-8、R-6 のあとに K-18・K-5。", kfix:["K-21","K-8","K-18","K-5"] },
+  { id:"M4", title:"画面の層(R-1・R-7)", why:"欄と値の対応を表にし、3,145 行の main_window.py を役割ごとに分ける。",
+    steps:[
+      { id:"R-1a", t:"軸の設定をバインディング表にする", d:"1 PR。" },
+      { id:"R-1b", t:"データセットのプロパティをバインディング表にする", d:"1 PR。" },
+      { id:"R-7", t:"main_window.py を役割ごとのモジュールに分ける", d:"2 PR(組み立て → ファイルの読み込み・保存・オートセーブ)。" },
+    ],
+    gate:"段階ごとに PR。R-1 のあとに K-19、R-7 のあとに K-7。", kfix:["K-19","K-7"] },
+  { id:"M5", title:"描画と部品化(R-9・R-8)", why:"最後に全体の依存を部品の間の明示的なものに置き換える。",
+    steps:[
+      { id:"R-9", t:"canvas.py から注釈・外観の設定・描画の手順を部品に切り出す", d:"1 PR。" },
+      { id:"R-8a", t:"マウスの 7 モードをツールの部品にする", d:"1 PR。" },
+      { id:"R-8b", t:"信号の配線と設定の欄を各パネルの部品に移す", d:"1 PR。" },
+      { id:"R-8c", t:"DatasetHost と PluginContext が本体の公開メソッドだけを使うようにする", d:"1 PR。" },
+    ],
+    gate:"段階ごとに PR。R-8 のあとに K-9。", kfix:["K-9"] },
+  { id:"M6", title:"確かめて master に統合する", why:"「完全なものができて問題がない」ことを、テスト・配布物・実際の操作の 3 つで確かめる。",
+    steps:[
+      { id:"V-1", t:"master を取り込み、フルスイート・特性テスト・カバレッジ・ruff・mypy を通す", d:"Windows と macOS の CI が緑。カバレッジは下限 92% 以上で、R-0 の時点から下がっていないこと。" },
+      { id:"V-2", t:"exe・.app・wheel を作って起動する", d:"CI の成果物を落として起動し、サンプルを開いて保存するまで。wheel は一時的な venv に入れて python -m graphica。" },
+      { id:"V-3", t:"プラグインのリポジトリのテストをこのブランチで回す", d:"graphica-plugin-* の各リポジトリで、このブランチの wheel を入れた一時 venv を使う。" },
+      { id:"V-4", t:"ユーザーによる動作確認", d:"REFACTOR_HANDOFF.md の確認表(約 40 項目)を、配布物の exe で実際に操作して確かめる。" },
+      { id:"V-5", t:"文書を今の構造に合わせる", d:"CLAUDE.md のアーキテクチャの節、CURRENT_STATE.md、CHANGELOG(内部構造の刷新として 1 行)。" },
+      { id:"V-6", t:"ユーザーの承認を得て refactor/architecture → master の PR とマージ", d:"マージ後に保守性ボードとこのページを完了にする。" },
+    ],
+    gate:"V-4 で 1 件でも気になる点があれば、K に登録して直してから V-1 からやり直す。", kfix:["K-3","K-10","K-16","K-26"] },
+];
+
+const PLANS = [
+  { id:"R-0", title:"挙動を固定する特性テスト", size:"M〜L · 3 セッション", branch:"refactor/r0-characterization",
+    now:[
+      "テストは 3,140 件あるが機能ごとの確認で、画面の組み立て結果・描画の画素・保存したファイルの中身・利用者に出る文言を丸ごと比べる仕組みはない。画像の比較は 3 画面 × ライト/ダークの 6 枚(差 2% まで許容)だけ。",
+      "テストごとに設定の隔離(<code>IsolatedQSettings</code> を 46 回定義)とモーダルの差し替え(約 130 か所、うち 64 か所はモジュールの属性を差し替え)を手で書いている。R-4・R-5・R-7 でコードを移すと、差し替え先が変わって隔離が黙って外れる(K-22・K-23)。",
+      "保存ファイルには <code>dataset_id</code>(uuid4)と来歴の時刻が入るので、そのままではバイト単位で比べられない。",
+    ],
+    design:[
+      "<code>tests/characterization/</code> に観点ごとのテスト(<code>test_ui_structure.py</code>・<code>test_rendering.py</code>・<code>test_persistence.py</code>・<code>test_operations.py</code>・<code>test_exports.py</code>)と共通の記録器 <code>recorder.py</code>、基準の <code>golden/*.json</code> を置く。",
+      "記録器: ウィジェットの木(クラス・objectName・文字・表示・有効・ツールチップ・子の順)、軸の状態(範囲・目盛りの文字・凡例・線と点の数と色)、モーダルの台本と記録(種類・題・本文・ボタン・既定のボタン・順番)、データセットの要約(列・値のハッシュ・スタイル・来歴)。",
+      "画素は RGBA のハッシュだけを基準に持ち、一致しないときは一時フォルダに PNG と差分画像を出す(リポジトリを重くしない)。",
+      "<code>conftest.py</code> に、QSettings を一時 INI に一括で向ける仕組み(<code>setDefaultFormat</code>+<code>setPath</code>)と、差し替えられていない <code>QMessageBox</code>・<code>QFileDialog.get*</code>・<code>QInputDialog.get*</code>・<code>QDialog.exec</code> を呼ぶと即座に失敗させる仕掛け線を置く(いまはハングする)。",
+    ],
+    steps:["R-0.1","R-0.2","R-0.3","R-0.4","R-0.5","R-0.6","R-0.7","R-0.8"],
+    verify:[
+      "2 回続けて回して、すべての基準が一致する。",
+      "既存テストがすべて緑のまま(仕掛け線で落ちるテストがあれば、それはいまハングしうるテストなので記録して差し替えを足す)。",
+      "意図的に 1 か所(例: メニューの文字)を変えると、該当の特性テストが落ちることを一度確かめる。",
+    ],
+    traps:[
+      "画素はピンした版と Windows でしか一致しない。既存の画像比較と同じく他 OS では画素だけ飛ばし、軸の状態の JSON は全 OS で比べる。",
+      "プラグインの登録はプロセス全体で 1 回。example_plugin を読み込む状態と読み込まない状態をシナリオごとに固定する。",
+      "時刻・uuid・一時パス・版の文字列・PDF と SVG の作成日時を正規化する。",
+      "オフスクリーンの画面の大きさと DPI を固定する。ウィンドウはシナリオごとに作り直す(テストの順番に依存させない)。",
+      "所要時間: 追加は 3 分以内を目安。超えるならシナリオをまとめる。",
+    ],
+    done:["R-0.1〜R-0.8 が完了し、基準を取ったコミット ID を <code>tests/characterization/ENVIRONMENT.md</code> に記録した。"],
+    after:["K-22","K-23"] },
+
+  { id:"R-2", title:"フィットのモデルを登録表にする", size:"M · 1 セッション", branch:"refactor/r2-fit-models",
+    now:[
+      "<code>core/analysis.py</code> で「名前に○○を含むか」の判定が 30 か所(<code>get_fit_param_names</code> 15、<code>calculate_curve_fit</code> 15)に二重に書かれている。",
+      "ダイアログ(<code>gui/dialogs/analysis.py</code>)に 14 の表示名がもう一度並ぶ。表示名は <code>fit_result['fit_type']</code> として保存ファイルと方法の文章に入るので、実質的に識別子(K-25)。",
+      "判定は順番に依存する(「2成分指数」→「指数関数」、「擬似フォークト」→「フォークト」、「ボルツマン」→「シグモイド」)。プラグインの関数は最後に見る(K-20 の原因)。",
+    ],
+    design:[
+      "<code>core/fit_models.py</code> に <code>FitModel</code>(判定の語・表示名・パラメータ名・関数・初期値の推定)の表を置く。表の順が判定の順。",
+      "<code>resolve_fit_model(fit_type, custom_formula)</code> が今と同じ順(カスタム数式 → 表の部分一致 → プラグイン)で探し、<code>analysis</code> の 2 関数はそれを呼ぶだけにする。",
+      "ダイアログの選択肢も表から作る(表示名は 1 字も変えない。並びは組み込み → プラグイン → カスタム数式)。",
+      "プラグインの登録先 <code>_PLUGIN_FIT_FUNCTIONS</code> と公開 API はそのまま(<code>test_plugin_public_api.py</code> の SNAPSHOT を変えない)。",
+    ],
+    steps:["R-2"],
+    verify:[
+      "固定したデータで、全 14 種類+プラグインの関数+カスタム数式について、パラメータ名・popt・pcov・R²・残差が変更前と完全に一致。",
+      "失敗するケース(収束しない・パラメータが足りない)の例外の型と文言も一致。",
+      "K-20 の再現テスト(登録した「二重ガウシアン」が組み込みのガウシアンとして計算される)がそのまま通る。",
+    ],
+    traps:[
+      "初期値の推定(<code>estimate_fwhm</code> など)は入れ子の関数で、外の変数を閉じ込めている。表に移すときに引数で明示する。",
+      "scipy の警告の出方や <code>np.errstate</code> の範囲も変えない。",
+    ],
+    done:["判定の分岐が 1 か所になり、ダイアログの一覧も表から作られている。"],
+    after:["K-20","K-6","K-25"] },
+
+  { id:"R-4", title:"アプリの設定を型付きの一覧にする", size:"S〜M · 1 セッション", branch:"refactor/r4-app-settings",
+    now:[
+      "キーは約 30。<code>QSettings(...)</code> を作る場所が 3 か所、読み書きが約 70 か所・9 ファイルに散らばり、既定値が読む場所ごとと書き出し用の一覧(<code>SETTINGS_EXPORT_SPEC</code>)に重複している。",
+      "「要素が 1 つのリストが文字列で返る」ことへの対処が 4 か所に複製され、<code>color_history.py</code> にだけ無い(K-24、再現は未確認)。",
+      "読み方が揃っていない(<code>type=bool</code> を付ける所と付けない所がある)。",
+    ],
+    design:[
+      "<code>gui/app_settings.py</code> に <code>Setting</code>(キー・型・既定値・書き出すか)の表と、それを読み書きする <code>AppSettings</code> を置く。QSettings を作るのは 1 か所にする。",
+      "各キーの今の読み方(型の指定の有無、リストの直し方)を表にそのまま写す。<code>color_history</code> の「直さない」も今の挙動として残す。",
+    ],
+    steps:["R-4"],
+    verify:[
+      "同じ操作のあとに書かれる設定(一時 INI の中身)が変更前と一致。",
+      "設定の書き出し JSON と読み込み後の値が一致。",
+    ],
+    traps:[
+      "テストは <code>main_window_module.QSettings</code> を差し替えて隔離している(46 か所)。R-0.1 の一括隔離がないと、置き換えた瞬間にテストが本物の設定(レジストリ)を読み書きする。",
+      "<code>type=</code> を付けないと、INI 形式では真偽値が文字列 <code>'false'</code> で返る。付け外しで挙動が変わる。",
+    ],
+    done:["設定のキーと既定値が 1 つの表にだけあり、QSettings を作る場所が 1 か所。"],
+    after:["K-24"] },
+
+  { id:"R-5", title:"利用者への通知を 1 つの窓口に集める", size:"M · 1 セッション", branch:"refactor/r5-notifications",
+    now:[
+      "<code>QMessageBox</code> の直接呼び出しが 206 か所・25 ファイル(最多は <code>processing.py</code> の 53)。<code>QFileDialog.get*</code> 23、<code>QInputDialog.get*</code> 18、ステータス表示 31。",
+      "テストは <code>QMessageBox</code> を約 130 か所で差し替えている。うち 64 か所は <code>export_mixin_module.QMessageBox</code> のようにモジュールの属性を差し替えている。",
+    ],
+    design:[
+      "<code>gui/notify.py</code> に <code>Notifier</code>(情報・警告・エラー・確認・文字の入力・開く/保存のファイル選択)を置き、中で今と同じ引数で Qt の静的メソッドを呼ぶ。",
+      "呼び出しを置き換え、文言・題・ボタン・既定のボタン・親・戻り値の比べ方は 1 字も変えない。",
+    ],
+    steps:["R-5"],
+    verify:["R-0.6 の操作の記録(メッセージの種類・題・本文・ボタン・順番)が全操作で一致。"],
+    traps:[
+      "モジュールの属性を差し替えているテストは、置き換えたファイルと同じコミットで差し替え先を <code>notify</code> 側に変える。アサーションは変えない。漏れは R-0.1 の仕掛け線で失敗として出る。",
+      "<code>crash_handler</code> の <code>QMessageBox</code> は例外処理の最中に動くので、窓口を通さない(import の順と初期化の失敗を避ける)。",
+    ],
+    done:["gui/ から <code>QMessageBox.</code> の直接呼び出しが消え(crash_handler を除く)、テストで 1 か所の差し替えで全通知を記録できる。"],
+    after:["K-17"] },
+
+  { id:"R-3", title:"データセットの処理を「操作の定義+実行役」にする", size:"M · 2 セッション", branch:"refactor/r3-operations",
+    now:[
+      "<code>gui/datasets/processing.py</code> の 16 操作(850 行)が、選択の確認 → ダイアログ → 入力の確認 → 計算(失敗は警告)→ 来歴付きのデータセットを作る → 追加 → ステータス表示、の同じ流れを手で繰り返している。",
+      "流れの細部は操作ごとに違う。数値への変換を try の外で行う操作(規格化・データセット間演算・整列)は、文字の X 列で想定外エラーになる(K-21)。Undo の履歴に積むのは 16 のうち 4 操作だけ(K-5)。出力名が空かの確認は 9 操作だけ。",
+      "<code>fitting.py</code>・<code>peaks.py</code>・<code>transfer.py</code> にも同じ型の流れがある。",
+    ],
+    design:[
+      "<code>gui/datasets/operations/</code> に、各操作を宣言する <code>Operation</code>(必要な選択の数・ダイアログ・入力の確認・計算・結果の作り方・メッセージ)と、流れを担う <code>OperationRunner</code> を置く。",
+      "今の違い(例外を捕まえる範囲、題と文言、Undo の有無、追加先のフォルダ)は定義の属性として明示して再現する。共通化で「捕まえるようになった」は挙動の変更なのでしない。",
+      "2 PR に分ける: 処理の 16 操作 → フィット・ピーク・転送。",
+    ],
+    steps:["R-3"],
+    verify:["R-0.6 の記録が全操作で一致(未処理例外になる操作は、例外の型まで一致)。"],
+    traps:[
+      "ダイアログと選択の確認の順番が操作ごとに違う(規格化は計算の前にデータから範囲を出してダイアログに渡す)。",
+      "フィットは別スレッド(<code>TaskRunner</code>)で動く。実行役は同期の流れと非同期の流れの両方を持つ。",
+    ],
+    done:["16 操作が定義だけになり、流れは実行役 1 か所にある。"],
+    after:["K-21","K-8"] },
+
+  { id:"R-6", title:"データセットの並びを 1 つのクラスに閉じ込める", size:"M · 1〜2 セッション", branch:"refactor/r6-dataset-order",
+    now:[
+      "並びの持ち主が 3 つある: <code>project.datasets</code>(描画の順・ウォーターフォールの段)、一覧のツリー(<code>QTreeWidget</code>)、<code>project.dataset_group_tree</code>(保存用のフォルダ構造)。",
+      "合わせる規則が散らばっている: 追加は描画順の末尾+ツリーは選んだフォルダ、ドラッグの並べ替えでだけ描画順をツリーの順に合わせる、保存の直前にフォルダ構造を作り直す、読み込みでツリーを作り直す、検索で隠す、他のタブへ移す、Undo は並び全体を代入する。",
+      "関係する関数は <code>main_window.py</code> に 10 個(約 310 行)、<code>dataset_mixin.py</code> に 8 個、<code>transfer.py</code> と <code>commands.py</code> にもある。",
+    ],
+    design:[
+      "<code>gui/datasets/order.py</code> に <code>DatasetOrder</code> を置き、3 つの表現と同期の規則(追加・削除・移動・フォルダの操作・保存用の構造への変換・読み込み・Undo 用のスナップショット)をまとめる。ツリーのウィジェットはこのクラスの表示役にする。",
+      "K-18 の食い違い(追加しても描画順は末尾)もこのクラスの中で今のまま再現する。直すときはこの 1 か所を変える。",
+    ],
+    steps:["R-6"],
+    verify:["追加・削除・移動・フォルダの操作・検索・保存・読み込み・他タブへの移動・Undo/Redo の手順ごとに、描画順・ツリー・保存内容が変更前と一致(R-0.6 に並びの記録を入れておく)。"],
+    traps:[
+      "<code>RemoveDatasetCommand</code> と <code>ReorderDatasetsCommand</code> は並び全体を代入する。読み込みで Undo の履歴を消している理由(CLAUDE.md)を壊さない。",
+      "ウォーターフォールの段は、表示・非表示の前の並びで数える。",
+    ],
+    done:["並びを変えるコードが <code>DatasetOrder</code> の中だけにある。"],
+    after:["K-18","K-5"] },
+
+  { id:"R-1", title:"画面の欄と値の対応を「バインディング表」1 つから作る", size:"L · 2 セッション", branch:"refactor/r1a-axis-bindings / r1b-property-bindings",
+    now:[
+      "軸の設定は 73 キー。約 70 個の欄を、集める(103 行)・戻す(139 行)・信号を止める(76 行)・つなぐ(107 行)の 4 か所に手で並べている。4 か所の一覧が完全に一致していることは確認済み。",
+      "読み書きの種類: 数値 24、チェック 20、番号 10(うち見つからなければ 0 に戻すもの 3)、文字 5、表示の文字 5、データ 3、変換付き(単位の選択肢・線種の記号)。フォントと色は欄ではなくインスタンスの属性に持つ。",
+      "データセットのプロパティは、値を読み込む <code>update_ui_state</code> が 245 行(うち信号を止める・戻す行が 66 行)、変更を受ける <code>on_property_changed</code> が 64 行、つなぐ <code>_connect_dataset_signals</code> が 78 行。",
+    ],
+    design:[
+      "<code>gui/binding.py</code> に <code>Binding</code>(キー・欄の取り方・読み方・書き方・変更の信号・見つからないときの値)と、表から集める・戻す・止める・つなぐを行う <code>Binder</code> を置く。",
+      "軸の設定の表とデータセットのプロパティの表を作る。表の順は今の戻す処理の行の順と同じにし、戻したあとの副作用(自動スケールの有効状態、ラベルのプレビュー、見え隠れ)はその順に後処理として呼ぶ。",
+      "2 PR に分ける: 軸の設定(R-1a)→ データセットのプロパティ(R-1b)。",
+    ],
+    steps:["R-1a","R-1b"],
+    verify:[
+      "全キーで「戻して集める」の結果が変更前と一致(既定値、コーパスの古いプロジェクト、乱数で作った設定 200 通り)。",
+      "各欄の信号の接続数(<code>receivers</code>)が一致。R-0.3 の画面の構造が一致。",
+    ],
+    traps:[
+      "戻す順番で値が変わることがある(スピンボックスの範囲による丸め、最小と最大の相互の制約)。順番を変えない。",
+      "<code>tests/test_axis_settings.py</code> の「キーの集合が一致」の検査は表から作る形に合わせて残す。",
+    ],
+    done:["欄を 1 つ足すのが表の 1 行で済む。"],
+    after:["K-19"] },
+
+  { id:"R-7", title:"main_window.py(3,145 行)を役割ごとのモジュールに分ける", size:"M · 2 セッション", branch:"refactor/r7-split-main-window",
+    now:[
+      "内訳: モジュールの補助関数 355 行、画面の組み立て(ビルダー 17 個+プロパティの節)約 1,460 行、ドックの配置 75 行、起動と終了 150 行、保存・読み込み・オートセーブ 220 行、描画の更新・ミニマップ・キャンバスの切り離し 180 行、一覧ツリー 313 行(R-6 で移る)、ファイルの読み込みの流れ 325 行、最近使ったファイル 60 行。",
+      "テストは <code>main_window_module</code> の属性を差し替えている(<code>QFileDialog</code> 29、<code>ColumnPreviewDialog</code> 16、<code>WelcomeDialog</code> 6、<code>resource_path</code> 4 など)。PlotterApp の非公開メソッドのうち 105 個をテストが直接呼ぶ。",
+    ],
+    design:[
+      "パネルごとのビルダー(<code>gui/builders/</code>)、ファイルの読み込みの流れ(<code>gui/data_import_flow.py</code>)、保存・オートセーブ・最近使ったファイル(<code>gui/project_files.py</code>)、ドックの配置(<code>gui/dock_layout.py</code>)に分ける。窓口は <code>gui/datasets</code> と同じ方式。",
+      "<code>PlotterApp</code> には、メニューの表とテストが使う名前を委譲のメソッドとして残す(外から見える形を変えない)。",
+      "2 PR に分ける: 画面の組み立て → 読み込み・保存・オートセーブ。",
+    ],
+    steps:["R-7"],
+    verify:["R-0.3 の画面の構造、R-0.5 の保存、R-0.6 の読み込みの操作が一致。"],
+    traps:[
+      "<code>main_window</code> から名前を再エクスポートしても、移した先のモジュールで名前を引くのでテストの差し替えは効かない。差し替え先を同じコミットで移す。",
+      "<code>resource_path()</code> は自分のファイルの位置を基準にしている。移すなら基準の位置(<code>graphica/</code>)を変えない。",
+      "組み立ての順番は結果に効く(CLAUDE.md)。ビルダーの呼び出し順を変えない。",
+    ],
+    done:["main_window.py が PlotterApp の組み立てと委譲だけになる(目安 800 行以下)。"],
+    after:["K-7"] },
+
+  { id:"R-9", title:"canvas.py から注釈・外観の設定・描画の手順を部品に切り出す", size:"M · 1 セッション", branch:"refactor/r9-canvas-parts",
+    now:[
+      "canvas.py は 1,591 行。描画の基底 <code>_CanvasDrawingMixin</code> が 1,266 行で、注釈・拡大図・パネルラベル約 170 行、グラデーション 60 行、2D の描画 60 行、1D の描画の手順約 330 行、外観の設定約 310 行、再描画の入口 4 つが同じクラスにある。",
+    ],
+    design:[
+      "<code>gui/rendering/</code> に注釈(<code>AnnotationRenderer</code>: 再利用の鍵と作り直し)、外観(<code>AxisAppearance</code>: 決まった順の <code>_apply_*</code> の手順の並び)、1D と 2D の描画の手順を置く。<code>MplCanvas</code> はそれらを持つだけにする。",
+      "ウォーターフォールの座標変換の記録と <code>display_to_data</code>・<code>data_to_display</code> は canvas の公開の窓口として残す。",
+    ],
+    steps:["R-9"],
+    verify:["R-0.4 の画素のハッシュと軸の状態が全ケースで一致。R-0.6 の注釈とカーソルの操作が一致。"],
+    traps:[
+      "外観の手順の順番、<code>allow_reuse</code> を渡してよいのは <code>update_appearance_only</code> だけ、<code>_draw_data</code> には絞り込む前の一覧を渡す、カテゴリ軸と日付軸では <code>set_xscale</code> を呼ばない(CLAUDE.md の各注意)。",
+    ],
+    done:["canvas.py が再描画の入口と部品の組み立てだけになる。"],
+    after:[] },
+
+  { id:"R-8", title:"mixin を部品に置き換え、暗黙の依存をなくす", size:"L · 3 セッション", branch:"refactor/r8a-tools / r8b-panels / r8c-host",
+    now:[
+      "mixin は 15 個。PlotterApp の属性は 261 個。<code>ui_setup_mixin</code> は他のファイルで定義された名前を 139 個、<code>settings_mixin</code> は 47 個使う。",
+      "窓口の <code>DatasetHost</code> も本体の非公開メソッドを 19 か所で呼ぶ。メニューの表(<code>menu_bar.py</code>)は PlotterApp のメソッド名を文字列で持つ。テストは PlotterApp の非公開メソッドを 159 個(全 286 個中)直接呼ぶ。",
+    ],
+    design:[
+      "マウスの 7 モードを <code>gui/tools/</code> の <code>Tool</code> 部品(有効化・無効化・マウスのイベント)と <code>ToolManager</code>(排他は今の <code>MOUSE_MODES</code> の表)にする。",
+      "信号の配線と欄を各パネルの部品に移し、<code>PlotterApp</code> は部品を組み立てる役と、メニューとテストが使う名前の委譲だけにする。",
+      "<code>DatasetHost</code>・<code>TabPluginContext</code> は本体の公開メソッドだけを呼ぶ。mixin は 15 個から 7 個前後になる見込み。",
+    ],
+    steps:["R-8a","R-8b","R-8c"],
+    verify:["モードの排他 42 通り、R-0 のすべて、フルスイート。"],
+    traps:[
+      "<code>QAction</code> は <code>triggered</code> につないでいるので <code>setChecked</code> だけでは処理が走らない。<code>sender()</code> は受け手の QObject でしか使えない。サブメニューは <code>menuAction()</code> も保持する(PySide の GC)。",
+      "プラグインが見る <code>PluginContext</code> の形は変えない(<code>test_plugin_api_contract.py</code>)。",
+    ],
+    done:["PlotterApp の属性とメソッドの大半が部品に移り、部品の間の依存がコンストラクタの引数で見える。"],
+    after:["K-9"] },
+];
+
+const WHEN = [
+  { key:"R-0", label:"R-0 の中で", why:"安全網の一部。アプリの挙動は変わらない。" },
+  { key:"R-2", label:"R-2 のあと", why:"モデルの表ができると 1 か所で直せる。" },
+  { key:"R-4", label:"R-4 のあと", why:"設定の読み方が 1 か所になってから調べる。" },
+  { key:"R-5", label:"R-5 のあと", why:"文言が窓口に集まってから直す。" },
+  { key:"R-3", label:"R-3 のあと", why:"実行役の 1 か所で直せる。" },
+  { key:"R-6", label:"R-6 のあと", why:"並びのクラスの中で直せる。" },
+  { key:"R-1", label:"R-1 のあと", why:"表から組み立てるようになってから直す。" },
+  { key:"R-7", label:"R-7 のあと", why:"読み込みの流れが 1 つのクラスになってから直す。" },
+  { key:"R-8", label:"R-8 のあと", why:"注釈の部品ができてから足す。" },
+  { key:"merge", label:"master に統合したあと", why:"画素の基準が大きく変わる、または範囲が広いもの。R の比較を乱さないよう最後に回す。" },
+];
+
+const SEV = { high:"優先", mid:"中", low:"低" };
+const STATE_LABEL = { todo:"未着手", doing:"作業中", done:"完了" };
+const STATE_NEXT = { todo:"doing", doing:"done", done:"todo" };
+let db = null, steps = {}, notes = {}, findings = [];
+
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c])); }
+function setSync(t) { document.getElementById("sync").textContent = t; }
+function allStepIds() { return MILESTONES.flatMap(m => m.steps.map(s => s.id)); }
+function kState(id) { const f = findings.find(x => x.id === id); return f ? (f.state || "todo") : "todo"; }
+
+function renderStats() {
+  const ids = allStepIds();
+  const done = ids.filter(id => steps[id] === "done").length;
+  const current = MILESTONES.find(m => !m.steps.every(s => steps[s.id] === "done"));
+  const openK = findings.filter(f => f.state !== "done").length;
+  document.getElementById("stats").innerHTML = `
+    <div class="stat"><span class="n">${done}/${ids.length}</span><span class="l">ステップ完了(${Math.round(done / ids.length * 100)}%)</span></div>
+    <div class="stat"><span class="n">${current ? current.id : "完了"}</span><span class="l">${current ? esc(current.title) : "すべて完了"}</span></div>
+    <div class="stat"><span class="n">${findings.length ? openK : "—"}</span><span class="l">未対応の改善案(K)</span></div>
+    <div class="stat"><span class="n">約 20</span><span class="l">見積りのセッション数(全体)</span></div>`;
+}
+
+function renderMilestones() {
+  let currentFound = false;
+  document.getElementById("milestones").innerHTML = MILESTONES.map(m => {
+    const n = m.steps.filter(s => steps[s.id] === "done").length;
+    const complete = n === m.steps.length;
+    const current = !complete && !currentFound; if (current) currentFound = true;
+    const list = m.steps.map(s => {
+      const st = steps[s.id] || "todo";
+      return `<li class="step ${st === "done" ? "is-done" : ""}">
+        <span class="sid">${s.id}</span>
+        <div><div class="st">${esc(s.t)}</div><div class="sd">${esc(s.d)}</div>${notes[s.id] ? `<div class="snote">記録: ${esc(notes[s.id])}</div>` : ""}</div>
+        <button class="status-btn" type="button" data-step="${s.id}" data-state="${st}" aria-label="${s.id} の状態: ${STATE_LABEL[st]}">${STATE_LABEL[st]}</button>
+      </li>`;
+    }).join("");
+    const k = (m.kfix || []).map(id => `<span class="kchip" data-state="${kState(id)}">${id}</span>`).join("");
+    return `<article class="ms ${current ? "is-current" : ""} ${complete ? "is-complete" : ""}">
+      <div class="ms-head"><span class="ms-id">${m.id}</span><span class="ms-title">${esc(m.title)}</span>${current ? `<span class="here">次はここ</span>` : ""}<span class="ms-id" style="margin-left:auto">${n}/${m.steps.length}</span></div>
+      <div class="ms-why">${esc(m.why)}</div>
+      <div class="bar"><i style="width:${Math.round(n / m.steps.length * 100)}%"></i></div>
+      <ul class="steps">${list}</ul>
+      ${m.gate ? `<div class="gate"><b>取り込み:</b> ${esc(m.gate)}</div>` : ""}
+      ${k ? `<div class="kfix">このあとに直す改善案: ${k}</div>` : ""}
+    </article>`;
+  }).join("");
+}
+
+function renderPlans() {
+  const el = document.getElementById("planlist");
+  const openIds = new Set([...el.querySelectorAll(".plan.open")].map(n => n.dataset.id));
+  const li = arr => `<ul>${arr.map(x => `<li>${x}</li>`).join("")}</ul>`;
+  el.innerHTML = PLANS.map(p => {
+    const stepChips = p.steps.map(id => `<span class="kchip" data-state="${steps[id] || "todo"}">${id}</span>`).join(" ");
+    const after = p.after.length ? p.after.map(id => `<span class="kchip" data-state="${kState(id)}">${id}</span>`).join(" ") : "なし";
+    return `<article class="plan ${openIds.has(p.id) ? "open" : ""}" data-id="${p.id}">
+      <div class="row" role="button" tabindex="0" aria-expanded="${openIds.has(p.id)}">
+        <span class="pid">${p.id}</span>
+        <span class="ptitle">${p.title}</span>
+        <span class="pmeta">${esc(p.size)}<span class="chev" aria-hidden="true">›</span></span>
+      </div>
+      <div class="body"><dl>
+        <dt>現状</dt><dd>${li(p.now)}</dd>
+        <dt>設計</dt><dd>${li(p.design)}</dd>
+        <dt>検証</dt><dd>${li(p.verify)}</dd>
+        <dt>落とし穴</dt><dd>${li(p.traps)}</dd>
+        <dt>完了条件</dt><dd>${li(p.done)}</dd>
+        <dt>ブランチ</dt><dd><code>${esc(p.branch)}</code></dd>
+        <dt>ステップ</dt><dd>${stepChips}</dd>
+        <dt>このあと</dt><dd>${after}</dd>
+      </dl></div>
+    </article>`;
+  }).join("");
+}
+
+function kNum(f) { return parseInt(String(f.id).replace(/^K-/, ""), 10) || 0; }
+
+function renderFindings() {
+  const el = document.getElementById("buckets");
+  const openIds = new Set([...el.querySelectorAll(".kitem.open")].map(n => n.dataset.id));
+  if (!findings.length) {
+    el.innerHTML = `<p class="empty">${db ? "まだ登録はありません。" : "共有の記録に接続すると、改善案の一覧が表示されます。"}</p>`;
+    return;
+  }
+  const known = new Set(WHEN.map(w => w.key));
+  const buckets = [...WHEN, { key:"?", label:"時期が未定", why:"登録したチャットで時期を決める。" }];
+  el.innerHTML = buckets.map(b => {
+    const list = findings.filter(f => (known.has(f.when) ? f.when : "?") === b.key).sort((a, c) => kNum(a) - kNum(c));
+    if (!list.length) return "";
+    return `<div class="bucket"><h3>${esc(b.label)}<span class="why">${esc(b.why)}</span></h3>
+      ${list.map(f => {
+        const st = f.state || "todo", sev = SEV[f.sev] ? f.sev : "mid";
+        return `<article class="kitem sev-${sev} ${st === "done" ? "is-done" : ""} ${openIds.has(f.id) ? "open" : ""}" data-id="${esc(f.id)}">
+          <div class="row" role="button" tabindex="0" aria-expanded="${openIds.has(f.id)}">
+            <span class="kid">${esc(f.id)}</span>
+            <div><div class="kt">${esc(f.title)}</div>
+              <div class="badges"><span class="badge sev-${sev}">${SEV[sev]}</span>${f.size ? `<span class="badge">工数 ${esc(f.size)}</span>` : ""}${f.found === "R 計画の解析" ? `<span class="badge new">新規</span>` : ""}${f.kind ? `<span class="badge">${esc(f.kind)}</span>` : ""}</div></div>
+            <span class="badge" style="margin-top:3px">${STATE_LABEL[st] || esc(st)}</span>
+          </div>
+          <div class="kbody">
+            <div style="white-space:pre-wrap">${esc(f.detail)}</div>
+            ${f.whenText ? `<div class="where"><b>いつ・どう直すか:</b> ${esc(f.whenText)}</div>` : ""}
+            ${f.where ? `<div class="where"><code>${esc(f.where)}</code></div>` : ""}
+            ${f.note ? `<div class="note">記録: ${esc(f.note)}</div>` : ""}
+          </div>
+        </article>`;
+      }).join("")}</div>`;
+  }).join("");
+}
+
+function renderAddForm() {
+  const wrap = document.getElementById("addwrap");
+  if (!db) { wrap.innerHTML = ""; return; }
+  if (document.getElementById("addFinding")) return;
+  wrap.innerHTML = `<details class="addform" id="addFinding"><summary>改善案を追加する</summary>
+    <div class="grid">
+      <input id="fTitle" placeholder="何を直したいか(1 行)">
+      <input id="fWhere" placeholder="場所(画面・メニュー・ファイルなど、任意)">
+      <textarea id="fDetail" placeholder="何が起きるか、どうなってほしいか"></textarea>
+      <div class="actions">
+        <select id="fSev" aria-label="優先度"><option value="high">優先</option><option value="mid" selected>中</option><option value="low">低</option></select>
+        <select id="fWhen" aria-label="直す時期"><option value="?">時期は未定</option>${WHEN.map(w => `<option value="${w.key}">${esc(w.label)}</option>`).join("")}</select>
+        <button type="button" id="fAdd">追加</button><span class="hint" id="fHint"></span>
+      </div>
+    </div></details>`;
+  document.getElementById("fAdd").addEventListener("click", addFinding);
+}
+
+async function addFinding() {
+  const title = document.getElementById("fTitle").value.trim();
+  const hint = document.getElementById("fHint");
+  if (!title) { hint.textContent = "1 行目を入力してください"; return; }
+  const id = "K-" + (findings.reduce((m, f) => Math.max(m, kNum(f)), 0) + 1);
+  try {
+    await db.doc("findings/" + id).set({
+      title, where: document.getElementById("fWhere").value.trim(),
+      detail: document.getElementById("fDetail").value.trim(),
+      sev: document.getElementById("fSev").value, when: document.getElementById("fWhen").value,
+      state: "todo", found: "ユーザー", updatedAt: new Date().toISOString(),
+    });
+    hint.textContent = id + " として追加しました";
+    ["fTitle", "fWhere", "fDetail"].forEach(i => document.getElementById(i).value = "");
+  } catch (e) { hint.textContent = "保存できませんでした。編集の権限があるか確かめてください"; }
+}
+
+async function setStep(id, state) {
+  steps[id] = state; render();
+  if (!db) return;
+  try { await db.doc("steps/" + id).set({ state, note: notes[id] || "", updatedAt: new Date().toISOString() }); }
+  catch (e) { setSync("保存できませんでした(閲覧のみの可能性)"); }
+}
+
+function render() { renderStats(); renderMilestones(); renderPlans(); renderFindings(); renderAddForm(); }
+
+document.getElementById("milestones").addEventListener("click", ev => {
+  const b = ev.target.closest(".status-btn"); if (!b) return;
+  setStep(b.dataset.step, STATE_NEXT[steps[b.dataset.step] || "todo"]);
+});
+function toggler(containerId, itemSel) {
+  const el = document.getElementById(containerId);
+  el.addEventListener("click", ev => {
+    const row = ev.target.closest(".row"); if (!row) return;
+    const item = row.closest(itemSel); item.classList.toggle("open");
+    row.setAttribute("aria-expanded", item.classList.contains("open"));
+  });
+  el.addEventListener("keydown", ev => {
+    if ((ev.key === "Enter" || ev.key === " ") && ev.target.classList.contains("row")) { ev.preventDefault(); ev.target.click(); }
+  });
+}
+toggler("planlist", ".plan"); toggler("buckets", ".kitem");
+
+document.getElementById("copybtn").addEventListener("click", () => {
+  const text = document.getElementById("firstcmd").textContent;
+  const hint = document.getElementById("copyhint");
+  const fallback = () => {
+    const r = document.createRange(); r.selectNodeContents(document.getElementById("firstcmd"));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    hint.textContent = "選択しました。Ctrl+C でコピーしてください";
+  };
+  try { navigator.clipboard.writeText(text).then(() => hint.textContent = "コピーしました", fallback); } catch (e) { fallback(); }
+});
+
+render();
+setSync("共有の記録に接続中");
+(async () => {
+  let store = null;
+  try { store = await window.claude?.use?.("db"); } catch (e) { store = null; }
+  if (!store) { setSync("共有の記録に接続できません(表示のみ)"); render(); return; }
+  db = store;
+  db.collection("steps").onSnapshot(snap => {
+    const s = {}, n = {};
+    snap.docs.forEach(d => { const b = d.data() || {}; if (typeof b.state === "string") s[d.id] = b.state; if (b.note) n[d.id] = b.note; });
+    steps = s; notes = n; render(); setSync("共有の記録と同期中");
+  }, () => setSync("同期できません(表示のみ)"));
+  db.collection("findings").onSnapshot(snap => {
+    findings = snap.docs.map(d => ({ ...(d.data() || {}), id: d.id })); render();
+  }, () => {});
+})();
+</script>

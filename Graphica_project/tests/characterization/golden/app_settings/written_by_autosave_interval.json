@@ -1,0 +1,86 @@
+{
+ "before": {
+  "autosave_dir": "<CASE>/autosave",
+  "dark_mode": false,
+  "language": "ja"
+ },
+ "after": {
+  "autosave_dir": "<CASE>/autosave",
+  "autosave_interval_min": 15,
+  "dark_mode": false,
+  "language": "ja"
+ },
+ "modals": [
+  {
+   "kind": "QInputDialog.getInt",
+   "title": "オートセーブ間隔の設定",
+   "label": "オートセーブの間隔を分単位で入力してください (0で無効化):",
+   "default": 5
+  },
+  {
+   "kind": "QInputDialog.getInt",
+   "title": "オートセーブ間隔の設定",
+   "label": "オートセーブの間隔を分単位で入力してください (0で無効化):",
+   "default": 0
+  }
+ ],
+ "status": "オートセーブ間隔を15分に設定しました",
+ "read_back": {
+  "dark_mode": false,
+  "language": "ja",
+  "autosave": [
+   true,
+   900000
+  ],
+  "autosave_file": "<CASE>/autosave/autosave_tab2.graphica",
+  "point_label_max_points": 1000,
+  "snap": [
+   false,
+   10
+  ],
+  "minimap_visible": true,
+  "recent_files": [],
+  "recent_menu": [
+   "(履歴なし)"
+  ],
+  "quick_access_ids": [],
+  "quick_access_toolbar": [],
+  "disabled_plugins": [],
+  "collapsed_sections": [],
+  "dock_presets": [],
+  "palettes": {},
+  "active_color_cycle": [
+   "#1f77b4",
+   "#ff7f0e",
+   "#2ca02c",
+   "#d62728",
+   "#9467bd",
+   "#8c564b",
+   "#e377c2",
+   "#7f7f7f",
+   "#bcbd22",
+   "#17becf"
+  ],
+  "named_colors": [],
+  "custom_colors": [
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff",
+   "#ffffff"
+  ],
+  "had_clean_exit": true,
+  "canvas_detached": false
+ }
+}

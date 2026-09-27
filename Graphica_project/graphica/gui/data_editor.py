@@ -6,12 +6,13 @@ import pandas as pd
 from scipy import stats as scipy_stats
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                                QTableWidget, QTableWidgetItem, QMenuBar,
-                               QInputDialog, QMessageBox, QFileDialog, QDialogButtonBox)
+                               QDialogButtonBox)
 from PySide6.QtGui import QUndoStack, QKeySequence, QColor
 from PySide6.QtCore import Signal, Qt
 
 logger = logging.getLogger(__name__)
 
+from graphica.gui import notify
 from graphica.core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
                            AddColumnCommand, DeleteColumnCommand, SetMaskedRowsCommand,
                            RenameColumnCommand)
@@ -236,7 +237,7 @@ class DataEditorDialog(QDialog):
             self.view_df = self.view_df.sort_values(by=col_name, ascending=ascending, kind='mergesort')
         except TypeError:
             # 型の混ざった列は並べ替えられないことがある
-            QMessageBox.warning(self, "ソートエラー", f"列 '{col_name}' はソートできませんでした。")
+            notify.warning(self, "ソートエラー", f"列 '{col_name}' はソートできませんでした。")
             return
 
         self.sort_state = (col_name, ascending)
@@ -244,14 +245,14 @@ class DataEditorDialog(QDialog):
 
     def _on_header_double_clicked(self, logical_index):
         old_name = self.view_df.columns[logical_index]
-        new_name, ok = QInputDialog.getText(self, "列名の変更", "新しい列名:", text=old_name)
+        new_name, ok = notify.get_text(self, "列名の変更", "新しい列名:", text=old_name)
         if not ok:
             return
         new_name = new_name.strip()
         if not new_name or new_name == old_name:
             return
         if new_name in self.dataset.df.columns:
-            QMessageBox.warning(self, "列名の変更", f"列名 '{new_name}' は既に使用されています。")
+            notify.warning(self, "列名の変更", f"列名 '{new_name}' は既に使用されています。")
             return
 
         command = RenameColumnCommand(self.dataset, old_name, new_name)
@@ -376,7 +377,7 @@ class DataEditorDialog(QDialog):
         try:
             original_indices_attempt = [self.view_df.index[row] for row in view_rows]
         except IndexError:
-             QMessageBox.warning(self, "削除エラー", "行インデックスの取得に失敗しました。")
+             notify.warning(self, "削除エラー", "行インデックスの取得に失敗しました。")
              return
 
         # view_df と dataset.df の index がずれていた場合に備える
@@ -386,7 +387,7 @@ class DataEditorDialog(QDialog):
         ]
         
         if not valid_indices_to_delete:
-            QMessageBox.warning(self, "削除エラー", "削除対象のデータがマスターに見つかりませんでした。")
+            notify.warning(self, "削除エラー", "削除対象のデータがマスターに見つかりませんでした。")
             return 
 
         # Undo のため、消す前に写しを取る
@@ -405,7 +406,7 @@ class DataEditorDialog(QDialog):
         try:
             master_indices = [self.view_df.index[row] for row in view_rows]
         except IndexError:
-            QMessageBox.warning(self, "操作エラー", "行インデックスの取得に失敗しました。")
+            notify.warning(self, "操作エラー", "行インデックスの取得に失敗しました。")
             return
         master_indices = [idx for idx in master_indices if idx in self.dataset.df.index]
         if not master_indices:
@@ -423,11 +424,11 @@ class DataEditorDialog(QDialog):
         self.undo_stack.push(command)
 
     def _on_add_column(self):
-        col_name, ok = QInputDialog.getText(self, "列の追加", "新しい列名を入力してください:")
+        col_name, ok = notify.get_text(self, "列の追加", "新しい列名を入力してください:")
         
         if ok and col_name:
             if col_name in self.dataset.df.columns:
-                QMessageBox.warning(self, "エラー", f"列名 '{col_name}' は既に存在します。")
+                notify.warning(self, "エラー", f"列名 '{col_name}' は既に存在します。")
                 return
             
             command = AddColumnCommand(self.dataset, col_name)
@@ -436,7 +437,7 @@ class DataEditorDialog(QDialog):
     def _on_delete_column(self):
         current_col_index = self.table_widget.currentColumn()
         if current_col_index == -1:
-            QMessageBox.warning(self,"エラー", "削除する列が選択されていません。")
+            notify.warning(self,"エラー", "削除する列が選択されていません。")
             return
             
         col_name = self.view_df.columns[current_col_index]
@@ -445,7 +446,7 @@ class DataEditorDialog(QDialog):
         if (col_name == self.dataset.x_col_name or 
             col_name == self.dataset.y_col_name):
             
-            QMessageBox.warning(self, "削除不可", 
+            notify.warning(self, "削除不可", 
                                 f"列 '{col_name}' は現在プロットに使用されているため削除できません。")
             return
 
@@ -464,7 +465,7 @@ class DataEditorDialog(QDialog):
             output_col, formula = dialog.get_formula()
 
             if not output_col or not formula:
-                QMessageBox.warning(self, "入力エラー", "出力列または計算式が空です。")
+                notify.warning(self, "入力エラー", "出力列または計算式が空です。")
                 return
 
             try:
@@ -479,7 +480,7 @@ class DataEditorDialog(QDialog):
                 
             except Exception as e:
                 logger.exception("計算エラー")
-                QMessageBox.critical(self, "計算エラー", 
+                notify.critical(self, "計算エラー", 
                                      f"計算式の実行に失敗しました:\n\n{e}\n\n"
                                      "列名 (A, B など) や関数 (log(A) など) が正しいか確認してください。")
     
@@ -491,10 +492,10 @@ class DataEditorDialog(QDialog):
 
         selected_cols, stat_type, base_name = dialog.get_settings()
         if len(selected_cols) < 2:
-            QMessageBox.warning(self, "入力エラー", "反復測定として扱う列を2つ以上選択してください。")
+            notify.warning(self, "入力エラー", "反復測定として扱う列を2つ以上選択してください。")
             return
         if not base_name:
-            QMessageBox.warning(self, "入力エラー", "出力列名のベースが空です。")
+            notify.warning(self, "入力エラー", "出力列名のベースが空です。")
             return
 
         error_suffix = {"SD": "SD", "SEM": "SEM", "95%CI": "CI95"}[stat_type]
@@ -502,7 +503,7 @@ class DataEditorDialog(QDialog):
         error_col_name = f"{base_name}_{error_suffix}"
 
         if mean_col_name in self.dataset.df.columns or error_col_name in self.dataset.df.columns:
-            QMessageBox.warning(
+            notify.warning(
                 self, "エラー",
                 f"列名 '{mean_col_name}' または '{error_col_name}' は既に存在します。"
                 "別のベース名を指定してください。"
@@ -538,7 +539,7 @@ class DataEditorDialog(QDialog):
 
         except Exception as e:
             logger.exception("誤差自動計算エラー")
-            QMessageBox.critical(self, "計算エラー", f"誤差の計算に失敗しました:\n{e}")
+            notify.critical(self, "計算エラー", f"誤差の計算に失敗しました:\n{e}")
 
     def _on_column_string_ops(self):
         """列の分割・結合・数値の抽出。結果は新しい列に入れる(既存の列は上書きしない)。Undo できない。"""
@@ -551,14 +552,14 @@ class DataEditorDialog(QDialog):
         if mode == ColumnStringOpsDialog.MODE_SPLIT:
             source_col, delimiter, prefix = dialog.get_split_settings()
             if not delimiter:
-                QMessageBox.warning(self, "入力エラー", "区切り文字が空です。")
+                notify.warning(self, "入力エラー", "区切り文字が空です。")
                 return
             prefix = prefix or source_col
             try:
                 split_result = self.dataset.df[source_col].astype(str).str.split(delimiter, expand=True)
             except Exception as e:
                 logger.exception("列の分割エラー")
-                QMessageBox.critical(self, "列の分割エラー", f"分割に失敗しました:\n{e}")
+                notify.critical(self, "列の分割エラー", f"分割に失敗しました:\n{e}")
                 return
             new_names = []
             for i in range(split_result.shape[1]):
@@ -574,13 +575,13 @@ class DataEditorDialog(QDialog):
         elif mode == ColumnStringOpsDialog.MODE_MERGE:
             selected_cols, separator, output_col = dialog.get_merge_settings()
             if len(selected_cols) < 2:
-                QMessageBox.warning(self, "入力エラー", "結合する列を2つ以上選択してください。")
+                notify.warning(self, "入力エラー", "結合する列を2つ以上選択してください。")
                 return
             if not output_col:
-                QMessageBox.warning(self, "入力エラー", "出力列名が空です。")
+                notify.warning(self, "入力エラー", "出力列名が空です。")
                 return
             if output_col in self.dataset.df.columns:
-                QMessageBox.warning(self, "入力エラー", f"列名 '{output_col}' は既に存在します。")
+                notify.warning(self, "入力エラー", f"列名 '{output_col}' は既に存在します。")
                 return
             try:
                 merged = self.dataset.df[selected_cols[0]].astype(str)
@@ -588,7 +589,7 @@ class DataEditorDialog(QDialog):
                     merged = merged + separator + self.dataset.df[col].astype(str)
             except Exception as e:
                 logger.exception("列の結合エラー")
-                QMessageBox.critical(self, "列の結合エラー", f"結合に失敗しました:\n{e}")
+                notify.critical(self, "列の結合エラー", f"結合に失敗しました:\n{e}")
                 return
             self.dataset.df[output_col] = merged
             self.dataset.invalidate_visible_df_cache()
@@ -597,20 +598,20 @@ class DataEditorDialog(QDialog):
         else:
             source_col, pattern, output_col = dialog.get_extract_settings()
             if not pattern:
-                QMessageBox.warning(self, "入力エラー", "正規表現が空です。")
+                notify.warning(self, "入力エラー", "正規表現が空です。")
                 return
             if not output_col:
-                QMessageBox.warning(self, "入力エラー", "出力列名が空です。")
+                notify.warning(self, "入力エラー", "出力列名が空です。")
                 return
             if output_col in self.dataset.df.columns:
-                QMessageBox.warning(self, "入力エラー", f"列名 '{output_col}' は既に存在します。")
+                notify.warning(self, "入力エラー", f"列名 '{output_col}' は既に存在します。")
                 return
             try:
                 extracted = self.dataset.df[source_col].astype(str).str.extract(f"({pattern})", expand=False)
                 values = pd.to_numeric(extracted, errors='coerce')
             except Exception as e:
                 logger.exception("数値抽出エラー")
-                QMessageBox.critical(self, "数値抽出エラー", f"正規表現が不正です:\n{e}")
+                notify.critical(self, "数値抽出エラー", f"正規表現が不正です:\n{e}")
                 return
             self.dataset.df[output_col] = values
             self.dataset.invalidate_visible_df_cache()
@@ -720,9 +721,9 @@ class DataEditorDialog(QDialog):
     def _on_jump_to_row(self):
         """表示上の行番号(1始まり)の行を選んで見せる。"""
         if len(self.view_df) == 0:
-            QMessageBox.information(self, "行へ移動", "テーブルにデータがありません。")
+            notify.information(self, "行へ移動", "テーブルにデータがありません。")
             return
-        row_number, ok = QInputDialog.getInt(
+        row_number, ok = notify.get_int(
             self, "行へ移動", f"移動先の行番号 (1〜{len(self.view_df)}):",
             1, 1, len(self.view_df)
         )
@@ -739,7 +740,7 @@ class DataEditorDialog(QDialog):
         base_name = base_name.split(' (')[0] 
         suggested_name = f"{base_name}_edited.csv"
         
-        file_path, _ = QFileDialog.getSaveFileName(
+        file_path, _ = notify.get_save_file_name(
             self, 
             "CSVとして保存", 
             suggested_name, 
@@ -753,8 +754,8 @@ class DataEditorDialog(QDialog):
             # utf-8-sig でないと Excel で開いたとき日本語が化ける
             self.dataset.df.to_csv(file_path, index=False, encoding='utf-8-sig')
             
-            QMessageBox.information(self, "保存完了", f"データをCSVファイルとして保存しました:\n{file_path}")
+            notify.information(self, "保存完了", f"データをCSVファイルとして保存しました:\n{file_path}")
             
         except Exception as e:
             logger.exception("CSV保存エラー")
-            QMessageBox.warning(self, "保存エラー", f"CSVファイルの保存中にエラーが発生しました:\n{e}")
+            notify.warning(self, "保存エラー", f"CSVファイルの保存中にエラーが発生しました:\n{e}")

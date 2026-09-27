@@ -1,5 +1,9 @@
 """データファイルの読み込み(TaskRunner で別スレッドで動かす関数)と、文字コード・区切り文字の判定。"""
 import csv
+import dataclasses
+import re
+import warnings
+
 import pandas as pd
 
 # 順に試す文字コード。utf-8-sig は BOM の有無どちらの UTF-8 も読める。latin-1 は必ず読める最後の手段。
@@ -102,6 +106,116 @@ def detect_clipboard_delimiter(text, sample_lines=50):
     return _sniff_delimiter_from_text(sample)
 
 
+# 測定装置の書き出し(JASCO の TXT など)は、数値の表の前後に測定条件の行が付く。そういうファイルでだけ数値の表を探す
+NUMERIC_TABLE_DELIMITERS = ('\t', ',', ';', ' ')
+MIN_NUMERIC_TABLE_ROWS = 3
+
+
+@dataclasses.dataclass
+class NumericTable:
+    first_line: int  # 0 始まり、表の最初の数値の行
+    stop_line: int  # 表の最後の行の次
+    delimiter: str
+    header: list | None  # 表の直前の行が同じ列数の文字なら列名
+
+
+def _split_numeric_row(line, delimiter):
+    """2 列以上がすべて数値として読めれば、その列の文字列。読めなければ None。"""
+    text = line.strip()
+    fields = text.split() if delimiter == ' ' else [f.strip() for f in text.split(delimiter)]
+    if len(fields) < 2:
+        return None
+    try:
+        for field in fields:
+            float(field)
+    except ValueError:
+        return None
+    return fields
+
+
+def find_numeric_table(lines):
+    """列数のそろった数値の行が最も長く続くところ。MIN_NUMERIC_TABLE_ROWS 行に満たなければ None。"""
+    best = None
+    for delimiter in NUMERIC_TABLE_DELIMITERS:
+        start, columns = None, 0
+        for index, line in enumerate([*lines, '']):
+            fields = _split_numeric_row(line, delimiter)
+            if fields is not None and start is not None and len(fields) == columns:
+                continue
+            if start is not None and (best is None or index - start > best.stop_line - best.first_line):
+                best = NumericTable(start, index, delimiter, None)
+            start, columns = (index, len(fields)) if fields is not None else (None, 0)
+    if best is None or best.stop_line - best.first_line < MIN_NUMERIC_TABLE_ROWS:
+        return None
+    if best.first_line > 0:
+        above = lines[best.first_line - 1].strip()
+        names = above.split() if best.delimiter == ' ' else [f.strip() for f in above.split(best.delimiter)]
+        column_count = len(_split_numeric_row(lines[best.first_line], best.delimiter))
+        if above and len(names) == column_count and _split_numeric_row(above, best.delimiter) is None:
+            best.header = names
+    return best
+
+
+def read_numeric_table(file_path, encoding):
+    """前後の説明の行を除いた数値の表を DataFrame にする。(DataFrame, NumericTable)、見つからなければ None。"""
+    import io
+
+    with open(file_path, encoding=encoding) as f:
+        lines = f.read().splitlines()
+    table = find_numeric_table(lines)
+    if table is None:
+        return None
+    sep, engine = pandas_separator(table.delimiter)
+    body = '\n'.join(line.strip() for line in lines[table.first_line:table.stop_line])
+    df = pd.read_csv(io.StringIO(body), sep=sep, engine=engine, header=None)
+    names = table.header or [f"列{i + 1}" for i in range(df.shape[1])]
+    # 同じ列名は read_csv と同じく .1, .2 を付けて分ける
+    seen = {}
+    unique = []
+    for name in names:
+        count = seen.get(name, 0)
+        unique.append(name if count == 0 else f"{name}.{count}")
+        seen[name] = count + 1
+    df.columns = unique
+    return df, table
+
+
+def has_numeric_column(df):
+    return any(pd.api.types.is_numeric_dtype(df[column]) for column in df.columns)
+
+
+# 年(4 桁の数字)を含む値だけを日付とみなす。"12:30" のような時刻だけの文字は、読んだ日の日付が補われてしまう
+_YEAR_PATTERN = re.compile(r"\d{4}")
+
+
+def parse_date_columns(df):
+    """文字の列のうち、空でない値がすべて日付として読める列を日付型にする(Excel の日付の列と同じ扱い)。"""
+    for column in df.columns:
+        series = df[column]
+        if series.dtype != object:
+            continue
+        text = series.dropna().astype(str).str.strip()
+        text = text[text != ""]
+        if text.empty or not text.map(lambda value: _YEAR_PATTERN.search(value) is not None).all():
+            continue
+        with warnings.catch_warnings():
+            # 書式を推測できない警告と、タイムゾーンが混ざった列の将来の仕様変更の警告(その列は下で日付にしない)
+            warnings.simplefilter("ignore", UserWarning)
+            warnings.simplefilter("ignore", FutureWarning)
+            try:
+                # 書式は値ごとに読む(先頭の値の書式に合わせると、時刻のある値と無い値が混ざった列を読めない)
+                parsed = pd.to_datetime(text, errors="coerce", format="mixed")
+            except (ValueError, TypeError):
+                continue
+        # タイムゾーンが混ざると日付型にならない(object のまま)
+        if parsed.isna().any() or not pd.api.types.is_datetime64_any_dtype(parsed):
+            continue
+        converted = pd.Series(pd.NaT, index=series.index, dtype=parsed.dtype)
+        converted.loc[parsed.index] = parsed
+        df[column] = converted
+    return df
+
+
 def read_data_file(file_path):
     """データファイルを DataFrame にする。プラグインがその拡張子を登録していればそちらを使う。"""
     ext = file_path.lower().split('.')[-1]
@@ -129,10 +243,25 @@ def read_data_file(file_path):
         for encoding in _csv_encoding_candidates(file_path):
             try:
                 sep, engine = pandas_separator(detect_csv_delimiter(file_path, encoding))
-                return pd.read_csv(file_path, header=0, encoding=encoding, sep=sep, engine=engine)
-            except (UnicodeDecodeError, pd.errors.ParserError) as e:
+                df = pd.read_csv(file_path, header=0, encoding=encoding, sep=sep, engine=engine)
+            except UnicodeDecodeError as e:
                 last_error = e
                 continue
+            except pd.errors.ParserError as e:
+                try:
+                    found = read_numeric_table(file_path, encoding)
+                except UnicodeDecodeError:
+                    found = None
+                if found is not None:
+                    return parse_date_columns(found[0])
+                last_error = e
+                continue
+            # 普通に読めて数値の列があるファイルは今までどおり。どの列も数値にならないときだけ、前後の説明の行を疑う
+            if not has_numeric_column(df):
+                found = read_numeric_table(file_path, encoding)
+                if found is not None:
+                    return parse_date_columns(found[0])
+            return parse_date_columns(df)
         raise ValueError(
             f"テキストファイルの文字コードを判定できませんでした "
             f"(試行: {', '.join(CSV_ENCODING_FALLBACKS)})。詳細: {last_error}"

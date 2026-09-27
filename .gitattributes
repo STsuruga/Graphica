@@ -1,0 +1,2 @@
+# 特性テストの基準は、どの OS でチェックアウトしても同じバイト列にする
+Graphica_project/tests/characterization/golden/** text eol=lf

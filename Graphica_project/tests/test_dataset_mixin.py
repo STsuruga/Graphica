@@ -21,17 +21,18 @@ from PySide6.QtCore import QSettings, QPoint, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QMenu, QMessageBox
 
+import graphica.gui.notify as notify_module
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.datasets.colors as colors_module
-import graphica.gui.datasets.processing as processing_module
-import graphica.gui.main_window as main_window_module
-import graphica.gui.datasets.fitting as fitting_module
-import graphica.gui.datasets.transfer as transfer_module
+import graphica.gui.datasets.operations.processing as processing_module
+import graphica.gui.datasets.operations.fitting as fitting_module
+import graphica.gui.datasets.operations.transfer as transfer_module
 import graphica.gui.datasets.actions_menu as actions_menu_module
 import graphica.gui.datasets.property_panel as property_panel_module
 import graphica.gui.datasets.overlays as overlays_module
 import graphica.gui.datasets.plugin_runs as plugin_runs_module
-import graphica.gui.mixins.dataset_mixin as dataset_mixin_module
-import graphica.gui.mixins.settings_mixin as settings_mixin_module
+import graphica.gui.panels.dataset_tree as dataset_mixin_module
+import graphica.gui.panels.axis_settings as settings_mixin_module
 from graphica.gui.main_window import PlotterApp
 from graphica.gui.dialogs import (
     NormalizeDatasetDialog, PluginParamDialog, DatasetArithmeticDialog, SavGolDialog, ColumnCalculatorDialog, ColorPaletteDialog,
@@ -53,7 +54,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     app = QApplication.instance()
     for _ in range(5):
@@ -1455,7 +1456,7 @@ def test_export_dataset_data_no_selection_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: calls.append(1) or ("", ""))
     )
     window.transfer.export_data()
@@ -1468,7 +1469,7 @@ def test_export_single_dataset_csv(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     out_path = str(tmp_path / "out.csv")
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "CSV Files (*.csv)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1485,7 +1486,7 @@ def test_export_single_dataset_excel_via_filter_appends_extension(tmp_path, monk
     _add_and_select_dataset(window, ds)
     out_path_no_ext = str(tmp_path / "outbook")
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path_no_ext, "Excel Files (*.xlsx)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1501,7 +1502,7 @@ def test_export_single_dataset_cancelled_writes_nothing(tmp_path, monkeypatch):
     ds = _make_simple_dataset("mydata")
     _add_and_select_dataset(window, ds)
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: ("", ""))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1517,7 +1518,7 @@ def test_export_single_dataset_write_error_shows_warning(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
     out_path = str(tmp_path / "out.csv")
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "CSV Files (*.csv)"))
     )
 
@@ -1542,11 +1543,11 @@ def test_export_multi_datasets_csv_per_file_with_name_collision(tmp_path, monkey
     window._add_dataset(ds2, None, select=False)
     _select_items(window, [ds1, ds2])
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", True))
     )
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: str(tmp_path))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1566,12 +1567,12 @@ def test_export_multi_datasets_excel_workbook_with_sheet_collision(tmp_path, mon
     window._add_dataset(ds2, None, select=False)
     _select_items(window, [ds1, ds2])
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("Excel (1ブックにシート分け)", True))
     )
     out_path = str(tmp_path / "book.xlsx")
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (out_path, "Excel Files (*.xlsx)"))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1591,7 +1592,7 @@ def test_export_multi_datasets_format_choice_cancelled_writes_nothing(tmp_path, 
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", False))
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -1608,11 +1609,11 @@ def test_export_multi_datasets_csv_dir_cancelled_writes_nothing(tmp_path, monkey
         window._add_dataset(ds, None, select=False)
     _select_items(window, datasets)
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("CSV (データセットごとに別ファイル)", True))
     )
     monkeypatch.setattr(
-        transfer_module.QFileDialog, "getExistingDirectory",
+        notify_module.QFileDialog, "getExistingDirectory",
         staticmethod(lambda *a, **k: "")
     )
     info_calls = _patch_info_capture(monkeypatch)
@@ -3547,7 +3548,7 @@ def test_save_and_load_color_palettes_round_trip(tmp_path, monkeypatch):
 
 def test_load_color_palettes_corrupted_json_returns_empty(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(colors_module.COLOR_PALETTES_SETTINGS_KEY, "{not valid json")
+    window.settings.setValue(app_settings_module.COLOR_PALETTES_SETTINGS_KEY, "{not valid json")
 
     assert window.colors.load_palettes() == {}
 
@@ -3562,7 +3563,7 @@ def test_get_active_color_cycle_default_uses_matplotlib_cycle(tmp_path, monkeypa
 def test_get_active_color_cycle_uses_custom_active_palette(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.colors.save_palettes({"custom": ["#aaaaaa", "#bbbbbb"]})
-    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "custom")
+    window.settings.setValue(app_settings_module.ACTIVE_PALETTE_SETTINGS_KEY, "custom")
 
     assert window.colors.active_color_cycle() == ["#aaaaaa", "#bbbbbb"]
 
@@ -3570,7 +3571,7 @@ def test_get_active_color_cycle_uses_custom_active_palette(tmp_path, monkeypatch
 def test_get_active_color_cycle_uses_builtin_palette(tmp_path, monkeypatch):
     """項目141(C-804): 組み込みの論文向けパレットもアクティブ名で解決できる。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "Tableau 10")
+    window.settings.setValue(app_settings_module.ACTIVE_PALETTE_SETTINGS_KEY, "Tableau 10")
 
     assert window.colors.active_color_cycle() == BUILTIN_PALETTES["Tableau 10"]
 
@@ -3578,7 +3579,7 @@ def test_get_active_color_cycle_uses_builtin_palette(tmp_path, monkeypatch):
 def test_get_active_color_cycle_falls_back_when_active_palette_missing(tmp_path, monkeypatch):
     import matplotlib as mpl
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.settings.setValue(colors_module.ACTIVE_PALETTE_SETTINGS_KEY, "deleted_palette")
+    window.settings.setValue(app_settings_module.ACTIVE_PALETTE_SETTINGS_KEY, "deleted_palette")
     expected = mpl.rcParams['axes.prop_cycle'].by_key()['color']
 
     assert window.colors.active_color_cycle() == expected
@@ -3595,7 +3596,7 @@ def test_manage_color_palettes_saves_result_on_accept(tmp_path, monkeypatch):
     window.colors.manage_palettes()
 
     assert window.colors.load_palettes() == new_palettes
-    assert window.settings.value(colors_module.ACTIVE_PALETTE_SETTINGS_KEY) == "mine"
+    assert window.settings.value(app_settings_module.ACTIVE_PALETTE_SETTINGS_KEY) == "mine"
 
 
 def test_manage_color_palettes_cancelled_does_not_save(tmp_path, monkeypatch):

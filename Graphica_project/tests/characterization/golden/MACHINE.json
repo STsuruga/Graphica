@@ -1,0 +1,21 @@
+{
+ "processor": "AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD",
+ "cpu_features": [
+  "AVX",
+  "AVX2",
+  "F16C",
+  "FMA3",
+  "MMX",
+  "POPCNT",
+  "SSE",
+  "SSE2",
+  "SSE3",
+  "SSE41",
+  "SSE42",
+  "SSSE3"
+ ],
+ "numpy": "2.3.1",
+ "scipy": "1.16.0",
+ "OPENBLAS_CORETYPE": "",
+ "NPY_DISABLE_CPU_FEATURES": ""
+}

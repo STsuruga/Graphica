@@ -1,0 +1,22 @@
+{
+ "modals": [],
+ "after": {
+  "draw_order": [],
+  "tree": [],
+  "group_tree": {
+   "": []
+  },
+  "current": null,
+  "undo": {
+   "texts": [],
+   "index": 0
+  },
+  "status": "",
+  "datasets": [],
+  "annotations": [
+   []
+  ],
+  "windows": []
+ },
+ "clipboard": ""
+}

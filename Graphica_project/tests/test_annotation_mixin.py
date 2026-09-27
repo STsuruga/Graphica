@@ -12,18 +12,18 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pytest
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QDialog, QInputDialog, QMessageBox
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication, QColorDialog, QDialog, QMessageBox
 
-import graphica.gui.main_window as main_window_module
-import graphica.gui.mixins.annotation_mixin as annotation_mixin_module
+import graphica.gui.app_settings as app_settings_module
+import graphica.gui.tools.annotation as annotation_mixin_module
 from graphica.gui.main_window import PlotterApp
-from graphica.gui.mixins.annotation_mixin import (
-    AnnotationMixin, DEFAULT_SNAP_TO_GRID_ENABLED, DEFAULT_SNAP_GRID_INTERVAL_PX,
-)
-from graphica.gui.dialogs import ArrowAnnotationDialog
+from graphica.gui.app_settings import DEFAULT_SNAP_GRID_INTERVAL_PX, DEFAULT_SNAP_TO_GRID_ENABLED
+from graphica.gui.tools.annotation import AnnotationTool
+from graphica.gui.dialogs import ArrowAnnotationDialog, TextAnnotationDialog
 
 
-def _patch_arrow_dialog(monkeypatch, text="", style="single", curvature=0.0, accepted=True):
+def _patch_arrow_dialog(monkeypatch, text="", style="single", curvature=0.0, accepted=True, color="#000000"):
     """
     ArrowAnnotationDialog(項目C-703)を、実際にウィジェットを構築したり
     exec()でイベントループをブロックしたりしない軽量なフェイクに差し替える
@@ -39,10 +39,30 @@ def _patch_arrow_dialog(monkeypatch, text="", style="single", curvature=0.0, acc
         def get_settings(self):
             return text, style, curvature
 
+        def color(self):
+            return color
+
     monkeypatch.setattr(annotation_mixin_module, "ArrowAnnotationDialog", FakeArrowAnnotationDialog)
 
 
-class _SnapHost(AnnotationMixin):
+def _patch_text_dialog(monkeypatch, text="", accepted=True, color="#000000"):
+    class FakeTextAnnotationDialog(TextAnnotationDialog):
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
+
+        def get_text(self):
+            return text.strip()
+
+        def color(self):
+            return color
+
+    monkeypatch.setattr(annotation_mixin_module, "TextAnnotationDialog", FakeTextAnnotationDialog)
+
+
+class _SnapHost(AnnotationTool):
     """_snap_point_to_grid だけを単体テストするための最小ホスト。"""
     def __init__(self, snap_to_grid_enabled, snap_grid_interval_px):
         self.snap_to_grid_enabled = snap_to_grid_enabled
@@ -119,7 +139,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)
     window.show()
@@ -234,7 +254,7 @@ def test_snap_to_grid_settings_persist_and_restore_via_qsettings(tmp_path, monke
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
 
     # 事前にQSettingsへ「有効・間隔25px」を書き込んでおく
     pre_settings = IsolatedQSettings()
@@ -341,13 +361,13 @@ def test_on_annotation_press_ignored_when_outside_axes(tmp_path, monkeypatch):
     assert window._annotation_drag_start is None
 
 
-def test_on_annotation_press_right_click_attempts_deletion_instead_of_starting_drag(tmp_path, monkeypatch):
-    """右クリック(button==3)は既存注釈の削除を試み、ドラッグ開始状態を作らない"""
+def test_on_annotation_press_right_click_opens_the_menu_instead_of_starting_drag(tmp_path, monkeypatch):
+    """右クリック(button==3)は色の変更と削除のメニューを出し、ドラッグ開始状態を作らない"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.annotation_mode_enabled = True
     ax = window.all_axes[0]
     calls = []
-    monkeypatch.setattr(window, "_try_delete_annotation_near", lambda event: calls.append(event))
+    monkeypatch.setattr(window, "_on_annotation_context_menu", lambda event: calls.append(event))
 
     window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0, button=3))
 
@@ -413,7 +433,7 @@ def test_click_without_drag_adds_text_annotation(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.annotation_mode_enabled = True
     ax = window.all_axes[0]
-    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("メモ", True)))
+    _patch_text_dialog(monkeypatch, text="メモ")
 
     window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
     window._on_annotation_release(_FakeMplEvent(ax, 1.0, 2.0))  # 同じ位置=クリック扱い
@@ -423,13 +443,27 @@ def test_click_without_drag_adds_text_annotation(tmp_path, monkeypatch):
     assert annotations[0]['type'] == 'text'
     assert annotations[0]['text'] == 'メモ'
     assert annotations[0]['xy'] == (1.0, 2.0)
+    assert annotations[0]['color'] == '#000000'
 
 
-def test_click_without_drag_cancelled_dialog_adds_nothing(tmp_path, monkeypatch):
+def test_click_without_drag_uses_the_color_chosen_in_the_dialog(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.annotation_mode_enabled = True
     ax = window.all_axes[0]
-    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("", False)))
+    _patch_text_dialog(monkeypatch, text="赤", color="#ff0000")
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
+    window._on_annotation_release(_FakeMplEvent(ax, 1.0, 2.0))
+
+    assert window.project.all_plot_settings[0]['annotations'][0]['color'] == '#ff0000'
+
+
+@pytest.mark.parametrize("accepted, text", [(False, "メモ"), (True, "   ")])
+def test_click_without_drag_cancelled_or_blank_text_adds_nothing(tmp_path, monkeypatch, accepted, text):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    _patch_text_dialog(monkeypatch, text=text, accepted=accepted)
 
     window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
     window._on_annotation_release(_FakeMplEvent(ax, 1.0, 2.0))
@@ -467,6 +501,19 @@ def test_drag_confirmed_arrow_dialog_style_and_curvature_reflected(tmp_path, mon
     assert ann['text'] == 'label'
     assert ann['arrow_style'] == 'double'
     assert ann['arrow_curvature'] == pytest.approx(0.3)
+    assert ann['color'] == '#000000'
+
+
+def test_drag_confirmed_arrow_dialog_color_reflected(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    _patch_arrow_dialog(monkeypatch, text="label", color="#0055aa")
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0))
+    window._on_annotation_release(_FakeMplEvent(ax, 5.0, 8.0))
+
+    assert window.project.all_plot_settings[0]['annotations'][0]['color'] == '#0055aa'
 
 
 # --------------------------------------------------------------------
@@ -649,11 +696,12 @@ def test_delete_annotation_near_stat_label_confirmation_message(tmp_path, monkey
 
 
 def test_right_click_press_deletes_nearest_annotation_end_to_end(tmp_path, monkeypatch):
-    """_on_annotation_pressから右クリック経由で削除まで通しで動くことを確認する統合テスト"""
+    """_on_annotation_pressから右クリックのメニューの「削除」経由で削除まで通しで動くことを確認する統合テスト"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.annotation_mode_enabled = True
     ax = window.all_axes[0]
     _seed_annotation(window, xy=(1.0, 2.0))
+    monkeypatch.setattr(window, "_choose_annotation_action", lambda annotation: 'delete')
     monkeypatch.setattr(QMessageBox, "question",
                          staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
 
@@ -661,3 +709,101 @@ def test_right_click_press_deletes_nearest_annotation_end_to_end(tmp_path, monke
 
     assert window.project.all_plot_settings[0]['annotations'] == []
     assert window._annotation_drag_start is None
+
+
+# --------------------------------------------------------------------
+# 右クリックのメニュー: 色の変更(K-9)
+# --------------------------------------------------------------------
+
+def test_right_click_color_change_is_undoable(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    _seed_annotation(window, xy=(1.0, 2.0))
+    monkeypatch.setattr(window, "_choose_annotation_action", lambda annotation: 'color')
+    monkeypatch.setattr(QColorDialog, "getColor", staticmethod(lambda *a, **k: QColor("#ff0000")))
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0, button=3))
+
+    annotations = window.project.all_plot_settings[0]['annotations']
+    assert annotations[0]['color'] == '#ff0000'
+    assert annotations[0]['text'] == "消す注釈"
+    assert window.undo_stack.count() == 1
+    window.undo_stack.undo()
+    assert window.project.all_plot_settings[0]['annotations'][0]['color'] == '#000000'
+
+
+@pytest.mark.parametrize("picked", [QColor(), QColor("#000000")])
+def test_right_click_color_change_cancelled_or_unchanged_pushes_nothing(tmp_path, monkeypatch, picked):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    _seed_annotation(window, xy=(1.0, 2.0))
+    monkeypatch.setattr(window, "_choose_annotation_action", lambda annotation: 'color')
+    monkeypatch.setattr(QColorDialog, "getColor", staticmethod(lambda *a, **k: picked))
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0, button=3))
+
+    assert window.undo_stack.count() == 0
+
+
+def test_right_click_menu_closed_does_nothing(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    _seed_annotation(window, xy=(1.0, 2.0))
+    monkeypatch.setattr(window, "_choose_annotation_action", lambda annotation: None)
+
+    window._on_annotation_press(_FakeMplEvent(ax, 1.0, 2.0, button=3))
+
+    assert len(window.project.all_plot_settings[0]['annotations']) == 1
+    assert window.undo_stack.count() == 0
+
+
+def test_right_click_far_from_every_annotation_shows_no_menu(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.annotation_mode_enabled = True
+    ax = window.all_axes[0]
+    _seed_annotation(window, xy=(1.0, 2.0))
+    shown = []
+    monkeypatch.setattr(window, "_choose_annotation_action", lambda annotation: shown.append(annotation))
+
+    window._on_annotation_press(_FakeMplEvent(ax, 99.0, 99.0, button=3))
+
+    assert shown == []
+
+
+@pytest.mark.parametrize("ann_type, has_color", [("text", True), ("arrow", True), ("stat", False), ("inset", False)])
+def test_color_entry_is_offered_only_for_text_and_arrow(tmp_path, monkeypatch, ann_type, has_color):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    offered = []
+
+    class FakeMenu:
+        def __init__(self, parent=None):
+            pass
+
+        def addAction(self, text):
+            offered.append(text)
+            return object()
+
+        def exec(self, *args, **kwargs):
+            return None
+
+    monkeypatch.setattr(annotation_mixin_module, "QMenu", FakeMenu)
+
+    assert window._choose_annotation_action({'type': ann_type}) is None
+    assert ("色を変更..." in offered) is has_color
+    assert "削除..." in offered
+
+
+def test_annotation_dialogs_default_to_black_and_return_the_color(qapp):
+    text_dialog = TextAnnotationDialog(settings=QSettings("GraphicaTest", "k9"))
+    arrow_dialog = ArrowAnnotationDialog(settings=QSettings("GraphicaTest", "k9"))
+    try:
+        assert text_dialog.color() == '#000000'
+        assert arrow_dialog.color() == '#000000'
+        text_dialog.color_button.set_color('#12AB34')
+        assert text_dialog.color() == '#12ab34'
+    finally:
+        text_dialog.deleteLater()
+        arrow_dialog.deleteLater()

@@ -13,8 +13,9 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-import graphica.gui.datasets.processing as processing_module
-import graphica.gui.main_window as main_window_module
+import graphica.gui.notify as notify_module
+import graphica.gui.app_settings as app_settings_module
+import graphica.gui.datasets.operations.processing as processing_module
 from graphica.gui.main_window import PlotterApp
 from graphica.core.dataset import Dataset
 from graphica.core.analysis import split_dataframe_by_column
@@ -123,7 +124,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 600)
     window.show()
@@ -141,7 +142,7 @@ def _choose_column(monkeypatch, column, accepted=True):
     踏んでいる。docs/dev/CURRENT_STATE.md の C-407 の記述参照)。
     """
     monkeypatch.setattr(
-        processing_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (column, accepted)),
     )
 

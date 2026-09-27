@@ -16,9 +16,9 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-import graphica.gui.main_window as main_window_module
+import graphica.gui.app_settings as app_settings_module
 from graphica.gui.main_window import PlotterApp
-from graphica.gui.mixins.mouse_mode_mixin import MOUSE_MODES, MOUSE_MODES_BY_NAME
+from graphica.gui.tools import MOUSE_MODES, MOUSE_MODES_BY_NAME
 
 MODE_NAMES = [mode.name for mode in MOUSE_MODES]
 
@@ -32,7 +32,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)
     window.show()
@@ -181,3 +181,27 @@ def test_unknown_mode_name_is_logged_but_still_clears_others(tmp_path, monkeypat
         assert any("not_registered" in record.getMessage() for record in caplog.records)
     finally:
         window.close()
+
+
+def test_tools_never_pass_themselves_where_a_widget_is_expected():
+    """ツールは QWidget ではない。ダイアログや通知の親にはタブ(self._app)を渡す(self を渡すと実行時に落ちる)。"""
+    import ast
+    import inspect
+
+    import graphica.gui.tools as tools_package
+
+    offenders = []
+    for tool_class in tools_package.TOOL_CLASSES.values():
+        module = inspect.getmodule(tool_class)
+        tree = ast.parse(inspect.getsource(module))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            # getattr(self, "名前") のような自分の属性の読み書きは除く
+            if isinstance(func, ast.Name) and func.id in ("getattr", "setattr", "hasattr"):
+                continue
+            passed = list(node.args) + [keyword.value for keyword in node.keywords]
+            if any(isinstance(arg, ast.Name) and arg.id == "self" for arg in passed):
+                offenders.append(f"{module.__name__}:{node.lineno}")
+    assert offenders == []

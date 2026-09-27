@@ -13,7 +13,28 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-19)
+## 現在地(2026-09-27): 再設計(R)を master に統合した
+
+**再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
+(原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
+**引き継ぎ**: `docs/dev/REFACTOR_HANDOFF.md`(作業ルール、R-0 の指針、最終の動作確認表)。
+
+- **M0〜M6 完了**。`refactor/architecture` を master に 1 回だけ統合した(V-6、ユーザー承認)。
+  R-0〜R-9 の構造は CLAUDE.md のアーキテクチャの節にある(`gui/builders/`・`gui/rendering/`・`gui/tools/`・`gui/panels/`、
+  mixin は 5 個、DatasetHost・TabPluginContext は本体の公開メソッドだけを使う)。
+- 統合の前の確認: フルスイート 3,555 件すべて緑、カバレッジ 95.7%、ruff・mypy 問題なし、wheel の起動、
+  プラグインのリポジトリ(element-constants)のテスト 16 件、ユーザーによる exe の操作確認(38 項目+新機能)。
+- リファクタリング中に直した K と新機能は CHANGELOG の「未リリース」にある。V-4 で見つかった K-44(exe でアイコンが空)も直した。
+- **次にやる K**(ユーザー決定済み、db の findings): K-38(.graphica の関連付け、インストーラーと環境設定のボタン、起動中は新しいタブ)・
+  K-39(起動画面)・K-41(`.pkl` の対応をやめる)・K-42(拡張子を `.gra` に、`.graphica` も開ける)をまとめて。
+  ほかに K-3(日本語と $...$ の混在)・K-10(英語表示の範囲)・K-16(matplotlib 3.11・PySide6 6.11)・K-26(テストが非公開メソッドを呼ぶ)。
+- 特性テストの数値は、基準を作った機械(`golden/MACHINE.json`、この PC)ではビット単位、CI などでは許容差で比べる(#32)。
+- 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
+  既存ファイルは CRLF なので、複数行の置換は改行をそろえてから行う。CI の結果は `gh pr checks` で見る(`jq` は無いので `--jq` を使う)。
+  ruff はアプリだけでなくテストにも掛ける(`ruff check .`)。コードを別モジュールへ移したら、`pyproject.toml` の packages と
+  `tests/test_broad_except_allowlist.py` の数も合わせる。テストの差し替えは、移したコードが名前を引くモジュールに向ける。
+
+## 以前の現在地(2026-09-19、保守性ボード F〜J)
 
 **保守性ボードを公開(2026-09-18)**: https://claude.ai/artifact/SQ8zoWEC7SBnxEJNL7GDtU
 (ソース `docs/dev/maintenance_board.html`、db の `status` コレクションが状態の正)。
@@ -94,10 +115,13 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
   Dataset の None 既定のフィールドは Optional に、プラグインの記録の callback 類は object から Callable に。
   配列の引数はリスト・Series・ndarray が来るので Any。gui/ は対象外(少しずつ広げる、CLAUDE.md に記載)。
 - J はすべて完了・取り込み済み。
-- F-3 完了(4f71b5f、未マージ): scripts/run_coverage.sh の最後に coverage report --fail-under を追加。下限は 92%
+- F-3 完了、PR #24 で master に取り込み済み(マージコミット e13067c): scripts/run_coverage.sh の最後に coverage report --fail-under を追加。下限は 92%
   (環境変数 COVERAGE_MIN で変えられる)。このブランチの実測は 93.8% で、docs/COVERAGE.md と COVERAGE_DETAILS.md も
   その計測で更新。CI は master の push でだけ計測するので、そこで下がると build-macos が失敗し Pages への公開も止まる。
-- ボードの F〜J はすべて完了。残りは K の未着手分(K-3, K-5〜K-10, K-16, K-17)だけで、いずれも着手前に直し方の確認が要る。
+- ボードの F〜J はすべて完了・master に取り込み済み。残りは K の未着手分(K-3, K-5〜K-10, K-16, K-17)だけで、
+  いずれも着手前に直し方の確認が要る。
+- 堅牢性を上げる追加の大規模案(変更経路の一本化、Undo の全面化、保存形式の検査、描画の画像比較の常設化、
+  gui/ への型検査、失敗の戻り値化)を提示したが、ユーザー判断でボードには載せない(2026-09-20)。
 
 **保守性ボードの作業場所と進め方(2026-09-18 決定)**
 - 作業は別チャットで、ブランチ `refactor/maintainability` を使う。フォルダは worktree

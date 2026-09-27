@@ -59,7 +59,7 @@ fi
 ALL_IDS="$TMPDIR/all_ids.txt"
 python -m pytest tests/ --collect-only -q 2>/dev/null | grep "::" > "$ALL_IDS" || true
 
-for f in tests/test_*.py; do
+for f in tests/test_*.py tests/characterization/test_*.py; do
   name=$(basename "$f" .py)
   ids_file="$TMPDIR/${name}_ids.txt"
   # "tests/foo.py::" で始まる行だけを抜く。末尾の ".py::" があるので
@@ -71,8 +71,19 @@ for f in tests/test_*.py; do
     # まとめての収集がそのファイルを落とした可能性(import エラー等で
     # 1ファイルだけ収集できなかった場合)があるので、単体で収集し直してから
     # 「テスト0件」と判断する。ここに落ちるのは異常時だけなので遅くてよい。
-    python -m pytest "$f" --collect-only -q 2>/dev/null | grep "::" > "$ids_file" || true
+    collect_output=$(python -m pytest "$f" --collect-only -q 2>&1)
+    collect_rc=$?
+    echo "$collect_output" | grep "::" > "$ids_file" || true
     n=$(wc -l < "$ids_file")
+    # 5 は「テストが1件も無い」。それ以外で0件なら import エラーなどで集められていない。
+    # 黙って飛ばすとそのファイルのテストが消えたまま緑になるので、失敗にする
+    if [ "$n" -eq 0 ] && [ "$collect_rc" -ne 5 ]; then
+      echo "=== $name :: $f ==="
+      echo "$collect_output"
+      echo "!!! FAILED: $f (collection failed, rc=$collect_rc)"
+      fail=1
+      continue
+    fi
   fi
 
   if [ "$n" -eq 0 ]; then

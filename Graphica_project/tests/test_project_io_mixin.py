@@ -14,7 +14,8 @@ import json
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QInputDialog
 
-import graphica.gui.main_window as main_window_module
+import graphica.gui.notify as notify_module
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.mixins.project_io_mixin as project_io_mixin_module
 from graphica.gui.main_window import PlotterApp
 from graphica.gui.dialogs import PreferencesDialog
@@ -27,7 +28,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 500)
     window.show()
@@ -234,7 +235,7 @@ def test_on_show_preferences_language_change_shows_restart_notice(tmp_path, monk
     _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=new_settings)
 
     info_calls = []
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_show_preferences()
@@ -245,7 +246,7 @@ def test_on_show_preferences_language_change_shows_restart_notice(tmp_path, monk
 
 def test_on_show_preferences_disabled_plugin_names_are_persisted(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    from graphica.gui.main_window import DISABLED_PLUGINS_SETTINGS_KEY
+    from graphica.gui.app_settings import DISABLED_PLUGINS_SETTINGS_KEY
 
     new_settings = (
         window.canvas.dark_mode, 0, "ja", "", 1000, False, 10,
@@ -267,7 +268,7 @@ def test_on_save_plot_template_writes_style_file(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.ui.title_text_edit.setText("My Saved Title")
     out_path = tmp_path / "template.graphica-style"
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path), "Graphica Style Template (*.graphica-style)"))
 
     window._on_save_plot_template()
@@ -286,7 +287,7 @@ def test_on_save_plot_template_excludes_annotations_and_free_rect(tmp_path, monk
     window.project.all_plot_settings[0]['legend_order'] = ['a', 'b']
     window.project.all_plot_settings[0]['free_rect'] = (0.1, 0.1, 0.5, 0.5)
     out_path = tmp_path / "template.graphica-style"
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path), ""))
 
     window._on_save_plot_template()
@@ -308,7 +309,7 @@ def test_on_save_plot_template_saves_all_subplots_and_dataset_styles(tmp_path, m
                  color="#ff0000")
     window._add_dataset(ds, None, select=False)
     out_path = tmp_path / "template.graphica-style"
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path), ""))
 
     window._on_save_plot_template()
@@ -321,7 +322,7 @@ def test_on_save_plot_template_saves_all_subplots_and_dataset_styles(tmp_path, m
 
 def test_on_save_plot_template_cancelled_writes_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
 
     window._on_save_plot_template()
 
@@ -337,11 +338,11 @@ def test_on_save_plot_template_write_failure_shows_warning(tmp_path, monkeypatch
     #  ずれてしまい、ディレクトリと衝突しなくなってしまう)
     bad_path = tmp_path / "a_directory.graphica-style"
     bad_path.mkdir()
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(bad_path), ""))
 
     warn_calls = []
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_save_plot_template()
@@ -362,7 +363,7 @@ def test_on_load_plot_template_new_format_applies_settings_to_ui(tmp_path, monke
         }),
         encoding="utf-8",
     )
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(template_path), ""))
 
     window._on_load_plot_template()
@@ -388,7 +389,7 @@ def test_on_load_plot_template_new_format_preserves_annotations_and_free_rect(tm
         }),
         encoding="utf-8",
     )
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(template_path), ""))
 
     window._on_load_plot_template()
@@ -409,7 +410,7 @@ def test_on_load_plot_template_new_format_cyclic_apply_across_subplots(tmp_path,
         }),
         encoding="utf-8",
     )
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(template_path), ""))
 
     window._on_load_plot_template()
@@ -436,7 +437,7 @@ def test_on_load_plot_template_new_format_applies_dataset_styles_cyclically(tmp_
         }),
         encoding="utf-8",
     )
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(template_path), ""))
 
     window._on_load_plot_template()
@@ -455,11 +456,11 @@ def test_on_load_plot_template_new_format_empty_subplot_styles_shows_warning(tmp
         json.dumps({"format_version": 1, "subplot_styles": [], "dataset_styles": []}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(template_path), ""))
 
     warn_calls = []
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_load_plot_template()
@@ -477,7 +478,7 @@ def test_on_load_plot_template_legacy_format_applies_settings_to_ui(tmp_path, mo
         json.dumps({"plot_settings": {"title": "Loaded Title", "x_label": "Loaded X"}}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(template_path), "Plotter Template Files (*.json)"))
 
     window._on_load_plot_template()
@@ -492,7 +493,7 @@ def test_on_load_plot_template_legacy_format_applies_settings_to_ui(tmp_path, mo
 def test_on_load_plot_template_cancelled_leaves_ui_unchanged(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.ui.title_text_edit.setText("unchanged")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName", lambda *a, **k: ("", ""))
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName", lambda *a, **k: ("", ""))
 
     window._on_load_plot_template()
 
@@ -505,11 +506,11 @@ def test_on_load_plot_template_legacy_format_empty_settings_shows_warning(tmp_pa
     window.ui.title_text_edit.setText("unchanged")
     template_path = tmp_path / "empty_template.json"
     template_path.write_text(json.dumps({"plot_settings": {}}), encoding="utf-8")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(template_path), "Plotter Template Files (*.json)"))
 
     warn_calls = []
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_load_plot_template()
@@ -523,11 +524,11 @@ def test_on_load_plot_template_malformed_json_shows_warning(tmp_path, monkeypatc
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     template_path = tmp_path / "broken.json"
     template_path.write_text("{ this is not valid json", encoding="utf-8")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(template_path), "Plotter Template Files (*.json)"))
 
     warn_calls = []
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_load_plot_template()
@@ -539,7 +540,7 @@ def test_on_load_plot_template_malformed_json_shows_warning(tmp_path, monkeypatc
 
 def test_on_export_settings_cancelled_writes_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
 
     window._on_export_settings()
 
@@ -552,9 +553,9 @@ def test_on_export_settings_writes_expected_keys(tmp_path, monkeypatch):
     window.settings.setValue("point_label_max_points", 777)
     window.settings.setValue("language", "en")
     out_path = tmp_path / "settings.json"
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path), ""))
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: None))
 
     window._on_export_settings()
@@ -573,9 +574,9 @@ def test_on_export_settings_excludes_machine_specific_keys(tmp_path, monkeypatch
     window.settings.setValue("autosave_dir", r"C:\some\machine\specific\path")
     window.settings.setValue("recent_files", ["a.graphica", "b.graphica"])
     out_path = tmp_path / "settings.json"
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path), ""))
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: None))
 
     window._on_export_settings()
@@ -588,9 +589,9 @@ def test_on_export_settings_excludes_machine_specific_keys(tmp_path, monkeypatch
 def test_on_export_settings_appends_json_extension_if_missing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     out_path_no_ext = tmp_path / "settings"
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path_no_ext), ""))
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: None))
 
     window._on_export_settings()
@@ -600,7 +601,7 @@ def test_on_export_settings_appends_json_extension_if_missing(tmp_path, monkeypa
 
 def test_on_import_settings_cancelled_does_nothing(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName", lambda *a, **k: ("", ""))
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName", lambda *a, **k: ("", ""))
 
     window._on_import_settings()  # 例外にならないこと
 
@@ -617,9 +618,9 @@ def test_on_import_settings_roundtrip_applies_values(tmp_path, monkeypatch):
     }
     in_path = tmp_path / "settings.json"
     in_path.write_text(json.dumps(payload), encoding="utf-8")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(in_path), ""))
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: None))
 
     window._on_import_settings()
@@ -634,9 +635,9 @@ def test_on_import_settings_ignores_unknown_keys(tmp_path, monkeypatch):
     payload = {"format_version": 1, "settings": {"some_unknown_key": "value", "dark_mode": True}}
     in_path = tmp_path / "settings.json"
     in_path.write_text(json.dumps(payload), encoding="utf-8")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(in_path), ""))
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: None))
 
     window._on_import_settings()
@@ -650,9 +651,9 @@ def test_on_import_settings_accepts_plain_dict_without_settings_wrapper(tmp_path
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     in_path = tmp_path / "settings.json"
     in_path.write_text(json.dumps({"dark_mode": True}), encoding="utf-8")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(in_path), ""))
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: None))
 
     window._on_import_settings()
@@ -664,10 +665,10 @@ def test_on_import_settings_malformed_json_shows_warning(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     in_path = tmp_path / "broken.json"
     in_path.write_text("{ not valid json", encoding="utf-8")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(in_path), ""))
     warn_calls = []
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "warning",
+    monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
 
     window._on_import_settings()
@@ -679,10 +680,10 @@ def test_on_import_settings_no_matching_keys_shows_info(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     in_path = tmp_path / "settings.json"
     in_path.write_text(json.dumps({"format_version": 1, "settings": {"unknown_only": 1}}), encoding="utf-8")
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(in_path), ""))
     info_calls = []
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: info_calls.append(a)))
 
     window._on_import_settings()
@@ -696,16 +697,16 @@ def test_export_then_import_settings_full_roundtrip(tmp_path, monkeypatch):
     window.settings.setValue("dark_mode", True)
     window.settings.setValue("point_label_max_points", 555)
     out_path = tmp_path / "roundtrip.json"
-    monkeypatch.setattr(main_window_module.QFileDialog, "getSaveFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          lambda *a, **k: (str(out_path), ""))
-    monkeypatch.setattr(project_io_mixin_module.QMessageBox, "information",
+    monkeypatch.setattr(notify_module.QMessageBox, "information",
                          staticmethod(lambda *a, **k: None))
     window._on_export_settings()
 
     window.settings.setValue("dark_mode", False)
     window.settings.setValue("point_label_max_points", 100)
 
-    monkeypatch.setattr(main_window_module.QFileDialog, "getOpenFileName",
+    monkeypatch.setattr(notify_module.QFileDialog, "getOpenFileName",
                          lambda *a, **k: (str(out_path), ""))
     window._on_import_settings()
 

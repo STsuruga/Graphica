@@ -12,11 +12,11 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QToolBar, QMenu
 
 from graphica.core.i18n import tr
+from graphica.gui import app_settings
 from graphica.gui.dialogs import QuickAccessManagerDialog
 
 logger = logging.getLogger(__name__)
 
-QUICK_ACCESS_SETTINGS_KEY = "quick_access_pinned_actions"
 
 
 # _migrate_pinned_quick_access_ids() が末尾の項目名を取り出すのにも使う
@@ -99,14 +99,10 @@ class QuickAccessMixin:
 
     def _get_pinned_quick_access_ids(self):
         """ピン留めした順の識別子。"""
-        ids = self.settings.value(QUICK_ACCESS_SETTINGS_KEY, [])
-        if isinstance(ids, str):
-            # 要素が1つのリストを文字列で返すことがある
-            ids = [ids]
-        return list(ids) if ids else []
+        return app_settings.as_list_keeping_empty_string(app_settings.QUICK_ACCESS_PINNED_ACTIONS.read(self.settings))
 
     def _set_pinned_quick_access_ids(self, ids):
-        self.settings.setValue(QUICK_ACCESS_SETTINGS_KEY, ids)
+        app_settings.QUICK_ACCESS_PINNED_ACTIONS.write(self.settings, ids)
 
     def _migrate_pinned_quick_access_ids(self, ids, available):
         """メニューの組み替えでパスが変わったピン留めを、新しい識別子に読み替える。((識別子のリスト, 変えたか))

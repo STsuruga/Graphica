@@ -32,14 +32,12 @@ import pytest
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtWidgets import QApplication, QFormLayout, QToolButton
 
+import graphica.gui.app_settings as app_settings_module
 import graphica.core.plugin_api as plugin_api_module
-import graphica.gui.main_window as main_window_module
 from graphica.core.dataset import Dataset, COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.plugin_api import GraphicaPluginAPI
-from graphica.gui.main_window import (
-    DATASET_PROPERTY_SECTIONS, DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY,
-    PLOT_TYPE_COMBO_MIN_CHARS, PlotterApp,
-)
+from graphica.gui.app_settings import DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY
+from graphica.gui.main_window import DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, PlotterApp
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch, settings_name="test_settings.ini"):
@@ -49,7 +47,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch, settings_name="test_settin
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     window.resize(1100, 600)
     window.show()

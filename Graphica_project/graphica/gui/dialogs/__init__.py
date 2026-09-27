@@ -68,6 +68,7 @@ from graphica.gui.dialogs.appearance import (
     NamedColorPickerDialog,
     LegendOrderDialog,
     ArrowAnnotationDialog,
+    TextAnnotationDialog,
     InsetDialog,
 )
 
@@ -130,6 +131,7 @@ __all__ = [
     "RowFilterDialog",
     "SavGolDialog",
     "ShortcutsDialog",
+    "TextAnnotationDialog",
     "WelcomeDialog",
     "XAxisAlignmentDialog",
 ]

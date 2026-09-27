@@ -1,5 +1,8 @@
 """処理の履歴(provenance)を日本語の説明にする。履歴パネルと「方法」の文で表記を揃えるため、ここに1つにする。"""
 from typing import TYPE_CHECKING, Any
+
+from graphica.core.fit_models import fit_type_label
+
 if TYPE_CHECKING:
     from graphica.core.dataset import Dataset
     from graphica.models.project import ProjectModel
@@ -55,7 +58,7 @@ def describe_operation(provenance: dict[str, Any] | None) -> str:
     if operation == 'kde':
         return f"カーネル密度推定(列: {params.get('column')}、評価点数: {params.get('n_points')})"
     if operation in ('curve_fit', 'batch_curve_fit'):
-        fit_type = params.get('fit_type', '不明')
+        fit_type = fit_type_label(params, '不明')
         r_squared = params.get('r_squared')
         r2_text = f", R²={r_squared:.4f}" if isinstance(r_squared, (int, float)) else ""
         return f"カーブフィット({fit_type}{r2_text})"

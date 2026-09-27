@@ -1,0 +1,526 @@
+{
+ "log_nonpositive_x": {
+  "error": "ValueError: 対数フィットは X > 0 のデータにのみ使用できます。",
+  "warnings": []
+ },
+ "power_nonpositive_x": {
+  "error": "ValueError: べき乗フィットは X > 0 のデータにのみ使用できます。",
+  "warnings": []
+ },
+ "hill_negative_x": {
+  "error": "ValueError: ヒル式は X >= 0 のデータにのみ使用できます。",
+  "warnings": []
+ },
+ "hill_zero_x_allowed": {
+  "param_names": [
+   "vmax",
+   "k",
+   "n"
+  ],
+  "popt": [
+   "0x1.021e20eca5686p+23",
+   "0x1.772c673ed326cp+26",
+   "0x1.99c70e832958dp-1"
+  ],
+  "pcov": [
+   "0x1.b53efb35df696p+77",
+   "0x1.8cc9f084697aap+81",
+   "-0x1.07b3a1d1890e8p+35",
+   "0x1.8cc9f084697aap+81",
+   "0x1.681334f60bb8dp+85",
+   "-0x1.de9acda05206bp+38",
+   "-0x1.07b3a1d1890e8p+35",
+   "-0x1.de9acda05206bp+38",
+   "0x1.50b24e69a6840p-8"
+  ],
+  "perr": [
+   "0x1.d92623ebb8814p+38",
+   "0x1.ad5eaa57e2a0ap+42",
+   "0x1.2596b2fb60754p-4"
+  ],
+  "r_squared": "0x1.fbe3666b6d1fdp-1",
+  "residuals": [
+   "0x1.ff1a1c571743cp+0",
+   "0x1.62280965d7fa1p+0",
+   "0x1.12c78d921369bp+0",
+   "0x1.a96b68422d79cp-1",
+   "0x1.3d78ae47d758cp-1",
+   "0x1.d79e165fc0f08p-2",
+   "0x1.5a76e765de780p-2",
+   "0x1.b9faa03136000p-3",
+   "0x1.aad49e9a6a780p-4",
+   "0x1.e441688a9c300p-6",
+   "-0x1.09ca89ab09f80p-5",
+   "-0x1.b198f6c911040p-4",
+   "-0x1.4ec11f5335480p-3",
+   "-0x1.87b6b5d3cdb80p-3",
+   "-0x1.c7c577c7f9440p-3",
+   "-0x1.0e93e10a69220p-2",
+   "-0x1.219b29a2e1760p-2",
+   "-0x1.206feb3fb9360p-2",
+   "-0x1.2da9a892f2640p-2",
+   "-0x1.3d96d0e25ba00p-2",
+   "-0x1.31aada1285800p-2",
+   "-0x1.1e9421645fdc0p-2",
+   "-0x1.1e0c55feda2e0p-2",
+   "-0x1.15251a75fc0a0p-2",
+   "-0x1.e3de0c77e2240p-3",
+   "-0x1.a957776673980p-3",
+   "-0x1.8e3fe9ea07240p-3",
+   "-0x1.4db573d92c240p-3",
+   "-0x1.ced88cfb01300p-4",
+   "-0x1.4228d2b38fa00p-4",
+   "-0x1.a3e91eaf64200p-5",
+   "0x1.362603e450000p-11",
+   "0x1.e7ee910569400p-5",
+   "0x1.93f933fa3b900p-4",
+   "0x1.230edcffdba80p-3",
+   "0x1.aebc64eb4c400p-3",
+   "0x1.17d0239348480p-2",
+   "0x1.461d56bb515c0p-2",
+   "0x1.8431cfd64f000p-2",
+   "0x1.d58998db02b00p-2"
+  ],
+  "x_fit": {
+   "shape": [
+    200
+   ],
+   "dtype": "float64",
+   "sha256": "bf8fd1a92d7f8189",
+   "sample": [
+    0.0,
+    0.6206030151,
+    1.288944724,
+    1.909547739,
+    2.530150754,
+    3.150753769,
+    3.819095477,
+    4.439698492,
+    5.060301508,
+    5.680904523,
+    6.349246231,
+    6.969849246,
+    7.590452261,
+    8.211055276,
+    8.879396985,
+    9.5
+   ],
+   "nan_count": 0,
+   "min": 0.0,
+   "max": 9.5,
+   "sum": 950.0
+  },
+  "y_fit": [
+   "0x0.0p+0",
+   "0x1.a2377ae4cd791p+1",
+   "0x1.6c2a8dd6466b4p+2",
+   "0x1.f7c583d2daef4p+2",
+   "0x1.3d19e68916709p+3",
+   "0x1.7b1ad9203ee43p+3",
+   "0x1.b6a9ea82b662dp+3",
+   "0x1.f0437152c3ed9p+3",
+   "0x1.141e6551baf76p+4",
+   "0x1.2f69f891f6846p+4"
+  ],
+  "fit_func_on_data": [
+   "0x0.0p+0",
+   "0x1.fc2f0c96026bdp+1",
+   "0x1.ba8181d71105cp+2",
+   "0x1.321252be3d73ap+3",
+   "0x1.8150edec8a316p+3",
+   "0x1.cca877a0b2689p+3",
+   "0x1.0a83be0061e38p+4",
+   "0x1.2d828891d931dp+4"
+  ],
+  "keys": [
+   "fit_func",
+   "loss",
+   "param_names",
+   "pcov",
+   "perr",
+   "popt",
+   "r_squared",
+   "residuals",
+   "x_data_used",
+   "x_fit",
+   "y_data_used",
+   "y_fit"
+  ],
+  "loss": "linear",
+  "warnings": []
+ },
+ "custom_empty": {
+  "error": "ValueError: カスタム数式が入力されていません。",
+  "warnings": []
+ },
+ "custom_none": {
+  "error": "ValueError: カスタム数式が入力されていません。",
+  "warnings": []
+ },
+ "custom_no_params": {
+  "error": "ValueError: 数式にフィットパラメータ(x以外の文字)が見つかりません。",
+  "warnings": []
+ },
+ "custom_bad_formula": {
+  "error": "ValueError: 数式の評価に失敗しました: 許可されていない関数です: undefined_fn",
+  "warnings": []
+ },
+ "unknown": {
+  "error": "ValueError: 不明なフィットタイプ: 存在しないモデル",
+  "warnings": []
+ },
+ "too_few_points": {
+  "error": "ValueError: データ点数 (3) がフィットに必要なパラメータ数 (4) より少ないため、フィッティングできません。",
+  "warnings": []
+ },
+ "all_nan": {
+  "error": "ValueError: 有効なデータ点がありません(すべて欠損値です)。フィッティングできません。",
+  "warnings": []
+ },
+ "no_convergence": {
+  "param_names": [
+   "a1",
+   "a2",
+   "x0",
+   "dx"
+  ],
+  "perr": [
+   "inf",
+   "inf",
+   "inf",
+   "inf"
+  ],
+  "poor_fit": true,
+  "keys": [
+   "fit_func",
+   "loss",
+   "param_names",
+   "pcov",
+   "perr",
+   "popt",
+   "r_squared",
+   "residuals",
+   "x_data_used",
+   "x_fit",
+   "y_data_used",
+   "y_fit"
+  ],
+  "loss": "linear",
+  "warnings": [
+   "OptimizeWarning: Covariance of the parameters could not be estimated",
+   "RuntimeWarning: overflow encountered in exp"
+  ]
+ },
+ "fix_everything": {
+  "error": "ValueError: すべてのパラメータを固定することはできません(最適化する自由パラメータが1つも残りません)。",
+  "warnings": []
+ },
+ "unknown_param": {
+  "error": "ValueError: 未知のパラメータ名です(p0_overrides): 'z' (このフィットタイプのパラメータ: ['a', 'b'])",
+  "warnings": []
+ },
+ "unknown_loss": {
+  "error": "ValueError: 未知の損失関数です(loss): 'cauchy' (使用可能: ('linear', 'soft_l1', 'huber'))",
+  "warnings": []
+ },
+ "flat_sigmoid": {
+  "param_names": [
+   "a",
+   "b",
+   "c"
+  ],
+  "popt": [
+   "0x1.ffffffec982a9p+0",
+   "0x1.044c503b8ecfdp-31",
+   "-0x1.16d0c69d5793ap+2"
+  ],
+  "pcov": [
+   "0x1.3febe65725f8cp-64",
+   "-0x1.8659f1e982bc3p-70",
+   "0x1.05534eeb64a90p-36",
+   "-0x1.8659f1e982bc3p-70",
+   "0x1.258b5ee115eedp-73",
+   "-0x1.3edb035d708a6p-42",
+   "0x1.05534eeb64a90p-36",
+   "-0x1.3edb035d708a6p-42",
+   "0x1.84f9801d4b7d0p-6"
+  ],
+  "perr": [
+   "0x1.1e2e7c5fdf5eap-32",
+   "0x1.83adbc7a573c2p-37",
+   "0x1.3b8f1c7d57138p-3"
+  ],
+  "r_squared": "0x1.0000000000000p+0",
+  "residuals": [
+   "0x1.30f1fe0000000p-30",
+   "0x1.2118020000000p-30",
+   "0x1.113e060000000p-30",
+   "0x1.01640c0000000p-30",
+   "0x1.e314240000000p-31",
+   "0x1.c3602c0000000p-31",
+   "0x1.a3ac340000000p-31",
+   "0x1.83f8400000000p-31",
+   "0x1.64444c0000000p-31",
+   "0x1.4490540000000p-31",
+   "0x1.24dc5c0000000p-31",
+   "0x1.0528640000000p-31",
+   "0x1.cae8e00000000p-32",
+   "0x1.8b80f80000000p-32",
+   "0x1.4c19080000000p-32",
+   "0x1.0cb1180000000p-32",
+   "0x1.9a92600000000p-33",
+   "0x1.1bc2900000000p-33",
+   "0x1.39e5600000000p-34",
+   "0x1.e22d000000000p-37",
+   "-0x1.82b4000000000p-35",
+   "-0x1.bef9c00000000p-34",
+   "-0x1.5e4cc00000000p-33",
+   "-0x1.dd1ca00000000p-33",
+   "-0x1.2df6300000000p-32",
+   "-0x1.6d5e200000000p-32",
+   "-0x1.acc6100000000p-32",
+   "-0x1.ec2e000000000p-32",
+   "-0x1.15caf00000000p-31",
+   "-0x1.357ee80000000p-31",
+   "-0x1.5532e00000000p-31",
+   "-0x1.74e6d80000000p-31",
+   "-0x1.949ac80000000p-31",
+   "-0x1.b44ec00000000p-31",
+   "-0x1.d402b80000000p-31",
+   "-0x1.f3b6b00000000p-31",
+   "-0x1.09b5540000000p-30",
+   "-0x1.198f4c0000000p-30",
+   "-0x1.2969480000000p-30",
+   "-0x1.3943440000000p-30"
+  ],
+  "x_fit": {
+   "shape": [
+    200
+   ],
+   "dtype": "float64",
+   "sha256": "1c701530117c8892",
+   "sample": [
+    0.5,
+    1.120603015,
+    1.788944724,
+    2.409547739,
+    3.030150754,
+    3.650753769,
+    4.319095477,
+    4.939698492,
+    5.560301508,
+    6.180904523,
+    6.849246231,
+    7.469849246,
+    8.090452261,
+    8.711055276,
+    9.379396985,
+    10.0
+   ],
+   "nan_count": 0,
+   "min": 0.5,
+   "max": 10.0,
+   "sum": 1050.0
+  },
+  "y_fit": [
+   "0x1.fffffff678701p-1",
+   "0x1.fffffff8697d5p-1",
+   "0x1.fffffffa5a8a9p-1",
+   "0x1.fffffffc4b97cp-1",
+   "0x1.fffffffe3ca4fp-1",
+   "0x1.0000000016d92p+0",
+   "0x1.000000010f5fcp+0",
+   "0x1.0000000207e66p+0",
+   "0x1.00000003006cfp+0",
+   "0x1.00000003f8f39p+0"
+  ],
+  "fit_func_on_data": [
+   "0x1.fffffff678701p-1",
+   "0x1.fffffff8f27f5p-1",
+   "0x1.fffffffb6c8e9p-1",
+   "0x1.fffffffde69ddp-1",
+   "0x1.0000000030568p+0",
+   "0x1.000000016d5e2p+0",
+   "0x1.00000002aa65cp+0",
+   "0x1.00000003e76d6p+0"
+  ],
+  "keys": [
+   "fit_func",
+   "loss",
+   "param_names",
+   "pcov",
+   "perr",
+   "popt",
+   "r_squared",
+   "residuals",
+   "x_data_used",
+   "x_fit",
+   "y_data_used",
+   "y_fit"
+  ],
+  "loss": "linear",
+  "warnings": []
+ },
+ "flat_gaussian": {
+  "param_names": [
+   "a",
+   "b",
+   "c",
+   "d"
+  ],
+  "popt": [
+   "0x1.5e50579c9bcd1p-30",
+   "0x1.f0adbbe478bd6p-2",
+   "0x1.097e9630b2506p+3",
+   "0x1.fffffff717f10p-1"
+  ],
+  "pcov": [
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf",
+   "inf"
+  ],
+  "perr": [
+   "inf",
+   "inf",
+   "inf",
+   "inf"
+  ],
+  "r_squared": "0x1.0000000000000p+0",
+  "residuals": [
+   "-0x1.0539500000000p-32",
+   "-0x1.048bc00000000p-32",
+   "-0x1.02a9700000000p-32",
+   "-0x1.ff27800000000p-33",
+   "-0x1.f699400000000p-33",
+   "-0x1.ebadc00000000p-33",
+   "-0x1.de6c400000000p-33",
+   "-0x1.cedd800000000p-33",
+   "-0x1.bd0ba00000000p-33",
+   "-0x1.a902200000000p-33",
+   "-0x1.92ce000000000p-33",
+   "-0x1.7a7da00000000p-33",
+   "-0x1.6020a00000000p-33",
+   "-0x1.43c7c00000000p-33",
+   "-0x1.2584c00000000p-33",
+   "-0x1.056ac00000000p-33",
+   "-0x1.c71b800000000p-34",
+   "-0x1.8004c00000000p-34",
+   "-0x1.35bd000000000p-34",
+   "-0x1.d0e2000000000p-35",
+   "-0x1.309d000000000p-35",
+   "-0x1.1614000000000p-36",
+   "0x1.f768000000000p-39",
+   "0x1.9d07000000000p-36",
+   "0x1.81b9800000000p-35",
+   "0x1.1c5a800000000p-34",
+   "0x1.7989000000000p-34",
+   "0x1.d836000000000p-34",
+   "0x1.1c17e00000000p-33",
+   "0x1.4ca2400000000p-33",
+   "0x1.7da1900000000p-33",
+   "0x1.aefd800000000p-33",
+   "0x1.e09e200000000p-33",
+   "0x1.0936000000000p-32",
+   "0x1.2228280000000p-32",
+   "0x1.3b1a500000000p-32",
+   "0x1.5401a00000000p-32",
+   "0x1.6cd3a00000000p-32",
+   "0x1.8586280000000p-32",
+   "0x1.9e0f900000000p-32"
+  ],
+  "x_fit": {
+   "shape": [
+    200
+   ],
+   "dtype": "float64",
+   "sha256": "1c701530117c8892",
+   "sample": [
+    0.5,
+    1.120603015,
+    1.788944724,
+    2.409547739,
+    3.030150754,
+    3.650753769,
+    4.319095477,
+    4.939698492,
+    5.560301508,
+    6.180904523,
+    6.849246231,
+    7.469849246,
+    8.090452261,
+    8.711055276,
+    9.379396985,
+    10.0
+   ],
+   "nan_count": 0,
+   "min": 0.5,
+   "max": 10.0,
+   "sum": 1050.0
+  },
+  "y_fit": [
+   "0x1.0000000105395p+0",
+   "0x1.00000000fbafep+0",
+   "0x1.00000000e007ep+0",
+   "0x1.00000000b355ep+0",
+   "0x1.000000007750ep+0",
+   "0x1.000000002e367p+0",
+   "0x1.ffffffffb54e6p-1",
+   "0x1.fffffffefefd3p-1",
+   "0x1.fffffffe3f546p-1",
+   "0x1.fffffffd7c045p-1"
+  ],
+  "fit_func_on_data": [
+   "0x1.0000000105395p+0",
+   "0x1.00000000f5d6ep+0",
+   "0x1.00000000c9670p+0",
+   "0x1.0000000082b56p+0",
+   "0x1.000000002613ap+0",
+   "0x1.ffffffff71d2cp-1",
+   "0x1.fffffffe825e7p-1",
+   "0x1.fffffffd89cb6p-1"
+  ],
+  "keys": [
+   "fit_func",
+   "loss",
+   "param_names",
+   "pcov",
+   "perr",
+   "popt",
+   "r_squared",
+   "residuals",
+   "x_data_used",
+   "x_fit",
+   "y_data_used",
+   "y_fit"
+  ],
+  "loss": "linear",
+  "warnings": [
+   "OptimizeWarning: Covariance of the parameters could not be estimated"
+  ]
+ },
+ "param_names": {
+  "custom_empty": "ValueError: カスタム数式が入力されていません。",
+  "custom_no_params": "ValueError: 数式にフィットパラメータ(x以外の文字)が見つかりません。",
+  "unknown": "ValueError: 不明なフィットタイプ: 存在しないモデル",
+  "plugin_exact_only": "ValueError: 不明なフィットタイプ: 減衰"
+ },
+ "register": {
+  "empty_name": "ValueError: フィット関数名が空です。",
+  "builtin_name": "ValueError: 'ガウシアン' は組み込みのフィットタイプ名と衝突します。",
+  "duplicate": "ValueError: フィット関数 '減衰(初期値リスト)' は既に登録されています。",
+  "no_params": "ValueError: param_names が空です。"
+ }
+}

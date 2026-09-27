@@ -1,0 +1,57 @@
+{
+ "newer": {
+  "modals": [
+   {
+    "kind": "QMessageBox.critical",
+    "title": "エラー",
+    "text": "読み込みに失敗しました:\nこのプロジェクトファイルはバージョン999で保存されていますが、このアプリケーションが対応しているのはバージョン1までです。アプリケーションを最新版に更新してください。"
+   }
+  ],
+  "title": "無題のプロジェクト",
+  "datasets": 0
+ },
+ "not_json": {
+  "modals": [
+   {
+    "kind": "QMessageBox.critical",
+    "title": "エラー",
+    "text": "読み込みに失敗しました:\nExpecting property name enclosed in double quotes: line 1 column 3 (char 2)"
+   }
+  ],
+  "title": "無題のプロジェクト",
+  "datasets": 0
+ },
+ "evil_pickle": {
+  "modals": [
+   {
+    "kind": "QMessageBox.critical",
+    "title": "エラー",
+    "text": "読み込みに失敗しました:\n読み込みが許可されていないオブジェクトです (os.system)。信頼できないファイルの可能性があります。"
+   }
+  ],
+  "title": "無題のプロジェクト",
+  "datasets": 0
+ },
+ "wrong_extension": {
+  "modals": [
+   {
+    "kind": "QMessageBox.critical",
+    "title": "エラー",
+    "text": "読み込みに失敗しました:\nサポートされていない拡張子です: .txt"
+   }
+  ],
+  "title": "無題のプロジェクト",
+  "datasets": 0
+ },
+ "missing": {
+  "modals": [
+   {
+    "kind": "QMessageBox.critical",
+    "title": "エラー",
+    "text": "読み込みに失敗しました:\nファイルが見つかりません: <CASE>/missing.graphica"
+   }
+  ],
+  "title": "無題のプロジェクト",
+  "datasets": 0
+ }
+}

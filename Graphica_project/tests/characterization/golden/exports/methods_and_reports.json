@@ -1,0 +1,20 @@
+{
+ "methods_text": "元データ「A」に対し規格化(最大値基準)を行った上で、Savitzky-Golayフィルタ(window=5, polyorder=2, deriv=0)を実施した(出力データセット: 「A_normalized_smoothed」)。",
+ "html_modals": [
+  {
+   "kind": "QFileDialog.getSaveFileName",
+   "caption": "実験レポートを生成",
+   "filter": "HTML Files (*.html);;PDF Files (*.pdf)"
+  }
+ ],
+ "html": "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>Export test</title>\n<style>\nbody { font-family: sans-serif; max-width: 900px; margin: 2em auto; padding: 0 1em; }\nimg { max-width: 100%; border: 1px solid #ccc; }\n</style></head><body>\n<h1>Export test</h1>\n<p>生成日時: 2026-01-01 00:00</p>\n<img src=\"data:image/png;base64,<PNG>\" alt=\"plot\">\n<h2>方法</h2>\n<ul><li><b>A_normalized</b>: 元データ「A」に対し規格化(最大値基準)を実施した(出力データセット: 「A_normalized」)。</li><li><b>A_normalized_smoothed</b>: 元データ「A」に対し規格化(最大値基準)を行った上で、Savitzky-Golayフィルタ(window=5, polyorder=2, deriv=0)を実施した(出力データセット: 「A_normalized_smoothed」)。</li></ul>\n</body></html>\n",
+ "pdf_modals": [
+  {
+   "kind": "QFileDialog.getSaveFileName",
+   "caption": "実験レポートを生成",
+   "filter": "HTML Files (*.html);;PDF Files (*.pdf)"
+  }
+ ],
+ "pdf_pages": 2,
+ "status": "実験レポートを書き出しました: <CASE>/report.pdf"
+}

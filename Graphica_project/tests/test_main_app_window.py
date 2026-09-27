@@ -12,7 +12,8 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QUndoCommand
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-import graphica.gui.main_app_window as main_app_window_module
+import graphica.gui.notify as notify_module
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.main_window as main_window_module
 from graphica.gui.main_app_window import MainAppWindow
 
@@ -28,8 +29,7 @@ def _make_isolated_main_app_window(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_app_window_module, "QSettings", IsolatedQSettings)
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
 
     # 初回起動ウェルカムダイアログ・オートセーブ復元確認ダイアログは、いずれも
     # QTimer.singleShot(0, ...)経由の遅延呼び出し+モーダルexec()のため、
@@ -247,7 +247,7 @@ def test_tab_title_after_restoring_from_autosave_says_it_is_restored(tmp_path, m
 
     saved = str(tmp_path / "saved.graphica")
     monkeypatch.setattr(
-        main_window_module.QFileDialog, "getSaveFileName",
+        notify_module.QFileDialog, "getSaveFileName",
         staticmethod(lambda *a, **k: (saved, "Graphica Project (*.graphica)")),
     )
     tab.manual_save()

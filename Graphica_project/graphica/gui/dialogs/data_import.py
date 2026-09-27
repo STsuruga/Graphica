@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -21,9 +20,25 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 from PySide6.QtCore import Qt
+from graphica.gui import notify
 from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
+
+
+def _mixes_text_and_other_values(column):
+    """文字だけの列はカテゴリとして描けるが、文字と数値・空欄が混ざると描けない。"""
+    if column.dtype != object:
+        return False
+    has_text = has_other = False
+    for value in column:
+        if isinstance(value, str):
+            has_text = True
+        else:
+            has_other = True
+        if has_text and has_other:
+            return True
+    return False
 
 
 class ColumnPreviewDialog(QDialog):
@@ -64,6 +79,7 @@ class ColumnPreviewDialog(QDialog):
         self.is_csv = not self.is_excel and is_delimited_text_file(file_path)
         # {列名: "数値" / "文字列" / "日付"}
         self.type_overrides = {}
+        self._numeric_table_note = ""
 
         self.sheet_names = []
         if self.is_excel:
@@ -180,7 +196,18 @@ class ColumnPreviewDialog(QDialog):
             self.fixed_width_label.setVisible(False)
             self.fixed_width_edit.setVisible(False)
 
+            self.csv_nrows_spinbox = QSpinBox()
+            self.csv_nrows_spinbox.setRange(0, 10_000_000)
+            self.csv_nrows_spinbox.setValue(0)
+            self.csv_nrows_spinbox.setSpecialValueText("全行")
+            self.csv_nrows_spinbox.setToolTip("ヘッダー行より下で読み込む最大行数(0で全行)")
+            csv_form.addRow("読み込む最大行数", self.csv_nrows_spinbox)
+
             layout.addLayout(csv_form)
+
+            self.check_types_button = QPushButton("列の型を確認...")
+            self.check_types_button.clicked.connect(self._on_check_column_types)
+            layout.addWidget(self.check_types_button)
 
             self.encoding_combo.currentIndexChanged.connect(self._reload_csv_preview)
             self.delimiter_combo.currentIndexChanged.connect(self._on_delimiter_combo_changed)
@@ -188,6 +215,7 @@ class ColumnPreviewDialog(QDialog):
             self.csv_header_row_spinbox.valueChanged.connect(self._reload_csv_preview)
             self.fixed_width_checkbox.toggled.connect(self._on_fixed_width_toggled)
             self.fixed_width_edit.editingFinished.connect(self._reload_csv_preview)
+            self.csv_nrows_spinbox.valueChanged.connect(self._reload_csv_preview)
         else:
             self.encoding_combo = None
             self.delimiter_combo = None
@@ -195,6 +223,7 @@ class ColumnPreviewDialog(QDialog):
             self.csv_header_row_spinbox = None
             self.fixed_width_checkbox = None
             self.fixed_width_edit = None
+            self.csv_nrows_spinbox = None
 
         self.info_label = QLabel()
         layout.addWidget(self.info_label)
@@ -243,6 +272,12 @@ class ColumnPreviewDialog(QDialog):
             return self.custom_delimiter_edit.text() or ','
         return self._DELIMITER_CHOICES.get(text, ',')
 
+    def _csv_settings_are_automatic(self):
+        """区切り・ヘッダー行・固定長を利用者が指定していない(指定したらその通りに読む)。"""
+        return (self.delimiter_combo.currentText() == self._AUTO_LABEL
+                and self.csv_header_row_spinbox.value() == 1
+                and not self.fixed_width_checkbox.isChecked())
+
     def _on_delimiter_combo_changed(self, _index=None):
         is_custom = self.delimiter_combo.currentText() == self._DELIMITER_CUSTOM_LABEL
         self.custom_delimiter_label.setVisible(is_custom)
@@ -258,12 +293,16 @@ class ColumnPreviewDialog(QDialog):
 
     def _reload_csv_preview(self, *_args):
         """CSV の設定が変わったら読み直す。区切りが正規表現のことがあるので python エンジンで読む。"""
+        from graphica.gui.workers import has_numeric_column, read_numeric_table
+
         encoding = self._resolve_csv_encoding()
         header_row = self.csv_header_row_spinbox.value() - 1  # 画面は1始まり
+        nrows = self.csv_nrows_spinbox.value() or None
+        new_df, error = None, None
         try:
             if self.fixed_width_checkbox.isChecked():
                 widths_text = self.fixed_width_edit.text().strip()
-                read_kwargs = {'header': header_row, 'encoding': encoding}
+                read_kwargs = {'header': header_row, 'encoding': encoding, 'nrows': nrows}
                 if widths_text:
                     read_kwargs['widths'] = [int(w.strip()) for w in widths_text.split(',') if w.strip()]
                 new_df = pd.read_fwf(self.file_path, **read_kwargs)
@@ -274,13 +313,31 @@ class ColumnPreviewDialog(QDialog):
                 sep, _engine = pandas_separator(delimiter) if delimiter == ' ' else (delimiter, 'python')
                 new_df = pd.read_csv(
                     self.file_path, sep=sep, header=header_row,
-                    encoding=encoding, engine='python'
+                    encoding=encoding, engine='python', nrows=nrows
                 )
         except Exception as e:
-            logger.exception("CSV のプレビューを読み込めませんでした")
-            QMessageBox.warning(
+            error = e
+
+        self._numeric_table_note = ""
+        # 設定を変えていないのに読めない・数値の列が無いときは、測定条件などの行に挟まれた数値の表を探す
+        if self._csv_settings_are_automatic() and (error is not None or not has_numeric_column(new_df)):
+            try:
+                found = read_numeric_table(self.file_path, encoding)
+            except (OSError, ValueError):  # 文字コードの誤りと pandas の ParserError は ValueError
+                logger.exception("数値の表を探せませんでした")
+                found = None
+            if found is not None:
+                table_df, table = found
+                new_df, error = (table_df.head(nrows) if nrows else table_df), None
+                self._numeric_table_note = (
+                    f"前後の説明の行を除き、{table.first_line + 1}〜{table.stop_line} 行目の数値の表を読み込みました。"
+                )
+
+        if error is not None:
+            logger.error("CSV のプレビューを読み込めませんでした", exc_info=error)
+            notify.warning(
                 self, "読み込みエラー",
-                f"指定した条件(文字コード/区切り文字/ヘッダー行/固定長)では読み込めませんでした:\n{e}"
+                f"指定した条件(文字コード/区切り文字/ヘッダー行/固定長)では読み込めませんでした:\n{error}"
             )
             return
         self.current_df = new_df
@@ -301,7 +358,7 @@ class ColumnPreviewDialog(QDialog):
             )
         except Exception as e:
             logger.exception("Excel のプレビューを読み込めませんでした")
-            QMessageBox.warning(
+            notify.warning(
                 self, "読み込みエラー",
                 f"指定した条件(シート/ヘッダー行/使用する列/最大行数)では読み込めませんでした:\n{e}"
             )
@@ -339,6 +396,7 @@ class ColumnPreviewDialog(QDialog):
         self.info_label.setText(
             f"{len(df)}行 × {len(columns)}列 が見つかりました。"
             "プレビューを確認し、X軸・Y軸に使う列を選択してください。"
+            + (f"\n{self._numeric_table_note}" if self._numeric_table_note else "")
         )
 
         preview_row_count = min(len(df), 20)
@@ -372,6 +430,18 @@ class ColumnPreviewDialog(QDialog):
             self.y_col_combo.setCurrentIndex(1)
         self.x_col_combo.blockSignals(False)
         self.y_col_combo.blockSignals(False)
+
+    def accept(self):
+        # 文字と数値(や空欄)が混ざった Y の列は、描画の途中で matplotlib が例外を出す。その前に理由を伝える
+        _x_col, y_col = self.get_selected_columns()
+        if y_col in self.current_df.columns and _mixes_text_and_other_values(self.current_df[y_col]):
+            notify.warning(
+                self, "Y軸の列を確認してください",
+                f"Y軸の列「{y_col}」には、文字と数値(または空欄)が混ざっているため、このままでは描画できません。\n\n"
+                "「列の型を確認...」で数値に変換するか、ヘッダー行や別の列を選び直してください。"
+            )
+            return
+        super().accept()
 
     def get_selected_columns(self):
         """(X の列名, Y の列名)"""
@@ -585,10 +655,10 @@ class NewDatasetDialog(QDialog):
     def _on_accept(self):
         from graphica.core.i18n import tr
         if not self.get_dataset_name():
-            QMessageBox.warning(self, tr("新規データセットを作成"), tr("データセット名を入力してください。"))
+            notify.warning(self, tr("新規データセットを作成"), tr("データセット名を入力してください。"))
             return
         if not self.get_column_names():
-            QMessageBox.warning(self, tr("新規データセットを作成"), tr("列名を1つ以上入力してください。"))
+            notify.warning(self, tr("新規データセットを作成"), tr("列名を1つ以上入力してください。"))
             return
         self.accept()
 

@@ -13,7 +13,7 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QFileDialog
 
-import graphica.gui.main_window as main_window_module
+import graphica.gui.app_settings as app_settings_module
 from graphica.core.dataset import Dataset
 from graphica.gui.export_settings import export_rc_params
 from graphica.gui.main_window import PlotterApp
@@ -42,7 +42,7 @@ def window(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     w = PlotterApp(run_startup_checks=False, tab_id=2)
     x = np.linspace(0, 10, 6)
     w.project.datasets.append(Dataset(name="sample", df=pd.DataFrame({"x": x, "y": np.sin(x)}),

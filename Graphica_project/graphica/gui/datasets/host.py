@@ -31,17 +31,21 @@ class DatasetHost:
                 self._app.undo_stack.endMacro()
 
     def current_dataset(self):
-        return self._app._get_current_dataset()
+        return self._app.current_dataset()
 
-    def add_derived_dataset(self, dataset, source):
-        """source と同じフォルダにデータセットを足して描き直す(Undo の対象にはしない)。"""
-        self._app.project.datasets.append(dataset)
-        source_item = self._app._get_dataset_tree_item(source)
-        self._app._add_dataset_list_item(dataset, source_item.parent() if source_item else None)
-        self._app._update_plot()
+    def add_derived_dataset(self, dataset, source, description):
+        """source と同じフォルダにデータセットを足して描き直す(Undo できる。今の選択は変えない)。"""
+        source_item = self._app.dataset_tree_item(source)
+        folder = source_item.parent() if source_item else None
+
+        def add():
+            self._app.dataset_order.append(dataset, folder)
+            self._app.redraw()
+
+        self._app.push_dataset_additions(add, [dataset], description)
 
     def add_annotation(self, axis_index, annotation, description):
-        self._app._add_annotation(axis_index, annotation, description=description)
+        self._app.add_annotation(axis_index, annotation, description)
 
     def annotations(self, axis_index):
         """その軸の注釈(リストはコピー)。"""
@@ -56,7 +60,7 @@ class DatasetHost:
         old_annotations = self.annotations(index)
         self._app.undo_stack.push(SetAnnotationsCommand(
             project, index, old_annotations, old_annotations + list(annotations),
-            self._app._update_plot_appearance, description=description))
+            self._app.redraw_appearance, description=description))
 
     def axis_y_span(self, axis_index):
         """その軸の今の Y の表示幅。軸が無ければ None。"""
@@ -67,18 +71,20 @@ class DatasetHost:
         return y_hi - y_lo
 
     def selected_datasets(self):
-        return self._app._get_selected_datasets()
+        return self._app.selected_datasets()
 
     def target_folder_for_new_dataset(self):
         """ツリーで選ばれているのがフォルダならそのフォルダ(新しいデータセットの置き場所)、それ以外は None。"""
-        return self._app._get_target_folder_for_new_dataset()
+        return self._app.target_folder_for_new_dataset()
 
-    def add_datasets_to_folder(self, datasets, folder):
-        """まとめて足してから1回だけ描き直す(1件ずつ描き直すと件数分のフル再描画になる)。"""
-        for dataset in datasets:
-            self._app.project.datasets.append(dataset)
-            self._app._add_dataset_list_item(dataset, folder)
-        self._app._update_plot()
+    def add_datasets_to_folder(self, datasets, folder, description):
+        """まとめて足してから1回だけ描き直す(1件ずつ描き直すと件数分のフル再描画になる)。Undo 1回で消える。"""
+        def add():
+            for dataset in datasets:
+                self._app.dataset_order.append(dataset, folder)
+            self._app.redraw()
+
+        self._app.push_dataset_additions(add, list(datasets), description)
 
     def axis_count(self):
         return len(self._app.project.all_plot_settings)
@@ -94,14 +100,14 @@ class DatasetHost:
 
     def pending_peak_guesses(self):
         """グラフ上のクリックで置いた多峰フィットの初期値(のコピー)。"""
-        return list(self._app._pending_peak_guesses)
+        return list(self._app.pending_peak_guesses())
 
     def finish_peak_placement(self):
         """置いた初期値を消し、ピーク配置モードを抜ける。"""
-        self._app._clear_pending_peak_guesses()
+        self._app.clear_pending_peak_guesses()
         if getattr(self._app, 'peak_placement_mode_enabled', False):
             self._app.peak_placement_action.setChecked(False)
-            self._app._toggle_peak_placement_mode(False)
+            self._app.toggle_peak_placement_mode(False)
 
     def datasets(self):
         """タブの全データセット(リストはコピー)。"""
@@ -109,13 +115,13 @@ class DatasetHost:
 
     def add_dataset(self, dataset, parent_folder=None, select=True):
         """ツリーと描画に足す(Undo の対象にはしない)。"""
-        return self._app._add_dataset(dataset, parent_folder, select=select)
+        return self._app.add_dataset(dataset, parent_folder, select=select)
 
     def add_dataset_with_undo(self, dataset, parent_folder=None, description="データセットの追加"):
-        self._app._add_dataset_with_undo(dataset, parent_folder=parent_folder, description=description)
+        self._app.add_dataset_with_undo(dataset, parent_folder=parent_folder, description=description)
 
     def redraw(self):
-        self._app._update_plot()
+        self._app.redraw()
 
     def refresh_ui_state(self):
         """選択中のデータセットに合わせてパネルとメニューの状態を更新する。"""
@@ -136,14 +142,14 @@ class DatasetHost:
 
     def push_property_change(self, dataset, old_values, new_values, description, skip_if_unchanged=True):
         """データセットの属性の変更を Undo できる形で積む(skip_if_unchanged なら変化が無いときは何もしない)。"""
-        self._app._push_dataset_property_command(dataset, old_values, new_values, description,
-                                                 skip_if_unchanged=skip_if_unchanged)
+        self._app.push_dataset_property_command(dataset, old_values, new_values, description,
+                                                skip_if_unchanged=skip_if_unchanged)
 
     def remove_datasets(self, datasets, description=None):
         """確認なしで Undo できる形で消す。"""
         items = [item for dataset in datasets
-                 if (item := self._app._get_dataset_tree_item(dataset)) is not None]
-        self._app._remove_dataset_items_with_undo(items, description=description)
+                 if (item := self._app.dataset_tree_item(dataset)) is not None]
+        self._app.remove_dataset_items_with_undo(items, description=description)
 
     def sibling_tabs(self):
         """ほかのタブの (タブの見出し, そのタブの DatasetHost)。タブの窓に入っていなければ空。"""
@@ -152,5 +158,5 @@ class DatasetHost:
         if not isinstance(top, MainAppWindow):
             return []
         tabs = top.tab_widget
-        return [(tabs.tabText(i), tabs.widget(i)._dataset_host)
+        return [(tabs.tabText(i), tabs.widget(i).dataset_host)
                 for i in range(tabs.count()) if tabs.widget(i) is not self._app]

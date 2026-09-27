@@ -3,8 +3,9 @@ import logging
 import webbrowser
 from datetime import datetime
 
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
+from graphica.gui import notify
 from graphica.gui.dialogs import HelpDialog, CalcHelpDialog, AboutDialog, ShortcutsDialog
 from graphica.gui.task_runner import TaskRunner
 from graphica.core.diagnostics import build_diagnostic_bundle
@@ -47,7 +48,7 @@ class HelpMixin:
     def _on_export_diagnostic_bundle(self):
         """ログ・環境・設定・プラグインの状態を1つの zip にする(不具合の報告用)。"""
         default_name = f"graphica_diagnostics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-        file_path, _ = QFileDialog.getSaveFileName(
+        file_path, _ = notify.get_save_file_name(
             self, "診断情報をエクスポート", default_name, "Zip Files (*.zip)"
         )
         if not file_path:
@@ -60,10 +61,10 @@ class HelpMixin:
             build_diagnostic_bundle(file_path, settings_dict=settings_dict)
         except Exception as e:
             logger.exception("診断情報のエクスポートに失敗しました。")
-            QMessageBox.warning(self, "エクスポートエラー", f"診断情報のエクスポート中にエラーが発生しました:\n{e}")
+            notify.warning(self, "エクスポートエラー", f"診断情報のエクスポート中にエラーが発生しました:\n{e}")
             return
 
-        QMessageBox.information(self, "エクスポート完了", f"診断情報を書き出しました:\n{file_path}")
+        notify.information(self, "エクスポート完了", f"診断情報を書き出しました:\n{file_path}")
 
     # アップデートの確認は公開 API への匿名の GET 1回だけで、何も送らない。起動時は失敗しても黙り、手動では知らせる
 
@@ -89,7 +90,7 @@ class HelpMixin:
     def _on_check_for_update(self):
         """「アップデートを確認...」メニューの処理。手動確認は失敗時もエラーを表示する。"""
         if self._update_check_task_runner is not None:
-            QMessageBox.information(self, "アップデートの確認", "確認中です。完了までお待ちください。")
+            notify.information(self, "アップデートの確認", "確認中です。完了までお待ちください。")
             return
         runner = TaskRunner(check_for_update, __version__, parent=self)
         runner.succeeded.connect(self._on_manual_update_check_succeeded)
@@ -102,12 +103,12 @@ class HelpMixin:
         if update_info is not None:
             self._show_update_available_dialog(update_info)
         else:
-            QMessageBox.information(self, "アップデートの確認", f"お使いのバージョン({__version__})は最新です。")
+            notify.information(self, "アップデートの確認", f"お使いのバージョン({__version__})は最新です。")
 
     def _on_manual_update_check_failed(self, message):
         self._update_check_task_runner = None
         logger.warning("アップデート確認に失敗しました: %s", message)
-        QMessageBox.warning(
+        notify.warning(
             self, "アップデートの確認",
             f"アップデート情報の取得に失敗しました。ネットワーク接続を確認してください。\n\n{message}"
         )
@@ -116,7 +117,7 @@ class HelpMixin:
         """新しいバージョンが見つかった場合の通知(起動時自動確認・手動確認で共通)。"""
         tag = update_info.get('tag_name', '')
         html_url = update_info.get('html_url', '')
-        reply = QMessageBox.information(
+        reply = notify.information(
             self, "新しいバージョンがあります",
             f"新しいバージョン({tag})が公開されています。現在のバージョン: {__version__}\n\n"
             "ダウンロードページを開きますか?",

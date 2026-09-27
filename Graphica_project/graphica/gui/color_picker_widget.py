@@ -2,8 +2,9 @@
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QLineEdit,
-                               QInputDialog, QMenu, QMessageBox)
+                               QMenu)
 
+from graphica.gui import notify
 from graphica.core.i18n import tr
 from graphica.core.named_colors import (
     POPUP_LIMIT, NamedColorError, add_named_color, load_named_colors,
@@ -143,7 +144,7 @@ class ColorPickerWidget(QWidget):
         self.colorChanged.emit(self._color.name())
 
     def _on_register_current_color(self):
-        name, ok = QInputDialog.getText(
+        name, ok = notify.get_text(
             self, tr("色を登録"),
             tr("この色の登録名 (%s)") % self._color.name())
         if not ok:
@@ -152,7 +153,7 @@ class ColorPickerWidget(QWidget):
         try:
             entries = add_named_color(entries, name, self._color.name())
         except NamedColorError as e:
-            QMessageBox.warning(self, tr("色を登録"), str(e))
+            notify.warning(self, tr("色を登録"), str(e))
             return
         save_named_colors(self._settings, entries)
 

@@ -162,3 +162,29 @@ def test_get_color_with_history_without_initial_uses_parent_kwarg(monkeypatch):
 
     assert captured['args'] == ()
     assert captured['kwargs'] == {'parent': None}
+
+
+# --- 設定に文字列で入っていた履歴(K-24) ---
+
+def test_history_stored_as_a_single_string_is_one_color(monkeypatch):
+    """QSettings が要素 1 つのリストを文字列で返しても、1 文字ずつの色として扱わない。"""
+    calls = []
+    monkeypatch.setattr(QColorDialog, "setCustomColor", staticmethod(lambda i, c: calls.append((i, c.name()))))
+    load_recent_colors_into_picker(_FakeSettings({"recent_colors": "#abcdef"}))
+    assert calls == [(0, "#abcdef")]
+
+
+def test_picking_a_color_after_a_single_string_history_keeps_both(monkeypatch):
+    monkeypatch.setattr(QColorDialog, "setCustomColor", staticmethod(lambda i, c: None))
+    monkeypatch.setattr(QColorDialog, "getColor", staticmethod(lambda *a, **k: QColor("#123456")))
+    settings = _FakeSettings({"recent_colors": "#abcdef"})
+    get_color_with_history(settings)
+    assert settings.value("recent_colors") == ["#123456", "#abcdef"]
+
+
+def test_an_empty_string_history_is_empty(monkeypatch):
+    monkeypatch.setattr(QColorDialog, "setCustomColor", staticmethod(lambda i, c: None))
+    monkeypatch.setattr(QColorDialog, "getColor", staticmethod(lambda *a, **k: QColor("#123456")))
+    settings = _FakeSettings({"recent_colors": ""})
+    get_color_with_history(settings)
+    assert settings.value("recent_colors") == ["#123456"]

@@ -11,11 +11,11 @@ import pandas as pd
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QWidget
 
+import graphica.gui.notify as notify_module
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.datasets as datasets_package
 from graphica.core.dataset import Dataset
-from graphica.gui.datasets import colors as colors_module
-from graphica.gui.datasets import processing as processing_module
-import graphica.gui.main_window as main_window_module
+from graphica.gui.datasets.operations import processing as processing_module
 from graphica.gui.main_window import PlotterApp
 
 DATASETS_DIR = pathlib.Path(datasets_package.__file__).parent
@@ -48,7 +48,7 @@ def _make_window(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
     QApplication.processEvents()
     return window
@@ -65,7 +65,7 @@ def test_colormap_dialog_gets_the_window_as_parent(tmp_path, monkeypatch):
         parents.append(parent)
         return "", False
 
-    monkeypatch.setattr(colors_module.QInputDialog, "getItem", staticmethod(fake_get_item))
+    monkeypatch.setattr(notify_module.QInputDialog, "getItem", staticmethod(fake_get_item))
     window.ui.dataset_list_widget.selectAll()
 
     window.colors.auto_assign_colors_from_colormap()

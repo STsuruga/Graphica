@@ -1,0 +1,577 @@
+"""軸の設定の部品: 画面の欄と設定の辞書の相互変換、サブプロットの行数と列数、フォントと色の選択、その信号の配線。"""
+import functools
+import logging
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import QDialog, QFontDialog
+
+from graphica.gui import notify
+from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
+from graphica.gui import theme
+from graphica.gui.axis_bindings import CARRIED_AXIS_KEYS
+from graphica.gui.color_history import get_color_with_history
+from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
+
+logger = logging.getLogger(__name__)
+
+
+# Windows の「Arial Narrow」は matplotlib には family="Arial", stretch="condensed" として登録されていて、
+# 名前のままでは見つからず黙って既定のフォントになる。末尾の語を stretch に読み替えて探し直す。
+_FONT_STRETCH_KEYWORDS = {
+    'narrow': 'condensed',
+    'condensed': 'condensed',
+    'semicondensed': 'semi-condensed',
+    'extracondensed': 'extra-condensed',
+    'ultracondensed': 'ultra-condensed',
+    'wide': 'expanded',
+    'expanded': 'expanded',
+    'semiexpanded': 'semi-expanded',
+    'extraexpanded': 'extra-expanded',
+    'ultraexpanded': 'ultra-expanded',
+}
+
+
+@functools.lru_cache(maxsize=256)
+def _resolve_font_family_for_matplotlib(family_name: str):
+    """(matplotlib に渡す family, stretch または None, 解決できたか) を返す。
+
+    軸の設定を変えるたびに呼ばれるので、findfont の結果をキャッシュする。
+    """
+    import matplotlib.font_manager as fm
+
+    try:
+        fm.findfont(fm.FontProperties(family=family_name), fallback_to_default=False)
+        return family_name, None, True
+    except ValueError:
+        pass
+
+    words = family_name.rsplit(None, 1)
+    if len(words) == 2:
+        base, suffix = words
+        stretch = _FONT_STRETCH_KEYWORDS.get(suffix.lower())
+        if stretch is not None:
+            try:
+                fm.findfont(fm.FontProperties(family=base, stretch=stretch), fallback_to_default=False)
+                return base, stretch, True
+            except ValueError:
+                pass
+
+    return family_name, None, False
+
+
+def _order_labels(labels, order):
+    """order の順に並べ、order に無いラベルは元の順のまま末尾に置く。"""
+    if not order:
+        return list(labels)
+    order_index = {name: i for i, name in enumerate(order)}
+    indices = sorted(
+        range(len(labels)),
+        key=lambda i: (0, order_index[labels[i]]) if labels[i] in order_index else (1, i)
+    )
+    return [labels[i] for i in indices]
+
+
+class AxisSettingsPanel:
+    """状態はタブが持ち、この部品はメソッドと信号の配線だけを持つ。PlotterApp の同じ名前は窓口(gui/panels/__init__.py)。"""
+
+    # PlotterApp から同じ名前で使えるもの(テスト・メニュー・ほかの部品が使う)
+    EXPOSED_NAMES = (
+        '_apply_settings_to_ui_controls', '_block_all_signals', '_connect_axis_setting_signals',
+        '_connect_layout_signals', '_current_active_axis', '_font_props_to_dict', '_gather_settings_from_ui',
+        '_grid_linestyle_code', '_grid_linestyle_index', '_on_active_axis_changed', '_on_axis_setting_changed',
+        '_on_change_axis_label_color', '_on_change_axis_label_font', '_on_change_legend_color',
+        '_on_change_legend_font', '_on_change_spine_color', '_on_change_tick_color', '_on_change_tick_font',
+        '_on_edit_legend_order', '_on_grid_visibility_changed', '_on_layout_changed', '_on_legend_drag_release',
+        '_on_legend_loc_changed', '_on_legend_visibility_changed', '_on_share_axis_changed',
+        '_on_x_autoscale_changed', '_on_x_minor_tick_visibility_changed', '_on_x_tick_mode_changed',
+        '_on_y_autoscale_changed', '_on_y_minor_tick_visibility_changed', '_on_y_tick_mode_changed',
+        '_open_label_edit_dialog', '_refresh_all_label_previews', '_refresh_grid_state', '_refresh_label_preview',
+        '_refresh_legend_state', '_refresh_x_autoscale_enabled_state', '_refresh_x_minor_tick_state',
+        '_refresh_x_tick_mode_state', '_refresh_y_autoscale_enabled_state', '_refresh_y_minor_tick_state',
+        '_refresh_y_tick_mode_state', '_seed_min_max_spinboxes', '_store_dragged_legend_positions',
+        '_update_subplot_combos', '_warn_if_font_family_unavailable_for_graph',
+    )
+
+    def __init__(self, app):
+        self._app = app
+
+    def _on_layout_changed(self):
+            if getattr(self._app.project, 'layout_mode', 'grid') == 'free':
+                return
+
+            # 欄の値を変える間、変更の通知が連鎖しないように
+            self._block_all_signals(True)
+
+            rows = self._app.subplot_rows_spinbox.value()
+            cols = self._app.subplot_cols_spinbox.value()
+            total_plots = rows * cols
+
+            current_plot_count = len(self._app.project.all_plot_settings)
+
+            if total_plots > current_plot_count:
+                # 増えた分は今の軸の設定をもとにする
+                default_settings = self._gather_settings_from_ui()
+                for _ in range(total_plots - current_plot_count):
+                    new_settings = default_settings.copy()
+                    # 注釈は引き継がない。浅いコピーなので、空のリストにしないと全部が同じリストを共有する
+                    new_settings['annotations'] = []
+                    new_settings['legend_order'] = []
+                    self._app.project.all_plot_settings.append(new_settings)
+
+            elif total_plots < current_plot_count:
+                self._app.project.all_plot_settings = self._app.project.all_plot_settings[:total_plots]
+
+                # 無くなったサブプロットを描画先にしていたデータセットは、どこにも描かれず
+                # エクスポートにも入らないのに気づけないので、最後のサブプロットに移す
+                for dataset in self._app.project.datasets:
+                    if dataset.subplot_target >= total_plots:
+                        dataset.subplot_target = total_plots - 1
+
+            if self._app.project.active_axis_index >= total_plots:
+                self._app.project.active_axis_index = 0
+
+            self._update_subplot_combos()
+            self._apply_settings_to_ui_controls(self._app.project.all_plot_settings[self._app.project.active_axis_index])
+
+            self._block_all_signals(False)
+
+            self._app._update_plot()
+
+    def _on_share_axis_changed(self):
+        self._app.project.share_x_axis = self._app.share_x_checkbox.isChecked()
+        self._app.project.share_y_axis = self._app.share_y_checkbox.isChecked()
+        self._app._update_plot()
+
+    def _on_active_axis_changed(self, index):
+            """切り替える前の欄の値を元の軸に保存してから、新しい軸の設定を欄に読み込む。"""
+
+            if index == -1 or index >= len(self._app.project.all_plot_settings):
+                return
+
+            self._app.project.all_plot_settings[self._app.project.active_axis_index] = self._gather_settings_from_ui()
+
+            self._app.project.active_axis_index = index
+
+            settings_to_load = self._app.project.all_plot_settings[self._app.project.active_axis_index]
+            self._apply_settings_to_ui_controls(settings_to_load)
+
+    def _on_axis_setting_changed(self):
+            current_settings = self._gather_settings_from_ui()
+
+            self._app.project.all_plot_settings[self._app.project.active_axis_index] = current_settings
+
+            self._app._update_plot_appearance()
+
+    def _update_subplot_combos(self):
+            total_plots = len(self._app.project.all_plot_settings)
+            plot_names = [f"プロット {i+1}" for i in range(total_plots)]
+
+            self._app.active_axis_combo.blockSignals(True)
+            self._app.subplot_target_combo.blockSignals(True)
+
+            self._app.active_axis_combo.clear()
+            self._app.subplot_target_combo.clear()
+
+            self._app.active_axis_combo.addItems(plot_names)
+            self._app.subplot_target_combo.addItems(plot_names)
+
+            self._app.active_axis_combo.setCurrentIndex(self._app.project.active_axis_index)
+
+            # 「描画先」の選択はデータセットを選んだときに property_panel.update_ui_state が決める
+            self._app.active_axis_combo.blockSignals(False)
+            self._app.subplot_target_combo.blockSignals(False)
+
+
+    def _seed_min_max_spinboxes(self, min_spinbox, max_spinbox, limits):
+        """オートスケールを切った瞬間に、いま表示している範囲を最小値・最大値の欄に入れる。
+
+        欄が初期値 0/0 のままだと、最小値を先に変えたとき「最小 >= 最大」で反映されない。
+        """
+        if limits is None:
+            return
+        min_lim, max_lim = limits
+        min_spinbox.blockSignals(True)
+        max_spinbox.blockSignals(True)
+        min_spinbox.setValue(min_lim)
+        max_spinbox.setValue(max_lim)
+        min_spinbox.blockSignals(False)
+        max_spinbox.blockSignals(False)
+
+    def _current_active_axis(self):
+        axis_index = self._app.project.active_axis_index
+        if 0 <= axis_index < len(self._app.canvas.all_axes):
+            return self._app.canvas.all_axes[axis_index]
+        return None
+
+    def _refresh_x_autoscale_enabled_state(self):
+        """最小値・最大値の欄の有効/無効だけをオートスケールに合わせる。値は書き換えない。
+
+        保存した設定を戻すときはこちらを使う。_on_x_autoscale_changed() は表示中の範囲を欄に入れるので、
+        保存されていた範囲が上書きされる。
+        """
+        is_autoscale = self._app.ui.x_autoscale_checkbox.isChecked()
+        self._app.ui.x_min_spinbox.setEnabled(not is_autoscale)
+        self._app.ui.x_max_spinbox.setEnabled(not is_autoscale)
+        return is_autoscale
+
+    def _refresh_y_autoscale_enabled_state(self):
+        is_autoscale = self._app.ui.y_autoscale_checkbox.isChecked()
+        self._app.ui.y_min_spinbox.setEnabled(not is_autoscale)
+        self._app.ui.y_max_spinbox.setEnabled(not is_autoscale)
+        return is_autoscale
+
+    def _on_x_autoscale_changed(self):
+        """利用者がチェックを変えたとき(設定を戻すときは _refresh_x_autoscale_enabled_state)。"""
+        is_autoscale = self._refresh_x_autoscale_enabled_state()
+
+        if not is_autoscale:
+            axis = self._current_active_axis()
+            self._seed_min_max_spinboxes(
+                self._app.ui.x_min_spinbox, self._app.ui.x_max_spinbox, axis.get_xlim() if axis is not None else None)
+
+        # 欄の値を書き換えたので、描き直すだけでなく設定も集め直す
+        self._on_axis_setting_changed()
+
+    def _on_y_autoscale_changed(self):
+        is_autoscale = self._refresh_y_autoscale_enabled_state()
+
+        if not is_autoscale:
+            axis = self._current_active_axis()
+            self._seed_min_max_spinboxes(
+                self._app.ui.y_min_spinbox, self._app.ui.y_max_spinbox, axis.get_ylim() if axis is not None else None)
+
+        self._on_axis_setting_changed()
+
+    def _on_x_tick_mode_changed(self):
+        self._refresh_x_tick_mode_state()
+        self._app._update_plot_appearance()
+
+    def _refresh_x_tick_mode_state(self):
+        is_fixed_interval = (self._app.ui.x_major_tick_mode_combo.currentIndex() == 1)
+        self._app.ui.x_major_tick_interval_spinbox.setEnabled(is_fixed_interval)
+
+    def _on_y_tick_mode_changed(self):
+        self._refresh_y_tick_mode_state()
+        self._app._update_plot_appearance()
+
+    def _refresh_y_tick_mode_state(self):
+        is_fixed_interval = (self._app.ui.y_major_tick_mode_combo.currentIndex() == 1)
+        self._app.ui.y_major_tick_interval_spinbox.setEnabled(is_fixed_interval)
+
+    def _on_x_minor_tick_visibility_changed(self):
+        """補助目盛の表示と対数表示の両方に依存するので、同じスロットで受ける。"""
+        self._refresh_x_minor_tick_state()
+        self._app._update_plot_appearance()
+
+    def _refresh_x_minor_tick_state(self):
+        is_visible = self._app.ui.x_minor_ticks_visible_checkbox.isChecked()
+        is_log = self._app.ui.x_log_checkbox.isChecked()
+        # 対数軸は MultipleLocator ではなく LogLocator なので間隔は使わない
+        self._app.ui.x_minor_tick_interval_spinbox.setEnabled(is_visible and not is_log)
+        self._app.x_log_minor_subs_label.setVisible(is_log)
+        self._app.x_log_minor_subs_combo.setVisible(is_log)
+        self._app.x_log_minor_labels_checkbox.setVisible(is_log)
+        self._app.x_log_minor_subs_combo.setEnabled(is_log and is_visible)
+        self._app.x_log_minor_labels_checkbox.setEnabled(is_log and is_visible)
+
+    def _on_y_minor_tick_visibility_changed(self):
+        self._refresh_y_minor_tick_state()
+        self._app._update_plot_appearance()
+
+    def _refresh_y_minor_tick_state(self):
+        is_visible = self._app.ui.y_minor_ticks_visible_checkbox.isChecked()
+        is_log = self._app.ui.y_log_checkbox.isChecked()
+        self._app.ui.y_minor_tick_interval_spinbox.setEnabled(is_visible and not is_log)
+        self._app.y_log_minor_subs_label.setVisible(is_log)
+        self._app.y_log_minor_subs_combo.setVisible(is_log)
+        self._app.y_log_minor_labels_checkbox.setVisible(is_log)
+        self._app.y_log_minor_subs_combo.setEnabled(is_log and is_visible)
+        self._app.y_log_minor_labels_checkbox.setEnabled(is_log and is_visible)
+
+    def _on_legend_visibility_changed(self):
+        self._refresh_legend_state()
+        self._app._update_plot_appearance()
+
+    def _refresh_legend_state(self):
+        is_visible = self._app.ui.legend_visible_checkbox.isChecked()
+
+        self._app.legend_loc_label.setEnabled(is_visible)
+        self._app.legend_loc_combo.setEnabled(is_visible)
+        self._app.legend_font_label.setEnabled(is_visible)
+        self._app.legend_font_button.setEnabled(is_visible)
+        self._app.legend_color_label.setEnabled(is_visible)
+        self._app.legend_color_button.setEnabled(is_visible)
+
+    def _grid_linestyle_code(self, combo_index: int) -> str:
+        choices = self._app.grid_linestyle_choices
+        if 0 <= combo_index < len(choices):
+            return choices[combo_index][1]
+        return '-'
+
+    def _grid_linestyle_index(self, linestyle_code: str) -> int:
+        """未知の値は 0(実線)。"""
+        for i, (_label, code) in enumerate(self._app.grid_linestyle_choices):
+            if code == linestyle_code:
+                return i
+        return 0
+
+    def _on_grid_visibility_changed(self):
+        self._refresh_grid_state()
+        self._app._update_plot_appearance()
+
+    def _refresh_grid_state(self):
+        is_visible = self._app.ui.grid_visible_checkbox.isChecked()
+
+        self._app.ui.minor_grid_visible_checkbox.setEnabled(is_visible)
+
+        # 主のグリッドの欄はグリッドの表示に、補助の欄はさらに補助グリッドの表示にも従う
+        is_minor_visible = is_visible and self._app.ui.minor_grid_visible_checkbox.isChecked()
+        for widget in (
+            self._app.x_major_grid_linestyle_combo, self._app.x_major_grid_width_spinbox, self._app.x_major_grid_alpha_spinbox,
+            self._app.y_major_grid_linestyle_combo, self._app.y_major_grid_width_spinbox, self._app.y_major_grid_alpha_spinbox,
+        ):
+            widget.setEnabled(is_visible)
+        for widget in (
+            self._app.x_minor_grid_linestyle_combo, self._app.x_minor_grid_width_spinbox, self._app.x_minor_grid_alpha_spinbox,
+            self._app.y_minor_grid_linestyle_combo, self._app.y_minor_grid_width_spinbox, self._app.y_minor_grid_alpha_spinbox,
+        ):
+            widget.setEnabled(is_minor_visible)
+
+
+    def _warn_if_font_family_unavailable_for_graph(self, font):
+        """グラフのフォントが matplotlib で見つからなければ知らせる(選択は保存する)。
+
+        QFontDialog は OS のフォント一覧を出すが、matplotlib は別の一覧で探し、見つからないと黙って既定のフォントになる。
+        """
+        family = font.family()
+        _resolved_name, _stretch, resolved = _resolve_font_family_for_matplotlib(family)
+        if not resolved:
+            notify.warning(
+                self._app, "フォントが見つかりません",
+                f"フォント「{family}」はグラフの描画エンジン(matplotlib)には認識されず、"
+                "代わりに既定のフォントで表示されます。\n\n"
+                "OS側のフォント一覧には表示されていても、グラフの描画には使えない"
+                "フォントがあります。別のフォントをお試しください。"
+            )
+
+    def _on_change_tick_font(self):
+        ok, font = QFontDialog.getFont(self._app._tick_font, self._app)
+        if ok:
+            self._warn_if_font_family_unavailable_for_graph(font)
+            self._app._tick_font = font
+            self._on_axis_setting_changed()
+
+    def _on_change_tick_color(self):
+        color = get_color_with_history(self._app.settings, self._app)
+        if color.isValid():
+            self._app._tick_color = color.name()
+            self._on_axis_setting_changed()
+
+    def _on_change_axis_label_font(self):
+        ok, font = QFontDialog.getFont(self._app._axis_label_font, self._app)
+        if ok:
+            self._warn_if_font_family_unavailable_for_graph(font)
+            self._app._axis_label_font = font
+            # _update_plot_appearance() だけでは all_plot_settings に保存されない
+            self._on_axis_setting_changed()
+
+    def _on_change_axis_label_color(self):
+        color = get_color_with_history(self._app.settings, self._app)
+        if color.isValid():
+            self._app._axis_label_color = color.name()
+            self._on_axis_setting_changed()
+
+    def _on_change_legend_font(self):
+        ok, font = QFontDialog.getFont(self._app._legend_font, self._app)
+        if ok:
+            self._warn_if_font_family_unavailable_for_graph(font)
+            self._app._legend_font = font
+            self._on_axis_setting_changed()
+
+    def _on_change_legend_color(self):
+        color = get_color_with_history(self._app.settings, self._app)
+        if color.isValid():
+            self._app._legend_color = color.name()
+            self._on_axis_setting_changed()
+
+    def _on_change_spine_color(self):
+        color = get_color_with_history(self._app.settings, self._app)
+        if color.isValid():
+            self._app._spine_color = color.name()
+            self._on_axis_setting_changed()
+
+    def _open_label_edit_dialog(self, line_edit, dialog_title):
+        """編集ダイアログの結果を line_edit に setText() する(textChanged からいつもの経路で反映される)。
+
+        LABEL_SYMBOL_PALETTE は main_window がこの mixin を import しているので、ここで遅れて import する。
+        """
+        from graphica.gui.main_window import LABEL_SYMBOL_PALETTE
+
+        dialog = LabelEditDialog(line_edit.text(), dialog_title, LABEL_SYMBOL_PALETTE, parent=self._app)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            line_edit.setText(dialog.get_text())
+
+    def _refresh_label_preview(self, preview_label, text, placeholder):
+        """プレビューを matplotlib で描いた見た目にする。空なら placeholder を text_muted の色で出す。"""
+        from graphica.gui.mathtext_preview import render_mathtext_to_pixmap
+
+        tokens = theme.current_tokens()
+        if text:
+            pixmap = render_mathtext_to_pixmap(text, color=tokens["text_primary"])
+        else:
+            pixmap = render_mathtext_to_pixmap(placeholder, color=tokens["text_muted"])
+        # 欄の幅が決まるたびに収まるよう縮める(setPixmap だと、この時点の幅がまだ確定していないとはみ出す)
+        preview_label.set_natural_pixmap(pixmap)
+
+    def _refresh_all_label_previews(self):
+        """文字色がテーマに従うので、ダークモードの切り替えで描き直す。"""
+        for preview_label, line_edit, placeholder in self._app._label_preview_widgets:
+            self._refresh_label_preview(preview_label, line_edit.text(), placeholder)
+
+    def _on_legend_loc_changed(self, *_args):
+        """ドラッグした位置(legend_position)が残っていると選んだ位置が効かないので消す。"""
+        axis_index = self._app.project.active_axis_index
+        if axis_index < len(self._app.project.all_plot_settings):
+            self._app.project.all_plot_settings[axis_index].pop('legend_position', None)
+        self._on_axis_setting_changed()
+
+    def _on_legend_drag_release(self, _event):
+        """凡例のドラッグは matplotlib 側の button_release_event で確定し、こちらが先に呼ばれうるので、処理の後で読む。"""
+        QTimer.singleShot(0, self._store_dragged_legend_positions)
+
+    def _store_dragged_legend_positions(self):
+        """凡例がドラッグで置かれていれば、その位置を legend_position に保存する(しないと次の描画で戻る)。どれか変えたら True。"""
+        changed = False
+        settings_list = self._app.project.all_plot_settings
+        secondary_axes = getattr(self._app.canvas, 'all_secondary_axes', [])
+        for index, ax in enumerate(getattr(self._app.canvas, 'all_axes', [])):
+            if index >= len(settings_list):
+                break
+            legend = ax.get_legend()
+            if legend is None and index < len(secondary_axes) and secondary_axes[index] is not None:
+                legend = secondary_axes[index].get_legend()
+            loc = getattr(legend, '_loc', None) if legend is not None else None
+            if not isinstance(loc, tuple) or len(loc) != 2:
+                continue
+            position = [round(float(loc[0]), 4), round(float(loc[1]), 4)]
+            if axis_setting(settings_list[index], 'legend_position') != position:
+                settings_list[index]['legend_position'] = position
+                changed = True
+        return changed
+
+    def _on_edit_legend_order(self):
+        """今の軸の凡例の並びをダイアログで決め、legend_order に保存する。"""
+        axis_index = self._app.project.active_axis_index
+        if axis_index >= len(self._app.canvas.all_axes):
+            return
+        ax = self._app.canvas.all_axes[axis_index]
+        _, labels = ax.get_legend_handles_labels()
+        if axis_index < len(self._app.canvas.all_secondary_axes) and self._app.canvas.all_secondary_axes[axis_index] is not None:
+            _, secondary_labels = self._app.canvas.all_secondary_axes[axis_index].get_legend_handles_labels()
+            labels = labels + secondary_labels
+        if not labels:
+            notify.information(self._app, "凡例の順序", "この軸には凡例に表示するデータセットがありません。")
+            return
+
+        current_order = axis_setting(self._app.project.all_plot_settings[axis_index], 'legend_order') or []
+        dialog = LegendOrderDialog(_order_labels(labels, current_order), self._app)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._app.project.all_plot_settings[axis_index]['legend_order'] = dialog.get_order()
+        self._app._update_plot()
+
+    def _font_props_to_dict(self, qfont: QFont) -> dict:
+        """QFont を JSON に保存できる辞書にする。
+
+        'family' は families() の候補リストのまま保存する(.family() の先頭1つにすると、macOS に無い
+        "Yu Gothic" だけが残って日本語が化ける)。各候補は _resolve_font_family_for_matplotlib で解決する。
+        """
+        resolved_families = []
+        stretch = None
+        for name in qfont.families():
+            resolved_name, resolved_stretch, _ok = _resolve_font_family_for_matplotlib(name)
+            resolved_families.append(resolved_name)
+            if stretch is None and resolved_stretch is not None:
+                stretch = resolved_stretch
+
+        result = {
+            'family': resolved_families,
+            'size': qfont.pointSize(),
+            'weight': 'bold' if qfont.bold() else 'normal',
+            'style': 'italic' if qfont.italic() else 'normal'
+        }
+        if stretch is not None:
+            result['stretch'] = stretch
+        return result
+
+    def _gather_settings_from_ui(self) -> dict:
+        """今の軸の設定を、画面の欄から集めた辞書(保存形式そのもの)で返す。キーは AXIS_SETTING_DEFAULTS と同じ順。"""
+        values = self._app._axis_binder.gather()
+        # 欄を持たず操作から直接書き込まれるもの。辞書は丸ごと入れ替わるので、引き継がないと消える。
+        settings_list = self._app.project.all_plot_settings
+        current = settings_list[self._app.project.active_axis_index] if self._app.project.active_axis_index < len(settings_list) else {}
+        for key in CARRIED_AXIS_KEYS:
+            values[key] = axis_setting(current, key)
+        return {key: values[key] for key in AXIS_SETTING_DEFAULTS}
+
+    def _apply_settings_to_ui_controls(self, settings: dict):
+        """設定の辞書を画面の欄に戻す。無いキーは AXIS_SETTING_DEFAULTS の既定値になる。"""
+        try:
+            # 欄に値を入れる間は、変更の通知で設定を書き換えないようにする
+            self._block_all_signals(True)
+
+            self._app._axis_binder.restore(settings, axis_setting)
+
+            # 復元では _on_x_autoscale_changed(今の表示範囲を欄に入れる)を呼ばない。
+            # 呼ぶと、オートスケールを切って保存した範囲が今の表示範囲で上書きされる。
+            self._refresh_x_autoscale_enabled_state()
+            self._refresh_y_autoscale_enabled_state()
+            self._refresh_x_tick_mode_state()
+            self._refresh_y_tick_mode_state()
+            self._refresh_x_minor_tick_state()
+            self._refresh_y_minor_tick_state()
+            self._refresh_legend_state()
+            self._refresh_grid_state()
+            # 欄の状態をそろえてから 1 回だけ描く(どれも同じ設定で描くので、欄ごとに描いても結果は同じ)
+            self._app._update_plot_appearance()
+
+        except Exception as e:
+            notify.warning(self._app, "設定適用エラー", f"設定の適用中にエラーが発生しました:\n{e}")
+            logger.exception("設定の適用中にエラー")
+        finally:
+            # 途中で失敗しても必ず戻す
+            self._block_all_signals(False)
+
+    def _block_all_signals(self, block: bool):
+        self._app._axis_binder.block_signals(block)
+
+    def _connect_layout_signals(self):
+        self._app.subplot_rows_spinbox.valueChanged.connect(self._on_layout_changed)
+        self._app.subplot_cols_spinbox.valueChanged.connect(self._on_layout_changed)
+
+        self._app.share_x_checkbox.toggled.connect(self._on_share_axis_changed)
+        self._app.share_y_checkbox.toggled.connect(self._on_share_axis_changed)
+
+        self._app.active_axis_combo.currentIndexChanged.connect(self._on_active_axis_changed)
+
+        self._app.free_layout_checkbox.toggled.connect(self._app._on_toggle_free_layout)
+        self._app.add_free_subplot_button.clicked.connect(self._app._on_add_free_subplot)
+        self._app.remove_free_subplot_button.clicked.connect(self._app._on_remove_free_subplot)
+
+        self._app.free_layout_x_spinbox.valueChanged.connect(self._app._on_free_layout_position_spinbox_changed)
+        self._app.free_layout_y_spinbox.valueChanged.connect(self._app._on_free_layout_position_spinbox_changed)
+        self._app.free_layout_width_spinbox.valueChanged.connect(self._app._on_free_layout_position_spinbox_changed)
+        self._app.free_layout_height_spinbox.valueChanged.connect(self._app._on_free_layout_position_spinbox_changed)
+
+    def _connect_axis_setting_signals(self):
+        # 値を持つ欄は表(gui/axis_bindings.py)の順につなぐ。タイトルと軸ラベルの編集ボタンは _build_label_editors でつなぐ
+        self._app._axis_binder.connect()
+
+        self._app.ui.tick_font_button.clicked.connect(self._on_change_tick_font)
+        self._app.ui.tick_color_button.clicked.connect(self._on_change_tick_color)
+        self._app.ui.axis_label_font_button.clicked.connect(self._on_change_axis_label_font)
+        self._app.ui.axis_label_color_button.clicked.connect(self._on_change_axis_label_color)
+        self._app.legend_font_button.clicked.connect(self._on_change_legend_font)
+        self._app.legend_color_button.clicked.connect(self._on_change_legend_color)
+        self._app.legend_order_button.clicked.connect(self._on_edit_legend_order)
+        self._app.ui.spine_color_button.clicked.connect(self._on_change_spine_color)

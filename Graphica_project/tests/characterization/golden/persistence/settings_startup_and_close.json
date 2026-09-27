@@ -1,0 +1,33 @@
+{
+ "after_start": {
+  "autosave_dir": "<CASE>/autosave",
+  "clean_exit": false,
+  "dark_mode": false,
+  "has_shown_welcome": true,
+  "language": "ja"
+ },
+ "after_close": {
+  "autosave_dir": "<CASE>/autosave",
+  "canvas_was_detached": false,
+  "clean_exit": true,
+  "dark_mode": false,
+  "dock_layout_version": 4,
+  "has_shown_welcome": true,
+  "language": "ja",
+  "window_geometry": {
+   "bytes_sha256": "8f9f776e48073b52",
+   "len": 66
+  },
+  "window_state": {
+   "bytes_sha256": "0ab357d9fbe5c554",
+   "len": 395
+  }
+ },
+ "modals": [
+  {
+   "kind": "exec",
+   "class": "WelcomeDialog",
+   "title": "Graphica へようこそ"
+  }
+ ]
+}

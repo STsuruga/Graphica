@@ -1,0 +1,10 @@
+{
+ "modals": [
+  {
+   "kind": "QMessageBox.critical",
+   "title": "エラー",
+   "text": "保存に失敗しました:\n[Errno 13] Permission denied: '<CASE>/is_a_folder.graphica'"
+  }
+ ],
+ "title": "無題のプロジェクト"
+}

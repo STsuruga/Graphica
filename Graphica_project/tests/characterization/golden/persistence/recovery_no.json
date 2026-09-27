@@ -1,0 +1,153 @@
+{
+ "status": "",
+ "title": "無題のプロジェクト",
+ "unsaved": false,
+ "datasets": [],
+ "group_tree": {
+  "name": "",
+  "children": []
+ },
+ "tree_widget": [],
+ "all_plot_settings": [
+  {
+   "title": "",
+   "x_label": "",
+   "y_label": "",
+   "x_label_visible": true,
+   "y_label_visible": true,
+   "y2_label": "",
+   "x_autoscale": true,
+   "x_min": 0.0,
+   "x_max": 0.0,
+   "x_log": false,
+   "x_invert": false,
+   "x_major_tick_mode": 0,
+   "x_major_tick_interval": 0.0,
+   "x_minor_ticks_visible": false,
+   "x_minor_tick_interval": 0.0,
+   "x_log_minor_subs": "auto",
+   "x_log_minor_labels": false,
+   "x_tick_format_mode": 0,
+   "x_tick_decimals": -1,
+   "x_secondary_axis_source_unit": "none",
+   "x_secondary_axis_target_unit": "none",
+   "y_autoscale": true,
+   "y_min": 0.0,
+   "y_max": 0.0,
+   "y_log": false,
+   "y_invert": false,
+   "y_major_tick_mode": 0,
+   "y_major_tick_interval": 0.0,
+   "y_minor_ticks_visible": false,
+   "y_minor_tick_interval": 0.0,
+   "y_log_minor_subs": "auto",
+   "y_log_minor_labels": false,
+   "y_tick_format_mode": 0,
+   "y_tick_decimals": -1,
+   "legend_visible": true,
+   "legend_loc": "best",
+   "grid_visible": false,
+   "minor_grid_visible": false,
+   "x_major_grid_linestyle": "-",
+   "x_major_grid_width": 0.8,
+   "x_major_grid_alpha": 1.0,
+   "x_minor_grid_linestyle": "--",
+   "x_minor_grid_width": 0.5,
+   "x_minor_grid_alpha": 1.0,
+   "y_major_grid_linestyle": "-",
+   "y_major_grid_width": 0.8,
+   "y_major_grid_alpha": 1.0,
+   "y_minor_grid_linestyle": "--",
+   "y_minor_grid_width": 0.5,
+   "y_minor_grid_alpha": 1.0,
+   "major_tick_direction": "out",
+   "minor_tick_direction": "out",
+   "major_tick_direction_y2": "out",
+   "minor_tick_direction_y2": "out",
+   "x_ticks_visible": true,
+   "x_tick_labels_visible": true,
+   "y_ticks_visible": true,
+   "y_tick_labels_visible": true,
+   "tick_font": {
+    "family": [
+     "DejaVu Sans",
+     "Yu Gothic",
+     "Hiragino Sans",
+     "Hiragino Kaku Gothic ProN",
+     "Meiryo",
+     "MS Gothic",
+     "Noto Sans CJK JP"
+    ],
+    "size": 9,
+    "weight": "normal",
+    "style": "normal"
+   },
+   "tick_color": "#000000",
+   "tick_width": 0.8,
+   "major_tick_length": 3.5,
+   "minor_tick_length": -1,
+   "axis_label_font": {
+    "family": [
+     "DejaVu Sans",
+     "Yu Gothic",
+     "Hiragino Sans",
+     "Hiragino Kaku Gothic ProN",
+     "Meiryo",
+     "MS Gothic",
+     "Noto Sans CJK JP"
+    ],
+    "size": 9,
+    "weight": "normal",
+    "style": "normal"
+   },
+   "axis_label_color": "#000000",
+   "legend_font": {
+    "family": [
+     "DejaVu Sans",
+     "Yu Gothic",
+     "Hiragino Sans",
+     "Hiragino Kaku Gothic ProN",
+     "Meiryo",
+     "MS Gothic",
+     "Noto Sans CJK JP"
+    ],
+    "size": 9,
+    "weight": "normal",
+    "style": "normal"
+   },
+   "legend_color": "#000000",
+   "spine_width": 1.0,
+   "spine_color": "#000000",
+   "colorbar_enabled": true,
+   "colorbar_position": "right",
+   "colorbar_width_fraction": 0.05,
+   "colorbar_label": "",
+   "annotations": [],
+   "legend_order": [],
+   "free_rect": null,
+   "legend_position": null
+  }
+ ],
+ "layout": [
+  1,
+  1,
+  "grid",
+  false,
+  false,
+  false,
+  0
+ ],
+ "undo_count": 0,
+ "modals": [
+  {
+   "kind": "QMessageBox.question",
+   "title": "オートセーブからの復元",
+   "text": "前回はプロジェクトが正常に終了しなかったようです。\n自動保存されていたデータを復元しますか?",
+   "buttons": [
+    "Yes",
+    "No"
+   ],
+   "default": "Yes"
+  }
+ ]
+}

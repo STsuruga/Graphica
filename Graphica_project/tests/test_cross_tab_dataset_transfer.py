@@ -13,9 +13,9 @@ import pandas as pd
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-import graphica.gui.main_app_window as main_app_window_module
+import graphica.gui.notify as notify_module
+import graphica.gui.app_settings as app_settings_module
 import graphica.gui.main_window as main_window_module
-import graphica.gui.datasets.transfer as transfer_module
 from graphica.gui.main_app_window import MainAppWindow
 from graphica.core.dataset import Dataset
 
@@ -28,8 +28,7 @@ def _make_isolated_main_app_window(tmp_path, monkeypatch):
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_app_window_module, "QSettings", IsolatedQSettings)
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
 
     monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
@@ -77,7 +76,7 @@ def test_get_sibling_tabs_standalone_plotter_app_returns_empty(tmp_path, monkeyp
         def __init__(self, *args, **kwargs):
             super().__init__(settings_path, QSettings.Format.IniFormat)
 
-    monkeypatch.setattr(main_window_module, "QSettings", IsolatedQSettings)
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
     window = PlotterApp(run_startup_checks=False, tab_id=2)
 
     assert window._dataset_host.sibling_tabs() == []
@@ -125,7 +124,7 @@ def test_copy_no_other_tabs_shows_info(tmp_path, monkeypatch):
 
     info_calls = []
     monkeypatch.setattr(
-        transfer_module.QMessageBox, "information",
+        notify_module.QMessageBox, "information",
         staticmethod(lambda *a, **k: info_calls.append(a)),
     )
 
@@ -142,7 +141,7 @@ def test_copy_adds_independent_dataset_to_target_tab_and_keeps_source(tmp_path, 
     ds = _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (window._tab_title_for(tab2), True)),
     )
 
@@ -166,7 +165,7 @@ def test_copy_cancelled_dialog_transfers_nothing(tmp_path, monkeypatch):
     _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("", False)),
     )
 
@@ -185,7 +184,7 @@ def test_copy_multiple_selected_datasets(tmp_path, monkeypatch):
     tab1.ui.dataset_list_widget.selectAll()
 
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (window._tab_title_for(tab2), True)),
     )
 
@@ -204,7 +203,7 @@ def test_move_removes_from_source_tab(tmp_path, monkeypatch):
     ds = _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (window._tab_title_for(tab2), True)),
     )
 
@@ -222,7 +221,7 @@ def test_move_removes_tree_item_from_source_tab(tmp_path, monkeypatch):
     ds = _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: (window._tab_title_for(tab2), True)),
     )
 
@@ -238,7 +237,7 @@ def test_move_cancelled_dialog_keeps_dataset_in_source(tmp_path, monkeypatch):
     ds = _add_and_select(tab1, _make_simple_dataset("d0"))
 
     monkeypatch.setattr(
-        transfer_module.QInputDialog, "getItem",
+        notify_module.QInputDialog, "getItem",
         staticmethod(lambda *a, **k: ("", False)),
     )
 
