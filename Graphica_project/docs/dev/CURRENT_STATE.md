@@ -13,7 +13,14 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-28): 再設計(R)の統合後の K をすべて片付けた
+## 現在地(2026-09-28): v2.0.0 をリリースした
+
+- **v2.0.0 を公開済み**(タグ `v2.0.0`、PR #74)。GitHub Releases に Windows の zip・インストーラー・macOS の zip、
+  PyPI に `graphica-plot` 2.0.0(初めての公開)。PyPI・TestPyPI の Trusted Publisher はユーザーが登録済みなので、
+  次からは版を上げてタグを打てば publish.yml が公開まで行う。GitHub Releases は手作業(RELEASE_CHECKLIST.md)。
+- 公開後の確認(ユーザー): Releases から落とした exe の起動、可能なら macOS と `pip install graphica-plot`。
+
+### リリースまでの経緯: 再設計(R)の統合後の K をすべて片付けた
 
 **再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
 (原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
