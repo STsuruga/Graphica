@@ -105,4 +105,10 @@ TRANSLATIONS = {
     " 分": " min",
     "無効": "Off",
     "オートセーブ間隔": "Autosave interval",
+
+    # --- 起動画面 ---
+    "バージョン {version}": "Version {version}",
+    "起動しています…": "Starting…",
+    "ライブラリを読み込み中…": "Loading libraries…",
+    "ウィンドウを準備中…": "Preparing the window…",
 }

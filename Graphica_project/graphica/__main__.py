@@ -9,13 +9,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont, QGuiApplication
 
+# ここでは軽いモジュールだけを読む。pandas・scipy・matplotlib を引くもの(main_app_window・plugin_api)は
+# 起動画面を出してから main() の中で読む(読み込みに 2〜3 秒かかり、その間に何も出ないと起動に気づけない)
 from graphica.gui import app_settings
-from graphica.gui.main_app_window import MainAppWindow
 from graphica.gui.crash_handler import install_crash_handler, prompt_safe_mode_and_apply
-from graphica.gui.theme import disable_scroll_value_change
+from graphica.core.i18n import set_language, tr
 from graphica.core.version import LOG_FILE_NAME
 from graphica.core.app_paths import get_app_data_dir
-from graphica.core.plugin_api import set_safe_mode
 
 # UI のフォント。無ければ Qt が次の候補を使う
 APP_FONT_FAMILIES = ["Yu Gothic UI", "Meiryo UI", "Segoe UI"]
@@ -55,18 +55,34 @@ def main():
     app_font.setPointSizeF(APP_FONT_POINT_SIZE)
     app.setFont(app_font)
 
-    disable_scroll_value_change()
+    settings = app_settings.open_settings()
+    # 起動画面の文字の言語。最初のタブも同じ値で設定し直す
+    set_language(app_settings.LANGUAGE.read(settings))
 
-    # プラグインは最初のタブを作るときに読むので、その前に決める
-    if _safe_mode_flag_requested(sys.argv):
+    # プラグインは最初のタブを作るときに読むので、その前に決める。尋ねる画面は起動画面より前に出す(後ろに隠れないように)
+    safe_mode_requested = _safe_mode_flag_requested(sys.argv)
+    if not safe_mode_requested:
+        # 前回が異常終了なら、プラグインなしで起動するか尋ねる。clean_exit を書き換えるのは PlotterApp だけ
+        prompt_safe_mode_and_apply(settings)
+
+    from graphica.gui.splash import show_startup_splash
+    splash = show_startup_splash(dark=app_settings.DARK_MODE.read(settings))
+
+    splash.show_progress(tr("ライブラリを読み込み中…"))
+    from graphica.core.plugin_api import set_safe_mode
+    from graphica.gui.main_app_window import MainAppWindow
+    from graphica.gui.theme import disable_scroll_value_change
+
+    disable_scroll_value_change()
+    if safe_mode_requested:
         # 明示的に指定されたので尋ねない
         set_safe_mode(True)
-    else:
-        # 前回が異常終了なら、プラグインなしで起動するか尋ねる。clean_exit を書き換えるのは PlotterApp だけ
-        prompt_safe_mode_and_apply(app_settings.open_settings())
 
+    splash.show_progress(tr("ウィンドウを準備中…"))
     window = MainAppWindow()
     window.show()
+    # 復元の確認やようこそ画面は、イベントループが回ってから出るので、その前に閉じる
+    splash.finish(window)
 
     sys.exit(app.exec())
 
