@@ -13,26 +13,27 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-27): 再設計(R)を master に統合した
+## 現在地(2026-09-28): 再設計(R)の統合後の K をすべて片付けた
 
 **再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
 (原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
 **引き継ぎ**: `docs/dev/REFACTOR_HANDOFF.md`(作業ルール、R-0 の指針、最終の動作確認表)。
 
-- **M0〜M6 完了**。`refactor/architecture` を master に 1 回だけ統合した(V-6、ユーザー承認)。
-  R-0〜R-9 の構造は CLAUDE.md のアーキテクチャの節にある(`gui/builders/`・`gui/rendering/`・`gui/tools/`・`gui/panels/`、
-  mixin は 5 個、DatasetHost・TabPluginContext は本体の公開メソッドだけを使う)。
-- 統合の前の確認: フルスイート 3,555 件すべて緑、カバレッジ 95.7%、ruff・mypy 問題なし、wheel の起動、
-  プラグインのリポジトリ(element-constants)のテスト 16 件、ユーザーによる exe の操作確認(38 項目+新機能)。
-- リファクタリング中に直した K と新機能は CHANGELOG の「未リリース」にある。V-4 で見つかった K-44(exe でアイコンが空)も直した。
-- **次にやる K**(ユーザー決定済み、db の findings): K-38(.graphica の関連付け、インストーラーと環境設定のボタン、起動中は新しいタブ)・
-  K-39(起動画面)・K-41(`.pkl` の対応をやめる)・K-42(拡張子を `.gra` に、`.graphica` も開ける)をまとめて。
-  ほかに K-3(日本語と $...$ の混在)・K-10(英語表示の範囲)・K-16(matplotlib 3.11・PySide6 6.11)・K-26(テストが非公開メソッドを呼ぶ)。
+- **M0〜M6 完了**、`refactor/architecture` は master に統合済み(#65)。構造は CLAUDE.md のアーキテクチャの節。
+- 統合後に残っていた K をすべて片付けた(各 PR をマージ済み): K-39 起動画面(#66)、K-41・K-42 `.pkl` の廃止と拡張子 `.gra`
+  (`.graphica` も開ける、#67)、K-3 日本語と `$...$` の混在(#68)、K-26 テストが非公開メソッドを呼ぶ件は窓口を残す方針を
+  CLAUDE.md に(#69)、K-10 英語表示の範囲(#70)、K-38 関連付け・インストーラー・二重起動の防止(#71、CI の成果物
+  `Graphica-windows-installer`)、K-45 第 2 Y 軸の範囲・対数・反転・目盛り(#72)、K-16 PySide6 6.11・matplotlib 3.11(#73)。
+- K-16 の要点: matplotlib 3.11 では `axes.prop_cycle` の色が RGB の組で返る。色を文字列で扱う側は
+  `core/color_palettes.py` の `default_color_cycle()` を使う(QColor に組を渡すと PySide6 6.11 はプロセスごと落ちる)。
+  PySide6 6.11 からは closeEvent・eventFilter の中の例外が表に出る。特性テストの基準は新しい版で作り直した(ENVIRONMENT.md)。
 - 特性テストの数値は、基準を作った機械(`golden/MACHINE.json`、この PC)ではビット単位、CI などでは許容差で比べる(#32)。
+  画素は `recorder.PIXEL_ENVIRONMENT` の版と一致するときだけ比べる。版を上げたら基準の作り直しを忘れない(一致しないと黙って飛ばす)。
 - 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
   既存ファイルは CRLF なので、複数行の置換は改行をそろえてから行う。CI の結果は `gh pr checks` で見る(`jq` は無いので `--jq` を使う)。
   ruff はアプリだけでなくテストにも掛ける(`ruff check .`)。コードを別モジュールへ移したら、`pyproject.toml` の packages と
   `tests/test_broad_except_allowlist.py` の数も合わせる。テストの差し替えは、移したコードが名前を引くモジュールに向ける。
+  PR のブランチは `gh pr view N --json state` が MERGED になってから消す。
 
 ## 以前の現在地(2026-09-19、保守性ボード F〜J)
 
