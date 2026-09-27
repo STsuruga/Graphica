@@ -8,7 +8,7 @@ from graphica.core.i18n import tr
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from graphica.gui.builders.common import _ClickableMathPreviewLabel, _insert_form_row_after, _svg_icon
 from graphica.gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
-from graphica.gui.mixins.layout_edit_mixin import MIN_FREE_RECT_SIZE
+from graphica.gui.tools.layout_edit import MIN_FREE_RECT_SIZE
 
 
 def build_legend_location_control(app):

@@ -8,7 +8,7 @@ import logging
 
 from PySide6.QtWidgets import QDialog, QMessageBox
 
-from graphica.gui import notify
+from graphica.gui import app_settings, notify
 from graphica.core.axis_settings import axis_setting
 from graphica.core.commands import SetAnnotationsCommand
 from graphica.gui.app_settings import DEFAULT_SNAP_GRID_INTERVAL_PX
@@ -21,29 +21,47 @@ ANNOTATION_CLICK_THRESHOLD_PX = 5
 ANNOTATION_DELETE_TOLERANCE_PX = 15
 
 
+class AnnotationTool:
+    """状態はこのツールが持ち、PlotterApp の同じ名前は窓口(gui/tools/__init__.py)。"""
 
-class AnnotationMixin:
+    # PlotterApp から同じ名前で読み書きできるもの(テスト・メニュー・ほかの mixin が使う)
+    EXPOSED_NAMES = (
+        '_add_annotation', '_annotation_drag_start', '_annotation_press_cid', '_annotation_release_cid',
+        '_find_axis_index', '_on_annotation_press', '_on_annotation_release', '_snap_point_to_grid',
+        '_toggle_annotation_mode', '_try_delete_annotation_near', 'annotation_mode_enabled',
+        'snap_grid_interval_px', 'snap_to_grid_enabled',
+    )
+
+    def __init__(self, app):
+        self._app = app
+        self.annotation_mode_enabled = False
+        self._annotation_press_cid = None
+        self._annotation_release_cid = None
+        self._annotation_drag_start = None     # (ax, x, y)
+        self.snap_to_grid_enabled = app_settings.SNAP_TO_GRID_ENABLED.read(self._app.settings)
+        self.snap_grid_interval_px = app_settings.SNAP_GRID_INTERVAL_PX.read(self._app.settings)
+
     def _toggle_annotation_mode(self, checked):
         self.annotation_mode_enabled = checked
 
         if checked:
-            self._deactivate_other_mouse_modes('annotation')
+            self._app._deactivate_other_mouse_modes('annotation')
 
-            self._annotation_press_cid = self.canvas.mpl_connect(
+            self._annotation_press_cid = self._app.canvas.mpl_connect(
                 'button_press_event', self._on_annotation_press
             )
-            self._annotation_release_cid = self.canvas.mpl_connect(
+            self._annotation_release_cid = self._app.canvas.mpl_connect(
                 'button_release_event', self._on_annotation_release
             )
-            self.statusBar().showMessage(
+            self._app.statusBar().showMessage(
                 "注釈モード: クリックでテキスト注釈、ドラッグで矢印注釈を追加します(右クリックで削除)", 5000
             )
         else:
             if self._annotation_press_cid is not None:
-                self.canvas.mpl_disconnect(self._annotation_press_cid)
+                self._app.canvas.mpl_disconnect(self._annotation_press_cid)
                 self._annotation_press_cid = None
             if self._annotation_release_cid is not None:
-                self.canvas.mpl_disconnect(self._annotation_release_cid)
+                self._app.canvas.mpl_disconnect(self._annotation_release_cid)
                 self._annotation_release_cid = None
             self._annotation_drag_start = None
 
@@ -64,10 +82,10 @@ class AnnotationMixin:
 
     def _find_axis_index(self, ax):
         """all_axes / all_secondary_axes での番号。無ければ None。"""
-        if ax in self.all_axes:
-            return self.all_axes.index(ax)
-        if ax in self.all_secondary_axes:
-            return self.all_secondary_axes.index(ax)
+        if ax in self._app.all_axes:
+            return self._app.all_axes.index(ax)
+        if ax in self._app.all_secondary_axes:
+            return self._app.all_secondary_axes.index(ax)
         return None
 
     def _on_annotation_press(self, event):
@@ -100,7 +118,7 @@ class AnnotationMixin:
         drag_distance_px = ((end_px[0] - start_px[0]) ** 2 + (end_px[1] - start_px[1]) ** 2) ** 0.5
 
         if drag_distance_px < ANNOTATION_CLICK_THRESHOLD_PX:
-            text, ok = notify.get_text(self, "テキスト注釈の追加", "表示するテキスト:")
+            text, ok = notify.get_text(self._app, "テキスト注釈の追加", "表示するテキスト:")
             if not ok or not text.strip():
                 return
             snapped_x, snapped_y = self._snap_point_to_grid(start_ax, start_x, start_y)
@@ -110,7 +128,7 @@ class AnnotationMixin:
                 'color': '#000000',
             })
         else:
-            dialog = ArrowAnnotationDialog(self)
+            dialog = ArrowAnnotationDialog(self._app)
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
             text, arrow_style, arrow_curvature = dialog.get_settings()
@@ -129,22 +147,22 @@ class AnnotationMixin:
         annotation = dict(annotation)
         annotation['id'] = uuid.uuid4().hex
 
-        settings = self.project.all_plot_settings[axis_index]
+        settings = self._app.project.all_plot_settings[axis_index]
         old_annotations = list(axis_setting(settings, 'annotations'))
         new_annotations = old_annotations + [annotation]
 
         command = SetAnnotationsCommand(
-            self.project, axis_index, old_annotations, new_annotations,
-            self._update_plot_appearance, description=description
+            self._app.project, axis_index, old_annotations, new_annotations,
+            self._app._update_plot_appearance, description=description
         )
-        self.undo_stack.push(command)
+        self._app.undo_stack.push(command)
 
     def _try_delete_annotation_near(self, event):
         axis_index = self._find_axis_index(event.inaxes)
         if axis_index is None:
             return
 
-        settings = self.project.all_plot_settings[axis_index]
+        settings = self._app.project.all_plot_settings[axis_index]
         annotations = axis_setting(settings, 'annotations')
         if not annotations:
             return
@@ -187,7 +205,7 @@ class AnnotationMixin:
         else:
             label = target.get('text') or ("矢印注釈" if target.get('type') == 'arrow' else "テキスト注釈")
         reply = notify.question(
-            self, "注釈の削除", f"この注釈を削除しますか?\n\n{label}",
+            self._app, "注釈の削除", f"この注釈を削除しますか?\n\n{label}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
         )
@@ -198,7 +216,7 @@ class AnnotationMixin:
         del new_list[best_index]
 
         command = SetAnnotationsCommand(
-            self.project, axis_index, annotations, new_list,
-            self._update_plot_appearance, description="注釈の削除"
+            self._app.project, axis_index, annotations, new_list,
+            self._app._update_plot_appearance, description="注釈の削除"
         )
-        self.undo_stack.push(command)
+        self._app.undo_stack.push(command)

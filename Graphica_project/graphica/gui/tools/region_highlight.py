@@ -21,35 +21,56 @@ REGION_HIGHLIGHT_DEFAULT_COLOR = '#F2A72B'
 REGION_HIGHLIGHT_DEFAULT_ALPHA = 0.18
 
 
-class RegionHighlightMixin:
+class RegionHighlightTool:
+    """状態はこのツールが持ち、PlotterApp の同じ名前は窓口(gui/tools/__init__.py)。"""
+
+    # PlotterApp から同じ名前で読み書きできるもの(テスト・メニュー・ほかの mixin が使う)
+    EXPOSED_NAMES = (
+        '_clear_region_highlight_preview', '_on_region_highlight_motion', '_on_region_highlight_press',
+        '_on_region_highlight_release', '_region_highlight_axes', '_region_highlight_motion_cid',
+        '_region_highlight_orientation', '_region_highlight_press_cid', '_region_highlight_preview_artist',
+        '_region_highlight_release_cid', '_region_highlight_start', '_toggle_region_highlight_mode',
+        '_try_delete_region_near', 'region_highlight_mode_enabled',
+    )
+
+    def __init__(self, app):
+        self._app = app
+        self.region_highlight_mode_enabled = False
+        self._region_highlight_press_cid = None
+        self._region_highlight_motion_cid = None
+        self._region_highlight_release_cid = None
+        self._region_highlight_axes = None
+        self._region_highlight_start = None         # (x, y) データ座標
+        self._region_highlight_preview_artist = None
+
     def _toggle_region_highlight_mode(self, checked):
         self.region_highlight_mode_enabled = checked
 
         if checked:
-            self._deactivate_other_mouse_modes('region_highlight')
+            self._app._deactivate_other_mouse_modes('region_highlight')
 
-            self._region_highlight_press_cid = self.canvas.mpl_connect(
+            self._region_highlight_press_cid = self._app.canvas.mpl_connect(
                 'button_press_event', self._on_region_highlight_press
             )
-            self._region_highlight_motion_cid = self.canvas.mpl_connect(
+            self._region_highlight_motion_cid = self._app.canvas.mpl_connect(
                 'motion_notify_event', self._on_region_highlight_motion
             )
-            self._region_highlight_release_cid = self.canvas.mpl_connect(
+            self._region_highlight_release_cid = self._app.canvas.mpl_connect(
                 'button_release_event', self._on_region_highlight_release
             )
-            self.statusBar().showMessage(
+            self._app.statusBar().showMessage(
                 "領域ハイライトモード: 横方向にドラッグで縦帯、縦方向にドラッグで横帯を追加"
                 "(右クリックで削除)", 5000
             )
         else:
             if getattr(self, '_region_highlight_press_cid', None) is not None:
-                self.canvas.mpl_disconnect(self._region_highlight_press_cid)
+                self._app.canvas.mpl_disconnect(self._region_highlight_press_cid)
                 self._region_highlight_press_cid = None
             if getattr(self, '_region_highlight_motion_cid', None) is not None:
-                self.canvas.mpl_disconnect(self._region_highlight_motion_cid)
+                self._app.canvas.mpl_disconnect(self._region_highlight_motion_cid)
                 self._region_highlight_motion_cid = None
             if getattr(self, '_region_highlight_release_cid', None) is not None:
-                self.canvas.mpl_disconnect(self._region_highlight_release_cid)
+                self._app.canvas.mpl_disconnect(self._region_highlight_release_cid)
                 self._region_highlight_release_cid = None
             self._clear_region_highlight_preview()
             self._region_highlight_axes = None
@@ -64,7 +85,7 @@ class RegionHighlightMixin:
             except (ValueError, NotImplementedError):
                 pass
             self._region_highlight_preview_artist = None
-            self.canvas.draw_idle()
+            self._app.canvas.draw_idle()
 
     def _on_region_highlight_press(self, event):
         if not getattr(self, 'region_highlight_mode_enabled', False):
@@ -108,7 +129,7 @@ class RegionHighlightMixin:
             )
         axes.add_patch(rect)
         self._region_highlight_preview_artist = rect
-        self.canvas.draw_idle()
+        self._app.canvas.draw_idle()
 
     def _on_region_highlight_release(self, event):
         axes = getattr(self, '_region_highlight_axes', None)
@@ -131,7 +152,7 @@ class RegionHighlightMixin:
         if orientation is None:
             return  # クリックだけ(ドラッグなし)
 
-        axis_index = self._find_axis_index(axes)
+        axis_index = self._app._find_axis_index(axes)
         if axis_index is None:
             return
 
@@ -140,7 +161,7 @@ class RegionHighlightMixin:
         else:
             value_range = tuple(sorted((float(start_y), float(end_y))))
 
-        self._add_annotation(axis_index, {
+        self._app._add_annotation(axis_index, {
             'type': orientation, 'range': value_range,
             'color': REGION_HIGHLIGHT_DEFAULT_COLOR, 'alpha': REGION_HIGHLIGHT_DEFAULT_ALPHA,
         }, description="領域ハイライトの追加")
@@ -157,11 +178,11 @@ class RegionHighlightMixin:
 
     def _try_delete_region_near(self, event):
         """右クリックした位置の帯を、確認してから消す。重なっていれば最後に足したもの(いちばん手前)。"""
-        axis_index = self._find_axis_index(event.inaxes)
+        axis_index = self._app._find_axis_index(event.inaxes)
         if axis_index is None:
             return
 
-        settings = self.project.all_plot_settings[axis_index]
+        settings = self._app.project.all_plot_settings[axis_index]
         annotations = axis_setting(settings, 'annotations')
 
         target_index = None
@@ -183,7 +204,7 @@ class RegionHighlightMixin:
         label = "縦帯" if target.get('type') == 'vspan' else "横帯"
         lo, hi = target.get('range', (None, None))
         reply = notify.question(
-            self, "領域ハイライトの削除",
+            self._app, "領域ハイライトの削除",
             f"この{label}を削除しますか?\n\n範囲: {lo:.4g} 〜 {hi:.4g}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
@@ -195,7 +216,7 @@ class RegionHighlightMixin:
         del new_list[target_index]
 
         command = SetAnnotationsCommand(
-            self.project, axis_index, annotations, new_list,
-            self._update_plot_appearance, description="領域ハイライトの削除"
+            self._app.project, axis_index, annotations, new_list,
+            self._app._update_plot_appearance, description="領域ハイライトの削除"
         )
-        self.undo_stack.push(command)
+        self._app.undo_stack.push(command)

@@ -87,6 +87,7 @@ from graphica.gui.datasets.property_panel import DatasetPropertyPanel
 from graphica.gui.datasets.fitting import FittingController
 from graphica.gui.datasets.host import DatasetHost
 from graphica.gui.datasets.order import DatasetOrder
+from graphica.gui.tools import MOUSE_MODES, ToolManager, create_tools, expose_tool_names
 from graphica.gui import data_import_flow
 # テストがこのモジュールの属性として引くので残す(使うコードは data_import_flow と project_files に移した)
 import pandas as pd  # noqa: F401
@@ -165,14 +166,6 @@ def _make_default_plot_font():
 from graphica.gui.mixins.ui_setup_mixin import UISetupMixin
 from graphica.gui.mixins.settings_mixin import SettingsMixin
 from graphica.gui.mixins.dataset_mixin import DatasetMixin
-from graphica.gui.mixins.mouse_mode_mixin import MouseModeMixin
-from graphica.gui.mixins.cursor_mixin import CursorMixin
-from graphica.gui.mixins.annotation_mixin import AnnotationMixin
-from graphica.gui.mixins.layout_edit_mixin import LayoutEditMixin
-from graphica.gui.mixins.range_select_mixin import RangeSelectMixin
-from graphica.gui.mixins.peak_placement_mixin import PeakPlacementMixin
-from graphica.gui.mixins.slice_extraction_mixin import SliceExtractionMixin
-from graphica.gui.mixins.region_highlight_mixin import RegionHighlightMixin
 from graphica.gui.mixins.export_mixin import ExportMixin
 from graphica.gui.mixins.project_io_mixin import ProjectIOMixin
 from graphica.gui.mixins.help_mixin import HelpMixin
@@ -213,12 +206,17 @@ _PLUGIN_PANEL_AREA_MAP = {
 
 # 1つのタブ。機能ごとの mixin の役割は CLAUDE.md の「PlotterApp mixin composition」
 class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
-                  MouseModeMixin,
-                  CursorMixin, AnnotationMixin, LayoutEditMixin, RangeSelectMixin,
-                  PeakPlacementMixin, SliceExtractionMixin, RegionHighlightMixin,
                   ExportMixin, ProjectIOMixin, HelpMixin, QuickAccessMixin):
     # 保存・読み込みのたびに出す。MainAppWindow がタブ名を更新する
     project_state_changed = Signal()
+
+    MOUSE_MODES = MOUSE_MODES
+
+    def _deactivate_other_mouse_modes(self, active_name):
+        return self.mouse_tool_manager.deactivate_others(active_name)
+
+    def _active_mouse_mode(self):
+        return self.mouse_tool_manager.active_name()
 
     def __init__(self, run_startup_checks=True, tab_id=None):
         """
@@ -348,61 +346,10 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
         self.project.all_plot_settings = []
         self.project.active_axis_index = 0
 
-        # マウス操作の各モードの状態(接続 ID は切るときに使う)
-        self.cursor_mode_enabled = False
-        self.cursor_connection_id = None
-        self.cursor_annotation = None
+        # マウス操作の各モード(状態は各ツールが持つ。gui/tools/)
+        self.mouse_tools = create_tools(self)
+        self.mouse_tool_manager = ToolManager(self)
 
-        # 中ボタンでのパン。ドラッグ中かどうかは _middle_pan_axes が None かどうか
-        self._middle_pan_axes = None
-        self._middle_pan_start_data = None
-        self._middle_pan_start_xlim = None
-        self._middle_pan_start_ylim = None
-
-        self.annotation_mode_enabled = False
-        self._annotation_press_cid = None
-        self._annotation_release_cid = None
-        self._annotation_drag_start = None     # (ax, x, y)
-        self.snap_to_grid_enabled = app_settings.SNAP_TO_GRID_ENABLED.read(self.settings)
-        self.snap_grid_interval_px = app_settings.SNAP_GRID_INTERVAL_PX.read(self.settings)
-
-        self.layout_edit_mode_enabled = False
-        self._layout_edit_press_cid = None
-        self._layout_edit_motion_cid = None
-        self._layout_edit_release_cid = None
-        self._layout_edit_leave_cid = None     # ドラッグ中に図の外へ出たとき用
-        self._layout_drag_state = None
-        # クリックで選んだ軸(ドラッグとは別)。位置と大きさの数値欄の対象
-        self._layout_selected_axis_index = None
-
-        self.range_select_mode_enabled = False
-        self._range_select_press_cid = None
-        self._range_select_motion_cid = None
-        self._range_select_release_cid = None
-        self._range_select_axes = None
-        self._range_select_start_x = None
-        self._range_select_preview_artist = None
-
-        self.peak_placement_mode_enabled = False
-        self._peak_placement_press_cid = None
-        self._pending_peak_guesses = []   # [{'center':, 'height':, 'width':}, ...]
-        self._pending_peak_markers = []   # [(guess, axvline, plot point), ...]
-
-        self.slice_extraction_mode_enabled = False
-        self._slice_extraction_press_cid = None
-        self._slice_extraction_motion_cid = None
-        self._slice_extraction_release_cid = None
-        self._slice_extraction_axes = None
-        self._slice_extraction_start = None         # (x, y) データ座標
-        self._slice_extraction_preview_artist = None
-
-        self.region_highlight_mode_enabled = False
-        self._region_highlight_press_cid = None
-        self._region_highlight_motion_cid = None
-        self._region_highlight_release_cid = None
-        self._region_highlight_axes = None
-        self._region_highlight_start = None         # (x, y) データ座標
-        self._region_highlight_preview_artist = None
 
         # 最初の軸の設定の既定値になる。フォントは QFont()(UI のフォント)にしない:
         # matplotlib は "Yu Gothic UI" のような UI 用のフォントを解決できず、文字化けする
@@ -1137,3 +1084,7 @@ class PlotterApp(QMainWindow, UISetupMixin, SettingsMixin, DatasetMixin,
 
     def _on_clear_recent_files(self):
         return project_files.on_clear_recent_files(self)
+
+
+# 各ツールの名前を PlotterApp の属性として出す(gui/tools/__init__.py)
+expose_tool_names(PlotterApp)

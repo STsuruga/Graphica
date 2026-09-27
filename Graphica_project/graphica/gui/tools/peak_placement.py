@@ -13,23 +13,39 @@ PEAK_PLACEMENT_DEFAULT_WIDTH_FRACTION = 0.05
 PEAK_PLACEMENT_DELETE_TOLERANCE_PX = 15
 
 
-class PeakPlacementMixin:
+class PeakPlacementTool:
+    """状態はこのツールが持ち、PlotterApp の同じ名前は窓口(gui/tools/__init__.py)。"""
+
+    # PlotterApp から同じ名前で読み書きできるもの(テスト・メニュー・ほかの mixin が使う)
+    EXPOSED_NAMES = (
+        '_clear_pending_peak_guesses', '_draw_pending_peak_marker', '_on_peak_placement_press',
+        '_peak_placement_press_cid', '_pending_peak_guesses', '_pending_peak_markers',
+        '_remove_nearest_pending_peak_guess', '_toggle_peak_placement_mode', 'peak_placement_mode_enabled',
+    )
+
+    def __init__(self, app):
+        self._app = app
+        self.peak_placement_mode_enabled = False
+        self._peak_placement_press_cid = None
+        self._pending_peak_guesses = []   # [{'center':, 'height':, 'width':}, ...]
+        self._pending_peak_markers = []   # [(guess, axvline, plot point), ...]
+
     def _toggle_peak_placement_mode(self, checked):
         self.peak_placement_mode_enabled = checked
 
         if checked:
-            self._deactivate_other_mouse_modes('peak_placement')
+            self._app._deactivate_other_mouse_modes('peak_placement')
 
-            self._peak_placement_press_cid = self.canvas.mpl_connect(
+            self._peak_placement_press_cid = self._app.canvas.mpl_connect(
                 'button_press_event', self._on_peak_placement_press
             )
-            self.statusBar().showMessage(
+            self._app.statusBar().showMessage(
                 "ピーク配置モード: クリックで多峰分離フィットの初期値(中心・高さ)を追加、"
                 "右クリックで直近のマーカーを削除します", 5000
             )
         else:
             if getattr(self, '_peak_placement_press_cid', None) is not None:
-                self.canvas.mpl_disconnect(self._peak_placement_press_cid)
+                self._app.canvas.mpl_disconnect(self._peak_placement_press_cid)
                 self._peak_placement_press_cid = None
 
     def _on_peak_placement_press(self, event):
@@ -51,15 +67,15 @@ class PeakPlacementMixin:
 
         # 初期値はフィットでデータ座標と突き合わされるので、クリック位置(表示座標)をデータ座標に戻す。
         # マーカーはクリックした場所に出す
-        dataset = self._get_current_dataset()
-        data_x, data_y = self.canvas.display_to_data(
+        dataset = self._app._get_current_dataset()
+        data_x, data_y = self._app.canvas.display_to_data(
             dataset, float(event.xdata), float(event.ydata)
         ) if dataset is not None else (float(event.xdata), float(event.ydata))
 
         guess = {'center': float(data_x), 'height': float(data_y), 'width': float(width)}
         self._pending_peak_guesses.append(guess)
         self._draw_pending_peak_marker(ax, guess, float(event.xdata), float(event.ydata))
-        self.statusBar().showMessage(
+        self._app.statusBar().showMessage(
             f"ピーク初期値を追加しました({len(self._pending_peak_guesses)}件、"
             f"X={guess['center']:.4g}, Y={guess['height']:.4g})", 3000
         )
@@ -72,7 +88,7 @@ class PeakPlacementMixin:
             marker='x', color='#E4572E', markersize=8, zorder=101, linestyle='None',
         )
         self._pending_peak_markers.append((guess, line, point))
-        self.canvas.draw_idle()
+        self._app.canvas.draw_idle()
 
     def _remove_nearest_pending_peak_guess(self, event):
         if not self._pending_peak_guesses:
@@ -101,7 +117,7 @@ class PeakPlacementMixin:
                 artist.remove()
             except (ValueError, NotImplementedError):
                 pass
-        self.canvas.draw_idle()
+        self._app.canvas.draw_idle()
 
     def _clear_pending_peak_guesses(self):
         """ダイアログを閉じたら(OK でもキャンセルでも)仮のマーカーごと消す。"""
@@ -113,4 +129,4 @@ class PeakPlacementMixin:
                     pass
         self._pending_peak_markers = []
         self._pending_peak_guesses = []
-        self.canvas.draw_idle()
+        self._app.canvas.draw_idle()
