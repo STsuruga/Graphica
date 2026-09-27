@@ -106,6 +106,12 @@ TRANSLATIONS = {
     "無効": "Off",
     "オートセーブ間隔": "Autosave interval",
 
+    # --- 起動画面 ---
+    "バージョン {version}": "Version {version}",
+    "起動しています…": "Starting…",
+    "ライブラリを読み込み中…": "Loading libraries…",
+    "ウィンドウを準備中…": "Preparing the window…",
+
     # --- 環境設定: ファイルの関連付け ---
     "ファイルの関連付け": "File association",
     ".gra と .graphica を Graphica で開く": "Open .gra and .graphica with Graphica",
