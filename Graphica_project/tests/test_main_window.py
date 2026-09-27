@@ -262,6 +262,67 @@ def test_drop_event_skips_unsupported_extension_but_loads_the_rest(tmp_path, mon
     assert "notes.dat" in warning_calls[0][2]
 
 
+def _save_project_with_one_dataset(window, path, name):
+    window.project.datasets.append(Dataset(name=name, df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x", y_col_name="y"))
+    window._save_project_to_path(str(path))
+    window.project.datasets.clear()
+
+
+def test_drop_event_opens_a_dropped_project_file(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    project_path = tmp_path / "saved.graphica"
+    _save_project_with_one_dataset(window, project_path, "from_project")
+
+    window.dropEvent(_make_drop_event([project_path]))
+
+    assert [ds.name for ds in window.project.datasets] == ["from_project"]
+    assert os.path.normpath(window._current_project_path) == str(project_path)
+
+
+def test_drop_event_opens_the_project_before_adding_dropped_data(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(data_import_flow_module, "ColumnPreviewDialog", _FakeAcceptedColumnPreviewDialog)
+    project_path = tmp_path / "saved.graphica"
+    _save_project_with_one_dataset(window, project_path, "from_project")
+    csv = tmp_path / "extra.csv"
+    csv.write_text("x,y\n1,2\n3,4\n", encoding="utf-8")
+
+    window.dropEvent(_make_drop_event([csv, project_path]))
+    _pump_events_until_queue_drained(window)
+
+    names = [ds.name for ds in window.project.datasets]
+    assert names[0] == "from_project"
+    assert len(names) == 2
+
+
+def test_drop_event_opens_only_the_first_of_several_projects(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    info_calls = []
+    monkeypatch.setattr(notify_module, "information", lambda *args, **kwargs: info_calls.append(args))
+    first = tmp_path / "first.graphica"
+    second = tmp_path / "second.graphica"
+    _save_project_with_one_dataset(window, first, "first")
+    _save_project_with_one_dataset(window, second, "second")
+
+    window.dropEvent(_make_drop_event([first, second]))
+
+    assert [ds.name for ds in window.project.datasets] == ["first"]
+    assert len(info_calls) == 1
+    assert "first.graphica" in info_calls[0][2]
+
+
+def test_drop_event_keeps_the_current_project_when_the_unsaved_prompt_is_cancelled(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    project_path = tmp_path / "saved.graphica"
+    _save_project_with_one_dataset(window, project_path, "from_project")
+    window.project.datasets.append(Dataset(name="unsaved", df=pd.DataFrame({"x": [1], "y": [2]}), x_col_name="x", y_col_name="y"))
+    monkeypatch.setattr(window, "confirm_unsaved_changes", lambda action_text: False)
+
+    window.dropEvent(_make_drop_event([project_path]))
+
+    assert [ds.name for ds in window.project.datasets] == ["unsaved"]
+
+
 # =============================================================================
 # フォルダから一括インポート (_on_import_folder, 項目C-104)
 # =============================================================================

@@ -10,6 +10,7 @@ from graphica.gui.dialogs import AutosaveHistoryDialog
 logger = logging.getLogger(__name__)
 
 
+PROJECT_FILE_EXTENSIONS = ('.graphica', '.pkl')
 AUTOSAVE_GENERATIONS = 3  # 最新の autosave.graphica を含む
 
 
@@ -343,7 +344,7 @@ def on_open_recent_file(app, file_path):
             app._update_recent_files_menu()
         return
 
-    if file_path.lower().endswith(('.graphica', '.pkl')):
+    if file_path.lower().endswith(PROJECT_FILE_EXTENSIONS):
         if not app.confirm_unsaved_changes("別のプロジェクトを開く"):
             return
         app._load_project_from_path(file_path)

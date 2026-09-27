@@ -9,6 +9,7 @@ from graphica.core.dataset import Dataset
 from graphica.core.plugin_api import get_registered_importer_extensions
 from graphica.gui import notify
 from graphica.gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, FolderImportDialog
+from graphica.gui.project_files import PROJECT_FILE_EXTENSIONS
 from graphica.gui.task_runner import TaskRunner
 from graphica.gui.workers import BUILTIN_DATA_FILE_EXTENSIONS, excel_engine_for, is_excel_file, load_data_file_task
 from pathlib import Path
@@ -36,8 +37,26 @@ def dragEnterEvent(app, event):
 def dropEvent(app, event):
     urls = event.mimeData().urls()
     file_paths = [url.toLocalFile() for url in urls if url.toLocalFile()]
-    if file_paths:
-        app._queue_data_files(file_paths)
+    project_paths = [p for p in file_paths if p.lower().endswith(PROJECT_FILE_EXTENSIONS)]
+    data_paths = [p for p in file_paths if not p.lower().endswith(PROJECT_FILE_EXTENSIONS)]
+    # 先にプロジェクトを開く。一緒に落としたデータはそのプロジェクトに加わる
+    if project_paths:
+        open_dropped_project(app, project_paths)
+    if data_paths:
+        app._queue_data_files(data_paths)
+
+
+def open_dropped_project(app, project_paths):
+    """1 つのタブに開けるプロジェクトは 1 つなので、2 つ目以降は開かずに知らせる。"""
+    if len(project_paths) > 1:
+        notify.information(
+            app, "プロジェクトを開く",
+            "一度に開けるプロジェクトは 1 つです。次のファイルだけを開きます:\n"
+            + os.path.basename(project_paths[0])
+        )
+    if not app.confirm_unsaved_changes("別のプロジェクトを開く"):
+        return
+    app._load_project_from_path(project_paths[0])
 
 
 def all_supported_data_file_extensions(app):
