@@ -662,6 +662,61 @@ class PlotterApp(QMainWindow, UISetupMixin,
     def _remember_saved_content(self):
         return project_files.remember_saved_content(self)
 
+    # DatasetHost と TabPluginContext が使う窓口。中は非公開の名前を呼ぶだけ(テストの差し替えが届くよう、呼ぶときに引く)
+    def current_dataset(self):
+        return self._get_current_dataset()
+
+    def selected_datasets(self):
+        return self._get_selected_datasets()
+
+    def dataset_tree_item(self, dataset):
+        return self._get_dataset_tree_item(dataset)
+
+    def target_folder_for_new_dataset(self):
+        return self._get_target_folder_for_new_dataset()
+
+    def add_dataset(self, dataset, parent_folder=None, select=True):
+        return self._add_dataset(dataset, parent_folder, select=select)
+
+    def add_dataset_with_undo(self, dataset, parent_folder=None, description="データセットの追加"):
+        return self._add_dataset_with_undo(dataset, parent_folder=parent_folder, description=description)
+
+    def push_dataset_additions(self, add, datasets, description):
+        return self._push_dataset_additions(add, datasets, description)
+
+    def remove_dataset_items_with_undo(self, items, description=None):
+        return self._remove_dataset_items_with_undo(items, description=description)
+
+    def push_dataset_property_command(self, dataset, old_values, new_values, description, skip_if_unchanged=True):
+        return self._push_dataset_property_command(dataset, old_values, new_values, description,
+                                                   skip_if_unchanged=skip_if_unchanged)
+
+    def refresh_after_dataset_property_change(self, dataset, changed_keys=(), old_values=None, new_values=None):
+        return self._refresh_after_dataset_property_change(dataset, changed_keys=changed_keys, old_values=old_values,
+                                                           new_values=new_values)
+
+    def add_annotation(self, axis_index, annotation, description):
+        return self._add_annotation(axis_index, annotation, description=description)
+
+    def redraw(self):
+        return self._update_plot()
+
+    def redraw_appearance(self):
+        return self._update_plot_appearance()
+
+    def pending_peak_guesses(self):
+        return self._pending_peak_guesses
+
+    def clear_pending_peak_guesses(self):
+        return self._clear_pending_peak_guesses()
+
+    def toggle_peak_placement_mode(self, checked):
+        return self._toggle_peak_placement_mode(checked)
+
+    @property
+    def dataset_host(self):
+        return self._dataset_host
+
     def plugin_context(self, plugin_name):
         context = self._plugin_contexts.get(plugin_name)
         if context is None:

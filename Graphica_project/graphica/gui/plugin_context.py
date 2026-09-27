@@ -37,13 +37,13 @@ class TabPluginContext(PluginContext):
         return list(self._app.project.datasets)
 
     def current_dataset(self):
-        return self._app._get_current_dataset()
+        return self._app.current_dataset()
 
     def selected_datasets(self):
-        return self._app._get_selected_datasets()
+        return self._app.selected_datasets()
 
     def add_dataset(self, dataset, description=None):
-        self._app._add_dataset_with_undo(
+        self._app.add_dataset_with_undo(
             dataset, description=description or f"[{self._plugin_name}] データセットの追加"
         )
 
@@ -56,14 +56,14 @@ class TabPluginContext(PluginContext):
         old_values = {key: getattr(dataset, key) for key in new_values}
         app.undo_stack.push(SetDatasetPropertiesCommand(
             dataset, old_values, new_values,
-            on_applied=lambda: app._refresh_after_dataset_property_change(
+            on_applied=lambda: app.refresh_after_dataset_property_change(
                 dataset, changed_keys=new_values.keys(), old_values=old_values, new_values=new_values
             ),
             description=description or f"[{self._plugin_name}] プロパティの変更",
         ))
 
     def redraw(self):
-        self._app._update_plot()
+        self._app.redraw()
 
     def on_datasets_changed(self, callback):
         self._datasets_changed_callbacks.append(callback)
