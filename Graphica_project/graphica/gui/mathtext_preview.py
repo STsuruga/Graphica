@@ -13,7 +13,7 @@ _CROP_PADDING_PX = 3
 # 日本語を描けるフォントの候補。matplotlib の既定(DejaVu Sans)には日本語が無い。Qt の UI 用の名前
 # ("Yu Gothic UI")は matplotlib では見つからないので使わない。先頭から順にグリフのあるフォントが使われ、
 # 無い名前は飛ばされるので OS ごとの候補を並べる(Yu Gothic などは Windows、Hiragino は macOS、Noto は Linux)。
-# グラフ本体の既定フォント(main_window の PLOT_DEFAULT_FONT_FAMILIES)もこれを使う。
+# グラフ本体の既定フォント(main_window の PLOT_DEFAULT_FONT_FAMILIES)と注釈(rendering/annotations.py)もこれを使う。
 # $...$ を含む文字列では mathtext が独自のフォントで描くので、日本語は □ になる(mathtext.fontset は
 # プロセス全体の設定で、変えると全部の描画に効くので触らない)。
 JP_CAPABLE_FONT_FAMILIES = [
