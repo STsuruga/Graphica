@@ -158,6 +158,23 @@ def test_draw_annotations_stat_label_shows_computed_value(canvas):
     assert artist.get_text() == _compute_stat_label_text(ds, 'mean')
 
 
+@pytest.mark.parametrize("annotation", [
+    {'type': 'text', 'text': '注目', 'xy': (1.0, 1.0), 'xytext': (1.0, 1.0), 'color': '#000000'},
+    {'type': 'arrow', 'text': 'ピーク', 'xy': (1.0, 1.0), 'xytext': (2.0, 2.0), 'color': '#000000'},
+    {'type': 'stat', 'stat': 'mean', 'xy': (0.05, 0.95), 'color': '#000000'},
+])
+def test_draw_annotations_use_japanese_capable_fonts(canvas, annotation):
+    """注釈も軸ラベルの既定と同じ日本語の字体の候補で描く(既定の DejaVu Sans だけだと日本語が □ になる)。"""
+    from graphica.gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
+
+    ds = _make_dataset(3, show_point_labels=False)
+    annotation = dict(annotation, dataset_id=ds.dataset_id)
+    canvas.redraw_all([ds], 1, 1, [{'annotations': [annotation]}])
+
+    artist = canvas._annotation_artists[0][0]
+    assert artist.get_fontfamily() == JP_CAPABLE_FONT_FAMILIES
+
+
 def test_draw_annotations_stat_label_uses_axes_transform(canvas):
     ds = _make_dataset(3, show_point_labels=False)
     settings = {'annotations': [

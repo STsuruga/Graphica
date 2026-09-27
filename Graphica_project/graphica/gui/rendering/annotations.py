@@ -4,6 +4,7 @@ import logging
 import numpy as np
 from graphica.core.analysis import calculate_lttb_downsample
 from graphica.core.axis_settings import axis_setting
+from graphica.gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
 from graphica.gui.rendering.common import (
     DARK_TEXT_COLOR, LIGHT_TEXT_COLOR, LTTB_DOWNSAMPLE_TARGET_POINTS, LTTB_DOWNSAMPLE_THRESHOLD,
     REGION_HIGHLIGHT_DEFAULT_ALPHA, REGION_HIGHLIGHT_DEFAULT_COLOR, _ARROW_STYLE_MAP, _INSET_CORNER_ORIGINS,
@@ -115,7 +116,7 @@ def draw_annotations(canvas, ax, axis_index, settings, datasets=None, full_resol
                 artist = ax.annotate(
                     text, xy=ann['xy'], xytext=ann['xytext'],
                     arrowprops=arrow_props,
-                    color=color, fontsize=9
+                    color=color, fontsize=9, family=JP_CAPABLE_FONT_FAMILIES
                 )
             elif ann_type in ('vspan', 'hspan'):
                 # 利用者が選んだ色をそのまま使う(ダークモードの読み替えはしない)
@@ -159,12 +160,12 @@ def draw_annotations(canvas, ax, axis_index, settings, datasets=None, full_resol
                 label_text = _compute_stat_label_text(dataset, ann.get('stat'))
                 artist = ax.text(
                     xy[0], xy[1], label_text, transform=ax.transAxes,
-                    color=color, fontsize=9, va='top', ha='left', zorder=10,
+                    color=color, fontsize=9, family=JP_CAPABLE_FONT_FAMILIES, va='top', ha='left', zorder=10,
                 )
             else:
                 color = canvas._effective_text_color(ann.get('color', '#000000'))
                 xy = ann.get('xy', (0, 0))
-                artist = ax.text(xy[0], xy[1], text, color=color, fontsize=9)
+                artist = ax.text(xy[0], xy[1], text, color=color, fontsize=9, family=JP_CAPABLE_FONT_FAMILIES)
             if artist is not None:
                 new_artists.append(artist)
         except Exception:
