@@ -131,7 +131,7 @@ class SliceExtractionTool:
         dataset = self._app._get_current_dataset()
         if dataset is None or dataset.data_kind != '2d_grid':
             notify.information(
-                self, "スライス抽出", "スライス抽出の対象となる2Dマップのデータセットを選択してください。"
+                self._app, "スライス抽出", "スライス抽出の対象となる2Dマップのデータセットを選択してください。"
             )
             return
 
@@ -148,14 +148,14 @@ class SliceExtractionTool:
             )
         if axes is not expected_axes:
             notify.information(
-                self, "スライス抽出",
+                self._app, "スライス抽出",
                 "ドラッグしたサブプロットに、選択中の2Dマップが描画されていません。"
             )
             return
 
         grid = dataset.z_grid
         if grid is None:
-            notify.warning(self, "スライス抽出", "有効な2Dグリッドデータがありません。")
+            notify.warning(self._app, "スライス抽出", "有効な2Dグリッドデータがありません。")
             return
 
         try:
@@ -164,7 +164,7 @@ class SliceExtractionTool:
                 start=start, end=end, n_points=SLICE_EXTRACTION_N_POINTS,
             )
         except GridDataError as e:
-            notify.warning(self, "スライス抽出", f"スライスの抽出に失敗しました:\n{e}")
+            notify.warning(self._app, "スライス抽出", f"スライスの抽出に失敗しました:\n{e}")
             return
 
         self._create_slice_dataset(dataset, start, end, result)

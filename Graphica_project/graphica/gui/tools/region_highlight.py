@@ -204,7 +204,7 @@ class RegionHighlightTool:
         label = "縦帯" if target.get('type') == 'vspan' else "横帯"
         lo, hi = target.get('range', (None, None))
         reply = notify.question(
-            self, "領域ハイライトの削除",
+            self._app, "領域ハイライトの削除",
             f"この{label}を削除しますか?\n\n範囲: {lo:.4g} 〜 {hi:.4g}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes

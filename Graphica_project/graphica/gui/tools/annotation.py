@@ -118,7 +118,7 @@ class AnnotationTool:
         drag_distance_px = ((end_px[0] - start_px[0]) ** 2 + (end_px[1] - start_px[1]) ** 2) ** 0.5
 
         if drag_distance_px < ANNOTATION_CLICK_THRESHOLD_PX:
-            text, ok = notify.get_text(self, "テキスト注釈の追加", "表示するテキスト:")
+            text, ok = notify.get_text(self._app, "テキスト注釈の追加", "表示するテキスト:")
             if not ok or not text.strip():
                 return
             snapped_x, snapped_y = self._snap_point_to_grid(start_ax, start_x, start_y)
@@ -128,7 +128,7 @@ class AnnotationTool:
                 'color': '#000000',
             })
         else:
-            dialog = ArrowAnnotationDialog(self)
+            dialog = ArrowAnnotationDialog(self._app)
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
             text, arrow_style, arrow_curvature = dialog.get_settings()
@@ -205,7 +205,7 @@ class AnnotationTool:
         else:
             label = target.get('text') or ("矢印注釈" if target.get('type') == 'arrow' else "テキスト注釈")
         reply = notify.question(
-            self, "注釈の削除", f"この注釈を削除しますか?\n\n{label}",
+            self._app, "注釈の削除", f"この注釈を削除しますか?\n\n{label}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes
         )

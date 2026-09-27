@@ -181,3 +181,27 @@ def test_unknown_mode_name_is_logged_but_still_clears_others(tmp_path, monkeypat
         assert any("not_registered" in record.getMessage() for record in caplog.records)
     finally:
         window.close()
+
+
+def test_tools_never_pass_themselves_where_a_widget_is_expected():
+    """ツールは QWidget ではない。ダイアログや通知の親にはタブ(self._app)を渡す(self を渡すと実行時に落ちる)。"""
+    import ast
+    import inspect
+
+    import graphica.gui.tools as tools_package
+
+    offenders = []
+    for tool_class in tools_package.TOOL_CLASSES.values():
+        module = inspect.getmodule(tool_class)
+        tree = ast.parse(inspect.getsource(module))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            # getattr(self, "名前") のような自分の属性の読み書きは除く
+            if isinstance(func, ast.Name) and func.id in ("getattr", "setattr", "hasattr"):
+                continue
+            passed = list(node.args) + [keyword.value for keyword in node.keywords]
+            if any(isinstance(arg, ast.Name) and arg.id == "self" for arg in passed):
+                offenders.append(f"{module.__name__}:{node.lineno}")
+    assert offenders == []

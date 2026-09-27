@@ -142,7 +142,7 @@ class RangeSelectTool:
         """[x_min, x_max] の点をマスクに加える。今のデータセットがこの軸に描かれていなければ、何もせず案内を出す。"""
         dataset = self._app._get_current_dataset()
         if dataset is None:
-            notify.information(self, "範囲選択", "マスク対象のデータセットを選択してください。")
+            notify.information(self._app, "範囲選択", "マスク対象のデータセットを選択してください。")
             return
 
         target_axis = dataset.subplot_target
@@ -159,7 +159,7 @@ class RangeSelectTool:
 
         if axes is not expected_axes:
             notify.information(
-                self, "範囲選択",
+                self._app, "範囲選択",
                 "ドラッグしたサブプロットに、選択中のデータセットが描画されていません。"
             )
             return
