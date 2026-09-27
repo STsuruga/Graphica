@@ -33,7 +33,7 @@ ALLOWED = {
     "graphica/gui/mixins/export_mixin.py": 11,
     "graphica/gui/mixins/help_mixin.py": 1,
     "graphica/gui/mixins/project_io_mixin.py": 4,
-    "graphica/gui/mixins/settings_mixin.py": 1,
+    "graphica/gui/panels/axis_settings.py": 1,
     "graphica/gui/plugin_context.py": 1,
     "graphica/gui/project_files.py": 3,
     "graphica/gui/rendering/annotations.py": 1,

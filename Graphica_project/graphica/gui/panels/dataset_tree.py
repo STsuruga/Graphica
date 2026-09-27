@@ -30,22 +30,38 @@ from graphica.gui.dataset_style_icon import (
 logger = logging.getLogger(__name__)
 
 
-class DatasetMixin:
+class DatasetTreePanel:
+    """状態はタブが持ち、この部品はメソッドと信号の配線だけを持つ。PlotterApp の同じ名前は窓口(gui/panels/__init__.py)。"""
+
+    # PlotterApp から同じ名前で使えるもの(テスト・メニュー・ほかの部品が使う)
+    EXPOSED_NAMES = (
+        '_connect_dataset_signals', '_find_dataset_row', '_on_add_dataset', '_on_create_new_dataset',
+        '_on_dataset_order_applied', '_on_dataset_rows_moved', '_on_dataset_search_changed',
+        '_on_dataset_tree_context_menu', '_on_dataset_tree_item_clicked', '_on_duplicate_dataset',
+        '_on_hide_all_datasets', '_on_hide_all_in_folder', '_on_new_folder', '_on_remove_dataset',
+        '_on_rename_dataset_folder', '_on_show_all_datasets', '_on_show_all_in_folder', '_on_show_data_editor',
+        '_push_dataset_property_command', '_refresh_after_dataset_property_change', '_set_all_datasets_visibility',
+        '_set_folder_datasets_visibility', '_sync_dataset_list_and_replot', '_top_level_selected_items',
+    )
+
+    def __init__(self, app):
+        self._app = app
+
     def _on_add_dataset(self):
         # プラグインが登録した拡張子も選べるようにする
         plugin_extensions = get_registered_importer_extensions()
         plugin_pattern = ''.join(f' *{ext}' for ext in plugin_extensions)
         builtin_pattern = ' '.join(f'*{ext}' for ext in BUILTIN_DATA_FILE_EXTENSIONS)
         file_path, _ = notify.get_open_file_name(
-            self, "データファイルを選択", "",
+            self._app, "データファイルを選択", "",
             f"Data Files ({builtin_pattern}{plugin_pattern});;All Files (*)"
         )
         if file_path:
-            self.load_data(file_path)
+            self._app.load_data(file_path)
 
     def _on_create_new_dataset(self):
         """名前・列・行数を指定した空のデータセットを作り、そのままデータエディタで手入力させる。"""
-        dialog = NewDatasetDialog(self)
+        dialog = NewDatasetDialog(self._app)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -58,74 +74,74 @@ class DatasetMixin:
         y_col_name = column_names[1] if len(column_names) > 1 else column_names[0]
 
         new_dataset = Dataset(name=name, df=df, x_col_name=x_col_name, y_col_name=y_col_name)
-        self._add_dataset_with_undo(new_dataset, self._get_target_folder_for_new_dataset(),
+        self._app._add_dataset_with_undo(new_dataset, self._app._get_target_folder_for_new_dataset(),
                                     description="新規データセットの作成")
 
         self._on_show_data_editor()
 
     def _on_dataset_search_changed(self, text):
         """名前に検索文字列を含むデータセットだけを出す。フォルダは中に1つでも当たりがあれば出す。"""
-        self.dataset_order.filter_by_name(text)
+        self._app.dataset_order.filter_by_name(text)
 
     def _on_new_folder(self):
         """選択中がフォルダならその中に、そうでなければ一番上に作る。"""
-        name, ok = notify.get_text(self, "新しいフォルダ", "フォルダ名:", text="新しいフォルダ")
+        name, ok = notify.get_text(self._app, "新しいフォルダ", "フォルダ名:", text="新しいフォルダ")
         if not ok or not name:
             return
 
-        current_item = self.ui.dataset_list_widget.currentItem()
+        current_item = self._app.ui.dataset_list_widget.currentItem()
         parent_item = None
         if current_item is not None and current_item.data(0, Qt.ItemDataRole.UserRole) is None:
             parent_item = current_item
 
-        self._add_dataset_folder_item(name, parent_item)
+        self._app._add_dataset_folder_item(name, parent_item)
 
     def _on_rename_dataset_folder(self):
         """
         フォルダの構造は Undo の対象外なので、名前の変更も Undo しない。
         保存時はツリーの表示文字列を読むので、setText だけで保存にも反映される。
         """
-        current_item = self.ui.dataset_list_widget.currentItem()
+        current_item = self._app.ui.dataset_list_widget.currentItem()
         if current_item is None or current_item.data(0, Qt.ItemDataRole.UserRole) is not None:
             return
         old_name = current_item.text(0)
-        new_name, ok = notify.get_text(self, "フォルダ名を変更", "新しいフォルダ名:", text=old_name)
+        new_name, ok = notify.get_text(self._app, "フォルダ名を変更", "新しいフォルダ名:", text=old_name)
         if not ok or not new_name:
             return
         current_item.setText(0, new_name)
 
     def _set_folder_datasets_visibility(self, folder_item, visible):
         """フォルダの中(サブフォルダも)のデータセットをまとめて表示/非表示にする(Undo 1回分)。"""
-        dataset_items = self._flatten_dataset_tree(folder_item)
+        dataset_items = self._app._flatten_dataset_tree(folder_item)
         datasets = [item.data(0, Qt.ItemDataRole.UserRole) for item in dataset_items]
         if not datasets:
             return
         is_batch = len(datasets) > 1
         if is_batch:
-            self.undo_stack.beginMacro(f"フォルダ内の表示/非表示切替 ({len(datasets)}件)")
+            self._app.undo_stack.beginMacro(f"フォルダ内の表示/非表示切替 ({len(datasets)}件)")
         for ds in datasets:
             self._push_dataset_property_command(
                 ds, {'visible': ds.visible}, {'visible': visible},
                 description="データセットの表示/非表示切替"
             )
         if is_batch:
-            self.undo_stack.endMacro()
+            self._app.undo_stack.endMacro()
 
     def _set_all_datasets_visibility(self, visible):
         """フォルダに関係なく、全データセットをまとめて表示/非表示にする(Undo 1回分)。"""
-        datasets = list(self.project.datasets)
+        datasets = list(self._app.project.datasets)
         if not datasets:
             return
         is_batch = len(datasets) > 1
         if is_batch:
-            self.undo_stack.beginMacro(f"全データセットの表示/非表示切替 ({len(datasets)}件)")
+            self._app.undo_stack.beginMacro(f"全データセットの表示/非表示切替 ({len(datasets)}件)")
         for ds in datasets:
             self._push_dataset_property_command(
                 ds, {'visible': ds.visible}, {'visible': visible},
                 description="データセットの表示/非表示切替"
             )
         if is_batch:
-            self.undo_stack.endMacro()
+            self._app.undo_stack.endMacro()
 
     def _on_show_all_datasets(self):
         self._set_all_datasets_visibility(True)
@@ -134,21 +150,21 @@ class DatasetMixin:
         self._set_all_datasets_visibility(False)
 
     def _on_show_all_in_folder(self):
-        current_item = self.ui.dataset_list_widget.currentItem()
+        current_item = self._app.ui.dataset_list_widget.currentItem()
         if current_item is None:
             return
         self._set_folder_datasets_visibility(current_item, True)
 
     def _on_hide_all_in_folder(self):
-        current_item = self.ui.dataset_list_widget.currentItem()
+        current_item = self._app.ui.dataset_list_widget.currentItem()
         if current_item is None:
             return
         self._set_folder_datasets_visibility(current_item, False)
 
     def _on_dataset_tree_context_menu(self, pos):
-        menu = QMenu(self)
-        populate_dataset_actions_menu(self, menu)
-        menu.exec(self.ui.dataset_list_widget.viewport().mapToGlobal(pos))
+        menu = QMenu(self._app)
+        populate_dataset_actions_menu(self._app, menu)
+        menu.exec(self._app.ui.dataset_list_widget.viewport().mapToGlobal(pos))
 
     def _top_level_selected_items(self, items):
         """ほかの選択項目の子孫でないものだけを返す(フォルダと中身が両方選ばれていても二重に消さないため)。"""
@@ -156,52 +172,52 @@ class DatasetMixin:
 
     def _on_remove_dataset(self):
         """選択中のデータセットとフォルダ(中身ごと)を Undo できる形で消す。"""
-        selected_items = self.ui.dataset_list_widget.selectedItems()
+        selected_items = self._app.ui.dataset_list_widget.selectedItems()
         if not selected_items:
             return
 
-        self._remove_dataset_items_with_undo(self._top_level_selected_items(selected_items))
+        self._app._remove_dataset_items_with_undo(self._top_level_selected_items(selected_items))
 
     def _find_dataset_row(self, dataset):
-        return self.dataset_order.find_row(dataset)
+        return self._app.dataset_order.find_row(dataset)
 
     def _on_dataset_rows_moved(self, source_parent, source_start, source_end, dest_parent, dest_row):
         """
         ツリーのドラッグ&ドロップ後、project.datasets をツリーの並び(=描画の重なり順)に合わせる。
         同じフォルダ内の並べ替えだけ Undo でき、フォルダをまたぐ移動はフォルダ構造と同じく Undo の対象外。
         """
-        reordered = self.dataset_order.tree_order()
+        reordered = self._app.dataset_order.tree_order()
 
-        if len(reordered) != len(self.project.datasets):
+        if len(reordered) != len(self._app.project.datasets):
             logger.warning(
                 "データセットの並べ替え同期に失敗しました (表示数 %d, 実際 %d)。",
-                len(reordered), len(self.project.datasets)
+                len(reordered), len(self._app.project.datasets)
             )
             return
 
-        old_order = list(self.project.datasets)
+        old_order = list(self._app.project.datasets)
         # Dataset の == は使えないので同一性で比べる
         if [id(d) for d in reordered] == [id(d) for d in old_order]:
             return
 
         if source_parent == dest_parent:
             command = ReorderDatasetsCommand(
-                self.project, old_order, reordered,
+                self._app.project, old_order, reordered,
                 on_applied=self._on_dataset_order_applied,
                 description="データセットの並べ替え"
             )
-            self.undo_stack.push(command)
+            self._app.undo_stack.push(command)
         else:
-            self.project.datasets = reordered
-            self._update_plot()
+            self._app.project.datasets = reordered
+            self._app._update_plot()
 
     def _on_dataset_order_applied(self):
         """ドロップ処理の最中にツリーを触ると Qt の処理とぶつかるので、同期と再描画は次のイベントループに回す。"""
         QTimer.singleShot(0, self._sync_dataset_list_and_replot)
 
     def _sync_dataset_list_and_replot(self):
-        self._sync_dataset_list_widget_order()
-        self._update_plot()
+        self._app._sync_dataset_list_widget_order()
+        self._app._update_plot()
 
     def _refresh_after_dataset_property_change(self, dataset, changed_keys=(), old_values=None, new_values=None):
         """
@@ -209,19 +225,19 @@ class DatasetMixin:
         描き直すのは関係する軸だけ。on_applied は Undo と Redo のどちらの後かを教えないので、
         subplot_target の新旧どちらの軸も描き直す。
         """
-        item = self._get_dataset_tree_item(dataset)
+        item = self._app._get_dataset_tree_item(dataset)
         if item is not None:
             if item.text(0) != dataset.name:
                 item.setText(0, dataset.name)
             item.setIcon(0, make_dataset_style_icon(dataset))
             item.setIcon(DATASET_TREE_VISIBILITY_COLUMN, make_dataset_visibility_icon(dataset))
             apply_dataset_visibility_text_style(item, dataset)
-            if item is self.ui.dataset_list_widget.currentItem():
-                self.property_panel.update_ui_state()
+            if item is self._app.ui.dataset_list_widget.currentItem():
+                self._app.property_panel.update_ui_state()
 
         axis_index = dataset.subplot_target
-        if axis_index >= len(self.canvas.all_axes) or axis_index >= len(self.project.all_plot_settings):
-            self._update_plot()
+        if axis_index >= len(self._app.canvas.all_axes) or axis_index >= len(self._app.project.all_plot_settings):
+            self._app._update_plot()
             return
 
         axis_indices_to_refresh = {axis_index}
@@ -232,36 +248,36 @@ class DatasetMixin:
                 axis_indices_to_refresh.add(new_values['subplot_target'])
         axis_indices_to_refresh = {
             i for i in axis_indices_to_refresh
-            if i < len(self.canvas.all_axes) and i < len(self.project.all_plot_settings)
+            if i < len(self._app.canvas.all_axes) and i < len(self._app.project.all_plot_settings)
         }
 
-        layout_mode = getattr(self.project, 'layout_mode', 'grid')
+        layout_mode = getattr(self._app.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
             rows, cols = 0, 0
         else:
-            rows = self.subplot_rows_spinbox.value()
-            cols = self.subplot_cols_spinbox.value()
+            rows = self._app.subplot_rows_spinbox.value()
+            cols = self._app.subplot_cols_spinbox.value()
 
         for idx in axis_indices_to_refresh:
-            self.canvas.update_single_axis(
-                idx, self.project.datasets, self.project.all_plot_settings[idx],
+            self._app.canvas.update_single_axis(
+                idx, self._app.project.datasets, self._app.project.all_plot_settings[idx],
                 rows=rows, cols=cols,
-                share_x_axis=getattr(self.project, 'share_x_axis', False),
-                share_y_axis=getattr(self.project, 'share_y_axis', False),
-                panel_labels_enabled=self.project.panel_labels_enabled,
+                share_x_axis=getattr(self._app.project, 'share_x_axis', False),
+                share_y_axis=getattr(self._app.project, 'share_y_axis', False),
+                panel_labels_enabled=self._app.project.panel_labels_enabled,
             )
-        is_secondary_visible = any(sa is not None for sa in self.canvas.all_secondary_axes)
-        self.tick_direction_y2_label.setVisible(is_secondary_visible)
-        self.major_tick_direction_y2_combo.setVisible(is_secondary_visible)
-        self.minor_tick_direction_y2_combo.setVisible(is_secondary_visible)
-        self.y2_label_text_label.setVisible(is_secondary_visible)
-        self.y2_label_text_edit.setVisible(is_secondary_visible)
+        is_secondary_visible = any(sa is not None for sa in self._app.canvas.all_secondary_axes)
+        self._app.tick_direction_y2_label.setVisible(is_secondary_visible)
+        self._app.major_tick_direction_y2_combo.setVisible(is_secondary_visible)
+        self._app.minor_tick_direction_y2_combo.setVisible(is_secondary_visible)
+        self._app.y2_label_text_label.setVisible(is_secondary_visible)
+        self._app.y2_label_text_edit.setVisible(is_secondary_visible)
 
-        self._reapply_editor_row_highlight()
-        self._refresh_minimap()
-        if hasattr(self, 'export_preview_panel'):
-            self.export_preview_panel.refresh_preview()
-        self._notify_plugins_datasets_changed()
+        self._app._reapply_editor_row_highlight()
+        self._app._refresh_minimap()
+        if hasattr(self._app, 'export_preview_panel'):
+            self._app.export_preview_panel.refresh_preview()
+        self._app._notify_plugins_datasets_changed()
 
     def _push_dataset_property_command(self, dataset, old_values: dict, new_values: dict, description: str,
                                        skip_if_unchanged=True):
@@ -279,12 +295,12 @@ class DatasetMixin:
             ),
             description=description
         )
-        self.undo_stack.push(command)
+        self._app.undo_stack.push(command)
 
     def _on_duplicate_dataset(self):
         """選択中のデータセットを、元と同じフォルダに複製する。"""
         selected_items = [
-            item for item in self.ui.dataset_list_widget.selectedItems()
+            item for item in self._app.ui.dataset_list_widget.selectedItems()
             if item.data(0, Qt.ItemDataRole.UserRole) is not None
         ]
         if not selected_items:
@@ -299,47 +315,47 @@ class DatasetMixin:
             copies.append((new_dataset, item.parent()))
 
         def add():
-            tree = self.ui.dataset_list_widget
+            tree = self._app.ui.dataset_list_widget
             tree.blockSignals(True)
-            new_items = [self.dataset_order.append(new_dataset, folder) for new_dataset, folder in copies]
+            new_items = [self._app.dataset_order.append(new_dataset, folder) for new_dataset, folder in copies]
             tree.clearSelection()
             for new_item in new_items:
                 new_item.setSelected(True)
             tree.setCurrentItem(new_items[-1])
             tree.blockSignals(False)
-            self.property_panel.update_ui_state()
-            self._update_plot()
+            self._app.property_panel.update_ui_state()
+            self._app._update_plot()
 
-        self._push_dataset_additions(add, [new_dataset for new_dataset, _ in copies], "データセットの複製")
+        self._app._push_dataset_additions(add, [new_dataset for new_dataset, _ in copies], "データセットの複製")
 
     def _on_show_data_editor(self):
-        dataset = self._get_current_dataset()
+        dataset = self._app._get_current_dataset()
         if dataset is None:
             return
 
         # 同じデータセットのエディタが開いていれば、作り直さず(並べ替え・位置・選択が消えるので)前に出すだけ
-        if self.data_editor_dialog is not None and self.data_editor_dialog.dataset is dataset:
-            self.data_editor_dialog.show()
-            self.data_editor_dialog.raise_()
-            self.data_editor_dialog.activateWindow()
+        if self._app.data_editor_dialog is not None and self._app.data_editor_dialog.dataset is dataset:
+            self._app.data_editor_dialog.show()
+            self._app.data_editor_dialog.raise_()
+            self._app.data_editor_dialog.activateWindow()
             return
 
-        if self.data_editor_dialog:
-            self.data_editor_dialog.close()
+        if self._app.data_editor_dialog:
+            self._app.data_editor_dialog.close()
             # close() は隠すだけで、親(このタブ)にぶら下がったまま残り続けるので破棄する
-            self.data_editor_dialog.deleteLater()
-            del self.data_editor_dialog
-            self.data_editor_dialog = None
+            self._app.data_editor_dialog.deleteLater()
+            del self._app.data_editor_dialog
+            self._app.data_editor_dialog = None
 
-        self.data_editor_dialog = DataEditorDialog(dataset, self)
+        self._app.data_editor_dialog = DataEditorDialog(dataset, self._app)
 
-        self.data_editor_dialog.dataChanged.connect(self.property_panel.on_data_structure_changed)
+        self._app.data_editor_dialog.dataChanged.connect(self._app.property_panel.on_data_structure_changed)
 
         # エディタで選んだ行をグラフ上で強調する
-        self.data_editor_dialog.rowsHighlighted.connect(self._on_editor_rows_highlighted)
+        self._app.data_editor_dialog.rowsHighlighted.connect(self._app._on_editor_rows_highlighted)
 
         # 開いたままグラフを操作できるよう非モーダル
-        self.data_editor_dialog.show()
+        self._app.data_editor_dialog.show()
 
     def _on_dataset_tree_item_clicked(self, item, column):
         """
@@ -355,7 +371,7 @@ class DatasetMixin:
         new_value = not dataset.visible
 
         # Dataset の == は使えないので、in ではなく同一性で調べる
-        selected_datasets = self._get_selected_datasets()
+        selected_datasets = self._app._get_selected_datasets()
         is_part_of_multi_selection = len(selected_datasets) > 1 and any(
             ds is dataset for ds in selected_datasets
         )
@@ -363,7 +379,7 @@ class DatasetMixin:
 
         is_batch = len(targets) > 1
         if is_batch:
-            self.undo_stack.beginMacro(f"表示/非表示の一括切替 ({len(targets)}件)")
+            self._app.undo_stack.beginMacro(f"表示/非表示の一括切替 ({len(targets)}件)")
         for ds in targets:
             self._push_dataset_property_command(
                 ds,
@@ -372,4 +388,37 @@ class DatasetMixin:
                 description="データセットの表示/非表示切替"
             )
         if is_batch:
-            self.undo_stack.endMacro()
+            self._app.undo_stack.endMacro()
+
+    def _connect_dataset_signals(self):
+        self._app.ui.add_dataset_button.clicked.connect(self._on_add_dataset)
+        self._app.new_dataset_button.clicked.connect(self._on_create_new_dataset)
+        self._app.ui.remove_dataset_button.clicked.connect(self._on_remove_dataset)
+        self._app.new_folder_button.clicked.connect(self._on_new_folder)
+        self._app.dataset_search_edit.textChanged.connect(self._on_dataset_search_changed)
+        self._app.ui.dataset_list_widget.currentItemChanged.connect(self._app.property_panel.on_dataset_selected)
+        self._app.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
+        self._app.ui.dataset_list_widget.itemClicked.connect(self._on_dataset_tree_item_clicked)
+        # ドラッグでの並べ替え(描画の重なり順)を project.datasets に合わせる
+        self._app.ui.dataset_list_widget.model().rowsMoved.connect(self._on_dataset_rows_moved)
+
+
+        # プロパティの欄は表(gui/dataset_bindings.py)の順につなぐ
+        self._app.property_panel.connect_signals()
+
+        self._app.fit_curve_button.clicked.connect(self._app.fitting.fit_current_dataset)
+        self._app.find_peaks_button.clicked.connect(self._app.peaks.find_peaks)
+        self._app.multi_peak_fit_button.clicked.connect(self._app.fitting.multi_peak_fit_current_dataset)
+
+        self._app.duplicate_dataset_button.clicked.connect(self._on_duplicate_dataset)
+        self._app.auto_color_button.clicked.connect(self._app.colors.auto_assign_colors)
+        self._app.manage_palette_action.triggered.connect(self._app.colors.manage_palettes)
+        self._app.colormap_assign_action.triggered.connect(self._app.colors.auto_assign_colors_from_colormap)
+        self._app.view_edit_data_button.clicked.connect(self._on_show_data_editor)
+
+        self._app.x_col_combo.currentTextChanged.connect(self._app.property_panel.on_plot_column_changed)
+        self._app.y_col_combo.currentTextChanged.connect(self._app.property_panel.on_plot_column_changed)
+        self._app.x_err_col_combo.currentTextChanged.connect(self._app.property_panel.on_error_column_changed)
+        self._app.y_err_col_combo.currentTextChanged.connect(self._app.property_panel.on_error_column_changed)
+
+        self._app.z_col_combo.currentTextChanged.connect(self._app.property_panel.on_z_column_changed)

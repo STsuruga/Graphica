@@ -13,7 +13,7 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-09-27): M4 の途中(R-1 完了、R-7 の PR)
+## 現在地(2026-09-27): M5 の途中(R-9・R-8a 完了、R-8b の PR)
 
 **再設計ロードマップ**: https://claude.ai/artifact/6CqRJmWqkgehsr2ekyVUqz
 (原本 `docs/dev/refactor_roadmap.html`。進み具合は db の `steps`、改善案は `findings` が正)。
@@ -23,12 +23,13 @@
   **master への統合は M6 の確認後に 1 回だけ**(ユーザー指示)。PR は CI が緑ならマージしてよい(ユーザー承認済みの進め方)。
 - 絶対条件(ユーザー指示): 機能・入出力・副作用・エッジケースを完全に維持。見つけた不具合は直さずに K として db に登録して提案する。
 - 進み具合と K の状態はロードマップの db が正。ここは要点だけ。
-- **M0〜M3 完了**。R-0(#25)、R-2(#26)、R-4(#31)、R-5(#34)、R-3(#38・#39)、R-6(#42)。
-- **M4**: R-1a(#46 軸の設定の表 `gui/axis_bindings.py`)、R-1b(#48 プロパティ欄の表 `gui/dataset_bindings.py`、部品は `gui/binding.py`)完了。
-  R-7(`main_window.py` の分割: `gui/builders/`・`gui/dock_layout.py`・`gui/data_import_flow.py`・`gui/project_files.py`、2,971→約 1,150 行)は PR 中。
-- 完了した K(この区切り): K-18(#43)・K-5(#44)・K-33(#45)・K-36(#47)・K-35 と K-37(#49、描き直し 1 回・配置が収まるまで tight_layout)・K-19 と K-34(#50)。K-28 は直さないと決定。
-- 作業中の K: K-29(#51、スクリプトの書き出しの前に行数・列数を同期)。次: K-7(CSV の日付の列、R-7 のあと、全部日付に読める列だけ日付型に)。
-- まだ直さない K(時期つき): K-27・K-9(R-8)、K-3・K-10・K-16・K-26 ほか(db の when を見る)。
+- **M0〜M4 完了**。R-1(#46・#48)、R-7(#52 ほか、`main_window.py` を `gui/builders/` などへ分割)。
+- **M5**: R-9(#55 `gui/rendering/`)、R-8a(#56 マウスの 7 モードを `gui/tools/` のツールに)完了。
+  R-8b(`SettingsMixin`・`DatasetMixin` を `gui/panels/` の部品にし、信号の配線も各部品へ。mixin は 5 個)は PR 中。
+  R-8c(`DatasetHost`・`TabPluginContext` が本体の公開メソッドだけを使う)はブランチ `refactor/r8c-host` に用意済み。
+- R-8 のあと: K-9(注釈の色。作るときのダイアログと右クリックのメニュー、ユーザー決定済み)をブランチ `feature/k9-annotation-color` で作成中。
+  K-40(`.graphica` のドロップで開く、#57)は PR 中。
+- master 統合(M6)のあとにやる K: K-38(関連付け)・K-39(起動画面)・K-41(`.pkl` の対応をやめる)・K-42(拡張子を `.gra` に)。
 - 特性テストの数値は、基準を作った機械(`golden/MACHINE.json`、この PC)ではビット単位、CI などでは許容差で比べる(#32)。
 - 実行時の注意: 作業フォルダ外から Python を動かすと、メインの PlotterApp(editable install)の graphica を読む。`PYTHONPATH=.` を付ける。
   既存ファイルは CRLF なので、複数行の置換は改行をそろえてから行う。CI の結果は `gh pr checks` で見る(`jq` は無いので `--jq` を使う)。

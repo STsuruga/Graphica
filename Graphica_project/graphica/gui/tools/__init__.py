@@ -40,7 +40,8 @@ class _ToolName:
 
     def __get__(self, app, owner=None):
         if app is None:
-            return self
+            # クラスから引いたとき(メニューの表の検査など)は、ツールのクラスの同じ名前を返す
+            return getattr(TOOL_CLASSES[self._tool_key], self._name, self)
         return getattr(app.mouse_tools[self._tool_key], self._name)
 
     def __set__(self, app, value):
