@@ -139,6 +139,18 @@
      ]
     },
     {
+     "class": "QLabel",
+     "text": "色",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "_AnnotationColorButton",
+     "text": "#000000",
+     "visible": true,
+     "enabled": true
+    },
+    {
      "class": "QDialogButtonBox",
      "visible": true,
      "enabled": true,
@@ -6184,6 +6196,60 @@
      "text": "閉じる",
      "visible": true,
      "enabled": true
+    }
+   ]
+  },
+  "modals": []
+ },
+ "TextAnnotationDialog": {
+  "tree": {
+   "class": "TextAnnotationDialog",
+   "window_title": "テキスト注釈の追加",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "表示するテキスト:",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLineEdit",
+     "text": "",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "色",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "_AnnotationColorButton",
+     "text": "#000000",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "OK",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Cancel",
+       "visible": true,
+       "enabled": true
+      }
+     ]
     }
    ]
   },

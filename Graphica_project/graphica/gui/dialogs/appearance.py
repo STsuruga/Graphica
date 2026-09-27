@@ -24,9 +24,10 @@ from PySide6.QtWidgets import (
     QWidgetAction,
 )
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QColor, QFont, QIcon, QPixmap
 from graphica.gui import notify
 from graphica.gui import icon_utils
+from graphica.gui.color_history import get_color_with_history
 from graphica.gui.theme import apply_form_spacing
 from graphica.gui.mathtext_preview import FitWidthPixmapLabel
 from graphica.core.i18n import tr
@@ -673,6 +674,67 @@ class LegendOrderDialog(QDialog):
         return [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
 
 
+DEFAULT_ANNOTATION_COLOR = '#000000'
+
+
+class _AnnotationColorButton(QPushButton):
+    """注釈の色の見本。押すと色を選ぶ(最近使った色は settings に残す)。"""
+
+    def __init__(self, settings, color=DEFAULT_ANNOTATION_COLOR, parent=None):
+        super().__init__(parent)
+        self._settings = settings
+        self.set_color(color)
+        self.clicked.connect(self._choose_color)
+
+    def color(self):
+        return self._color
+
+    def set_color(self, color):
+        self._color = QColor(color).name()
+        swatch = QPixmap(16, 16)
+        swatch.fill(QColor(self._color))
+        self.setIcon(QIcon(swatch))
+        self.setText(self._color)
+
+    def _choose_color(self):
+        color = get_color_with_history(self._settings, self, initial=QColor(self._color))
+        if color.isValid():
+            self.set_color(color.name())
+
+
+class TextAnnotationDialog(QDialog):
+    """文字の注釈の文字と色。"""
+
+    def __init__(self, parent=None, settings=None):
+        super().__init__(parent)
+        self.setWindowTitle("テキスト注釈の追加")
+        self.resize(360, 140)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("表示するテキスト:"))
+        self.text_edit = QLineEdit()
+        layout.addWidget(self.text_edit)
+
+        form = QFormLayout()
+        self.color_button = _AnnotationColorButton(settings)
+        form.addRow("色", self.color_button)
+        layout.addLayout(form)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
+                                      QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        apply_form_spacing(self)
+
+    def get_text(self):
+        return self.text_edit.text().strip()
+
+    def color(self):
+        return self.color_button.color()
+
+
 class ArrowAnnotationDialog(QDialog):
     """矢印の注釈のラベル、形('single' / 'double' / 'bracket')、曲がり具合。"""
 
@@ -682,7 +744,7 @@ class ArrowAnnotationDialog(QDialog):
     STYLES = [STYLE_SINGLE, STYLE_DOUBLE, STYLE_BRACKET]
     _STYLE_KEY_BY_LABEL = {STYLE_SINGLE: "single", STYLE_DOUBLE: "double", STYLE_BRACKET: "bracket"}
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, settings=None):
         super().__init__(parent)
         self.setWindowTitle("矢印注釈の追加")
         self.resize(360, 200)
@@ -706,6 +768,9 @@ class ArrowAnnotationDialog(QDialog):
             "0で直線。正/負で曲がる向きが変わります(matplotlibのarc3 rad相当)。"
         )
         form.addRow("曲率", self.curvature_spinbox)
+
+        self.color_button = _AnnotationColorButton(settings)
+        form.addRow("色", self.color_button)
         layout.addLayout(form)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |
@@ -721,6 +786,9 @@ class ArrowAnnotationDialog(QDialog):
         style_text = self.style_combo.currentText()
         style = self._STYLE_KEY_BY_LABEL[style_text]
         return self.text_edit.text().strip(), style, self.curvature_spinbox.value()
+
+    def color(self):
+        return self.color_button.color()
 
 
 class InsetDialog(QDialog):

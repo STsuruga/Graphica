@@ -239,6 +239,7 @@ def _dialog_factories(tmp_path):
         "RowFilterDialog": lambda: d.RowFilterDialog(columns),
         "SavGolDialog": lambda: d.SavGolDialog("ds", 11),
         "ShortcutsDialog": lambda: d.ShortcutsDialog(actions),
+        "TextAnnotationDialog": lambda: d.TextAnnotationDialog(),
         "WelcomeDialog": lambda: d.WelcomeDialog(recent_files=[]),
         "XAxisAlignmentDialog": lambda: d.XAxisAlignmentDialog("a", "b"),
     }
