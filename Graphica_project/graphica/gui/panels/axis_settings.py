@@ -5,6 +5,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QDialog, QFontDialog
 
+from graphica.core.i18n import tr
 from graphica.gui import notify
 from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
 from graphica.gui import theme
@@ -165,7 +166,7 @@ class AxisSettingsPanel:
 
     def _update_subplot_combos(self):
             total_plots = len(self._app.project.all_plot_settings)
-            plot_names = [f"プロット {i+1}" for i in range(total_plots)]
+            plot_names = [tr("プロット {number}").format(number=i + 1) for i in range(total_plots)]
 
             self._app.active_axis_combo.blockSignals(True)
             self._app.subplot_target_combo.blockSignals(True)

@@ -238,7 +238,8 @@ def build_tick_format_controls(app):
     # X の単位と上に出したい単位が別々に選ばれていれば、単位を変換した第2X軸を上に付ける。
     # ラベルは短く保つ(フォームの全行でラベルの列幅を共有するので、長いとドックに横スクロールが出る。
     # test_properties_dock_has_no_horizontal_scrollbar)。説明はツールチップに置く
-    unit_combo_choices = [X_AXIS_UNIT_LABELS[u] for u in X_AXIS_UNIT_CHOICES]
+    # 選んだ番号で値を持つ(choice の束ね)ので、表示だけを訳してよい
+    unit_combo_choices = [tr(X_AXIS_UNIT_LABELS[u]) for u in X_AXIS_UNIT_CHOICES]
     app.x_secondary_axis_source_unit_label = QLabel(tr("X軸単位"))
     app.x_secondary_axis_source_unit_combo = QComboBox()
     app.x_secondary_axis_source_unit_combo.addItems(unit_combo_choices)

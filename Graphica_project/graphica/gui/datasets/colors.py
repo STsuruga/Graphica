@@ -4,6 +4,7 @@ import logging
 import matplotlib as mpl
 from PySide6.QtWidgets import (QDialog)
 
+from graphica.core.i18n import tr
 from graphica.gui import notify
 from graphica.core.color_palettes import BUILTIN_PALETTES
 from graphica.core.named_colors import POPUP_LIMIT, load_named_colors
@@ -94,7 +95,7 @@ class ColorController:
         menu.clear()
         entries = load_named_colors(self._host.settings)
         if not entries:
-            empty_action = menu.addAction("(登録がありません)")
+            empty_action = menu.addAction(tr("(登録がありません)"))
             empty_action.setEnabled(False)
             return
         # 色欄のポップアップと同じく、並べるのは先頭 POPUP_LIMIT 件まで。
