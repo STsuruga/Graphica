@@ -649,9 +649,9 @@
   },
   "modals": []
  },
- "reloaded_from_pickle": {
+ "reloaded_from_gra": {
   "status": "プロジェクトを読み込みました",
-  "title": "resaved.pkl",
+  "title": "resaved.gra",
   "unsaved": false,
   "datasets": [
    {
@@ -989,7 +989,7 @@
   "modals": []
  },
  "recent_files": [
-  "<CASE>/resaved.pkl",
+  "<CASE>/resaved.gra",
   "<CASE>/resaved.graphica",
   "<CASE>/realistic_multi_dataset.graphica"
  ]

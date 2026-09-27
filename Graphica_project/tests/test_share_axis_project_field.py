@@ -42,19 +42,6 @@ def test_share_axis_roundtrips_via_graphica_json(tmp_path):
     assert reloaded.share_y_axis is True
 
 
-def test_share_axis_roundtrips_via_pkl(tmp_path):
-    project = _make_project()
-    project.share_x_axis = True
-    project.share_y_axis = False
-    path = tmp_path / "project.pkl"
-    project.save_project(str(path))
-
-    reloaded = ProjectModel()
-    reloaded.load_project(str(path))
-    assert reloaded.share_x_axis is True
-    assert reloaded.share_y_axis is False
-
-
 def test_share_axis_defaults_false_for_legacy_graphica_file_missing_key(tmp_path):
     """このフィールド導入前に保存された.graphicaファイル(キー自体が無い)を
     読み込んでも、クラッシュせずFalseにフォールバックすること。"""
@@ -74,23 +61,3 @@ def test_share_axis_defaults_false_for_legacy_graphica_file_missing_key(tmp_path
     assert reloaded.share_x_axis is False
     assert reloaded.share_y_axis is False
 
-
-def test_share_axis_defaults_false_for_legacy_pkl_missing_key(tmp_path):
-    import pickle
-    ds = _make_project().datasets[0]
-    old_format_data = {
-        'datasets': [ds],
-        'all_plot_settings': [{}],
-        'active_axis_index': 0,
-        'layout_rows': 1,
-        'layout_cols': 1,
-        # 'share_x_axis' / 'share_y_axis' は意図的に省略(導入前の.pklを再現)
-    }
-    path = tmp_path / "legacy.pkl"
-    with open(path, 'wb') as f:
-        pickle.dump(old_format_data, f)
-
-    reloaded = ProjectModel()
-    reloaded.load_project(str(path))
-    assert reloaded.share_x_axis is False
-    assert reloaded.share_y_axis is False

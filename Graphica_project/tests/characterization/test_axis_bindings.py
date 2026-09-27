@@ -211,7 +211,7 @@ def test_restore_then_gather_legacy_projects(app_env, modal_log, normalizer, mon
     modal_log.accept_defaults()
     result = {}
     for path in sorted(LEGACY_DIR.iterdir()):
-        if path.suffix not in (".graphica", ".pkl"):
+        if path.suffix not in (".gra", ".graphica"):
             continue
         project = ProjectModel()
         project.load_project(str(path))

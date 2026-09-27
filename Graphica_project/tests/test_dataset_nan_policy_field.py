@@ -43,16 +43,6 @@ def test_nan_policy_roundtrips_via_graphica_json(tmp_path):
     assert reloaded.datasets[0].nan_policy == "drop"
 
 
-def test_nan_policy_roundtrips_via_pkl(tmp_path):
-    project = _make_project_with_nan_policy_dataset("ffill")
-    path = tmp_path / "project.pkl"
-    project.save_project(str(path))
-
-    reloaded = ProjectModel()
-    reloaded.load_project(str(path))
-    assert reloaded.datasets[0].nan_policy == "ffill"
-
-
 def test_nan_policy_defaults_gap_for_legacy_graphica_file_missing_key(tmp_path):
     """このフィールド導入前に保存された.graphicaファイル(キー自体が無い)を
     読み込んでも、クラッシュせず既定の'gap'(導入前と同じ見た目)にフォールバックすること。"""
@@ -71,12 +61,12 @@ def test_nan_policy_defaults_gap_for_legacy_graphica_file_missing_key(tmp_path):
     assert reloaded.datasets[0].nan_policy == 'gap'
 
 
-def test_nan_policy_defaults_gap_for_legacy_pkl_missing_key():
-    """導入前の.pklは、Dataset.__setstate__相当のフォールバックで'gap'に補われる。"""
+def test_nan_policy_defaults_gap_for_state_missing_key():
+    """状態に無いときは Dataset.__setstate__ で'gap'に補われる。"""
     df = pd.DataFrame({'x': [1.0], 'y': [2.0]})
     ds = Dataset(name="D1", df=df, x_col_name='x', y_col_name='y')
     state = ds.__getstate__()
-    del state['nan_policy']  # 導入前の.pklを再現(意図的に欠落させる)
+    del state['nan_policy']  # 意図的に欠落させる
     ds2 = Dataset.__new__(Dataset)
     ds2.__setstate__(state)
     assert ds2.nan_policy == 'gap'

@@ -6,11 +6,12 @@ from datetime import datetime
 from graphica.core.app_paths import get_app_data_dir
 from graphica.gui import app_settings, notify
 from graphica.gui.dialogs import AutosaveHistoryDialog
+from graphica.models.project import LEGACY_PICKLE_EXTENSION, PROJECT_FILE_EXTENSION, PROJECT_FILE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
 
-AUTOSAVE_GENERATIONS = 3  # 最新の autosave.graphica を含む
+AUTOSAVE_GENERATIONS = 3  # 最新の autosave.gra を含む
 
 
 MAX_RECENT_FILES = 10
@@ -27,14 +28,14 @@ def _unsaved_changes_prompt_enabled():
 def check_autosave_recovery(app):
     """前回が正常に終わらず、オートセーブが残っていれば、復元するか尋ねる(起動時に1回)。
 
-    新しい形式のファイルが無ければ、古い版が残した .pkl を探す。
+    無ければ、拡張子を .gra に変える前の版が残した autosave.graphica を探す。
     """
     if app._had_clean_exit:
         return
 
     autosave_path = app._autosave_filename
     if not os.path.exists(autosave_path):
-        legacy_path = os.path.splitext(app._autosave_filename)[0] + '.pkl'
+        legacy_path = os.path.splitext(app._autosave_filename)[0] + '.graphica'
         if os.path.exists(legacy_path):
             autosave_path = legacy_path
         else:
@@ -109,7 +110,7 @@ def update_autosave_path(app):
 
 
 def rotate_autosave_generations(app):
-    """autosave.graphica を autosave.1.graphica, autosave.2.graphica, ... へ押し出す。"""
+    """autosave.gra を autosave.1.gra, autosave.2.gra, ... へ押し出す。"""
     base, ext = os.path.splitext(app._autosave_filename)
 
     oldest = f"{base}.{AUTOSAVE_GENERATIONS - 1}{ext}"
@@ -202,15 +203,13 @@ def manual_save(app):
 
 
 def manual_save_as(app):
-    # 任意のコードを実行されない .graphica を既定にする。.pkl も選べる
-    filepath, selected_filter = notify.get_save_file_name(
-        app, "名前を付けて保存", "",
-        "Graphica Project (*.graphica);;Project Files (*.pkl)"
+    filepath, _ = notify.get_save_file_name(
+        app, "名前を付けて保存", "", f"Graphica Project (*{PROJECT_FILE_EXTENSION})"
     )
     if filepath:
-        # 選んだ形式の拡張子を付けないファイルダイアログがある
-        if not os.path.splitext(filepath)[1]:
-            filepath += '.graphica' if 'graphica' in selected_filter else '.pkl'
+        # 拡張子を付けないファイルダイアログがある
+        if os.path.splitext(filepath)[1].lower() not in PROJECT_FILE_EXTENSIONS:
+            filepath += PROJECT_FILE_EXTENSION
         app._save_project_to_path(filepath)
 
 
@@ -229,11 +228,15 @@ def save_project_to_path(app, filepath):
         notify.critical(app, "エラー", f"保存に失敗しました:\n{e}")
 
 
+def project_file_filter():
+    return "Graphica Project (" + " ".join(f"*{ext}" for ext in PROJECT_FILE_EXTENSIONS) + ")"
+
+
 def manual_load(app):
     if not app.confirm_unsaved_changes("別のプロジェクトを開く"):
         return
     filepath, _ = notify.get_open_file_name(
-        app, "プロジェクトを開く", "", "Project Files (*.graphica *.pkl)"
+        app, "プロジェクトを開く", "", project_file_filter()
     )
     if filepath:
         app._load_project_from_path(filepath)
@@ -343,7 +346,8 @@ def on_open_recent_file(app, file_path):
             app._update_recent_files_menu()
         return
 
-    if file_path.lower().endswith(('.graphica', '.pkl')):
+    # .pkl は開けないが、データとして読ませずに「対応していない」と知らせる
+    if file_path.lower().endswith(PROJECT_FILE_EXTENSIONS + (LEGACY_PICKLE_EXTENSION,)):
         if not app.confirm_unsaved_changes("別のプロジェクトを開く"):
             return
         app._load_project_from_path(file_path)

@@ -430,7 +430,7 @@ class Dataset:
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         self.__dict__.update(state)
-        # 古い .pkl に無いフィールドは既定値で補う
+        # 状態に無いフィールドは既定値で補う(copy.deepcopy もここを通る)
         for f in fields(self):
             if f.name not in self.__dict__:
                 if f.default is not MISSING:

@@ -49,17 +49,6 @@ def test_source_file_roundtrips_via_graphica_json(tmp_path):
     assert reloaded.datasets[0].source_sheet == "Sheet2"
 
 
-def test_source_file_roundtrips_via_pkl(tmp_path):
-    project = _make_project_with_file_backed_dataset()
-    path = tmp_path / "project.pkl"
-    project.save_project(str(path))
-
-    reloaded = ProjectModel()
-    reloaded.load_project(str(path))
-    assert reloaded.datasets[0].source_file == "C:/data/sample.csv"
-    assert reloaded.datasets[0].source_sheet is None
-
-
 def test_source_file_defaults_none_for_legacy_graphica_file_missing_key(tmp_path):
     """このフィールド導入前に保存された.graphicaファイル(キー自体が無い)を
     読み込んでも、クラッシュせずNoneにフォールバックすること。"""
@@ -80,13 +69,13 @@ def test_source_file_defaults_none_for_legacy_graphica_file_missing_key(tmp_path
     assert reloaded.datasets[0].source_sheet is None
 
 
-def test_source_file_defaults_none_for_legacy_pkl_missing_key():
-    """導入前の.pklは、Dataset.__setstate__相当のフォールバックでNoneに補われる。"""
+def test_source_file_defaults_none_for_state_missing_key():
+    """状態に無いときは Dataset.__setstate__ でNoneに補われる。"""
     df = pd.DataFrame({'x': [1.0], 'y': [2.0]})
     ds = Dataset(name="D1", df=df, x_col_name='x', y_col_name='y')
     state = ds.__getstate__()
     del state['source_file']
-    del state['source_sheet']  # 導入前の.pklを再現(意図的に欠落させる)
+    del state['source_sheet']  # 意図的に欠落させる
     ds2 = Dataset.__new__(Dataset)
     ds2.__setstate__(state)
     assert ds2.source_file is None

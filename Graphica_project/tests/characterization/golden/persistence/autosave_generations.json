@@ -1,10 +1,10 @@
 {
- "autosave_file": "<CASE>/autosave/autosave_tab2.graphica",
+ "autosave_file": "<CASE>/autosave/autosave_tab2.gra",
  "rounds": [
   {
    "status": "オートセーブ完了",
    "files": {
-    "autosave_tab2.graphica": [
+    "autosave_tab2.gra": [
      "d0"
     ]
    }
@@ -12,10 +12,10 @@
   {
    "status": "オートセーブ完了",
    "files": {
-    "autosave_tab2.1.graphica": [
+    "autosave_tab2.1.gra": [
      "d0"
     ],
-    "autosave_tab2.graphica": [
+    "autosave_tab2.gra": [
      "d0",
      "d1"
     ]
@@ -24,14 +24,14 @@
   {
    "status": "オートセーブ完了",
    "files": {
-    "autosave_tab2.1.graphica": [
+    "autosave_tab2.1.gra": [
      "d0",
      "d1"
     ],
-    "autosave_tab2.2.graphica": [
+    "autosave_tab2.2.gra": [
      "d0"
     ],
-    "autosave_tab2.graphica": [
+    "autosave_tab2.gra": [
      "d0",
      "d1",
      "d2"
@@ -41,16 +41,16 @@
   {
    "status": "オートセーブ完了",
    "files": {
-    "autosave_tab2.1.graphica": [
+    "autosave_tab2.1.gra": [
      "d0",
      "d1",
      "d2"
     ],
-    "autosave_tab2.2.graphica": [
+    "autosave_tab2.2.gra": [
      "d0",
      "d1"
     ],
-    "autosave_tab2.graphica": [
+    "autosave_tab2.gra": [
      "d0",
      "d1",
      "d2",

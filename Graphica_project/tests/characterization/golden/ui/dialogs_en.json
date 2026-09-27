@@ -607,7 +607,7 @@
        "children": [
         {
          "class": "QLabel",
-         "text": "書き出すプロジェクトファイル(.graphica/.pkl)を追加してください:",
+         "text": "書き出すプロジェクトファイル(.gra/.graphica)を追加してください:",
          "visible": false,
          "enabled": true
         },
