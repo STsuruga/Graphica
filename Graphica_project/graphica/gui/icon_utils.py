@@ -6,10 +6,9 @@ from PySide6.QtCore import QByteArray, QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap, QPainter
 from PySide6.QtSvg import QSvgRenderer
 
-ICONS_DIR = os.path.join("assets", "icons")
+from graphica.gui.resources import resource_path
 
-# カレントディレクトリではなく、このファイルの場所を基準にする
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ICONS_DIR = os.path.join("assets", "icons")
 
 
 def icon(name, color=None, size=16):
@@ -17,7 +16,8 @@ def icon(name, color=None, size=16):
     if color is None:
         from graphica.gui import theme
         color = theme.current_tokens()["text_secondary"]
-    svg_path = os.path.join(_PROJECT_ROOT, ICONS_DIR, f"{name}.svg")
+    # exe では同梱のアイコンが sys._MEIPASS の下にあるので、このファイルの場所ではなく resource_path() で探す
+    svg_path = resource_path(os.path.join(ICONS_DIR, f"{name}.svg"))
     return load_svg_icon(svg_path, color=color, size=size)
 
 

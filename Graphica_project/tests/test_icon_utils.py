@@ -2,11 +2,15 @@
 """gui/icon_utils.py (Tabler Icons SVGのQIcon読み込み) に対するテスト。"""
 import os
 
-from graphica.gui.icon_utils import load_svg_icon, icon, ICONS_DIR, _PROJECT_ROOT
+import shutil
+import sys
+
+from graphica.gui.icon_utils import load_svg_icon, icon, ICONS_DIR
+from graphica.gui.resources import resource_path
 
 
 def test_load_svg_icon_existing_file_returns_non_null_icon():
-    svg_path = os.path.join(_PROJECT_ROOT, ICONS_DIR, "pointer.svg")
+    svg_path = resource_path(os.path.join(ICONS_DIR, "pointer.svg"))
     result = load_svg_icon(svg_path)
     assert not result.isNull()
 
@@ -18,7 +22,7 @@ def test_load_svg_icon_missing_file_returns_null_icon():
 
 
 def test_load_svg_icon_respects_requested_pixel_size():
-    svg_path = os.path.join(_PROJECT_ROOT, ICONS_DIR, "pointer.svg")
+    svg_path = resource_path(os.path.join(ICONS_DIR, "pointer.svg"))
     result = load_svg_icon(svg_path, size=32)
     pixmap = result.pixmap(32, 32)
     assert pixmap.width() == 32 and pixmap.height() == 32
@@ -29,6 +33,23 @@ def test_icon_helper_resolves_by_name_regardless_of_cwd(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     result = icon("trash")
     assert not result.isNull()
+
+
+def test_icon_helper_finds_icons_where_the_exe_bundles_them(tmp_path, monkeypatch):
+    """exe では graphica.spec がアイコンを sys._MEIPASS/assets/icons に置く。icon() はそこを探す。"""
+    bundle_icons = tmp_path / ICONS_DIR
+    bundle_icons.mkdir(parents=True)
+    shutil.copy(resource_path(os.path.join(ICONS_DIR, "pointer.svg")), bundle_icons / "pointer.svg")
+    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+
+    assert not icon("pointer").isNull()
+    assert icon("trash").isNull()  # 同梱の場所に無いものは、ソースの場所を見に行かない
+
+
+def test_the_exe_bundles_the_icons_at_the_same_relative_path():
+    spec = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "graphica.spec"),
+                encoding="utf-8").read()
+    assert 'os.path.join(PACKAGE_ROOT, "assets", "icons"), os.path.join("assets", "icons")' in spec
 
 
 def test_icon_helper_unknown_name_returns_null_icon():
