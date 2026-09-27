@@ -5410,6 +5410,32 @@
              ]
             }
            ]
+          },
+          {
+           "class": "QGroupBox",
+           "title": "File association",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "Available only when running Graphica.exe on Windows.",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "Open .gra and .graphica with Graphica",
+             "visible": true,
+             "enabled": false
+            },
+            {
+             "class": "QPushButton",
+             "text": "Remove association",
+             "visible": true,
+             "enabled": false
+            }
+           ]
           }
          ]
         }
