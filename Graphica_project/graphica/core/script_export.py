@@ -135,6 +135,18 @@ def _emit_2d_dataset_plot_call(lines: list[str], ax_var: str, mesh_var: str, ds:
     return has_mappable
 
 
+def _emit_secondary_y_calls(lines: list[str], ax_var: str, settings: dict[str, Any]) -> None:
+    """第 2 Y 軸のラベル・対数・範囲・反転(画面と同じ設定を使う)。"""
+    if axis_setting(settings, 'y2_label'):
+        lines.append(f"{ax_var}.set_ylabel({axis_setting(settings, 'y2_label')!r})")
+    if axis_setting(settings, 'y2_log'):
+        lines.append(f"{ax_var}.set_yscale('log')")
+    if not axis_setting(settings, 'y2_autoscale') and axis_setting(settings, 'y2_min') < axis_setting(settings, 'y2_max'):
+        lines.append(f"{ax_var}.set_ylim({axis_setting(settings, 'y2_min')!r}, {axis_setting(settings, 'y2_max')!r})")
+    if axis_setting(settings, 'y2_invert'):
+        lines.append(f"{ax_var}.invert_yaxis()")
+
+
 def _emit_appearance_calls(lines: list[str], ax_var: str, settings: dict[str, Any], mesh_var: str | None = None) -> None:
     if axis_setting(settings, 'title'):
         lines.append(f"{ax_var}.set_title({settings['title']!r})")
@@ -249,6 +261,8 @@ def generate_python_script(project: "ProjectModel") -> str:
 
     for i, settings in enumerate(all_plot_settings[:subplot_count]):
         _emit_appearance_calls(lines, f'axes[{i}]', settings, mesh_var_by_axis.get(i))
+        if i in secondary_axis_indices:
+            _emit_secondary_y_calls(lines, f'ax{i}_secondary', settings)
     lines.append('')
 
     lines.append('plt.tight_layout()')

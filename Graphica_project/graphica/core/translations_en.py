@@ -525,4 +525,6 @@ TRANSLATIONS = {
         "Register to open .gra and .graphica files by double-clicking (this user only).",
     "登録できませんでした:\n{error}": "Could not register:\n{error}",
     "解除できませんでした:\n{error}": "Could not remove:\n{error}",
+    "第2Y軸": "Secondary Y axis",
+    "補助目盛の間隔": "Minor tick interval",
 }
