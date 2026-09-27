@@ -31,15 +31,15 @@
 |---|---|
 | OS | Windows 11 Home 10.0.26200(`platform.platform()` = `Windows-11-10.0.26200-SP0`) |
 | Python | 3.13.5(64 bit、MSC v.1943) |
-| PySide6 / Qt | 6.9.1 / 6.9.1 |
-| matplotlib | 3.10.7(FreeType 2.6.1) |
+| PySide6 / Qt | 6.11.2 / 6.11.2 |
+| matplotlib | 3.11.2(FreeType 2.14.3) |
 | numpy | 2.3.1 |
 | pandas | 2.3.1 |
 | scipy | 1.16.0 |
 | CPU | AMD64 Family 23 Model 113(Zen 2、AVX2 まで。AVX-512 なし)、OpenBLAS の核は Zen(Haswell と同じ結果) |
 | openpyxl | 3.1.5 |
 | xlrd | 2.0.2 |
-| Pillow | 11.2.1 |
+| Pillow | 12.3.0 |
 | pytest | 9.1.1 |
 
 PySide6・matplotlib・numpy・pandas・scipy・openpyxl・xlrd は `requirements.txt` の固定版と同じ。
@@ -62,3 +62,5 @@ PySide6・matplotlib・numpy・pandas・scipy・openpyxl・xlrd は `requirement
 - フルスイート(特性テストを含む)は 124 チャンク・3,254 件が緑、約 19 分。前後でレジストリ(HKCU\Software\Graphica)は不変。
 - メニューの文字を 1 か所変えると `test_startup_window` が落ち、差分が 1 行で出ることを確かめた。
 - 基準の中には今の不具合がそのまま入っている(K-3・K-5・K-17・K-18・K-19・K-21・K-27・K-28・K-29)。直すときは `fix:` で基準を更新する。
+- 2026-09-28、PySide6 6.11.2・matplotlib 3.11.2 に上げて作り直した(K-16)。変わったのは画素のハッシュ・書き出しのバイト列と画像の大きさ、
+  tight_layout による軸の位置(図に対して最大 0.004)、環境設定のタブの送りボタンが出なくなったことだけ。

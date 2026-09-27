@@ -5451,14 +5451,14 @@
          "class": "QToolButton",
          "name": "ScrollLeftButton",
          "text": "",
-         "visible": true,
-         "enabled": false
+         "visible": false,
+         "enabled": true
         },
         {
          "class": "QToolButton",
          "name": "ScrollRightButton",
          "text": "",
-         "visible": true,
+         "visible": false,
          "enabled": true
         }
        ]
