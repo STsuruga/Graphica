@@ -206,7 +206,7 @@ All planning and handoff material lives under `Graphica_project/docs/dev/` (move
 
 Two consequences worth knowing before working on a plugin:
 
-- **A plugin repo tests against Graphica via `pip install -e <this repo>/Graphica_project`.** `pyproject.toml` publishes the single top-level package `graphica`, so `from graphica.plugin.testing import FakeGraphicaPluginAPI` works from outside. Plugin repos keep a `requires_graphica` skip marker so their pure-logic tests still run without it.
+- **A plugin repo tests against Graphica from PyPI** (`pip install "graphica-plot>=2.0,<3"` in a per-repo venv; `pip install -e <this repo>/Graphica_project` only to try unreleased changes). The package is the single top-level `graphica`, so `from graphica.plugin.testing import FakeGraphicaPluginAPI` works from outside. A plugin release therefore depends on the *published* app: a new extension point is usable by plugins only after a Graphica release. Plugin repos keep a `requires_graphica` skip marker so their pure-logic tests still run without it.
 - **A zip is the only way a plugin reaches an end user.** `plugin_search_paths()` searches `resource_path("plugins")` only when `not is_frozen()`, so a plugin sitting in any repo directory is invisible to the packaged exe. Each plugin repo owns a `scripts/build_zip.py`; this repo keeps `scripts/build_plugin_zip.py` for `example_plugin`. Both emit the single-top-level-folder layout `core/plugin_install.py`'s `_find_plugin_root()` expects, and both are tested by installing the zip they produce.
 
 `feature/plugin-track4` still exists, holding only a WIP JCAMP-DX parser (P-101, parser only — no `plugin.json`/`__init__.py`, so the loader ignores it); do not delete that branch or its worktree.

@@ -36,10 +36,11 @@ scripts/build_zip.py      ← 配布用zipのビルド
 README.md / .gitignore / requirements-dev.txt
 ```
 
-**テストの走らせ方**: 本体は`pip install -e <PlotterApp>/Graphica_project`で
-editable install する(`pyproject.toml`があり`core`/`gui`/`models`を
-トップレベルパッケージとして公開しているのでそのまま入る)。本体が無い環境でも
-データ処理など本体非依存のテストだけは走るよう、`conftest.py`の
+**テストの走らせ方**: リポジトリごとの仮想環境に、PyPI の本体
+`pip install "graphica-plot>=2.0,<3"` を入れる(v2.0.0 から PyPI に公開)。本体の
+未リリースの変更で試すときだけ `pip install -e <PlotterApp>/Graphica_project`。
+プラグインが import するのは `graphica.plugin` / `graphica.plugin.testing` だけ。
+本体が無い環境でもデータ処理など本体非依存のテストだけは走るよう、`conftest.py`の
 `requires_graphica`マーカーで分岐させる。
 
 **プラグイン同士はimportできない**: `PluginManager._load_module()`が
@@ -59,6 +60,8 @@ editable install する(`pyproject.toml`があり`core`/`gui`/`models`を
 ## 次にやること
 
 **★ 2026-09-17: プラグインは1件ずつ別チャット・別リポジトリで開発する運用を開始(ユーザー判断)。**
+2026-09-28、v2.0.0 のリリースに合わせてハブを更新し、「1プラグイン = 1リポジトリ = 1チャット」と、
+リポジトリごとの仮想環境に PyPI の graphica-plot を入れる開発環境を明記した。
 
 共通の資料と進捗は **プラグイン開発ハブ(Artifact)** にまとめた:
 https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o
