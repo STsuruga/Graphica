@@ -88,6 +88,7 @@ h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.35;
 .s-todo { color: var(--hold); background: var(--hold-soft); }
 .s-hold { color: var(--hold); background: var(--hold-soft); }
 .s-blocked { color: var(--block); background: var(--block-soft); }
+.s-planned { color: var(--accent); background: var(--accent-soft); }
 .s-dropped { color: var(--text-3); background: var(--hold-soft); text-decoration: line-through; }
 
 /* queue */
@@ -192,6 +193,7 @@ td.sig { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
       <input id="q" type="search" placeholder="名前・ID・フックで絞り込み(例: Raman、importer、P-30)" aria-label="絞り込み">
       <select id="fstate" aria-label="状態で絞り込み">
         <option value="">すべての状態</option>
+        <option value="planned">方針のみ</option>
         <option value="next">次に着手</option>
         <option value="in_progress">進行中</option>
         <option value="done">完了</option>
@@ -211,6 +213,7 @@ td.sig { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
       <section>
         <h2>進め方の全体像</h2>
         <p>ユーザーはこのボードで対象のプラグインを開き、「引継ぎプロンプト」をコピーして新しいチャットに貼り付けます。貼り付けられたチャットは、このページ(<code>https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o</code>)を <code>Artifact</code> ツールの <code>action: "read"</code> で読んでから、次の手順で進めてください。</p>
+        <div class="rule"><strong>計画チャットと開発チャットは分ける</strong><span>新しいプラグインの案は、まず「計画チャット」でこのボードに項目として追加し、方針(何を作るか・どのフックを使うか・大まかな範囲)だけを決めます。状態は「方針のみ」です。仕様の詳細は決めません。開発チャットは項目の「方針」と「開発チャットで詰めること」を出発点に、ユーザーと仕様をブラッシュアップしてから実装します。計画チャットはプラグインのコードもリポジトリも作りません。</span></div>
         <div class="rule"><strong>1プラグイン = 1リポジトリ = 1チャット</strong><span>プラグインを1つ始めるたびに、新しいチャットを開きます。1つのチャットで2つ目のプラグインを始めたり、本体のチャットでプラグインを作ったりしません(前提が混ざり、別のリポジトリへ書き込む事故のもとになります)。チャットの作業フォルダは、本体の <code>PlotterApp</code> と同じ階層の <code>graphica-plugins/</code> にし、リポジトリを作ったあとは <code>graphica-plugins/graphica-plugin-&lt;name&gt;/</code> に移ります。同じプラグインの続き(v1.1 など)は、そのリポジトリの <code>CLAUDE.md</code> の「現状」から新しいチャットで再開して構いません。</span></div>
       </section>
 
@@ -504,7 +507,7 @@ const CATS = {
   "P-7": "外部連携", "P-8": "参照データベース", "P-9": "配色・デザイン",
 };
 const HOOK = { i: "register_importer", e: "register_exporter", p: "register_processor", a: "register_analyzer", t: "register_plot_type", d: "register_panel", r: "register_render_backend", f: "register_fit_function", m: "register_menu_action" };
-const STATE_LABEL = { next: "次に着手", in_progress: "進行中", done: "完了", todo: "未着手", blocked: "本体側が必要", hold: "保留", dropped: "見送り" };
+const STATE_LABEL = { planned: "方針のみ", next: "次に着手", in_progress: "進行中", done: "完了", todo: "未着手", blocked: "本体側が必要", hold: "保留", dropped: "見送り" };
 
 // [id, 名前, 難, 工数, 需要, フック, リポジトリ名候補, 備考, 既定の状態, 着手順]
 const P = [
@@ -546,6 +549,7 @@ const P = [
   ["P-313","Arrhenius プロット解析","★☆☆","S","○","fa","arrhenius","活性化エネルギーの算出。","todo"],
   ["P-314","検量線・LOD / LOQ パック","★★☆","M","○","a","calibration","分析化学の必需品。本体の構造化フィット結果(C-401)は実装済み。","todo"],
   ["P-315","磁性・電気特性パック","★★☆","M","△","a","magnetic-electric","ヒステリシス解析、Hall 測定、抵抗率変換。","todo"],
+  ["P-316","質量分析 (MS) パック(mzML 読み込み・同位体パターンのシミュレーション)","★★☆","L","◎","imat","mass-spec","ユーザー提案(2026-09-28)。Bruker micrOTOF の .d を mzML に変換して読み、TIC とスペクトルを表示。組成式から同位体パターンと付加イオンの m/z を計算して実測に重ね、ppm 誤差を出す。","planned"],
   ["P-401","主成分分析 (PCA) + スコア / ローディング","★★☆","M","○","ad","pca","numpy.linalg.svd で実装可(scikit-learn 不要)。分野横断で使える。","todo",7],
   ["P-402","仮説検定パック(t 検定 / ANOVA / Mann-Whitney)+ 有意差ブラケット","★★☆","M","○","a","stats","ブラケットは本体の矢印注釈 arrow_style: \"bracket\"(C-703、実装済み)で描ける。改善ボード D-3。","next",1],
   ["P-403","相関行列ヒートマップ","★☆☆","S","○","a","correlation-matrix","","todo"],
@@ -579,6 +583,8 @@ const P = [
 ];
 
 // 着手順の上位と、特に情報が要る項目の詳細
+// 計画チャットで追加した項目(既定の状態 "planned")は spec / decide の代わりに
+// direction(合意した方針)と open(開発チャットで詰めること)を持つ。詳細は開発チャットで決める。
 const DETAIL = {
   "P-402": {
     spec: [
@@ -679,6 +685,31 @@ const DETAIL = {
       "GitHub Release(配布用 zip)がまだ無い。README は Releases からの入手を案内しているので、リリースを作る必要がある。LICENSE も未作成。",
     ],
   },
+  "P-316": {
+    planned: "2026-09-28",
+    direction: [
+      "対象はユーザーの Bruker micrOTOF(DataAnalysis 4.0)の測定データ。APCI の正・負、m/z 50〜3000。フォルダ形式の .d で、中身は非公開形式の analysis.baf。",
+      "読み込みは mzML 経由(ユーザー決定)。ProteoWizard msconvert で .d を mzML に変換してもらい、プラグインが読む。mzML は XML と base64(zlib 圧縮)なので、標準ライブラリと numpy で読める(pyteomics などは使わない)。.d を直接開く方法(Bruker の baf2sql DLL を ctypes で呼ぶ)は v1.0 に入れず、次の版の候補にする。",
+      "表示: 多数のスキャンから TIC(時間と全イオン強度)を作り、選んだ時間範囲を平均したマススペクトルをデータセットとして追加する。importer は DataFrame を1つしか返せず、フォルダも開けないので、主な入口は register_menu_action で開く画面(ctx.add_dataset で追加)にする。",
+      "分子量のシミュレーション(ユーザー決定: 同位体パターンの重ね描きまで): 組成式からモノアイソトピック質量・平均分子量・同位体パターンを計算する。付加イオン(正: [M+H]+、[M+Na]+、[M+NH4]+、M•+ など、負: [M−H]−、[M+Cl]−、M•− など)の m/z を出す。装置の分解能から線幅を付けたプロファイルを実測スペクトルに重ね、ppm 誤差と相対強度の一致を table で返す。",
+      "本体には棒(スティック)表示の種類が無いので、centroid と計算した同位体パターンの表示に register_plot_type で「Stick」を足す見込み。",
+      "v1.0 に入れないもの: .d の直接読み込み、m/z からの組成式の推定(候補の列挙)、フラグメント解析。",
+    ],
+    open: [
+      "サンプル3件を msconvert で変換し、mzML の中身(profile か centroid か、スキャン数、1スキャンの点数、圧縮)を確かめる。msconvert の推奨設定と変換の手順を README に書く。",
+      "TIC から時間範囲を選ぶ操作: 数値入力にするか、プラグインの画面に置いた matplotlib で範囲をドラッグするか(本体の範囲選択モードはプラグインの画面では使えない)。",
+      "背景の差し引き(別の時間範囲の平均を引く)を v1.0 に入れるか。",
+      "画面の置き場所(独立ウィンドウ / ドックパネル)。正負のファイルを並べて比べる使い方をするか。",
+      "付加イオンの一覧(APCI で実際に使うもの)と、ユーザー定義の付加イオン。電荷数 2 以上を扱うか。",
+      "同位体パターンの計算方法(元素ごとの同位体分布の畳み込み+近い質量の束ね)と、分解能・線形(ガウス)の指定方法。",
+      "スキャン数×点数が大きいときの読み込み時間とメモリ(すべて GUI スレッドで動く)。計測して note に残す。",
+    ],
+    notes: [
+      "同位体の質量と存在比は P-805(元素・同位体テーブル、NIST 由来)と同じデータを使える。プラグイン同士は import できないので、必要な分をコピーして同梱する。",
+      "サンプル(ユーザーの Dropbox): 「MS494 follow-up 30 min APCI-neg-wide3.d」「MS494 follow-up 30 min APCI-pos-wide.d」「MS493 follow-up crude APCI-neg-wide4.d」。未発表の研究データなので、公開リポジトリのテストデータにしない。テストには合成した mzML を使い、実データはローカルでの確認だけに使う(同梱したいときはユーザーに確認)。",
+      "P-108(クロマトグラフィーのインポータ、ANDI-MS netCDF を含む)と一部重なる。LC-MS の netCDF を読むかは P-108 側で扱う。",
+    ],
+  },
   "P-901": {
     spec: [
       "【グラデーション作成】色の点(ストップ)を2個以上いくつでも置け、位置を 0〜1 で調整できる。抽出数 N を指定すると、グラデーションの端から端まで等間隔に N 色を抜き出して色見本と HEX で並べる。反転、ストップの追加・削除・並べ替え。",
@@ -733,7 +764,7 @@ function el(tag, attrs = {}, ...children) {
 function chip(state) { return el("span", { class: "chip s-" + state, text: STATE_LABEL[state] }); }
 
 function promptFor(p) {
-  const d = DETAIL[p[0]] || { spec: [], decide: [], notes: [] };
+  const d = { spec: [], decide: [], notes: [], direction: [], open: [], ...DETAIL[p[0]] };
   const lines = [];
   lines.push(`Graphica のプラグイン開発を始めます: ${p[0]} ${p[1]}`);
   lines.push("");
@@ -751,6 +782,7 @@ function promptFor(p) {
   lines.push(`- リポジトリ名の候補: ${repoName(p)}`);
   lines.push(`- 規模の目安: 難易度 ${p[2]} / 工数 ${p[3]} / 需要 ${p[4]}`);
   if (p[7]) lines.push(`- 概要: ${p[7]}`);
+  if (d.direction && d.direction.length) { lines.push(`- 方針(計画チャットで合意${d.planned ? "、" + d.planned : ""}。大枠だけで、詳細は未定):`); d.direction.forEach(s => lines.push(`  - ${s}`)); }
   if (d.spec.length) { lines.push("- 仕様の叩き台:"); d.spec.forEach(s => lines.push(`  - ${s}`)); }
   if (d.notes.length) { lines.push("- 注意:"); d.notes.forEach(s => lines.push(`  - ${s}`)); }
   const live = liveState[p[0]];
@@ -758,7 +790,11 @@ function promptFor(p) {
   lines.push("");
   lines.push("## 進め方");
   lines.push("1. ハブの db(collection \"plugins\"、doc_id \"" + p[0] + "\")を read_db で読み、state を \"in_progress\" にする。");
-  if (d.decide.length) {
+  if (d.direction && d.direction.length) {
+    lines.push("2. 実装の前に、ユーザーと仕様をブラッシュアップする。上の方針は計画チャットで決めた大枠なので、対象範囲・入出力・UI・v1.0 に入れるものを選択肢と推奨を添えて詰める。方針そのものを変えるときもユーザーに確認する。");
+    if (d.open && d.open.length) { lines.push("   特に次の点:"); d.open.forEach(s => lines.push(`   - ${s}`)); }
+    lines.push("   決まった仕様はリポジトリの CLAUDE.md(「v1.0 の範囲」「見送ったこと」)に書き、ハブの db の note にも1〜3文で残す。");
+  } else if (d.decide.length) {
     lines.push("2. 実装の前に、次の点を選択肢と推奨を添えてユーザーに確認する:");
     d.decide.forEach(s => lines.push(`   - ${s}`));
   } else {
@@ -790,7 +826,7 @@ function renderSummary() {
     if (counts[s]) { const seg = el("span"); seg.style.width = (counts[s] / P.length * 100) + "%"; seg.style.background = colors[s]; bar.append(seg); }
   }
   box.append(bar);
-  for (const s of ["done", "in_progress", "next", "todo", "blocked", "hold", "dropped"]) {
+  for (const s of ["done", "in_progress", "next", "planned", "todo", "blocked", "hold", "dropped"]) {
     if (!counts[s] && !["done", "in_progress", "next", "todo"].includes(s)) continue;
     box.append(el("span", { class: "stat" }, el("b", { text: String(counts[s] || 0) }), STATE_LABEL[s]));
   }
@@ -823,7 +859,7 @@ function renderQueue() {
 function list(items) { const ul = el("ul", { class: "notes" }); items.forEach(t => ul.append(el("li", { text: t }))); return ul; }
 
 function buildDetail(p) {
-  const d = DETAIL[p[0]] || { spec: [], decide: [], notes: [] };
+  const d = { spec: [], decide: [], notes: [], direction: [], open: [], ...DETAIL[p[0]] };
   const box = el("div", { class: "detail" });
   const kv = el("dl", { class: "kv" });
   const add = (k, v) => { kv.append(el("dt", { text: k })); const dd = el("dd"); dd.append(v); kv.append(dd); };
@@ -847,6 +883,8 @@ function buildDetail(p) {
     box.append(lv);
   }
   if (effState(p) === "blocked") box.append(el("div", { class: "warn blockwarn", text: "本体側の対応が先に必要な項目です(注意を参照)。" }));
+  if (d.direction && d.direction.length) box.append(el("div", {}, el("h3", { text: `方針(計画チャットで合意${d.planned ? "・" + d.planned : ""})` }), list(d.direction)));
+  if (d.open && d.open.length) box.append(el("div", {}, el("h3", { text: "開発チャットで詰めること" }), list(d.open)));
   if (d.spec.length) box.append(el("div", {}, el("h3", { text: "仕様の叩き台" }), list(d.spec)));
   if (d.decide.length) box.append(el("div", {}, el("h3", { text: "着手前に決めること" }), list(d.decide)));
   if (d.notes.length) box.append(el("div", {}, el("h3", { text: "注意" }), list(d.notes)));

@@ -157,6 +157,8 @@ F 安全網 / G プラグイン窓口 / H 分割 / I pip 配布 / J コメント
 **プラグイン開発ハブを公開(2026-09-17)**: https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o
 (ソース `docs/dev/plugin_hub.html`、db capability)。プラグインは1件ずつ別チャット・別リポジトリで
 開発し、状態はハブの db(collection `plugins`)が正。各項目に引継ぎプロンプトあり。
+2026-09-28 から新しい案は「計画チャット」で方針だけ決めてハブに追加する(状態「方針のみ」、
+詳細は開発チャットで詰める)。最初の追加は P-316(質量分析パック)。
 着手順 1 は P-402(統計検定)。詳細は `docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md` の「次にやること」。
 
 **公開に向けた整備(v1.4.2 公開後、同日)**: リポジトリの About(説明文・Wiki へのリンク・トピック10件)を設定。
