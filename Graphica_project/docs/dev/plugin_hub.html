@@ -271,8 +271,10 @@ pytest</code></pre>
 gh release create v1.0.0 dist/&lt;plugin_name&gt;-1.0.0.zip --title "v1.0.0" --notes "…"</code></pre>
           </div></li>
           <li><div>
-            <h3>ハブを更新する</h3>
-            <p><code>state: "done"</code>、<code>repo</code>、<code>version</code>、<code>release_url</code>、<code>note</code> を書き込み、更新後の状態をユーザーに表で示します。本体リポジトリの <code>docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md</code> の表にも1行追記します(本体への書き込みはこの記録だけ)。</p>
+            <h3>ハブと Wiki の一覧を更新する</h3>
+            <p><code>state: "done"</code>、<code>repo</code>、<code>version</code>、<code>release_url</code>、<code>note</code> を書き込み、更新後の状態をユーザーに表で示します。本体リポジトリの <code>docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md</code> の表にも1行追記します。</p>
+            <p>利用者向けの <a href="https://github.com/STsuruga/Graphica/wiki/17-プラグイン一覧">Wiki「プラグイン一覧」</a>も更新します。新しいプラグインなら表に1行と紹介の節(何ができるか、メニューのどこから開くか、リリースへのリンク)を足し、更新なら表の版と zip へのリンクを新しい版に直します。Wiki は <code>https://github.com/STsuruga/Graphica.wiki.git</code> を clone して編集し、push します(公開される操作なので、push の前に差分をユーザーに見せて了承を得ます)。書くのは利用者向けの言葉で、開発の経緯や項目番号は載せません。</p>
+            <p class="hint">本体側で書き込んでよいのは、この進捗表の1行と Wiki の「プラグイン一覧」だけです。本体のコードやほかの Wiki ページは変更しません(直したい箇所に気づいたら、ハブの <code>note</code> に書いてユーザーに伝えます)。</p>
           </div></li>
         </ol>
       </section>
@@ -805,6 +807,7 @@ function promptFor(p) {
   lines.push("4. 計算は本体非依存のモジュールに分けて単体テスト、register() と窓口(ctx)を使う処理は FakeGraphicaPluginAPI / FakePluginContext、本番の読み込み経路は load_plugin_like_graphica でテストする(どれも graphica.plugin.testing)。");
   lines.push("5. zip をビルドし、仮想環境の graphica コマンドと GitHub Releases の exe の両方でインストールして動作を確認。画面を伴う機能はユーザーにも確認してもらう。");
   lines.push("6. GitHub Release に zip を添付し、ハブの db を state \"done\" / repo / version / release_url / note で更新して、更新後の状態を表で報告する。本体の docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表にも1行追記する。");
+  lines.push("7. Wiki の「プラグイン一覧」(https://github.com/STsuruga/Graphica/wiki/17-プラグイン一覧、git は https://github.com/STsuruga/Graphica.wiki.git)に、このプラグインの行と紹介の節を足す(更新なら版と zip のリンクを直す)。push の前に差分をユーザーに見せて了承を得る。");
   lines.push("");
   lines.push("## 守ること");
   lines.push("- Graphica 本体のコードは変更しない。足りない拡張点や本体の不具合は、ユーザーの了承を得て Graphica の Issue に書き、ハブの note にも残す。");
@@ -975,7 +978,8 @@ Graphica(https://github.com/STsuruga/Graphica)用プラグイン <P-xxx 名前> 
 
 ## 作業の範囲
 - このリポジトリ専用。ほかのプラグインのリポジトリと Graphica 本体は変更しない
-  (本体への書き込みは docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表への1行だけ)。
+  (本体への書き込みは docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表への1行と、
+  Wiki の「プラグイン一覧」ページの更新だけ)。
 - 新しいプラグインを始めるときは、新しいチャットでハブの引継ぎプロンプトから始める。
 
 ## このプラグイン
@@ -1000,6 +1004,7 @@ python scripts/build_zip.py --all      # dist/<plugin_name>-<version>.zip
 - 受け取った Dataset は書き換えない。新しい Dataset は name / df / x_col_name / y_col_name 必須。
 - 本体から import するのは graphica.plugin / graphica.plugin.testing だけ。本体の操作は窓口 ctx(PluginContext)で行う。
 - リリースしたら plugin.json の version とタグを揃え、ハブの db(collection "plugins", doc_id "<P-xxx>")を更新する。
+- リリースしたら Wiki の「プラグイン一覧」(https://github.com/STsuruga/Graphica/wiki/17-プラグイン一覧)の版と zip のリンクも更新する。
 
 ## 現状
 <作業の区切りごとに更新: どこまでできていて、次に何をするか>`;
