@@ -169,9 +169,9 @@ td.sig { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
 
 <div class="wrap">
   <header class="head">
-    <div class="eyebrow">Track 4 · PLUGIN_API_VERSION 2.0 · 1プラグイン = 1リポジトリ</div>
+    <div class="eyebrow">Graphica v2.0.0 · PLUGIN_API_VERSION 2.0 · 1プラグイン = 1リポジトリ = 1チャット</div>
     <h1>Graphica プラグイン開発ハブ</h1>
-    <p>プラグインは1つずつ別のチャット・別のリポジトリで開発します。このページは、どのチャットからも同じ前提で始められるようにするための共通の資料と、全件の進捗ボードです。状態はこのページのデータベースに保存され、各チャットが更新します。</p>
+    <p>プラグインは1つずつ、専用のリポジトリと専用の新しいチャットで開発します。本体(Graphica)のリポジトリやチャットではプラグインを作りません。このページは、どのチャットからも同じ前提で始められるようにするための共通の資料と、全件の進捗ボードです。状態はこのページのデータベースに保存され、各チャットが更新します。</p>
   </header>
 
   <div class="summary" id="summary" aria-live="polite"></div>
@@ -211,6 +211,7 @@ td.sig { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
       <section>
         <h2>進め方の全体像</h2>
         <p>ユーザーはこのボードで対象のプラグインを開き、「引継ぎプロンプト」をコピーして新しいチャットに貼り付けます。貼り付けられたチャットは、このページ(<code>https://claude.ai/artifact/GZ3LTLJjbxj1LQsAhZFg2o</code>)を <code>Artifact</code> ツールの <code>action: "read"</code> で読んでから、次の手順で進めてください。</p>
+        <div class="rule"><strong>1プラグイン = 1リポジトリ = 1チャット</strong><span>プラグインを1つ始めるたびに、新しいチャットを開きます。1つのチャットで2つ目のプラグインを始めたり、本体のチャットでプラグインを作ったりしません(前提が混ざり、別のリポジトリへ書き込む事故のもとになります)。チャットの作業フォルダは、本体の <code>PlotterApp</code> と同じ階層の <code>graphica-plugins/</code> にし、リポジトリを作ったあとは <code>graphica-plugins/graphica-plugin-&lt;name&gt;/</code> に移ります。同じプラグインの続き(v1.1 など)は、そのリポジトリの <code>CLAUDE.md</code> の「現状」から新しいチャットで再開して構いません。</span></div>
       </section>
 
       <section>
@@ -226,9 +227,10 @@ td.sig { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
           </div></li>
           <li><div>
             <h3>リポジトリを作る</h3>
-            <p>名前は <code>graphica-plugin-&lt;name&gt;</code>(各項目に候補があります)。GitHub への作成・push は外部に公開する操作なので、ユーザーの了承を得てから行います。ローカルの置き場所は、本体の <code>PlotterApp</code> と同じ階層に <code>graphica-plugins/</code> フォルダを作り、その中にまとめるのが推奨です。</p>
-<pre><code>gh repo create STsuruga/graphica-plugin-&lt;name&gt; --public --description "Graphica用プラグイン: …(P-xxx)"
-git clone https://github.com/STsuruga/graphica-plugin-&lt;name&gt;.git</code></pre>
+            <p>名前は <code>graphica-plugin-&lt;name&gt;</code>(各項目に候補があります)。GitHub への作成・push は外部に公開する操作なので、ユーザーの了承を得てから行います。ローカルでは、本体の <code>PlotterApp</code> と同じ階層の <code>graphica-plugins/</code> の中に置きます(無ければ作る)。</p>
+<pre><code>cd graphica-plugins
+gh repo create STsuruga/graphica-plugin-&lt;name&gt; --public --clone --description "Graphica用プラグイン: …(P-xxx)"
+cd graphica-plugin-&lt;name&gt;</code></pre>
             <p>雛形は <a href="https://github.com/STsuruga/graphica-plugin-element-constants">graphica-plugin-element-constants</a>(P-805)です。次のファイルをコピーして、プラグイン名の部分だけ書き換えます。</p>
             <div class="tbl"><table>
               <thead><tr><th>ファイル</th><th>そのまま使える?</th><th>役割</th></tr></thead>
@@ -243,10 +245,13 @@ git clone https://github.com/STsuruga/graphica-plugin-&lt;name&gt;.git</code></p
           </div></li>
           <li><div>
             <h3>開発環境をつなぐ</h3>
-<pre><code>pip install -e ../../PlotterApp/Graphica_project   # 本体を editable install(パスは置き場所に合わせる)
+<pre><code>python -m venv .venv
+.venv\Scripts\activate                 # macOS / Linux は source .venv/bin/activate
+pip install "graphica-plot&gt;=2.0,&lt;3"     # PyPI の Graphica(プラグイン API 2.x)
 pip install -r requirements-dev.txt
 pytest</code></pre>
-            <p>これで <code>from graphica.plugin import Dataset</code> と <code>from graphica.plugin.testing import …</code> が使えます。本体の内部(<code>core</code> など)は import しません。</p>
+            <p>これで <code>from graphica.plugin import Dataset</code> と <code>from graphica.plugin.testing import …</code> が使え、<code>graphica</code> コマンドで本体を起動できます。本体の内部(<code>graphica.core</code> など)は import しません。</p>
+            <p><strong>仮想環境はリポジトリごとに作ります。</strong>ふだんの Python には本体の開発用に <code>PlotterApp</code> を editable install してあるので、そこへ <code>graphica-plot</code> を入れると本体の開発環境とぶつかります。Python は 3.11 以上にします(3.10 では matplotlib が 3.10 系になり、配布版の 3.11 と描画が少し変わります)。本体の未リリースの変更に合わせて試すときだけ、PyPI の代わりに <code>pip install -e &lt;PlotterApp&gt;/Graphica_project</code> を使います。<code>.venv/</code> は <code>.gitignore</code> に入れます。</p>
           </div></li>
           <li><div>
             <h3>実装とテスト</h3>
@@ -254,7 +259,7 @@ pytest</code></pre>
           </div></li>
           <li><div>
             <h3>本体に入れて動かす</h3>
-            <p><code>python scripts/build_zip.py --all</code> で zip を作り、Graphica をソースから起動(<code>python main.py</code>)して <strong>編集 ▸ 環境設定 ▸ プラグイン ▸ プラグインをインストール...</strong> から入れ、再起動して実際に操作します。画面を伴う機能は、ユーザーにも実機で確認してもらいます。</p>
+            <p><code>python scripts/build_zip.py --all</code> で zip を作り、Graphica を起動して <strong>編集 ▸ 環境設定 ▸「プラグイン」タブ ▸ プラグインをインストール...</strong> から入れ、再起動して実際に操作します。起動は仮想環境の <code>graphica</code> コマンドと、<a href="https://github.com/STsuruga/Graphica/releases/latest">GitHub Releases</a> の exe(利用者と同じ同梱ライブラリ)の両方で確かめます。zip は <code>%LOCALAPPDATA%\Graphica\plugins</code> に展開されるので、どちらの起動方法でも同じプラグインが読まれます。画面を伴う機能は、ユーザーにも実機で確認してもらいます。</p>
           </div></li>
           <li><div>
             <h3>リリースする</h3>
@@ -283,13 +288,15 @@ gh release create v1.0.0 dist/&lt;plugin_name&gt;-1.0.0.zip --title "v1.0.0" --n
       <section>
         <h2>守ること</h2>
         <div class="rule"><strong>Graphica 本体のコードは変更しない。</strong><span>フックが足りない、本体の不具合を見つけた、といった場合は実装を止めて、<a href="https://github.com/STsuruga/Graphica/issues">Graphica の Issue</a> に「必要な拡張点と、プラグイン側で何ができなかったか」を書き(作成はユーザーの了承を得てから)、ハブの <code>note</code> にも残します。回避策で本体の非公開メソッドに深く依存するのは避けます。</span></div>
-        <div class="rule"><strong>使えるのは本体が同梱しているパッケージだけ。</strong><span>標準ライブラリ、<code>PySide6</code> / <code>matplotlib</code> / <code>numpy</code> / <code>pandas</code> / <code>scipy</code> / <code>openpyxl</code> / <code>xlrd</code>。配布版(exe/app)にはこれ以外が入っていません。<code>h5py</code> や <code>plotly</code> などが必要な項目は、着手前に「pip 版だけで動くプラグインにするか」をユーザーと決めます。使うモジュールは <code>plugin.json</code> の <code>requires</code> に書くと、無い環境で明確なメッセージとともにスキップされます。</span></div>
+        <div class="rule"><strong>使えるのは本体が同梱しているパッケージだけ。</strong><span>標準ライブラリ、<code>PySide6</code> / <code>matplotlib</code> / <code>numpy</code> / <code>pandas</code> / <code>scipy</code> / <code>openpyxl</code> / <code>xlrd</code>。配布版(exe/app)にはこれ以外が入っていません。v2.0.0 の配布版の版は PySide6 6.11 / matplotlib 3.11 / numpy 2.3 / pandas 2.3 / scipy 1.16 です(pip 版は PySide6 &lt;6.12、matplotlib &lt;3.12、pandas &lt;3 などの範囲で入ります)。<code>h5py</code> や <code>plotly</code> などが必要な項目は、着手前に「pip 版だけで動くプラグインにするか」をユーザーと決めます。使うモジュールは <code>plugin.json</code> の <code>requires</code> に書くと、無い環境で明確なメッセージとともにスキップされます。</span></div>
         <div class="rule"><strong>プラグインフォルダ内の import は相対 import。</strong><span>本体はプラグインを <code>graphica_plugin_&lt;フォルダ名&gt;</code> という動的モジュール名で読み込みます。<code>from .analysis import …</code> と書き、<code>from my_plugin.analysis import …</code> とは書きません。<strong>プラグイン同士も import できません</strong>(他プラグインのコードを使うならコピーして同梱)。</span></div>
         <div class="rule"><strong>元のデータを書き換えない。</strong><span>processor / analyzer は受け取った <code>Dataset</code> やその <code>df</code> を変更せず、新しい <code>Dataset</code> を返します。追加は本体が Undo 付きで行います。</span></div>
         <div class="rule"><strong>結果は構造化して返す。</strong><span>analyzer の結果は文字列に詰め込まず、<code>AnalysisResult</code> の <code>table</code>(DataFrame)/ <code>annotations</code> / <code>new_datasets</code> に分けます。表示・CSV 出力・Undo は本体側が面倒を見ます。</span></div>
-        <div class="rule"><strong>本体から import してよいのは <code>graphica.plugin</code> と <code>graphica.plugin.testing</code> だけ。</strong><span><code>Dataset</code> / <code>AnalysisResult</code> は <code>from graphica.plugin import …</code>、偽物と読み込みの確認は <code>graphica.plugin.testing</code>。<code>core</code> / <code>gui</code> / <code>models</code> は本体の内部で、I-1 で <code>graphica.*</code> の下へ移るので、直接 import すると壊れます。</span></div>
+        <div class="rule"><strong>本体から import してよいのは <code>graphica.plugin</code> と <code>graphica.plugin.testing</code> だけ。</strong><span><code>Dataset</code> / <code>AnalysisResult</code> / <code>PluginContext</code> / <code>PluginExecutionError</code> / <code>PLUGIN_API_VERSION</code> は <code>from graphica.plugin import …</code>、偽物と読み込みの確認は <code>graphica.plugin.testing</code>。<code>graphica.core</code> / <code>graphica.gui</code> / <code>graphica.models</code> は本体の内部で、予告なく変わります(v2.0.0 で内部の構造を大きく作り直しました)。本体の機能を使いたいときは、同じ処理をプラグイン内に持つか、窓口の追加を本体の Issue で求めます。</span></div>
         <div class="rule"><strong>本体とは窓口 <code>ctx</code>(PluginContext)だけでやりとりする。</strong><span>メニューの callback とパネルの <code>widget_factory</code> には、そのタブの窓口 <code>ctx</code> が渡ります。データセットの取得・追加・変更(Undo 付き)、再描画、変化の通知、メッセージ表示、プラグイン専用の保存フォルダ(<code>ctx.data_dir</code>)、登録色と配色パレットの読み書きは、すべて <code>ctx</code> で行います。本体の内部(<code>PlotterApp</code>、<code>_</code> で始まるメソッド、QSettings のキー)には触りません。メニューで受け取った <code>ctx</code> を保存して別のときに使うと別のタブを操作してしまうので、使い回さないでください(パネルは自分の <code>ctx</code> を持ち続けてよい)。</span></div>
         <div class="rule"><strong>すべて GUI スレッドで同期実行される。</strong><span>重い計算(数秒以上)はそのまま UI を止めます。点数に上限を設ける、間引く、処理前に件数を示すなどで対処し、ハブの <code>note</code> に計測値を残します。</span></div>
+        <div class="rule"><strong>色は <code>#rrggbb</code> の文字列にそろえてから Qt に渡す。</strong><span>matplotlib 3.11 から、既定の色の並び(<code>rcParams['axes.prop_cycle']</code>)やカラーマップの色は <code>(r, g, b)</code> の組で返ります。組のまま <code>QColor</code> などに渡すと、PySide6 6.11 ではプロセスごと落ちます。<code>matplotlib.colors.to_hex()</code> で変換してから渡します。<code>Dataset.color</code> と窓口の色(<code>ctx.active_color_cycle()</code> など)は <code>#rrggbb</code> です。</span></div>
+        <div class="rule"><strong>Qt のイベント処理の中で例外を出さない。</strong><span>PySide6 6.11 から、<code>closeEvent</code> や <code>eventFilter</code> などの中で起きた例外が握りつぶされずに表に出ます。パネルの後片付けでは、持っている参照が実物か(<code>None</code> でないか)を確かめてから触ります。</span></div>
         <div class="rule"><strong>表示名は英語か日本語をそのまま渡す。</strong><span>本体の翻訳機構(<code>tr()</code>)にはつながりません。メニュー名・パネル名は、利用者が主に使う言語で1つに決めます(既存の P-805 は日本語)。</span></div>
       </section>
 
@@ -380,14 +387,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
-      - name: Install Graphica (editable) and test deps
-        shell: bash
+      - name: Install Graphica and test deps
         run: |
-          git clone --depth 1 https://github.com/STsuruga/Graphica.git ../Graphica
-          pip install -e ../Graphica/Graphica_project
+          pip install "graphica-plot&gt;=2.0,&lt;3"
           pip install -r requirements-dev.txt
       - run: pytest</code></pre>
-        <p class="hint">Windows ランナーを使うのは、Linux では offscreen の Qt に追加のシステムライブラリが要るためです。本体の master に追従するので、本体側の変更で落ちたときは本体の Issue を確認します。</p>
+        <p class="hint">Windows ランナーを使うのは、Linux では offscreen の Qt に追加のシステムライブラリが要るためです。PyPI の Graphica(プラグイン API 2.x の範囲の最新版)に対してテストするので、本体の新しい版が出て落ちたときは、本体の CHANGELOG と Issue を確認します。</p>
       </section>
 
       <section>
@@ -419,7 +424,7 @@ data: { "state": "in_progress", "repo": "STsuruga/graphica-plugin-uvvis",
     <div class="prose" style="max-width:none">
       <section>
         <h2>register(api) で使えるフック</h2>
-        <p>どのフックも例外を投げず、失敗すると <code>False</code> を返してログに記録します(画面には何も出ません)。メニューの callback と processor / analyzer などの<strong>実行時</strong>の失敗は、プラグイン名付きのエラーとして画面に出ます。動かないときは <code>%LOCALAPPDATA%\Graphica\graphica.log</code> を見ます。同じ名前の二重登録は失敗します。</p>
+        <p>どのフックも例外を投げず、失敗すると <code>False</code> を返してログに記録します(画面には何も出ません)。メニューの callback と processor / analyzer などの<strong>実行時</strong>の失敗は、プラグイン名付きのエラーとして画面に出ます。動かないときは <code>%LOCALAPPDATA%\Graphica\graphica.log</code>(macOS・Linux は <code>~/.local/share/Graphica/graphica.log</code>)を見ます。同じ名前の二重登録は失敗します。</p>
         <div class="tbl"><table>
           <thead><tr><th>フック</th><th>渡すもの</th><th>画面のどこに出るか</th></tr></thead>
           <tbody>
@@ -680,7 +685,7 @@ const DETAIL = {
       "【配色パレット生成(Adobe Express の Color palette generator を参考、ユーザー提示のスクリーンショット)】作り方は3つ。基準色から / 画像から(画像の画素を k-means で代表色に絞る。QImage で読み、numpy と scipy.cluster.vq で計算できるので追加依存なし)/ カラーホイールから(色の点をドラッグ)。",
       "配色ルール: カスタム、類似色、モノクロマティック、トライアド、補色、スプリットコンプリメンタリー、スクエア、コンパウンド、シェード。ホイール上の点を1つ動かすと、ルールに従って他の点も連動する。",
       "パレットは5色前後(色数は変更可)。各色の HEX コピー、ランダム生成、元に戻す / やり直し。",
-      "色覚への配慮: 本体の core/cvd_simulation.simulate_hex_color で、P型・D型・T型の見え方に切り替えて表示。隣り合う色が見分けにくい組み合わせを警告する(色差 ΔE の閾値で判定)。",
+      "色覚への配慮: P型・D型・T型の見え方に切り替えて表示し、隣り合う色が見分けにくい組み合わせを警告する(色差 ΔE の閾値で判定)。本体の色覚シミュレーション(graphica.core.cvd_simulation、sRGB に掛ける 3×3 の近似行列)は内部なので import できない。同じ方式の行列をプラグイン内に持つ。",
       "【ライブラリ】作ったグラデーションとパレットに名前を付けてプラグイン専用の保存先に保存・一覧・削除・複製。JSON で書き出し / 読み込み(研究室内での共有用)。",
       "【本体への受け渡し】(1) 本体の登録色(色見本メニューの登録色)へ名前付きで追加: ctx.named_colors() で読み、追加して ctx.set_named_colors() で書く(本体と同じ検証が入る)。(2) 本体の配色パレットとして登録: ctx.color_palettes() / ctx.set_color_palettes()。いま有効なパレットは ctx.active_color_cycle() で読める。本体の「自動配色」ボタンで、選択中のデータセットに順番に色を割り当てられる。QSettings のキーを直接読み書きしない。",
       "UI: カラーホイールや色見本は幅が要るので、ドックパネル(register_panel)よりも、プラグインメニューから開く独立したウィンドウ(register_menu_action)が向く。パネルにはライブラリの一覧と「開く」ボタンだけを置く案もある。",
@@ -732,10 +737,13 @@ function promptFor(p) {
   const lines = [];
   lines.push(`Graphica のプラグイン開発を始めます: ${p[0]} ${p[1]}`);
   lines.push("");
+  lines.push(`このチャットは ${p[0]} 専用です。ほかのプラグインや Graphica 本体の開発はしません(1プラグイン = 1リポジトリ = 1チャット)。`);
+  lines.push("作業フォルダは、本体の PlotterApp と同じ階層の graphica-plugins/(リポジトリを作ったあとは graphica-plugins/" + repoName(p).replace("STsuruga/", "") + "/)。");
+  lines.push("");
   lines.push("## まず読むもの");
   lines.push(`- 開発ハブ(Artifact): ${HUB_URL}`);
   lines.push("  Artifact ツールの action: \"read\" で読み、「新しいプラグインの始め方」「共通ルール」「API 早見表」と、この項目(" + p[0] + ")の内容に従ってください。");
-  lines.push("- 本体リポジトリ: https://github.com/STsuruga/Graphica(ローカルでは PlotterApp。CLAUDE.md の「Plugin API」節)");
+  lines.push("- 本体: Graphica v2.0.0(https://github.com/STsuruga/Graphica、PyPI の graphica-plot)。本体リポジトリの CLAUDE.md の「Plugin API」節と docs/plugin_development.md");
   lines.push("- 雛形リポジトリ: https://github.com/STsuruga/graphica-plugin-element-constants");
   lines.push("");
   lines.push("## このプラグイン");
@@ -757,13 +765,14 @@ function promptFor(p) {
     lines.push("2. 実装の前に、v1.0 に入れる範囲を選択肢と推奨を添えてユーザーに確認する。");
   }
   lines.push("3. リポジトリの作成と push はユーザーの了承を得てから行う。雛形から conftest.py / build_zip.py などをコピーし、LICENSE(MIT)と CLAUDE.md(ハブの雛形)を置く。");
+  lines.push("   開発環境はリポジトリごとの仮想環境(python -m venv .venv)に pip install \"graphica-plot>=2.0,<3\" と requirements-dev.txt を入れる。ふだんの Python には入れない。");
   lines.push("4. 計算は本体非依存のモジュールに分けて単体テスト、register() と窓口(ctx)を使う処理は FakeGraphicaPluginAPI / FakePluginContext、本番の読み込み経路は load_plugin_like_graphica でテストする(どれも graphica.plugin.testing)。");
-  lines.push("5. zip をビルドし、ソース版 Graphica にインストールして動作を確認。画面を伴う機能はユーザーにも確認してもらう。");
+  lines.push("5. zip をビルドし、仮想環境の graphica コマンドと GitHub Releases の exe の両方でインストールして動作を確認。画面を伴う機能はユーザーにも確認してもらう。");
   lines.push("6. GitHub Release に zip を添付し、ハブの db を state \"done\" / repo / version / release_url / note で更新して、更新後の状態を表で報告する。本体の docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表にも1行追記する。");
   lines.push("");
   lines.push("## 守ること");
   lines.push("- Graphica 本体のコードは変更しない。足りない拡張点や本体の不具合は、ユーザーの了承を得て Graphica の Issue に書き、ハブの note にも残す。");
-  lines.push("- 使えるのは本体が同梱しているパッケージだけ(PySide6 / matplotlib / numpy / pandas / scipy / openpyxl / xlrd と標準ライブラリ)。");
+  lines.push("- 使えるのは本体が同梱しているパッケージだけ(PySide6 6.11 / matplotlib 3.11 / numpy / pandas / scipy / openpyxl / xlrd と標準ライブラリ)。matplotlib の色は to_hex で #rrggbb にしてから Qt に渡す。");
   lines.push("- プラグイン内の import は相対 import。プラグイン同士は import できない。");
   lines.push("- 受け取った Dataset は書き換えず、新しい Dataset を返す(name / df / x_col_name / y_col_name は必須)。");
   lines.push("- 本体から import してよいのは graphica.plugin と graphica.plugin.testing だけ。本体とのやりとりは窓口 ctx(PluginContext)を通す。plugin.json の api_version は \"2.0\"。");
@@ -924,7 +933,12 @@ Graphica(https://github.com/STsuruga/Graphica)用プラグイン <P-xxx 名前> 
 ## 最初に読むもの
 - 開発ハブ(Artifact): ${HUB_URL}
   Artifact ツールの action: "read" で読む。共通ルール・API 早見表・この項目の仕様と状態がある。
-- 本体の CLAUDE.md「Plugin API」節(本体リポジトリ)
+- 本体の CLAUDE.md「Plugin API」節と docs/plugin_development.md(本体リポジトリ)
+
+## 作業の範囲
+- このリポジトリ専用。ほかのプラグインのリポジトリと Graphica 本体は変更しない
+  (本体への書き込みは docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表への1行だけ)。
+- 新しいプラグインを始めるときは、新しいチャットでハブの引継ぎプロンプトから始める。
 
 ## このプラグイン
 - 項目: <P-xxx>。使うフック: <register_...>
@@ -932,14 +946,18 @@ Graphica(https://github.com/STsuruga/Graphica)用プラグイン <P-xxx 名前> 
 - 見送ったこと・次の版に回したこと: <…>
 
 ## コマンド
-pip install -e <PlotterApp>/Graphica_project
+python -m venv .venv                  # 初回だけ。Python 3.11 以上
+.venv\\Scripts\\activate               # macOS / Linux は source .venv/bin/activate
+pip install "graphica-plot>=2.0,<3"   # 本体の未リリースの変更で試すときは pip install -e <PlotterApp>/Graphica_project
 pip install -r requirements-dev.txt
 pytest
+graphica                               # 本体を起動(zip は 編集 ▸ 環境設定 ▸ プラグイン から入れる)
 python scripts/build_zip.py --all      # dist/<plugin_name>-<version>.zip
 
 ## ルール
 - Graphica 本体のコードは変更しない。足りない拡張点は本体の Issue(ユーザーの了承を得て作成)とハブの note に記録する。
-- 依存は本体同梱のパッケージのみ(PySide6 / matplotlib / numpy / pandas / scipy / openpyxl / xlrd)。
+- 依存は本体同梱のパッケージのみ(PySide6 6.11 / matplotlib 3.11 / numpy / pandas / scipy / openpyxl / xlrd)。
+- matplotlib の色は組で返ることがあるので、Qt に渡す前に matplotlib.colors.to_hex で #rrggbb にする。
 - プラグイン内は相対 import。他プラグインは import できない。
 - 受け取った Dataset は書き換えない。新しい Dataset は name / df / x_col_name / y_col_name 必須。
 - 本体から import するのは graphica.plugin / graphica.plugin.testing だけ。本体の操作は窓口 ctx(PluginContext)で行う。
