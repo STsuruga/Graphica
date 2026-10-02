@@ -26,7 +26,9 @@ QApplication は生きたままなので、放っておくとウィジェット�
 | 一括書き換え中の再描画停止 | `test_settings_mixin.py` 234秒 → 31秒 |
 | CHUNK_SIZE 30 → 150 | チャンク 150 → 98 |
 | **フルスイート全体** | **約35分 → 約17.5分** |
+| チャンクを並列に流し、軽いファイルをまとめる | 約17.5分 → 約5分(4 コア) |
 """
+import os
 import re
 import subprocess
 import sys
@@ -132,17 +134,6 @@ def test_chunk_runner_collects_test_ids_in_a_single_process():
         "ファイルごとの収集が保険以外の場所にも残っている"
 
 
-def test_chunk_runner_still_isolates_per_file():
-    """
-    チャンクを大きくしても、ファイル単位の分離自体は残すこと。
-    `tests/test_export_preview_panel.py` は全件パスした後の終了処理で
-    セグフォルトする既知問題があり、1プロセスにまとめると以降のテストが
-    道連れになる。
-    """
-    source = _runner_source()
-    assert "for f in tests/test_*.py" in source
-
-
 def test_chunk_size_is_documented_and_reasonable():
     match = re.search(r"^CHUNK_SIZE=(\d+)", _runner_source(), re.M)
     assert match, "CHUNK_SIZE が見つからない"
@@ -183,7 +174,7 @@ def test_app_settings_go_to_a_per_test_ini_not_the_registry(isolated_settings_fi
 
 
 def test_app_data_goes_to_a_temporary_folder_not_the_users(tmp_path):
-    """オートセーブ・ログ・入れたプラグインの場所は、利用者の %LOCALAPPDATA%\Graphica ではなく一時フォルダ。"""
+    """オートセーブ・ログ・入れたプラグインの場所は、利用者の %LOCALAPPDATA%\\Graphica ではなく一時フォルダ。"""
     import tempfile
 
     from graphica.core.app_paths import get_app_data_dir, get_user_plugins_dir
@@ -308,6 +299,8 @@ def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
     """import で落ちたテストファイルを黙って飛ばすと、その分のテストが消えたまま緑になる(K-30)。"""
     tests_dir = tmp_path / "tests"
     tests_dir.mkdir()
+    # 上の階層の pyproject.toml を拾うと、テスト ID がこのフォルダからの相対にならない
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
     (tests_dir / "test_ok.py").write_text("def test_ok():\n    pass\n", encoding="utf-8")
     (tests_dir / "test_broken.py").write_text(
         "from graphica.no_such_module import nothing\n\n\ndef test_never():\n    pass\n", encoding="utf-8")
@@ -321,3 +314,40 @@ def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
     assert "no_such_module" in result.stdout
     assert "!!! FAILED: tests/test_empty.py" not in result.stdout
     assert "1 passed" in result.stdout
+
+
+def test_chunk_runner_runs_chunks_in_parallel_and_judges_each_one(tmp_path):
+    """小さいファイルはまとめ、大きいファイルは分けて並列に流す。終了処理でだけ落ちたチャンクは警告、
+    テストの失敗は失敗。空白や括弧を含むテスト ID も 1 つの引数のまま渡る。"""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    # 上の階層の pyproject.toml を拾うと、テスト ID がこのフォルダからの相対にならない
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (tests_dir / "test_ok.py").write_text("def test_ok():\n    pass\n", encoding="utf-8")
+    # test_export_preview_panel.py と同じく、全件パスのサマリーを出したあとで落ちる
+    (tests_dir / "test_crash_at_exit.py").write_text(
+        "import atexit, os\natexit.register(os._exit, 139)\n\n\ndef test_ok():\n    pass\n", encoding="utf-8")
+    # ウィンドウを作るファイル(重いファイル)として数えられるよう、目印の文字列を入れておく
+    (tests_dir / "test_many.py").write_text(
+        "import pytest\n\n# PlotterApp(\n\n\n@pytest.mark.parametrize('v', [f'a b ({i})' for i in range(130)])\n"
+        "def test_param(v):\n    assert v.startswith('a b (')\n", encoding="utf-8")
+    result = subprocess.run(
+        [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+        env={**os.environ, "GRAPHICA_TEST_JOBS": "2"},
+    )
+    assert result.returncode == 0, result.stdout
+    assert "2 in parallel" in result.stdout
+    # test_crash_at_exit と test_ok は小さいので 1 つのプロセスにまとまる
+    assert "!!! WARN: test_crash_at_exit test_ok exited rc=139" in result.stdout
+    assert "!!! FAILED" not in result.stdout
+    # 重いファイルは 60 件(MAX_COST / HEAVY_WEIGHT)ずつに分かれる
+    assert result.stdout.count("60 passed") == 2 and "10 passed" in result.stdout
+
+    (tests_dir / "test_broken_assert.py").write_text("def test_fails():\n    assert False\n", encoding="utf-8")
+    result = subprocess.run(
+        [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+    )
+    assert result.returncode != 0, result.stdout
+    assert "!!! FAILED" in result.stdout

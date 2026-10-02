@@ -1,5 +1,7 @@
 # tests/test_canvas.py
 """gui/canvas.py の純粋なヘルパー関数(凡例順序・目盛りロケータ/フォーマッタ)に対するテスト。"""
+from types import SimpleNamespace
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -2913,7 +2915,16 @@ def test_full_resolution_bypasses_line_downsampling(canvas):
     assert len(ds.artist.get_xdata()) == n
 
 
-def test_point_labels_aligned_with_lttb_downsampled_points(canvas):
+@pytest.fixture
+def small_lttb(monkeypatch):
+    """間引きの閾値と目標点数を小さくする(本物の 2 万点では、棒やラベルを 1 つずつ描くだけで十数秒かかる)。"""
+    from graphica.gui.rendering import data_1d
+    monkeypatch.setattr(data_1d, 'LTTB_DOWNSAMPLE_THRESHOLD', 200)
+    monkeypatch.setattr(data_1d, 'LTTB_DOWNSAMPLE_TARGET_POINTS', 60)
+    return SimpleNamespace(threshold=200, target=60)
+
+
+def test_point_labels_aligned_with_lttb_downsampled_points(canvas, small_lttb):
     """point_label_max_pointsがLTTB_DOWNSAMPLE_THRESHOLDより大きい値に設定
     されている場合(環境設定で変更可能)、LTTB間引きとポイントラベルが同時に
     適用されうる。間引き後の点数(x_data/y_data)とラベル値(元々visible_df
@@ -2921,8 +2932,8 @@ def test_point_labels_aligned_with_lttb_downsampled_points(canvas):
     「間引き後のi番目の点」に「元データi番目の行の値」という無関係なラベルが
     付いてしまう実害があった。既知の平面 y = 2x のデータで、各点のラベルが
     間引き後もその点自身のY値(=2倍の関係)のまま保たれることを確認する。"""
-    canvas.point_label_max_points = LTTB_DOWNSAMPLE_THRESHOLD + 10000
-    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    canvas.point_label_max_points = small_lttb.threshold + 100
+    n = small_lttb.threshold + 1
     x = np.arange(n, dtype=float)
     y = x * 2.0
     ds = Dataset(name="labeled_big", df=pd.DataFrame({"x": x, "y": y}),
@@ -2932,16 +2943,16 @@ def test_point_labels_aligned_with_lttb_downsampled_points(canvas):
     assert ds.dataset_id in canvas.downsample_index_map  # 実際に間引きが発生した前提の確認
     ax = canvas.all_axes[0]
     labels = [t for t in ax.texts]
-    assert len(labels) == LTTB_DOWNSAMPLE_TARGET_POINTS
+    assert len(labels) == small_lttb.target
     for t in labels:
         px, py = t.xy
         # ラベル文字列は".4g"(有効数字4桁)で丸められるため、相対誤差を広めに取る
         assert float(t.get_text()) == pytest.approx(py, rel=1e-3)  # ラベル値は自分自身の位置のY値と一致
 
 
-def test_downsampling_not_applied_to_bar_plot_type(canvas):
+def test_downsampling_not_applied_to_bar_plot_type(canvas, small_lttb):
     """Bar/Areaは1本1本・塗り形状の意味が変わるため、点数が多くても間引かない。"""
-    n = LTTB_DOWNSAMPLE_THRESHOLD + 1
+    n = small_lttb.threshold + 1
     x = np.arange(n, dtype=float)
     y = np.abs(np.sin(x / 100.0))
     ds = Dataset(name="bars", df=pd.DataFrame({"x": x, "y": y}),
