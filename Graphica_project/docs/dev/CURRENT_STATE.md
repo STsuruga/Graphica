@@ -21,7 +21,7 @@
 - 公開は `.github/workflows/pages.yml`。Pages は公開のたびにサイト全体を置き換えるので、サイトとカバレッジを
   ここでまとめて出す(Tests は `coverage-html` を成果物に残すだけになった)。
 - 検索: タイトル・説明文・OGP・構造化データ(SoftwareApplication)・`sitemap.xml` を入れた。Google Search Console への
-  登録と sitemap の送信はユーザーが行う(確認用のメタタグを受け取ったら `index.html` の `<head>` に足す)。
+  登録はユーザーが行う(確認用のメタタグは `index.html` の `<head>` に入れた。消すと所有権の確認が外れる)。
 
 ## 以前の現在地(2026-10-02): テストの高速化(フルスイート 約18分 → 約5分)
 
