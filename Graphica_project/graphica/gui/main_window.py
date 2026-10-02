@@ -429,6 +429,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self.canvas.mpl_connect('button_press_event', self._on_middle_button_press_pan)
         self.canvas.mpl_connect('motion_notify_event', self._on_middle_button_motion_pan)
         self.canvas.mpl_connect('button_release_event', self._on_middle_button_release_pan)
+        # 左ダブルクリックで表示をリセットする(左クリックを使うモードの間は何もしない)
+        self.canvas.mpl_connect('button_press_event', self._on_double_click_reset_view)
         # 凡例をドラッグした位置を設定へ保存する
         self.canvas.mpl_connect('button_release_event', self._on_legend_drag_release)
 

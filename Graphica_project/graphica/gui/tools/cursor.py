@@ -1,4 +1,5 @@
-"""データカーソル(点をクリックして値を見る)、ホイールでのズーム、中ボタンでのパン、グラフの要素のクリックでの選択。"""
+"""データカーソル(点をクリックして値を見る)、ホイールでのズーム、中ボタンでのパン、ダブルクリックでの表示のリセット、
+グラフの要素のクリックでの選択。"""
 import logging
 import numpy as np
 
@@ -11,7 +12,7 @@ class CursorTool:
     # PlotterApp から同じ名前で読み書きできるもの(テスト・メニュー・ほかの mixin が使う)
     EXPOSED_NAMES = (
         '_middle_pan_axes', '_middle_pan_start_data', '_middle_pan_start_xlim', '_middle_pan_start_ylim',
-        '_on_element_pick', '_on_middle_button_motion_pan', '_on_middle_button_press_pan',
+        '_on_double_click_reset_view', '_on_element_pick', '_on_middle_button_motion_pan', '_on_middle_button_press_pan',
         '_on_middle_button_release_pan', '_on_mouse_move', '_on_pick', '_on_scroll_zoom', '_toggle_cursor_mode',
         'cursor_annotation', 'cursor_connection_id', 'cursor_mode_enabled',
     )
@@ -53,6 +54,17 @@ class CursorTool:
         ax.set_xlim([xdata - new_width * (1 - relx), xdata + new_width * relx])
         ax.set_ylim([ydata - new_height * (1 - rely), ydata + new_height * rely])
         self._app.canvas.draw_idle()
+
+    # 左クリックを使うモードでは、ダブルクリックの1回目と2回目もそのモードの操作になるのでリセットしない
+    _DOUBLE_CLICK_RESET_MODES = (None, 'cursor')
+
+    def _on_double_click_reset_view(self, event):
+        """グラフ上の左ダブルクリックで、ツールバーの「表示をリセット」と同じく設定どおりの範囲に戻す。"""
+        if not getattr(event, 'dblclick', False) or event.button != 1 or event.inaxes is None:
+            return
+        if self._app._active_mouse_mode() not in self._DOUBLE_CLICK_RESET_MODES:
+            return
+        self._app._reset_zoom()
 
     def _on_middle_button_press_pan(self, event):
         """押したときの範囲とカーソルのデータ座標を覚える。"""
