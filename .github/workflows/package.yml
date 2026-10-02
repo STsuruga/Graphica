@@ -65,6 +65,14 @@ jobs:
       - name: Build exe with PyInstaller
         run: pyinstaller graphica.spec --noconfirm
 
+      # プラグイン向けに入れた scipy.cluster(本体は使わない)が本当に同梱されたか。拡張モジュールの有無で見る
+      - name: Check bundled scipy.cluster
+        shell: bash
+        run: |
+          for mod in _vq _hierarchy; do
+            find dist -path "*scipy/cluster/${mod}*" | grep -q . || { echo "scipy.cluster.${mod} が同梱されていない"; exit 1; }
+          done
+
       # 同梱の Qt/PySide6 は LGPL v3 のため、条文と差し替えの案内を必ず同梱する。
       - name: Bundle license files
         shell: bash
@@ -152,6 +160,14 @@ jobs:
 
       - name: Build .app with PyInstaller
         run: pyinstaller graphica.spec --noconfirm
+
+      # プラグイン向けに入れた scipy.cluster(本体は使わない)が本当に同梱されたか。拡張モジュールの有無で見る
+      - name: Check bundled scipy.cluster
+        shell: bash
+        run: |
+          for mod in _vq _hierarchy; do
+            find dist -path "*scipy/cluster/${mod}*" | grep -q . || { echo "scipy.cluster.${mod} が同梱されていない"; exit 1; }
+          done
 
       - name: Zip .app bundle with license files
         # .app はシンボリックリンクを含むので ditto で固めてから上げる。ライセンスは

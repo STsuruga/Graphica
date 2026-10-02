@@ -12,8 +12,10 @@ FakeGraphicaPluginAPI は本物の GraphicaPluginAPI と同じ公開メソッド
 tests/test_plugin_api_contract.py が両者のシグネチャの一致を確かめている。
 """
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 
-from graphica.core.color_palettes import normalize_palettes
+from graphica.core.color_palettes import BUILTIN_PALETTES, default_color_cycle, known_palette_names, normalize_palettes
 from graphica.core.named_colors import add_named_color
 from graphica.core.plugin_context import PluginContext
 from graphica.core.plugin_types import PluginMenuAction
@@ -112,8 +114,10 @@ class FakePluginContext(PluginContext):
 
     Attributes:
         messages (list[tuple]): 表示したメッセージ ("info" または "error", タイトル, 本文)。
-        undo_descriptions (list[str]): Undo 履歴に積まれた操作の説明。
+        undo_descriptions (list[str]): Undo 履歴に積まれた操作の説明。undo_group の中の変更は、
+            そのグループの説明1つにまとまる(本体と同じく、何も変えなかったグループは積まない)。
         redraw_count (int): redraw() が呼ばれた回数。
+        active_palette_name (str | None): set_active_color_palette() で選んだパレット名。
     """
 
     def __init__(self, datasets: "list[Dataset] | None" = None, current: "Dataset | None" = None,
@@ -133,6 +137,8 @@ class FakePluginContext(PluginContext):
         self.messages: list[tuple[str, str, str]] = []  # ("info" / "error", タイトル, 本文)
         self.undo_descriptions: list[str | None] = []
         self.redraw_count = 0
+        self.active_palette_name: str | None = None
+        self._undo_group: dict[str, Any] | None = None
 
     def datasets(self) -> "list[Dataset]":
         return list(self._datasets)
@@ -145,7 +151,7 @@ class FakePluginContext(PluginContext):
 
     def add_dataset(self, dataset: "Dataset", description: str | None = None) -> None:
         self._datasets.append(dataset)
-        self.undo_descriptions.append(description or f"[{self._plugin_name}] データセットの追加")
+        self._record_undo(description or f"[{self._plugin_name}] データセットの追加")
         self.fire_datasets_changed()
 
     def set_dataset_properties(self, dataset: "Dataset", values: dict[str, Any], description: str | None = None) -> None:
@@ -154,8 +160,27 @@ class FakePluginContext(PluginContext):
             raise AttributeError(f"Dataset に無い属性です: {', '.join(unknown)}")
         for key, value in values.items():
             setattr(dataset, key, value)
-        self.undo_descriptions.append(description or f"[{self._plugin_name}] プロパティの変更")
+        self._record_undo(description or f"[{self._plugin_name}] プロパティの変更")
         self.fire_datasets_changed()
+
+    def _record_undo(self, description: str) -> None:
+        group = self._undo_group
+        if group is None:
+            self.undo_descriptions.append(description)
+        elif not group["started"]:
+            self.undo_descriptions.append(group["description"])
+            group["started"] = True
+
+    @contextmanager
+    def undo_group(self, description: str) -> Iterator[None]:
+        outermost = self._undo_group is None
+        if outermost:
+            self._undo_group = {"description": description, "started": False}
+        try:
+            yield
+        finally:
+            if outermost:
+                self._undo_group = None
 
     def redraw(self) -> None:
         self.redraw_count += 1
@@ -211,3 +236,10 @@ class FakePluginContext(PluginContext):
 
     def active_color_cycle(self) -> list[str]:
         return list(self._color_cycle)
+
+    def set_active_color_palette(self, name: str) -> None:
+        if name not in known_palette_names(self._palettes):
+            raise ValueError(f"配色パレット「{name}」はありません。")
+        self.active_palette_name = name
+        colors = BUILTIN_PALETTES.get(name) or self._palettes.get(name)
+        self._color_cycle = list(colors) if colors else default_color_cycle()

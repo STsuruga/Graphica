@@ -129,7 +129,7 @@ zipは以下のいずれかのレイアウトに対応しています。
 - `version` (必須): プラグイン自身のバージョン文字列(任意の書式。Graphica側は
   中身を検証しません)。
 - `api_version` (必須): このプラグインが対応するGraphicaプラグインAPIの
-  バージョン。現在の値は **`"2.0"`**(`core/plugin_manifest.py` の
+  バージョン。現在の値は **`"2.1"`**(`core/plugin_manifest.py` の
   `PLUGIN_API_VERSION`)。ここが一致しないプラグインは、`__init__.py` を
   importすることすら無く、ロード前に安全にスキップされます。
   **主番号が本体と同じで、小番号が本体以下なら読み込まれます**(下の「版の方針」)。
@@ -161,6 +161,11 @@ zipは以下のいずれかのレイアウトに対応しています。
 
 `api_version` には、プラグインが使う機能がそろった最も古い版を書くと、いちばん多くの本体で動きます。
 
+| 版 | 増えたもの |
+|---|---|
+| 2.1 | `ctx.undo_group(description)`、`ctx.set_active_color_palette(name)` |
+| 2.0 | 窓口 `PluginContext`(「1.0 からの移行」) |
+
 ---
 
 ## 依存パッケージポリシー
@@ -175,6 +180,13 @@ zipは以下のいずれかのレイアウトに対応しています。
 - `scipy`
 - `openpyxl`
 - `xlrd`
+
+**exe/app 配布版の `scipy` は、本体が使うサブパッケージと `scipy.cluster` だけです**
+(`cluster`・`constants`・`fft`・`integrate`・`interpolate`・`linalg`・`ndimage`・`optimize`・
+`signal`・`sparse`・`spatial`・`special`・`stats`)。プラグインのテストは pip 版で動くので、
+それ以外(`scipy.io` など)を使うと、テストは通っても exe でだけ `ModuleNotFoundError` に
+なります。使うサブパッケージは `requires` に書いておくと(例: `["scipy.io"]`)、無い環境では
+読み込まずにスキップされます。必要なものは Issue で同梱を依頼してください。
 
 これ以外の外部パッケージ(例: `requests`)への依存は避けてください。exe配布版
 にはこれらしか同梱されておらず、プラグインが独自に追加パッケージを
@@ -539,6 +551,7 @@ def register(api):
 | `selected_datasets()` | 選択中のもの(複数選択を含む) |
 | `add_dataset(dataset, description=None)` | データセットを追加(Undo 可) |
 | `set_dataset_properties(dataset, values, description=None)` | 属性をまとめて変更して再描画(Undo 可)。例: `{"color": "#1f77b4", "linewidth": 2.0}`。`Dataset` に無い属性名は `AttributeError` |
+| `undo_group(description)` | `with ctx.undo_group("配色を適用"):` の中で行った `add_dataset` / `set_dataset_properties` を Undo 1回分にまとめる(2.1)。何も変えなければ積まない。入れ子は外側にまとまる |
 | `redraw()` | グラフを描き直す |
 | `on_datasets_changed(callback)` | 追加・削除・変更・読み込みのあとに `callback()`。描き直しのたびに呼ばれるので軽くする |
 | `on_selection_changed(callback)` | 選択が変わったら `callback(current_dataset)` |
@@ -548,6 +561,7 @@ def register(api):
 | `named_colors()` / `set_named_colors(entries)` | 本体の「名前付きの色」(`[{"name", "color"}]`)。書き込み時に検証される |
 | `color_palettes()` / `set_color_palettes(palettes)` | 利用者の配色パレット(`{名前: [色, ...]}`、組み込みのパレットは含まない) |
 | `active_color_cycle()` | いま選ばれているパレットの色 |
+| `set_active_color_palette(name)` | パレットを「いま使うパレット」にする(2.1)。組み込み・利用者のパレットか `"Matplotlib既定"`。無い名前は `ValueError`。描いた色は変えず、以後の自動配色が使う |
 
 `Dataset` の中身(`df` や `color` など)を直接書き換えると、Undo もできず再描画もされません。
 変更は `set_dataset_properties()` で行ってください。

@@ -6,6 +6,9 @@
 from graphica.core.named_colors import normalize_color
 from typing import Any
 
+# パレット管理の先頭にある「matplotlib の既定の色」の名前。設定に保存される値でもあるので変えない
+DEFAULT_PALETTE_NAME = "Matplotlib既定"
+
 # 出典: Tableau 10、ColorBrewer(Set2/Dark2/Paired、パブリックドメイン)、
 # Okabe & Ito (2008) Color Universal Design(1型/2型色覚でも判別しやすい8色)。
 BUILTIN_PALETTES = {
@@ -46,6 +49,11 @@ def normalize_palettes(palettes: Any) -> dict[str, list[str]]:
             raise ValueError(f"パレット「{name}」の色はリストで渡してください。")
         result[name] = [normalize_color(c) for c in colors]
     return result
+
+
+def known_palette_names(user_palettes: dict[str, list[str]]) -> set[str]:
+    """いま使うパレットに選べる名前(既定・組み込み・利用者のパレット)。"""
+    return {DEFAULT_PALETTE_NAME, *BUILTIN_PALETTES, *user_palettes}
 
 
 def default_color_cycle() -> list[str]:

@@ -30,7 +30,7 @@ from graphica.gui.color_history import get_color_with_history
 from graphica.gui.theme import apply_form_spacing
 from graphica.gui.mathtext_preview import FitWidthPixmapLabel
 from graphica.core.i18n import tr
-from graphica.core.color_palettes import BUILTIN_PALETTES, default_color_cycle
+from graphica.core.color_palettes import BUILTIN_PALETTES, DEFAULT_PALETTE_NAME, default_color_cycle
 from graphica.core.named_colors import (
     NamedColorError,
     add_named_color,
@@ -256,7 +256,7 @@ class LabelEditDialog(QDialog):
 class ColorPaletteDialog(QDialog):
     """「自動配色」のパレットを作り、選ぶ。「Matplotlib既定」と組み込みのパレットは読み取り専用。"""
 
-    DEFAULT_PALETTE_NAME = "Matplotlib既定"
+    DEFAULT_PALETTE_NAME = DEFAULT_PALETTE_NAME
 
     def __init__(self, palettes: dict, active_name: str, parent=None):
         super().__init__(parent)

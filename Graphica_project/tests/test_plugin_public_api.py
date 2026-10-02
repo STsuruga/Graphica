@@ -18,7 +18,7 @@ from graphica.core.plugin_manifest import PLUGIN_API_VERSION
 from graphica.core.plugin_types import AnalysisResult, PluginMenuAction
 
 SNAPSHOT = {
-    "version": "2.0",
+    "version": "2.1",
     "graphica.plugin": ["AnalysisResult", "Dataset", "GraphicaPluginAPI", "PLUGIN_API_VERSION",
                         "PluginContext", "PluginExecutionError"],
     "graphica.plugin.testing": ["FakeGraphicaPluginAPI", "FakePluginContext", "PluginInstallError",
@@ -47,11 +47,13 @@ SNAPSHOT = {
         "parent_widget": "property",
         "redraw": [],
         "selected_datasets": [],
+        "set_active_color_palette": ["name"],
         "set_color_palettes": ["palettes"],
         "set_dataset_properties": ["dataset", "values", "description"],
         "set_named_colors": ["entries"],
         "show_error": ["text", "title"],
         "show_message": ["text", "title"],
+        "undo_group": ["description"],
     },
     "AnalysisResult": ["table", "annotations", "new_datasets"],
     "PluginMenuAction": ["text", "callback", "shortcut", "plugin_name"],
