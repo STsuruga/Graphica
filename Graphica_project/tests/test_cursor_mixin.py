@@ -655,3 +655,41 @@ def test_middle_button_release_ignored_for_other_buttons(tmp_path, monkeypatch):
     window._on_middle_button_release_pan(SimpleNamespace(button=1))
 
     assert window._middle_pan_axes is ax  # 左ボタンのreleaseでは解除されない
+
+
+def _click_through_canvas(window, x, y):
+    """matplotlib のイベントとして押して離す(mpl_connect した順に全部の処理が走る)。"""
+    from matplotlib.backend_bases import MouseEvent
+    px, py = window.canvas.all_axes[0].transData.transform((x, y))
+    MouseEvent('button_press_event', window.canvas, px, py, button=1)._process()
+    MouseEvent('button_release_event', window.canvas, px, py, button=1)._process()
+
+
+def test_cursor_keeps_working_after_a_redraw(tmp_path, monkeypatch):
+    """注釈を出したあとに描き直すと、注釈は Axes ごと消える。次のクリックで外せずに止まらない。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    window._toggle_cursor_mode(True)
+    errors = []
+    monkeypatch.setattr(window.canvas.callbacks, 'exception_handler', errors.append)
+
+    _click_through_canvas(window, 2, 4)
+    window._update_plot()
+    _click_through_canvas(window, 3, 9)
+
+    assert errors == []
+    assert window.cursor_annotation.get_text() == "X: 3\nY: 9"
+    assert window.cursor_annotation.axes in window.canvas.fig.axes
+
+
+def test_turning_cursor_off_after_a_redraw_does_not_raise(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    window._toggle_cursor_mode(True)
+    _click_through_canvas(window, 2, 4)
+    assert window.cursor_annotation is not None
+    window._update_plot()
+
+    window._toggle_cursor_mode(False)
+
+    assert window.cursor_annotation is None
