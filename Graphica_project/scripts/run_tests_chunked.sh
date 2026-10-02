@@ -89,7 +89,9 @@ for group in "tests/test_*.py" "tests/characterization/test_*.py"; do
     fi
 
     weight=1
-    if grep -qE "PlotterApp\(|_make_isolated_plotter_app|MainAppWindow\(|make_window|scenario\." "$f"; then
+    # 特性テストはフィクスチャ経由でアプリを作る(Windows 以外ではほとんど飛ばされるので、ここ以外では重さが見えない)
+    if [ "$group" = "tests/characterization/test_*.py" ] \
+        || grep -qE "PlotterApp\(|_make_isolated_plotter_app|MainAppWindow\(|make_window" "$f"; then
       weight=$HEAVY_WEIGHT
     fi
     cost=$((n * weight))
