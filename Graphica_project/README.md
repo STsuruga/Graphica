@@ -13,6 +13,7 @@ A desktop app for turning CSV/Excel measurement data into publication-quality pl
 
 ![Graphica のメイン画面](https://github.com/STsuruga/Graphica/raw/master/Graphica_project/docs/images/main_window.png)
 
+- **公式サイト**: https://stsuruga.github.io/Graphica/ (機能の紹介・作例・ダウンロード・プラグイン)
 - **ダウンロード**: [最新版(Releases)](https://github.com/STsuruga/Graphica/releases/latest) から、Windows / macOS の zip を入手できます(インストール不要)。
 - **使い方**: [Wiki](https://github.com/STsuruga/Graphica/wiki) に、最初のグラフを作るチュートリアルから解析機能まで、画面写真付きでまとめています。
 - **不具合の報告・要望**: [Issues](https://github.com/STsuruga/Graphica/issues/new/choose) / 開発に参加する方は [CONTRIBUTING.md](https://github.com/STsuruga/Graphica/blob/master/CONTRIBUTING.md)

@@ -1,0 +1,88 @@
+name: Pages
+
+# 公式サイト(Graphica_project/docs/site/)とカバレッジのレポートを GitHub Pages に公開する。
+# Pages は公開のたびにサイト全体を置き換えるので、両方をここで組み立てる。
+# - サイトだけの変更: その push で動き、カバレッジは最後に緑だった master の Tests の成果物を使う。
+# - Tests が緑で終わった master の push: その回のカバレッジで公開し直す。
+# Pages のソースは「GitHub Actions」前提。
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "Graphica_project/docs/site/**"
+      - "Graphica_project/docs/images/main_window.png"
+      - ".github/workflows/pages.yml"
+  workflow_run:
+    workflows: ["Tests"]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch: {}
+
+# 公開は1つずつ。途中の公開を取り消すと Pages が半端な状態になる
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # フォークの PR のブランチ名が master でも workflow_run は動くので、push のランに限る
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/images
+          cp -R Graphica_project/docs/site/. _site/
+          cp Graphica_project/docs/images/main_window.png _site/images/
+
+      - name: Add the coverage report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build.yml --branch master \
+              --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
+          # 成果物が無い(期限切れ・初回)ときはサイトだけ公開し、次の Tests の完了で入れ直す
+          if [ -n "$RUN_ID" ] && gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n coverage-html -D _site/coverage; then
+            echo "coverage from run $RUN_ID"
+          else
+            echo "::warning::No coverage-html artifact found; publishing the site without the coverage report."
+          fi
+
+      - name: Upload site for Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
