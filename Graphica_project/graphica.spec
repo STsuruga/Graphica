@@ -81,20 +81,16 @@ hiddenimports = [
     "scipy.interpolate",
     "scipy.optimize",
     "scipy.signal",
-    # ★ リリース前チェックで発見: core/analysis.py(ベースライン補正ALS法、
-    #   区間積分、Voigtフィットモデル)・gui/data_editor.py(列の要約統計量)が
-    #   直接importしている他のscipyサブモジュール。scipy.interpolate/optimize/
-    #   signalが(単純な`from x import y`であるにも関わらず)既に明示的に
-    #   列挙されていたのは、scipyのパッケージ構造がPyInstallerの静的解析に
-    #   完全には自動検出されないケースがあるためと考えられる。同じ理由で
-    #   以下も未使用のまま漏れていた(exe化して初めてベースライン補正/
-    #   区間積分/Voigtフィット/列統計を使った時にModuleNotFoundErrorになる
-    #   リスクがあった、SVGバックエンドと同種の見落とし)。
+    # 下は本体が import していても静的解析で漏れたことがある(exe でだけ ModuleNotFoundError になる)
     "scipy.sparse",
     "scipy.sparse.linalg",
     "scipy.integrate",
     "scipy.special",
     "scipy.stats",
+    # 本体は使わないが、プラグインは自分でパッケージを持ち込めない(k-means・階層クラスタリング)
+    "scipy.cluster",
+    "scipy.cluster.vq",
+    "scipy.cluster.hierarchy",
 ]
 
 a = Analysis(

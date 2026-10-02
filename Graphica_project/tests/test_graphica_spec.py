@@ -71,6 +71,14 @@ def test_hiddenimports_still_includes_previously_confirmed_scipy_submodules():
         assert module in hiddenimports
 
 
+def test_hiddenimports_includes_scipy_cluster_for_plugins():
+    """本体は scipy.cluster を使わないので、明示しないと exe に入らず、プラグインの k-means・階層クラスタリングが
+    exe でだけ ModuleNotFoundError になる(#77)。"""
+    hiddenimports = _get_string_list_assignment("hiddenimports")
+    for module in ("scipy.cluster", "scipy.cluster.vq", "scipy.cluster.hierarchy"):
+        assert module in hiddenimports
+
+
 def test_datas_bundles_sample_data_directory_referenced_by_resource_path():
     """
     gui/main_window.pyのresource_path(os.path.join("sample_data",
