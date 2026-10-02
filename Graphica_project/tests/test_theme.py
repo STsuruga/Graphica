@@ -269,6 +269,8 @@ def test_light_and_dark_tokens_are_a_single_definition_used_by_apply_theme(monke
     captured = []
     real_build_qss = theme.build_qss
     monkeypatch.setattr(theme, "build_qss", lambda tokens: captured.append(tokens) or real_build_qss(tokens))
+    # 同じ明暗での2回目以降は何もしないので、前のテストが残した状態に左右されないようにする
+    monkeypatch.setattr(theme, "_last_applied_dark", None)
 
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance()
