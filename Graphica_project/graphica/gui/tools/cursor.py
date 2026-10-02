@@ -140,9 +140,18 @@ class CursorTool:
 
             # set_picker(False) には戻さない。同じ Artist のピックはクリックでの選択(常に有効)も使っている
             if self.cursor_annotation:
-                self.cursor_annotation.remove()
-                self.cursor_annotation = None
+                self._remove_cursor_annotation()
                 self._app.canvas.draw_idle()
+
+    def _remove_cursor_annotation(self):
+        annotation, self.cursor_annotation = self.cursor_annotation, None
+        if annotation is None:
+            return
+        # 描き直し(表示のリセットなど)で Axes ごと消えた注釈は remove() できない
+        try:
+            annotation.remove()
+        except (NotImplementedError, ValueError):
+            pass
 
     def _on_mouse_move(self, event):
         if event.inaxes:
@@ -235,9 +244,7 @@ class CursorTool:
             else:
                 data_x, data_y = x, y
 
-            if self.cursor_annotation:
-                self.cursor_annotation.remove()
-                self.cursor_annotation = None
+            self._remove_cursor_annotation()
 
             ax = artist.axes
             text = f"X: {data_x:.4g}\nY: {data_y:.4g}"
