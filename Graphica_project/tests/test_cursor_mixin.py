@@ -743,3 +743,53 @@ def test_double_click_does_not_reset_in_click_driven_modes(tmp_path, monkeypatch
     window._on_double_click_reset_view(_double_click(window.canvas.all_axes[0]))
 
     assert calls == []
+
+
+def _click_through_canvas(window, x, y, dblclick=False):
+    """matplotlib のイベントとして押して離す(mpl_connect した順に全部の処理が走る)。"""
+    from matplotlib.backend_bases import MouseEvent
+    px, py = window.canvas.all_axes[0].transData.transform((x, y))
+    MouseEvent('button_press_event', window.canvas, px, py, button=1, dblclick=dblclick)._process()
+    MouseEvent('button_release_event', window.canvas, px, py, button=1)._process()
+
+
+def test_real_double_click_event_on_canvas_resets_view(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    original_xlim = window.canvas.all_axes[0].get_xlim()
+    window.canvas.all_axes[0].set_xlim(1.5, 2.5)
+
+    _click_through_canvas(window, 2, 4)
+    _click_through_canvas(window, 2, 4, dblclick=True)
+
+    assert window.canvas.all_axes[0].get_xlim() == pytest.approx(original_xlim)
+
+
+def test_cursor_keeps_working_after_double_click_on_a_point(tmp_path, monkeypatch):
+    """ダブルクリックの2回目で出た注釈は描き直しで Axes ごと消える。次のクリックで外せずに止まらない。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    window._toggle_cursor_mode(True)
+    errors = []
+    monkeypatch.setattr(window.canvas.callbacks, 'exception_handler', errors.append)
+
+    _click_through_canvas(window, 2, 4)
+    _click_through_canvas(window, 2, 4, dblclick=True)
+    _click_through_canvas(window, 3, 9)
+
+    assert errors == []
+    assert window.cursor_annotation.get_text() == "X: 3\nY: 9"
+    assert window.cursor_annotation.axes in window.canvas.fig.axes
+
+
+def test_turning_cursor_off_after_a_redraw_does_not_raise(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    window._toggle_cursor_mode(True)
+    _click_through_canvas(window, 2, 4)
+    assert window.cursor_annotation is not None
+    window._update_plot()
+
+    window._toggle_cursor_mode(False)
+
+    assert window.cursor_annotation is None
