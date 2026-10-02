@@ -241,14 +241,13 @@ GUI の配線や描画まで対象です。
 
 ```
 pip install -r requirements.txt   # pytest を含む依存パッケージをインストール
-bash scripts/run_tests_chunked.sh # フルスイート (Graphica_project ディレクトリで実行、約18分)
+bash scripts/run_tests_chunked.sh # フルスイート (Graphica_project ディレクトリで実行、4 コアで約5分)
 ```
 
-**フルスイートを `pytest` 一発で実行しないでください。** GUIテストが1プロセスに
-Qt/matplotlib のリソースを溜め込むため、進むほど遅くなります。また
-`tests/test_export_preview_panel.py` は全件パスした後の終了処理でクラッシュする
-既知の問題があり、1プロセスにまとめるとそれ以降のテストが失われます。
-上記のスクリプトはファイル単位でプロセスを分けて実行し、この2点を回避します。
+**フルスイートを `pytest` 一発で実行しないでください。** 上記のスクリプトはテストを小分けにして、
+別々のプロセスで並列に実行します(CPU のコア数だけ同時に動かします。`GRAPHICA_TEST_JOBS=1` で 1 つずつ)。
+`tests/test_export_preview_panel.py` は全件パスした後の終了処理でクラッシュする既知の問題があり、
+スクリプトはそれを `!!! WARN` として表示します(失敗ではありません)。
 
 個別のファイルやテストだけなら、そのまま pytest を使って問題ありません。
 
