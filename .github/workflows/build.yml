@@ -1,13 +1,10 @@
-name: Build
+name: Tests
 
-# Graphica_project/ の Windows exe / macOS .app を PyInstaller でビルドし、Actions の
-# アーティファクトとして上げる。
-# - ビルドには Graphica_project/graphica.spec を使う(リポジトリ直下の古い .spec は使わない)。
-# - secrets を要する署名・公証・公開は含めない。macOS 版は未署名で Apple Silicon 向け。
-# - テストは必ず scripts/run_tests_chunked.sh で回す。1 プロセスで全件流すと Qt/matplotlib の
-#   資源がたまって進むほど遅くなり、事実上止まる。
+# lint・型検査・テスト(Windows と macOS)と、pip で入れた版の起動確認。exe と .app は package.yml。
+# - テストは scripts/run_tests_chunked.sh で回す(小分けにして別プロセスで並列に流す)。
 # - カバレッジは master のランの macOS ジョブだけで測り、GitHub Pages に公開する
-#   (計測すると約 8 分延びるため、タグと PR では測らない)。Pages のソースは「GitHub Actions」前提。
+#   (計測すると遅くなるため、タグと PR では測らない)。Pages のソースは「GitHub Actions」前提。
+# - 開発用の文書だけの変更では動かない(テストが読む README.md・THIRD_PARTY_LICENSES.md は対象のまま)。
 
 on:
   push:
@@ -15,10 +12,25 @@ on:
       - master
     tags:
       - "v*"
+    # タグの push にはパスの条件は効かない(タグでは必ず動く)
+    paths:
+      - "**"
+      - "!*.md"
+      - "THIRD_PARTY_LICENSES.md"
+      - "!Graphica_project/docs/**"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/pull_request_template.md"
   pull_request:
     branches:
       - master
       - refactor/architecture
+    paths:
+      - "**"
+      - "!*.md"
+      - "THIRD_PARTY_LICENSES.md"
+      - "!Graphica_project/docs/**"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/pull_request_template.md"
   workflow_dispatch: {}
 
 # 同じ ref の古いランは取り消す。タグは ref が別なので master の push に取り消されない。
@@ -30,9 +42,9 @@ permissions:
   contents: read
 
 jobs:
-  build-windows:
+  test-windows:
     runs-on: windows-latest
-    # テストがモーダルなどで止まると、既定では 6 時間待ってから落ちる(ふだんは 25 分ほど)
+    # テストがモーダルなどで止まると、既定では 6 時間待ってから落ちる
     timeout-minutes: 60
 
     defaults:
@@ -52,7 +64,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
 
       # 重いテストより前に落とす。設定は pyproject.toml の [tool.ruff]。
       - name: Lint
@@ -66,59 +77,7 @@ jobs:
         shell: bash
         run: bash scripts/run_tests_chunked.sh
 
-      - name: Build exe with PyInstaller
-        run: pyinstaller graphica.spec --noconfirm
-
-      # 同梱の Qt/PySide6 は LGPL v3 のため、条文と差し替えの案内を必ず同梱する。
-      - name: Bundle license files
-        shell: bash
-        run: |
-          cp ../LICENSE dist/Graphica/
-          cp ../THIRD_PARTY_LICENSES.md dist/Graphica/
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Graphica-windows
-          path: Graphica_project/dist/Graphica/
-          if-no-files-found: error
-
-      # 関連付け(.gra / .graphica)を登録するインストーラー。Inno Setup がランナーに無ければ入れる
-      - name: Build installer with Inno Setup
-        shell: pwsh
-        run: |
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          $version = python -c "from graphica.core.version import __version__; print(__version__)"
-          & $iscc "/DAppVersion=$version" installer\graphica.iss
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      # 黙って入れて、exe と関連付けができ、アンインストールで消えることを確かめる(その利用者だけのインストール)
-      - name: Check the installer
-        shell: pwsh
-        run: |
-          $setup = Get-ChildItem dist\Graphica-*-setup.exe | Select-Object -First 1
-          $dir = Join-Path $env:RUNNER_TEMP "GraphicaInstall"
-          Start-Process $setup.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/CURRENTUSER", "/NORESTART", "/TASKS=fileassoc", "/DIR=$dir" -Wait
-          if (-not (Test-Path (Join-Path $dir "Graphica.exe"))) { throw "Graphica.exe was not installed" }
-          foreach ($ext in ".gra", ".graphica") {
-            $progid = (Get-ItemProperty "HKCU:\Software\Classes\$ext")."(default)"
-            if ($progid -ne "Graphica.Project") { throw "$ext is associated with '$progid'" }
-          }
-          $command = (Get-ItemProperty "HKCU:\Software\Classes\Graphica.Project\shell\open\command")."(default)"
-          if ($command -notlike "*Graphica.exe*%1*") { throw "unexpected open command: $command" }
-          Start-Process (Join-Path $dir "unins000.exe") -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
-          Start-Sleep -Seconds 3
-          if (Test-Path "HKCU:\Software\Classes\Graphica.Project") { throw "the association was not removed" }
-
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: Graphica-windows-installer
-          path: Graphica_project/dist/Graphica-*-setup.exe
-          if-no-files-found: error
-
-  build-macos:
+  test-macos:
     runs-on: macos-latest
     timeout-minutes: 60
 
@@ -139,7 +98,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller pillow coverage
+          pip install coverage
 
       - name: Run tests with coverage
         if: github.ref == 'refs/heads/master'
@@ -170,38 +129,6 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: Graphica_project/_site
-
-      - name: Generate macOS icon (.icns) from Graphica.ico
-        # .icns はリポジトリに置かず、graphica/Graphica.ico の最大フレームから都度生成する。
-        run: |
-          python3 - <<'PY'
-          from PIL import Image
-          im = Image.open("graphica/Graphica.ico")
-          sizes = im.info.get("sizes", [im.size])
-          best = max(sizes, key=lambda s: s[0])
-          im.size = best
-          im.load()
-          im.convert("RGBA").save("Graphica.icns", format="ICNS")
-          PY
-
-      - name: Build .app with PyInstaller
-        run: pyinstaller graphica.spec --noconfirm
-
-      - name: Zip .app bundle with license files
-        # .app はシンボリックリンクを含むので ditto で固めてから上げる。ライセンスは
-        # 二重 zip にならないよう .app と同じ階層に並べて 1 つの zip にする。
-        run: |
-          mkdir -p staging
-          cp -R dist/Graphica.app staging/
-          cp ../LICENSE ../THIRD_PARTY_LICENSES.md staging/
-          ditto -c -k --sequesterRsrc staging dist/Graphica-macos.zip
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Graphica-macos
-          path: Graphica_project/dist/Graphica-macos.zip
-          if-no-files-found: error
 
   install-check:
     # pip で入れた版(範囲指定の依存)が、まっさらな環境で起動するか。3.10 では範囲の下の方の版、
@@ -242,7 +169,7 @@ jobs:
 
   deploy-coverage:
     # テストが緑の master だけ公開する(公開中のレポートは最後に緑だった master)。
-    needs: build-macos
+    needs: test-macos
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 

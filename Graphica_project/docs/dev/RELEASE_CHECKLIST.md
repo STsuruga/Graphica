@@ -11,7 +11,7 @@ Graphica を新しいバージョンとして公開するときの手順。過�
 
 ## 1. リリース前の確認
 
-- [ ] **フルスイートが緑**。`bash scripts/run_tests_chunked.sh`(約18分)。
+- [ ] **フルスイートが緑**。`bash scripts/run_tests_chunked.sh`(4 コアで約5分)。
       `tests/test_export_preview_panel.py` の `!!! WARN`(全件パス後の終了時
       セグフォルト)だけなら緑とみなす。
 - [ ] **カバレッジを更新**。`bash scripts/run_coverage.sh` → `docs/COVERAGE.md`(要約)と
@@ -40,7 +40,7 @@ Graphica を新しいバージョンとして公開するときの手順。過�
 
 ## 3. 公開
 
-- [ ] master に push し、CI(`.github/workflows/build.yml`)が緑になるのを確認。
+- [ ] master に push し、CI(テストの `.github/workflows/build.yml` と、exe・.app を作る `.github/workflows/package.yml`)が緑になるのを確認。
 - [ ] タグを打つ。`git tag v1.4.0 && git push origin v1.4.0`
 - [ ] **タグ push 後、CIが現れるまで数分待つ**。
       ★ 過去に **webhook 配信が14分遅延**したことがある。`gh run list` に出て
@@ -49,7 +49,7 @@ Graphica を新しいバージョンとして公開するときの手順。過�
       `concurrency` 設定により互いにキャンセルされるので、**遅れて出てきた
       push トリガのランが手動起動分をキャンセルする**点に注意
       (タグ push は master とは別グループなので、両方必要なら個別に確認する)。
-- [ ] CI の成果物(`Graphica-windows` / `Graphica-macos`)をダウンロードし、
+- [ ] CI(package.yml)の成果物(`Graphica-windows` / `Graphica-macos`)をダウンロードし、
       **中に `LICENSE` と `THIRD_PARTY_LICENSES.md` が入っていることを確認**。
       同梱している Qt/PySide6 が LGPL v3 なので、条文の提示は配布の条件。
 - [ ] **PyPI への公開を確認**。同じタグで `.github/workflows/publish.yml` が走り、

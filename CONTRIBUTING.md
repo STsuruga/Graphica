@@ -30,11 +30,12 @@ python main.py
 ```
 pytest tests/test_dataset.py                 # 1ファイル
 pytest tests/test_dataset.py -k waterfall    # 絞り込み
-bash scripts/run_tests_chunked.sh            # フルスイート(約20分)
+bash scripts/run_tests_chunked.sh            # フルスイート(4 コアで約5分)
 ```
 
-- **フルスイートを `pytest` 一発で実行しないでください。** GUI テストが1プロセスにリソースを溜め込んで
-  進むほど遅くなるため、`scripts/run_tests_chunked.sh` がファイル単位にプロセスを分けて実行します。
+- **フルスイートを `pytest` 一発で実行しないでください。** `scripts/run_tests_chunked.sh` がテストを小分けにして、
+  別々のプロセスで並列に実行します(`GRAPHICA_TEST_JOBS=1` で 1 つずつ)。軽いファイルは同じプロセスに
+  まとめるので、前のファイルが残した状態に頼るテストは書かないでください。
 - `tests/test_export_preview_panel.py` は全件成功した後の終了処理でクラッシュする既知の問題があり、
   ランナーは `!!! WARN` と表示します。これだけなら成功です。
 - テストは画面を表示せずに(offscreen)動きます。**実際のモーダルダイアログを開くテストは、
