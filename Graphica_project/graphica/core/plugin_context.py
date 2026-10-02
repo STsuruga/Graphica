@@ -1,11 +1,12 @@
 """
-プラグインが本体を操作するための窓口(プラグイン API 2.0)。
+プラグインが本体を操作するための窓口(プラグイン API 2.1)。
 
 メニューの callback とパネルの widget_factory が受け取る。1つのタブと1つのプラグインの
 組ごとに1つ作られるので、どのメソッドも「そのタブ」を相手にする(複数タブでも取り違えない)。
 本体の内部(PlotterApp やその private メソッド)には、この窓口の外から触らないこと。
 本体の実装は gui/plugin_context.py、テスト用は core.plugin_testing.FakePluginContext。
 """
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any, Callable
 if TYPE_CHECKING:
     from graphica.core.dataset import Dataset
@@ -60,6 +61,22 @@ class PluginContext:
             description (str | None): 「元に戻す」メニューに出す説明。
         Raises:
             AttributeError: Dataset に無い属性名が含まれる。
+        """
+        raise NotImplementedError
+
+    def undo_group(self, description: str) -> AbstractContextManager[None]:
+        """
+        with の中で行った add_dataset() と set_dataset_properties() を、Undo 1回分にまとめる(API 2.1)。
+
+            with ctx.undo_group("配色を適用"):
+                for ds, color in zip(ctx.selected_datasets(), colors):
+                    ctx.set_dataset_properties(ds, {"color": color})
+
+        何も変えなかったときは何も積まない。入れ子にすると外側の1回分にまとまる。
+        with の中で例外が起きても、それまでの変更は1回分として残る(Undo で戻せる)。
+
+        Args:
+            description (str): 「元に戻す」メニューに出す説明。
         """
         raise NotImplementedError
 
@@ -163,5 +180,18 @@ class PluginContext:
         """
         Returns:
             list[str]: いま選ばれているパレットの色(系列に順に割り当てる色)。
+        """
+        raise NotImplementedError
+
+    def set_active_color_palette(self, name: str) -> None:
+        """
+        配色パレットを「いま使うパレット」にする。パレット管理で選ぶのと同じ(API 2.1)。
+        すでに描いている色は変えない。以後の自動配色が使う。
+
+        Args:
+            name (str): 組み込みのパレット、利用者のパレット(color_palettes() のキー)、
+                または matplotlib の既定の色を表す "Matplotlib既定" のいずれかの名前。
+        Raises:
+            ValueError: その名前のパレットが無い。
         """
         raise NotImplementedError
