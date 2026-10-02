@@ -6,6 +6,8 @@
 Curve fitting, peak detection, baseline correction and other analyses are built in, so the whole workflow from raw
 data to a finished figure stays in one place. Free and open source (MIT), for Windows and macOS.
 
+**Website**: https://stsuruga.github.io/Graphica/
+
 [![Release](https://img.shields.io/github/v/release/STsuruga/Graphica)](https://github.com/STsuruga/Graphica/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Coverage report](https://img.shields.io/badge/coverage-report-brightgreen.svg)](https://stsuruga.github.io/Graphica/coverage/)

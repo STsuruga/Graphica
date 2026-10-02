@@ -2,8 +2,8 @@ name: Tests
 
 # lint・型検査・テスト(Windows と macOS)と、pip で入れた版の起動確認。exe と .app は package.yml。
 # - テストは scripts/run_tests_chunked.sh で回す(小分けにして別プロセスで並列に流す)。
-# - カバレッジは master のランの macOS ジョブだけで測り、GitHub Pages に公開する
-#   (計測すると遅くなるため、タグと PR では測らない)。Pages のソースは「GitHub Actions」前提。
+# - カバレッジは master のランの macOS ジョブだけで測る(計測すると遅くなるため、タグと PR では測らない)。
+#   HTML のレポートは成果物 coverage-html に残し、pages.yml がサイトと一緒に GitHub Pages に公開する。
 # - 開発用の文書だけの変更では動かない(テストが読む README.md・THIRD_PARTY_LICENSES.md は対象のまま)。
 
 on:
@@ -110,25 +110,13 @@ jobs:
         shell: bash
         run: bash scripts/run_tests_chunked.sh
 
-      - name: Prepare coverage site
+      - name: Upload coverage report
         if: github.ref == 'refs/heads/master'
-        shell: bash
-        run: |
-          mkdir -p _site/coverage
-          cp -R htmlcov/. _site/coverage/
-          cat > _site/index.html <<'HTML'
-          <!doctype html>
-          <meta charset="utf-8">
-          <meta http-equiv="refresh" content="0; url=coverage/">
-          <title>Graphica</title>
-          <a href="coverage/">テストカバレッジ</a>
-          HTML
-
-      - name: Upload coverage site for Pages
-        if: github.ref == 'refs/heads/master'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          path: Graphica_project/_site
+          name: coverage-html
+          path: Graphica_project/htmlcov
+          retention-days: 90
 
   install-check:
     # pip で入れた版(範囲指定の依存)が、まっさらな環境で起動するか。3.10 では範囲の下の方の版、
@@ -166,22 +154,3 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python scripts/check_installed_app.py
-
-  deploy-coverage:
-    # テストが緑の master だけ公開する(公開中のレポートは最後に緑だった master)。
-    needs: test-macos
-    if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-
-    permissions:
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}coverage/
-
-    steps:
-      - name: Deploy coverage report to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
