@@ -115,7 +115,7 @@ wiring and rendering (run headless).
 ```
 cd Graphica_project
 pytest tests/test_dataset.py              # a single file
-bash scripts/run_tests_chunked.sh         # the whole suite (about 20 minutes)
+bash scripts/run_tests_chunked.sh         # the whole suite (about 5 minutes on 4 cores)
 ```
 
 Do not run the whole suite as a single `pytest` process: GUI tests accumulate Qt/matplotlib resources and slow down

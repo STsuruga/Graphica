@@ -73,7 +73,7 @@ CI の `pull_request` は今 master 向けにしか動かない。P-2 で `.gith
 
 - 1 つのファイル: `pytest tests/test_x.py`(`-k` で絞るときは先に `--collect-only -q` で件数を数える)
 - 特性テスト: `pytest tests/characterization`(R-0 のあと。すべての段階で毎回回す)
-- フルスイート: `bash scripts/run_tests_chunked.sh`(約 18 分)。**1 プロセスの `pytest` で全件を流さない。**
+- フルスイート: `bash scripts/run_tests_chunked.sh`(4 コアで約 5 分)。**1 プロセスの `pytest` で全件を流さない。**
   長く回すときは scratchpad に一時的な worktree を作り、そこで回すと作業を続けられる。
 - 進み具合は 30 分ごとに「完了チャンク数/全体(%)」で報告する。止まっていないかは CPU 時間の差で見る。
 - `tests/test_export_preview_panel.py` は終了時に落ちる(exit 139)が、`N passed` があれば既知の問題で緑扱い(`!!! WARN`)。
