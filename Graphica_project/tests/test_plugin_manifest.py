@@ -137,7 +137,7 @@ def test_all_missing_required_keys_are_listed_at_once(tmp_path):
     assert "name" in message and "version" in message and "api_version" in message
 
 
-@pytest.mark.parametrize("bad_version", ["1.0", "3.0", "2.1", "2", "2.0.0", "", "two.zero"])
+@pytest.mark.parametrize("bad_version", ["1.0", "3.0", "2.2", "2", "2.0.0", "", "two.zero"])
 def test_incompatible_api_version_raises(tmp_path, bad_version):
     """主番号が違う・本体より新しい小番号・形が違う api_version のプラグインは import しない。"""
     plugin_dir = str(tmp_path / "wrong_api")

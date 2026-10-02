@@ -10,7 +10,7 @@ import json
 import os
 from typing import Any
 
-PLUGIN_API_VERSION = "2.0"
+PLUGIN_API_VERSION = "2.1"
 PLUGIN_MANIFEST_FILENAME = "plugin.json"
 
 _REQUIRED_MANIFEST_KEYS = ("name", "version", "api_version")

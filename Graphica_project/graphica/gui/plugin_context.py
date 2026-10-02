@@ -1,6 +1,7 @@
 """PluginContext の本体側の実装。1つのタブ(PlotterApp)と1つのプラグインの組ごとに作る。"""
 import logging
 import weakref
+from contextlib import contextmanager
 from dataclasses import fields
 
 
@@ -25,6 +26,8 @@ class TabPluginContext(PluginContext):
         self._plugin_name = plugin_name
         self._datasets_changed_callbacks = []
         self._selection_changed_callbacks = []
+        # undo_group の中なら {"description", "started"}。マクロは最初の変更で始める(空のマクロも Undo 1回分になる)
+        self._undo_group = None
 
     @property
     def _app(self):
@@ -43,6 +46,7 @@ class TabPluginContext(PluginContext):
         return self._app.selected_datasets()
 
     def add_dataset(self, dataset, description=None):
+        self._start_pending_undo_group()
         self._app.add_dataset_with_undo(
             dataset, description=description or f"[{self._plugin_name}] データセットの追加"
         )
@@ -54,6 +58,7 @@ class TabPluginContext(PluginContext):
         app = self._app
         new_values = dict(values)
         old_values = {key: getattr(dataset, key) for key in new_values}
+        self._start_pending_undo_group()
         app.undo_stack.push(SetDatasetPropertiesCommand(
             dataset, old_values, new_values,
             on_applied=lambda: app.refresh_after_dataset_property_change(
@@ -61,6 +66,25 @@ class TabPluginContext(PluginContext):
             ),
             description=description or f"[{self._plugin_name}] プロパティの変更",
         ))
+
+    @contextmanager
+    def undo_group(self, description):
+        outermost = self._undo_group is None
+        if outermost:
+            self._undo_group = {"description": description, "started": False}
+        try:
+            yield
+        finally:
+            if outermost:
+                group, self._undo_group = self._undo_group, None
+                if group["started"]:
+                    self._app.undo_stack.endMacro()
+
+    def _start_pending_undo_group(self):
+        group = self._undo_group
+        if group is not None and not group["started"]:
+            self._app.undo_stack.beginMacro(group["description"])
+            group["started"] = True
 
     def redraw(self):
         self._app.redraw()
@@ -117,3 +141,6 @@ class TabPluginContext(PluginContext):
 
     def active_color_cycle(self):
         return list(self._app.colors.active_color_cycle())
+
+    def set_active_color_palette(self, name):
+        self._app.colors.set_active_palette(name)
