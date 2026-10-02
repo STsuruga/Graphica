@@ -139,3 +139,78 @@ def test_color_palettes_round_trip_and_are_validated(window):
     with pytest.raises(ValueError):
         ctx.set_color_palettes({"Mine": ["red"]})
     assert ctx.active_color_cycle()  # 既定のパレットでも色が返る
+
+
+def test_undo_group_makes_several_changes_one_undo_step(window):
+    datasets = [_dataset("A"), _dataset("B"), _dataset("C")]
+    for ds in datasets:
+        window._add_dataset(ds, None, select=False)
+    old_colors = [ds.color for ds in datasets]
+    count_before = window.undo_stack.count()
+    ctx = window.plugin_context("p")
+
+    with ctx.undo_group("配色を適用"):
+        for ds, color in zip(datasets, ["#111111", "#222222", "#333333"]):
+            ctx.set_dataset_properties(ds, {"color": color})
+        ctx.add_dataset(_dataset("D"))
+
+    assert window.undo_stack.count() == count_before + 1
+    assert window.undo_stack.undoText() == "配色を適用"
+    window.undo_stack.undo()
+    assert [ds.color for ds in datasets] == old_colors
+    assert [ds.name for ds in window.project.datasets] == ["A", "B", "C"]
+
+
+def test_an_empty_or_nested_undo_group_adds_at_most_one_step(window):
+    ds = _dataset()
+    window._add_dataset(ds, None, select=True)
+    ctx = window.plugin_context("p")
+    count_before = window.undo_stack.count()
+
+    with ctx.undo_group("何もしない"):
+        pass
+    assert window.undo_stack.count() == count_before
+
+    with ctx.undo_group("外側"):
+        with ctx.undo_group("内側"):
+            ctx.set_dataset_properties(ds, {"linewidth": 4.0})
+        ctx.set_dataset_properties(ds, {"color": "#abcdef"})
+    assert window.undo_stack.count() == count_before + 1
+    assert window.undo_stack.undoText() == "外側"
+
+
+def test_undo_group_closes_its_step_when_the_plugin_raises(window):
+    ds = _dataset()
+    window._add_dataset(ds, None, select=True)
+    ctx = window.plugin_context("p")
+    old_color = ds.color
+
+    with pytest.raises(RuntimeError):
+        with ctx.undo_group("途中で失敗"):
+            ctx.set_dataset_properties(ds, {"color": "#010203"})
+            raise RuntimeError("plugin bug")
+
+    # マクロが閉じていないと、以後の操作がすべてこのグループに入ってしまう
+    ctx.set_dataset_properties(ds, {"linewidth": 5.0}, description="あとの操作")
+    assert window.undo_stack.undoText() == "あとの操作"
+    window.undo_stack.undo()
+    assert window.undo_stack.undoText() == "途中で失敗"
+    window.undo_stack.undo()
+    assert ds.color == old_color
+
+
+def test_set_active_color_palette_switches_the_auto_assign_colors(window):
+    from graphica.core.color_palettes import BUILTIN_PALETTES, DEFAULT_PALETTE_NAME
+    ctx = window.plugin_context("p")
+    ctx.set_color_palettes({"Mine": ["#ff0000", "#00ff00"]})
+
+    ctx.set_active_color_palette("Mine")
+    assert ctx.active_color_cycle() == ["#ff0000", "#00ff00"]
+    ctx.set_active_color_palette("Tableau 10")
+    assert ctx.active_color_cycle() == BUILTIN_PALETTES["Tableau 10"]
+    ctx.set_active_color_palette(DEFAULT_PALETTE_NAME)
+    assert ctx.active_color_cycle() == window.colors.active_color_cycle()
+
+    with pytest.raises(ValueError):
+        ctx.set_active_color_palette("No such palette")
+    assert ctx.active_color_cycle() == window.colors.active_color_cycle()

@@ -171,3 +171,29 @@ def test_fake_context_data_dir_is_writable(tmp_path):
     ctx = FakePluginContext(data_dir=str(tmp_path))
     assert ctx.data_dir == str(tmp_path)
     assert FakePluginContext().data_dir  # 省略時は一時フォルダ
+
+
+def test_fake_context_undo_group_records_one_step_like_the_real_one():
+    a, b = _dataset("A"), _dataset("B")
+    ctx = FakePluginContext(datasets=[a, b])
+
+    with ctx.undo_group("空"):
+        pass
+    with ctx.undo_group("配色"):
+        with ctx.undo_group("内側"):
+            ctx.set_dataset_properties(a, {"color": "#111111"})
+        ctx.set_dataset_properties(b, {"color": "#222222"})
+    ctx.set_dataset_properties(a, {"linewidth": 2.0}, description="太さ")
+
+    assert ctx.undo_descriptions == ["配色", "太さ"]
+
+
+def test_fake_context_set_active_color_palette_validates_like_the_real_one():
+    ctx = FakePluginContext(color_palettes={"Mine": ["#ff0000"]})
+    ctx.set_active_color_palette("Mine")
+    assert (ctx.active_palette_name, ctx.active_color_cycle()) == ("Mine", ["#ff0000"])
+    ctx.set_active_color_palette("Okabe-Ito(色覚多様性対応)")
+    assert ctx.active_color_cycle()[0] == "#000000"
+    with pytest.raises(ValueError):
+        ctx.set_active_color_palette("No such palette")
+    assert ctx.active_palette_name == "Okabe-Ito(色覚多様性対応)"
