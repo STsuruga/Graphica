@@ -655,3 +655,91 @@ def test_middle_button_release_ignored_for_other_buttons(tmp_path, monkeypatch):
     window._on_middle_button_release_pan(SimpleNamespace(button=1))
 
     assert window._middle_pan_axes is ax  # 左ボタンのreleaseでは解除されない
+
+
+# --------------------------------------------------------------------
+# 左ダブルクリックで表示をリセット
+# --------------------------------------------------------------------
+
+def _double_click(ax, button=1, dblclick=True):
+    return SimpleNamespace(inaxes=ax, button=button, dblclick=dblclick, xdata=5.0, ydata=5.0)
+
+
+def test_left_double_click_on_axes_resets_view(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    calls = []
+    monkeypatch.setattr(window, '_reset_zoom', lambda: calls.append(True))
+
+    window._on_double_click_reset_view(_double_click(window.canvas.all_axes[0]))
+
+    assert calls == [True]
+
+
+def test_double_click_reset_actually_restores_zoomed_range(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    ax = window.canvas.all_axes[0]
+    original_xlim = ax.get_xlim()
+    window._on_scroll_zoom(SimpleNamespace(inaxes=ax, xdata=sum(original_xlim) / 2, ydata=0.0, button='up'))
+    assert window.canvas.all_axes[0].get_xlim() != pytest.approx(original_xlim)
+
+    window._on_double_click_reset_view(_double_click(ax))
+
+    assert window.canvas.all_axes[0].get_xlim() == pytest.approx(original_xlim)
+
+
+@pytest.mark.parametrize("event_kwargs", [
+    {'dblclick': False},
+    {'button': 3},
+    {'button': 2},
+])
+def test_single_click_and_other_buttons_do_not_reset(tmp_path, monkeypatch, event_kwargs):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    calls = []
+    monkeypatch.setattr(window, '_reset_zoom', lambda: calls.append(True))
+
+    window._on_double_click_reset_view(_double_click(window.canvas.all_axes[0], **event_kwargs))
+
+    assert calls == []
+
+
+def test_double_click_outside_axes_does_not_reset(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    calls = []
+    monkeypatch.setattr(window, '_reset_zoom', lambda: calls.append(True))
+
+    window._on_double_click_reset_view(_double_click(None))
+
+    assert calls == []
+
+
+def test_double_click_resets_in_cursor_mode(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    window._toggle_cursor_mode(True)
+    calls = []
+    monkeypatch.setattr(window, '_reset_zoom', lambda: calls.append(True))
+
+    window._on_double_click_reset_view(_double_click(window.canvas.all_axes[0]))
+
+    assert calls == [True]
+
+
+@pytest.mark.parametrize("flag_attr", [
+    'annotation_mode_enabled', 'layout_edit_mode_enabled', 'range_select_mode_enabled',
+    'peak_placement_mode_enabled', 'slice_extraction_mode_enabled', 'region_highlight_mode_enabled',
+])
+def test_double_click_does_not_reset_in_click_driven_modes(tmp_path, monkeypatch, flag_attr):
+    """左クリックを使うモードでは、ダブルクリックはそのモードの操作として扱う。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window, plot_type="Line")
+    setattr(window, flag_attr, True)
+    calls = []
+    monkeypatch.setattr(window, '_reset_zoom', lambda: calls.append(True))
+
+    window._on_double_click_reset_view(_double_click(window.canvas.all_axes[0]))
+
+    assert calls == []
