@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 from matplotlib.backend_bases import MouseEvent
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QToolBar
 
 import graphica.gui.app_settings as app_settings_module
 from graphica.core.dataset import Dataset
@@ -433,7 +433,7 @@ def test_middle_drag_pans_the_secondary_axis_too(window):
     assert _to_data(secondary, start[0], start[1] + 60)[1] == pytest.approx(grabbed)
 
 
-# --- マウスカーソルの形 ---
+# --- マウスカーソルの形・ツールバー ---
 
 def test_cursor_shape_changes_over_axis_bands(window):
     _add(window)
@@ -444,6 +444,19 @@ def test_cursor_shape_changes_over_axis_bands(window):
     assert canvas.cursor().shape() == Qt.CursorShape.SizeVerCursor
     _fire(window, "motion_notify_event", *_to_px(canvas.all_axes[0], 5, 50))
     assert canvas.cursor().shape() == Qt.CursorShape.ArrowCursor
+
+
+def test_plot_toolbar_has_no_matplotlib_navigation_buttons(window):
+    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
+
+    assert isinstance(window.plot_toolbar, QToolBar)
+    assert not window.findChildren(NavigationToolbar2QT)
+    texts = {action.text() for action in window.plot_toolbar.actions()}
+    for removed in ("Home", "Back", "Forward", "Pan", "Zoom", "Subplots", "Customize", "Save"):
+        assert removed not in texts
+    assert window.cursor_action in window.plot_toolbar.actions()
+    assert window.reset_zoom_action in window.plot_toolbar.actions()
+
 
 
 def test_legend_dragged_onto_an_axis_band_is_still_dragged_not_panned(window):

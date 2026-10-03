@@ -76,8 +76,6 @@ class UISetupMixin:
         # 色欄の見本の枠
         self.color_picker_widget.refresh_theme()
         self.gradient_color2_picker.refresh_theme()
-        # matplotlib のツールバーのアイコン
-        self._refresh_mpl_toolbar_icons()
         # 自前の SVG アイコン
         self._refresh_custom_svg_icons()
         # 開いたままのデータエディタ(除外した行の背景色)
@@ -115,27 +113,7 @@ class UISetupMixin:
             tab._refresh_all_label_previews()
             tab.color_picker_widget.refresh_theme()
             tab.gradient_color2_picker.refresh_theme()
-            tab._refresh_mpl_toolbar_icons()
             tab._refresh_custom_svg_icons()
-
-    def _refresh_mpl_toolbar_icons(self):
-        """
-        matplotlib のツールバーのアイコンを今のパレットで読み直す。matplotlib は作ったときに一度だけ明暗を決めるので、
-        ダークモードを切り替えても古い色のまま残る。非公開の toolitems/_actions を使うので、無ければ何もしない。
-        """
-        toolbar = getattr(self, 'mpl_toolbar', None)
-        if toolbar is None:
-            return
-        toolitems = getattr(toolbar, 'toolitems', None)
-        actions = getattr(toolbar, '_actions', None)
-        if toolitems is None or actions is None:
-            return
-        for text, _tooltip_text, image_file, callback in toolitems:
-            if text is None:
-                continue
-            action = actions.get(callback)
-            if action is not None:
-                action.setIcon(toolbar._icon(image_file + '.png'))
 
     def _refresh_custom_svg_icons(self):
         """

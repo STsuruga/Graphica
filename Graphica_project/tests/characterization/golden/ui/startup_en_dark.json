@@ -80,76 +80,11 @@
  ],
  "toolbars": [
   {
-   "name": "",
-   "title": "",
+   "name": "plot_toolbar",
+   "title": "Plot",
    "visible": true,
    "area": null,
    "actions": [
-    {
-     "text": "Home",
-     "tooltip": "Reset to Original View",
-     "enabled": true,
-     "visible": true
-    },
-    {
-     "text": "Back",
-     "tooltip": "Back to Previous View",
-     "enabled": false,
-     "visible": true
-    },
-    {
-     "text": "Forward",
-     "tooltip": "Forward to Next View",
-     "enabled": false,
-     "visible": true
-    },
-    {
-     "separator": true
-    },
-    {
-     "text": "Pan",
-     "tooltip": "Pan/Zoom",
-     "enabled": true,
-     "visible": true,
-     "checked": false
-    },
-    {
-     "text": "Zoom",
-     "tooltip": "Zoom to Rectangle",
-     "enabled": true,
-     "visible": true,
-     "checked": false
-    },
-    {
-     "text": "Subplots",
-     "tooltip": "Configure Subplots",
-     "enabled": true,
-     "visible": true
-    },
-    {
-     "text": "Customize",
-     "tooltip": "Edit axis, curve and image parameters",
-     "enabled": true,
-     "visible": true
-    },
-    {
-     "separator": true
-    },
-    {
-     "text": "Save",
-     "tooltip": "Save as Image",
-     "enabled": true,
-     "visible": true
-    },
-    {
-     "text": "",
-     "tooltip": "",
-     "enabled": true,
-     "visible": true
-    },
-    {
-     "separator": true
-    },
     {
      "text": "Data Cursor",
      "tooltip": "Data Cursor",
@@ -869,13 +804,14 @@
             "enabled": true,
             "children": [
              {
-              "class": "NavigationToolbar2QT",
+              "class": "QToolBar",
+              "name": "plot_toolbar",
               "visible": true,
               "enabled": true,
               "receivers": {
-               "orientationChanged(Qt::Orientation)": 5,
-               "iconSizeChanged(QSize)": 16,
-               "toolButtonStyleChanged(Qt::ToolButtonStyle)": 16
+               "orientationChanged(Qt::Orientation)": 2,
+               "iconSizeChanged(QSize)": 8,
+               "toolButtonStyleChanged(Qt::ToolButtonStyle)": 8
               },
               "children": [
                {
@@ -896,125 +832,6 @@
                   "enabled": false
                  }
                 ]
-               },
-               {
-                "class": "QToolButton",
-                "text": "Home",
-                "visible": true,
-                "enabled": true,
-                "tooltip": "Reset to Original View",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "Back",
-                "visible": true,
-                "enabled": false,
-                "tooltip": "Back to Previous View",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "Forward",
-                "visible": true,
-                "enabled": false,
-                "tooltip": "Forward to Next View",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QWidget",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QToolButton",
-                "text": "Pan",
-                "checked": false,
-                "visible": true,
-                "enabled": true,
-                "tooltip": "Pan/Zoom",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "Zoom",
-                "checked": false,
-                "visible": true,
-                "enabled": true,
-                "tooltip": "Zoom to Rectangle",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "Subplots",
-                "visible": true,
-                "enabled": true,
-                "tooltip": "Configure Subplots",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "Customize",
-                "visible": true,
-                "enabled": true,
-                "tooltip": "Edit axis, curve and image parameters",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QWidget",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QToolButton",
-                "text": "Save",
-                "visible": true,
-                "enabled": true,
-                "tooltip": "Save as Image",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QLabel",
-                "text": "",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QWidget",
-                "visible": true,
-                "enabled": true
                },
                {
                 "class": "QToolButton",

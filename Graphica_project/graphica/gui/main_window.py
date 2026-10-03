@@ -1121,9 +1121,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
     def _on_data_load_failed(self, error_message, file_path):
         return data_import_flow.on_data_load_failed(self, error_message, file_path)
 
-    def _localize_navigation_toolbar(self, toolbar):
-        return canvas_area.localize_navigation_toolbar(self, toolbar)
-
     def _cleanup_data_load_task_runner(self):
         return data_import_flow.cleanup_data_load_task_runner(self)
 

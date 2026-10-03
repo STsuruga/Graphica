@@ -310,8 +310,8 @@ def build_fit_info_and_stats(app):
     stats_widget_action.setDefaultWidget(stats_popup)
     stats_menu.addAction(stats_widget_action)
     app.stats_toolbar_button.setMenu(stats_menu)
-    app.mpl_toolbar.addSeparator()
-    app.mpl_toolbar.addWidget(app.stats_toolbar_button)
+    app.plot_toolbar.addSeparator()
+    app.plot_toolbar.addWidget(app.stats_toolbar_button)
 
 
 def _y2_value_spinbox(decimals=2):
