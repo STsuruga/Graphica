@@ -22,9 +22,8 @@ QApplication は生きたままなので、放っておくとウィジェット�
 | 対策 | 効果 |
 |---|---|
 | 残ったウィンドウの破棄 | `test_main_window.py` 349秒 → 74秒 |
-| 収集を1プロセスに集約 | 収集だけで 255秒 → 5.3秒 |
+| テスト前の収集をやめる(件数は scripts/count_tests.py が見積もる) | 収集だけで 255秒 → 0 |
 | 一括書き換え中の再描画停止 | `test_settings_mixin.py` 234秒 → 31秒 |
-| CHUNK_SIZE 30 → 150 | チャンク 150 → 98 |
 | **フルスイート全体** | **約35分 → 約17.5分** |
 | チャンクを並列に流し、軽いファイルをまとめる | 約17.5分 → 約5分(4 コア) |
 """
@@ -112,35 +111,60 @@ def test_top_level_windows_do_not_pile_up_within_one_test():
     assert not window.isVisible()
 
 
+def test_imported_libraries_are_frozen_out_of_garbage_collection():
+    """conftest の gc.freeze() が外れると、回収のたびに読み込み済みのライブラリを走査して遅くなる(何も落ちない)。"""
+    import gc
+
+    assert gc.get_freeze_count() > 0
+
+
 # --- チャンクランナーの設定 ---
 
 def _runner_source():
     return (PROJECT_ROOT / "scripts" / "run_tests_chunked.sh").read_text(encoding="utf-8")
 
 
-def test_chunk_runner_collects_test_ids_in_a_single_process():
+def test_chunk_runner_does_not_collect_before_running():
     """
-    ★ 以前はファイルごとに `pytest --collect-only` を起動しており、
-    92ファイル×約2.8秒＝**約255秒**を「テストを1件も実行しないまま」
-    消費していた(1プロセスなら約5.3秒)。戻すと、目に見えない形で
-    4分ほど失う。
+    テストの前に収集すると、その間(Windows の CI で約 30 秒)ほかのコアが空く。ファイルごとに収集すると
+    92 ファイルで約 255 秒かかった。件数は count_tests.py が import せずに見積もる。
     """
     source = _runner_source()
-    assert "pytest tests/ --collect-only" in source, \
-        "全体を1回で収集する行が無い"
-    # ファイルごとの収集は、まとめての収集が失敗したときの保険としてのみ残る
-    per_file_collects = source.count('pytest "$f" --collect-only')
-    assert per_file_collects == 1, \
-        "ファイルごとの収集が保険以外の場所にも残っている"
+    assert "--collect-only" not in source
+    assert "count_tests.py" in source
 
 
-def test_chunk_size_is_documented_and_reasonable():
-    match = re.search(r"^CHUNK_SIZE=(\d+)", _runner_source(), re.M)
-    assert match, "CHUNK_SIZE が見つからない"
-    chunk_size = int(match.group(1))
+def test_max_cost_is_reasonable():
+    match = re.search(r"^MAX_COST=(\d+)", _runner_source(), re.M)
+    assert match, "MAX_COST が見つからない"
+    max_cost = int(match.group(1))
     # 小さすぎるとプロセス起動の回数が増えるだけ(蓄積は conftest 側で断ってある)。
-    # 大きすぎると、将来また別の蓄積が出たときに気づきにくくなる。
-    assert 50 <= chunk_size <= 500, f"CHUNK_SIZE={chunk_size} は想定外"
+    # 大きすぎると、重いファイルが分かれず、最後に長いチャンクが 1 つ残る。
+    assert 100 <= max_cost <= 2000, f"MAX_COST={max_cost} は想定外"
+
+
+def test_test_count_estimate_follows_literal_parametrize():
+    """重いファイルの分け方は件数の見積もりで決まる。特性テストは list(CASES) の形でパラメータ化している。"""
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    try:
+        from count_tests import count_tests
+    finally:
+        sys.path.pop(0)
+
+    source = (
+        "import pytest\n"
+        "CASES = {'a': 1, 'b': 2, 'c': 3}\n"
+        "def test_plain():\n    pass\n"
+        "@pytest.mark.parametrize('name', list(CASES))\n"
+        "def test_cases(name):\n    pass\n"
+        "@pytest.mark.parametrize('x', [1, 2])\n"
+        "@pytest.mark.parametrize('y', [f'{i}' for i in range(5)])\n"
+        "def test_grid(x, y):\n    pass\n"
+        "@pytest.mark.parametrize('v', make_values())\n"
+        "def test_unknown(v):\n    pass\n"
+        "class TestGroup:\n    def test_in_class(self):\n        pass\n"
+    )
+    assert count_tests(source) == 1 + 3 + 2 * 5 + 1 + 1
 
 
 # --- 遅いテストを作らないための注意書き ---
@@ -295,6 +319,13 @@ def _bash():
     pytest.skip("Git の bash が見つからない")
 
 
+def _runner_env(**overrides):
+    """CI のジョブが設定したシャードとカバレッジの指定を、一時フォルダで動かすランナーに渡さない。"""
+    env = {k: v for k, v in os.environ.items() if k not in ("GRAPHICA_TEST_SHARD", "GRAPHICA_COVERAGE")}
+    env.update(overrides)
+    return env
+
+
 def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
     """import で落ちたテストファイルを黙って飛ばすと、その分のテストが消えたまま緑になる(K-30)。"""
     tests_dir = tmp_path / "tests"
@@ -308,12 +339,70 @@ def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
     result = subprocess.run(
         [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+        env=_runner_env(),
     )
     assert result.returncode != 0, result.stdout
-    assert "!!! FAILED: tests/test_broken.py" in result.stdout
+    assert "!!! FAILED: tests/test_broken.py (collection failed)" in result.stdout
     assert "no_such_module" in result.stdout
     assert "!!! FAILED: tests/test_empty.py" not in result.stdout
+    # まとめた残りのファイルは流れる
     assert "1 passed" in result.stdout
+
+
+def test_chunk_runner_shards_split_the_chunks_without_overlap(tmp_path):
+    """CI の各ジョブ(GRAPHICA_TEST_SHARD=i/n)が流すチャンクを合わせると、全部を 1 回ずつになる。"""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (tests_dir / "test_a.py").write_text("".join(f"def test_a{i}():\n    pass\n" for i in range(5)), encoding="utf-8")
+    (tests_dir / "test_b.py").write_text("".join(f"def test_b{i}():\n    pass\n" for i in range(3)), encoding="utf-8")
+    # 重いファイル(130 件 × 重み 10)は 3 つに分かれる
+    (tests_dir / "test_many.py").write_text(
+        "import pytest\n\n# PlotterApp(\n\n\n@pytest.mark.parametrize('v', range(130))\n"
+        "def test_param(v):\n    pass\n", encoding="utf-8")
+
+    def run(shard):
+        return subprocess.run(
+            [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
+            cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+            env=_runner_env(GRAPHICA_TEST_SHARD=shard),
+        )
+
+    passed = []
+    for shard in ("1/2", "2/2"):
+        result = run(shard)
+        assert result.returncode == 0, result.stdout
+        assert f"=== shard {shard}:" in result.stdout
+        counts = [int(n) for n in re.findall(r"^(\d+) passed", result.stdout, re.M)]
+        assert counts, result.stdout
+        passed.append(sum(counts))
+    assert sum(passed) == 5 + 3 + 130
+    # 433・433・433・8 の重さを交互に割り当てる(重い分割 2 つと、分割 1 つ + 軽いファイル)
+    assert passed == [43 + 44, 43 + 8]
+
+    # チャンクより多くシャードがあると、何も割り当たらないシャードは何も流さずに通る
+    result = run("5/5")
+    assert result.returncode == 0, result.stdout
+    assert "=== 0 chunks" in result.stdout and "!!! FAILED" not in result.stdout
+
+    result = run("3/2")
+    assert result.returncode != 0
+    assert "GRAPHICA_TEST_SHARD" in result.stdout
+
+
+def test_chunk_runner_accepts_a_chunk_without_tests(tmp_path):
+    """テストの無いファイルだけのチャンク(pytest の rc=5)は失敗にしない。"""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (tests_dir / "test_empty.py").write_text("# テストが無いだけ\n", encoding="utf-8")
+    result = subprocess.run(
+        [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+        env=_runner_env(),
+    )
+    assert result.returncode == 0, result.stdout
+    assert "!!! FAILED" not in result.stdout
 
 
 def test_chunk_runner_runs_chunks_in_parallel_and_judges_each_one(tmp_path):
@@ -334,20 +423,21 @@ def test_chunk_runner_runs_chunks_in_parallel_and_judges_each_one(tmp_path):
     result = subprocess.run(
         [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
-        env={**os.environ, "GRAPHICA_TEST_JOBS": "2"},
+        env=_runner_env(GRAPHICA_TEST_JOBS="2"),
     )
     assert result.returncode == 0, result.stdout
     assert "2 in parallel" in result.stdout
     # test_crash_at_exit と test_ok は小さいので 1 つのプロセスにまとまる
     assert "!!! WARN: test_crash_at_exit test_ok exited rc=139" in result.stdout
     assert "!!! FAILED" not in result.stdout
-    # 重いファイルは 60 件(MAX_COST / HEAVY_WEIGHT)ずつに分かれる
-    assert result.stdout.count("60 passed") == 2 and "10 passed" in result.stdout
+    # 重いファイル(130 件 × 重み 10)は、重さが MAX_COST(600)以下になるよう 3 つに分かれる
+    assert result.stdout.count("43 passed") == 2 and "44 passed" in result.stdout
 
     (tests_dir / "test_broken_assert.py").write_text("def test_fails():\n    assert False\n", encoding="utf-8")
     result = subprocess.run(
         [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+        env=_runner_env(),
     )
     assert result.returncode != 0, result.stdout
     assert "!!! FAILED" in result.stdout

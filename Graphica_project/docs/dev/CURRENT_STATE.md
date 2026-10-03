@@ -13,7 +13,22 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-02): 公式サイトを作った
+## 現在地(2026-10-03): テストの高速化 A〜H を実装した(ブランチ `claude/zealous-dijkstra-e37hn1` の PR)
+
+- `docs/dev/TEST_SPEEDUP_PLAN.md` の A〜H をすべて入れた(結果と、計画から変えた点は同じファイルの「6. 結果」)。
+  - ランナーはテストの前に収集しない。件数は `scripts/count_tests.py` が AST で見積もり、重いファイルは
+    `scripts/pytest_slice.py` の `--graphica-slice=k/n` で分ける。`GRAPHICA_TEST_SHARD=i/n` で CI のジョブに分ける。
+  - CI: Windows は 3 シャード(lint・mypy は 1 つ目だけ)、macOS は PR などで 2 シャード(master はカバレッジのため 1 つ)。
+    ジョブ名は `test-windows (1)` などに変わった。master にはブランチ保護も必須チェックも無い(確認済み、ユーザー了承)。
+  - マウスモードの排他は `test_mouse_modes.py` の全42通り(ウィンドウ 7 つ)だけで確かめる。ツールごとのファイルには書かない。
+- 手元(16 コア)のテスト一式: 270 秒 → 203 秒。CI の時間は PR のランで前と比べる(前は Windows が約 13.7 分で律速)。
+- この PC の Python 環境は PySide6 6.9.1・matplotlib 3.10.7 で、`requirements.txt` の固定版(6.11.2・3.11.2)より古い。
+  そのため特性テスト 5 件(画素・画像の大きさ)が落ちる。`core.autocrlf=true` のため `test_packaging` の LICENSE の 1 件も落ちる。
+  どちらも変更とは関係なく、変更の前後で同じ 6 件。
+- **Issue #90**: 列の値で分割すると、データセットを1つ足すたびに全体を描き直して遅い。未着手(テストは閾値を下げて避けた)。
+- 公式サイトは公開済み(PR #89)。Search Console の所有権の確認と sitemap の送信はユーザーが行う。
+
+## 以前の現在地(2026-10-02): 公式サイトを作った
 
 - **公式サイト** https://stsuruga.github.io/Graphica/ (原本 `docs/site/`、静的な `index.html` 1枚と画像・`sitemap.xml`)。
   紹介・機能一覧・作例・ダウンロード・プラグイン・英語の要約。版とインストーラーのリンクはページの JS が

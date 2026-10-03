@@ -18,6 +18,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ["GRAPHICA_CONFIRM_UNSAVED_CHANGES"] = "0"
 
 import atexit
+import gc
 import itertools
 import shutil
 import tempfile
@@ -80,6 +81,10 @@ SETTINGS_CLASS = QtCore.QSettings
 @pytest.fixture(scope="session", autouse=True)
 def qapp():
     app = QApplication.instance() or QApplication([])
+    # 収集で読み込んだライブラリ(pandas・scipy・matplotlib・PySide6)の大量のオブジェクトを、回収のたびに
+    # 走査しないよう回収の対象から外す。ウィンドウを作るテストで 1 件約 60ms 縮む。これ以降に作るものは今までどおり回収される
+    gc.collect()
+    gc.freeze()
     yield app
     shutil.rmtree(SETTINGS_CLASS.root, ignore_errors=True)
 

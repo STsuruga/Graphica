@@ -280,16 +280,12 @@ def test_snap_to_grid_defaults_match_module_constants():
 # _toggle_annotation_mode
 # --------------------------------------------------------------------
 
-def test_toggle_annotation_mode_on_turns_off_cursor_mode_first(tmp_path, monkeypatch):
-    """注釈モードとデータカーソルモードは排他: 注釈ONでカーソルモードが自動的にOFFになる"""
+def test_toggle_annotation_mode_on_connects_events_and_shows_hint(tmp_path, monkeypatch):
+    """ほかのモードとの排他は test_mouse_modes.py。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.cursor_action.setChecked(True)
-    window.cursor_mode_enabled = True
 
     window._toggle_annotation_mode(True)
 
-    assert window.cursor_action.isChecked() is False
-    assert window.cursor_mode_enabled is False
     assert window.annotation_mode_enabled is True
     assert window._annotation_press_cid is not None
     assert window._annotation_release_cid is not None

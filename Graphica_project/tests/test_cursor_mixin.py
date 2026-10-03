@@ -59,19 +59,6 @@ def _add_dataset(window, plot_type="Line", **kwargs):
 # _toggle_cursor_mode
 # --------------------------------------------------------------------
 
-def test_toggle_cursor_mode_on_turns_off_annotation_mode_first(tmp_path, monkeypatch):
-    """データカーソルと注釈モードは排他: カーソルONで注釈モードが自動的にOFFになる"""
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.annotation_action.setChecked(True)
-    window.annotation_mode_enabled = True
-
-    window._toggle_cursor_mode(True)
-
-    assert window.annotation_action.isChecked() is False
-    assert window.annotation_mode_enabled is False
-    assert window.cursor_mode_enabled is True
-
-
 def test_toggle_cursor_mode_on_sets_picker_and_connects_pick_event(tmp_path, monkeypatch):
     """カーソルON時、既存の全Line/Collectionにset_picker(5)が設定され、pick_eventが接続される"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
