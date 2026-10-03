@@ -8,8 +8,6 @@
     2通りだけが解除されず、両モードが同時に有効なままになっていた。
 - 解除された側の後始末(mpl_connect の解除)まで行われていること
 """
-import itertools
-
 import matplotlib
 matplotlib.use("Agg")
 import pytest
@@ -83,30 +81,40 @@ def test_registry_attributes_exist_on_plotter_app(tmp_path, monkeypatch):
 
 # --- 排他性(42通りの全順序対) ---
 
-@pytest.mark.parametrize("first,second", [
-    pair for pair in itertools.permutations(MODE_NAMES, 2)
-])
-def test_activating_a_mode_deactivates_every_other_mode(first, second, tmp_path, monkeypatch):
+def _deactivate_all(window):
+    for mode in MOUSE_MODES:
+        getattr(window, mode.action_attr).setChecked(False)
+        getattr(window, mode.toggle_method)(False)
+
+
+@pytest.mark.parametrize("first", MODE_NAMES)
+def test_activating_a_mode_deactivates_every_other_mode_all_42_pairs(first, tmp_path, monkeypatch):
     """A-2 の回帰テスト: firstを有効にした状態でsecondを有効にすると、
-    firstは必ず解除される(フラグもツールバーのチェック状態も)。"""
+    firstは必ず解除される(フラグもツールバーのチェック状態も)。
+    first ごとの 7 件が、それぞれ残り 6 モードを second として 1 つのウィンドウで確かめる(7×6=42通り)。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     try:
         first_mode = MOUSE_MODES_BY_NAME[first]
-        second_mode = MOUSE_MODES_BY_NAME[second]
+        seconds = [name for name in MODE_NAMES if name != first]
+        assert len(seconds) == 6
+        for second in seconds:
+            second_mode = MOUSE_MODES_BY_NAME[second]
+            _deactivate_all(window)
+            assert window._active_mouse_mode() is None, (first, second)
 
-        _activate(window, first)
-        assert getattr(window, first_mode.flag_attr) is True
+            _activate(window, first)
+            assert getattr(window, first_mode.flag_attr) is True, (first, second)
 
-        _activate(window, second)
+            _activate(window, second)
 
-        assert getattr(window, second_mode.flag_attr) is True
-        assert getattr(window, first_mode.flag_attr) is False, (
-            "%s を有効にしても %s が解除されていない" % (second, first)
-        )
-        assert getattr(window, first_mode.action_attr).isChecked() is False, (
-            "%s を有効にしても %s のツールバーボタンがONのまま" % (second, first)
-        )
-        assert window._active_mouse_mode() == second
+            assert getattr(window, second_mode.flag_attr) is True, (first, second)
+            assert getattr(window, first_mode.flag_attr) is False, (
+                "%s を有効にしても %s が解除されていない" % (second, first)
+            )
+            assert getattr(window, first_mode.action_attr).isChecked() is False, (
+                "%s を有効にしても %s のツールバーボタンがONのまま" % (second, first)
+            )
+            assert window._active_mouse_mode() == second, (first, second)
     finally:
         window.close()
 
