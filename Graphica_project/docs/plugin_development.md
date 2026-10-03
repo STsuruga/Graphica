@@ -551,7 +551,7 @@ def register(api):
 | `selected_datasets()` | 選択中のもの(複数選択を含む) |
 | `add_dataset(dataset, description=None)` | データセットを追加(Undo 可) |
 | `set_dataset_properties(dataset, values, description=None)` | 属性をまとめて変更して再描画(Undo 可)。例: `{"color": "#1f77b4", "linewidth": 2.0}`。`Dataset` に無い属性名は `AttributeError` |
-| `undo_group(description)` | `with ctx.undo_group("配色を適用"):` の中で行った `add_dataset` / `set_dataset_properties` を Undo 1回分にまとめる(2.1)。何も変えなければ積まない。入れ子は外側にまとまる |
+| `undo_group(description)` | `with ctx.undo_group("配色を適用"):` の中で行った `add_dataset` / `set_dataset_properties` を Undo 1回分にまとめる(2.1)。何も変えなければ積まない。入れ子は外側にまとまる。中で足したデータセットのグラフの描き直しは、抜けるとき(と、その Undo / Redo のとき)の1回にまとまる |
 | `redraw()` | グラフを描き直す |
 | `on_datasets_changed(callback)` | 追加・削除・変更・読み込みのあとに `callback()`。描き直しのたびに呼ばれるので軽くする |
 | `on_selection_changed(callback)` | 選択が変わったら `callback(current_dataset)` |

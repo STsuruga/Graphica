@@ -46,7 +46,7 @@
 - この PC の Python 環境は PySide6 6.9.1・matplotlib 3.10.7 で、`requirements.txt` の固定版(6.11.2・3.11.2)より古い。
   そのため特性テスト 5 件(画素・画像の大きさ)が落ちる。`core.autocrlf=true` のため `test_packaging` の LICENSE の 1 件も落ちる。
   どちらも変更とは関係なく、変更の前後で同じ 6 件。
-- **Issue #90**: 列の値で分割すると、データセットを1つ足すたびに全体を描き直して遅い。未着手(テストは閾値を下げて避けた)。
+- **Issue #90**(列の値で分割すると1件ごとに全体を描き直して遅い)は、ブランチ `fix/batch-dataset-redraw` で修正した。`PlotterApp.deferred_redraw()` / `batched_undo_group()` で描き直しを最後の1回にまとめる(35 グループの分割 4.2 秒 → 0.4 秒)。
 - 公式サイトは公開済み(PR #89)。Search Console の所有権の確認と sitemap の送信はユーザーが行う。
 
 ## 以前の現在地(2026-10-02): 公式サイトを作った

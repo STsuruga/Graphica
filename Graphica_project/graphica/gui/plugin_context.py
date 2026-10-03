@@ -78,12 +78,12 @@ class TabPluginContext(PluginContext):
             if outermost:
                 group, self._undo_group = self._undo_group, None
                 if group["started"]:
-                    self._app.undo_stack.endMacro()
+                    self._app.end_batched_undo_group()
 
     def _start_pending_undo_group(self):
         group = self._undo_group
         if group is not None and not group["started"]:
-            self._app.undo_stack.beginMacro(group["description"])
+            self._app.begin_batched_undo_group(group["description"])
             group["started"] = True
 
     def redraw(self):

@@ -79,11 +79,12 @@ class PluginRunController:
 
         if result.new_datasets:
             target_folder = self._host.target_folder_for_new_dataset()
-            for new_dataset in result.new_datasets:
-                new_dataset.source_plugin = analyzer.plugin_name
-                self._host.add_dataset_with_undo(
-                    new_dataset, target_folder, description=f"解析による追加: {analyzer.name}"
-                )
+            with self._host.deferred_redraw():
+                for new_dataset in result.new_datasets:
+                    new_dataset.source_plugin = analyzer.plugin_name
+                    self._host.add_dataset_with_undo(
+                        new_dataset, target_folder, description=f"解析による追加: {analyzer.name}"
+                    )
 
         if result.annotations:
             self._host.add_annotations_to_active_axis(result.annotations, f"解析による注釈追加: {analyzer.name}")

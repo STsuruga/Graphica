@@ -187,6 +187,25 @@ class AddDatasetCommand(QUndoCommand):
         self.remove_callback()
 
 
+class DeferRedrawCommand(QUndoCommand):
+    """マクロの最初(opening=True)と最後に置き、間の描き直しを最後の1回にまとめる。
+
+    Qt はマクロを Undo するとき子を逆順に流すので、Undo では最後のものが遅らせ始め、最初のものが描く。
+    """
+    def __init__(self, begin_deferring: Callable[[], Any], end_deferring: Callable[[], Any],
+                 opening: bool) -> None:
+        super().__init__("描き直しをまとめる")
+        self.begin_deferring = begin_deferring
+        self.end_deferring = end_deferring
+        self.opening = opening
+
+    def redo(self) -> None:
+        (self.begin_deferring if self.opening else self.end_deferring)()
+
+    def undo(self) -> None:
+        (self.end_deferring if self.opening else self.begin_deferring)()
+
+
 class RemoveDatasetCommand(QUndoCommand):
     """データセットやフォルダの削除。
 
