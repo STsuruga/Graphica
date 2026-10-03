@@ -2031,15 +2031,6 @@ def test_inset_y_range_is_clipped_to_parent_y_range(canvas):
     assert inset_ax.get_ylim() == pytest.approx((30, 90))
 
 
-def test_inset_y_range_is_clipped_against_inverted_parent(canvas):
-    settings = _inset_settings()
-    settings.update({'y_autoscale': False, 'y_min': 30, 'y_max': 90, 'y_invert': True})
-    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
-
-    inset_ax = canvas.all_axes[0].child_axes[0]
-    assert inset_ax.get_ylim() == pytest.approx((30, 90))
-
-
 def test_inset_y_range_left_alone_when_zoomed_data_is_outside_parent(canvas):
     """拡大範囲の点がすべて親の範囲外なら、点が見えるよう自動の範囲のまま。"""
     settings = _inset_settings()
@@ -2140,21 +2131,156 @@ def test_chosen_inset_corners_never_cross_either_rect():
             assert not _segment_crosses_rect(p, q, inset), (box, inset, loc)
 
 
-@pytest.mark.parametrize("x_invert", [False, True])
-def test_drawn_inset_connectors_do_not_cross_inset_or_box(canvas, x_invert):
-    """実際に描いた線(画面の座標)で確かめる。X 軸が反転していても、四角の角の番号は見た目どおり。"""
+def _corner_side(point, extents):
+    x_lo, x_hi = sorted((extents[0], extents[2]))
+    y_lo, y_hi = sorted((extents[1], extents[3]))
+    return (point[0] == pytest.approx(x_hi), point[1] == pytest.approx(y_hi))
+
+
+@pytest.mark.parametrize("x_invert, y_invert", [(False, False), (True, False), (False, True), (True, True)])
+def test_drawn_inset_connectors_join_matching_corners_without_crossing(canvas, x_invert, y_invert):
+    """
+    実際に描いた線(画面の座標)で確かめる。拡大図も親に合わせて反転するので、四角の角の番号は見た目と入れ替わるが、
+    線は見た目で同じ向きの角どうしを結び、どちらの四角も横切らない。
+    """
     settings = _inset_settings(corner='左上', zoom_x_range=(14, 18) if not x_invert else (0, 4))
-    settings['x_invert'] = x_invert
+    settings.update({'x_invert': x_invert, 'y_invert': y_invert})
     canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
 
     inset_ax, connectors = _inset_connectors(canvas)
     box = next(p for p in canvas._annotation_artists[0] if isinstance(p, BboxPatch)).bbox
-    rects = [tuple(inset_ax.bbox.extents), tuple(box.extents)]
-    assert [c.loc1 for c in connectors] == [1, 3]
+    inset_extents, box_extents = tuple(inset_ax.bbox.extents), tuple(box.extents)
+    assert len(connectors) == 2
     for connector in connectors:
         start, end = connector.get_path().vertices[[0, -1]]
-        for rect in rects:
+        assert _corner_side(start, inset_extents) == _corner_side(end, box_extents)
+        for rect in (inset_extents, box_extents):
             assert not _segment_crosses_rect(start, end, rect)
+
+
+@pytest.mark.parametrize("key, axis_name", [("x_invert", "xaxis"), ("y_invert", "yaxis")])
+def test_inset_follows_parent_inversion(canvas, key, axis_name):
+    settings = _inset_settings()
+    settings[key] = True
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert getattr(inset_ax, axis_name).get_inverted()
+    assert inset_ax.get_xlim() == pytest.approx((10, 5) if key == "x_invert" else (5, 10))
+
+
+def test_inset_y_range_is_still_clipped_when_parent_is_inverted(canvas):
+    settings = _inset_settings()
+    settings.update({'y_autoscale': False, 'y_min': 30, 'y_max': 90, 'y_invert': True})
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert inset_ax.get_ylim() == pytest.approx((90, 30))
+
+
+@pytest.mark.parametrize("key, getter", [("x_log", "get_xscale"), ("y_log", "get_yscale")])
+def test_inset_follows_parent_log_scale(canvas, key, getter):
+    df = pd.DataFrame({"x": np.arange(1, 21, dtype=float), "y": np.arange(1, 21, dtype=float) ** 2})
+    ds = Dataset(name="d", df=df, x_col_name="x", y_col_name="y")
+    settings = _inset_settings(zoom_x_range=(5, 10))
+    settings[key] = True
+    canvas.redraw_all([ds], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert getattr(inset_ax, getter)() == "log"
+
+
+def test_inset_stays_linear_and_upright_for_a_plain_parent(canvas):
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [_inset_settings()])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert (inset_ax.get_xscale(), inset_ax.get_yscale()) == ("linear", "linear")
+    assert not inset_ax.xaxis.get_inverted() and not inset_ax.yaxis.get_inverted()
+
+
+# --- 拡大図の第2 Y 軸 ---
+
+def _secondary_case(canvas, y2_settings=None, zoom_x_range=(5, 10), primary=True):
+    datasets = []
+    if primary:
+        datasets.append(_make_inset_dataset())
+    df = pd.DataFrame({"x": list(range(20)), "y": [1000.0 + 50 * i for i in range(20)]})
+    datasets.append(Dataset(name="s", df=df, x_col_name="x", y_col_name="y", color="#aa0000", use_secondary_y=True))
+    settings = _inset_settings(zoom_x_range=zoom_x_range)
+    settings.update(y2_settings or {})
+    canvas.redraw_all(datasets, 1, 1, [settings])
+    inset_ax, inset_secondary = canvas.all_axes[0].child_axes
+    return inset_ax, inset_secondary
+
+
+def _height_in(axes, y):
+    return axes.transAxes.inverted().transform(axes.transData.transform((0.5 * sum(axes.get_xlim()), y)))[1]
+
+
+def test_inset_draws_secondary_datasets_on_its_own_right_axis(canvas):
+    inset_ax, inset_secondary = _secondary_case(canvas)
+
+    assert [line.get_color() for line in inset_ax.lines] == ["#112233"]
+    assert [line.get_color() for line in inset_secondary.lines] == ["#aa0000"]
+    assert inset_secondary.yaxis.get_ticks_position() == "right"
+    assert not inset_secondary.xaxis.get_visible()
+    assert inset_secondary.get_xlim() == pytest.approx(inset_ax.get_xlim())
+    assert len(canvas._annotation_artists[0]) == 5  # 拡大図 + 第2 Y 軸 + mark_inset の3要素
+
+
+@pytest.mark.parametrize("y2_settings", [{}, {"y2_invert": True}, {"y2_log": True},
+                                         {"y2_autoscale": False, "y2_min": 900, "y2_max": 3000}])
+def test_inset_secondary_points_sit_where_they_sit_in_the_parent(canvas, y2_settings):
+    """第2 Y 軸の値は、拡大図の中でも、親の図で同じ高さにある第1 Y 軸の値と同じ高さに描かれる。"""
+    inset_ax, inset_secondary = _secondary_case(canvas, y2_settings)
+    ax, parent_secondary = canvas.all_axes[0], canvas.all_secondary_axes[0]
+
+    for y2 in (1300.0, 1450.0):
+        display = parent_secondary.transData.transform((5.0, y2))
+        y1 = ax.transData.inverted().transform(display)[1]
+        assert _height_in(inset_secondary, y2) == pytest.approx(_height_in(inset_ax, y1))
+
+
+def test_inset_y_range_covers_secondary_only_data(canvas):
+    """範囲内が第2 Y 軸のデータだけでも、拡大図の範囲はそのデータに合わせる(既定の 0〜1 のままにしない)。"""
+    inset_ax, inset_secondary = _secondary_case(canvas, primary=False)
+
+    lo, hi = inset_secondary.get_ylim()
+    assert lo <= 1250 and hi >= 1500
+    assert hi - lo < 400
+
+
+def test_inset_without_secondary_data_in_range_adds_no_right_axis(canvas):
+    df = pd.DataFrame({"x": [100.0, 200.0], "y": [1.0, 2.0]})
+    other = Dataset(name="s", df=df, x_col_name="x", y_col_name="y", use_secondary_y=True)
+    canvas.redraw_all([_make_inset_dataset(), other], 1, 1, [_inset_settings()])
+
+    assert len(canvas.all_axes[0].child_axes) == 1
+
+
+def test_inset_secondary_axis_does_not_pile_up_on_single_axis_redraw(canvas):
+    """軸だけの描き直し(cla())でも、拡大図の第2 Y 軸は親の子の軸なので一緒に消え、積み重ならない。"""
+    _secondary_case(canvas)
+    datasets = [_make_inset_dataset()]
+    df = pd.DataFrame({"x": list(range(20)), "y": [1000.0 + 50 * i for i in range(20)]})
+    datasets.append(Dataset(name="s", df=df, x_col_name="x", y_col_name="y", use_secondary_y=True))
+
+    canvas.update_single_axis(0, datasets, _inset_settings())
+    canvas.update_single_axis(0, datasets, _inset_settings())
+
+    assert len(canvas.all_axes[0].child_axes) == 2
+    assert len(canvas.fig.axes) == 2  # 親と、親の第2 Y 軸だけ(拡大図の軸は子の軸)
+
+
+def test_inset_render_key_changes_with_parent_secondary_limits(canvas):
+    _secondary_case(canvas)
+    ax, parent_secondary = canvas.all_axes[0], canvas.all_secondary_axes[0]
+    settings = _inset_settings()
+    before = canvas._annotation_render_key(0, settings, [], False, parent_ax=ax)
+
+    parent_secondary.set_ylim(0, 5000)
+
+    assert canvas._annotation_render_key(0, settings, [], False, parent_ax=ax) != before
 
 
 def test_inset_render_key_changes_with_parent_limits(canvas):
