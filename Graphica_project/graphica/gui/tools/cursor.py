@@ -88,11 +88,28 @@ class CursorTool:
                  except ValueError:
                       ax_label = "?: "
 
-            self._app.coordinate_label.setText(f"{ax_label}X= {x:.4g}, Y= {y:.4g}")
+            self._app.coordinate_label.setText(
+                f"{ax_label}X= {x:.4g}, Y= {y:.4g}{self._current_dataset_readout(event)}"
+            )
 
         else:
             if not self.cursor_mode_enabled:
                 self._app.coordinate_label.setText("X= ---, Y= ---")
+
+    def _current_dataset_readout(self, event):
+        """選んでいるデータセットが、マウスのあるサブプロットにずらして(ウォーターフォールで)描かれていれば、
+        マウス位置をその系列のデータ座標に戻した値。ずらし方は系列ごとに違うので、選んでいる系列についてだけ出す。"""
+        dataset = self._app._get_current_dataset()
+        if dataset is None or self._app.canvas.get_waterfall_transform(dataset) is None:
+            return ""
+        dataset_ax = getattr(dataset.artist, 'axes', None)
+        navigation = self._app.view_navigation
+        if dataset_ax is None or navigation.subplot_index_of(dataset_ax) != navigation.subplot_index_of(event.inaxes):
+            return ""
+        # 第2軸のあるサブプロットではマウスの下の Axes が系列の軸と違うことがあるので、ピクセルから系列の軸で読む
+        x, y = dataset_ax.transData.inverted().transform((event.x, event.y))
+        data_x, data_y = self._app.canvas.display_to_data(dataset, x, y)
+        return f" | 「{dataset.name}」: X= {data_x:.4g}, Y= {data_y:.4g}"
 
     def _on_element_pick(self, event):
         """グラフの系列やタイトルをクリックして選ぶ(常に有効)。"""
