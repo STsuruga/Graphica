@@ -166,3 +166,26 @@ Windows のテストは、42 チャンクの pytest の時間を足すと **2,60
 - 1件ずつの時間: `scripts/run_tests_chunked.sh` を写し、pytest の行に `--junitxml="$results/$index.xml" -o junit_family=xunit1` を足す。結果フォルダ(`$TMPDIR`)を消さないようにして流し、XML の `testcase` の `time` を集計する。
 - ウィンドウ1つの組み立て: `PlotterApp` の `_build_*` などの各段を、時間を測る関数で包んで8回作る。設定は一時 INI に向ける(`app_settings.QSettings` を差し替える)。
 - CI: ジョブのログには、チャンクごとに `N passed ... in X s` が出る。これを足すと、そのジョブの作業量の合計になる。
+
+## 6. 結果(2026-10-03、手元の Windows・16 コア・Python 3.13)
+
+`bash scripts/run_tests_chunked.sh` で測った。CI の時間は PR のランで前と比べる。
+
+| | 前 | 後 |
+|---|---|---|
+| 所要時間 | 270 秒 | 203 秒 |
+| チャンク | 42 | 41 |
+| テスト | 3,591 件 | 3,531 件(E −29、F −35、ランナーのテスト +4) |
+| pytest の時間の合計(作業量) | 2,687 秒 | 2,063 秒 |
+| いちばん長いチャンク | 140 秒(test_operation_branches 60 件) | 84 秒 |
+
+- どちらの回も、この PC の環境が原因の 6 件(特性テスト 5 件、`test_packaging` の LICENSE)が落ちる。前後で同じ 6 件。
+- D: この PC の Python 3.13 では、回収の時間がもともと 41 件で約 0.4 秒しかなく、差は測れなかった。CI(3.11)で効くかは CI の時間で見る。
+- E: 消した 29 件は、1 件ずつ AST で確かめた(確かめていることが全42通りのテストの確認の一部であること、組み合わせが MOUSE_MODES にあること)。
+  注釈モードの 1 件は、イベントの接続とステータスバーの確認を残して「注釈モードを入れる」テストにした。
+- F: `test_mouse_modes.py` 50 件 22.7 秒 → 15 件 8.3 秒。注釈モードが自由配置を解除しないようにわざと壊すと、新しいテストが落ちることを確かめた。
+- G: `test_many_groups_proceeds_when_confirmed` 4.0 秒 → 1.0 秒。
+- **C は計画から変えた**: `--graphica-slice` を conftest ではなく `scripts/pytest_slice.py`(ランナーが呼ぶ pytest の入口)に置いた。
+  ランナーのテスト(`test_suite_hygiene.py`)は conftest の無い一時フォルダでランナーを動かすため。件数は `def test_` の数ではなく
+  `scripts/count_tests.py` が AST で見積もる(特性テストは `list(CASES)` でパラメータ化していて、`def` の数だと 1 件と 97 件のように大きくずれる)。
+- A: 見積もりの重さで、3 つのシャードは 6,627 / 6,665 / 6,440 に分かれた。
