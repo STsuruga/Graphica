@@ -7255,6 +7255,22 @@ def test_add_inset_adds_annotation_with_selected_settings(tmp_path, monkeypatch)
     assert ann['corner'] == '左下'
     assert ann['size'] == pytest.approx(0.3)
     assert ann['zoom_x_range'] == (0.5, 1.5)
+    assert 'zoom_y_range' not in ann
+
+
+def test_add_inset_stores_y_range_only_when_specified(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = _make_simple_dataset("d0")
+    _add_and_select_dataset(window, ds)
+    _patch_dialog_result(
+        monkeypatch, "InsetDialog", InsetDialog, "get_settings",
+        {'corner': '右上', 'size': 0.4, 'zoom_x_range': (0.5, 1.5), 'zoom_y_range': (1.0, 2.0)}
+    )
+
+    window.overlays.add_inset()
+
+    ann = window.project.all_plot_settings[ds.subplot_target]['annotations'][0]
+    assert ann['zoom_y_range'] == (1.0, 2.0)
 
 
 def test_add_inset_is_undoable(tmp_path, monkeypatch):

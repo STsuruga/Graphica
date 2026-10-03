@@ -3797,6 +3797,55 @@
      ]
     },
     {
+     "class": "QCheckBox",
+     "text": "Y範囲を指定する",
+     "checked": false,
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QLabel",
+     "text": "Y範囲(最小)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "0.0000",
+     "visible": true,
+     "enabled": false,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "0.0000",
+       "visible": true,
+       "enabled": false
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "Y範囲(最大)",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDoubleSpinBox",
+     "value": "1.0000",
+     "visible": true,
+     "enabled": false,
+     "children": [
+      {
+       "class": "QLineEdit",
+       "name": "qt_spinbox_lineedit",
+       "text": "1.0000",
+       "visible": true,
+       "enabled": false
+      }
+     ]
+    },
+    {
      "class": "QLabel",
      "text": "表示位置",
      "visible": true,
