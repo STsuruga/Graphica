@@ -66,6 +66,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          # 依存のダウンロードを省く(キャッシュは requirements.txt が変わると作り直される)
+          cache: pip
+          cache-dependency-path: Graphica_project/requirements.txt
 
       - name: Install dependencies
         run: |
@@ -109,6 +112,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          # 依存のダウンロードを省く(キャッシュは requirements.txt が変わると作り直される)
+          cache: pip
+          cache-dependency-path: Graphica_project/requirements.txt
 
       - name: Install dependencies
         run: |
