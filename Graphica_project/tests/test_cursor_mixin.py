@@ -16,6 +16,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
@@ -53,6 +54,12 @@ def _add_dataset(window, plot_type="Line", **kwargs):
     window._update_plot()
     return ds
 
+
+def _mouse(artist, xdata, ydata):
+    """pick_event の mouseevent。本物と同じく、データ座標に加えて Figure のピクセル座標も持つ。"""
+    ax = getattr(artist, 'axes', None)
+    x, y = ax.transData.transform((xdata, ydata)) if ax is not None else (None, None)
+    return SimpleNamespace(xdata=xdata, ydata=ydata, x=x, y=y)
 
 # --------------------------------------------------------------------
 # _toggle_cursor_mode
@@ -290,7 +297,7 @@ def test_on_pick_disabled_cursor_mode_is_noop(tmp_path, monkeypatch):
     window.cursor_mode_enabled = False
 
     window._on_pick(SimpleNamespace(
-        artist=ds.artist, mouseevent=SimpleNamespace(xdata=2.0, ydata=4.0), ind=[0],
+        artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=2.0, ydata=4.0), ind=[0],
     ))
 
     assert window.cursor_annotation is None
@@ -302,7 +309,7 @@ def test_on_pick_scatter_shows_annotation_at_clicked_point(tmp_path, monkeypatch
     window.cursor_mode_enabled = True
 
     window._on_pick(SimpleNamespace(
-        artist=ds.artist, ind=[1], mouseevent=SimpleNamespace(xdata=2.0, ydata=4.0),
+        artist=ds.artist, ind=[1], mouseevent=_mouse(ds.artist, xdata=2.0, ydata=4.0),
     ))
 
     assert window.cursor_annotation is not None
@@ -317,7 +324,7 @@ def test_on_pick_line_shows_annotation_at_nearest_point(tmp_path, monkeypatch):
 
     # (2.0, 4.0) は x=[1,2,3], y=[1,4,9] のうちインデックス1に厳密一致する
     window._on_pick(SimpleNamespace(
-        artist=ds.artist, mouseevent=SimpleNamespace(xdata=2.0, ydata=4.0),
+        artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=2.0, ydata=4.0),
     ))
 
     assert window.cursor_annotation is not None
@@ -331,7 +338,7 @@ def test_on_pick_unsupported_artist_is_ignored(tmp_path, monkeypatch):
     window.cursor_mode_enabled = True
 
     window._on_pick(SimpleNamespace(
-        artist=object(), mouseevent=SimpleNamespace(xdata=0.0, ydata=0.0),
+        artist=object(), mouseevent=_mouse(None, xdata=0.0, ydata=0.0),
     ))
 
     assert window.cursor_annotation is None
@@ -344,13 +351,13 @@ def test_on_pick_replaces_previous_annotation(tmp_path, monkeypatch):
     window.cursor_mode_enabled = True
 
     window._on_pick(SimpleNamespace(
-        artist=ds.artist, mouseevent=SimpleNamespace(xdata=1.0, ydata=1.0),
+        artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=1.0, ydata=1.0),
     ))
     first_annotation = window.cursor_annotation
     assert first_annotation is not None
 
     window._on_pick(SimpleNamespace(
-        artist=ds.artist, mouseevent=SimpleNamespace(xdata=3.0, ydata=9.0),
+        artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=3.0, ydata=9.0),
     ))
     second_annotation = window.cursor_annotation
 
@@ -372,7 +379,7 @@ def test_on_pick_highlights_row_in_open_data_editor_dialog(tmp_path, monkeypatch
     window.data_editor_dialog = dialog
     try:
         window._on_pick(SimpleNamespace(
-            artist=ds.artist, mouseevent=SimpleNamespace(xdata=2.0, ydata=4.0),
+            artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=2.0, ydata=4.0),
         ))
 
         assert dialog.get_selected_master_indices() == [1]
@@ -395,7 +402,7 @@ def test_on_pick_does_not_touch_dialog_showing_a_different_dataset(tmp_path, mon
     window.data_editor_dialog = dialog
     try:
         window._on_pick(SimpleNamespace(
-            artist=ds.artist, mouseevent=SimpleNamespace(xdata=2.0, ydata=4.0),
+            artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=2.0, ydata=4.0),
         ))
 
         assert dialog.get_selected_master_indices() == []
@@ -446,7 +453,7 @@ def test_on_pick_maps_downsampled_index_back_to_correct_row(tmp_path, monkeypatc
         click_ind = 3
         window._on_pick(SimpleNamespace(
             artist=ds.artist,
-            mouseevent=SimpleNamespace(xdata=rendered_x[click_ind], ydata=rendered_y[click_ind]),
+            mouseevent=_mouse(ds.artist, xdata=rendered_x[click_ind], ydata=rendered_y[click_ind]),
         ))
 
         expected_original_row = int(index_map[click_ind])
@@ -468,7 +475,7 @@ def test_on_pick_without_downsampling_uses_index_directly(tmp_path, monkeypatch)
     window.data_editor_dialog = dialog
     try:
         window._on_pick(SimpleNamespace(
-            artist=ds.artist, mouseevent=SimpleNamespace(xdata=2.0, ydata=4.0),
+            artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=2.0, ydata=4.0),
         ))
         assert dialog.get_selected_master_indices() == [1]
     finally:
@@ -512,3 +519,58 @@ def test_turning_cursor_off_after_a_redraw_does_not_raise(tmp_path, monkeypatch)
     window._toggle_cursor_mode(False)
 
     assert window.cursor_annotation is None
+
+
+# --- 近い点の選び方・棒グラフ・2D マップ ---
+
+def test_nearest_point_is_chosen_on_screen_not_in_data_units(tmp_path, monkeypatch):
+    """X(0〜1000)と Y(0〜1)の桁が違っても、画面で近い点を選ぶ(データの距離では右上の点が選ばれてしまう)。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    # 既定の大きさのテスト用ウィンドウではグラフの高さが数ピクセルしかなく、Y の差が画面に出ない
+    window.resize(1600, 1400)
+    for _ in range(5):
+        QApplication.instance().processEvents()
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [100.0, 130.0, 900.0], "y": [0.0, 1.0, 0.2]}),
+                 x_col_name="x", y_col_name="y")
+    window.project.datasets.append(ds)
+    window._update_plot()
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 1000)
+    ax.set_ylim(0, 1)
+    window.canvas.draw()
+    assert ax.bbox.height > 100
+    window.cursor_mode_enabled = True
+
+    window._on_pick(SimpleNamespace(artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=128.0, ydata=0.05)))
+
+    assert window.cursor_annotation.xy == (100.0, 0.0)
+
+
+def test_clicking_a_bar_reads_its_top(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="d", df=pd.DataFrame({"x": [1.0, 2.0, 3.0], "y": [5.0, -2.0, 7.0]}),
+                 x_col_name="x", y_col_name="y", plot_type="Bar")
+    window.project.datasets.append(ds)
+    window._update_plot()
+    window.cursor_mode_enabled = True
+    bar = ds.artist.patches[1]
+
+    window._on_pick(SimpleNamespace(artist=bar, mouseevent=_mouse(bar, xdata=2.0, ydata=-1.0)))
+
+    assert window.cursor_annotation.xy == pytest.approx((2.0, -2.0))
+    assert window.cursor_annotation.get_text() == "X: 2\nY: -2"
+
+
+def test_clicking_a_2d_map_reads_the_nearest_grid_value(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    xs, ys = np.meshgrid([0.0, 1.0, 2.0], [10.0, 20.0])
+    df = pd.DataFrame({"x": xs.ravel(), "y": ys.ravel(), "z": (xs * 100 + ys).ravel()})
+    ds = Dataset(name="map", df=df, x_col_name="x", y_col_name="y", z_col_name="z", data_kind="2d_grid")
+    window.project.datasets.append(ds)
+    window._update_plot()
+    window.cursor_mode_enabled = True
+
+    window._on_pick(SimpleNamespace(artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=1.2, ydata=19.0)))
+
+    assert window.cursor_annotation.xy == pytest.approx((1.0, 20.0))
+    assert window.cursor_annotation.get_text() == "X: 1\nY: 20\nZ: 120"
