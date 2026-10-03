@@ -34,16 +34,20 @@ def apply_appearance(canvas, ax, axis_index, settings):
     canvas._apply_colorbar(ax, axis_index, settings, style)
 
 
-def apply_limits_and_scale(canvas, ax, settings, is_category_x):
-    if is_category_x or axis_setting(settings, 'x_autoscale'): ax.autoscale(enable=True, axis='x', tight=True)
-    else:
-        min_val, max_val = axis_setting(settings, 'x_min'), axis_setting(settings, 'x_max')
-        if min_val < max_val: ax.set_xlim(min_val, max_val)
+def apply_axis_range(ax, settings, axis_key, is_category_x=False):
+    """設定どおりの範囲を当てる。axis_key は 'x' / 'y' / 'y2'('y2' なら ax は第2Y軸)。描画と範囲のリセットの共通の経路。"""
+    which = 'x' if axis_key == 'x' else 'y'
+    if (axis_key == 'x' and is_category_x) or axis_setting(settings, f'{axis_key}_autoscale'):
+        ax.autoscale(enable=True, axis=which, tight=True)
+        return
+    min_val, max_val = axis_setting(settings, f'{axis_key}_min'), axis_setting(settings, f'{axis_key}_max')
+    if min_val < max_val:
+        (ax.set_xlim if which == 'x' else ax.set_ylim)(min_val, max_val)
 
-    if axis_setting(settings, 'y_autoscale'): ax.autoscale(enable=True, axis='y', tight=True)
-    else:
-        min_val, max_val = axis_setting(settings, 'y_min'), axis_setting(settings, 'y_max')
-        if min_val < max_val: ax.set_ylim(min_val, max_val)
+
+def apply_limits_and_scale(canvas, ax, settings, is_category_x):
+    apply_axis_range(ax, settings, 'x', is_category_x)
+    apply_axis_range(ax, settings, 'y')
 
     if not is_category_x:
         # set_xscale は同じ 'linear' でも Locator/Formatter を既定に戻してしまう。
@@ -254,12 +258,7 @@ def apply_grid(canvas, ax, settings):
 
 def _apply_secondary_y_limits_and_ticks(secondary_ax, settings):
     """主の Y 軸と同じ手順(範囲 → 対数 → 反転 → 目盛り)。既定(自動・線形・目盛り自動)では何も上書きしない。"""
-    if axis_setting(settings, 'y2_autoscale'):
-        secondary_ax.autoscale(enable=True, axis='y', tight=True)
-    else:
-        min_val, max_val = axis_setting(settings, 'y2_min'), axis_setting(settings, 'y2_max')
-        if min_val < max_val:
-            secondary_ax.set_ylim(min_val, max_val)
+    apply_axis_range(secondary_ax, settings, 'y2')
     is_log = axis_setting(settings, 'y2_log')
     # set_yscale は同じ値でも目盛りの Locator を既定に戻すので、変わるときだけ呼ぶ
     if secondary_ax.get_yscale() != ('log' if is_log else 'linear'):
