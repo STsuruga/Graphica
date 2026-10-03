@@ -9,6 +9,7 @@ from matplotlib.patches import Rectangle
 
 from graphica.gui import notify
 from graphica.core.commands import SetMaskedRowsCommand
+from graphica.gui.tools.pointer import clamped_data_point, legend_at
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,8 @@ class RangeSelectTool:
             return
         if event.button != 1 or event.inaxes is None or event.xdata is None:
             return
+        if legend_at(self._app.canvas, event) is not None:
+            return
         self._range_select_axes = event.inaxes
         self._range_select_start_x = event.xdata
         # 始めに1回だけ背景を撮り、以降は選択の矩形だけを blit で描き直す(毎回全体を描くと系列が多いほど重い)
@@ -92,10 +95,13 @@ class RangeSelectTool:
 
     def _on_range_select_motion(self, event):
         axes = getattr(self, '_range_select_axes', None)
-        if axes is None or event.inaxes is not axes or event.xdata is None:
+        if axes is None:
+            return
+        point = clamped_data_point(axes, event)
+        if point is None:
             return
 
-        x0, x1 = sorted((self._range_select_start_x, event.xdata))
+        x0, x1 = sorted((self._range_select_start_x, point[0]))
         ymin, ymax = axes.get_ylim()
 
         rect = getattr(self, '_range_select_preview_artist', None)
@@ -131,7 +137,9 @@ class RangeSelectTool:
         self._range_select_axes = None
         self._range_select_start_x = None
 
-        end_x = event.xdata if (event.inaxes is axes and event.xdata is not None) else None
+        # 軸の外で離したら、軸の縁で止めた位置までを選ぶ
+        point = clamped_data_point(axes, event)
+        end_x = point[0] if point is not None else None
         if end_x is None or start_x is None or start_x == end_x:
             return  # クリックだけ(ドラッグなし)は選択とみなさない
 

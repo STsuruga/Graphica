@@ -128,6 +128,11 @@ class _FakeMplEvent:
         self.xdata = xdata
         self.ydata = ydata
         self.button = button
+        # 本物のイベントと同じく、Figure のピクセル座標も持つ(モードは軸の外へのはみ出しや凡例の判定に使う)
+        if inaxes is not None and xdata is not None and ydata is not None:
+            self.x, self.y = inaxes.transData.transform((xdata, ydata))
+        else:
+            self.x = self.y = None
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -392,19 +397,27 @@ def test_on_annotation_release_ignored_when_no_drag_in_progress(tmp_path, monkey
     assert window.project.all_plot_settings[0]['annotations'] == []
 
 
-def test_on_annotation_release_ignored_when_released_on_different_axes(tmp_path, monkeypatch):
+def test_release_on_another_axes_ends_the_arrow_at_the_edge_of_the_start_axes(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.free_layout_checkbox.setChecked(True)
     window._on_add_free_subplot()
     assert len(window.all_axes) == 2
     window.annotation_mode_enabled = True
+    _patch_arrow_dialog(monkeypatch, text="label")
+    ax0, ax1 = window.all_axes
+    window.canvas.draw()
+    start = ax0.transData.inverted().transform(ax0.bbox.get_points().mean(axis=0))
 
-    window._on_annotation_press(_FakeMplEvent(window.all_axes[0], 1.0, 2.0))
-    window._on_annotation_release(_FakeMplEvent(window.all_axes[1], 1.0, 2.0))
+    window._on_annotation_press(_FakeMplEvent(ax0, *start))
+    window._on_annotation_release(_FakeMplEvent(ax1, *ax1.get_xlim()))
 
-    assert window.project.all_plot_settings[0]['annotations'] == []
+    annotations = window.project.all_plot_settings[0]['annotations']
+    assert len(annotations) == 1
+    end_px = ax0.transData.transform(annotations[0]['xy'])
+    box = ax0.bbox
+    assert box.x0 - 1e-6 <= end_px[0] <= box.x1 + 1e-6 and box.y0 - 1e-6 <= end_px[1] <= box.y1 + 1e-6
     assert window.project.all_plot_settings[1]['annotations'] == []
-    assert window._annotation_drag_start is None  # 消費はされている
+    assert window._annotation_drag_start is None
 
 
 def test_on_annotation_release_ignored_when_axis_index_cannot_be_resolved(tmp_path, monkeypatch):

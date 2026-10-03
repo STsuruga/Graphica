@@ -3,6 +3,7 @@
 import matplotlib
 matplotlib.use("Agg")
 import pandas as pd
+import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -19,6 +20,11 @@ class _FakeMplEvent:
         self.xdata = xdata
         self.ydata = ydata
         self.button = button
+        # 本物のイベントと同じく、Figure のピクセル座標も持つ(モードは軸の外へのはみ出しや凡例の判定に使う)
+        if inaxes is not None and xdata is not None and ydata is not None:
+            self.x, self.y = inaxes.transData.transform((xdata, ydata))
+        else:
+            self.x = self.y = None
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
@@ -204,7 +210,7 @@ def test_release_is_undoable(tmp_path, monkeypatch):
     assert len(window.project.all_plot_settings[ds.subplot_target].get('annotations', [])) == 1
 
 
-def test_release_on_different_axes_than_press_is_noop(tmp_path, monkeypatch):
+def test_release_on_another_axes_stops_the_band_at_the_edge_of_the_start_axes(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.subplot_rows_spinbox.setValue(1)
     window.subplot_cols_spinbox.setValue(2)
@@ -214,10 +220,14 @@ def test_release_on_different_axes_than_press_is_noop(tmp_path, monkeypatch):
     window.region_highlight_mode_enabled = True
 
     ax0, ax1 = window.all_axes[0], window.all_axes[1]
+    window.canvas.draw()
     window._on_region_highlight_press(_FakeMplEvent(ax0, 1.0, 1.0))
+    # 右隣の軸の上で離すと、押した軸の右の縁までの縦帯になる
     window._on_region_highlight_release(_FakeMplEvent(ax1, 3.0, 1.0))
 
-    assert window.project.all_plot_settings[0].get('annotations', []) == []
+    bands = window.project.all_plot_settings[0].get('annotations', [])
+    assert [band['type'] for band in bands] == ['vspan']
+    assert bands[0]['range'] == pytest.approx((1.0, ax0.get_xlim()[1]))
     assert window.project.all_plot_settings[1].get('annotations', []) == []
 
 

@@ -18,6 +18,7 @@ from PySide6.QtCore import Qt
 from graphica.core.axis_settings import axis_setting
 from graphica.gui.rendering.appearance import apply_axis_range
 from graphica.gui.tools.manager import MOUSE_MODES_BY_NAME
+from graphica.gui.tools.pointer import legend_at
 
 logger = logging.getLogger(__name__)
 
@@ -226,13 +227,6 @@ class ViewNavigationTool:
         name = self._app._active_mouse_mode()
         return MOUSE_MODES_BY_NAME.get(name) if name else None
 
-    def _on_legend(self, subplot_index, event):
-        for ax in self._subplot_axes(subplot_index):
-            legend = ax.get_legend() if ax is not None else None
-            if legend is not None and legend.get_visible() and legend.contains(event)[0]:
-                return True
-        return False
-
     # --- イベント ---
 
     def on_scroll(self, event):
@@ -264,7 +258,7 @@ class ViewNavigationTool:
             if (mode is None or not mode.uses_right_click) and self.zoom_back(index):
                 self._app.canvas.draw_idle()
         elif event.button == 1:
-            if self._on_legend(index, event):
+            if legend_at(self._app.canvas, event) is not None:
                 return
             if event.dblclick:
                 if mode is None or not mode.uses_left_click:
@@ -280,7 +274,7 @@ class ViewNavigationTool:
         if band is None:
             return
         # 枠の外へドラッグした凡例が帯に重なっていれば、凡例のドラッグに譲る
-        if any(self._on_legend(index, event) for index in range(len(self._app.canvas.all_axes))):
+        if legend_at(self._app.canvas, event) is not None:
             return
         if event.dblclick:
             self.reset_axis(band.subplot_index, band.axis_key)

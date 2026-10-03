@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QMessageBox
 from graphica.gui import notify
 from graphica.core.axis_settings import axis_setting
 from graphica.core.commands import SetAnnotationsCommand
+from graphica.gui.tools.pointer import clamped_data_point, legend_at
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class RegionHighlightTool:
         self._region_highlight_axes = None
         self._region_highlight_start = None         # (x, y) データ座標
         self._region_highlight_preview_artist = None
+        self._region_highlight_background = None    # blit 用に押したときに撮った背景
 
     def _toggle_region_highlight_mode(self, checked):
         self.region_highlight_mode_enabled = checked
@@ -77,7 +79,7 @@ class RegionHighlightTool:
             self._region_highlight_start = None
 
     def _clear_region_highlight_preview(self):
-        """ドラッグ中のプレビューを消す。描き直しで既に消えていても例外にしない。"""
+        """ドラッグ中のプレビューと blit 用の背景を捨てる。描き直しで既に消えていても例外にしない。"""
         artist = getattr(self, '_region_highlight_preview_artist', None)
         if artist is not None:
             try:
@@ -86,11 +88,14 @@ class RegionHighlightTool:
                 pass
             self._region_highlight_preview_artist = None
             self._app.canvas.draw_idle()
+        self._region_highlight_background = None
 
     def _on_region_highlight_press(self, event):
         if not getattr(self, 'region_highlight_mode_enabled', False):
             return
         if event.inaxes is None or event.xdata is None or event.ydata is None:
+            return
+        if legend_at(self._app.canvas, event) is not None:
             return
 
         if event.button == 3:  # 右クリックは削除
@@ -99,37 +104,53 @@ class RegionHighlightTool:
 
         self._region_highlight_axes = event.inaxes
         self._region_highlight_start = (event.xdata, event.ydata)
+        # 背景は始めに1回だけ撮り、以降は帯だけを blit で描き直す(毎回全体を描くと系列が多いほど重い)
+        self._app.canvas.draw()
+        self._region_highlight_background = self._app.canvas.copy_from_bbox(event.inaxes.bbox)
 
     def _on_region_highlight_motion(self, event):
         axes = getattr(self, '_region_highlight_axes', None)
-        if axes is None or event.inaxes is not axes or event.xdata is None or event.ydata is None:
+        if axes is None:
+            return
+        point = clamped_data_point(axes, event)
+        if point is None:
             return
 
         start_x, start_y = self._region_highlight_start
-        orientation = self._region_highlight_orientation(axes, start_x, start_y, event.xdata, event.ydata)
+        current_x, current_y = point
+        orientation = self._region_highlight_orientation(axes, start_x, start_y, current_x, current_y)
         if orientation is None:
             return
 
-        self._clear_region_highlight_preview()
         xmin, xmax = axes.get_xlim()
         ymin, ymax = axes.get_ylim()
         if orientation == 'vspan':
-            x0, x1 = sorted((start_x, event.xdata))
-            rect = Rectangle(
-                (x0, ymin), x1 - x0, ymax - ymin,
-                facecolor=REGION_HIGHLIGHT_DEFAULT_COLOR, alpha=0.25,
-                edgecolor=REGION_HIGHLIGHT_DEFAULT_COLOR, linewidth=1, zorder=100,
-            )
+            x0, x1 = sorted((start_x, current_x))
+            bounds = (x0, ymin, x1 - x0, ymax - ymin)
         else:
-            y0, y1 = sorted((start_y, event.ydata))
+            y0, y1 = sorted((start_y, current_y))
+            bounds = (xmin, y0, xmax - xmin, y1 - y0)
+
+        rect = self._region_highlight_preview_artist
+        if rect is None:
+            # animated=True の図形は draw() では描かれず blit だけで出る。add_artist なのでデータの範囲にも入らない
             rect = Rectangle(
-                (xmin, y0), xmax - xmin, y1 - y0,
+                bounds[:2], bounds[2], bounds[3],
                 facecolor=REGION_HIGHLIGHT_DEFAULT_COLOR, alpha=0.25,
-                edgecolor=REGION_HIGHLIGHT_DEFAULT_COLOR, linewidth=1, zorder=100,
+                edgecolor=REGION_HIGHLIGHT_DEFAULT_COLOR, linewidth=1, zorder=100, animated=True,
             )
-        axes.add_patch(rect)
-        self._region_highlight_preview_artist = rect
-        self._app.canvas.draw_idle()
+            axes.add_artist(rect)
+            self._region_highlight_preview_artist = rect
+        else:
+            rect.set_bounds(*bounds)
+
+        background = self._region_highlight_background
+        if background is None:
+            self._app.canvas.draw_idle()
+            return
+        self._app.canvas.restore_region(background)
+        axes.draw_artist(rect)
+        self._app.canvas.blit(axes.bbox)
 
     def _on_region_highlight_release(self, event):
         axes = getattr(self, '_region_highlight_axes', None)
@@ -144,10 +165,11 @@ class RegionHighlightTool:
             return
         start_x, start_y = start
 
-        if event.inaxes is not axes or event.xdata is None or event.ydata is None:
-            return  # 別の軸か軸の外で離した
-
-        end_x, end_y = event.xdata, event.ydata
+        # 軸の外で離したら、軸の縁で止めた位置までの帯にする
+        end_point = clamped_data_point(axes, event)
+        if end_point is None:
+            return
+        end_x, end_y = end_point
         orientation = self._region_highlight_orientation(axes, start_x, start_y, end_x, end_y)
         if orientation is None:
             return  # クリックだけ(ドラッグなし)

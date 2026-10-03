@@ -19,6 +19,11 @@ class _FakeMplEvent:
         self.xdata = xdata
         self.ydata = ydata
         self.button = button
+        # 本物のイベントと同じく、Figure のピクセル座標も持つ(モードは軸の外へのはみ出しや凡例の判定に使う)
+        if inaxes is not None and xdata is not None and ydata is not None:
+            self.x, self.y = inaxes.transData.transform((xdata, ydata))
+        else:
+            self.x = self.y = None
 
 
 def _make_isolated_plotter_app(tmp_path, monkeypatch):
