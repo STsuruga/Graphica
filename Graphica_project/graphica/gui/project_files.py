@@ -283,6 +283,8 @@ def load_project_from_path(app, filepath, add_to_recent=True):
         # 前の文書へのコマンドは datasets をリストごと差し戻すので、残すと
         # Undo 1回で読み込んだ内容が前の文書に置き換わる。
         app.undo_stack.clear()
+        # マウスで変えた表示範囲は前の文書のもの
+        app.view_navigation.forget_all_views()
 
         app.property_panel.update_ui_state()
         app._update_plot()

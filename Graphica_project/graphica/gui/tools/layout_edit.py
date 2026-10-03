@@ -88,6 +88,7 @@ class LayoutEditTool:
             return
         self._app.project.all_plot_settings.pop()
         new_total = len(self._app.project.all_plot_settings)
+        self._app.view_navigation.forget_view(new_total)
         if self._app.project.active_axis_index >= new_total:
             self._app.project.active_axis_index = new_total - 1
 
