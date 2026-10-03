@@ -13,7 +13,18 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-03): テストの高速化 A〜H を実装した(ブランチ `claude/zealous-dijkstra-e37hn1` の PR)
+## 現在地(2026-10-03): フォルダを整理した
+
+- 開発用のフォルダを `D:\ユーザー\shuta\ドキュメント\dev\Graphica\` にまとめ、名前を Graphica にそろえた。
+  本体 `Graphica`(旧 `ドキュメント\PlotterApp`)、worktree `Graphica-plugin-track4`(旧 `PlotterApp-plugins`、`feature/plugin-track4`)、
+  プラグインのリポジトリ `graphica-plugins\`、git 以前のコード `archive\Graphica_backup`。
+- 使い終わった worktree(`PlotterApp-check`・`PlotterApp-refactor`・`PlotterApp-maintenance`)は削除した(ブランチは残した)。
+  `docs/plugin-planning-2` にだけあった P-115 のバックログの行は #92 で master に入れた。
+- グローバルの Python の editable install は `dev\Graphica\Graphica\Graphica_project` を指す(配布名 graphica-plot。古い graphica 1.4.2 は外した)。
+  フォルダを動かしたら入れ直しと `git worktree repair` が要る(CLAUDE.md「Folders on the user's machine」)。
+- Claude のサイドバーは、Graphica 関係のセッションを手動グループ「Graphica」にまとめた。
+
+## 以前の現在地(2026-10-03): テストの高速化 A〜H を実装した(PR #91、マージ済み)
 
 - `docs/dev/TEST_SPEEDUP_PLAN.md` の A〜H をすべて入れた(結果と、計画から変えた点は同じファイルの「6. 結果」)。
   - ランナーはテストの前に収集しない。件数は `scripts/count_tests.py` が AST で見積もり、重いファイルは
