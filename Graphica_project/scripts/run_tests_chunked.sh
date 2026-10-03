@@ -9,6 +9,7 @@
 #   bash scripts/run_tests_chunked.sh
 #   GRAPHICA_TEST_JOBS=1 bash scripts/run_tests_chunked.sh   # 1 つずつ流す(既定は CPU の数)
 #   GRAPHICA_COVERAGE=1 bash scripts/run_tests_chunked.sh    # カバレッジ付き(まとめは scripts/run_coverage.sh)
+#   GRAPHICA_TEST_SHARD=2/3 bash scripts/run_tests_chunked.sh # チャンクを 3 つに分けた 2 つ目だけ(CI のジョブ用)
 
 set -u
 
@@ -87,6 +88,30 @@ for group in "tests/test_*.py" "tests/characterization/test_*.py"; do
   done < <(python "$SCRIPTS_DIR/count_tests.py" "${files[@]}" | tr -d '\r')
   flush_pack
 done
+
+if [ -n "${GRAPHICA_TEST_SHARD:-}" ]; then
+  # CI でチャンクを複数のジョブに分ける。どのジョブも同じチャンクの一覧を作るので、重い順に、そのとき合計が
+  # いちばん軽いシャードへ割り当て(同じ重さなら番号の小さい方)、自分の番号の分だけを残す
+  shard_index=${GRAPHICA_TEST_SHARD%/*}
+  shard_count=${GRAPHICA_TEST_SHARD#*/}
+  if ! [[ "$shard_index" =~ ^[0-9]+$ && "$shard_count" =~ ^[0-9]+$ ]] \
+      || [ "$shard_index" -lt 1 ] || [ "$shard_index" -gt "$shard_count" ]; then
+    echo "!!! FAILED: GRAPHICA_TEST_SHARD は i/n の形(1 <= i <= n): $GRAPHICA_TEST_SHARD"
+    rm -rf "$TMPDIR" "$BASETEMP_ROOT"
+    exit 1
+  fi
+  all_chunks=$(wc -l < "$CHUNKS" | tr -d ' ')
+  awk -F'\t' '{print $1 "\t" NR}' "$CHUNKS" | sort -t"$(printf '\t')" -k1,1nr -k2,2n \
+    | awk -F'\t' -v count="$shard_count" -v me="$shard_index" '{
+        best = 1
+        for (s = 2; s <= count; s++) if (load[s] < load[best]) best = s
+        load[best] += $1
+        if (best == me) print $2
+      }' > "$TMPDIR/shard_lines.txt"
+  awk 'NR == FNR { keep[$1] = 1; next } (FNR in keep)' "$TMPDIR/shard_lines.txt" "$CHUNKS" > "$CHUNKS.shard"
+  mv "$CHUNKS.shard" "$CHUNKS"
+  echo "=== shard $shard_index/$shard_count: $(wc -l < "$CHUNKS" | tr -d ' ') of $all_chunks chunks ==="
+fi
 
 total=$(wc -l < "$CHUNKS" | tr -d ' ')
 echo "=== $total chunks, $JOBS in parallel ==="

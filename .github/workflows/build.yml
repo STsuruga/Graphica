@@ -2,6 +2,8 @@ name: Tests
 
 # lint・型検査・テスト(Windows と macOS)と、pip で入れた版の起動確認。exe と .app は package.yml。
 # - テストは scripts/run_tests_chunked.sh で回す(小分けにして別プロセスで並列に流す)。
+#   さらにチャンクをジョブに分けて(GRAPHICA_TEST_SHARD)同時に流す。Windows は 3 つ、macOS は PR などで 2 つ。
+#   ジョブ名は test-windows (1) などになる(ブランチ保護の必須チェックには使っていない)。
 # - カバレッジは master のランの macOS ジョブだけで測る(計測すると遅くなるため、タグと PR では測らない)。
 #   HTML のレポートは成果物 coverage-html に残し、pages.yml がサイトと一緒に GitHub Pages に公開する。
 # - 開発用の文書だけの変更では動かない(テストが読む README.md・THIRD_PARTY_LICENSES.md は対象のまま)。
@@ -46,6 +48,11 @@ jobs:
     runs-on: windows-latest
     # テストがモーダルなどで止まると、既定では 6 時間待ってから落ちる
     timeout-minutes: 60
+    strategy:
+      # ほかのシャードの結果も見られるよう、1 つが落ちても止めない
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
 
     defaults:
       run:
@@ -65,21 +72,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 重いテストより前に落とす。設定は pyproject.toml の [tool.ruff]。
+      # 重いテストより前に落とす。設定は pyproject.toml の [tool.ruff]。どのシャードでも同じなので 1 つ目だけ
       - name: Lint
+        if: matrix.shard == 1
         run: ruff check .
 
       # 対象と設定は pyproject.toml の [tool.mypy](core/ とプラグインの入口)。
       - name: Type check
+        if: matrix.shard == 1
         run: mypy
 
       - name: Run tests
         shell: bash
+        env:
+          GRAPHICA_TEST_SHARD: ${{ matrix.shard }}/3
         run: bash scripts/run_tests_chunked.sh
 
   test-macos:
     runs-on: macos-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # master はカバレッジを 1 つのジョブで測る(ジョブをまたいで結合しない)。PR の待ち時間には関係しない
+        shard: ${{ fromJSON(github.ref == 'refs/heads/master' && '[1]' || '[1, 2]') }}
 
     defaults:
       run:
@@ -108,6 +124,8 @@ jobs:
       - name: Run tests
         if: github.ref != 'refs/heads/master'
         shell: bash
+        env:
+          GRAPHICA_TEST_SHARD: ${{ matrix.shard }}/2
         run: bash scripts/run_tests_chunked.sh
 
       - name: Upload coverage report

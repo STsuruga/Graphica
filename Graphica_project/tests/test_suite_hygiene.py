@@ -341,6 +341,42 @@ def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
     assert "1 passed" in result.stdout
 
 
+def test_chunk_runner_shards_split_the_chunks_without_overlap(tmp_path):
+    """CI の各ジョブ(GRAPHICA_TEST_SHARD=i/n)が流すチャンクを合わせると、全部を 1 回ずつになる。"""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (tests_dir / "test_a.py").write_text("".join(f"def test_a{i}():\n    pass\n" for i in range(5)), encoding="utf-8")
+    (tests_dir / "test_b.py").write_text("".join(f"def test_b{i}():\n    pass\n" for i in range(3)), encoding="utf-8")
+    # 重いファイル(130 件 × 重み 10)は 3 つに分かれる
+    (tests_dir / "test_many.py").write_text(
+        "import pytest\n\n# PlotterApp(\n\n\n@pytest.mark.parametrize('v', range(130))\n"
+        "def test_param(v):\n    pass\n", encoding="utf-8")
+
+    def run(shard):
+        return subprocess.run(
+            [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
+            cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+            env={**os.environ, "GRAPHICA_TEST_SHARD": shard},
+        )
+
+    passed = []
+    for shard in ("1/2", "2/2"):
+        result = run(shard)
+        assert result.returncode == 0, result.stdout
+        assert f"=== shard {shard}:" in result.stdout
+        counts = [int(n) for n in re.findall(r"^(\d+) passed", result.stdout, re.M)]
+        assert counts, result.stdout
+        passed.append(sum(counts))
+    assert sum(passed) == 5 + 3 + 130
+    # 433・433・433・8 の重さを交互に割り当てる(重い分割 2 つと、分割 1 つ + 軽いファイル)
+    assert passed == [43 + 44, 43 + 8]
+
+    result = run("3/2")
+    assert result.returncode != 0
+    assert "GRAPHICA_TEST_SHARD" in result.stdout
+
+
 def test_chunk_runner_accepts_a_chunk_without_tests(tmp_path):
     """テストの無いファイルだけのチャンク(pytest の rc=5)は失敗にしない。"""
     tests_dir = tmp_path / "tests"
