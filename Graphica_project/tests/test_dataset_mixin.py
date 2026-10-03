@@ -1124,7 +1124,9 @@ def test_dataset_tree_context_menu_omits_global_visibility_actions_when_project_
 
     window._on_dataset_tree_context_menu(QPoint(0, 0))
 
-    assert _RecordingMenu.last_instance.added_texts == ["新しいフォルダ"]
+    texts = _RecordingMenu.last_instance.added_texts
+    assert "すべて表示" not in texts
+    assert "すべて非表示" not in texts
 # データセットツリーの右クリックメニュー (populate_dataset_actions_menu)
 # =============================================================================
 
@@ -1190,13 +1192,17 @@ def _patch_recording_menu(monkeypatch):
     monkeypatch.setattr(actions_menu_module, "QMenu", _RecordingMenu)
 
 
-def test_context_menu_no_selection_shows_only_new_folder(tmp_path, monkeypatch):
+def test_context_menu_no_selection_shows_only_tree_wide_actions(tmp_path, monkeypatch):
+    """データセットがあっても、何も選んでいなければ 1 つのデータセットやフォルダに対する項目は出さない。"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window._add_dataset(_make_simple_dataset("d0"), select=False)
+    window.ui.dataset_list_widget.setCurrentItem(None)
+    assert window.ui.dataset_list_widget.currentItem() is None
     _patch_recording_menu(monkeypatch)
 
     window._on_dataset_tree_context_menu(QPoint(0, 0))
 
-    assert _RecordingMenu.last_instance.added_texts == ["新しいフォルダ"]
+    assert _RecordingMenu.last_instance.added_texts == ["新しいフォルダ", "すべて表示", "すべて非表示"]
 
 
 def test_context_menu_folder_selected_shows_rename_and_bulk_visibility_actions(tmp_path, monkeypatch):

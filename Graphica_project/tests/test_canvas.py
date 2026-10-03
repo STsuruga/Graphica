@@ -470,8 +470,11 @@ def test_svg_export_with_fonttype_path_outlines_text_elements(canvas):
 # --- 軸ラベルの表示/非表示トグル(実機フィードバック、項目127追加分) ---
 
 def test_axis_label_shown_by_default(canvas):
+    """今の既定の設定(表示のフラグを含む)で、軸ラベルが出る。"""
+    from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS
+
     ds = _make_dataset(3, show_point_labels=False)
-    canvas.redraw_all([ds], 1, 1, [{'x_label': 'X軸', 'y_label': 'Y軸'}])
+    canvas.redraw_all([ds], 1, 1, [{**AXIS_SETTING_DEFAULTS, 'x_label': 'X軸', 'y_label': 'Y軸'}])
     ax = canvas.all_axes[0]
     assert ax.get_xlabel() == 'X軸'
     assert ax.get_ylabel() == 'Y軸'
