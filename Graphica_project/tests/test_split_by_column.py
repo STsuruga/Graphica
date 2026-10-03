@@ -332,6 +332,8 @@ def test_single_valued_column_adds_nothing_and_explains_why(tmp_path, monkeypatc
 
 def test_many_groups_asks_for_confirmation_first(tmp_path, monkeypatch):
     """連続値の列を誤って選ぶと大量の系列ができてしまうため、作る前に確認する。"""
+    # 本来の閾値(30)を超える数のデータセットを足すと 1 件数秒かかるので、閾値を下げて同じ分岐を通す
+    monkeypatch.setattr(processing_module, "SPLIT_BY_COLUMN_CONFIRM_THRESHOLD", 3)
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     try:
         n = processing_module.SPLIT_BY_COLUMN_CONFIRM_THRESHOLD + 5
@@ -351,6 +353,8 @@ def test_many_groups_asks_for_confirmation_first(tmp_path, monkeypatch):
 
 
 def test_many_groups_proceeds_when_confirmed(tmp_path, monkeypatch):
+    # 本来の閾値(30)を超える数のデータセットを足すと 1 件数秒かかるので、閾値を下げて同じ分岐を通す
+    monkeypatch.setattr(processing_module, "SPLIT_BY_COLUMN_CONFIRM_THRESHOLD", 3)
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     try:
         n = processing_module.SPLIT_BY_COLUMN_CONFIRM_THRESHOLD + 5
