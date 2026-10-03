@@ -1160,56 +1160,14 @@ def test_toggling_dark_mode_refreshes_color_picker_swatch_borders(tmp_path, monk
 #     テーマ切り替え時に明示的に再読み込みしないと、構築時のテーマの色の
 #     まま残ってしまう ---
 
-def test_toggling_dark_mode_refreshes_mpl_toolbar_and_custom_icons(tmp_path, monkeypatch):
-    """
-    _on_toggle_dark_modeが_refresh_mpl_toolbar_icons/_refresh_custom_svg_icons
-    の両方を呼ぶことを確認する。
-    """
+def test_toggling_dark_mode_refreshes_custom_icons(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     calls = []
-    monkeypatch.setattr(window, "_refresh_mpl_toolbar_icons", lambda: calls.append("mpl"))
     monkeypatch.setattr(window, "_refresh_custom_svg_icons", lambda: calls.append("custom"))
 
     window._on_toggle_dark_mode(True)
 
-    assert set(calls) == {"mpl", "custom"}
-
-
-def test_mpl_toolbar_attribute_is_the_navigation_toolbar(tmp_path, monkeypatch):
-    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
-
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    assert isinstance(window.mpl_toolbar, NavigationToolbar2QT)
-
-
-def test_navigation_toolbar_tooltips_are_localized_to_japanese(tmp_path, monkeypatch):
-    """項目62: matplotlib純正ツールバーの英語ツールチップ("Reset original view"等)を
-    日本語に差し替えていることを確認する。"""
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    actions = window.mpl_toolbar._actions
-    assert actions["home"].toolTip() == "元の表示に戻す"
-    assert actions["pan"].toolTip() == "パン/ズーム"
-    assert actions["zoom"].toolTip() == "矩形ズーム"
-    assert actions["save_figure"].toolTip() == "画像として保存"
-    for action in actions.values():
-        assert "Reset original view" not in action.toolTip()
-
-
-def test_refresh_mpl_toolbar_icons_updates_action_icons_without_raising(tmp_path, monkeypatch):
-    from graphica.gui import theme
-
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
-    window._refresh_mpl_toolbar_icons()
-    home_action = window.mpl_toolbar._actions.get('home')
-    assert home_action is not None
-    before = home_action.icon().pixmap(24, 24).toImage()
-
-    window._on_toggle_dark_mode(True)
-
-    after = home_action.icon().pixmap(24, 24).toImage()
-    # ダークモードへの切り替えでピクセル内容(色)が実際に変わっていること
-    assert before != after
+    assert calls == ["custom"]
 
 
 def test_refresh_custom_svg_icons_updates_tracked_widgets_without_raising(tmp_path, monkeypatch):

@@ -90,6 +90,7 @@ from graphica.gui.datasets.order import DatasetOrder
 from graphica.gui.panels import create_panels, expose_panel_names
 from graphica.gui.widget_translation import translate_widget_texts
 from graphica.gui.tools import MOUSE_MODES, ToolManager, create_tools, expose_tool_names
+from graphica.gui.tools.view_navigation import ViewNavigationTool
 from graphica.gui import data_import_flow
 # テストがこのモジュールの属性として引くので残す(使うコードは data_import_flow と project_files に移した)
 import pandas as pd  # noqa: F401
@@ -353,6 +354,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         # マウス操作の各モード(状態は各ツールが持つ。gui/tools/)
         self.mouse_tools = create_tools(self)
         self.mouse_tool_manager = ToolManager(self)
+        self.view_navigation = ViewNavigationTool(self)
 
 
         # 最初の軸の設定の既定値になる。フォントは QFont()(UI のフォント)にしない:
@@ -424,11 +426,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
         # グラフの要素のクリックでの選択は、どのモードでも常に有効
         self.canvas.mpl_connect('pick_event', self._on_element_pick)
 
-        # ホイールでのズームと中ボタンでのパンは、各モードの左クリックとぶつからないので常に有効
-        self.canvas.mpl_connect('scroll_event', self._on_scroll_zoom)
-        self.canvas.mpl_connect('button_press_event', self._on_middle_button_press_pan)
-        self.canvas.mpl_connect('motion_notify_event', self._on_middle_button_motion_pan)
-        self.canvas.mpl_connect('button_release_event', self._on_middle_button_release_pan)
+        # 表示範囲の操作(軸の上のホイール・ドラッグ、矩形ズーム、ダブルクリックでのリセットなど)は常に有効
+        self.view_navigation.connect()
         # 凡例をドラッグした位置を設定へ保存する
         self.canvas.mpl_connect('button_release_event', self._on_legend_drag_release)
 
@@ -1121,9 +1120,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
 
     def _on_data_load_failed(self, error_message, file_path):
         return data_import_flow.on_data_load_failed(self, error_message, file_path)
-
-    def _localize_navigation_toolbar(self, toolbar):
-        return canvas_area.localize_navigation_toolbar(self, toolbar)
 
     def _cleanup_data_load_task_runner(self):
         return data_import_flow.cleanup_data_load_task_runner(self)

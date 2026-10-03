@@ -16,23 +16,25 @@ logger = logging.getLogger(__name__)
 # flag_attr:     PlotterApp 上の「有効かどうか」を持つ属性名
 # action_attr:   ツールバーの QAction を持つ属性名
 # toggle_method: ON/OFF を切り替えるメソッド名
-MouseMode = namedtuple("MouseMode", "name flag_attr action_attr toggle_method")
+# uses_left_click / uses_right_click: プロット内の(ドラッグでない)クリックに意味があるか。
+#   そのモードの最中は、表示範囲の操作(ダブルクリックでのリセット / 右クリックで戻す)を譲る(gui/tools/view_navigation.py)
+MouseMode = namedtuple("MouseMode", "name flag_attr action_attr toggle_method uses_left_click uses_right_click")
 
 MOUSE_MODES = (
     MouseMode("cursor", "cursor_mode_enabled",
-              "cursor_action", "_toggle_cursor_mode"),
+              "cursor_action", "_toggle_cursor_mode", True, False),
     MouseMode("annotation", "annotation_mode_enabled",
-              "annotation_action", "_toggle_annotation_mode"),
+              "annotation_action", "_toggle_annotation_mode", True, True),
     MouseMode("layout_edit", "layout_edit_mode_enabled",
-              "layout_edit_action", "_toggle_layout_edit_mode"),
+              "layout_edit_action", "_toggle_layout_edit_mode", True, False),
     MouseMode("range_select", "range_select_mode_enabled",
-              "range_select_action", "_toggle_range_select_mode"),
+              "range_select_action", "_toggle_range_select_mode", False, False),
     MouseMode("peak_placement", "peak_placement_mode_enabled",
-              "peak_placement_action", "_toggle_peak_placement_mode"),
+              "peak_placement_action", "_toggle_peak_placement_mode", True, True),
     MouseMode("slice_extraction", "slice_extraction_mode_enabled",
-              "slice_extraction_action", "_toggle_slice_extraction_mode"),
+              "slice_extraction_action", "_toggle_slice_extraction_mode", False, False),
     MouseMode("region_highlight", "region_highlight_mode_enabled",
-              "region_highlight_action", "_toggle_region_highlight_mode"),
+              "region_highlight_action", "_toggle_region_highlight_mode", False, True),
 )
 
 MOUSE_MODES_BY_NAME = {mode.name: mode for mode in MOUSE_MODES}

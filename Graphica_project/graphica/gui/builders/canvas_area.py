@@ -2,13 +2,12 @@
 import logging
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QApplication, QFrame, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QToolBar, QVBoxLayout
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, theme
 from graphica.gui.builders.common import TOOLBAR_ICON_SIZE, _svg_icon
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.minimap_widget import MinimapWidget
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +19,15 @@ def build_canvas_and_toolbar(app):
     # (当てないと、ダークモードで起動したときツールバーのアイコンがライト用の色になって見えない)
     theme.apply_theme(QApplication.instance(), app.canvas.dark_mode)
     app.canvas.point_label_max_points = app_settings.POINT_LABEL_MAX_POINTS.read(app.settings)
-    toolbar = NavigationToolbar(app.canvas, app)
-    # matplotlib のツールバーはアイコンの明暗を作ったときに一度だけ決めるので、
-    # ダークモードの切り替え(_on_toggle_dark_mode)で作り直せるよう持っておく
-    app.mpl_toolbar = toolbar
+    # 表示範囲の操作はツールバーではなくマウスで行う(gui/tools/view_navigation.py)ので、matplotlib のツールバーは使わない
+    toolbar = QToolBar(tr("プロット"), app)
+    toolbar.setObjectName("plot_toolbar")
+    app.plot_toolbar = toolbar
     # 普通のレイアウトに入れたツールバーは、幅が足りないとボタンが小さな「>>」に押し込まれて見つからない。
     # アイコンを小さくしてはみ出しにくくする
     toolbar.setIconSize(QSize(TOOLBAR_ICON_SIZE, TOOLBAR_ICON_SIZE))
-    app._localize_navigation_toolbar(toolbar)
 
-    # マウス操作のモード。互いに排他にするため、アクションは属性で持つ(mouse_mode_mixin の表から操作する)
-    toolbar.addSeparator()
+    # マウス操作のモード。互いに排他にするため、アクションは属性で持つ(gui/tools/manager.py の表から操作する)
     app.cursor_action = QAction(
         _svg_icon("pointer"),
         tr("データカーソル"),
@@ -146,31 +143,3 @@ def setup_status_bar(app):
     app.coordinate_label = QLabel("X= ---, Y= ---")
     app.ui.statusbar.addPermanentWidget(app.coordinate_label)
 
-
-def localize_navigation_toolbar(app, toolbar):
-    """matplotlib のツールバーの英語のツールチップを差し替える。
-
-    _actions は matplotlib の内部なので、構造が変わっていたら何もしない(英語のまま)。
-    """
-    labels = {
-        'home': (tr("元の表示に戻す"), tr("最初の表示範囲にリセットします")),
-        'back': (tr("前の表示に戻る"), tr("1つ前の表示範囲に戻ります")),
-        'forward': (tr("次の表示に進む"), tr("戻る前の表示範囲に進みます")),
-        'pan': (tr("パン/ズーム"),
-                tr("左ドラッグで移動、右ドラッグで拡大縮小(x/yキーで軸固定)")),
-        'zoom': (tr("矩形ズーム"), tr("ドラッグした矩形範囲に拡大します(x/yキーで軸固定)")),
-        'configure_subplots': (tr("サブプロット調整"), tr("サブプロット間の余白を調整します")),
-        'save_figure': (tr("画像として保存"), tr("グラフを画像ファイルとして保存します")),
-    }
-    try:
-        actions = toolbar._actions
-    except AttributeError:
-        logger.warning("NavigationToolbar2QTの_actionsが見つからず、ツールチップの日本語化をスキップしました。")
-        return
-    for name, action in actions.items():
-        localized = labels.get(name)
-        if localized is None:
-            continue
-        tooltip, status_tip = localized
-        action.setToolTip(tooltip)
-        action.setStatusTip(status_tip)
