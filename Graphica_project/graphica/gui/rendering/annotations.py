@@ -102,8 +102,7 @@ def choose_inset_connector_corners(box, inset):
 
 def inset_connector_corners(ax, inset_ax, inset_rect):
     """
-    拡大図の今の表示範囲(親に印す四角)と拡大図の位置から、引き出し線の角を選ぶ。inset_rect は親の軸に対する (x0, y0, x1, y1)。
-    mark_inset の四角は拡大図の表示範囲の向き(昇順)で角を数えるので、親の軸が反転していても角の番号は見た目どおり。
+    拡大図の今の表示範囲(親に印す四角)と拡大図の位置から、引き出し線の角を見た目の位置で選ぶ。inset_rect は親の軸に対する (x0, y0, x1, y1)。
     """
     (x_lo, x_hi), (y_lo, y_hi) = inset_ax.get_xlim(), inset_ax.get_ylim()
     to_axes = ax.transData + ax.transAxes.inverted()
@@ -112,11 +111,127 @@ def inset_connector_corners(ax, inset_ax, inset_rect):
     return choose_inset_connector_corners(box, inset_rect)
 
 
+# mark_inset の四角は拡大図の表示範囲の向きで角を数えるので、拡大図を反転すると見た目の角と番号が入れ替わる
+_MIRROR_X_CORNER = {1: 2, 2: 1, 3: 4, 4: 3}
+_MIRROR_Y_CORNER = {1: 4, 4: 1, 2: 3, 3: 2}
+
+
+def _box_corner_label(loc, inset_ax):
+    """見た目で loc の位置にある、親に印す四角の角の番号。"""
+    if inset_ax.xaxis_inverted():
+        loc = _MIRROR_X_CORNER[loc]
+    if inset_ax.yaxis_inverted():
+        loc = _MIRROR_Y_CORNER[loc]
+    return loc
+
+
+def _secondary_axis(canvas, axis_index):
+    secondary_axes = canvas.all_secondary_axes
+    return secondary_axes[axis_index] if axis_index < len(secondary_axes) else None
+
+
+def _map_between_y_axes(ax, from_ax, to_ax, y):
+    """from_ax の Y の値 -> 親の図で同じ高さにある to_ax の Y の値(目盛りの種類・反転を含む)。"""
+    y = np.asarray(y, dtype=float)
+    # X は捨てるが、対数の X で 0 を変換すると nan が Y に混ざるので、軸の範囲内の値を使う
+    x = np.full_like(y, ax.get_xlim()[0])
+    display = from_ax.transData.transform(np.column_stack([x, y]))
+    return to_ax.transData.inverted().transform(display)[:, 1]
+
+
+def _inset_points(canvas, ds, x_min, x_max, full_resolution):
+    """拡大範囲の点(間引いたもの)。範囲内に点が無ければ None。"""
+    tx = np.asarray(ds.x_data, dtype=float)
+    ty = np.asarray(ds.y_data, dtype=float)
+    in_range = (tx >= x_min) & (tx <= x_max)
+    if not in_range.any():
+        return None
+    return canvas._downsample_for_inset(tx[in_range], ty[in_range], full_resolution=full_resolution)
+
+
+def _make_inset_secondary(ax, inset_ax, bounds, parent_secondary):
+    """
+    拡大図の右側の第2 Y 軸。twinx() は Figure に軸を足すので、軸だけ描き直す経路(cla())で消えずに残る。
+    そのため親の子の軸として同じ場所に重ね、X を拡大図と共有する。
+    """
+    secondary = ax.inset_axes(bounds, sharex=inset_ax)
+    secondary.patch.set_visible(False)
+    secondary.xaxis.set_visible(False)
+    secondary.yaxis.tick_right()
+    if parent_secondary.get_yscale() != 'linear':
+        secondary.set_yscale(parent_secondary.get_yscale())
+    return secondary
+
+
+def draw_inset(canvas, ax, axis_index, ann, datasets, full_resolution):
+    """
+    拡大図を描いて、作った artist を返す。種類やグラデーションは再現せず、範囲内の点を線で結ぶだけの概観。
+    目盛りの種類・反転は親と同じにし、第2 Y 軸のデータセットは右側の第2 Y 軸に、親の図と同じ高さで描く。
+    """
+    x0, y0 = _INSET_CORNER_ORIGINS.get(ann.get('corner', '右上'), (0.55, 0.55))
+    size = ann.get('size', 0.4)
+    x_min, x_max = ann.get('zoom_x_range', (0, 1))
+    color = canvas._effective_text_color(ann.get('color', '#000000'))
+    bounds = (x0, y0, size, size)
+    inset_ax = ax.inset_axes(bounds)
+    artists = [inset_ax]
+    # set_xscale は 'linear' でも目盛りを既定に戻すので、対数のときだけ呼ぶ
+    if ax.get_xscale() != 'linear':
+        inset_ax.set_xscale(ax.get_xscale())
+    if ax.get_yscale() != 'linear':
+        inset_ax.set_yscale(ax.get_yscale())
+
+    parent_secondary = _secondary_axis(canvas, axis_index)
+    secondary_lines = []
+    for target_ds in (datasets or ()):
+        if target_ds.subplot_target != axis_index or not target_ds.visible:
+            continue
+        points = _inset_points(canvas, target_ds, x_min, x_max, full_resolution)
+        if points is None:
+            continue
+        style = dict(color=target_ds.color, linewidth=target_ds.linewidth, alpha=target_ds.alpha)
+        if target_ds.use_secondary_y and parent_secondary is not None:
+            secondary_lines.append((points, style))
+        else:
+            inset_ax.plot(*points, **style)
+
+    inset_secondary = None
+    if secondary_lines:
+        inset_secondary = _make_inset_secondary(ax, inset_ax, bounds, parent_secondary)
+        artists.append(inset_secondary)
+        for (sx, sy), style in secondary_lines:
+            inset_secondary.plot(sx, sy, **style)
+            # 拡大図の Y 範囲(=親に印す四角)は第1 Y 軸の値なので、親の図で同じ高さになる値に直して入れる
+            inset_ax.update_datalim(np.column_stack([sx, _map_between_y_axes(ax, parent_secondary, ax, sy)]))
+        inset_ax.autoscale_view(scalex=False)
+
+    inset_ax.set_xlim(x_min, x_max)
+    fit_inset_y_range(ax, inset_ax, ann.get('zoom_y_range'))
+    if ax.xaxis_inverted():
+        inset_ax.xaxis.set_inverted(True)
+    if ax.yaxis_inverted():
+        inset_ax.yaxis.set_inverted(True)
+    inset_ax.tick_params(labelsize=7)
+    if inset_secondary is not None:
+        # 右側の範囲は、拡大図の範囲を親の左右の軸の対応で読み替えたもの(向きもこれで親と同じになる)
+        inset_secondary.set_ylim(*_map_between_y_axes(ax, ax, parent_secondary, inset_ax.get_ylim()))
+        inset_secondary.tick_params(labelsize=7)
+
+    if 'loc1' in ann or 'loc2' in ann:
+        corners = [(ann.get('loc1', 2), None), (ann.get('loc2', 4), None)]
+    else:
+        pair = inset_connector_corners(ax, inset_ax, (x0, y0, x0 + size, y0 + size))
+        corners = [(loc, _box_corner_label(loc, inset_ax)) for loc in pair]
+    pp, p1, p2 = mark_inset(ax, inset_ax, loc1=corners[0][0], loc2=corners[1][0], fc="none", ec=color)
+    p1.loc2, p2.loc2 = corners[0][1], corners[1][1]
+    return artists + [pp, p1, p2]
+
+
 def annotation_render_key(canvas, axis_index, settings, datasets, full_resolution, parent_ax=None):
     """
     注釈の描き直しを省くかどうかのキー。描いた結果に影響するものを全部入れる:
     ダークモード(色が変わる)、統計値ラベルの計算後の文字列、拡大図が描くデータセットの色・線幅・透明度・表示、
-    拡大図があれば親の軸の範囲と目盛りの種類(拡大図の Y の切り詰めと引き出し線の角がこれで決まる)。
+    拡大図があれば親の軸(第2 Y 軸も)の範囲と目盛りの種類(拡大図の範囲・向き・引き出し線の角がこれで決まる)。
     拡大図のデータそのものは入れない。これを使う update_appearance_only はデータが変わっていない前提の経路
     (データが変わる操作は cla() する別の経路を通り、そこでは使い回さない)。
     """
@@ -128,6 +243,9 @@ def annotation_render_key(canvas, axis_index, settings, datasets, full_resolutio
     if parent_ax is not None and any(ann.get('type') == 'inset' for ann in annotations):
         parts.append([list(parent_ax.get_xlim()), list(parent_ax.get_ylim()),
                       parent_ax.get_xscale(), parent_ax.get_yscale()])
+        secondary = _secondary_axis(canvas, axis_index)
+        if secondary is not None:
+            parts.append([list(secondary.get_ylim()), secondary.get_yscale()])
     datasets_by_id = {ds.dataset_id: ds for ds in (datasets or ())}
     for ann in annotations:
         parts.append(json.dumps(ann, sort_keys=True, default=str))
@@ -193,33 +311,7 @@ def draw_annotations(canvas, ax, axis_index, settings, datasets=None, full_resol
                 else:
                     artist = ax.axhspan(lo, hi, color=color, alpha=alpha, zorder=0.5)
             elif ann_type == 'inset':
-                # 拡大図は、種類やグラデーションは再現せず、範囲内の点を線で結ぶだけの概観
-                x0, y0 = _INSET_CORNER_ORIGINS.get(ann.get('corner', '右上'), (0.55, 0.55))
-                size = ann.get('size', 0.4)
-                x_min, x_max = ann.get('zoom_x_range', (0, 1))
-                color = canvas._effective_text_color(ann.get('color', '#000000'))
-                inset_ax = ax.inset_axes((x0, y0, size, size))
-                for target_ds in (datasets or ()):
-                    if target_ds.subplot_target != axis_index or not target_ds.visible:
-                        continue
-                    tx = np.asarray(target_ds.x_data, dtype=float)
-                    ty = np.asarray(target_ds.y_data, dtype=float)
-                    in_range = (tx >= x_min) & (tx <= x_max)
-                    if in_range.any():
-                        inset_x, inset_y = canvas._downsample_for_inset(
-                            tx[in_range], ty[in_range], full_resolution=full_resolution
-                        )
-                        inset_ax.plot(inset_x, inset_y, color=target_ds.color,
-                                      linewidth=target_ds.linewidth, alpha=target_ds.alpha)
-                inset_ax.set_xlim(x_min, x_max)
-                fit_inset_y_range(ax, inset_ax, ann.get('zoom_y_range'))
-                inset_ax.tick_params(labelsize=7)
-                if 'loc1' in ann or 'loc2' in ann:
-                    loc1, loc2 = ann.get('loc1', 2), ann.get('loc2', 4)
-                else:
-                    loc1, loc2 = inset_connector_corners(ax, inset_ax, (x0, y0, x0 + size, y0 + size))
-                pp, p1, p2 = mark_inset(ax, inset_ax, loc1=loc1, loc2=loc2, fc="none", ec=color)
-                new_artists.extend([inset_ax, pp, p1, p2])
+                new_artists.extend(draw_inset(canvas, ax, axis_index, ann, datasets, full_resolution))
                 artist = None
             elif ann_type == 'stat':
                 # 軸に対する位置なので、拡大・移動しても同じ場所に留まる
