@@ -51,10 +51,72 @@ def downsample_for_inset(canvas, x_data, y_data, full_resolution=False):
     return x_data[indices], y_data[indices]
 
 
-def annotation_render_key(canvas, axis_index, settings, datasets, full_resolution):
+def fit_inset_y_range(ax, inset_ax, zoom_y_range=None):
+    """
+    拡大図の Y 範囲。指定があればそのまま使う。無ければ自動の範囲を親の軸の Y 範囲に収める
+    (親に印す四角は拡大図の表示範囲そのものなので、収めないと親の軸の外へはみ出す)。
+    収まっているときは触らない(自動の範囲のまま)。拡大範囲の点がすべて親の範囲外なら、点が見えるよう自動のまま。
+    """
+    if zoom_y_range is not None:
+        lo, hi = zoom_y_range
+        inset_ax.set_ylim(min(lo, hi), max(lo, hi))
+        return
+    lo, hi = inset_ax.get_ylim()
+    parent_lo, parent_hi = sorted(ax.get_ylim())
+    clipped_lo, clipped_hi = max(lo, parent_lo), min(hi, parent_hi)
+    if (clipped_lo, clipped_hi) == (lo, hi) or clipped_lo >= clipped_hi:
+        return
+    inset_ax.set_ylim(clipped_lo, clipped_hi)
+
+
+def _bbox_corners(x0, y0, x1, y1):
+    """mark_inset の角の番号(1 右上・2 左上・3 左下・4 右下)-> 点。"""
+    return {1: (x1, y1), 2: (x0, y1), 3: (x0, y0), 4: (x1, y0)}
+
+
+def choose_inset_connector_corners(box, inset):
+    """
+    引き出し線の角(loc1, loc2)。box は親に印す四角、inset は拡大図で、どちらも親の軸に対する座標の (x0, y0, x1, y1)(x0 < x1, y0 < y1)。
+    同じ番号の角どうしを結ぶ線のうち、両方の四角が線の片側に収まる(=どちらの四角も横切らない)角を使う。
+    今までの (2, 4) が使えるならそれを、次に (1, 3) を選ぶ。四角が重なっていて2つ見つからなければ (2, 4)。
+    """
+    box_corners, inset_corners = _bbox_corners(*box), _bbox_corners(*inset)
+    points = list(box_corners.values()) + list(inset_corners.values())
+    usable = []
+    for loc in (1, 2, 3, 4):
+        (px, py), (qx, qy) = box_corners[loc], inset_corners[loc]
+        dx, dy = qx - px, qy - py
+        if dx == 0 and dy == 0:
+            continue
+        sides = [dx * (ty - py) - dy * (tx - px) for tx, ty in points]
+        tolerance = 1e-9 * max(abs(dx), abs(dy))
+        if all(s >= -tolerance for s in sides) or all(s <= tolerance for s in sides):
+            usable.append(loc)
+    for pair in ((2, 4), (1, 3)):
+        if all(loc in usable for loc in pair):
+            return pair
+    if len(usable) >= 2:
+        return usable[0], usable[1]
+    return 2, 4
+
+
+def inset_connector_corners(ax, inset_ax, inset_rect):
+    """
+    拡大図の今の表示範囲(親に印す四角)と拡大図の位置から、引き出し線の角を選ぶ。inset_rect は親の軸に対する (x0, y0, x1, y1)。
+    mark_inset の四角は拡大図の表示範囲の向き(昇順)で角を数えるので、親の軸が反転していても角の番号は見た目どおり。
+    """
+    (x_lo, x_hi), (y_lo, y_hi) = inset_ax.get_xlim(), inset_ax.get_ylim()
+    to_axes = ax.transData + ax.transAxes.inverted()
+    (bx0, by0), (bx1, by1) = to_axes.transform([(x_lo, y_lo), (x_hi, y_hi)])
+    box = (min(bx0, bx1), min(by0, by1), max(bx0, bx1), max(by0, by1))
+    return choose_inset_connector_corners(box, inset_rect)
+
+
+def annotation_render_key(canvas, axis_index, settings, datasets, full_resolution, parent_ax=None):
     """
     注釈の描き直しを省くかどうかのキー。描いた結果に影響するものを全部入れる:
-    ダークモード(色が変わる)、統計値ラベルの計算後の文字列、拡大図が描くデータセットの色・線幅・透明度・表示。
+    ダークモード(色が変わる)、統計値ラベルの計算後の文字列、拡大図が描くデータセットの色・線幅・透明度・表示、
+    拡大図があれば親の軸の範囲と目盛りの種類(拡大図の Y の切り詰めと引き出し線の角がこれで決まる)。
     拡大図のデータそのものは入れない。これを使う update_appearance_only はデータが変わっていない前提の経路
     (データが変わる操作は cla() する別の経路を通り、そこでは使い回さない)。
     """
@@ -63,6 +125,9 @@ def annotation_render_key(canvas, axis_index, settings, datasets, full_resolutio
     if not annotations:
         return json.dumps(parts, default=str)
 
+    if parent_ax is not None and any(ann.get('type') == 'inset' for ann in annotations):
+        parts.append([list(parent_ax.get_xlim()), list(parent_ax.get_ylim()),
+                      parent_ax.get_xscale(), parent_ax.get_yscale()])
     datasets_by_id = {ds.dataset_id: ds for ds in (datasets or ())}
     for ann in annotations:
         parts.append(json.dumps(ann, sort_keys=True, default=str))
@@ -89,7 +154,7 @@ def draw_annotations(canvas, ax, axis_index, settings, datasets=None, full_resol
     (fig.clf() / ax.cla() / 新しい軸)ので、使い回すと注釈が消える。既定は False。
     datasets は統計値ラベルと拡大図が使う(省略すると「データセットなし」)。
     """
-    render_key = canvas._annotation_render_key(axis_index, settings, datasets, full_resolution)
+    render_key = canvas._annotation_render_key(axis_index, settings, datasets, full_resolution, parent_ax=ax)
     if allow_reuse and canvas._annotation_render_keys.get(axis_index, _NO_KEY) == render_key:
         return
 
@@ -147,9 +212,13 @@ def draw_annotations(canvas, ax, axis_index, settings, datasets=None, full_resol
                         inset_ax.plot(inset_x, inset_y, color=target_ds.color,
                                       linewidth=target_ds.linewidth, alpha=target_ds.alpha)
                 inset_ax.set_xlim(x_min, x_max)
+                fit_inset_y_range(ax, inset_ax, ann.get('zoom_y_range'))
                 inset_ax.tick_params(labelsize=7)
-                pp, p1, p2 = mark_inset(ax, inset_ax, loc1=ann.get('loc1', 2), loc2=ann.get('loc2', 4),
-                                        fc="none", ec=color)
+                if 'loc1' in ann or 'loc2' in ann:
+                    loc1, loc2 = ann.get('loc1', 2), ann.get('loc2', 4)
+                else:
+                    loc1, loc2 = inset_connector_corners(ax, inset_ax, (x0, y0, x0 + size, y0 + size))
+                pp, p1, p2 = mark_inset(ax, inset_ax, loc1=loc1, loc2=loc2, fc="none", ec=color)
                 new_artists.extend([inset_ax, pp, p1, p2])
                 artist = None
             elif ann_type == 'stat':

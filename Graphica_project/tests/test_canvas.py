@@ -22,7 +22,9 @@ from graphica.gui.canvas import (
     GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS,
     WATERFALL_DEPTH_SHRINK_MIN_SCALE,
 )
+from graphica.gui.rendering.annotations import choose_inset_connector_corners
 from graphica.core.dataset import Dataset
+from mpl_toolkits.axes_grid1.inset_locator import BboxConnector, BboxPatch
 
 
 # --- _apply_nan_policy(項目C-201: 欠損値の方針設定) ---
@@ -1983,6 +1985,176 @@ def test_draw_annotations_inset_handles_no_points_in_range_without_crashing(canv
 
     inset_ax = canvas.all_axes[0].child_axes[0]
     assert len(inset_ax.lines) == 0
+
+
+# --- 拡大図の Y 範囲と引き出し線の角 ---
+
+def _inset_settings(corner='右上', zoom_x_range=(5, 10), **extra):
+    ann = {'type': 'inset', 'corner': corner, 'size': 0.4, 'zoom_x_range': zoom_x_range, 'color': '#000000'}
+    ann.update(extra)
+    return {'annotations': [ann]}
+
+
+def _inset_connectors(canvas):
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    return inset_ax, [p for p in canvas._annotation_artists[0] if isinstance(p, BboxConnector)]
+
+
+def test_inset_y_range_inside_parent_is_left_to_autoscale(canvas):
+    """親の Y 範囲に収まっていれば、自動の範囲(y=25..100 に 5% の余白)のまま。"""
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [_inset_settings()])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert inset_ax.get_autoscaley_on()
+    assert inset_ax.get_ylim() == pytest.approx((25 - 3.75, 100 + 3.75))
+
+
+def test_inset_y_range_is_clipped_to_parent_y_range(canvas):
+    """親の Y 範囲が狭いと、印す四角が親の外へはみ出さないよう拡大図の Y 範囲を切り詰める。"""
+    settings = _inset_settings()
+    settings.update({'y_autoscale': False, 'y_min': 30, 'y_max': 90})
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert inset_ax.get_ylim() == pytest.approx((30, 90))
+
+
+def test_inset_y_range_is_clipped_against_inverted_parent(canvas):
+    settings = _inset_settings()
+    settings.update({'y_autoscale': False, 'y_min': 30, 'y_max': 90, 'y_invert': True})
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert inset_ax.get_ylim() == pytest.approx((30, 90))
+
+
+def test_inset_y_range_left_alone_when_zoomed_data_is_outside_parent(canvas):
+    """拡大範囲の点がすべて親の範囲外なら、点が見えるよう自動の範囲のまま。"""
+    settings = _inset_settings()
+    settings.update({'y_autoscale': False, 'y_min': 200, 'y_max': 300})
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert inset_ax.get_ylim() == pytest.approx((25 - 3.75, 100 + 3.75))
+
+
+def test_inset_stored_y_range_is_used_as_is(canvas):
+    settings = _inset_settings(zoom_y_range=(10, 500))
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert inset_ax.get_ylim() == pytest.approx((10, 500))
+
+
+def test_inset_clip_follows_parent_y_range_on_appearance_only_redraw(canvas):
+    """見た目だけの描き直しで親の Y 範囲が変わったら、注釈を使い回さず切り詰め直す。"""
+    ds = _make_inset_dataset()
+    settings = _inset_settings()
+    canvas.redraw_all([ds], 1, 1, [settings])
+    settings.update({'y_autoscale': False, 'y_min': 30, 'y_max': 90})
+
+    canvas.update_appearance_only([settings], datasets=[ds])
+
+    inset_ax = canvas.all_axes[0].child_axes[0]
+    assert inset_ax.get_ylim() == pytest.approx((30, 90))
+
+
+def test_inset_upper_right_over_box_below_left_keeps_default_corners(canvas):
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [_inset_settings()])
+
+    _, connectors = _inset_connectors(canvas)
+    assert [c.loc1 for c in connectors] == [2, 4]
+
+
+def test_inset_upper_left_beside_box_uses_corners_that_do_not_cross(canvas):
+    """拡大図が左上・四角が右なら、上は右上どうし・下は左下どうしを結ぶ((2, 4) だと拡大図を横切る)。"""
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [_inset_settings(corner='左上', zoom_x_range=(14, 18))])
+
+    _, connectors = _inset_connectors(canvas)
+    assert [c.loc1 for c in connectors] == [1, 3]
+
+
+def test_inset_stored_corners_override_automatic_choice(canvas):
+    settings = _inset_settings(corner='左上', zoom_x_range=(14, 18), loc1=3, loc2=4)
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
+
+    _, connectors = _inset_connectors(canvas)
+    assert [c.loc1 for c in connectors] == [3, 4]
+
+
+@pytest.mark.parametrize("box, inset, expected", [
+    ((0.3, 0.1, 0.5, 0.3), (0.55, 0.55, 0.95, 0.95), (2, 4)),   # 拡大図が右上
+    ((0.6, 0.1, 0.8, 0.3), (0.05, 0.55, 0.45, 0.95), (1, 3)),   # 拡大図が左上
+    ((0.6, 0.6, 0.8, 0.8), (0.05, 0.05, 0.45, 0.45), (2, 4)),   # 拡大図が左下
+    ((0.1, 0.6, 0.3, 0.8), (0.55, 0.05, 0.95, 0.45), (1, 3)),   # 拡大図が右下
+    ((0.7, 0.05, 0.8, 0.15), (0.55, 0.55, 0.95, 0.95), (3, 4)),  # 四角が拡大図より狭く真下
+    ((0.6, 0.6, 0.9, 0.9), (0.55, 0.55, 0.95, 0.95), (2, 4)),   # 重なっている
+])
+def test_choose_inset_connector_corners(box, inset, expected):
+    assert choose_inset_connector_corners(box, inset) == expected
+
+
+def _segment_crosses_rect(p, q, rect):
+    x_lo, x_hi = sorted((rect[0], rect[2]))
+    y_lo, y_hi = sorted((rect[1], rect[3]))
+    for t in np.linspace(0.0, 1.0, 401)[1:-1]:
+        x, y = p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t
+        if x_lo + 1e-6 < x < x_hi - 1e-6 and y_lo + 1e-6 < y < y_hi - 1e-6:
+            return True
+    return False
+
+
+def test_chosen_inset_corners_never_cross_either_rect():
+    """重ならない配置なら、選んだ角の線はどちらの四角も横切らない。"""
+    rng = np.random.default_rng(0)
+    checked = 0
+    while checked < 300:
+        bx, by = rng.uniform(0, 0.8, 2)
+        box = (bx, by, bx + rng.uniform(0.02, 0.4), by + rng.uniform(0.02, 0.4))
+        ix, iy = rng.uniform(0, 0.6, 2)
+        size = rng.uniform(0.15, 0.4)
+        inset = (ix, iy, ix + size, iy + size)
+        if box[0] < inset[2] and inset[0] < box[2] and box[1] < inset[3] and inset[1] < box[3]:
+            continue
+        checked += 1
+        loc1, loc2 = choose_inset_connector_corners(box, inset)
+        box_x0, box_y0, box_x1, box_y1 = box
+        box_corners = {1: (box_x1, box_y1), 2: (box_x0, box_y1), 3: (box_x0, box_y0), 4: (box_x1, box_y0)}
+        inset_corners = {1: (inset[2], inset[3]), 2: (inset[0], inset[3]),
+                         3: (inset[0], inset[1]), 4: (inset[2], inset[1])}
+        for loc in (loc1, loc2):
+            p, q = box_corners[loc], inset_corners[loc]
+            assert not _segment_crosses_rect(p, q, box), (box, inset, loc)
+            assert not _segment_crosses_rect(p, q, inset), (box, inset, loc)
+
+
+@pytest.mark.parametrize("x_invert", [False, True])
+def test_drawn_inset_connectors_do_not_cross_inset_or_box(canvas, x_invert):
+    """実際に描いた線(画面の座標)で確かめる。X 軸が反転していても、四角の角の番号は見た目どおり。"""
+    settings = _inset_settings(corner='左上', zoom_x_range=(14, 18) if not x_invert else (0, 4))
+    settings['x_invert'] = x_invert
+    canvas.redraw_all([_make_inset_dataset()], 1, 1, [settings])
+
+    inset_ax, connectors = _inset_connectors(canvas)
+    box = next(p for p in canvas._annotation_artists[0] if isinstance(p, BboxPatch)).bbox
+    rects = [tuple(inset_ax.bbox.extents), tuple(box.extents)]
+    assert [c.loc1 for c in connectors] == [1, 3]
+    for connector in connectors:
+        start, end = connector.get_path().vertices[[0, -1]]
+        for rect in rects:
+            assert not _segment_crosses_rect(start, end, rect)
+
+
+def test_inset_render_key_changes_with_parent_limits(canvas):
+    ds = _make_inset_dataset()
+    settings = _inset_settings()
+    canvas.redraw_all([ds], 1, 1, [settings])
+    ax = canvas.all_axes[0]
+    before = canvas._annotation_render_key(0, settings, [ds], False, parent_ax=ax)
+
+    ax.set_ylim(30, 90)
+
+    assert canvas._annotation_render_key(0, settings, [ds], False, parent_ax=ax) != before
 
 
 # --- _enable_element_picking(): BarContainerのpatches個別ピッカー設定 ---
