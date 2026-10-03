@@ -112,6 +112,13 @@ def test_top_level_windows_do_not_pile_up_within_one_test():
     assert not window.isVisible()
 
 
+def test_imported_libraries_are_frozen_out_of_garbage_collection():
+    """conftest の gc.freeze() が外れると、回収のたびに読み込み済みのライブラリを走査して遅くなる(何も落ちない)。"""
+    import gc
+
+    assert gc.get_freeze_count() > 0
+
+
 # --- チャンクランナーの設定 ---
 
 def _runner_source():
