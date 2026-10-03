@@ -123,6 +123,14 @@ class DatasetHost:
     def redraw(self):
         self._app.redraw()
 
+    def deferred_redraw(self):
+        """中で頼まれた描き直しを、抜けるときの1回にまとめる。"""
+        return self._app.deferred_redraw()
+
+    def batched_undo_group(self, text):
+        """Undo 1回分にまとめ、描き直しも(Undo・Redo のときも)最後の1回にする。"""
+        return self._app.batched_undo_group(text)
+
     def refresh_ui_state(self):
         """選択中のデータセットに合わせてパネルとメニューの状態を更新する。"""
         self._app.property_panel.update_ui_state()

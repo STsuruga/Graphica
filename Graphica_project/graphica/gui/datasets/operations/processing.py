@@ -380,8 +380,7 @@ def split_by_column(op):
     color_cycle = host.active_color_cycle()
     target_folder = host.target_folder_for_new_dataset()
 
-    host.undo_stack.beginMacro(f"列「{split_col}」で系列に分割 ({len(groups)}件)")
-    try:
+    with host.batched_undo_group(f"列「{split_col}」で系列に分割 ({len(groups)}件)"):
         for i, (label, sub_df) in enumerate(groups):
             new_dataset = Dataset(
                 name=f"{original_dataset.name} ({label})",
@@ -394,8 +393,6 @@ def split_by_column(op):
                 ),
             )
             host.add_dataset_with_undo(new_dataset, target_folder, description=f"「{new_dataset.name}」の追加")
-    finally:
-        host.undo_stack.endMacro()
 
     message = f"列「{split_col}」の値で{len(groups)}件の系列に分割しました"
     if result['n_dropped']:

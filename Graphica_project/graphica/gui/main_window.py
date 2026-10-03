@@ -1,5 +1,6 @@
 import os
 import re
+from contextlib import contextmanager
 import types
 import sys
 import logging
@@ -119,7 +120,7 @@ from graphica.core.app_paths import get_user_plugins_dir
 from graphica.ui_main_window import Ui_MainWindow
 
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
-from graphica.core.commands import AddDatasetCommand, RemoveDatasetCommand
+from graphica.core.commands import AddDatasetCommand, DeferRedrawCommand, RemoveDatasetCommand
 from graphica.gui.detached_canvas_window import DetachedCanvasWindow
 from graphica.gui import theme
 from graphica.gui.theme import apply_form_spacing
@@ -349,6 +350,10 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self.all_secondary_axes = []
         self.project.all_plot_settings = []
         self.project.active_axis_index = 0
+
+        # deferred_redraw() の入れ子の深さと、その間に頼まれた描き直し((light, full_resolution) か None)
+        self._redraw_defer_depth = 0
+        self._deferred_redraw_request = None
 
         # マウス操作の各モード(状態は各ツールが持つ。gui/tools/)
         self.mouse_tools = create_tools(self)
@@ -704,6 +709,32 @@ class PlotterApp(QMainWindow, UISetupMixin,
     def redraw(self):
         return self._update_plot()
 
+    @contextmanager
+    def deferred_redraw(self):
+        """中で頼まれたグラフ全体の描き直しを、抜けるときの1回にまとめる(データセットを1件ずつ足すと件数分描き直すので)。"""
+        self._begin_deferring_redraw()
+        try:
+            yield
+        finally:
+            self._end_deferring_redraw()
+
+    @contextmanager
+    def batched_undo_group(self, description):
+        """Undo 1回分にまとめ、描き直しも最後の1回にする。Undo・Redo のときも1回で済む。"""
+        self.begin_batched_undo_group(description)
+        try:
+            yield
+        finally:
+            self.end_batched_undo_group()
+
+    def begin_batched_undo_group(self, description):
+        self.undo_stack.beginMacro(description)
+        self.undo_stack.push(DeferRedrawCommand(self._begin_deferring_redraw, self._end_deferring_redraw, opening=True))
+
+    def end_batched_undo_group(self):
+        self.undo_stack.push(DeferRedrawCommand(self._begin_deferring_redraw, self._end_deferring_redraw, opening=False))
+        self.undo_stack.endMacro()
+
     def redraw_appearance(self):
         return self._update_plot_appearance()
 
@@ -779,12 +810,30 @@ class PlotterApp(QMainWindow, UISetupMixin,
         """
         self._update_plot()
 
+    def _begin_deferring_redraw(self):
+        self._redraw_defer_depth += 1
+
+    def _end_deferring_redraw(self):
+        self._redraw_defer_depth -= 1
+        if self._redraw_defer_depth == 0 and self._deferred_redraw_request is not None:
+            light, full_resolution = self._deferred_redraw_request
+            self._deferred_redraw_request = None
+            self._update_plot(light=light, full_resolution=full_resolution)
+
     def _update_plot(self, light=False, full_resolution=False):
         """グラフ全体を描き直す。
 
         light=True は Axes の数・配置・所属が変わらないときだけ(既存の Axes の上で描き直す)。
         full_resolution=True は表示用の間引きをしない(フル解像度でのエクスポート用)。
         """
+        if self._redraw_defer_depth:
+            # まとめた描き直しは、一度でも重い方を頼まれたら重い方にする
+            previous = self._deferred_redraw_request
+            self._deferred_redraw_request = (
+                light and (previous is None or previous[0]),
+                full_resolution or (previous is not None and previous[1]),
+            )
+            return
         layout_mode = getattr(self.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
             # 自由配置では行数×列数ではなく、軸の設定の数がサブプロットの数になる
