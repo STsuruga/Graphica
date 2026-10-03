@@ -2970,3 +2970,23 @@ def test_inset_dialog_get_settings_reflects_corner_selection(qapp):
     settings = dlg.get_settings()
 
     assert settings['corner'] == "左下"
+
+
+def test_inset_dialog_y_range_is_automatic_by_default(qapp):
+    """指定しなければ zoom_y_range を返さない(描画側の自動の範囲になる)。欄は指定するまで触れない。"""
+    dlg = InsetDialog(x_min=0, x_max=100, default_zoom_min=40, default_zoom_max=60, default_y_range=(-1.0, 5.0))
+
+    assert 'zoom_y_range' not in dlg.get_settings()
+    assert not dlg.y_min_spinbox.isEnabled()
+    assert dlg.y_min_spinbox.value() == pytest.approx(-1.0)
+    assert dlg.y_max_spinbox.value() == pytest.approx(5.0)
+
+
+def test_inset_dialog_returns_ascending_y_range_when_specified(qapp):
+    dlg = InsetDialog(x_min=0, x_max=100, default_zoom_min=40, default_zoom_max=60)
+    dlg.y_range_checkbox.setChecked(True)
+    dlg.y_min_spinbox.setValue(8)
+    dlg.y_max_spinbox.setValue(2)
+
+    assert dlg.y_min_spinbox.isEnabled()
+    assert dlg.get_settings()['zoom_y_range'] == (2, 8)

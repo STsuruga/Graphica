@@ -373,8 +373,8 @@ class _CanvasDrawingMixin:
     def _downsample_for_inset(self, x_data, y_data, full_resolution=False):
         return annotations.downsample_for_inset(self, x_data, y_data, full_resolution)
 
-    def _annotation_render_key(self, axis_index, settings, datasets, full_resolution):
-        return annotations.annotation_render_key(self, axis_index, settings, datasets, full_resolution)
+    def _annotation_render_key(self, axis_index, settings, datasets, full_resolution, parent_ax=None):
+        return annotations.annotation_render_key(self, axis_index, settings, datasets, full_resolution, parent_ax)
 
     def _draw_annotations(self, ax, axis_index, settings, datasets=None, full_resolution=False,
                           allow_reuse=False):

@@ -2,6 +2,7 @@
 
 import re
 from PySide6.QtWidgets import (
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
@@ -795,10 +796,10 @@ class InsetDialog(QDialog):
 
     CORNERS = ["右上", "左上", "右下", "左下"]
 
-    def __init__(self, x_min, x_max, default_zoom_min, default_zoom_max, parent=None):
+    def __init__(self, x_min, x_max, default_zoom_min, default_zoom_max, parent=None, default_y_range=(0.0, 1.0)):
         super().__init__(parent)
         self.setWindowTitle("インセット(拡大図)を追加")
-        self.resize(380, 260)
+        self.resize(380, 320)
 
         layout = QVBoxLayout(self)
         info_label = QLabel(
@@ -821,6 +822,23 @@ class InsetDialog(QDialog):
         self.zoom_max_spinbox.setValue(default_zoom_max)
         form.addRow("拡大範囲(最大)", self.zoom_max_spinbox)
 
+        # 指定しなければ、範囲内のデータに合わせ、親の軸の Y 範囲に収める
+        self.y_range_checkbox = QCheckBox("Y範囲を指定する")
+        form.addRow(self.y_range_checkbox)
+        self.y_min_spinbox = QDoubleSpinBox()
+        self.y_min_spinbox.setRange(-1e12, 1e12)
+        self.y_min_spinbox.setDecimals(4)
+        self.y_min_spinbox.setValue(default_y_range[0])
+        form.addRow("Y範囲(最小)", self.y_min_spinbox)
+        self.y_max_spinbox = QDoubleSpinBox()
+        self.y_max_spinbox.setRange(-1e12, 1e12)
+        self.y_max_spinbox.setDecimals(4)
+        self.y_max_spinbox.setValue(default_y_range[1])
+        form.addRow("Y範囲(最大)", self.y_max_spinbox)
+        for spinbox in (self.y_min_spinbox, self.y_max_spinbox):
+            spinbox.setEnabled(False)
+            self.y_range_checkbox.toggled.connect(spinbox.setEnabled)
+
         self.corner_combo = QComboBox()
         self.corner_combo.addItems(self.CORNERS)
         form.addRow("表示位置", self.corner_combo)
@@ -841,11 +859,16 @@ class InsetDialog(QDialog):
         apply_form_spacing(self)
 
     def get_settings(self):
-        """{'corner', 'size', 'zoom_x_range'(昇順)}"""
+        """{'corner', 'size', 'zoom_x_range'(昇順)}。Y範囲を指定したときだけ 'zoom_y_range'(昇順)も。"""
         lo = self.zoom_min_spinbox.value()
         hi = self.zoom_max_spinbox.value()
-        return {
+        settings = {
             'corner': self.corner_combo.currentText(),
             'size': self.size_spinbox.value(),
             'zoom_x_range': (min(lo, hi), max(lo, hi)),
         }
+        if self.y_range_checkbox.isChecked():
+            y_lo = self.y_min_spinbox.value()
+            y_hi = self.y_max_spinbox.value()
+            settings['zoom_y_range'] = (min(y_lo, y_hi), max(y_lo, y_hi))
+        return settings
