@@ -48,58 +48,7 @@ def _add_dataset(window, select=False, **kwargs):
     return ds
 
 
-# --- モード切り替え・排他制御 ---
-
-def test_toggle_region_highlight_mode_on_turns_off_cursor_mode(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.cursor_action.setChecked(True)
-    window.cursor_mode_enabled = True
-
-    window._toggle_region_highlight_mode(True)
-
-    assert window.cursor_action.isChecked() is False
-    assert window.cursor_mode_enabled is False
-    assert window.region_highlight_mode_enabled is True
-
-
-def test_toggle_region_highlight_mode_on_turns_off_annotation_mode(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.annotation_action.setChecked(True)
-    window.annotation_mode_enabled = True
-
-    window._toggle_region_highlight_mode(True)
-
-    assert window.annotation_action.isChecked() is False
-    assert window.annotation_mode_enabled is False
-
-
-def test_toggle_region_highlight_mode_on_turns_off_range_select_mode(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.range_select_action.setChecked(True)
-    window.range_select_mode_enabled = True
-
-    window._toggle_region_highlight_mode(True)
-
-    assert window.range_select_action.isChecked() is False
-    assert window.range_select_mode_enabled is False
-
-
-def test_toggle_other_modes_on_turn_off_region_highlight_mode(tmp_path, monkeypatch):
-    """逆方向: 領域ハイライトモードが有効な状態で他のモードをONにすると、
-    領域ハイライトモードがOFFになること(双方向の排他制御)。"""
-    for toggle_name in (
-        '_toggle_cursor_mode', '_toggle_annotation_mode', '_toggle_range_select_mode',
-        '_toggle_peak_placement_mode', '_toggle_slice_extraction_mode', '_toggle_layout_edit_mode',
-    ):
-        window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-        window.region_highlight_action.setChecked(True)
-        window.region_highlight_mode_enabled = True
-
-        getattr(window, toggle_name)(True)
-
-        assert window.region_highlight_action.isChecked() is False, toggle_name
-        assert window.region_highlight_mode_enabled is False, toggle_name
-
+# --- モード切り替え(ほかのモードとの排他は test_mouse_modes.py) ---
 
 def test_toggle_region_highlight_mode_off_disconnects_and_clears_state(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)

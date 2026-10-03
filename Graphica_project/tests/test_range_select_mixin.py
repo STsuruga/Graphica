@@ -61,76 +61,7 @@ def _select_dataset(window, ds):
     window.ui.dataset_list_widget.setCurrentItem(item)
 
 
-# --- モード切り替え・排他制御 ---
-
-def test_toggle_range_select_mode_on_turns_off_cursor_mode(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.cursor_action.setChecked(True)
-    window.cursor_mode_enabled = True
-
-    window._toggle_range_select_mode(True)
-
-    assert window.cursor_action.isChecked() is False
-    assert window.cursor_mode_enabled is False
-    assert window.range_select_mode_enabled is True
-
-
-def test_toggle_range_select_mode_on_turns_off_annotation_mode(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.annotation_action.setChecked(True)
-    window.annotation_mode_enabled = True
-
-    window._toggle_range_select_mode(True)
-
-    assert window.annotation_action.isChecked() is False
-    assert window.annotation_mode_enabled is False
-
-
-def test_toggle_range_select_mode_on_turns_off_layout_edit_mode(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.layout_edit_action.setChecked(True)
-    window.layout_edit_mode_enabled = True
-
-    window._toggle_range_select_mode(True)
-
-    assert window.layout_edit_action.isChecked() is False
-    assert window.layout_edit_mode_enabled is False
-
-
-def test_toggle_cursor_mode_on_turns_off_range_select_mode(tmp_path, monkeypatch):
-    """逆方向: 範囲選択モードが有効な状態でデータカーソルをONにすると、
-    範囲選択モードがOFFになること(双方向の排他制御)。"""
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.range_select_action.setChecked(True)
-    window.range_select_mode_enabled = True
-
-    window._toggle_cursor_mode(True)
-
-    assert window.range_select_action.isChecked() is False
-    assert window.range_select_mode_enabled is False
-
-
-def test_toggle_annotation_mode_on_turns_off_range_select_mode(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.range_select_action.setChecked(True)
-    window.range_select_mode_enabled = True
-
-    window._toggle_annotation_mode(True)
-
-    assert window.range_select_action.isChecked() is False
-    assert window.range_select_mode_enabled is False
-
-
-def test_toggle_layout_edit_mode_on_turns_off_range_select_mode(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window.range_select_action.setChecked(True)
-    window.range_select_mode_enabled = True
-
-    window._toggle_layout_edit_mode(True)
-
-    assert window.range_select_action.isChecked() is False
-    assert window.range_select_mode_enabled is False
-
+# --- モード切り替え(ほかのモードとの排他は test_mouse_modes.py) ---
 
 def test_toggle_range_select_mode_off_disconnects_and_clears_state(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
