@@ -142,12 +142,15 @@ run_chunk() {
 export -f run_chunk
 
 # 重いチャンクから始め、最後に 1 つだけ長いチャンクが残るのを避ける。
-# 区切りは NUL(作業フォルダのパスに空白があっても 1 引数のまま渡す)
-nl -ba -w1 -s"$(printf '\t')" "$CHUNKS" | sort -t"$(printf '\t')" -k2,2nr \
-  | while IFS="$(printf '\t')" read -r index cost name target; do
-      printf '%s\0%s\0%s\0%s\0%s\0' "$index" "$name" "$target" "$total" "$TMPDIR/results"
-    done \
-  | xargs -0 -n 5 -P "$JOBS" bash -c 'run_chunk "$@"' _
+# 区切りは NUL(作業フォルダのパスに空白があっても 1 引数のまま渡す)。
+# チャンクが無い(シャードに何も割り当たらない)ときに流さないのは、GNU の xargs が入力が空でも 1 回実行するため
+if [ "$total" -gt 0 ]; then
+  nl -ba -w1 -s"$(printf '\t')" "$CHUNKS" | sort -t"$(printf '\t')" -k2,2nr \
+    | while IFS="$(printf '\t')" read -r index cost name target; do
+        printf '%s\0%s\0%s\0%s\0%s\0' "$index" "$name" "$target" "$total" "$TMPDIR/results"
+      done \
+    | xargs -0 -n 5 -P "$JOBS" bash -c 'run_chunk "$@"' _
+fi
 
 # 結果は元の順番で出す
 while IFS="$(printf '\t')" read -r index cost name target; do

@@ -319,6 +319,13 @@ def _bash():
     pytest.skip("Git の bash が見つからない")
 
 
+def _runner_env(**overrides):
+    """CI のジョブが設定したシャードとカバレッジの指定を、一時フォルダで動かすランナーに渡さない。"""
+    env = {k: v for k, v in os.environ.items() if k not in ("GRAPHICA_TEST_SHARD", "GRAPHICA_COVERAGE")}
+    env.update(overrides)
+    return env
+
+
 def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
     """import で落ちたテストファイルを黙って飛ばすと、その分のテストが消えたまま緑になる(K-30)。"""
     tests_dir = tmp_path / "tests"
@@ -332,6 +339,7 @@ def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
     result = subprocess.run(
         [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+        env=_runner_env(),
     )
     assert result.returncode != 0, result.stdout
     assert "!!! FAILED: tests/test_broken.py (collection failed)" in result.stdout
@@ -357,7 +365,7 @@ def test_chunk_runner_shards_split_the_chunks_without_overlap(tmp_path):
         return subprocess.run(
             [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
             cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
-            env={**os.environ, "GRAPHICA_TEST_SHARD": shard},
+            env=_runner_env(GRAPHICA_TEST_SHARD=shard),
         )
 
     passed = []
@@ -371,6 +379,11 @@ def test_chunk_runner_shards_split_the_chunks_without_overlap(tmp_path):
     assert sum(passed) == 5 + 3 + 130
     # 433・433・433・8 の重さを交互に割り当てる(重い分割 2 つと、分割 1 つ + 軽いファイル)
     assert passed == [43 + 44, 43 + 8]
+
+    # チャンクより多くシャードがあると、何も割り当たらないシャードは何も流さずに通る
+    result = run("5/5")
+    assert result.returncode == 0, result.stdout
+    assert "=== 0 chunks" in result.stdout and "!!! FAILED" not in result.stdout
 
     result = run("3/2")
     assert result.returncode != 0
@@ -386,6 +399,7 @@ def test_chunk_runner_accepts_a_chunk_without_tests(tmp_path):
     result = subprocess.run(
         [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+        env=_runner_env(),
     )
     assert result.returncode == 0, result.stdout
     assert "!!! FAILED" not in result.stdout
@@ -409,7 +423,7 @@ def test_chunk_runner_runs_chunks_in_parallel_and_judges_each_one(tmp_path):
     result = subprocess.run(
         [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
-        env={**os.environ, "GRAPHICA_TEST_JOBS": "2"},
+        env=_runner_env(GRAPHICA_TEST_JOBS="2"),
     )
     assert result.returncode == 0, result.stdout
     assert "2 in parallel" in result.stdout
@@ -423,6 +437,7 @@ def test_chunk_runner_runs_chunks_in_parallel_and_judges_each_one(tmp_path):
     result = subprocess.run(
         [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+        env=_runner_env(),
     )
     assert result.returncode != 0, result.stdout
     assert "!!! FAILED" in result.stdout
