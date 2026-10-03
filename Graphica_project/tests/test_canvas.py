@@ -17,7 +17,7 @@ import pytest
 from graphica.gui.canvas import (
     _apply_legend_order, _safe_multiple_locator, _apply_nan_policy, _compute_stat_label_text,
     _sci_each_formatter, _apply_tick_format_mode, _apply_tick_decimal_places,
-    MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS,
+    MplCanvas, _HeadlessRenderCanvas, DEFAULT_POINT_LABEL_MAX_POINTS, MAX_TICKS_PER_AXIS,
     LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
     GRID_2D_MAX_DISPLAY_POINTS_PER_AXIS,
     WATERFALL_DEPTH_SHRINK_MIN_SCALE,
@@ -253,10 +253,22 @@ def test_safe_multiple_locator_normal_interval_unchanged():
     assert locator._edge.step == pytest.approx(1.0)
 
 
+def _ticks_in(locator, vmin, vmax):
+    ticks = locator.tick_values(vmin, vmax)
+    return ticks[(ticks >= vmin) & (ticks <= vmax)]
+
+
 def test_safe_multiple_locator_too_fine_interval_is_coarsened():
     """軸範囲に対して目盛りが多すぎる間隔を指定すると、自動的に粗く調整される"""
     locator = _safe_multiple_locator(0.001, axis_min=0, axis_max=1000)
-    assert locator._edge.step > 0.001
+    assert len(_ticks_in(locator, 0, 1000)) <= MAX_TICKS_PER_AXIS + 1
+
+
+def test_safe_multiple_locator_stays_bounded_when_the_view_is_zoomed_out_later():
+    """描いた後にマウスで大きく縮小しても目盛りが増えすぎず、範囲を戻せば設定の間隔に戻る。"""
+    locator = _safe_multiple_locator(1.0, axis_min=0, axis_max=10)
+    assert len(_ticks_in(locator, -1e6, 1e6)) <= MAX_TICKS_PER_AXIS + 1
+    assert list(_ticks_in(locator, 0, 10)) == pytest.approx(list(range(11)))
 
 
 def test_safe_multiple_locator_zero_range_unchanged():
