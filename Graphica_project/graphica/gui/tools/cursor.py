@@ -1,4 +1,4 @@
-"""データカーソル(点をクリックして値を見る)、ホイールでのズーム、中ボタンでのパン、グラフの要素のクリックでの選択。"""
+"""データカーソル(点をクリックして値を見る)と、グラフの要素のクリックでの選択。表示範囲の操作は view_navigation.py。"""
 import logging
 import numpy as np
 
@@ -10,9 +10,7 @@ class CursorTool:
 
     # PlotterApp から同じ名前で読み書きできるもの(テスト・メニュー・ほかの mixin が使う)
     EXPOSED_NAMES = (
-        '_middle_pan_axes', '_middle_pan_start_data', '_middle_pan_start_xlim', '_middle_pan_start_ylim',
-        '_on_element_pick', '_on_middle_button_motion_pan', '_on_middle_button_press_pan',
-        '_on_middle_button_release_pan', '_on_mouse_move', '_on_pick', '_on_scroll_zoom', '_toggle_cursor_mode',
+        '_on_element_pick', '_on_mouse_move', '_on_pick', '_toggle_cursor_mode',
         'cursor_annotation', 'cursor_connection_id', 'cursor_mode_enabled',
     )
 
@@ -22,74 +20,6 @@ class CursorTool:
         self.cursor_mode_enabled = False
         self.cursor_connection_id = None
         self.cursor_annotation = None
-        # 中ボタンでのパン。ドラッグ中かどうかは _middle_pan_axes が None かどうか
-        self._middle_pan_axes = None
-        self._middle_pan_start_data = None
-        self._middle_pan_start_xlim = None
-        self._middle_pan_start_ylim = None
-
-    def _on_scroll_zoom(self, event):
-        """カーソルの位置を中心に、上で拡大、下で縮小する。"""
-        ax = event.inaxes
-        if ax is None or event.xdata is None or event.ydata is None:
-            return
-
-        base_scale = 1.2
-        scale_factor = (1 / base_scale) if event.button == 'up' else base_scale
-
-        xlim = ax.get_xlim()
-        ylim = ax.get_ylim()
-        xdata, ydata = event.xdata, event.ydata
-
-        new_width = (xlim[1] - xlim[0]) * scale_factor
-        new_height = (ylim[1] - ylim[0]) * scale_factor
-
-        # カーソルが新しい範囲でも同じ相対位置に来るよう、余白を左右と上下に配分する
-        old_width = xlim[1] - xlim[0]
-        old_height = ylim[1] - ylim[0]
-        relx = (xlim[1] - xdata) / old_width if old_width else 0.5
-        rely = (ylim[1] - ydata) / old_height if old_height else 0.5
-
-        ax.set_xlim([xdata - new_width * (1 - relx), xdata + new_width * relx])
-        ax.set_ylim([ydata - new_height * (1 - rely), ydata + new_height * rely])
-        self._app.canvas.draw_idle()
-
-    def _on_middle_button_press_pan(self, event):
-        """押したときの範囲とカーソルのデータ座標を覚える。"""
-        if event.button != 2 or event.inaxes is None:
-            return
-        if event.xdata is None or event.ydata is None:
-            return
-        self._middle_pan_axes = event.inaxes
-        self._middle_pan_start_data = (event.xdata, event.ydata)
-        self._middle_pan_start_xlim = event.inaxes.get_xlim()
-        self._middle_pan_start_ylim = event.inaxes.get_ylim()
-
-    def _on_middle_button_motion_pan(self, event):
-        """押したときの範囲を基準に、押した位置と今の位置の差だけずらす(差分を積み上げないので誤差がたまらない)。"""
-        axes = getattr(self, '_middle_pan_axes', None)
-        if axes is None or event.inaxes is not axes:
-            return
-        if event.xdata is None or event.ydata is None:
-            return
-
-        start_x, start_y = self._middle_pan_start_data
-        dx = start_x - event.xdata
-        dy = start_y - event.ydata
-
-        xlim = self._middle_pan_start_xlim
-        ylim = self._middle_pan_start_ylim
-        axes.set_xlim(xlim[0] + dx, xlim[1] + dx)
-        axes.set_ylim(ylim[0] + dy, ylim[1] + dy)
-        self._app.canvas.draw_idle()
-
-    def _on_middle_button_release_pan(self, event):
-        if event.button != 2:
-            return
-        self._middle_pan_axes = None
-        self._middle_pan_start_data = None
-        self._middle_pan_start_xlim = None
-        self._middle_pan_start_ylim = None
 
     def _toggle_cursor_mode(self, checked: bool):
         self.cursor_mode_enabled = checked
