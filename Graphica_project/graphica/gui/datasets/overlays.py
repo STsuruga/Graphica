@@ -62,13 +62,26 @@ class OverlayController:
         default_zoom_min = x_min + span * 0.4
         default_zoom_max = x_min + span * 0.6
 
-        dialog = InsetDialog(x_min, x_max, default_zoom_min, default_zoom_max, parent=self._host.parent_widget)
+        # Y範囲の欄の初期値。Y が文字の列なら数値にできないので仮の値
+        try:
+            y_data = np.asarray(dataset.y_data, dtype=float)
+        except (TypeError, ValueError):
+            y_data = np.array([])
+        y_data = y_data[np.isfinite(y_data)]
+        default_y_range = (float(np.min(y_data)), float(np.max(y_data))) if len(y_data) else (0.0, 1.0)
+
+        dialog = InsetDialog(x_min, x_max, default_zoom_min, default_zoom_max, parent=self._host.parent_widget,
+                             default_y_range=default_y_range)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         settings = dialog.get_settings()
 
         axis_index = dataset.subplot_target
-        self._host.add_annotation(axis_index, {
+        annotation = {
             'type': 'inset', 'corner': settings['corner'], 'size': settings['size'],
             'zoom_x_range': settings['zoom_x_range'], 'color': '#000000',
-        }, description="インセット(拡大図)の追加")
+        }
+        # 指定しなかったときはキーを書かない(自動の範囲)
+        if 'zoom_y_range' in settings:
+            annotation['zoom_y_range'] = settings['zoom_y_range']
+        self._host.add_annotation(axis_index, annotation, description="インセット(拡大図)の追加")
