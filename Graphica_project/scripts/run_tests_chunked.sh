@@ -12,11 +12,9 @@
 
 set -u
 
-# 1 プロセスに渡すテスト ID の上限(Windows のコマンドラインの長さに収める)
-CHUNK_SIZE=150
-# チャンクの重さの上限。ウィンドウを作るテストは 1 件約 0.5 秒で、ほかの数十倍かかるので重みを付ける
+# チャンクの重さの上限(重さ = 見積もった件数 × 重み。重みは count_tests.py が決める)
 MAX_COST=600
-HEAVY_WEIGHT=10
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 JOBS="${GRAPHICA_TEST_JOBS:-$(python -c 'import os; print(os.cpu_count() or 1)')}"
 TMPDIR="$(pwd)/.ci_test_chunks"
 rm -rf "$TMPDIR"
@@ -25,23 +23,15 @@ mkdir -p "$TMPDIR/results"
 # Python に作らせるのは、Windows の Git Bash でも Python がそのまま読めるパスにするため
 BASETEMP_ROOT=$(python -c 'import tempfile; print(tempfile.mkdtemp(prefix="graphica-pytest-"))')
 export BASETEMP_ROOT
-
-if [ "${GRAPHICA_COVERAGE:-0}" = "1" ]; then
-  # 各プロセスが .coverage.<host>.<pid>.<乱数> に書き、run_coverage.sh が combine する
-  PYTEST_CMD="python -m coverage run --parallel-mode -m pytest"
-else
-  PYTEST_CMD="python -m pytest"
-fi
-export PYTEST_CMD
+export PYTEST_ENTRY="$SCRIPTS_DIR/pytest_slice.py"
+export GRAPHICA_COVERAGE="${GRAPHICA_COVERAGE:-0}"
 
 fail=0
 
-# 収集は全体を 1 プロセスで 1 回だけ(ファイルごとに起動すると、収集だけで数分かかる)
-ALL_IDS="$TMPDIR/all_ids.txt"
-python -m pytest tests/ --collect-only -q 2>/dev/null | grep "::" > "$ALL_IDS" || true
-
-# 1 行 = 「重さ TAB 名前 TAB 対象の一覧」。一覧は pytest に渡す引数(ファイルかテスト ID)を 1 行ずつ並べたファイル。
-# 重いファイルは分け、軽いファイルはまとめて 1 プロセスにする(プロセスの起動と import だけで 1 回数秒かかる)。
+# 1 行 = 「重さ TAB 名前 TAB 対象の一覧」。一覧は pytest に渡す引数(ファイルと --graphica-slice)を 1 行ずつ並べたファイル。
+# テストの ID は先に集めない(全体の収集は 1 プロセスで 30 秒前後かかり、その間ほかのコアが空く)。件数は
+# count_tests.py が import せずに見積もり、重いファイルは pytest_slice.py の --graphica-slice=k/n で分ける。
+# 軽いファイルはまとめて 1 プロセスにする(プロセスの起動と import だけで 1 回数秒かかる)。
 # 特性テストは条件をそろえて動かすので、ほかと混ぜない。
 CHUNKS="$TMPDIR/chunks.tsv"
 : > "$CHUNKS"
@@ -60,50 +50,24 @@ flush_pack() {
 }
 
 for group in "tests/test_*.py" "tests/characterization/test_*.py"; do
+  files=()
   for f in $group; do
-    [ -f "$f" ] || continue
+    [ -f "$f" ] && files+=("$f")
+  done
+  [ "${#files[@]}" -eq 0 ] && continue
+  while IFS="$(printf '\t')" read -r n weight f; do
     name=$(basename "$f" .py)
-    ids_file="$TMPDIR/${name}_ids.txt"
-    # 末尾の ".py::" まで含めて引くので、test_dataset.py と test_dataset_mixin.py を取り違えない
-    grep -F "$f::" "$ALL_IDS" > "$ids_file" || true
-    n=$(wc -l < "$ids_file" | tr -d ' ')
-
-    if [ "$n" -eq 0 ]; then
-      # まとめての収集が import エラーなどでこのファイルだけ落とした可能性がある。単体で収集し直し、
-      # 「テストが 1 件も無い」(rc=5)以外で 0 件なら失敗にする(黙って飛ばすとテストが消えたまま緑になる)
-      collect_output=$(python -m pytest "$f" --collect-only -q 2>&1)
-      collect_rc=$?
-      echo "$collect_output" | grep "::" > "$ids_file" || true
-      n=$(wc -l < "$ids_file" | tr -d ' ')
-      if [ "$n" -eq 0 ] && [ "$collect_rc" -ne 5 ]; then
-        echo "=== $name :: $f ==="
-        echo "$collect_output"
-        echo "!!! FAILED: $f (collection failed, rc=$collect_rc)"
-        fail=1
-        continue
-      fi
-    fi
-
-    if [ "$n" -eq 0 ]; then
-      continue
-    fi
-
-    weight=1
-    # 特性テストはフィクスチャ経由でアプリを作る(Windows 以外ではほとんど飛ばされるので、ここ以外では重さが見えない)
-    if [ "$group" = "tests/characterization/test_*.py" ] \
-        || grep -qE "PlotterApp\(|_make_isolated_plotter_app|MainAppWindow\(|make_window" "$f"; then
-      weight=$HEAVY_WEIGHT
-    fi
+    # 見積もりが 0 件のファイルも流す(import で落ちるファイルを、収集のエラーとして見つけるため)
+    [ "$n" -eq 0 ] && n=1
     cost=$((n * weight))
 
     if [ "$cost" -gt "$MAX_COST" ]; then
-      piece=$((MAX_COST / weight))
-      if [ "$piece" -gt "$CHUNK_SIZE" ]; then
-        piece=$CHUNK_SIZE
-      fi
-      split -l "$piece" "$ids_file" "$TMPDIR/${name}_chunk_"
-      for c in "$TMPDIR/${name}_chunk_"*; do
-        printf '%s\t%s\t%s\n' "$(( $(wc -l < "$c" | tr -d ' ') * weight ))" "$name" "$c" >> "$CHUNKS"
+      slices=$(( (cost + MAX_COST - 1) / MAX_COST ))
+      for k in $(seq 1 "$slices"); do
+        chunk_no=$((chunk_no + 1))
+        target="$TMPDIR/chunk_$chunk_no.txt"
+        printf '%s\n--graphica-slice=%s/%s\n' "$f" "$k" "$slices" > "$target"
+        printf '%s\t%s\t%s\n' "$(( cost / slices ))" "$name" "$target" >> "$CHUNKS"
       done
     else
       if [ $((pack_cost + cost)) -gt "$MAX_COST" ]; then
@@ -111,7 +75,7 @@ for group in "tests/test_*.py" "tests/characterization/test_*.py"; do
       fi
       if [ -z "$pack_list" ]; then
         chunk_no=$((chunk_no + 1))
-        pack_list="$TMPDIR/pack_$chunk_no.txt"
+        pack_list="$TMPDIR/chunk_$chunk_no.txt"
         : > "$pack_list"
         pack_name="$name"
       else
@@ -120,7 +84,7 @@ for group in "tests/test_*.py" "tests/characterization/test_*.py"; do
       echo "$f" >> "$pack_list"
       pack_cost=$((pack_cost + cost))
     fi
-  done
+  done < <(python "$SCRIPTS_DIR/count_tests.py" "${files[@]}" | tr -d '\r')
   flush_pack
 done
 
@@ -128,15 +92,23 @@ total=$(wc -l < "$CHUNKS" | tr -d ' ')
 echo "=== $total chunks, $JOBS in parallel ==="
 
 # 1 チャンクを流し、出力と終了コードを results/<番号>.log / .rc に残す。
-# --basetemp を分けるのは、pytest が並行する別プロセスの一時フォルダを古いものとして消さないため
+# --basetemp を分けるのは、pytest が並行する別プロセスの一時フォルダを古いものとして消さないため。
+# --continue-on-collection-errors は、まとめたファイルの 1 つが import で落ちても、残りのファイルを流すため
 run_chunk() {
   index=$1; name=$2; target=$3; total=$4; results=$5
-  # テスト ID は空白や括弧を含む(パラメータの ID)ので、1 行を 1 引数として渡す
+  # パスは空白を含みうるので、1 行を 1 引数として渡す
   set --
   while IFS= read -r line; do
     set -- "$@" "$line"
   done < "$target"
-  $PYTEST_CMD "$@" -q -p no:cacheprovider --basetemp="$BASETEMP_ROOT/$index" > "$results/$index.log" 2>&1
+  if [ "$GRAPHICA_COVERAGE" = "1" ]; then
+    # 各プロセスが .coverage.<host>.<pid>.<乱数> に書き、run_coverage.sh が combine する
+    set -- -m coverage run --parallel-mode "$PYTEST_ENTRY" "$@"
+  else
+    set -- "$PYTEST_ENTRY" "$@"
+  fi
+  python "$@" -q -p no:cacheprovider --continue-on-collection-errors --basetemp="$BASETEMP_ROOT/$index" \
+    > "$results/$index.log" 2>&1
   rc=$?
   echo "$rc" > "$results/$index.rc"
   rm -rf "$BASETEMP_ROOT/$index"
@@ -158,10 +130,17 @@ while IFS="$(printf '\t')" read -r index cost name target; do
   output=$(cat "$TMPDIR/results/$index.log" 2>/dev/null)
   rc=$(cat "$TMPDIR/results/$index.rc" 2>/dev/null || echo "missing")
   echo "$output"
-  if [ "$rc" != "0" ]; then
+  # import などで収集できなかったファイルは、まとめた中のどれかが分かるよう名前を出す
+  echo "$output" | grep -oE "ERROR collecting [^ ]+" | sed 's/^ERROR collecting //' | while read -r path; do
+    echo "!!! FAILED: $path (collection failed)"
+  done
+  if [ "$rc" = "5" ]; then
+    # 1 件も集まらなかった(テストの無いファイルだけのチャンクや、見積もりより件数が少なかった分割の最後)
+    :
+  elif [ "$rc" != "0" ]; then
     # 「N passed」のサマリーまで出たあとの終了処理でだけ落ちたもの(test_export_preview_panel.py の
     # セグフォルト)は失敗にしない。サマリーに failed / error を含むものは失敗
-    summary_line=$(echo "$output" | grep -E "^[0-9]+ (passed|failed|error)" | tail -n1)
+    summary_line=$(echo "$output" | grep -E "^[0-9]+ (passed|failed|error|deselected)" | tail -n1)
     if [ -n "$summary_line" ] && ! echo "$summary_line" | grep -qE "failed|error"; then
       echo "!!! WARN: $name exited rc=$rc after all tests already passed (likely a Qt/matplotlib interpreter-teardown crash, not a real test failure): $summary_line"
     else

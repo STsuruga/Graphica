@@ -7,8 +7,7 @@
 #
 # 中身は run_tests_chunked.sh をカバレッジ付きで回しているだけ。テストの実行方法を
 # 二重に持たないよう、チャンク実行のロジックはあちらに一本化してある
-# (GRAPHICA_COVERAGE=1 で `python -m coverage run --parallel-mode -m pytest` に
-# 切り替わる)。
+# (GRAPHICA_COVERAGE=1 で、各チャンクを `python -m coverage run --parallel-mode` で流す)。
 #
 # なぜ --parallel-mode が要るか: チャンクごとに別プロセスでテストを回すため、
 # 1つの .coverage ファイルを複数プロセスが奪い合うと最後の1つしか残らない。

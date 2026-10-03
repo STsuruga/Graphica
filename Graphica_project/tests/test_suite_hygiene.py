@@ -22,9 +22,8 @@ QApplication は生きたままなので、放っておくとウィジェット�
 | 対策 | 効果 |
 |---|---|
 | 残ったウィンドウの破棄 | `test_main_window.py` 349秒 → 74秒 |
-| 収集を1プロセスに集約 | 収集だけで 255秒 → 5.3秒 |
+| テスト前の収集をやめる(件数は scripts/count_tests.py が見積もる) | 収集だけで 255秒 → 0 |
 | 一括書き換え中の再描画停止 | `test_settings_mixin.py` 234秒 → 31秒 |
-| CHUNK_SIZE 30 → 150 | チャンク 150 → 98 |
 | **フルスイート全体** | **約35分 → 約17.5分** |
 | チャンクを並列に流し、軽いファイルをまとめる | 約17.5分 → 約5分(4 コア) |
 """
@@ -125,29 +124,47 @@ def _runner_source():
     return (PROJECT_ROOT / "scripts" / "run_tests_chunked.sh").read_text(encoding="utf-8")
 
 
-def test_chunk_runner_collects_test_ids_in_a_single_process():
+def test_chunk_runner_does_not_collect_before_running():
     """
-    ★ 以前はファイルごとに `pytest --collect-only` を起動しており、
-    92ファイル×約2.8秒＝**約255秒**を「テストを1件も実行しないまま」
-    消費していた(1プロセスなら約5.3秒)。戻すと、目に見えない形で
-    4分ほど失う。
+    テストの前に収集すると、その間(Windows の CI で約 30 秒)ほかのコアが空く。ファイルごとに収集すると
+    92 ファイルで約 255 秒かかった。件数は count_tests.py が import せずに見積もる。
     """
     source = _runner_source()
-    assert "pytest tests/ --collect-only" in source, \
-        "全体を1回で収集する行が無い"
-    # ファイルごとの収集は、まとめての収集が失敗したときの保険としてのみ残る
-    per_file_collects = source.count('pytest "$f" --collect-only')
-    assert per_file_collects == 1, \
-        "ファイルごとの収集が保険以外の場所にも残っている"
+    assert "--collect-only" not in source
+    assert "count_tests.py" in source
 
 
-def test_chunk_size_is_documented_and_reasonable():
-    match = re.search(r"^CHUNK_SIZE=(\d+)", _runner_source(), re.M)
-    assert match, "CHUNK_SIZE が見つからない"
-    chunk_size = int(match.group(1))
+def test_max_cost_is_reasonable():
+    match = re.search(r"^MAX_COST=(\d+)", _runner_source(), re.M)
+    assert match, "MAX_COST が見つからない"
+    max_cost = int(match.group(1))
     # 小さすぎるとプロセス起動の回数が増えるだけ(蓄積は conftest 側で断ってある)。
-    # 大きすぎると、将来また別の蓄積が出たときに気づきにくくなる。
-    assert 50 <= chunk_size <= 500, f"CHUNK_SIZE={chunk_size} は想定外"
+    # 大きすぎると、重いファイルが分かれず、最後に長いチャンクが 1 つ残る。
+    assert 100 <= max_cost <= 2000, f"MAX_COST={max_cost} は想定外"
+
+
+def test_test_count_estimate_follows_literal_parametrize():
+    """重いファイルの分け方は件数の見積もりで決まる。特性テストは list(CASES) の形でパラメータ化している。"""
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    try:
+        from count_tests import count_tests
+    finally:
+        sys.path.pop(0)
+
+    source = (
+        "import pytest\n"
+        "CASES = {'a': 1, 'b': 2, 'c': 3}\n"
+        "def test_plain():\n    pass\n"
+        "@pytest.mark.parametrize('name', list(CASES))\n"
+        "def test_cases(name):\n    pass\n"
+        "@pytest.mark.parametrize('x', [1, 2])\n"
+        "@pytest.mark.parametrize('y', [f'{i}' for i in range(5)])\n"
+        "def test_grid(x, y):\n    pass\n"
+        "@pytest.mark.parametrize('v', make_values())\n"
+        "def test_unknown(v):\n    pass\n"
+        "class TestGroup:\n    def test_in_class(self):\n        pass\n"
+    )
+    assert count_tests(source) == 1 + 3 + 2 * 5 + 1 + 1
 
 
 # --- 遅いテストを作らないための注意書き ---
@@ -317,10 +334,25 @@ def test_chunk_runner_fails_a_file_that_cannot_be_collected(tmp_path):
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
     )
     assert result.returncode != 0, result.stdout
-    assert "!!! FAILED: tests/test_broken.py" in result.stdout
+    assert "!!! FAILED: tests/test_broken.py (collection failed)" in result.stdout
     assert "no_such_module" in result.stdout
     assert "!!! FAILED: tests/test_empty.py" not in result.stdout
+    # まとめた残りのファイルは流れる
     assert "1 passed" in result.stdout
+
+
+def test_chunk_runner_accepts_a_chunk_without_tests(tmp_path):
+    """テストの無いファイルだけのチャンク(pytest の rc=5)は失敗にしない。"""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
+    (tests_dir / "test_empty.py").write_text("# テストが無いだけ\n", encoding="utf-8")
+    result = subprocess.run(
+        [_bash(), str(PROJECT_ROOT / "scripts" / "run_tests_chunked.sh")],
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+    )
+    assert result.returncode == 0, result.stdout
+    assert "!!! FAILED" not in result.stdout
 
 
 def test_chunk_runner_runs_chunks_in_parallel_and_judges_each_one(tmp_path):
@@ -348,8 +380,8 @@ def test_chunk_runner_runs_chunks_in_parallel_and_judges_each_one(tmp_path):
     # test_crash_at_exit と test_ok は小さいので 1 つのプロセスにまとまる
     assert "!!! WARN: test_crash_at_exit test_ok exited rc=139" in result.stdout
     assert "!!! FAILED" not in result.stdout
-    # 重いファイルは 60 件(MAX_COST / HEAVY_WEIGHT)ずつに分かれる
-    assert result.stdout.count("60 passed") == 2 and "10 passed" in result.stdout
+    # 重いファイル(130 件 × 重み 10)は、重さが MAX_COST(600)以下になるよう 3 つに分かれる
+    assert result.stdout.count("43 passed") == 2 and "44 passed" in result.stdout
 
     (tests_dir / "test_broken_assert.py").write_text("def test_fails():\n    assert False\n", encoding="utf-8")
     result = subprocess.run(
