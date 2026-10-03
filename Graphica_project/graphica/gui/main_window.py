@@ -807,6 +807,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
 
         matplotlib の Home ボタンは作り直す前の Axes を覚えているので、描き直しを挟むと効かない。
         """
+        self.view_navigation.forget_all_views()
         self._update_plot()
 
     def _begin_deferring_redraw(self):
@@ -885,6 +886,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         """ミニマップで選んだ範囲を全部の軸の X の範囲にする。Axes は作り直さない(set_xlim と draw_idle で足りる)。"""
         for ax in self.canvas.all_axes:
             ax.set_xlim(xmin, xmax)
+        self.view_navigation.remember_x_of_every_subplot()
         self.canvas.draw_idle()
 
     def _on_toggle_minimap(self, checked):

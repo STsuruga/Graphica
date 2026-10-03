@@ -42,6 +42,11 @@ class _FakeMplEvent:
         self.xdata = xdata
         self.ydata = ydata
         self.button = button
+        # 本物のイベントと同じく、Figure のピクセル座標も持つ(モードは軸の外へのはみ出しや凡例の判定に使う)
+        if inaxes is not None and xdata is not None and ydata is not None:
+            self.x, self.y = inaxes.transData.transform((xdata, ydata))
+        else:
+            self.x = self.y = None
 
 
 class _FakePickEvent:
@@ -253,3 +258,29 @@ def test_peak_placement_is_unchanged_without_waterfall(tmp_path, monkeypatch):
     assert (guess['center'], guess['height']) == pytest.approx((2.0, 4.0))
     _guess, _line, point = window._pending_peak_markers[0]
     assert (point.get_xdata()[0], point.get_ydata()[0]) == pytest.approx((2.0, 4.0))
+
+
+# --- ステータスバーの座標 ---
+
+def test_status_bar_also_shows_the_selected_stacked_traces_data_coordinates(tmp_path, monkeypatch):
+    """マウス位置は表示座標(X+10, Y+100 ずれた位置)。選んでいる2本目のデータ座標に戻した値も並べる。"""
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_waterfall_pair(window)
+    ax = window.all_axes[0]
+
+    window._on_mouse_move(_FakeMplEvent(ax, 2.0 + OFFSET_X, 4.0 + OFFSET_Y))
+
+    text = window.coordinate_label.text()
+    assert text.startswith(f"P1: X= {2.0 + OFFSET_X:.4g}, Y= {4.0 + OFFSET_Y:.4g}")
+    assert text.endswith("| 「wf1」: X= 2, Y= 4")
+
+
+def test_status_bar_shows_only_display_coordinates_without_waterfall(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    ds = Dataset(name="plain", df=pd.DataFrame({"x": XS, "y": YS}), x_col_name="x", y_col_name="y")
+    window._add_dataset(ds, select=True)
+    ax = window.all_axes[0]
+
+    window._on_mouse_move(_FakeMplEvent(ax, 2.0, 4.0))
+
+    assert window.coordinate_label.text() == "P1: X= 2, Y= 4"

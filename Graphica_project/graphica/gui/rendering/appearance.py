@@ -32,6 +32,27 @@ def apply_appearance(canvas, ax, axis_index, settings):
     canvas._apply_secondary_y_axis(ax, secondary_ax, settings, style)
     canvas._apply_unit_conversion_x_axis(ax, settings, style, is_date_x, is_category_x)
     canvas._apply_colorbar(ax, axis_index, settings, style)
+    apply_view_override(canvas, ax, axis_index, settings)
+
+
+def range_signature(settings, axis_key):
+    """その軸の表示範囲を決める設定。マウスで変えた範囲は、これが変わったら設定の方を優先する。"""
+    return tuple(axis_setting(settings, f'{axis_key}_{name}') for name in ('autoscale', 'min', 'max', 'log', 'invert'))
+
+
+def apply_view_override(canvas, ax, axis_index, settings):
+    """マウスで変えた表示範囲(canvas.view_overrides)を、描き直した後も当て直す。"""
+    overrides = getattr(canvas, 'view_overrides', {}).get(axis_index)
+    if not overrides:
+        return
+    secondary_axes = canvas.all_secondary_axes
+    secondary_ax = secondary_axes[axis_index] if axis_index < len(secondary_axes) else None
+    for axis_key, (limits, signature) in list(overrides.items()):
+        target = secondary_ax if axis_key == 'y2' else ax
+        if target is None or signature != range_signature(settings, axis_key):
+            del overrides[axis_key]
+            continue
+        (target.set_xlim if axis_key == 'x' else target.set_ylim)(limits)
 
 
 def apply_axis_range(ax, settings, axis_key, is_category_x=False):

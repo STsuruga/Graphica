@@ -224,19 +224,32 @@ def _compute_stat_label_text(dataset, stat):
     return f"{title} = {value:.4g}"
 
 
+class _SafeMultipleLocator(ticker.MultipleLocator):
+    """間隔 interval の目盛り。その時の表示範囲で MAX_TICKS_PER_AXIS 本を超えるなら、その本数まで粗くする。
+
+    範囲は描いた後もマウスの拡大・縮小や移動で変わるので、目盛りを作るたびに見る(範囲を戻せば設定の間隔に戻る)。
+    """
+
+    def __init__(self, interval):
+        super().__init__(interval)
+        self._interval = interval
+
+    def tick_values(self, vmin, vmax):
+        span = abs(vmax - vmin)
+        if span > 0 and span / self._interval > MAX_TICKS_PER_AXIS:
+            return ticker.MultipleLocator(span / MAX_TICKS_PER_AXIS).tick_values(vmin, vmax)
+        return super().tick_values(vmin, vmax)
+
+
 def _safe_multiple_locator(interval, axis_min, axis_max):
-    """間隔 interval の MultipleLocator。今の範囲で目盛りが多すぎるなら MAX_TICKS_PER_AXIS 本相当まで粗くする。"""
+    """間隔 interval の目盛り(_SafeMultipleLocator)。今の範囲で細かすぎるなら、粗くして描くことをログに残す。"""
     axis_range = abs(axis_max - axis_min)
-    if axis_range > 0 and interval > 0:
-        estimated_ticks = axis_range / interval
-        if estimated_ticks > MAX_TICKS_PER_AXIS:
-            adjusted_interval = axis_range / MAX_TICKS_PER_AXIS
-            logger.warning(
-                "目盛り間隔 %.6g は軸範囲に対して細かすぎるため、%.6g に調整しました。",
-                interval, adjusted_interval
-            )
-            interval = adjusted_interval
-    return ticker.MultipleLocator(interval)
+    if axis_range > 0 and interval > 0 and axis_range / interval > MAX_TICKS_PER_AXIS:
+        logger.warning(
+            "目盛り間隔 %.6g は軸範囲に対して細かすぎるため、%.6g に調整しました。",
+            interval, axis_range / MAX_TICKS_PER_AXIS
+        )
+    return _SafeMultipleLocator(interval)
 
 
 def _sci_each_formatter():

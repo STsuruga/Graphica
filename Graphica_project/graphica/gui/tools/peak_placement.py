@@ -6,6 +6,8 @@ _pending_peak_guesses は [{'center', 'height', 'width'}, ...] で、MultiPeakFi
 """
 import logging
 
+from graphica.gui.tools.pointer import legend_at
+
 logger = logging.getLogger(__name__)
 
 # 仮の幅は表示中の X の範囲に対する割合(ダイアログで直せるので大まかでよい)
@@ -52,6 +54,8 @@ class PeakPlacementTool:
         if not getattr(self, 'peak_placement_mode_enabled', False):
             return
         if event.inaxes is None or event.xdata is None or event.ydata is None:
+            return
+        if legend_at(self._app.canvas, event) is not None:
             return
 
         if event.button == 3:  # 右クリックは近いマーカーを消す

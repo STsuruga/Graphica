@@ -16,8 +16,9 @@ from matplotlib.transforms import Bbox
 from PySide6.QtCore import Qt
 
 from graphica.core.axis_settings import axis_setting
-from graphica.gui.rendering.appearance import apply_axis_range
+from graphica.gui.rendering.appearance import apply_axis_range, range_signature
 from graphica.gui.tools.manager import MOUSE_MODES_BY_NAME
+from graphica.gui.tools.pointer import legend_at
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ class ViewNavigationTool:
 
     def __init__(self, app):
         self._app = app
-        self._pan = None            # {'button', 'start', 'targets'}
+        self._pan = None            # {'button', 'start', 'targets', 'subplot_index', 'axis_keys'}
         self._rect_zoom = None      # {'subplot_index', 'start', 'bbox'}
         # サブプロットの主の Axes → 矩形ズームの前の範囲の列。描き直しで Axes が作り直されたら一緒に消える
         self._zoom_history = weakref.WeakKeyDictionary()
@@ -80,6 +81,42 @@ class ViewNavigationTool:
 
     def _invalidate_bands(self, _event=None):
         self._bands = None
+        # サブプロットが減ったら、もう無い番号の範囲は捨てる(あとで同じ番号が増えたときに古い範囲が出ないように)
+        overrides = self._app.canvas.view_overrides
+        for index in [i for i in overrides if i >= len(self._app.canvas.all_axes)]:
+            del overrides[index]
+
+    # --- マウスで変えた範囲を、描き直しても保つ(当て直すのは rendering/appearance.apply_view_override) ---
+
+    def remember_view(self, subplot_index, axis_keys):
+        settings_list = self._app.project.all_plot_settings
+        if subplot_index >= len(settings_list) or subplot_index >= len(self._app.canvas.all_axes):
+            return
+        primary, secondary = self._subplot_axes(subplot_index)
+        entry = self._app.canvas.view_overrides.setdefault(subplot_index, {})
+        for axis_key in axis_keys:
+            ax = secondary if axis_key == 'y2' else primary
+            if ax is None:
+                continue
+            limits = ax.get_xlim() if axis_key == 'x' else ax.get_ylim()
+            entry[axis_key] = (tuple(float(v) for v in limits), range_signature(settings_list[subplot_index], axis_key))
+
+    def forget_view(self, subplot_index, axis_keys=('x', 'y', 'y2')):
+        entry = self._app.canvas.view_overrides.get(subplot_index)
+        if entry is None:
+            return
+        for axis_key in axis_keys:
+            entry.pop(axis_key, None)
+        if not entry:
+            del self._app.canvas.view_overrides[subplot_index]
+
+    def forget_all_views(self):
+        self._app.canvas.view_overrides.clear()
+
+    def remember_x_of_every_subplot(self):
+        """ミニマップは全部の軸の X を変えるので、全部のサブプロットの X を覚える。"""
+        for index in range(len(self._app.canvas.all_axes)):
+            self.remember_view(index, ['x'])
 
     def axis_bands(self):
         canvas = self._app.canvas
@@ -145,7 +182,10 @@ class ViewNavigationTool:
         which = 'x' if band.axis_key == 'x' else 'y'
         p0, p1 = self._pixel_span(band.ax, which)
         pixels = (center_px + (p0 - center_px) * scale, center_px + (p1 - center_px) * scale)
-        return self._set_limits_from_pixels(band.ax, which, pixels, band.ax.transData.inverted())
+        if not self._set_limits_from_pixels(band.ax, which, pixels, band.ax.transData.inverted()):
+            return False
+        self.remember_view(band.subplot_index, [band.axis_key])
+        return True
 
     def reset_axis(self, subplot_index, axis_key):
         """設定どおりの範囲(最小・最大を決めていればそれ、自動なら全体)に戻す。"""
@@ -162,6 +202,7 @@ class ViewNavigationTool:
                          subplot_index < len(is_category_x) and is_category_x[subplot_index])
         # set_xlim/set_ylim は反転を解くので、設定どおりに戻す
         (ax.xaxis if axis_key == 'x' else ax.yaxis).set_inverted(axis_setting(settings, f'{axis_key}_invert'))
+        self.forget_view(subplot_index, [axis_key])
 
     def reset_subplot(self, subplot_index):
         _, secondary = self._subplot_axes(subplot_index)
@@ -176,6 +217,8 @@ class ViewNavigationTool:
             'x': primary.get_xlim(),
             'y': primary.get_ylim(),
             'y2': secondary.get_ylim() if secondary is not None else None,
+            # 戻したときに「設定どおりの範囲」だったのか「マウスで変えた範囲」だったのかも戻すため
+            'overrides': dict(self._app.canvas.view_overrides.get(subplot_index, {})),
         }
 
     def zoom_to_rect(self, subplot_index, start, end):
@@ -191,6 +234,7 @@ class ViewNavigationTool:
         if secondary is not None:
             self._set_limits_from_pixels(secondary, 'y', ys, secondary.transData.inverted())
         self._zoom_history.setdefault(primary, []).append(before)
+        self.remember_view(subplot_index, ['x', 'y', 'y2'])
         return True
 
     def zoom_back(self, subplot_index):
@@ -204,14 +248,19 @@ class ViewNavigationTool:
         primary.set_ylim(limits['y'])
         if secondary is not None and limits['y2'] is not None:
             secondary.set_ylim(limits['y2'])
+        if limits['overrides']:
+            self._app.canvas.view_overrides[subplot_index] = dict(limits['overrides'])
+        else:
+            self._app.canvas.view_overrides.pop(subplot_index, None)
         return True
 
-    def _start_pan(self, button, event, targets):
+    def _start_pan(self, button, event, targets, subplot_index, axis_keys):
         frozen = [
             _PanTarget(ax, which, ax.transData.inverted().frozen(), self._pixel_span(ax, which))
             for ax, which in targets
         ]
-        self._pan = {'button': button, 'start': (event.x, event.y), 'targets': frozen}
+        self._pan = {'button': button, 'start': (event.x, event.y), 'targets': frozen,
+                     'subplot_index': subplot_index, 'axis_keys': axis_keys}
 
     def _pan_to(self, event):
         start_x, start_y = self._pan['start']
@@ -225,13 +274,6 @@ class ViewNavigationTool:
     def _active_mode(self):
         name = self._app._active_mouse_mode()
         return MOUSE_MODES_BY_NAME.get(name) if name else None
-
-    def _on_legend(self, subplot_index, event):
-        for ax in self._subplot_axes(subplot_index):
-            legend = ax.get_legend() if ax is not None else None
-            if legend is not None and legend.get_visible() and legend.contains(event)[0]:
-                return True
-        return False
 
     # --- イベント ---
 
@@ -259,12 +301,12 @@ class ViewNavigationTool:
 
         if event.button == 2:
             targets = [(primary, 'x'), (primary, 'y')] + ([(secondary, 'y')] if secondary is not None else [])
-            self._start_pan(2, event, targets)
+            self._start_pan(2, event, targets, index, ['x', 'y', 'y2'])
         elif event.button == 3:
             if (mode is None or not mode.uses_right_click) and self.zoom_back(index):
                 self._app.canvas.draw_idle()
         elif event.button == 1:
-            if self._on_legend(index, event):
+            if legend_at(self._app.canvas, event) is not None:
                 return
             if event.dblclick:
                 if mode is None or not mode.uses_left_click:
@@ -280,13 +322,14 @@ class ViewNavigationTool:
         if band is None:
             return
         # 枠の外へドラッグした凡例が帯に重なっていれば、凡例のドラッグに譲る
-        if any(self._on_legend(index, event) for index in range(len(self._app.canvas.all_axes))):
+        if legend_at(self._app.canvas, event) is not None:
             return
         if event.dblclick:
             self.reset_axis(band.subplot_index, band.axis_key)
             self._app.canvas.draw_idle()
             return
-        self._start_pan(1, event, [(band.ax, 'x' if band.axis_key == 'x' else 'y')])
+        self._start_pan(1, event, [(band.ax, 'x' if band.axis_key == 'x' else 'y')],
+                        band.subplot_index, [band.axis_key])
 
     def on_motion(self, event):
         if self._pan is not None:
@@ -304,7 +347,8 @@ class ViewNavigationTool:
     def on_release(self, event):
         if self._pan is not None:
             if event.button == self._pan['button']:
-                self._pan = None
+                state, self._pan = self._pan, None
+                self.remember_view(state['subplot_index'], state['axis_keys'])
             return
         if self._rect_zoom is not None and event.button == 1:
             state, self._rect_zoom = self._rect_zoom, None

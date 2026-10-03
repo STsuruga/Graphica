@@ -15,6 +15,7 @@ from graphica.core.commands import SetAnnotationsCommand
 from graphica.gui.app_settings import DEFAULT_SNAP_GRID_INTERVAL_PX
 from graphica.gui.color_history import get_color_with_history
 from graphica.gui.dialogs import ArrowAnnotationDialog, TextAnnotationDialog
+from graphica.gui.tools.pointer import clamped_data_point, legend_at
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,8 @@ class AnnotationTool:
     def _on_annotation_press(self, event):
         if not self.annotation_mode_enabled or event.inaxes is None or event.xdata is None:
             return
+        if legend_at(self._app.canvas, event) is not None:
+            return
 
         if event.button == 3:  # 右クリックは色の変更と削除のメニュー
             self._on_annotation_context_menu(event)
@@ -109,14 +112,16 @@ class AnnotationTool:
         start_ax, start_x, start_y = self._annotation_drag_start
         self._annotation_drag_start = None
 
-        if event.inaxes is not start_ax or event.xdata is None:
+        # 軸の外で離したら、軸の縁で止めた位置を矢印の先にする
+        end_point = clamped_data_point(start_ax, event)
+        if end_point is None:
             return
 
         axis_index = self._find_axis_index(start_ax)
         if axis_index is None:
             return
 
-        end_x, end_y = event.xdata, event.ydata
+        end_x, end_y = end_point
         start_px = start_ax.transData.transform((start_x, start_y))
         end_px = start_ax.transData.transform((end_x, end_y))
         drag_distance_px = ((end_px[0] - start_px[0]) ** 2 + (end_px[1] - start_px[1]) ** 2) ** 0.5

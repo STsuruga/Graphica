@@ -1,6 +1,7 @@
 """データカーソル(点をクリックして値を見る)と、グラフの要素のクリックでの選択。表示範囲の操作は view_navigation.py。"""
 import logging
 import numpy as np
+from matplotlib.patches import Rectangle
 
 logger = logging.getLogger(__name__)
 
@@ -87,11 +88,28 @@ class CursorTool:
                  except ValueError:
                       ax_label = "?: "
 
-            self._app.coordinate_label.setText(f"{ax_label}X= {x:.4g}, Y= {y:.4g}")
+            self._app.coordinate_label.setText(
+                f"{ax_label}X= {x:.4g}, Y= {y:.4g}{self._current_dataset_readout(event)}"
+            )
 
         else:
             if not self.cursor_mode_enabled:
                 self._app.coordinate_label.setText("X= ---, Y= ---")
+
+    def _current_dataset_readout(self, event):
+        """選んでいるデータセットが、マウスのあるサブプロットにずらして(ウォーターフォールで)描かれていれば、
+        マウス位置をその系列のデータ座標に戻した値。ずらし方は系列ごとに違うので、選んでいる系列についてだけ出す。"""
+        dataset = self._app._get_current_dataset()
+        if dataset is None or self._app.canvas.get_waterfall_transform(dataset) is None:
+            return ""
+        dataset_ax = getattr(dataset.artist, 'axes', None)
+        navigation = self._app.view_navigation
+        if dataset_ax is None or navigation.subplot_index_of(dataset_ax) != navigation.subplot_index_of(event.inaxes):
+            return ""
+        # 第2軸のあるサブプロットではマウスの下の Axes が系列の軸と違うことがあるので、ピクセルから系列の軸で読む
+        x, y = dataset_ax.transData.inverted().transform((event.x, event.y))
+        data_x, data_y = self._app.canvas.display_to_data(dataset, x, y)
+        return f" | 「{dataset.name}」: X= {data_x:.4g}, Y= {data_y:.4g}"
 
     def _on_element_pick(self, event):
         """グラフの系列やタイトルをクリックして選ぶ(常に有効)。"""
@@ -123,40 +141,70 @@ class CursorTool:
         if item is not None and self._app.ui.dataset_list_widget.currentItem() is not item:
             self._app.ui.dataset_list_widget.setCurrentItem(item)
 
+    def _owning_dataset(self, artist):
+        """artist を描いたデータセット。棒グラフは1本ずつの Rectangle が拾われるので、BarContainer の中も見る。"""
+        return next(
+            (ds for ds in self._app.project.datasets
+             if ds.artist is artist or (hasattr(ds.artist, 'patches') and artist in ds.artist.patches)),
+            None
+        )
+
+    def _picked_point(self, artist, event):
+        """(データセット, 描いた点の番号か None, 表示座標の x, y, 2D マップの値か None)。読めなければ None。"""
+        mouse = event.mouseevent
+        ax = getattr(artist, 'axes', None)
+        if ax is None or mouse.x is None or mouse.y is None:
+            return None
+        dataset = self._owning_dataset(artist)
+
+        if dataset is not None and dataset.data_kind == '2d_grid':
+            return self._picked_grid_value(dataset, ax, mouse)
+        if isinstance(artist, Rectangle):
+            # 棒は頂上の値を読む(負の値の棒は高さが負なので、y + 高さが値になる)
+            ind = dataset.artist.patches.index(artist) if dataset is not None else None
+            return dataset, ind, artist.get_x() + artist.get_width() / 2, artist.get_y() + artist.get_height(), None
+        if hasattr(artist, 'get_xydata'):
+            # 単位変換後の数値なので、カテゴリ軸・日付軸の線でも引き算できる
+            points = np.asarray(artist.get_xydata(), dtype=float)
+            candidates = np.arange(len(points))
+        elif hasattr(artist, 'get_offsets') and len(event.ind) > 0:
+            points = np.asarray(artist.get_offsets(), dtype=float)
+            candidates = np.asarray(event.ind)
+        else:
+            return None
+
+        ind = _nearest_in_pixels(ax, points, candidates, (mouse.x, mouse.y))
+        if ind is None:
+            return None
+        return dataset, ind, points[ind][0], points[ind][1], None
+
+    @staticmethod
+    def _picked_grid_value(dataset, ax, mouse):
+        """2D マップは、クリックした位置にいちばん近い格子点の値を読む。"""
+        grid = dataset.z_grid
+        if grid is None:
+            return None
+        x, y = ax.transData.inverted().transform((mouse.x, mouse.y))
+        x_grid = np.asarray(grid['x_grid'], dtype=float)
+        y_grid = np.asarray(grid['y_grid'], dtype=float)
+        if x_grid.size == 0 or y_grid.size == 0:
+            return None
+        col = int(np.argmin(np.abs(x_grid - x)))
+        row = int(np.argmin(np.abs(y_grid - y)))
+        return dataset, None, x_grid[col], y_grid[row], grid['z_grid'][row, col]
+
     def _on_pick(self, event):
         if not self.cursor_mode_enabled: return
 
         artist = event.artist
-        mouseevent = event.mouseevent
-
-        x, y = None, None
-        ind = None
-
-
-        if hasattr(artist, 'get_offsets'):
-            if len(event.ind) > 0:
-                 ind = event.ind[0]
-                 x, y = artist.get_offsets()[ind]
-
-        elif hasattr(artist, 'get_xdata'):
-            xdata = artist.get_xdata()
-            ydata = artist.get_ydata()
-
-            # クリックの位置にいちばん近い点
-            distances = np.sqrt((xdata - mouseevent.xdata)**2 + (ydata - mouseevent.ydata)**2)
-
-            ind = np.argmin(distances)
-            x, y = xdata[ind], ydata[ind]
-
-        else:
+        picked = self._picked_point(artist, event)
+        if picked is None:
             return
+        owning_dataset, ind, x, y, z = picked
 
         if x is not None and y is not None:
             # x, y はウォーターフォールのずらしが掛かった表示座標。矢印はそのままの位置に出し、
             # 表示する値だけデータ座標に戻す
-            owning_dataset = next(
-                (ds for ds in self._app.project.datasets if ds.artist is artist), None
-            )
             if owning_dataset is not None:
                 data_x, data_y = self._app.canvas.display_to_data(owning_dataset, x, y)
             else:
@@ -166,6 +214,8 @@ class CursorTool:
 
             ax = artist.axes
             text = f"X: {data_x:.4g}\nY: {data_y:.4g}"
+            if z is not None:
+                text += f"\nZ: {z:.4g}"
 
             self.cursor_annotation = ax.annotate(text,
                 xy=(x, y),
@@ -194,3 +244,17 @@ class CursorTool:
                         )
                     except IndexError:
                         pass
+
+
+def _nearest_in_pixels(ax, points, candidates, mouse_px):
+    """candidates(points の番号)のうち、画面上でマウスにいちばん近いもの。
+
+    データ座標の距離だと、X と Y の桁が違う(例えば 0〜1000 と 0〜1)とほぼ X だけで決まってしまう。
+    """
+    if len(candidates) == 0:
+        return None
+    pixels = ax.transData.transform(points[candidates])
+    distances = np.hypot(pixels[:, 0] - mouse_px[0], pixels[:, 1] - mouse_px[1])
+    if np.all(np.isnan(distances)):
+        return None
+    return int(candidates[np.nanargmin(distances)])

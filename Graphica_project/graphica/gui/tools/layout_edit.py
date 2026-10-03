@@ -5,6 +5,7 @@
 """
 import logging
 from graphica.core.axis_settings import axis_setting
+from graphica.gui.tools.pointer import legend_at
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,7 @@ class LayoutEditTool:
             return
         self._app.project.all_plot_settings.pop()
         new_total = len(self._app.project.all_plot_settings)
+        self._app.view_navigation.forget_view(new_total)
         if self._app.project.active_axis_index >= new_total:
             self._app.project.active_axis_index = new_total - 1
 
@@ -164,6 +166,8 @@ class LayoutEditTool:
 
     def _on_layout_press(self, event):
         if not self.layout_edit_mode_enabled or event.x is None or event.y is None:
+            return
+        if legend_at(self._app.canvas, event) is not None:
             return
         axis_index = self._find_axis_at_point(event.x, event.y)
         if axis_index is None:

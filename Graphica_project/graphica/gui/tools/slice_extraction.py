@@ -5,11 +5,13 @@
 """
 import logging
 
+from matplotlib.lines import Line2D
 
 from graphica.gui import notify
 from graphica.core.provenance import build_provenance
 from graphica.core.dataset import Dataset
 from graphica.core.grid_data import extract_slice, GridDataError
+from graphica.gui.tools.pointer import clamped_data_point, legend_at
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,7 @@ class SliceExtractionTool:
         self._slice_extraction_axes = None
         self._slice_extraction_start = None         # (x, y) データ座標
         self._slice_extraction_preview_artist = None
+        self._slice_extraction_background = None    # blit 用に押したときに撮った背景
 
     def _toggle_slice_extraction_mode(self, checked):
         self.slice_extraction_mode_enabled = checked
@@ -76,7 +79,7 @@ class SliceExtractionTool:
             self._slice_extraction_start = None
 
     def _clear_slice_extraction_preview(self):
-        """ドラッグ中のプレビューを消す。描き直しで既に消えていても例外にしない。"""
+        """ドラッグ中のプレビューと blit 用の背景を捨てる。描き直しで既に消えていても例外にしない。"""
         artist = getattr(self, '_slice_extraction_preview_artist', None)
         if artist is not None:
             try:
@@ -85,28 +88,47 @@ class SliceExtractionTool:
                 pass
             self._slice_extraction_preview_artist = None
             self._app.canvas.draw_idle()
+        self._slice_extraction_background = None
 
     def _on_slice_extraction_press(self, event):
         if not getattr(self, 'slice_extraction_mode_enabled', False):
             return
         if event.button != 1 or event.inaxes is None or event.xdata is None or event.ydata is None:
             return
+        if legend_at(self._app.canvas, event) is not None:
+            return
         self._slice_extraction_axes = event.inaxes
         self._slice_extraction_start = (event.xdata, event.ydata)
+        # 背景は始めに1回だけ撮り、以降は線分だけを blit で描き直す(毎回全体を描くと系列が多いほど重い)
+        self._app.canvas.draw()
+        self._slice_extraction_background = self._app.canvas.copy_from_bbox(event.inaxes.bbox)
 
     def _on_slice_extraction_motion(self, event):
         axes = getattr(self, '_slice_extraction_axes', None)
-        if axes is None or event.inaxes is not axes or event.xdata is None or event.ydata is None:
+        if axes is None:
+            return
+        point = clamped_data_point(axes, event)
+        if point is None:
             return
 
-        self._clear_slice_extraction_preview()
         start = self._slice_extraction_start
-        (line,) = axes.plot(
-            [start[0], event.xdata], [start[1], event.ydata],
-            color='#E4572E', linestyle='--', linewidth=1.5, zorder=100,
-        )
-        self._slice_extraction_preview_artist = line
-        self._app.canvas.draw_idle()
+        xs, ys = [start[0], point[0]], [start[1], point[1]]
+        line = self._slice_extraction_preview_artist
+        if line is None:
+            # animated=True の線は draw() では描かれず blit だけで出る。add_artist なのでデータの範囲にも入らない
+            line = Line2D(xs, ys, color='#E4572E', linestyle='--', linewidth=1.5, zorder=100, animated=True)
+            axes.add_artist(line)
+            self._slice_extraction_preview_artist = line
+        else:
+            line.set_data(xs, ys)
+
+        background = self._slice_extraction_background
+        if background is None:
+            self._app.canvas.draw_idle()
+            return
+        self._app.canvas.restore_region(background)
+        axes.draw_artist(line)
+        self._app.canvas.blit(axes.bbox)
 
     def _on_slice_extraction_release(self, event):
         axes = getattr(self, '_slice_extraction_axes', None)
@@ -118,9 +140,10 @@ class SliceExtractionTool:
         self._slice_extraction_axes = None
         self._slice_extraction_start = None
 
-        if event.inaxes is not axes or event.xdata is None or event.ydata is None:
+        # 軸の外で離したら、軸の縁で止めた位置を終点にする
+        end = clamped_data_point(axes, event)
+        if end is None:
             return
-        end = (event.xdata, event.ydata)
         if start == end:
             return  # クリックだけ(ドラッグなし)
 

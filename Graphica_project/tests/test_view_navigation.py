@@ -474,3 +474,81 @@ def test_legend_dragged_onto_an_axis_band_is_still_dragged_not_panned(window):
     _drag(window, center, (center[0] + 60, center[1]))
 
     assert ax.get_xlim() == xlim
+
+
+# --- マウスで変えた範囲を、描き直しても保つ ---
+
+def test_a_rectangle_zoom_survives_a_full_redraw(window):
+    _add(window)
+    ax = window.canvas.all_axes[0]
+    _drag(window, _to_px(ax, 2, 20), _to_px(ax, 6, 70))
+    zoomed = _limits(ax)
+
+    window.redraw()
+
+    assert _limits(window.canvas.all_axes[0]) == pytest.approx(zoomed)
+
+
+def test_an_axis_wheel_zoom_survives_an_appearance_redraw_and_keeps_the_other_axis(window):
+    _add(window)
+    ax = window.canvas.all_axes[0]
+    y_before = ax.get_ylim()
+    _fire(window, "scroll_event", *_band_center(window, 'x'), step=1, button='up')
+    x_zoomed = ax.get_xlim()
+
+    window.redraw_appearance()
+    window.redraw()
+
+    ax = window.canvas.all_axes[0]
+    assert ax.get_xlim() == pytest.approx(x_zoomed)
+    assert ax.get_ylim() == pytest.approx(y_before)
+
+
+def test_changing_the_range_setting_of_that_axis_wins_over_the_mouse(window):
+    _add(window)
+    ax = window.canvas.all_axes[0]
+    _drag(window, _to_px(ax, 2, 20), _to_px(ax, 6, 70))
+    zoomed_y = ax.get_ylim()
+
+    window.project.all_plot_settings[0].update({'x_autoscale': False, 'x_min': 1.0, 'x_max': 9.0})
+    window.redraw()
+
+    ax = window.canvas.all_axes[0]
+    assert ax.get_xlim() == pytest.approx((1.0, 9.0))
+    assert ax.get_ylim() == pytest.approx(zoomed_y)  # Y の設定は変えていないので保つ
+
+
+@pytest.mark.parametrize("reset", ["double_click", "reset_button"])
+def test_a_reset_is_not_undone_by_the_next_redraw(window, reset):
+    _add(window)
+    ax = window.canvas.all_axes[0]
+    full = _limits(ax)
+    _drag(window, _to_px(ax, 2, 20), _to_px(ax, 6, 70))
+
+    if reset == "double_click":
+        _fire(window, "button_press_event", *_to_px(ax, 4, 40), button=1, dblclick=True)
+    else:
+        window._reset_zoom()
+    window.redraw()
+
+    assert _limits(window.canvas.all_axes[0]) == pytest.approx(full)
+
+
+def test_going_back_past_the_first_zoom_lets_the_axes_follow_the_settings_again(window):
+    _add(window)
+    ax = window.canvas.all_axes[0]
+    _drag(window, _to_px(ax, 2, 20), _to_px(ax, 6, 70))
+    _fire(window, "button_press_event", *_to_px(ax, 4, 40), button=3)
+
+    _add(window, name="wide", x=np.linspace(0, 20, 21))  # 自動の範囲が広がる
+
+    assert window.canvas.all_axes[0].get_xlim()[1] == pytest.approx(20)
+
+
+def test_views_of_removed_subplots_are_dropped(window):
+    _add(window)
+    window.canvas.view_overrides[5] = {'x': ((0.0, 1.0), ())}
+
+    window.canvas.draw()
+
+    assert 5 not in window.canvas.view_overrides

@@ -54,6 +54,9 @@ class _CanvasDrawingMixin:
         self._non_pickable_dataset_ids = set()
         # 軸ごとのカラーバーの対象(2Dマップか値で色分けした散布図)。_apply_appearance に渡すため
         self._axis_2d_mappables = {}
+        # マウスで変えた表示範囲。{サブプロットの番号: {'x'/'y'/'y2': (範囲, 範囲の設定の署名)}}。
+        # 描き直しても保ち、その軸の範囲の設定が変わったら忘れる(rendering/appearance.apply_view_override)
+        self.view_overrides = {}
         # ウォーターフォールの変換(dataset_id ごと)。トレースは
         #     表示X = データX + index * offset_x
         #     表示Y = データY * depth_scale + index * offset_y
