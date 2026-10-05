@@ -193,3 +193,30 @@ def test_default_launch_without_prior_detach_stays_attached(tmp_path, monkeypatc
         assert window.canvas.parent() is window.ui.plot_container
     finally:
         window.close()
+
+
+def test_a_tab_closed_before_the_event_loop_runs_does_not_restore_its_detached_canvas(tmp_path, monkeypatch):
+    """起動時の復元は後回し(QTimer)なので、その前にタブが壊れたら呼ばない(壊れたキャンバスを触ると落ちる)。"""
+    from PySide6.QtCore import QEvent
+
+    settings_path = str(tmp_path / "test_settings.ini")
+    QSettings(settings_path, QSettings.Format.IniFormat).setValue(CANVAS_WAS_DETACHED_KEY, True)
+
+    class IsolatedQSettings(QSettings):
+        def __init__(self, *args, **kwargs):
+            super().__init__(settings_path, QSettings.Format.IniFormat)
+
+    monkeypatch.setattr(app_settings_module, "QSettings", IsolatedQSettings)
+    calls = []
+    monkeypatch.setattr(PlotterApp, "_detach_canvas", lambda self, **kwargs: calls.append(kwargs))
+    app = QApplication.instance()
+
+    kept = PlotterApp(run_startup_checks=False, tab_id=2)
+    closed = PlotterApp(run_startup_checks=False, tab_id=3)
+    closed.deleteLater()
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    for _ in range(5):
+        app.processEvents()
+
+    assert calls == [{'restore_geometry': True}]  # 残したタブの分だけ
+    kept.close()

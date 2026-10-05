@@ -472,7 +472,7 @@ class AxisSettingsPanel:
 
     def _on_legend_drag_release(self, _event):
         """凡例のドラッグは matplotlib 側の button_release_event で確定し、こちらが先に呼ばれうるので、処理の後で読む。"""
-        QTimer.singleShot(0, self._store_dragged_legend_positions)
+        QTimer.singleShot(0, self._app, self._store_dragged_legend_positions)
 
     def _store_dragged_legend_positions(self):
         """凡例がドラッグで置かれていれば、その位置を legend_position に保存する(しないと次の描画で戻る)。どれか変えたら True。"""

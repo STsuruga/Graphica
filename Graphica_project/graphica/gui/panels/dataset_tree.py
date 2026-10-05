@@ -213,7 +213,7 @@ class DatasetTreePanel:
 
     def _on_dataset_order_applied(self):
         """ドロップ処理の最中にツリーを触ると Qt の処理とぶつかるので、同期と再描画は次のイベントループに回す。"""
-        QTimer.singleShot(0, self._sync_dataset_list_and_replot)
+        QTimer.singleShot(0, self._app, self._sync_dataset_list_and_replot)
 
     def _sync_dataset_list_and_replot(self):
         self._app._sync_dataset_list_widget_order()
