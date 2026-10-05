@@ -527,18 +527,18 @@ class PlotterApp(QMainWindow, UISetupMixin,
 
         # キャンバスを切り離したまま閉じていれば同じ状態に戻す。ダークモードなどと同じ軽い設定なので、どのタブでも戻す
         if app_settings.CANVAS_WAS_DETACHED.read(self.settings):
-            QTimer.singleShot(0, lambda: self._detach_canvas(restore_geometry=True))
+            QTimer.singleShot(0, self, lambda: self._detach_canvas(restore_geometry=True))
 
         self.setAcceptDrops(True)
 
         # 起動時の確認は最初のタブだけ。窓が表示される前だとダイアログが変な位置に出るので、一巡してから
         if self._run_startup_checks:
-            QTimer.singleShot(0, self._check_autosave_recovery)
+            QTimer.singleShot(0, self, self._check_autosave_recovery)
             # 初回の案内は復元の確認の後(データに関わる確認を先に)
-            QTimer.singleShot(0, self._check_first_launch)
+            QTimer.singleShot(0, self, self._check_first_launch)
             # 新しい版の確認は上の2つの邪魔をしないよう少し遅らせる。公開 API への匿名の GET 1回だけで、
             # 新しい版があるときだけ知らせ、失敗しても何も出さない
-            QTimer.singleShot(1500, self._start_startup_update_check)
+            QTimer.singleShot(1500, self, self._start_startup_update_check)
 
         # 項目の間の余白を広げる。フォームが全部できた最後に
         apply_form_spacing(self)

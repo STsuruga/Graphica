@@ -1,6 +1,7 @@
 import sys
 import os
 import logging
+import faulthandler
 
 # Win32 の SetProcessDpiAwareness() を呼ばないこと。DPI の認識モードはプロセスで1回しか設定できず、
 # 先に呼ぶと Qt の設定が失敗して、描画とクリックの位置がずれる。
@@ -21,9 +22,14 @@ from graphica.core.app_paths import get_app_data_dir
 APP_FONT_FAMILIES = ["Yu Gothic UI", "Meiryo UI", "Segoe UI"]
 APP_FONT_POINT_SIZE = 9.5
 
+# faulthandler が書き込む先。閉じられると書けなくなるので、プロセスの間ずっと持っておく
+_fault_log_file = None
+
+
 def _setup_logging():
     """ログはファイルにも書く(exe ではコンソールが無い)。場所は get_app_data_dir()(Program Files の下には書けない)。"""
     log_path = os.path.join(get_app_data_dir(), LOG_FILE_NAME)
+    _enable_native_crash_log(log_path)
     handlers = [logging.FileHandler(log_path, encoding="utf-8")]
     # コンソールの無い起動(pip の gui-scripts・exe)では sys.stdout が None
     if sys.stdout is not None:
@@ -35,6 +41,17 @@ def _setup_logging():
     )
     # グラフのフォントは OS ごとの候補を並べていて、無いものごとに描くたび警告が出てログが膨らむ
     logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+
+def _enable_native_crash_log(log_path):
+    """Qt の中の不正アクセスのようなネイティブなクラッシュは Python の例外にならず、crash_handler にも届かないので
+    何も残らない。そのときの Python のスタックを同じログに追記させる(利用者に送ってもらうファイルを1つにするため)。"""
+    global _fault_log_file
+    try:
+        _fault_log_file = open(log_path, "a", encoding="utf-8")
+        faulthandler.enable(_fault_log_file)
+    except (OSError, ValueError):
+        logging.getLogger(__name__).warning("ネイティブなクラッシュの記録を有効にできませんでした", exc_info=True)
+
 
 def _safe_mode_flag_requested(argv):
     """--safe-mode が指定されたか(ウィンドウを作らずにテストできるよう分けてある)。"""
