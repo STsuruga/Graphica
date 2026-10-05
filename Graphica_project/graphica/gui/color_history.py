@@ -25,15 +25,21 @@ def load_recent_colors_into_picker(settings):
         QColorDialog.setCustomColor(i, QColor(color_name))
 
 
+def ask_color(parent=None, initial=None, title=""):
+    """色を選ばせる。無効な QColor ならキャンセル。
+
+    どの OS でも Qt のダイアログを使う。macOS の OS の色パネルにはカスタムカラー欄が無く、「最近使った色」が出ない。
+    """
+    return QColorDialog.getColor(initial if initial is not None else QColor("white"), parent, title,
+                                 QColorDialog.ColorDialogOption.DontUseNativeDialog)
+
+
 def get_color_with_history(settings, parent=None, initial=None):
     """
     QColorDialog.getColor() のラッパー。選択(Cancel以外)された色を
     「最近使った色」の先頭に記録し、QSettingsへ永続化する。
     """
-    if initial is not None:
-        color = QColorDialog.getColor(initial, parent)
-    else:
-        color = QColorDialog.getColor(parent=parent)
+    color = ask_color(parent, initial)
 
     if color.isValid():
         color_name = color.name()

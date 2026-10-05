@@ -3,7 +3,6 @@
 import re
 from PySide6.QtWidgets import (
     QCheckBox,
-    QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -27,7 +26,7 @@ from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QPixmap
 from graphica.gui import notify
 from graphica.gui import icon_utils
-from graphica.gui.color_history import get_color_with_history
+from graphica.gui.color_history import ask_color, get_color_with_history
 from graphica.gui.theme import apply_form_spacing
 from graphica.gui.mathtext_preview import FitWidthPixmapLabel
 from graphica.core.i18n import tr
@@ -416,7 +415,7 @@ class ColorPaletteDialog(QDialog):
         name = self.palette_combo.currentText()
         if self._is_readonly_palette(name):
             return
-        color = QColorDialog.getColor()
+        color = ask_color(self)
         if not color.isValid():
             return
         self.palettes.setdefault(name, []).append(color.name())
@@ -519,7 +518,7 @@ class NamedColorManagerDialog(QDialog):
 
     def _ask_name_and_color(self, title, name="", color="#1f77b4"):
         """名前と色を尋ねる。(name, color) かキャンセルなら None。"""
-        chosen = QColorDialog.getColor(QColor(color), self, tr("色を選択"))
+        chosen = ask_color(self, QColor(color), tr("色を選択"))
         if not chosen.isValid():
             return None
         text, ok = notify.get_text(
