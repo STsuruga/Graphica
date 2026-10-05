@@ -13,17 +13,16 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-06): v2.1.0 のリリース準備(ブランチ `fix/prerelease-robustness`)
+## 現在地(2026-10-06): v2.1.0 をリリースした
 
+- **v2.1.0 を公開済み**(タグ `v2.1.0`、PR #105・#106)。PyPI に `graphica-plot` 2.1.0(wheel・sdist)、GitHub Releases に
+  `Graphica-2.1.0-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(どれも `LICENSE` と `THIRD_PARTY_LICENSES.md` 入りを確認)。
+  リリースノートは CHANGELOG の v2.1.0 の節と、インストールの表・macOS 版が未署名の案内・ライセンス(v2.0.0 と同じ形)。
+- 中身: プロットのマウス操作の作り直し(#95・#101)、Issue #90(#97)、拡大図の直し(#100・#102)、Mac のフォント・色の選択、
+  数値の列名、ドックの既定の配置、既定の書式テンプレート(#104)、ネイティブなクラッシュの記録と後回し処理の結び付け(#105)。
 - リリース前の直し: ネイティブなクラッシュを `graphica.log` に残す(faulthandler)、後回しの処理(QTimer)をタブに結び付ける。
-- 版を 2.1.0 に、`CHANGELOG.md` に v2.1.0 の節(日付は「未定」)、カバレッジを更新(95.1%)。
-- **ユーザー決定**: 版は 2.1.0。タグの前に、master の CI(package.yml)が作る macOS の .app でフォント・色の選択と新しいマウス操作を
-  ユーザーが確かめる。
-- **次の手順**(新しいセッションでもここから):
-  1. このブランチの PR の CI が通ったらマージ(`gh pr checks <番号>`)。
-  2. master の package.yml の成果物 `Graphica-macos` をユーザーが Mac で確認(`docs/dev/RELEASE_CHECKLIST.md` の 3)。
-  3. 問題なければ `CHANGELOG.md` の日付を入れ、`git tag v2.1.0 && git push origin v2.1.0`。publish.yml が PyPI まで公開する。
-  4. GitHub の Releases に両 OS の成果物を添付し、本文に CHANGELOG の節と macOS 版が未署名である旨を書く。
+- 次: 利用者からの報告(特に macOS)を待つ。リリース後の改善候補: 題・軸ラベルの入力で1文字ごとに全体を描き直す(大きなデータでもたつく)、
+  この PC の Python 環境を requirements の固定版にそろえる(特性テストの既知の5件が消え、基準もこの PC で作り直せる)。
 
 ## 以前の現在地(2026-10-06): Mac のフォント・数値の列名・ドックの既定・既定の書式テンプレート(ブランチ `fix/mac-font-dialog`)
 
