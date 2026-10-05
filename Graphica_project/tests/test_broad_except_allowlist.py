@@ -26,7 +26,6 @@ ALLOWED = {
     "graphica/gui/datasets/operations/transfer.py": 4,
     "graphica/gui/dialogs/analysis.py": 2,
     "graphica/gui/dialogs/data_import.py": 6,
-    "graphica/gui/dock_layout.py": 1,
     "graphica/gui/export_preview_panel.py": 3,
     "graphica/gui/main_window.py": 2,
     "graphica/gui/minimap_widget.py": 2,

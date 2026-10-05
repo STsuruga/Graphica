@@ -210,6 +210,10 @@ def destroy_leftover_windows(qapp):
 
     plt.close("all")
     for widget in list(qapp.topLevelWidgets()):
+        # コンボの選択肢の枠やメニューのように、持ち主のいる窓は持ち主と一緒に壊れる。
+        # 親から外して先に壊すと、持ち主が後で同じものを壊して落ちる(二重解放)
+        if widget.parent() is not None:
+            continue
         try:
             widget.close()
             widget.setParent(None)

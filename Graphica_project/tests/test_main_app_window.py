@@ -252,3 +252,55 @@ def test_tab_title_after_restoring_from_autosave_says_it_is_restored(tmp_path, m
     )
     tab.manual_save()
     assert window.tab_widget.tabText(0) == "saved.graphica"
+
+
+# --- ドックの既定の配置 ---
+
+def _dock_tab_bars(tab):
+    """ドックをタブで並べたときのタブバー: (前面の番号, タブの名前)。"""
+    from PySide6.QtWidgets import QTabBar
+    return [(bar.currentIndex(), [bar.tabText(i) for i in range(bar.count())])
+            for bar in tab.findChildren(QTabBar) if bar.parent() is tab]
+
+
+def test_every_tab_starts_with_properties_and_export_preview_side_by_side(tmp_path, monkeypatch):
+    """エクスポートプレビューはプロパティと同じ場所にタブで並ぶ。前面はプロパティで、プレビューは後ろにある間は描かない。"""
+    import graphica.gui.export_preview_panel as export_preview_module
+
+    renders = []
+    original = export_preview_module.ExportPreviewPanel._render_preview
+    monkeypatch.setattr(export_preview_module.ExportPreviewPanel, "_render_preview",
+                        lambda self: renders.append(self) or original(self))
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    window.resize(1400, 900)
+    window.show()
+    app = QApplication.instance()
+    first_tab = window.tab_widget.widget(0)
+    second_tab = window.add_new_project_tab()
+
+    for tab in (first_tab, second_tab):
+        window.tab_widget.setCurrentWidget(tab)
+        for _ in range(5):
+            app.processEvents()
+        props, preview = tab.ui.control_dock_widget, tab.export_preview_dock_widget
+        assert not preview.isFloating()
+        assert preview in tab.tabifiedDockWidgets(props)
+        assert _dock_tab_bars(tab) == [(0, [props.windowTitle(), preview.windowTitle()])]
+        assert preview.visibleRegion().isEmpty()
+
+        tab.redraw()
+        _wait_for_preview_debounce(app)
+        assert tab.export_preview_panel not in renders  # 後ろにある間は描かない
+
+        preview.raise_()
+        _wait_for_preview_debounce(app)
+        assert tab.export_preview_panel in renders  # 前に出したら描く
+
+
+def _wait_for_preview_debounce(app):
+    import time
+    from graphica.gui.export_preview_panel import PREVIEW_DEBOUNCE_MS
+    deadline = time.monotonic() + PREVIEW_DEBOUNCE_MS / 1000 + 0.5
+    while time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.02)
