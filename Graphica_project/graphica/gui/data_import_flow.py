@@ -233,6 +233,7 @@ def import_loaded_dataframe(app, df, file_path):
             name=preview_name, df=final_df, x_col_name=x_col, y_col_name=y_col,
             source_file=os.path.abspath(file_path), source_sheet=source_sheet,
         )
+        app._style_imported_dataset(new_dataset)
         app._add_dataset(new_dataset, target_folder)
         added_count += 1
 
@@ -336,6 +337,7 @@ def on_paste_data_from_clipboard(app):
     x_col, y_col = preview_dialog.get_selected_columns()
     final_df = preview_dialog.get_dataframe()
     new_dataset = Dataset(name=dataset_name, df=final_df, x_col_name=x_col, y_col_name=y_col)
+    app._style_imported_dataset(new_dataset)
     app._add_dataset(new_dataset, app._get_target_folder_for_new_dataset())
     app.statusBar().showMessage("クリップボードからデータを貼り付けました", 3000)
 

@@ -285,6 +285,7 @@ def load_project_from_path(app, filepath, add_to_recent=True):
         app.undo_stack.clear()
         # マウスで変えた表示範囲は前の文書のもの
         app.view_navigation.forget_all_views()
+        app._forget_default_style_template()
 
         app.property_panel.update_ui_state()
         app._update_plot()

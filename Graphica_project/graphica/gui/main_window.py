@@ -512,6 +512,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
             _enable_scientific_notation_input(spin_box, minimum=0, maximum=np.inf)
 
         self._update_plot()
+        # 環境設定の既定の書式テンプレート(新しいタブはどれも空のプロジェクトから始まる)
+        self._apply_default_style_template()
 
         # ドックの配置は前回の状態を戻す(最初のタブだけ。窓の大きさと位置は MainAppWindow が扱う)。
         # 既定の配置の版(DOCK_LAYOUT_VERSION)が保存時と違えば戻さない(戻すと新しい既定が既存の利用者に届かない)。
