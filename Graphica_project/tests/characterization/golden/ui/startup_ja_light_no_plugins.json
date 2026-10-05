@@ -314,7 +314,7 @@
     },
     {
      "text": "エクスポートプレビュー",
-     "checked": false,
+     "checked": true,
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -512,22 +512,15 @@
  ],
  "tab_docks": [
   {
-   "name": "control_dock_widget",
-   "title": "プロパティ",
+   "name": "ExportPreviewDockWidget",
+   "title": "エクスポートプレビュー",
    "area": "RightDockWidgetArea",
    "floating": false,
    "visible": true,
    "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
-  {
-   "name": "ExportPreviewDockWidget",
-   "title": "エクスポートプレビュー",
-   "area": "RightDockWidgetArea",
-   "floating": true,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
+   "tabified_with": [
+    "control_dock_widget"
+   ]
   },
   {
    "name": "ResidualDockWidget",
@@ -546,6 +539,17 @@
    "visible": false,
    "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
    "tabified_with": []
+  },
+  {
+   "name": "control_dock_widget",
+   "title": "プロパティ",
+   "area": "RightDockWidgetArea",
+   "floating": false,
+   "visible": true,
+   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
+   "tabified_with": [
+    "ExportPreviewDockWidget"
+   ]
   }
  ]
 }

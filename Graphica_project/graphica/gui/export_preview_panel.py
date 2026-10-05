@@ -113,7 +113,7 @@ class ExportPreviewPanel(QWidget):
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(PREVIEW_DEBOUNCE_MS)
-        self._refresh_timer.timeout.connect(self._render_preview)
+        self._refresh_timer.timeout.connect(self._render_if_shown)
 
     def get_options(self):
         """ExportDialog と同じ形の設定(_calculate_size_in_inches で使える)。"""
@@ -132,6 +132,12 @@ class ExportPreviewPanel(QWidget):
         if not self.isVisible():
             return
         self._refresh_timer.start()
+
+    def _render_if_shown(self):
+        """実際に見えているときだけ描く。プロパティとタブで並べたドックは、後ろのタブでも isVisible() が真のままなので、
+        見えている領域で確かめる(前に出たときはドックの visibilityChanged から refresh_preview が呼ばれる)。"""
+        if self.isVisible() and not self.visibleRegion().isEmpty():
+            self._render_preview()
 
     def _render_preview(self):
         options = self.get_options()

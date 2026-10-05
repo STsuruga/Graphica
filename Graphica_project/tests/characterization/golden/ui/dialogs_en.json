@@ -5396,6 +5396,38 @@
           },
           {
            "class": "QGroupBox",
+           "title": "New Projects",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "Default style template",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QLineEdit",
+             "text": "",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "Browse...",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "Clear",
+             "visible": true,
+             "enabled": true
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
            "title": "Performance",
            "visible": true,
            "enabled": true,

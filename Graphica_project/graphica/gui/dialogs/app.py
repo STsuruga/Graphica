@@ -35,7 +35,8 @@ class PreferencesDialog(QDialog):
     def __init__(self, dark_mode, autosave_minutes, autosave_bounds=(0, 180), parent=None,
                  current_language=None, autosave_dir="", point_label_max_points=1000,
                  snap_to_grid_enabled=False, snap_grid_interval_px=10,
-                 plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None):
+                 plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None,
+                 default_style_template=""):
         """plugin_records=None は一度も読み込んでいない(セーフモードなど)。空のリスト(1つも無い)とは区別して表示する。"""
         super().__init__(parent)
         from graphica.core.i18n import tr, SUPPORTED_LANGUAGES, get_language
@@ -103,6 +104,25 @@ class PreferencesDialog(QDialog):
         save_form.addRow(tr("オートセーブ保存先"), autosave_dir_row)
 
         layout.addWidget(save_group)
+
+        # 新しいタブ・プロジェクトに最初から当てる書式テンプレート(読み込んだデータセットにも順に当てる)
+        template_group = QGroupBox(tr("新しいプロジェクト"))
+        template_form = QFormLayout(template_group)
+        self._default_style_template = default_style_template or ""
+        template_row = QHBoxLayout()
+        self.default_style_template_edit = QLineEdit(self._default_style_template)
+        self.default_style_template_edit.setReadOnly(True)
+        self.default_style_template_edit.setPlaceholderText(tr("(使わない)"))
+        self.default_style_template_browse_button = QPushButton(tr("参照..."))
+        self.default_style_template_browse_button.setIcon(icon_utils.icon("folder"))
+        self.default_style_template_browse_button.clicked.connect(self._on_browse_default_style_template)
+        self.default_style_template_clear_button = QPushButton(tr("使わない"))
+        self.default_style_template_clear_button.clicked.connect(self._on_clear_default_style_template)
+        template_row.addWidget(self.default_style_template_edit, 1)
+        template_row.addWidget(self.default_style_template_browse_button)
+        template_row.addWidget(self.default_style_template_clear_button)
+        template_form.addRow(tr("既定の書式テンプレート"), template_row)
+        layout.addWidget(template_group)
 
         # 点のラベルは点の数だけ annotate するので、多いと固まる。この数を超えたら描かない
         performance_group = QGroupBox(tr("パフォーマンス"))
@@ -311,6 +331,24 @@ class PreferencesDialog(QDialog):
     def _on_clear_autosave_dir(self):
         self._autosave_dir = ""
         self.autosave_dir_edit.setText("")
+
+    def _on_browse_default_style_template(self):
+        from graphica.core.i18n import tr
+        file_path, _ = notify.get_open_file_name(
+            self, tr("既定の書式テンプレートを選択"), self._default_style_template or "",
+            "Graphica Style Template (*.graphica-style *.json)"
+        )
+        if file_path:
+            self._default_style_template = file_path
+            self.default_style_template_edit.setText(file_path)
+
+    def _on_clear_default_style_template(self):
+        self._default_style_template = ""
+        self.default_style_template_edit.setText("")
+
+    def get_default_style_template(self):
+        """新しいタブ・プロジェクトに当てる書式テンプレートのパス。空なら使わない。"""
+        return self._default_style_template
 
     def _on_install_plugin(self):
         from graphica.core.i18n import tr

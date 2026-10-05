@@ -381,8 +381,16 @@ class AxisSettingsPanel:
                 "フォントがあります。別のフォントをお試しください。"
             )
 
+    def _ask_font(self, initial):
+        """フォントを選ばせる。(選んだか, フォント)。
+
+        どの OS でも Qt のダイアログを使う。macOS の OS のフォントパネルは、選んだフォントを Qt へ通知(changeFont:)で
+        渡すが、それが届かないと OK でも最初のフォントのまま返り、選んでも反映されない。
+        """
+        return QFontDialog.getFont(initial, self._app, "", QFontDialog.FontDialogOption.DontUseNativeDialog)
+
     def _on_change_tick_font(self):
-        ok, font = QFontDialog.getFont(self._app._tick_font, self._app)
+        ok, font = self._ask_font(self._app._tick_font)
         if ok:
             self._warn_if_font_family_unavailable_for_graph(font)
             self._app._tick_font = font
@@ -395,7 +403,7 @@ class AxisSettingsPanel:
             self._on_axis_setting_changed()
 
     def _on_change_axis_label_font(self):
-        ok, font = QFontDialog.getFont(self._app._axis_label_font, self._app)
+        ok, font = self._ask_font(self._app._axis_label_font)
         if ok:
             self._warn_if_font_family_unavailable_for_graph(font)
             self._app._axis_label_font = font
@@ -409,7 +417,7 @@ class AxisSettingsPanel:
             self._on_axis_setting_changed()
 
     def _on_change_legend_font(self):
-        ok, font = QFontDialog.getFont(self._app._legend_font, self._app)
+        ok, font = self._ask_font(self._app._legend_font)
         if ok:
             self._warn_if_font_family_unavailable_for_graph(font)
             self._app._legend_font = font

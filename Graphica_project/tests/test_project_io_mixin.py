@@ -38,7 +38,8 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
     return window
 
 
-def _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=None, disabled_plugin_names=None):
+def _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=None, disabled_plugin_names=None,
+                              default_style_template=None):
     """
     PreferencesDialog を、実ウィジェットを構築せず exec() でイベントループを
     ブロックしないフェイクに差し替える。呼び出し側 (_on_show_preferences) が
@@ -60,6 +61,12 @@ def _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=None, d
 
         def get_disabled_plugin_names(self):
             return disabled_plugin_names if disabled_plugin_names is not None else set()
+
+        def get_default_style_template(self):
+            # 指定が無ければ開いたときの値のまま(変えていない)
+            if default_style_template is None:
+                return captured['kwargs'].get('default_style_template', "")
+            return default_style_template
 
     monkeypatch.setattr(project_io_mixin_module, "PreferencesDialog", FakePreferencesDialog)
     return captured
@@ -193,6 +200,19 @@ def test_on_show_preferences_applies_autosave_dir_change(tmp_path, monkeypatch):
 
     assert window.settings.value("autosave_dir", "", type=str) == new_dir
     assert new_dir in window._autosave_filename
+
+
+def test_on_show_preferences_saves_the_default_style_template(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    template = str(tmp_path / "house.graphica-style")
+    new_settings = (window.canvas.dark_mode, 0, "ja", "", 1000, False, 10)
+    captured = _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=new_settings,
+                                         default_style_template=template)
+
+    window._on_show_preferences()
+
+    assert captured['kwargs']['default_style_template'] == ""
+    assert window.settings.value("default_style_template", "", type=str) == template
 
 
 def test_on_show_preferences_applies_point_label_max_and_redraws(tmp_path, monkeypatch):

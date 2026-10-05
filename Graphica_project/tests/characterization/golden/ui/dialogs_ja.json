@@ -5396,6 +5396,38 @@
           },
           {
            "class": "QGroupBox",
+           "title": "新しいプロジェクト",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "既定の書式テンプレート",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QLineEdit",
+             "text": "",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "参照...",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "使わない",
+             "visible": true,
+             "enabled": true
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
            "title": "パフォーマンス",
            "visible": true,
            "enabled": true,

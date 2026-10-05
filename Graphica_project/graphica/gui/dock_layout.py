@@ -6,7 +6,7 @@ from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtWidgets import QDockWidget, QGroupBox, QScrollArea, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, notify
-from graphica.gui.builders.common import DOCK_LAYOUT_VERSION, EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT
+from graphica.gui.builders.common import DOCK_LAYOUT_VERSION
 from graphica.gui.export_preview_panel import ExportPreviewPanel
 from graphica.gui.provenance_panel import ProvenancePanel
 from graphica.gui.residual_panel import ResidualPanel
@@ -52,15 +52,18 @@ def arrange_property_docks(app):
     merged_scroll_area.setWidget(merged_properties_container)
     app.ui.control_dock_widget.setWidget(merged_scroll_area)
 
-    # エクスポートのプレビュー。描き続けると重いので既定では隠し、表示メニューから開く
+    # エクスポートのプレビュー。プロパティと同じ場所にタブで並べ、前面はプロパティにする。
+    # プレビューは見えている間だけ描く(ExportPreviewPanel.refresh_preview)ので、裏のタブにあれば重くならない
     app.export_preview_panel = ExportPreviewPanel(app)
     app.export_preview_dock_widget = QDockWidget(tr("エクスポートプレビュー"), app)
     app.export_preview_dock_widget.setObjectName("ExportPreviewDockWidget")
-    app.export_preview_dock_widget.setWidget(app.export_preview_panel)
-    # 必要なときだけ見るものなので、キャンバスを狭めないよう独立した窓で開く(ドッキングもできる)
+    # パネルは高さが 440px ほど要る。そのまま置くとプロパティと同じ場所の最小の高さを引き上げ、ウィンドウを縮められなくなる
+    preview_scroll_area = QScrollArea()
+    preview_scroll_area.setWidgetResizable(True)
+    preview_scroll_area.setWidget(app.export_preview_panel)
+    app.export_preview_dock_widget.setWidget(preview_scroll_area)
     app.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, app.export_preview_dock_widget)
-    app.export_preview_dock_widget.setFloating(True)
-    app.export_preview_dock_widget.hide()
+    app.tabifyDockWidget(app.ui.control_dock_widget, app.export_preview_dock_widget)
     app._export_preview_first_show = True
 
     def _on_export_preview_visibility_changed(visible):
@@ -101,19 +104,11 @@ def restore_dock_layout(app):
     saved_layout_version = (app_settings.DOCK_LAYOUT_VERSION.read(app.settings) if app._run_startup_checks
                             else DOCK_LAYOUT_VERSION)
     saved_state = app_settings.WINDOW_STATE.read(app.settings) if app._run_startup_checks else None
-    state_restored = False
-    if saved_state is not None and saved_layout_version == DOCK_LAYOUT_VERSION:
-        state_restored = bool(app.restoreState(saved_state))
-
-    if not state_restored:
-        try:
-            app.resizeDocks(
-                [app.export_preview_dock_widget],
-                [EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT],
-                Qt.Orientation.Vertical
-            )
-        except Exception:
-            logger.exception("resizeDocks に失敗しました")
+    if saved_state is not None and saved_layout_version == DOCK_LAYOUT_VERSION and app.restoreState(saved_state):
+        return
+    # 戻せなければ(初回・追加したタブ)組み立てたときの配置のまま。タブで並べたドックは後から足した方が前に出るので
+    # プロパティを前にする(表示される前の raise_() は効かないので、表示された後のここで行う)
+    app.ui.control_dock_widget.raise_()
 
 
 def load_dock_layout_presets(app):

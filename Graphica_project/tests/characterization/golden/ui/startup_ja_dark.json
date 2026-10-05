@@ -42,22 +42,15 @@
  ],
  "tab_docks": [
   {
-   "name": "control_dock_widget",
-   "title": "プロパティ",
+   "name": "ExportPreviewDockWidget",
+   "title": "エクスポートプレビュー",
    "area": "RightDockWidgetArea",
    "floating": false,
    "visible": true,
    "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
-  {
-   "name": "ExportPreviewDockWidget",
-   "title": "エクスポートプレビュー",
-   "area": "RightDockWidgetArea",
-   "floating": true,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
+   "tabified_with": [
+    "control_dock_widget"
+   ]
   },
   {
    "name": "ResidualDockWidget",
@@ -76,9 +69,37 @@
    "visible": false,
    "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
    "tabified_with": []
+  },
+  {
+   "name": "control_dock_widget",
+   "title": "プロパティ",
+   "area": "RightDockWidgetArea",
+   "floating": false,
+   "visible": true,
+   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
+   "tabified_with": [
+    "ExportPreviewDockWidget"
+   ]
   }
  ],
  "toolbars": [
+  {
+   "name": "quick_access_toolbar",
+   "title": "クイックアクセス",
+   "visible": true,
+   "area": "TopToolBarArea",
+   "actions": [
+    {
+     "text": "クイックアクセスの管理...",
+     "tooltip": "クイックアクセスの管理",
+     "enabled": true,
+     "visible": true
+    },
+    {
+     "separator": true
+    }
+   ]
+  },
   {
    "name": "plot_toolbar",
    "title": "プロット",
@@ -148,23 +169,6 @@
      "tooltip": "",
      "enabled": true,
      "visible": true
-    }
-   ]
-  },
-  {
-   "name": "quick_access_toolbar",
-   "title": "クイックアクセス",
-   "visible": true,
-   "area": "TopToolBarArea",
-   "actions": [
-    {
-     "text": "クイックアクセスの管理...",
-     "tooltip": "クイックアクセスの管理",
-     "enabled": true,
-     "visible": true
-    },
-    {
-     "separator": true
     }
    ]
   }
@@ -477,7 +481,7 @@
     },
     {
      "text": "エクスポートプレビュー",
-     "checked": false,
+     "checked": true,
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -768,454 +772,302 @@
         },
         "children": [
          {
-          "class": "QWidget",
-          "name": "centralwidget",
+          "class": "QDockWidget",
+          "name": "ExportPreviewDockWidget",
           "visible": true,
           "enabled": true,
+          "receivers": {
+           "visibilityChanged(bool)": 1
+          },
           "children": [
            {
-            "class": "QPushButton",
-            "name": "add_dataset_button",
+            "class": "QAbstractButton",
+            "name": "qt_dockwidget_floatbutton",
             "text": "",
             "visible": true,
             "enabled": true,
-            "tooltip": "データ追加",
             "receivers": {
              "clicked(bool)": 1,
              "clicked()": 1
             }
            },
            {
-            "class": "QPushButton",
-            "name": "remove_dataset_button",
+            "class": "QAbstractButton",
+            "name": "qt_dockwidget_closebutton",
             "text": "",
             "visible": true,
-            "enabled": false,
-            "tooltip": "データ削除",
+            "enabled": true,
             "receivers": {
              "clicked(bool)": 1,
              "clicked()": 1
             }
            },
            {
-            "class": "QWidget",
-            "name": "plot_container",
+            "class": "QScrollArea",
             "visible": true,
             "enabled": true,
             "children": [
              {
-              "class": "QToolBar",
-              "name": "plot_toolbar",
+              "class": "QWidget",
+              "name": "qt_scrollarea_viewport",
               "visible": true,
               "enabled": true,
-              "receivers": {
-               "orientationChanged(Qt::Orientation)": 2,
-               "iconSizeChanged(QSize)": 8,
-               "toolButtonStyleChanged(Qt::ToolButtonStyle)": 8
-              },
               "children": [
                {
-                "class": "QToolButton",
-                "name": "qt_toolbar_ext_button",
-                "text": "",
-                "checked": false,
-                "visible": false,
-                "enabled": false,
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1
-                },
+                "class": "ExportPreviewPanel",
+                "visible": true,
+                "enabled": true,
                 "children": [
                  {
-                  "class": "QMenu",
-                  "visible": false,
-                  "enabled": false
-                 }
-                ]
-               },
-               {
-                "class": "QToolButton",
-                "text": "データカーソル",
-                "checked": false,
-                "visible": true,
-                "enabled": true,
-                "tooltip": "データカーソル",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
-                "checked": false,
-                "visible": true,
-                "enabled": true,
-                "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
-                "checked": false,
-                "visible": true,
-                "enabled": false,
-                "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
-                "checked": false,
-                "visible": true,
-                "enabled": true,
-                "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
-                "checked": false,
-                "visible": true,
-                "enabled": true,
-                "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
-                "checked": false,
-                "visible": true,
-                "enabled": true,
-                "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
-                "checked": false,
-                "visible": true,
-                "enabled": true,
-                "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QToolButton",
-                "text": "表示をリセット (拡大/パンを元に戻す)",
-                "visible": true,
-                "enabled": true,
-                "tooltip": "表示をリセット (拡大/パンを元に戻す)",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "triggered(QAction*)": 1
-                }
-               },
-               {
-                "class": "QWidget",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QToolButton",
-                "text": "",
-                "visible": true,
-                "enabled": true,
-                "tooltip": "統計情報 (選択中データセットのY列の要約統計量)",
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1
-                },
-                "children": [
+                  "class": "QLabel",
+                  "text": "幅",
+                  "visible": true,
+                  "enabled": true
+                 },
                  {
-                  "class": "QMenu",
-                  "visible": false,
+                  "class": "QDoubleSpinBox",
+                  "value": "800.0",
+                  "visible": true,
                   "enabled": true,
+                  "receivers": {
+                   "valueChanged(double)": 1
+                  },
                   "children": [
                    {
-                    "class": "QWidget",
+                    "class": "QLineEdit",
+                    "name": "qt_spinbox_lineedit",
+                    "text": "800.0",
+                    "visible": true,
+                    "enabled": true,
+                    "receivers": {
+                     "textChanged(QString)": 1,
+                     "cursorPositionChanged(int,int)": 2
+                    }
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QLabel",
+                  "text": "高さ",
+                  "visible": true,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QDoubleSpinBox",
+                  "value": "600.0",
+                  "visible": true,
+                  "enabled": true,
+                  "receivers": {
+                   "valueChanged(double)": 1
+                  },
+                  "children": [
+                   {
+                    "class": "QLineEdit",
+                    "name": "qt_spinbox_lineedit",
+                    "text": "600.0",
+                    "visible": true,
+                    "enabled": true,
+                    "receivers": {
+                     "textChanged(QString)": 1,
+                     "cursorPositionChanged(int,int)": 2
+                    }
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QLabel",
+                  "text": "単位",
+                  "visible": true,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QComboBox",
+                  "items": [
+                   "ピクセル (px)",
+                   "インチ (in)",
+                   "センチメートル (cm)"
+                  ],
+                  "current": 0,
+                  "visible": true,
+                  "enabled": true,
+                  "receivers": {
+                   "currentIndexChanged(int)": 1
+                  },
+                  "children": [
+                   {
+                    "class": "QFrame",
                     "visible": false,
                     "enabled": true,
+                    "receivers": {
+                     "itemSelected(QModelIndex)": 1,
+                     "resetButton()": 1
+                    },
                     "children": [
                      {
-                      "class": "QLabel",
-                      "text": "統計 (Y列)",
+                      "class": "QListView",
                       "visible": false,
-                      "enabled": true
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
                      },
                      {
-                      "class": "QLabel",
-                      "text": "-",
+                      "class": "QWidget",
                       "visible": false,
-                      "enabled": true
+                      "enabled": true,
+                      "receivers": {
+                       "doScroll(int)": 1
+                      }
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "doScroll(int)": 1
+                      }
                      }
                     ]
                    }
                   ]
-                 }
-                ]
-               }
-              ]
-             },
-             {
-              "class": "QFrame",
-              "name": "canvas_separator",
-              "visible": true,
-              "enabled": true
-             },
-             {
-              "class": "MplCanvas",
-              "visible": true,
-              "enabled": true
-             },
-             {
-              "class": "QFrame",
-              "name": "canvas_separator",
-              "visible": true,
-              "enabled": true
-             },
-             {
-              "class": "MinimapWidget",
-              "visible": true,
-              "enabled": true,
-              "receivers": {
-               "range_selected(double,double)": 1
-              }
-             }
-            ]
-           },
-           {
-            "class": "QWidget",
-            "visible": true,
-            "enabled": true,
-            "children": [
-             {
-              "class": "QLineEdit",
-              "name": "dataset_search_edit",
-              "text": "",
-              "visible": true,
-              "enabled": true,
-              "receivers": {
-               "textChanged(QString)": 2
-              },
-              "children": [
-               {
-                "class": "QToolButton",
-                "text": "",
-                "visible": false,
-                "enabled": true,
-                "receivers": {
-                 "pressed()": 1,
-                 "released()": 1,
-                 "clicked(bool)": 1,
-                 "clicked()": 1
-                }
-               }
-              ]
-             },
-             {
-              "class": "QTreeWidget",
-              "name": "dataset_list_widget",
-              "visible": true,
-              "enabled": true,
-              "receivers": {
-               "customContextMenuRequested(QPoint)": 1,
-               "pressed(QModelIndex)": 1,
-               "clicked(QModelIndex)": 1,
-               "doubleClicked(QModelIndex)": 1,
-               "activated(QModelIndex)": 1,
-               "entered(QModelIndex)": 1,
-               "expanded(QModelIndex)": 1,
-               "collapsed(QModelIndex)": 1,
-               "itemClicked(QTreeWidgetItem*,int)": 1,
-               "currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)": 1
-              },
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QHeaderView",
-                "visible": false,
-                "enabled": true,
-                "receivers": {
-                 "sectionMoved(int,int,int)": 1,
-                 "sectionResized(int,int,int)": 1,
-                 "sectionCountChanged(int,int)": 1,
-                 "sectionHandleDoubleClicked(int)": 1,
-                 "geometriesChanged()": 1
-                },
-                "children": [
+                 },
                  {
-                  "class": "QWidget",
-                  "name": "qt_scrollarea_viewport",
-                  "visible": false,
+                  "class": "QLabel",
+                  "text": "解像度",
+                  "visible": true,
                   "enabled": true
+                 },
+                 {
+                  "class": "QSpinBox",
+                  "value": "150 dpi",
+                  "visible": true,
+                  "enabled": true,
+                  "receivers": {
+                   "valueChanged(int)": 1
+                  },
+                  "children": [
+                   {
+                    "class": "QLineEdit",
+                    "name": "qt_spinbox_lineedit",
+                    "text": "150 dpi",
+                    "visible": true,
+                    "enabled": true,
+                    "receivers": {
+                     "textChanged(QString)": 1,
+                     "cursorPositionChanged(int,int)": 2
+                    }
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QCheckBox",
+                  "text": "背景を透過",
+                  "checked": true,
+                  "visible": true,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QCheckBox",
+                  "text": "文字をアウトライン化する(SVG)",
+                  "checked": false,
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
+                 },
+                 {
+                  "class": "QCheckBox",
+                  "text": "フル解像度で保存/コピー(間引きなし)",
+                  "checked": false,
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "「名前を付けて保存」「コピー」の出力にのみ適用されます(常時更新されるプレビュー自体は応答性のため常に間引いたまま表示します)。点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/等高線)の間引きを無効化し、常に全データ点/全解像度で保存/コピーします。"
+                 },
+                 {
+                  "class": "QLabel",
+                  "text": "プレビューがここに表示されます",
+                  "visible": true,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QComboBox",
+                  "items": [
+                   "PNG",
+                   "SVG"
+                  ],
+                  "current": 0,
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "クリップボードにコピーする形式を選択します",
+                  "children": [
+                   {
+                    "class": "QFrame",
+                    "visible": false,
+                    "enabled": true,
+                    "receivers": {
+                     "itemSelected(QModelIndex)": 1,
+                     "resetButton()": 1
+                    },
+                    "children": [
+                     {
+                      "class": "QListView",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "doScroll(int)": 1
+                      }
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "doScroll(int)": 1
+                      }
+                     }
+                    ]
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QPushButton",
+                  "text": "コピー",
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "現在の設定でレンダリングした画像をクリップボードにコピーします",
+                  "receivers": {
+                   "clicked(bool)": 1,
+                   "clicked()": 1
+                  }
+                 },
+                 {
+                  "class": "QPushButton",
+                  "text": "名前を付けて保存...",
+                  "visible": true,
+                  "enabled": true,
+                  "receivers": {
+                   "clicked(bool)": 1,
+                   "clicked()": 1
+                  }
                  }
                 ]
-               }
-              ]
-             },
-             {
-              "class": "QLabel",
-              "name": "dataset_mini_stats_label",
-              "text": "-",
-              "visible": true,
-              "enabled": true
-             }
-            ]
-           },
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": true,
-            "enabled": true,
-            "tooltip": "新規データセット作成...",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": true,
-            "enabled": false,
-            "tooltip": "プロット複製",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": true,
-            "enabled": false,
-            "tooltip": "データ表示/編集",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QFrame",
-            "name": "button_row_separator",
-            "visible": true,
-            "enabled": true
-           },
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": true,
-            "enabled": false,
-            "tooltip": "曲線フィット",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": true,
-            "enabled": false,
-            "tooltip": "ピーク検出",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": true,
-            "enabled": true,
-            "tooltip": "多峰フィット",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QFrame",
-            "name": "button_row_separator",
-            "visible": true,
-            "enabled": true
-           },
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": true,
-            "enabled": false,
-            "tooltip": "自動配色",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": true,
-            "enabled": true,
-            "tooltip": "新しいフォルダ",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QToolButton",
-            "text": "⋯",
-            "visible": true,
-            "enabled": true,
-            "tooltip": "その他の操作",
-            "receivers": {
-             "pressed()": 1,
-             "released()": 1
-            },
-            "children": [
-             {
-              "class": "QMenu",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QMenu",
-                "visible": false,
-                "enabled": true,
-                "receivers": {
-                 "aboutToShow()": 1
-                }
                }
               ]
              }
@@ -1250,6 +1102,347 @@
            {
             "class": "QSizeGrip",
             "visible": false,
+            "enabled": true
+           }
+          ]
+         },
+         {
+          "class": "QTabBar",
+          "visible": true,
+          "enabled": true,
+          "receivers": {
+           "currentChanged(int)": 1,
+           "tabMoved(int,int)": 1
+          },
+          "children": [
+           {
+            "class": "QToolButton",
+            "name": "ScrollLeftButton",
+            "text": "",
+            "visible": false,
+            "enabled": false,
+            "receivers": {
+             "pressed()": 1,
+             "released()": 1,
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QToolButton",
+            "name": "ScrollRightButton",
+            "text": "",
+            "visible": false,
+            "enabled": false,
+            "receivers": {
+             "pressed()": 1,
+             "released()": 1,
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           }
+          ]
+         },
+         {
+          "class": "QDockWidget",
+          "name": "ResidualDockWidget",
+          "visible": false,
+          "enabled": true,
+          "children": [
+           {
+            "class": "QAbstractButton",
+            "name": "qt_dockwidget_floatbutton",
+            "text": "",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QAbstractButton",
+            "name": "qt_dockwidget_closebutton",
+            "text": "",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "ResidualPanel",
+            "visible": false,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QLabel",
+              "text": "曲線フィットの結果を持つデータセットを選択すると、\nここに残差(実測値 - フィット値)が表示されます。",
+              "visible": false,
+              "enabled": true
+             },
+             {
+              "class": "FigureCanvasQTAgg",
+              "visible": false,
+              "enabled": true
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "class": "QDockWidget",
+          "name": "ProvenanceDockWidget",
+          "visible": false,
+          "enabled": true,
+          "children": [
+           {
+            "class": "QAbstractButton",
+            "name": "qt_dockwidget_floatbutton",
+            "text": "",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QAbstractButton",
+            "name": "qt_dockwidget_closebutton",
+            "text": "",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "ProvenancePanel",
+            "visible": false,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QLabel",
+              "text": "処理履歴(フィット・ベースライン補正・平滑化等で生成された\nデータセット)を選択すると、ここに処理の流れが表示されます。",
+              "visible": false,
+              "enabled": true
+             },
+             {
+              "class": "QTreeWidget",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "pressed(QModelIndex)": 1,
+               "clicked(QModelIndex)": 1,
+               "doubleClicked(QModelIndex)": 1,
+               "activated(QModelIndex)": 1,
+               "entered(QModelIndex)": 1,
+               "expanded(QModelIndex)": 1,
+               "collapsed(QModelIndex)": 1
+              },
+              "children": [
+               {
+                "class": "QWidget",
+                "name": "qt_scrollarea_viewport",
+                "visible": false,
+                "enabled": true
+               },
+               {
+                "class": "QHeaderView",
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "sectionMoved(int,int,int)": 1,
+                 "sectionResized(int,int,int)": 1,
+                 "sectionCountChanged(int,int)": 1,
+                 "sectionHandleDoubleClicked(int)": 1,
+                 "geometriesChanged()": 1
+                },
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "class": "QMenuBar",
+          "visible": true,
+          "enabled": true,
+          "children": [
+           {
+            "class": "QToolButton",
+            "name": "qt_menubar_ext_button",
+            "text": "",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "pressed()": 1,
+             "released()": 1
+            }
+           },
+           {
+            "class": "QMenu",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "customContextMenuRequested(QPoint)": 1
+            },
+            "children": [
+             {
+              "class": "QMenu",
+              "visible": false,
+              "enabled": true
+             },
+             {
+              "class": "QMenu",
+              "visible": false,
+              "enabled": true
+             }
+            ]
+           },
+           {
+            "class": "QMenu",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "customContextMenuRequested(QPoint)": 1
+            }
+           },
+           {
+            "class": "QMenu",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "aboutToShow()": 1
+            },
+            "children": [
+             {
+              "class": "QMenu",
+              "visible": false,
+              "enabled": true
+             },
+             {
+              "class": "QMenu",
+              "visible": false,
+              "enabled": true
+             },
+             {
+              "class": "QMenu",
+              "visible": false,
+              "enabled": true
+             },
+             {
+              "class": "QMenu",
+              "visible": false,
+              "enabled": true
+             },
+             {
+              "class": "QMenu",
+              "visible": false,
+              "enabled": true
+             }
+            ]
+           },
+           {
+            "class": "QMenu",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "customContextMenuRequested(QPoint)": 1
+            },
+            "children": [
+             {
+              "class": "QMenu",
+              "visible": false,
+              "enabled": true,
+              "children": [
+               {
+                "class": "QMenu",
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "aboutToShow()": 1
+                }
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QMenu",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "customContextMenuRequested(QPoint)": 1
+            }
+           },
+           {
+            "class": "QMenu",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "customContextMenuRequested(QPoint)": 1
+            }
+           },
+           {
+            "class": "QMenu",
+            "visible": false,
+            "enabled": true
+           }
+          ]
+         },
+         {
+          "class": "QToolBar",
+          "name": "quick_access_toolbar",
+          "visible": true,
+          "enabled": true,
+          "receivers": {
+           "orientationChanged(Qt::Orientation)": 2,
+           "iconSizeChanged(QSize)": 1,
+           "toolButtonStyleChanged(Qt::ToolButtonStyle)": 1
+          },
+          "children": [
+           {
+            "class": "QToolButton",
+            "name": "qt_toolbar_ext_button",
+            "text": "",
+            "checked": false,
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "pressed()": 1,
+             "released()": 1,
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QToolButton",
+            "text": "クイックアクセスの管理",
+            "visible": true,
+            "enabled": true,
+            "tooltip": "クイックアクセスの管理",
+            "receivers": {
+             "pressed()": 1,
+             "released()": 1,
+             "triggered(QAction*)": 1
+            }
+           },
+           {
+            "class": "QWidget",
+            "visible": true,
             "enabled": true
            }
           ]
@@ -5948,401 +6141,298 @@
           ]
          },
          {
-          "class": "QDockWidget",
-          "name": "ExportPreviewDockWidget",
-          "window_title": "エクスポートプレビュー",
-          "visible": false,
+          "class": "QWidget",
+          "name": "centralwidget",
+          "visible": true,
           "enabled": true,
-          "receivers": {
-           "objectNameChanged(QString)": 1,
-           "visibilityChanged(bool)": 1
-          },
           "children": [
            {
-            "class": "QAbstractButton",
-            "name": "qt_dockwidget_floatbutton",
+            "class": "QPushButton",
+            "name": "add_dataset_button",
             "text": "",
-            "visible": false,
+            "visible": true,
             "enabled": true,
+            "tooltip": "データ追加",
             "receivers": {
              "clicked(bool)": 1,
              "clicked()": 1
             }
            },
            {
-            "class": "QAbstractButton",
-            "name": "qt_dockwidget_closebutton",
+            "class": "QPushButton",
+            "name": "remove_dataset_button",
             "text": "",
-            "visible": false,
-            "enabled": true,
+            "visible": true,
+            "enabled": false,
+            "tooltip": "データ削除",
             "receivers": {
              "clicked(bool)": 1,
              "clicked()": 1
             }
            },
            {
-            "class": "ExportPreviewPanel",
-            "visible": false,
+            "class": "QWidget",
+            "name": "plot_container",
+            "visible": true,
             "enabled": true,
             "children": [
              {
-              "class": "QLabel",
-              "text": "幅",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QDoubleSpinBox",
-              "value": "800.0",
-              "visible": false,
+              "class": "QToolBar",
+              "name": "plot_toolbar",
+              "visible": true,
               "enabled": true,
               "receivers": {
-               "valueChanged(double)": 1
+               "orientationChanged(Qt::Orientation)": 2,
+               "iconSizeChanged(QSize)": 8,
+               "toolButtonStyleChanged(Qt::ToolButtonStyle)": 8
               },
               "children": [
                {
-                "class": "QLineEdit",
-                "name": "qt_spinbox_lineedit",
-                "text": "800.0",
+                "class": "QToolButton",
+                "name": "qt_toolbar_ext_button",
+                "text": "",
+                "checked": false,
                 "visible": false,
-                "enabled": true,
+                "enabled": false,
                 "receivers": {
-                 "textChanged(QString)": 1,
-                 "cursorPositionChanged(int,int)": 2
-                }
-               }
-              ]
-             },
-             {
-              "class": "QLabel",
-              "text": "高さ",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QDoubleSpinBox",
-              "value": "600.0",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "valueChanged(double)": 1
-              },
-              "children": [
-               {
-                "class": "QLineEdit",
-                "name": "qt_spinbox_lineedit",
-                "text": "600.0",
-                "visible": false,
-                "enabled": true,
-                "receivers": {
-                 "textChanged(QString)": 1,
-                 "cursorPositionChanged(int,int)": 2
-                }
-               }
-              ]
-             },
-             {
-              "class": "QLabel",
-              "text": "単位",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QComboBox",
-              "items": [
-               "ピクセル (px)",
-               "インチ (in)",
-               "センチメートル (cm)"
-              ],
-              "current": 0,
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "currentIndexChanged(int)": 1
-              },
-              "children": [
-               {
-                "class": "QFrame",
-                "visible": false,
-                "enabled": true,
-                "receivers": {
-                 "itemSelected(QModelIndex)": 1,
-                 "resetButton()": 1
+                 "pressed()": 1,
+                 "released()": 1
                 },
                 "children": [
                  {
-                  "class": "QListView",
+                  "class": "QMenu",
+                  "visible": false,
+                  "enabled": false
+                 }
+                ]
+               },
+               {
+                "class": "QToolButton",
+                "text": "データカーソル",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "データカーソル",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "triggered(QAction*)": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "text": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "triggered(QAction*)": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "text": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
+                "checked": false,
+                "visible": true,
+                "enabled": false,
+                "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "triggered(QAction*)": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "text": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "triggered(QAction*)": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "text": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "triggered(QAction*)": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "text": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "triggered(QAction*)": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "text": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "triggered(QAction*)": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "text": "表示をリセット (拡大/パンを元に戻す)",
+                "visible": true,
+                "enabled": true,
+                "tooltip": "表示をリセット (拡大/パンを元に戻す)",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "triggered(QAction*)": 1
+                }
+               },
+               {
+                "class": "QWidget",
+                "visible": true,
+                "enabled": true
+               },
+               {
+                "class": "QToolButton",
+                "text": "",
+                "visible": true,
+                "enabled": true,
+                "tooltip": "統計情報 (選択中データセットのY列の要約統計量)",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                },
+                "children": [
+                 {
+                  "class": "QMenu",
                   "visible": false,
                   "enabled": true,
                   "children": [
                    {
                     "class": "QWidget",
-                    "name": "qt_scrollarea_viewport",
                     "visible": false,
-                    "enabled": true
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QLabel",
+                      "text": "統計 (Y列)",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QLabel",
+                      "text": "-",
+                      "visible": false,
+                      "enabled": true
+                     }
+                    ]
                    }
                   ]
-                 },
-                 {
-                  "class": "QWidget",
-                  "visible": false,
-                  "enabled": true,
-                  "receivers": {
-                   "doScroll(int)": 1
-                  }
-                 },
-                 {
-                  "class": "QWidget",
-                  "visible": false,
-                  "enabled": true,
-                  "receivers": {
-                   "doScroll(int)": 1
-                  }
                  }
                 ]
                }
               ]
              },
              {
-              "class": "QLabel",
-              "text": "解像度",
-              "visible": false,
+              "class": "QFrame",
+              "name": "canvas_separator",
+              "visible": true,
               "enabled": true
              },
              {
-              "class": "QSpinBox",
-              "value": "150 dpi",
-              "visible": false,
+              "class": "MplCanvas",
+              "visible": true,
+              "enabled": true
+             },
+             {
+              "class": "QFrame",
+              "name": "canvas_separator",
+              "visible": true,
+              "enabled": true
+             },
+             {
+              "class": "MinimapWidget",
+              "visible": true,
               "enabled": true,
               "receivers": {
-               "valueChanged(int)": 1
+               "range_selected(double,double)": 1
+              }
+             }
+            ]
+           },
+           {
+            "class": "QWidget",
+            "visible": true,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QLineEdit",
+              "name": "dataset_search_edit",
+              "text": "",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "textChanged(QString)": 2
               },
               "children": [
                {
-                "class": "QLineEdit",
-                "name": "qt_spinbox_lineedit",
-                "text": "150 dpi",
+                "class": "QToolButton",
+                "text": "",
                 "visible": false,
                 "enabled": true,
                 "receivers": {
-                 "textChanged(QString)": 1,
-                 "cursorPositionChanged(int,int)": 2
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
                 }
                }
               ]
-             },
-             {
-              "class": "QCheckBox",
-              "text": "背景を透過",
-              "checked": true,
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QCheckBox",
-              "text": "文字をアウトライン化する(SVG)",
-              "checked": false,
-              "visible": false,
-              "enabled": true,
-              "tooltip": "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
-             },
-             {
-              "class": "QCheckBox",
-              "text": "フル解像度で保存/コピー(間引きなし)",
-              "checked": false,
-              "visible": false,
-              "enabled": true,
-              "tooltip": "「名前を付けて保存」「コピー」の出力にのみ適用されます(常時更新されるプレビュー自体は応答性のため常に間引いたまま表示します)。点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/等高線)の間引きを無効化し、常に全データ点/全解像度で保存/コピーします。"
-             },
-             {
-              "class": "QLabel",
-              "text": "プレビューがここに表示されます",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QComboBox",
-              "items": [
-               "PNG",
-               "SVG"
-              ],
-              "current": 0,
-              "visible": false,
-              "enabled": true,
-              "tooltip": "クリップボードにコピーする形式を選択します",
-              "children": [
-               {
-                "class": "QFrame",
-                "visible": false,
-                "enabled": true,
-                "receivers": {
-                 "itemSelected(QModelIndex)": 1,
-                 "resetButton()": 1
-                },
-                "children": [
-                 {
-                  "class": "QListView",
-                  "visible": false,
-                  "enabled": true,
-                  "children": [
-                   {
-                    "class": "QWidget",
-                    "name": "qt_scrollarea_viewport",
-                    "visible": false,
-                    "enabled": true
-                   }
-                  ]
-                 },
-                 {
-                  "class": "QWidget",
-                  "visible": false,
-                  "enabled": true,
-                  "receivers": {
-                   "doScroll(int)": 1
-                  }
-                 },
-                 {
-                  "class": "QWidget",
-                  "visible": false,
-                  "enabled": true,
-                  "receivers": {
-                   "doScroll(int)": 1
-                  }
-                 }
-                ]
-               }
-              ]
-             },
-             {
-              "class": "QPushButton",
-              "text": "コピー",
-              "visible": false,
-              "enabled": true,
-              "tooltip": "現在の設定でレンダリングした画像をクリップボードにコピーします",
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "QPushButton",
-              "text": "名前を付けて保存...",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QDockWidget",
-          "name": "ResidualDockWidget",
-          "visible": false,
-          "enabled": true,
-          "children": [
-           {
-            "class": "QAbstractButton",
-            "name": "qt_dockwidget_floatbutton",
-            "text": "",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QAbstractButton",
-            "name": "qt_dockwidget_closebutton",
-            "text": "",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "ResidualPanel",
-            "visible": false,
-            "enabled": true,
-            "children": [
-             {
-              "class": "QLabel",
-              "text": "曲線フィットの結果を持つデータセットを選択すると、\nここに残差(実測値 - フィット値)が表示されます。",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "FigureCanvasQTAgg",
-              "visible": false,
-              "enabled": true
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QDockWidget",
-          "name": "ProvenanceDockWidget",
-          "visible": false,
-          "enabled": true,
-          "children": [
-           {
-            "class": "QAbstractButton",
-            "name": "qt_dockwidget_floatbutton",
-            "text": "",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QAbstractButton",
-            "name": "qt_dockwidget_closebutton",
-            "text": "",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "ProvenancePanel",
-            "visible": false,
-            "enabled": true,
-            "children": [
-             {
-              "class": "QLabel",
-              "text": "処理履歴(フィット・ベースライン補正・平滑化等で生成された\nデータセット)を選択すると、ここに処理の流れが表示されます。",
-              "visible": false,
-              "enabled": true
              },
              {
               "class": "QTreeWidget",
-              "visible": false,
+              "name": "dataset_list_widget",
+              "visible": true,
               "enabled": true,
               "receivers": {
+               "customContextMenuRequested(QPoint)": 1,
                "pressed(QModelIndex)": 1,
                "clicked(QModelIndex)": 1,
                "doubleClicked(QModelIndex)": 1,
                "activated(QModelIndex)": 1,
                "entered(QModelIndex)": 1,
                "expanded(QModelIndex)": 1,
-               "collapsed(QModelIndex)": 1
+               "collapsed(QModelIndex)": 1,
+               "itemClicked(QTreeWidgetItem*,int)": 1,
+               "currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)": 1
               },
               "children": [
                {
                 "class": "QWidget",
                 "name": "qt_scrollarea_viewport",
-                "visible": false,
+                "visible": true,
                 "enabled": true
                },
                {
@@ -6366,96 +6456,125 @@
                 ]
                }
               ]
+             },
+             {
+              "class": "QLabel",
+              "name": "dataset_mini_stats_label",
+              "text": "-",
+              "visible": true,
+              "enabled": true
              }
             ]
-           }
-          ]
-         },
-         {
-          "class": "QMenuBar",
-          "visible": true,
-          "enabled": true,
-          "children": [
+           },
+           {
+            "class": "QPushButton",
+            "text": "",
+            "visible": true,
+            "enabled": true,
+            "tooltip": "新規データセット作成...",
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QPushButton",
+            "text": "",
+            "visible": true,
+            "enabled": false,
+            "tooltip": "プロット複製",
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QPushButton",
+            "text": "",
+            "visible": true,
+            "enabled": false,
+            "tooltip": "データ表示/編集",
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QFrame",
+            "name": "button_row_separator",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QPushButton",
+            "text": "",
+            "visible": true,
+            "enabled": false,
+            "tooltip": "曲線フィット",
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QPushButton",
+            "text": "",
+            "visible": true,
+            "enabled": false,
+            "tooltip": "ピーク検出",
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QPushButton",
+            "text": "",
+            "visible": true,
+            "enabled": true,
+            "tooltip": "多峰フィット",
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QFrame",
+            "name": "button_row_separator",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QPushButton",
+            "text": "",
+            "visible": true,
+            "enabled": false,
+            "tooltip": "自動配色",
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QPushButton",
+            "text": "",
+            "visible": true,
+            "enabled": true,
+            "tooltip": "新しいフォルダ",
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
            {
             "class": "QToolButton",
-            "name": "qt_menubar_ext_button",
-            "text": "",
-            "visible": false,
+            "text": "⋯",
+            "visible": true,
             "enabled": true,
+            "tooltip": "その他の操作",
             "receivers": {
              "pressed()": 1,
              "released()": 1
-            }
-           },
-           {
-            "class": "QMenu",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "customContextMenuRequested(QPoint)": 1
-            },
-            "children": [
-             {
-              "class": "QMenu",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QMenu",
-              "visible": false,
-              "enabled": true
-             }
-            ]
-           },
-           {
-            "class": "QMenu",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "customContextMenuRequested(QPoint)": 1
-            }
-           },
-           {
-            "class": "QMenu",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "aboutToShow()": 1
-            },
-            "children": [
-             {
-              "class": "QMenu",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QMenu",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QMenu",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QMenu",
-              "visible": false,
-              "enabled": true
-             },
-             {
-              "class": "QMenu",
-              "visible": false,
-              "enabled": true
-             }
-            ]
-           },
-           {
-            "class": "QMenu",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "customContextMenuRequested(QPoint)": 1
             },
             "children": [
              {
@@ -6474,71 +6593,6 @@
               ]
              }
             ]
-           },
-           {
-            "class": "QMenu",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "customContextMenuRequested(QPoint)": 1
-            }
-           },
-           {
-            "class": "QMenu",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "customContextMenuRequested(QPoint)": 1
-            }
-           },
-           {
-            "class": "QMenu",
-            "visible": false,
-            "enabled": true
-           }
-          ]
-         },
-         {
-          "class": "QToolBar",
-          "name": "quick_access_toolbar",
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "orientationChanged(Qt::Orientation)": 2,
-           "iconSizeChanged(QSize)": 1,
-           "toolButtonStyleChanged(Qt::ToolButtonStyle)": 1
-          },
-          "children": [
-           {
-            "class": "QToolButton",
-            "name": "qt_toolbar_ext_button",
-            "text": "",
-            "checked": false,
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "pressed()": 1,
-             "released()": 1,
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QToolButton",
-            "text": "クイックアクセスの管理",
-            "visible": true,
-            "enabled": true,
-            "tooltip": "クイックアクセスの管理",
-            "receivers": {
-             "pressed()": 1,
-             "released()": 1,
-             "triggered(QAction*)": 1
-            }
-           },
-           {
-            "class": "QWidget",
-            "visible": true,
-            "enabled": true
            }
           ]
          },

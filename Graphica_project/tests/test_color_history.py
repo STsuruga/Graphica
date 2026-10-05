@@ -145,8 +145,8 @@ def test_get_color_with_history_passes_initial_color_to_dialog(monkeypatch):
     assert captured['args'][0] == initial
 
 
-def test_get_color_with_history_without_initial_uses_parent_kwarg(monkeypatch):
-    """initial引数が省略された場合、QColorDialog.getColor(parent=parent)の形で呼ばれること"""
+def test_get_color_with_history_opens_qts_own_dialog_starting_from_white(monkeypatch):
+    """initial を省けば白から始める(QColorDialog の既定と同じ)。macOS でも「最近使った色」が出るよう Qt のダイアログを使う。"""
     captured = {}
 
     def fake_get_color(*args, **kwargs):
@@ -160,8 +160,9 @@ def test_get_color_with_history_without_initial_uses_parent_kwarg(monkeypatch):
     settings = _FakeSettings()
     get_color_with_history(settings, parent=None)
 
-    assert captured['args'] == ()
-    assert captured['kwargs'] == {'parent': None}
+    initial, parent, _title, options = captured['args']
+    assert initial == QColor("white") and parent is None
+    assert options & QColorDialog.ColorDialogOption.DontUseNativeDialog
 
 
 # --- 設定に文字列で入っていた履歴(K-24) ---

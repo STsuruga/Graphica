@@ -9,8 +9,6 @@ from graphica.gui.icon_utils import ICONS_DIR, load_svg_icon
 from graphica.gui.mathtext_preview import FitWidthPixmapLabel
 from graphica.gui.resources import resource_path
 
-EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT = 340
-
 
 # 列番号は dataset_mixin も使うので gui/dataset_style_icon.py にある(循環 import を避けるため)
 DATASET_TREE_VISIBILITY_COLUMN_WIDTH = 26  # 目のアイコン(16px)+クリックの余白

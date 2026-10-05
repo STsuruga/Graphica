@@ -108,7 +108,7 @@ from graphica.gui.builders import dataset_panel
 from graphica.gui.builders import property_sections
 from graphica.gui import dock_layout
 from graphica.gui.builders.common import (  # noqa: F401
-    EXPORT_PREVIEW_DOCK_INITIAL_HEIGHT, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, DOCK_LAYOUT_VERSION, DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, COLORMAP_CHOICES, TOOLBAR_ICON_SIZE, _svg_icon, _DatasetTreeSelectionDelegate, _ClickableMathPreviewLabel, _insert_form_row_after)
+    DATASET_TREE_VISIBILITY_COLUMN_WIDTH, DOCK_LAYOUT_VERSION, DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, COLORMAP_CHOICES, TOOLBAR_ICON_SIZE, _svg_icon, _DatasetTreeSelectionDelegate, _ClickableMathPreviewLabel, _insert_form_row_after)
 from graphica.gui.resources import resource_path
 from graphica.gui.axis_bindings import AXIS_BINDINGS, AXIS_BUTTONS
 from graphica.gui.binding import Binder
@@ -512,6 +512,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
             _enable_scientific_notation_input(spin_box, minimum=0, maximum=np.inf)
 
         self._update_plot()
+        # 環境設定の既定の書式テンプレート(新しいタブはどれも空のプロジェクトから始まる)
+        self._apply_default_style_template()
 
         # ドックの配置は前回の状態を戻す(最初のタブだけ。窓の大きさと位置は MainAppWindow が扱う)。
         # 既定の配置の版(DOCK_LAYOUT_VERSION)が保存時と違えば戻さない(戻すと新しい既定が既存の利用者に届かない)。
@@ -520,7 +522,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
         # 「リセット」用の素の配置は、戻す前のここで控える
         self._pristine_dock_state = self.saveState()
 
-        QTimer.singleShot(0, self._restore_dock_layout)
+        # タブに結び付けておく(先にタブが閉じられたら呼ばない。閉じたタブのドックを触ると落ちる)
+        QTimer.singleShot(0, self, self._restore_dock_layout)
 
         # キャンバスを切り離したまま閉じていれば同じ状態に戻す。ダークモードなどと同じ軽い設定なので、どのタブでも戻す
         if app_settings.CANVAS_WAS_DETACHED.read(self.settings):

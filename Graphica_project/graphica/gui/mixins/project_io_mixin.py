@@ -22,6 +22,17 @@ SETTINGS_EXPORT_FORMAT_VERSION = 1
 TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS = ('annotations', 'legend_order', 'free_rect')
 
 
+def read_style_template(file_path):
+    """書式テンプレートのファイルを読む。"""
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def _apply_dataset_style(dataset, style):
+    for attr, value in style.items():
+        setattr(dataset, attr, value)
+
+
 class ProjectIOMixin:
     def _on_save_project(self):
         self.manual_save()
@@ -71,6 +82,7 @@ class ProjectIOMixin:
         from graphica.core.plugin_api import get_loaded_plugin_records, get_plugin_registration_errors
         current_disabled_plugin_names = app_settings.disabled_plugin_names(self.settings)
 
+        current_default_template = app_settings.DEFAULT_STYLE_TEMPLATE.read(self.settings)
         dlg = PreferencesDialog(
             self.canvas.dark_mode, current_minutes,
             autosave_bounds=AUTOSAVE_INTERVAL_MIN_BOUNDS, parent=self,
@@ -81,6 +93,7 @@ class ProjectIOMixin:
             plugin_records=get_loaded_plugin_records(),
             plugin_registration_errors=get_plugin_registration_errors(),
             disabled_plugin_names=current_disabled_plugin_names,
+            default_style_template=current_default_template,
         )
         if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
             return
@@ -97,6 +110,11 @@ class ProjectIOMixin:
         if new_autosave_dir != current_autosave_dir:
             app_settings.AUTOSAVE_DIR.write(self.settings, new_autosave_dir)
             self._update_autosave_path()
+
+        # 次に作るタブ・プロジェクトから効く(開いているタブの見た目は変えない)
+        new_default_template = dlg.get_default_style_template()
+        if new_default_template != current_default_template:
+            app_settings.DEFAULT_STYLE_TEMPLATE.write(self.settings, new_default_template)
 
         # 表示メニューのチェック経由で切り替える(toggled から _on_toggle_dark_mode が適用し、チェックの状態も揃う)
         if new_dark_mode != self.canvas.dark_mode:
@@ -182,45 +200,82 @@ class ProjectIOMixin:
             return
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                template_data = json.load(f)
-
-            if 'format_version' in template_data:
-                subplot_styles = template_data.get('subplot_styles') or []
-                if not subplot_styles:
-                    notify.warning(self, "読込エラー", "有効な書式設定がファイルに含まれていません。")
-                    return
-
-                for i, settings in enumerate(self.project.all_plot_settings):
-                    style = subplot_styles[i % len(subplot_styles)]
-                    merged = dict(settings)
-                    for k, v in style.items():
-                        if k not in TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS:
-                            merged[k] = v
-                    self.project.all_plot_settings[i] = merged
-                    if i == self.project.active_axis_index:
-                        self._apply_settings_to_ui_controls(merged)
-
-                dataset_styles = template_data.get('dataset_styles') or []
-                if dataset_styles:
-                    for i, dataset in enumerate(self.project.datasets):
-                        style = dataset_styles[i % len(dataset_styles)]
-                        for attr, value in style.items():
-                            setattr(dataset, attr, value)
-
-                self._update_plot()
-            else:
-                # 古い形式: 今の軸だけ
-                settings = template_data.get('plot_settings', {})
-                if not settings:
-                    notify.warning(self, "読込エラー", "有効な書式設定がファイルに含まれていません。")
-                    return
-                self._apply_settings_to_ui_controls(settings)
-                self._on_axis_setting_changed()
-
+            if not self._apply_plot_template(read_style_template(file_path)):
+                notify.warning(self, "読込エラー", "有効な書式設定がファイルに含まれていません。")
         except Exception as e:
             notify.warning(self, "読込エラー", f"テンプレートの読み込み中にエラーが発生しました:\n{e}")
             logger.exception("テンプレートの読み込み中にエラー")
+
+    def _apply_plot_template(self, template_data):
+        """書式テンプレートの中身を今のプロジェクトに当てる。有効な書式が無ければ何もせず False。
+
+        手動の適用(_on_load_plot_template)と、新しいタブへの既定のテンプレート(_apply_default_style_template)の共通の経路。
+        """
+        if 'format_version' not in template_data:
+            # 古い形式: 今の軸だけ
+            settings = template_data.get('plot_settings', {})
+            if not settings:
+                return False
+            self._apply_settings_to_ui_controls(settings)
+            self._on_axis_setting_changed()
+            return True
+
+        subplot_styles = template_data.get('subplot_styles') or []
+        if not subplot_styles:
+            return False
+
+        for i, settings in enumerate(self.project.all_plot_settings):
+            style = subplot_styles[i % len(subplot_styles)]
+            merged = dict(settings)
+            for k, v in style.items():
+                if k not in TEMPLATE_EXCLUDED_AXIS_SETTING_KEYS:
+                    merged[k] = v
+            self.project.all_plot_settings[i] = merged
+            if i == self.project.active_axis_index:
+                self._apply_settings_to_ui_controls(merged)
+
+        dataset_styles = template_data.get('dataset_styles') or []
+        if dataset_styles:
+            for i, dataset in enumerate(self.project.datasets):
+                _apply_dataset_style(dataset, dataset_styles[i % len(dataset_styles)])
+
+        self._update_plot()
+        return True
+
+    def _apply_default_style_template(self):
+        """環境設定の既定の書式テンプレートを、この新しいタブに当てる。
+
+        データセットのスタイルは、このあと読み込むデータセットに順に当てる(_style_imported_dataset)。
+        ファイルが無いか読めなければ、知らせるだけで何も当てない。
+        """
+        self._default_dataset_styles = []
+        self._styled_import_count = 0
+        file_path = app_settings.DEFAULT_STYLE_TEMPLATE.read(self.settings)
+        if not file_path:
+            return
+        try:
+            template_data = read_style_template(file_path)
+        except (OSError, ValueError) as e:
+            logger.warning("既定の書式テンプレートを読めませんでした: %s (%s)", file_path, e)
+            self.statusBar().showMessage(tr("既定の書式テンプレートを読めませんでした: {path}").format(path=file_path), 8000)
+            return
+        if not self._apply_plot_template(template_data):
+            logger.warning("既定の書式テンプレートに有効な書式がありません: %s", file_path)
+            return
+        if 'format_version' in template_data:
+            self._default_dataset_styles = list(template_data.get('dataset_styles') or [])
+
+    def _style_imported_dataset(self, dataset):
+        """既定の書式テンプレートのデータセットのスタイルを、読み込んだ順に繰り返し当てる(手動の適用と同じ順)。"""
+        styles = getattr(self, '_default_dataset_styles', None)
+        if not styles:
+            return
+        _apply_dataset_style(dataset, styles[self._styled_import_count % len(styles)])
+        self._styled_import_count += 1
+
+    def _forget_default_style_template(self):
+        """開いたプロジェクトには、そのプロジェクトの書式があるので、既定のテンプレートはもう当てない。"""
+        self._default_dataset_styles = []
 
     def _on_export_settings(self):
         """app_settings.EXPORTED_SETTINGS のキーだけを JSON に書き出す(別の PC や研究室での共有用)。"""

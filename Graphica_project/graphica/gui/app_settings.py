@@ -82,6 +82,8 @@ LANGUAGE = Setting("language", DEFAULT_LANGUAGE, export_as=str, export_default="
 DARK_MODE = Setting("dark_mode", False, bool, export_as=bool)
 AUTOSAVE_INTERVAL_MIN = Setting("autosave_interval_min", DEFAULT_AUTOSAVE_INTERVAL_MIN, int, export_as=int)
 AUTOSAVE_DIR = Setting("autosave_dir", "", str)
+# 新しいタブ・プロジェクトに当てる書式テンプレートのパス(空なら使わない)。パスはその PC だけのものなので書き出さない
+DEFAULT_STYLE_TEMPLATE = Setting("default_style_template", "", str)
 POINT_LABEL_MAX_POINTS = Setting("point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, int, export_as=int)
 SNAP_TO_GRID_ENABLED = Setting("snap_to_grid_enabled", DEFAULT_SNAP_TO_GRID_ENABLED, bool, export_as=bool)
 SNAP_GRID_INTERVAL_PX = Setting("snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, int, export_as=int)
