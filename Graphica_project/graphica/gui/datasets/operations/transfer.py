@@ -9,6 +9,7 @@ import pandas as pd
 from PySide6.QtWidgets import QApplication
 
 from graphica.gui import notify
+from graphica.core.dataset import COLUMN_REFERENCE_FIELDS, with_string_columns
 from graphica.core.methods_text import generate_methods_text
 from graphica.gui.datasets.operations.runner import Operation
 
@@ -185,10 +186,9 @@ def reload_from_source(op):
         logger.exception("元ファイルからの再読み込みに失敗しました")
         op.stop_with_warning(f"ファイルの読み込みに失敗しました:\n{e}")
 
-    required_columns = (
-        dataset.x_col_name, dataset.y_col_name,
-        dataset.x_err_col_name, dataset.y_err_col_name, dataset.point_label_col_name,
-    )
+    # データセットの列名は文字列にそろえてあるので、読み直した表もそろえてから比べる
+    new_df = with_string_columns(new_df)
+    required_columns = [getattr(dataset, name) for name in COLUMN_REFERENCE_FIELDS]
     missing = [col for col in required_columns if col and col not in new_df.columns]
     if missing:
         op.stop_with_warning(

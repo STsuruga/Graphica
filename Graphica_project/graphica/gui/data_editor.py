@@ -245,7 +245,7 @@ class DataEditorDialog(QDialog):
 
     def _on_header_double_clicked(self, logical_index):
         old_name = self.view_df.columns[logical_index]
-        new_name, ok = notify.get_text(self, "列名の変更", "新しい列名:", text=old_name)
+        new_name, ok = notify.get_text(self, "列名の変更", "新しい列名:", text=str(old_name))
         if not ok:
             return
         new_name = new_name.strip()

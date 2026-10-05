@@ -1,3 +1,4 @@
+import json
 import uuid
 import warnings
 import numpy as np
@@ -21,6 +22,35 @@ def linestyle_name(value: Any) -> str | None:
     if value is None:
         return None
     return _LINESTYLE_ALIASES.get(str(value).strip().lower())
+
+# 列名を参照するフィールド。列名を変えたり文字列にそろえたりするときは、これらも一緒に変える
+COLUMN_REFERENCE_FIELDS = (
+    'x_col_name', 'y_col_name', 'x_err_col_name', 'y_err_col_name', 'point_label_col_name', 'z_col_name',
+)
+
+
+def column_key(column: Any) -> str:
+    """列名の文字列。JSON が辞書のキーを文字列にするのと同じ形(1.5 → '1.5'、3 → '3')。
+
+    Excel の数値の見出しなどは数値の列名のまま読まれるが、保存した JSON では辞書のキーが文字列になる。
+    """
+    if isinstance(column, str):
+        return column
+    try:
+        return str(next(iter(json.loads(json.dumps({column: None})))))
+    except TypeError:
+        # numpy の整数など、json がキーにできない型
+        return str(column)
+
+
+def with_string_columns(df: Any) -> Any:
+    """列名をすべて文字列にした DataFrame。もとから文字列ならそのものを返す(呼び出し元の表は変えない)。"""
+    if all(isinstance(c, str) for c in df.columns):
+        return df
+    renamed = df.copy(deep=False)
+    renamed.columns = [column_key(c) for c in df.columns]
+    return renamed
+
 
 # z_col_name の値で点を配色する散布図。値は保存されるので変えない(変えると既存のプロジェクトが Line に戻る)。
 # 種類の欄の幅は最長の項目で決まり、長くするとドックに横スクロールバーが出るので 15 文字に収めている。
@@ -295,16 +325,9 @@ class Dataset:
         if old_name not in self.df.columns or old_name == new_name:
             return
         self.df = self.df.rename(columns={old_name: new_name})
-        if self.x_col_name == old_name:
-            self.x_col_name = new_name
-        if self.y_col_name == old_name:
-            self.y_col_name = new_name
-        if self.x_err_col_name == old_name:
-            self.x_err_col_name = new_name
-        if self.y_err_col_name == old_name:
-            self.y_err_col_name = new_name
-        if self.point_label_col_name == old_name:
-            self.point_label_col_name = new_name
+        for field_name in COLUMN_REFERENCE_FIELDS:
+            if getattr(self, field_name) == old_name:
+                setattr(self, field_name, new_name)
 
     def restore_column(self, col_name: str, column_data: pd.Series) -> None:
         """remove_column で消した列を末尾に戻す。"""
@@ -359,7 +382,23 @@ class Dataset:
             state['waterfall_enabled'] = True
 
         obj.__dict__.update(state)
+        obj._use_string_column_names()
         return obj
+
+    def __post_init__(self) -> None:
+        self._use_string_column_names()
+
+    def _use_string_column_names(self) -> None:
+        """列名と、列名を参照するフィールドを文字列にそろえる。
+
+        数値の列名のままだと、保存(辞書のキーを並べ替えて比べる)・読み戻し・列名の入力欄などが文字列を前提に失敗する。
+        """
+        if self.df is not None:
+            self.df = with_string_columns(self.df)
+        for field_name in COLUMN_REFERENCE_FIELDS:
+            value = getattr(self, field_name, None)
+            if value is not None and not isinstance(value, str):
+                setattr(self, field_name, column_key(value))
 
     @staticmethod
     def _df_to_dict(df: pd.DataFrame) -> dict:
@@ -367,17 +406,18 @@ class Dataset:
 
         datetime64 は ISO 8601 の文字列(NaT は None)。float の NaN は json が NaN のまま往復する。
         """
-        dtypes = {col: str(dtype) for col, dtype in df.dtypes.items()}
+        # 辞書のキーは文字列にする(JSON はどのみち文字列にし、数値と混ざると並べ替えられない)
+        dtypes = {column_key(col): str(dtype) for col, dtype in df.dtypes.items()}
         data = {}
         for col in df.columns:
             series = df[col]
             if pd.api.types.is_datetime64_any_dtype(series):
-                data[col] = [
+                data[column_key(col)] = [
                     None if pd.isna(v) else pd.Timestamp(v).isoformat()
                     for v in series
                 ]
             else:
-                data[col] = series.tolist()
+                data[column_key(col)] = series.tolist()
         return {
             'columns': list(df.columns),
             'index': list(df.index),
@@ -403,8 +443,9 @@ class Dataset:
             except (TypeError, ValueError):
                 pass
         for col in columns:
-            col_data = data.get(col, [])
-            dtype_str = dtypes.get(col)
+            # 数値の列名で保存したファイルは、columns には数値、data のキーには文字列で入っている
+            col_data = data.get(col, data.get(column_key(col), []))
+            dtype_str = dtypes.get(col, dtypes.get(column_key(col)))
             if dtype_str and dtype_str.startswith('datetime64'):
                 series = pd.to_datetime(pd.Series(col_data, index=index))
             else:
@@ -414,9 +455,10 @@ class Dataset:
                         series = series.astype(dtype_str)
                     except (TypeError, ValueError):
                         pass
-            df[col] = series
+            # 数値の列名のまま足していくと、pandas が 1.5 の後の 2 を 2.0 にするので、文字列にしてから入れる
+            df[column_key(col)] = series
         if columns:
-            df = df[columns]
+            df = df[[column_key(col) for col in columns]]
         return df
 
     def __getstate__(self) -> dict[str, Any]:
