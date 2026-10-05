@@ -1,10 +1,10 @@
 # テストカバレッジ詳細
 
-計測日: 2026-09-28  
+計測日: 2026-10-06  
 要約は [`COVERAGE.md`](COVERAGE.md)。このファイルも `bash scripts/run_coverage.sh` が自動生成する。
 ソースと並べた色付き表示は https://stsuruga.github.io/Graphica/coverage/ (CI が master の push ごとに更新)。
 
-全体: 行 **95.3%** / 分岐 90.3%
+全体: 行 **95.1%** / 分岐 90.1%
 
 ## モジュール別
 
@@ -12,87 +12,90 @@
 
 | モジュール | 行数 | 未到達 | 行カバレッジ | 分岐 | 部分分岐 | 分岐カバレッジ |
 |---|---:|---:|---:|---:|---:|---:|
-| `graphica/__main__.py` | 63 | 46 | 22.7% | 12 | 0 | 0.0% |
+| `graphica/__main__.py` | 72 | 49 | 27.4% | 12 | 0 | 0.0% |
 | `graphica/plugins/example_plugin/__init__.py` | 15 | 5 | 64.7% | 2 | 1 | 50.0% |
-| `graphica/core/color_palettes.py` | 20 | 4 | 73.3% | 10 | 4 | 60.0% |
 | `graphica/gui/color_picker_widget.py` | 139 | 32 | 73.3% | 26 | 2 | 53.8% |
 | `graphica/gui/single_instance.py` | 101 | 21 | 74.4% | 28 | 8 | 57.1% |
+| `graphica/core/color_palettes.py` | 23 | 4 | 75.8% | 10 | 4 | 60.0% |
 | `graphica/gui/file_association.py` | 67 | 12 | 82.3% | 12 | 2 | 83.3% |
-| `graphica/gui/panels/axis_settings.py` | 381 | 44 | 84.4% | 92 | 12 | 67.4% |
+| `graphica/gui/tools/pointer.py` | 28 | 4 | 82.6% | 18 | 4 | 77.8% |
+| `graphica/gui/panels/axis_settings.py` | 383 | 44 | 84.8% | 92 | 10 | 69.6% |
+| `graphica/gui/tools/region_highlight.py` | 161 | 20 | 84.9% | 58 | 13 | 77.6% |
 | `graphica/gui/datasets/operations/fitting.py` | 240 | 29 | 86.6% | 52 | 4 | 80.8% |
 | `graphica/gui/mathtext_preview.py` | 98 | 11 | 87.5% | 22 | 2 | 81.8% |
-| `graphica/gui/mixins/ui_setup_mixin.py` | 142 | 8 | 88.3% | 64 | 16 | 75.0% |
+| `graphica/gui/tools/slice_extraction.py` | 131 | 13 | 88.6% | 36 | 6 | 83.3% |
 | `graphica/core/json_utils.py` | 12 | 1 | 88.9% | 6 | 1 | 83.3% |
 | `graphica/core/label_utils.py` | 12 | 1 | 88.9% | 6 | 1 | 83.3% |
 | `graphica/gui/tools/__init__.py` | 28 | 2 | 88.9% | 8 | 2 | 75.0% |
-| `graphica/gui/tools/region_highlight.py` | 140 | 12 | 88.9% | 50 | 9 | 82.0% |
-| `graphica/gui/tools/layout_edit.py` | 177 | 11 | 89.6% | 54 | 13 | 75.9% |
-| `graphica/gui/tools/slice_extraction.py` | 110 | 10 | 89.9% | 28 | 4 | 85.7% |
-| `graphica/gui/datasets/colors.py` | 138 | 10 | 90.6% | 64 | 5 | 85.9% |
+| `graphica/gui/mixins/ui_setup_mixin.py` | 126 | 6 | 89.4% | 54 | 13 | 75.9% |
+| `graphica/gui/tools/layout_edit.py` | 181 | 11 | 89.9% | 56 | 13 | 76.8% |
+| `graphica/gui/tools/view_navigation.py` | 303 | 20 | 90.3% | 128 | 22 | 82.8% |
+| `graphica/gui/datasets/colors.py` | 142 | 10 | 90.9% | 66 | 5 | 86.4% |
 | `graphica/gui/mixins/export_mixin.py` | 364 | 26 | 91.0% | 92 | 13 | 83.7% |
+| `graphica/gui/tools/cursor.py` | 162 | 11 | 91.0% | 72 | 10 | 86.1% |
 | `graphica/gui/widget_translation.py` | 33 | 2 | 91.0% | 34 | 4 | 88.2% |
-| `graphica/gui/dialogs/appearance.py` | 595 | 40 | 91.4% | 94 | 9 | 79.8% |
+| `graphica/gui/dialogs/appearance.py` | 615 | 40 | 91.7% | 98 | 9 | 80.6% |
 | `graphica/gui/splash.py` | 60 | 4 | 91.9% | 2 | 1 | 50.0% |
-| `graphica/gui/tools/peak_placement.py` | 78 | 6 | 92.3% | 26 | 2 | 92.3% |
+| `graphica/gui/dock_layout.py` | 120 | 9 | 92.1% | 20 | 2 | 90.0% |
 | `graphica/gui/main_app_window.py` | 146 | 5 | 92.4% | 38 | 9 | 76.3% |
 | `graphica/gui/rendering/data_2d.py` | 37 | 3 | 92.5% | 16 | 1 | 93.8% |
 | `graphica/core/excel_utils.py` | 36 | 2 | 92.6% | 18 | 2 | 88.9% |
+| `graphica/gui/tools/peak_placement.py` | 81 | 6 | 92.7% | 28 | 2 | 92.9% |
 | `graphica/gui/notify.py` | 28 | 2 | 92.9% | 0 | 0 | — |
 | `graphica/core/methods_text.py` | 82 | 6 | 93.0% | 46 | 1 | 93.5% |
 | `graphica/core/safe_eval.py` | 128 | 6 | 93.3% | 66 | 7 | 89.4% |
 | `graphica/gui/panels/__init__.py` | 22 | 1 | 93.3% | 8 | 1 | 87.5% |
 | `graphica/gui/tools/manager.py` | 29 | 1 | 93.3% | 16 | 2 | 87.5% |
+| `graphica/gui/tools/range_select.py` | 122 | 6 | 93.8% | 38 | 4 | 89.5% |
 | `graphica/gui/datasets/fitting.py` | 45 | 2 | 93.9% | 4 | 1 | 75.0% |
+| `graphica/gui/tools/annotation.py` | 184 | 7 | 94.1% | 72 | 4 | 88.9% |
 | `graphica/plugin/testing.py` | 18 | 1 | 94.4% | 0 | 0 | — |
-| `graphica/gui/tools/cursor.py` | 161 | 6 | 94.6% | 62 | 6 | 90.3% |
-| `graphica/gui/tools/range_select.py` | 115 | 5 | 94.6% | 34 | 3 | 91.2% |
 | `graphica/core/diagnostics.py` | 58 | 3 | 94.7% | 18 | 1 | 94.4% |
 | `graphica/gui/data_editor.py` | 526 | 23 | 94.8% | 144 | 12 | 91.7% |
-| `graphica/gui/tools/annotation.py` | 180 | 6 | 94.8% | 70 | 3 | 90.0% |
 | `graphica/core/script_export.py` | 162 | 6 | 95.2% | 90 | 6 | 93.3% |
 | `graphica/gui/datasets/property_panel.py` | 340 | 9 | 95.4% | 94 | 11 | 88.3% |
 | `graphica/gui/workers.py` | 197 | 8 | 95.4% | 64 | 4 | 93.8% |
-| `graphica/core/dataset.py` | 265 | 8 | 95.5% | 90 | 8 | 91.1% |
+| `graphica/gui/mixins/project_io_mixin.py` | 207 | 8 | 95.5% | 80 | 5 | 93.8% |
 | `graphica/gui/dialogs/data_import.py` | 467 | 18 | 95.5% | 88 | 7 | 92.0% |
 | `graphica/gui/panels/dataset_tree.py` | 254 | 5 | 95.6% | 84 | 10 | 88.1% |
 | `graphica/gui/minimap_widget.py` | 97 | 5 | 95.8% | 22 | 0 | 100.0% |
-| `graphica/gui/dock_layout.py` | 123 | 4 | 95.9% | 22 | 2 | 90.9% |
-| `graphica/gui/project_files.py` | 245 | 10 | 96.0% | 78 | 3 | 96.2% |
+| `graphica/gui/project_files.py` | 247 | 10 | 96.0% | 78 | 3 | 96.2% |
 | `graphica/core/analysis.py` | 736 | 21 | 96.2% | 284 | 18 | 93.7% |
-| `graphica/gui/mixins/project_io_mixin.py` | 173 | 6 | 96.3% | 68 | 3 | 95.6% |
-| `graphica/gui/data_import_flow.py` | 228 | 5 | 96.4% | 80 | 6 | 92.5% |
-| `graphica/gui/datasets/host.py` | 101 | 2 | 96.5% | 14 | 2 | 85.7% |
+| `graphica/gui/data_import_flow.py` | 230 | 5 | 96.5% | 80 | 6 | 92.5% |
 | `graphica/gui/builders/property_sections.py` | 139 | 3 | 96.5% | 34 | 3 | 91.2% |
+| `graphica/core/dataset.py` | 283 | 6 | 96.6% | 94 | 7 | 92.6% |
 | `graphica/gui/menu_bar.py` | 176 | 3 | 96.6% | 60 | 5 | 91.7% |
-| `graphica/gui/plugin_context.py` | 80 | 2 | 96.7% | 10 | 1 | 90.0% |
-| `graphica/core/plugin_testing.py` | 124 | 5 | 96.7% | 28 | 0 | 100.0% |
+| `graphica/gui/datasets/host.py` | 105 | 2 | 96.6% | 14 | 2 | 85.7% |
+| `graphica/gui/datasets/overlays.py` | 48 | 2 | 96.7% | 12 | 0 | 100.0% |
 | `graphica/core/named_colors.py` | 89 | 2 | 96.7% | 34 | 2 | 94.1% |
 | `graphica/core/plugin_install.py` | 46 | 1 | 96.9% | 18 | 1 | 94.4% |
-| `graphica/gui/builders/canvas_area.py` | 94 | 3 | 96.9% | 4 | 0 | 100.0% |
 | `graphica/gui/rendering/data_1d.py` | 206 | 5 | 96.9% | 88 | 4 | 95.5% |
 | `graphica/gui/datasets/order.py` | 209 | 2 | 97.0% | 94 | 7 | 92.6% |
 | `graphica/gui/datasets/operations/peaks.py` | 59 | 1 | 97.3% | 14 | 1 | 92.9% |
+| `graphica/gui/plugin_context.py` | 102 | 2 | 97.5% | 18 | 1 | 94.4% |
+| `graphica/gui/dialogs/app.py` | 618 | 7 | 97.5% | 110 | 11 | 90.0% |
 | `graphica/gui/plot_type_drawers.py` | 63 | 1 | 97.5% | 18 | 1 | 94.4% |
-| `graphica/gui/dialogs/app.py` | 590 | 7 | 97.6% | 108 | 10 | 90.7% |
 | `graphica/gui/theme.py` | 213 | 3 | 97.7% | 46 | 3 | 93.5% |
+| `graphica/core/plugin_testing.py` | 150 | 4 | 97.9% | 38 | 0 | 100.0% |
 | `graphica/gui/mixins/help_mixin.py` | 88 | 1 | 98.1% | 18 | 1 | 94.4% |
 | `graphica/core/plugin_api.py` | 221 | 3 | 98.1% | 46 | 2 | 95.7% |
 | `graphica/gui/axis_bindings.py` | 48 | 0 | 98.1% | 6 | 1 | 83.3% |
-| `graphica/gui/rendering/appearance.py` | 237 | 1 | 98.2% | 90 | 5 | 94.4% |
 | `graphica/gui/mixins/quick_access_mixin.py` | 122 | 0 | 98.2% | 42 | 3 | 92.9% |
 | `graphica/gui/dialogs/export.py` | 263 | 3 | 98.2% | 20 | 0 | 90.0% |
-| `graphica/gui/dialogs/analysis.py` | 885 | 8 | 98.2% | 84 | 9 | 89.3% |
-| `graphica/gui/builders/common.py` | 53 | 0 | 98.3% | 6 | 1 | 83.3% |
-| `graphica/gui/export_preview_panel.py` | 214 | 0 | 98.5% | 46 | 4 | 91.3% |
+| `graphica/gui/builders/common.py` | 52 | 0 | 98.3% | 6 | 1 | 83.3% |
+| `graphica/gui/dialogs/analysis.py` | 885 | 7 | 98.3% | 84 | 9 | 89.3% |
+| `graphica/gui/export_preview_panel.py` | 217 | 0 | 98.5% | 48 | 4 | 91.7% |
 | `graphica/models/project.py` | 107 | 1 | 98.5% | 26 | 1 | 96.2% |
-| `graphica/gui/main_window.py` | 706 | 6 | 98.6% | 102 | 5 | 95.1% |
+| `graphica/gui/rendering/appearance.py` | 252 | 1 | 98.5% | 92 | 4 | 95.7% |
+| `graphica/gui/main_window.py` | 739 | 6 | 98.7% | 106 | 5 | 95.3% |
 | `graphica/gui/binding.py` | 80 | 1 | 99.0% | 22 | 0 | 100.0% |
-| `graphica/gui/rendering/common.py` | 178 | 1 | 99.2% | 60 | 1 | 98.3% |
-| `graphica/gui/datasets/operations/processing.py` | 370 | 3 | 99.2% | 114 | 1 | 99.1% |
+| `graphica/gui/datasets/operations/processing.py` | 368 | 3 | 99.2% | 114 | 1 | 99.1% |
+| `graphica/gui/rendering/common.py` | 183 | 1 | 99.2% | 60 | 1 | 98.3% |
 | `graphica/core/fit_models.py` | 222 | 1 | 99.3% | 52 | 1 | 98.1% |
+| `graphica/gui/rendering/annotations.py` | 219 | 1 | 99.4% | 90 | 1 | 98.9% |
 | `graphica/gui/builders/axis_panel.py` | 296 | 0 | 99.4% | 20 | 2 | 90.0% |
-| `graphica/gui/canvas.py` | 311 | 0 | 99.5% | 76 | 2 | 97.4% |
-| `graphica/gui/datasets/operations/transfer.py` | 144 | 0 | 99.5% | 52 | 1 | 98.1% |
+| `graphica/gui/canvas.py` | 312 | 0 | 99.5% | 76 | 2 | 97.4% |
+| `graphica/gui/datasets/operations/transfer.py` | 146 | 0 | 99.5% | 52 | 1 | 98.1% |
 | `graphica/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/assets/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/assets/icons/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
@@ -100,11 +103,11 @@
 | `graphica/core/app_paths.py` | 19 | 0 | 100.0% | 2 | 0 | 100.0% |
 | `graphica/core/axis_settings.py` | 12 | 0 | 100.0% | 4 | 0 | 100.0% |
 | `graphica/core/caption_export.py` | 18 | 0 | 100.0% | 6 | 0 | 100.0% |
-| `graphica/core/commands.py` | 141 | 0 | 100.0% | 8 | 0 | 100.0% |
+| `graphica/core/commands.py` | 151 | 0 | 100.0% | 8 | 0 | 100.0% |
 | `graphica/core/cvd_simulation.py` | 16 | 0 | 100.0% | 2 | 0 | 100.0% |
 | `graphica/core/grid_data.py` | 70 | 0 | 100.0% | 20 | 0 | 100.0% |
 | `graphica/core/i18n.py` | 21 | 0 | 100.0% | 4 | 0 | 100.0% |
-| `graphica/core/plugin_context.py` | 21 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/core/plugin_context.py` | 24 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/core/plugin_manifest.py` | 33 | 0 | 100.0% | 10 | 0 | 100.0% |
 | `graphica/core/plugin_types.py` | 79 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/core/provenance.py` | 4 | 0 | 100.0% | 0 | 0 | — |
@@ -114,10 +117,11 @@
 | `graphica/core/update_check.py` | 23 | 0 | 100.0% | 2 | 0 | 100.0% |
 | `graphica/core/version.py` | 3 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
-| `graphica/gui/app_settings.py` | 78 | 0 | 100.0% | 10 | 0 | 100.0% |
+| `graphica/gui/app_settings.py` | 79 | 0 | 100.0% | 10 | 0 | 100.0% |
 | `graphica/gui/builders/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
+| `graphica/gui/builders/canvas_area.py` | 78 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/builders/dataset_panel.py` | 310 | 0 | 100.0% | 6 | 0 | 100.0% |
-| `graphica/gui/color_history.py` | 23 | 0 | 100.0% | 10 | 0 | 100.0% |
+| `graphica/gui/color_history.py` | 23 | 0 | 100.0% | 8 | 0 | 100.0% |
 | `graphica/gui/crash_handler.py` | 40 | 0 | 100.0% | 6 | 0 | 100.0% |
 | `graphica/gui/cvd_preview.py` | 15 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/dataset_bindings.py` | 28 | 0 | 100.0% | 2 | 0 | 100.0% |
@@ -126,9 +130,8 @@
 | `graphica/gui/datasets/actions_menu.py` | 69 | 0 | 100.0% | 24 | 0 | 100.0% |
 | `graphica/gui/datasets/operations/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/datasets/operations/runner.py` | 91 | 0 | 100.0% | 14 | 0 | 100.0% |
-| `graphica/gui/datasets/overlays.py` | 39 | 0 | 100.0% | 10 | 0 | 100.0% |
 | `graphica/gui/datasets/peaks.py` | 13 | 0 | 100.0% | 0 | 0 | — |
-| `graphica/gui/datasets/plugin_runs.py` | 65 | 0 | 100.0% | 26 | 0 | 100.0% |
+| `graphica/gui/datasets/plugin_runs.py` | 66 | 0 | 100.0% | 26 | 0 | 100.0% |
 | `graphica/gui/datasets/processing.py` | 44 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/datasets/transfer.py` | 23 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/detached_canvas_window.py` | 11 | 0 | 100.0% | 0 | 0 | — |
@@ -139,7 +142,6 @@
 | `graphica/gui/mixins/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/provenance_panel.py` | 44 | 0 | 100.0% | 8 | 0 | 100.0% |
 | `graphica/gui/rendering/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
-| `graphica/gui/rendering/annotations.py` | 113 | 0 | 100.0% | 44 | 0 | 100.0% |
 | `graphica/gui/residual_panel.py` | 43 | 0 | 100.0% | 4 | 0 | 100.0% |
 | `graphica/gui/resources.py` | 8 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/task_runner.py` | 22 | 0 | 100.0% | 0 | 0 | — |
@@ -151,9 +153,9 @@
 
 テストで一度も実行されなかった行の番号(パス順)。すべて到達しているモジュールは省略。
 
-### `graphica/__main__.py` (46 行)
+### `graphica/__main__.py` (49 行)
 
-26-27, 29-31, 37, 45, 47, 50-51, 53-56, 59, 61-63, 65, 67, 70-71, 73, 75-76, 78-81, 83-84, 86, 88-90, 92, 95-98, 100-103, 105, 107
+31-33, 35-37, 43, 52-53, 62, 64, 67-68, 70-73, 76, 78-80, 82, 84, 87-88, 90, 92-93, 95-98, 100-101, 103, 105-107, 109, 112-115, 117-120, 122, 124
 
 ### `graphica/core/analysis.py` (21 行)
 
@@ -161,11 +163,11 @@
 
 ### `graphica/core/color_palettes.py` (4 行)
 
-38, 42, 44, 46
+41, 45, 47, 49
 
-### `graphica/core/dataset.py` (8 行)
+### `graphica/core/dataset.py` (6 行)
 
-301, 303, 403-404, 415-416, 442-443
+443-444, 456-457, 484-485
 
 ### `graphica/core/diagnostics.py` (3 行)
 
@@ -203,9 +205,9 @@
 
 62
 
-### `graphica/core/plugin_testing.py` (5 行)
+### `graphica/core/plugin_testing.py` (4 行)
 
-161, 183, 189, 207, 213
+186, 208, 214, 232
 
 ### `graphica/core/safe_eval.py` (6 行)
 
@@ -218,10 +220,6 @@
 ### `graphica/gui/binding.py` (1 行)
 
 93
-
-### `graphica/gui/builders/canvas_area.py` (3 行)
-
-167-169
 
 ### `graphica/gui/builders/property_sections.py` (3 行)
 
@@ -237,7 +235,7 @@
 
 ### `graphica/gui/data_import_flow.py` (5 行)
 
-260, 265, 285-287
+261, 266, 286-288
 
 ### `graphica/gui/datasets/colors.py` (10 行)
 
@@ -261,23 +259,27 @@
 
 ### `graphica/gui/datasets/operations/processing.py` (3 行)
 
-348, 549-550
+348, 546-547
 
 ### `graphica/gui/datasets/order.py` (2 行)
 
 35, 161
 
+### `graphica/gui/datasets/overlays.py` (2 行)
+
+68-69
+
 ### `graphica/gui/datasets/property_panel.py` (9 行)
 
 73, 388, 408, 411-412, 434, 452, 504-505
 
-### `graphica/gui/dialogs/analysis.py` (8 行)
+### `graphica/gui/dialogs/analysis.py` (7 行)
 
-247, 380-383, 558-559, 1226
+247, 380-383, 559, 1226
 
 ### `graphica/gui/dialogs/app.py` (7 行)
 
-285-286, 294-295, 735-736, 804
+305-306, 314-315, 773-774, 842
 
 ### `graphica/gui/dialogs/appearance.py` (40 行)
 
@@ -291,9 +293,9 @@
 
 360, 363-364
 
-### `graphica/gui/dock_layout.py` (4 行)
+### `graphica/gui/dock_layout.py` (9 行)
 
-126-128, 171
+74-78, 121-123, 166
 
 ### `graphica/gui/file_association.py` (12 行)
 
@@ -305,7 +307,7 @@
 
 ### `graphica/gui/main_window.py` (6 行)
 
-29, 583-584, 595-596, 1039
+30, 590-591, 602-603, 1092
 
 ### `graphica/gui/mathtext_preview.py` (11 行)
 
@@ -327,13 +329,13 @@
 
 74
 
-### `graphica/gui/mixins/project_io_mixin.py` (6 行)
+### `graphica/gui/mixins/project_io_mixin.py` (8 行)
 
-144, 242-244, 270-271
+162, 263-264, 297-299, 325-326
 
-### `graphica/gui/mixins/ui_setup_mixin.py` (8 行)
+### `graphica/gui/mixins/ui_setup_mixin.py` (6 行)
 
-64-65, 85, 90, 105, 107, 128, 132
+64-65, 83, 88, 103, 105
 
 ### `graphica/gui/notify.py` (2 行)
 
@@ -345,7 +347,7 @@
 
 ### `graphica/gui/panels/axis_settings.py` (44 行)
 
-65-68, 72, 102, 151, 193, 336, 392-395, 406-409, 419-422, 425-428, 476, 479, 491-501, 503-508
+65-68, 72, 102, 151, 193, 336, 400-403, 414-417, 427-430, 433-436, 484, 487, 499-509, 511-516
 
 ### `graphica/gui/panels/dataset_tree.py` (5 行)
 
@@ -357,19 +359,23 @@
 
 ### `graphica/gui/plugin_context.py` (2 行)
 
-33, 97
+36, 121
 
 ### `graphica/gui/project_files.py` (10 行)
 
-69-70, 82, 193-195, 269-270, 335, 337
+69-70, 82, 193-195, 269-270, 338, 340
+
+### `graphica/gui/rendering/annotations.py` (1 行)
+
+90
 
 ### `graphica/gui/rendering/appearance.py` (1 行)
 
-359
+379
 
 ### `graphica/gui/rendering/common.py` (1 行)
 
-293
+306
 
 ### `graphica/gui/rendering/data_1d.py` (5 行)
 
@@ -395,37 +401,45 @@
 
 44, 55
 
-### `graphica/gui/tools/annotation.py` (6 行)
+### `graphica/gui/tools/annotation.py` (7 行)
 
-186-190, 240
+118, 191-195, 245
 
-### `graphica/gui/tools/cursor.py` (6 行)
+### `graphica/gui/tools/cursor.py` (11 行)
 
-62, 74, 185, 224, 258-259
+108, 142, 174, 178, 186, 191, 211, 245-246, 255, 259
 
 ### `graphica/gui/tools/layout_edit.py` (11 行)
 
-52-53, 87, 91, 111, 167, 196, 201, 227, 233, 272
+53-54, 88, 93, 113, 169, 200, 205, 231, 237, 276
 
 ### `graphica/gui/tools/manager.py` (1 行)
 
-71
+73
 
 ### `graphica/gui/tools/peak_placement.py` (6 行)
 
-61, 111, 118-119, 128-129
+65, 115, 122-123, 132-133
 
-### `graphica/gui/tools/range_select.py` (5 行)
+### `graphica/gui/tools/pointer.py` (4 行)
 
-76-77, 127, 150, 181
+10, 28, 36, 42
 
-### `graphica/gui/tools/region_highlight.py` (12 行)
+### `graphica/gui/tools/range_select.py` (6 行)
 
-85-86, 94, 106, 124-125, 137, 144, 157, 183, 192, 196
+77-78, 102, 133, 158, 189
 
-### `graphica/gui/tools/slice_extraction.py` (10 行)
+### `graphica/gui/tools/region_highlight.py` (20 行)
 
-84-85, 114, 122, 140, 158-159, 166-168
+85-90, 97, 114, 117, 131-132, 149-150, 158, 165, 171, 179, 205, 214, 218
+
+### `graphica/gui/tools/slice_extraction.py` (13 行)
+
+87-88, 112, 127-128, 136, 146, 163, 181-182, 189-191
+
+### `graphica/gui/tools/view_navigation.py` (20 行)
+
+80, 94, 138, 150, 173, 186, 194, 198, 250, 285, 292, 298, 320, 323, 357, 394-396, 400-401
 
 ### `graphica/gui/widget_translation.py` (2 行)
 

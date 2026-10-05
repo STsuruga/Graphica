@@ -13,7 +13,19 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-06): Mac のフォント・数値の列名・ドックの既定・既定の書式テンプレート(ブランチ `fix/mac-font-dialog`)
+## 現在地(2026-10-06): v2.1.0 のリリース準備(ブランチ `fix/prerelease-robustness`)
+
+- リリース前の直し: ネイティブなクラッシュを `graphica.log` に残す(faulthandler)、後回しの処理(QTimer)をタブに結び付ける。
+- 版を 2.1.0 に、`CHANGELOG.md` に v2.1.0 の節(日付は「未定」)、カバレッジを更新(95.1%)。
+- **ユーザー決定**: 版は 2.1.0。タグの前に、master の CI(package.yml)が作る macOS の .app でフォント・色の選択と新しいマウス操作を
+  ユーザーが確かめる。
+- **次の手順**(新しいセッションでもここから):
+  1. このブランチの PR の CI が通ったらマージ(`gh pr checks <番号>`)。
+  2. master の package.yml の成果物 `Graphica-macos` をユーザーが Mac で確認(`docs/dev/RELEASE_CHECKLIST.md` の 3)。
+  3. 問題なければ `CHANGELOG.md` の日付を入れ、`git tag v2.1.0 && git push origin v2.1.0`。publish.yml が PyPI まで公開する。
+  4. GitHub の Releases に両 OS の成果物を添付し、本文に CHANGELOG の節と macOS 版が未署名である旨を書く。
+
+## 以前の現在地(2026-10-06): Mac のフォント・数値の列名・ドックの既定・既定の書式テンプレート(ブランチ `fix/mac-font-dialog`)
 
 - **Mac でフォントを選んでも反映されない**: macOS の OS のフォントパネルは選択を Qt に通知(changeFont:)で渡し、届かないと
   元のフォントのまま返る。3 か所のフォント選択を `AxisSettingsPanel._ask_font()`(Qt のダイアログ、DontUseNativeDialog)に。Mac 実機では未確認。
