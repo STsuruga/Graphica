@@ -1011,13 +1011,74 @@
          },
          {
           "class": "QLabel",
+          "text": "オフセットの指定",
+          "visible": false,
+          "enabled": true
+         },
+         {
+          "class": "QComboBox",
+          "items": [
+           "段ごとの間隔(段の番号 × オフセット)",
+           "ずらし量をそのまま"
+          ],
+          "current": 0,
+          "visible": false,
+          "enabled": true,
+          "receivers": {
+           "currentIndexChanged(int)": 1
+          },
+          "children": [
+           {
+            "class": "QFrame",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "itemSelected(QModelIndex)": 1,
+             "resetButton()": 1
+            },
+            "children": [
+             {
+              "class": "QListView",
+              "visible": false,
+              "enabled": true,
+              "children": [
+               {
+                "class": "QWidget",
+                "name": "qt_scrollarea_viewport",
+                "visible": false,
+                "enabled": true
+               }
+              ]
+             },
+             {
+              "class": "QWidget",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "doScroll(int)": 1
+              }
+             },
+             {
+              "class": "QWidget",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "doScroll(int)": 1
+              }
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "class": "QLabel",
           "text": "Xオフセット",
           "visible": false,
           "enabled": true
          },
          {
           "class": "QDoubleSpinBox",
-          "value": "0.0000",
+          "value": "0",
           "visible": false,
           "enabled": true,
           "receivers": {
@@ -1027,7 +1088,7 @@
            {
             "class": "QLineEdit",
             "name": "qt_spinbox_lineedit",
-            "text": "0.0000",
+            "text": "0",
             "visible": false,
             "enabled": true,
             "receivers": {
@@ -1045,7 +1106,7 @@
          },
          {
           "class": "QDoubleSpinBox",
-          "value": "1.0000",
+          "value": "1",
           "visible": false,
           "enabled": true,
           "receivers": {
@@ -1055,7 +1116,7 @@
            {
             "class": "QLineEdit",
             "name": "qt_spinbox_lineedit",
-            "text": "1.0000",
+            "text": "1",
             "visible": false,
             "enabled": true,
             "receivers": {

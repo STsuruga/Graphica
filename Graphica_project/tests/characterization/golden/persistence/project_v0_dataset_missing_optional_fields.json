@@ -74,6 +74,7 @@
     "waterfall_enabled": false,
     "waterfall_offset_x": 0.0,
     "waterfall_offset_y": 1.0,
+    "waterfall_offset_mode": "step",
     "waterfall_occlusion_enabled": true,
     "waterfall_depth_shrink_enabled": false,
     "waterfall_depth_shrink_ratio": 0.03,
@@ -141,7 +142,7 @@
   "title": "resaved.graphica",
   "unsaved": false,
   "file": {
-   "sha256": "ee3563998c8320318b1ca53d5e3569c3aeb9ba77ea1f7ab6042cc2b2f06132d3",
+   "sha256": "7d2a3baf8ff7906d31f94fb10710ad254c30d8a0ce42bf1805e55242adb4cc2a",
    "content": {
     "format_version": 1,
     "datasets": [
@@ -164,6 +165,7 @@
       "waterfall_enabled": false,
       "waterfall_offset_x": 0.0,
       "waterfall_offset_y": 1.0,
+      "waterfall_offset_mode": "step",
       "waterfall_occlusion_enabled": true,
       "waterfall_depth_shrink_enabled": false,
       "waterfall_depth_shrink_ratio": 0.03,
@@ -318,6 +320,7 @@
     "waterfall_enabled": false,
     "waterfall_offset_x": 0.0,
     "waterfall_offset_y": 1.0,
+    "waterfall_offset_mode": "step",
     "waterfall_occlusion_enabled": true,
     "waterfall_depth_shrink_enabled": false,
     "waterfall_depth_shrink_ratio": 0.03,
