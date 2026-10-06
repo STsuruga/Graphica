@@ -13,7 +13,19 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-06): v2.1.0 をリリースした
+## 現在地(2026-10-06): 軸のホイールの拡大量とウォーターフォールの「ずらし量をそのまま」(ブランチ `feature/wheel-zoom-and-waterfall-offset`)
+
+- **macOS で軸の上のホイールの拡大が大きすぎた**: matplotlib の `scroll_event` の `step` は、Qt が `pixelDelta` を渡すと(トラックパッド・
+  Magic Mouse)ピクセル数になる。`view_navigation.wheel_notches()` が Qt の `angleDelta`(どの OS でも来る、1段 = 120)から段の数を出し、
+  慣性(`ScrollPhase.ScrollMomentum`)は 0。1回の拡大は `MAX_WHEEL_ZOOM_PER_EVENT`(1.5 倍)まで。速さは環境設定「グラフの操作」
+  (`app_settings.WHEEL_ZOOM_SPEED`、slow/normal/fast = 1.1/1.2/1.4、設定の書き出しの末尾)。Mac 実機では未確認 — CI の .app で確かめてもらう。
+- **ウォーターフォールのオフセットの指定**: `Dataset.waterfall_offset_mode`('step' 既定 = 従来どおり段の番号 × オフセット / 'absolute' = その系列を
+  オフセットだけずらす)。ずらす倍数は `rendering/data_1d.waterfall_offset_steps()` の1か所で、描画と `display_to_data` / `data_to_display` が共有
+  (変換の記録に `'mode'` を追加)。奥行き縮小は段の番号のまま。オフセットの欄は指数表記・±∞。
+- 特性テストの基準を作り直した(新しいフィールド、新しい行と環境設定の組、オフセットの欄の表示が "1.0000" → "1")。dialogs_ja のタブバーは元の値に戻した。
+- 次: PR を作り、ユーザーの指示でマージ。
+
+## 以前の現在地(2026-10-06): v2.1.0 をリリースした
 
 - **v2.1.0 を公開済み**(タグ `v2.1.0`、PR #105・#106)。PyPI に `graphica-plot` 2.1.0(wheel・sdist)、GitHub Releases に
   `Graphica-2.1.0-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(どれも `LICENSE` と `THIRD_PARTY_LICENSES.md` 入りを確認)。
