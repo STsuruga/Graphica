@@ -7,7 +7,8 @@ from graphica.core.analysis import (
 from graphica.gui.plot_type_drawers import BUILTIN_PLOT_TYPE_DRAWERS
 from graphica.gui.rendering.common import (
     DARK_AXES_FACECOLOR, LIGHT_AXES_FACECOLOR, LTTB_DOWNSAMPLE_TARGET_POINTS, LTTB_DOWNSAMPLE_THRESHOLD,
-    WATERFALL_ZORDER_BASE, WATERFALL_ZORDER_TOP, _apply_nan_policy, _waterfall_depth_scale, _waterfall_layout)
+    WATERFALL_ZORDER_BASE, WATERFALL_ZORDER_TOP, _apply_nan_policy, _waterfall_depth_scale, _waterfall_layout,
+    waterfall_offset_steps)
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.patches import Polygon
@@ -143,9 +144,11 @@ def waterfall_shifted_points(canvas, ds, waterfall, is_category_x):
         'offset_x': 0.0 if is_category_x else ds.waterfall_offset_x,
         'offset_y': ds.waterfall_offset_y,
         'depth_scale': depth_scale,
+        'mode': ds.waterfall_offset_mode,
     }
-    plot_x_data = ds.x_data if is_category_x else ds.x_data + w_idx * ds.waterfall_offset_x
-    plot_y_data = ds.y_data * depth_scale + w_idx * ds.waterfall_offset_y
+    steps = waterfall_offset_steps(w_idx, ds.waterfall_offset_mode)
+    plot_x_data = ds.x_data if is_category_x else ds.x_data + steps * ds.waterfall_offset_x
+    plot_y_data = ds.y_data * depth_scale + steps * ds.waterfall_offset_y
     # 手前(段が小さい)ほど上に重ねる。段の数によらず枠線・目盛(zorder 2.01〜2.5)より下に収める
     step = (WATERFALL_ZORDER_TOP - WATERFALL_ZORDER_BASE) / (waterfall.count + 1)
     zorder = WATERFALL_ZORDER_BASE + (waterfall.count - w_idx) * step

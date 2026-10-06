@@ -169,6 +169,7 @@ class DatasetPropertyPanel:
         if is_2d:
             for widget in (
                 self._app.waterfall_checkbox,
+                self._app.waterfall_offset_mode_label, self._app.waterfall_offset_mode_combo,
                 self._app.waterfall_offset_x_label, self._app.waterfall_offset_x_spinbox,
                 self._app.waterfall_offset_y_label, self._app.waterfall_offset_y_spinbox,
                 self._app.waterfall_occlusion_checkbox, self._app.waterfall_depth_checkbox,
@@ -181,6 +182,8 @@ class DatasetPropertyPanel:
         self._app.waterfall_checkbox.setVisible(True)
         show_offsets = self._app.waterfall_checkbox.isChecked()
 
+        self._app.waterfall_offset_mode_label.setVisible(show_offsets)
+        self._app.waterfall_offset_mode_combo.setVisible(show_offsets)
         self._app.waterfall_offset_x_label.setVisible(show_offsets)
         self._app.waterfall_offset_x_spinbox.setVisible(show_offsets)
         self._app.waterfall_offset_y_label.setVisible(show_offsets)

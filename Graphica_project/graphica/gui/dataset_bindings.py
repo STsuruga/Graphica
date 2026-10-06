@@ -79,6 +79,7 @@ DATASET_PROPERTY_BINDINGS = (
     item_data('gradient_target', 'gradient_target_combo', (WATCH,)),
     check('waterfall_enabled', 'waterfall_checkbox', (WATCH, _PANEL + 'update_waterfall_controls_visibility'),
           signal='toggled'),
+    item_data('waterfall_offset_mode', 'waterfall_offset_mode_combo', (WATCH,)),
     number('waterfall_offset_x', 'waterfall_offset_x_spinbox', (WATCH,)),
     number('waterfall_offset_y', 'waterfall_offset_y_spinbox', (WATCH,)),
     check('waterfall_occlusion_enabled', 'waterfall_occlusion_checkbox', (WATCH,), signal='toggled'),

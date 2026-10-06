@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from graphica.core.analysis import sample_standard_deviation
 from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
+from graphica.core.dataset import WATERFALL_OFFSET_ABSOLUTE
 from graphica.gui.theme import DARK_TOKENS, LIGHT_TOKENS
 from typing import NamedTuple
 
@@ -55,6 +56,11 @@ def _waterfall_depth_scale(w_idx, enabled, shrink_ratio):
     return max(WATERFALL_DEPTH_SHRINK_MIN_SCALE, 1.0 - shrink_ratio * w_idx)
 
 
+def waterfall_offset_steps(index, mode):
+    """オフセットを何倍してずらすか。段ごとの間隔なら段の番号、そのままなら 1。"""
+    return 1 if mode == WATERFALL_OFFSET_ABSOLUTE else index
+
+
 class _WaterfallLayout(NamedTuple):
     index: dict      # dataset_id -> 段(0 が一番手前)
     count: int
@@ -74,7 +80,7 @@ def _waterfall_layout(datasets):
             continue
         depth_scale = _waterfall_depth_scale(
             i, wds.waterfall_depth_shrink_enabled, wds.waterfall_depth_shrink_ratio)
-        y_shift = i * wds.waterfall_offset_y
+        y_shift = waterfall_offset_steps(i, wds.waterfall_offset_mode) * wds.waterfall_offset_y
         shifted_mins.append(float(np.nanmin(wds.y_data)) * depth_scale + y_shift)
         shifted_maxs.append(float(np.nanmax(wds.y_data)) * depth_scale + y_shift)
     if shifted_mins:

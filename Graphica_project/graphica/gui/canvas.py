@@ -9,7 +9,7 @@ from graphica.gui.app_settings import DEFAULT_POINT_LABEL_MAX_POINTS
 from graphica.gui.rendering import annotations, appearance, data_1d, data_2d
 # 描画の定数と補助は rendering/common.py にある。テストとほかのモジュールがここから読むので同じ名前で出す
 from graphica.gui.rendering.common import (  # noqa: F401
-    _NO_KEY, MAX_TICKS_PER_AXIS, WATERFALL_ZORDER_BASE, WATERFALL_ZORDER_TOP,
+    _NO_KEY, MAX_TICKS_PER_AXIS, WATERFALL_ZORDER_BASE, WATERFALL_ZORDER_TOP, waterfall_offset_steps,
     WATERFALL_DEPTH_SHRINK_MIN_SCALE, _LAYOUT_SETTLED_TOLERANCE, _LAYOUT_MAX_PASSES, fit_tight_layout,
     _waterfall_depth_scale, _WaterfallLayout, _waterfall_layout, _AxisStyle, _LOG_MINOR_SUBS_PRESETS,
     _ARROW_STYLE_MAP, _INSET_CORNER_ORIGINS, LTTB_DOWNSAMPLE_THRESHOLD, LTTB_DOWNSAMPLE_TARGET_POINTS,
@@ -61,7 +61,7 @@ class _CanvasDrawingMixin:
         #     表示X = データX + index * offset_x
         #     表示Y = データY * depth_scale + index * offset_y
         # に描かれるので、マウス位置をデータの行に対応づける側は逆変換(display_to_data)を通す。
-        # 値は {'index', 'offset_x', 'offset_y', 'depth_scale'}。ウォーターフォールでなければ入らない
+        # 値は {'index', 'offset_x', 'offset_y', 'depth_scale', 'mode'}。ウォーターフォールでなければ入らない
         self._waterfall_transforms = {}
 
     # --- ウォーターフォールの表示座標 ⇔ データ座標 ---
@@ -81,9 +81,9 @@ class _CanvasDrawingMixin:
         transform = self.get_waterfall_transform(dataset_or_id)
         if transform is None:
             return x, y
-        index = transform['index']
-        display_x = x if transform['offset_x'] == 0 else x + index * transform['offset_x']
-        display_y = y * transform['depth_scale'] + index * transform['offset_y']
+        steps = waterfall_offset_steps(transform['index'], transform.get('mode'))
+        display_x = x if transform['offset_x'] == 0 else x + steps * transform['offset_x']
+        display_y = y * transform['depth_scale'] + steps * transform['offset_y']
         return display_x, display_y
 
     def display_to_data(self, dataset_or_id, x, y):
@@ -94,10 +94,10 @@ class _CanvasDrawingMixin:
         transform = self.get_waterfall_transform(dataset_or_id)
         if transform is None:
             return x, y
-        index = transform['index']
-        data_x = x if transform['offset_x'] == 0 else x - index * transform['offset_x']
+        steps = waterfall_offset_steps(transform['index'], transform.get('mode'))
+        data_x = x if transform['offset_x'] == 0 else x - steps * transform['offset_x']
         # depth_scale は 0.2 以上に抑えてあるので 0 で割ることはない
-        data_y = (y - index * transform['offset_y']) / transform['depth_scale']
+        data_y = (y - steps * transform['offset_y']) / transform['depth_scale']
         return data_x, data_y
 
     def _effective_text_color(self, configured_color):

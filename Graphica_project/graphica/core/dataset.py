@@ -56,6 +56,11 @@ def with_string_columns(df: Any) -> Any:
 # 種類の欄の幅は最長の項目で決まり、長くするとドックに横スクロールバーが出るので 15 文字に収めている。
 COLOR_BY_COLUMN_PLOT_TYPE = 'Z-Color Scatter'
 
+# ウォーターフォールのオフセットの決め方(waterfall_offset_mode の値。保存されるので変えない)
+# 'step': 段の番号 × オフセット(段ごとに等間隔)。'absolute': その系列をオフセットの分だけそのままずらす
+WATERFALL_OFFSET_STEP = 'step'
+WATERFALL_OFFSET_ABSOLUTE = 'absolute'
+
 
 @dataclass
 class Dataset:
@@ -185,6 +190,7 @@ class Dataset:
     waterfall_enabled: bool = False
     waterfall_offset_x: float = 0.0
     waterfall_offset_y: float = 1.0
+    waterfall_offset_mode: str = WATERFALL_OFFSET_STEP
     # 手前の系列の下を背景色で塗り、奥の系列を隠す
     waterfall_occlusion_enabled: bool = True
 
