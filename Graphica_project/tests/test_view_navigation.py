@@ -552,3 +552,67 @@ def test_views_of_removed_subplots_are_dropped(window):
     window.canvas.draw()
 
     assert 5 not in window.canvas.view_overrides
+
+
+# --- ホイールの量(macOS のピクセル単位のスクロール・慣性・速さの設定) ---
+
+class _FakeWheel:
+    """Qt の QWheelEvent の代わり。angleDelta は 1/8 度単位(ホイール1段 = 120)。"""
+
+    def __init__(self, angle_y, phase=Qt.ScrollPhase.NoScrollPhase):
+        self._angle_y = angle_y
+        self._phase = phase
+
+    def angleDelta(self):
+        from PySide6.QtCore import QPoint
+        return QPoint(0, self._angle_y)
+
+    def phase(self):
+        return self._phase
+
+
+def _wheel_x(window, step, angle_y, phase=Qt.ScrollPhase.NoScrollPhase):
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(0, 10)
+    cx, cy = _band_center(window, 'x')
+    _fire(window, "scroll_event", cx, cy, step=step, button='up' if angle_y > 0 else 'down',
+          guiEvent=_FakeWheel(angle_y, phase))
+    x0, x1 = ax.get_xlim()
+    return x1 - x0
+
+
+def test_wheel_uses_angle_delta_not_the_pixel_step_from_macos(window):
+    """macOS のトラックパッドでは matplotlib の step がピクセル数(ここでは 40)になる。段の数で拡大する。"""
+    _add(window)
+    assert _wheel_x(window, step=40, angle_y=120) == pytest.approx(10 / 1.2)
+
+
+def test_small_trackpad_movement_zooms_only_a_little(window):
+    _add(window)
+    assert _wheel_x(window, step=6, angle_y=12) == pytest.approx(10 / 1.2 ** 0.1)
+
+
+def test_one_wheel_event_is_capped(window):
+    """速く払って1回で何段分も来ても、1回で変わるのは MAX_WHEEL_ZOOM_PER_EVENT 倍まで。"""
+    from graphica.gui.tools.view_navigation import MAX_WHEEL_ZOOM_PER_EVENT
+    _add(window)
+    assert _wheel_x(window, step=400, angle_y=1200) == pytest.approx(10 / MAX_WHEEL_ZOOM_PER_EVENT)
+    assert _wheel_x(window, step=-400, angle_y=-1200) == pytest.approx(10 * MAX_WHEEL_ZOOM_PER_EVENT)
+
+
+def test_momentum_scroll_after_lifting_the_fingers_does_not_zoom(window):
+    _add(window)
+    assert _wheel_x(window, step=40, angle_y=120, phase=Qt.ScrollPhase.ScrollMomentum) == pytest.approx(10)
+
+
+@pytest.mark.parametrize("speed, base", [("slow", 1.1), ("normal", 1.2), ("fast", 1.4)])
+def test_wheel_zoom_speed_setting(window, speed, base):
+    _add(window)
+    app_settings_module.WHEEL_ZOOM_SPEED.write(window.settings, speed)
+    assert _wheel_x(window, step=1, angle_y=120) == pytest.approx(10 / base)
+
+
+def test_unknown_wheel_zoom_speed_falls_back_to_normal(window):
+    _add(window)
+    app_settings_module.WHEEL_ZOOM_SPEED.write(window.settings, "warp")
+    assert _wheel_x(window, step=1, angle_y=120) == pytest.approx(10 / 1.2)
