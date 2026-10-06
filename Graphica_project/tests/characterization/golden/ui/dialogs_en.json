@@ -2711,14 +2711,14 @@
     },
     {
      "class": "QDoubleSpinBox",
-     "value": "800.0",
+     "value": "800",
      "visible": true,
      "enabled": true,
      "children": [
       {
        "class": "QLineEdit",
        "name": "qt_spinbox_lineedit",
-       "text": "800.0",
+       "text": "800",
        "visible": true,
        "enabled": true
       }
@@ -2732,14 +2732,14 @@
     },
     {
      "class": "QDoubleSpinBox",
-     "value": "600.0",
+     "value": "600",
      "visible": true,
      "enabled": true,
      "children": [
       {
        "class": "QLineEdit",
        "name": "qt_spinbox_lineedit",
-       "text": "600.0",
+       "text": "600",
        "visible": true,
        "enabled": true
       }
@@ -2815,6 +2815,12 @@
        "enabled": true
       }
      ]
+    },
+    {
+     "class": "QLabel",
+     "text": "As an image: about 800 × 600 px",
+     "visible": true,
+     "enabled": true
     },
     {
      "class": "QCheckBox",
