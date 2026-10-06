@@ -25,6 +25,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPixmap
 from graphica.core.i18n import tr
 from graphica.gui import notify
+from graphica.gui.export_size import ExportSizeFields
 from graphica.gui.theme import apply_form_spacing
 from graphica.core.cvd_simulation import CVD_TYPE_LABELS
 from graphica.gui.cvd_preview import simulate_qimage
@@ -70,6 +71,11 @@ class ExportDialog(QDialog):
         self.dpi_spinbox.setValue(300)
         self.dpi_spinbox.setSuffix(" dpi")
 
+        self.output_size_label = QLabel()
+        # 学術誌のプリセットの単位の切り替えも、同じ大きさのまま換算してから幅を入れる
+        self._size_fields = ExportSizeFields(
+            self.width_spinbox, self.height_spinbox, self.unit_combo, self.dpi_spinbox, self.output_size_label)
+
         self.transparent_checkbox = QCheckBox("背景を透過")
         self.transparent_checkbox.setChecked(True)
 
@@ -111,6 +117,7 @@ class ExportDialog(QDialog):
         form_layout.addRow("高さ", self.height_spinbox)
         form_layout.addRow("単位", self.unit_combo)
         form_layout.addRow("解像度", self.dpi_spinbox)
+        form_layout.addRow(self.output_size_label)
         form_layout.addRow(self.transparent_checkbox)
         form_layout.addRow(self.svg_text_as_path_checkbox)
         form_layout.addRow(self.full_resolution_checkbox)

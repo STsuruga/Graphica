@@ -17,6 +17,7 @@ from graphica.core.i18n import tr
 from graphica.gui import notify
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.export_settings import export_rc_params
+from graphica.gui.export_size import ExportSizeFields, confirm_output_size, preview_dpi, preview_too_large_text
 from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,12 @@ class ExportPreviewPanel(QWidget):
         self.dpi_spinbox.setValue(150)
         self.dpi_spinbox.setSuffix(" dpi")
         form.addRow("解像度", self.dpi_spinbox)
+
+        self.output_size_label = QLabel()
+        form.addRow(self.output_size_label)
+        # 単位のコンボの描き直しより先に換算が済むよう、ほかの通知をつなぐ前に作る
+        self._size_fields = ExportSizeFields(
+            self.width_spinbox, self.height_spinbox, self.unit_combo, self.dpi_spinbox, self.output_size_label)
 
         self.transparent_checkbox = QCheckBox("背景を透過")
         self.transparent_checkbox.setChecked(True)
@@ -145,7 +152,15 @@ class ExportPreviewPanel(QWidget):
         if width_in <= 0 or height_in <= 0:
             return
 
-        pixmap = self._render_full_figure_pixmap(width_in, height_in, options["dpi"])
+        # 書き出しの解像度のまま描いてから縮めると、大きな図や高い解像度で固まる。欄に合う解像度で描く
+        dpi = preview_dpi(width_in, height_in, options["dpi"],
+                          self.preview_label.width(), self.preview_label.height())
+        if dpi is None:
+            self._current_pixmap = None
+            self.preview_label.setPixmap(QPixmap())
+            self.preview_label.setText(preview_too_large_text(width_in, height_in, options["dpi"]))
+            return
+        pixmap = self._render_full_figure_pixmap(width_in, height_in, dpi)
         self._current_pixmap = pixmap
         if pixmap is None or pixmap.isNull():
             self.preview_label.setPixmap(QPixmap())
@@ -166,6 +181,10 @@ class ExportPreviewPanel(QWidget):
                                             Qt.AspectRatioMode.KeepAspectRatio,
                                             Qt.TransformationMode.SmoothTransformation)
             )
+            # 欄に合わせた解像度で描いているので、欄が描いた画像より大きくなったら描き直す
+            if (self._current_pixmap.width() < self.preview_label.width()
+                    and self._current_pixmap.height() < self.preview_label.height()):
+                self.refresh_preview()
 
     def _make_temp_canvas_for_full_figure(self, width_in, height_in, dpi, full_resolution=False):
         """全サブプロットを描いた一時的な MplCanvas。描けるものが無ければ None。
@@ -246,6 +265,8 @@ class ExportPreviewPanel(QWidget):
         if width_in <= 0 or height_in <= 0:
             notify.warning(self, "コピーエラー", "コピーする画像がありません。")
             return
+        if not confirm_output_size(self, width_in, height_in, options["dpi"]):
+            return
 
         if self.copy_format_combo.currentText() == "SVG":
             svg_bytes = self._render_full_figure_bytes(
@@ -299,6 +320,9 @@ class ExportPreviewPanel(QWidget):
             if rows * cols == 0:
                 notify.warning(self, "保存エラー", "有効なプロットがありません。")
                 return
+        # PDF・SVG でも、一時的な図をこの解像度で描いてから保存する
+        if not confirm_output_size(self, width_in, height_in, options["dpi"]):
+            return
 
         file_path, _ = notify.get_save_file_name(
             self, "プロットを保存", "", "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)"

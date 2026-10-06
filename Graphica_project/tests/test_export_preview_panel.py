@@ -518,3 +518,97 @@ def test_on_save_clicked_handles_savefig_exception(window_with_plot, monkeypatch
 
     assert len(calls["warning"]) == 1
     assert "エクスポート中にエラー" in calls["warning"][0][2]
+
+
+# --- 単位の切り替え・プレビューの解像度・大きすぎる画像 ---
+
+def _select_unit(panel, unit):
+    panel.unit_combo.setCurrentIndex(panel.unit_combo.findData(unit))
+
+
+def test_switching_unit_converts_width_and_height_instead_of_reinterpreting_them(window_with_plot):
+    panel = window_with_plot.export_preview_panel
+    before = window_with_plot._calculate_size_in_inches(panel.get_options())
+
+    _select_unit(panel, "センチメートル (cm)")
+
+    assert panel.width_spinbox.value() == pytest.approx(800 / 150 * 2.54, abs=0.01)
+    assert window_with_plot._calculate_size_in_inches(panel.get_options()) == pytest.approx(before, rel=1e-3)
+
+
+def test_output_size_label_shows_the_image_size(window_with_plot):
+    panel = window_with_plot.export_preview_panel
+    assert panel.output_size_label.text() == "画像にすると 約 800 × 600 px"
+
+
+def test_preview_of_a_large_figure_is_rendered_at_a_reduced_dpi(window_with_plot, monkeypatch):
+    panel = window_with_plot.export_preview_panel
+    _select_unit(panel, "インチ (in)")
+    panel.width_spinbox.setValue(20)
+    panel.height_spinbox.setValue(15)
+    seen = []
+    monkeypatch.setattr(panel, "_render_full_figure_pixmap", lambda w, h, dpi: seen.append((w, h, dpi)))
+
+    panel._render_preview()
+
+    (width_in, height_in, dpi), = seen
+    assert width_in * dpi <= panel.preview_label.width() * 2 + 1
+    assert height_in * dpi <= panel.preview_label.height() * 2 + 1
+
+
+def test_preview_of_a_huge_figure_is_not_drawn(window_with_plot, monkeypatch):
+    panel = window_with_plot.export_preview_panel
+    _select_unit(panel, "センチメートル (cm)")
+    panel.width_spinbox.setValue(800)
+    panel.height_spinbox.setValue(600)
+    rendered = []
+    monkeypatch.setattr(panel, "_render_full_figure_pixmap", lambda *a: rendered.append(a))
+
+    panel._render_preview()
+
+    assert rendered == []
+    assert "プレビューを表示しません" in panel.preview_label.text()
+
+
+def test_preview_of_a_small_figure_keeps_the_export_dpi(window_with_plot, monkeypatch):
+    panel = window_with_plot.export_preview_panel
+    _select_unit(panel, "インチ (in)")
+    panel.width_spinbox.setValue(0.5)
+    panel.height_spinbox.setValue(0.5)
+    seen = []
+    monkeypatch.setattr(panel, "_render_full_figure_pixmap", lambda w, h, dpi: seen.append(dpi))
+
+    panel._render_preview()
+
+    assert seen == [150]
+
+
+def _make_too_large(panel):
+    _select_unit(panel, "インチ (in)")
+    panel.dpi_spinbox.setValue(1200)
+    panel.width_spinbox.setValue(100)  # 120,000 px
+
+
+def test_copy_refuses_an_image_too_large_to_draw(window_with_plot, monkeypatch):
+    panel = window_with_plot.export_preview_panel
+    _make_too_large(panel)
+    calls = _capture_message_box(monkeypatch)
+    rendered = []
+    monkeypatch.setattr(panel, "_render_full_figure_bytes", lambda *a, **k: rendered.append(a))
+
+    panel._on_copy_clicked()
+
+    assert rendered == []
+    assert len(calls["warning"]) == 1
+
+
+def test_save_refuses_an_image_too_large_to_draw_before_asking_for_a_file(window_with_plot, monkeypatch):
+    panel = window_with_plot.export_preview_panel
+    _make_too_large(panel)
+    _capture_message_box(monkeypatch)
+    asked = []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", staticmethod(lambda *a, **k: asked.append(a) or ("", "")))
+
+    panel._on_save_clicked()
+
+    assert asked == []
