@@ -18,6 +18,13 @@ def test_size_in_inches(unit, expected):
     assert size_in_inches(1200, 900, unit, 150) == pytest.approx(expected)
 
 
+@pytest.mark.parametrize("unit, divide", [(PX, lambda v: v / 300), (CM, lambda v: v / 2.54), (MM, lambda v: v / 25.4)])
+def test_size_in_inches_divides_exactly_like_before(unit, divide):
+    """逆数を掛けると最後のビットが変わり、書き出す PDF の中身まで変わる(特性テストが CI で落ちた)。"""
+    width, height = size_in_inches(800, 600, unit, 300)
+    assert (width, height) == (divide(800), divide(600))
+
+
 def test_convert_length_keeps_the_physical_size():
     assert convert_length(800, PX, CM, 150) == pytest.approx(800 / 150 * 2.54)
     assert convert_length(800 / 150 * 2.54, CM, PX, 150) == pytest.approx(800)

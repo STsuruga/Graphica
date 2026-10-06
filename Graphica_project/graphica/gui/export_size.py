@@ -37,25 +37,26 @@ def unit_key(unit):
     return None
 
 
-def _inches_per_unit(key, dpi):
-    return {'in': 1.0, 'mm': 1 / 25.4, 'cm': 1 / 2.54, 'px': 1 / dpi}.get(key)
+def _units_per_inch(key, dpi):
+    # 逆数を掛けず割る(800 * (1/300) と 800 / 300 は最後のビットが違い、書き出す図の大きさが変わる)
+    return {'in': 1.0, 'mm': 25.4, 'cm': 2.54, 'px': dpi}.get(key)
 
 
 def size_in_inches(width, height, unit, dpi):
     """幅と高さをインチにする。分からない単位なら 8 × 6。"""
-    factor = _inches_per_unit(unit_key(unit), dpi)
-    if factor is None:
+    per_inch = _units_per_inch(unit_key(unit), dpi)
+    if per_inch is None:
         return 8, 6
-    return width * factor, height * factor
+    return width / per_inch, height / per_inch
 
 
 def convert_length(value, from_unit, to_unit, dpi):
     """同じ長さを別の単位で表した値。どちらかの単位が分からなければそのまま。"""
-    source = _inches_per_unit(unit_key(from_unit), dpi)
-    target = _inches_per_unit(unit_key(to_unit), dpi)
+    source = _units_per_inch(unit_key(from_unit), dpi)
+    target = _units_per_inch(unit_key(to_unit), dpi)
     if source is None or target is None:
         return value
-    return value * source / target
+    return value / source * target
 
 
 def output_pixel_size(width_in, height_in, dpi):
