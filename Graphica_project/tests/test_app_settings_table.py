@@ -33,6 +33,7 @@ def test_export_list_keeps_the_saved_json_layout():
         ("active_color_palette", str, ""),
         ("quick_access_pinned_actions", list, []),
         ("disabled_plugins", list, []),
+        ("wheel_zoom_speed", str, "normal"),
     ]
 
 

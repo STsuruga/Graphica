@@ -511,6 +511,10 @@ class PlotterApp(QMainWindow, UISetupMixin,
                           self.ui.x_minor_tick_interval_spinbox, self.ui.y_minor_tick_interval_spinbox]:
             _enable_scientific_notation_input(spin_box, minimum=0, maximum=np.inf)
 
+        # ウォーターフォールのオフセットもデータの単位なので、大きい値やマイナス・指数表記を入れられるように
+        for spin_box in [self.waterfall_offset_x_spinbox, self.waterfall_offset_y_spinbox]:
+            _enable_scientific_notation_input(spin_box, minimum=-np.inf, maximum=np.inf)
+
         self._update_plot()
         # 環境設定の既定の書式テンプレート(新しいタブはどれも空のプロジェクトから始まる)
         self._apply_default_style_template()

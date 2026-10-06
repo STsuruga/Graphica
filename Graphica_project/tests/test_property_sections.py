@@ -133,9 +133,10 @@ def test_the_original_form_layout_is_left_empty(window):
 
 
 def test_every_property_row_lives_in_exactly_one_section(window):
-    """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行)が過不足なく7セクションに分配されていること。"""
+    """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行、+ ウォーターフォールのオフセットの指定1行)が
+    過不足なく7セクションに分配されていること。"""
     total = sum(window._prop_form(key).rowCount() for key, _ in DATASET_PROPERTY_SECTIONS)
-    assert total == 40
+    assert total == 41
 
 
 def test_no_property_widget_is_orphaned_from_every_layout(window):
@@ -621,3 +622,38 @@ def test_section_header_spans_the_full_width(window):
     for key, _title in DATASET_PROPERTY_SECTIONS:
         toggle = window._prop_sections[key]['toggle']
         assert toggle.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding, key
+
+
+# --- ウォーターフォールのオフセットの指定 ---
+
+def test_waterfall_offset_mode_combo_writes_to_the_dataset(window):
+    dataset = _make_dataset(window)
+    assert dataset.waterfall_offset_mode == 'step'
+    combo = window.waterfall_offset_mode_combo
+    combo.setCurrentIndex(combo.findData('absolute'))
+    _pump()
+    assert dataset.waterfall_offset_mode == 'absolute'
+
+
+def test_waterfall_offset_mode_row_hides_with_the_other_waterfall_rows_for_2d_maps(window):
+    dataset = _make_dataset(window)
+    window.waterfall_checkbox.setChecked(True)
+    _pump()
+    assert window.waterfall_offset_mode_combo.isHidden() is False
+    dataset.data_kind = '2d_grid'
+    dataset.z_col_name = 'z'
+    window.property_panel.update_ui_state()
+    _pump()
+    assert window.waterfall_offset_mode_combo.isHidden() is True
+
+
+@pytest.mark.parametrize("text, expected", [("1.5E6", 1.5e6), ("-2e-3", -2e-3), ("-250", -250.0), ("3e12", 3e12)])
+def test_waterfall_offset_accepts_large_negative_and_exponent_values(window, text, expected):
+    dataset = _make_dataset(window)
+    spin = window.waterfall_offset_y_spinbox
+    spin.lineEdit().selectAll()
+    spin.lineEdit().setText(text)
+    spin.interpretText()
+    _pump()
+    assert spin.value() == pytest.approx(expected)
+    assert dataset.waterfall_offset_y == pytest.approx(expected)

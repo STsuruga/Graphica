@@ -83,6 +83,7 @@ class ProjectIOMixin:
         current_disabled_plugin_names = app_settings.disabled_plugin_names(self.settings)
 
         current_default_template = app_settings.DEFAULT_STYLE_TEMPLATE.read(self.settings)
+        current_wheel_zoom_speed = app_settings.WHEEL_ZOOM_SPEED.read(self.settings)
         dlg = PreferencesDialog(
             self.canvas.dark_mode, current_minutes,
             autosave_bounds=AUTOSAVE_INTERVAL_MIN_BOUNDS, parent=self,
@@ -94,6 +95,7 @@ class ProjectIOMixin:
             plugin_registration_errors=get_plugin_registration_errors(),
             disabled_plugin_names=current_disabled_plugin_names,
             default_style_template=current_default_template,
+            wheel_zoom_speed=current_wheel_zoom_speed,
         )
         if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
             return
@@ -115,6 +117,11 @@ class ProjectIOMixin:
         new_default_template = dlg.get_default_style_template()
         if new_default_template != current_default_template:
             app_settings.DEFAULT_STYLE_TEMPLATE.write(self.settings, new_default_template)
+
+        # どのタブもホイールのたびに設定を読むので、書くだけで全部のタブに効く
+        new_wheel_zoom_speed = dlg.get_wheel_zoom_speed()
+        if new_wheel_zoom_speed != current_wheel_zoom_speed:
+            app_settings.WHEEL_ZOOM_SPEED.write(self.settings, new_wheel_zoom_speed)
 
         # 表示メニューのチェック経由で切り替える(toggled から _on_toggle_dark_mode が適用し、チェックの状態も揃う)
         if new_dark_mode != self.canvas.dark_mode:

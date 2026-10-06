@@ -64,9 +64,9 @@ def test_transform_recorded_with_stacking_index_and_offsets(canvas):
     canvas.redraw_all([ds0, ds1], 1, 1, [{}])
 
     assert canvas.get_waterfall_transform(ds0) == {
-        'index': 0, 'offset_x': 1.0, 'offset_y': 2.0, 'depth_scale': 1.0}
+        'index': 0, 'offset_x': 1.0, 'offset_y': 2.0, 'depth_scale': 1.0, 'mode': 'step'}
     assert canvas.get_waterfall_transform(ds1) == {
-        'index': 1, 'offset_x': 1.0, 'offset_y': 2.0, 'depth_scale': 1.0}
+        'index': 1, 'offset_x': 1.0, 'offset_y': 2.0, 'depth_scale': 1.0, 'mode': 'step'}
 
 
 def test_transform_lookup_accepts_dataset_id_as_well_as_dataset(canvas):
@@ -250,3 +250,57 @@ def test_hidden_2d_grid_dataset_is_still_excluded_from_drawing(canvas):
     ds.visible = False
     canvas.redraw_all([ds], 1, 1, [{}])
     assert canvas._axis_2d_mappables.get(0) is None
+
+
+# --- オフセットを「ずらし量そのまま」で決めるモード ---
+
+def test_absolute_mode_shifts_every_trace_by_its_own_offset(canvas):
+    """段の番号に関係なく、その系列のオフセットだけずれる(100 の上に +20 なら 120)。"""
+    ds0 = _make_waterfall_dataset("wf0", X, [100.0] * 3, offset_x=0.0, offset_y=20.0,
+                                  waterfall_offset_mode='absolute')
+    ds1 = _make_waterfall_dataset("wf1", X, [100.0] * 3, offset_x=0.5, offset_y=-30.0,
+                                  waterfall_offset_mode='absolute')
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    assert list(ds0.artist.get_ydata()) == pytest.approx([120.0] * 3)
+    assert list(ds1.artist.get_ydata()) == pytest.approx([70.0] * 3)
+    assert list(ds1.artist.get_xdata()) == pytest.approx([v + 0.5 for v in X])
+
+
+def test_absolute_mode_handles_large_offsets(canvas):
+    ds = _make_waterfall_dataset("wf", X, Y, offset_x=0.0, offset_y=1.5e6, waterfall_offset_mode='absolute')
+    canvas.redraw_all([ds], 1, 1, [{}])
+    assert list(ds.artist.get_ydata()) == pytest.approx([v + 1.5e6 for v in Y])
+
+
+def test_absolute_mode_round_trips_through_display_to_data(canvas):
+    ds0 = _make_waterfall_dataset("wf0", X, Y, waterfall_offset_mode='absolute')
+    ds1 = _make_waterfall_dataset("wf1", X, Y, offset_x=-2.0, offset_y=-5.0, waterfall_offset_mode='absolute')
+    canvas.redraw_all([ds0, ds1], 1, 1, [{}])
+
+    disp_x, disp_y = canvas.data_to_display(ds1, np.asarray(X), np.asarray(Y))
+    assert disp_x == pytest.approx(list(ds1.artist.get_xdata()))
+    assert disp_y == pytest.approx(list(ds1.artist.get_ydata()))
+    back_x, back_y = canvas.display_to_data(ds1, disp_x, disp_y)
+    assert back_x == pytest.approx(X)
+    assert back_y == pytest.approx(Y)
+
+
+def test_step_and_absolute_modes_can_be_mixed(canvas):
+    ds0 = _make_waterfall_dataset("wf0", X, Y)
+    ds1 = _make_waterfall_dataset("wf1", X, Y)
+    ds2 = _make_waterfall_dataset("wf2", X, Y, offset_x=0.0, offset_y=10.0, waterfall_offset_mode='absolute')
+    canvas.redraw_all([ds0, ds1, ds2], 1, 1, [{}])
+
+    assert list(ds1.artist.get_ydata()) == pytest.approx([v + 2.0 for v in Y])
+    assert list(ds2.artist.get_ydata()) == pytest.approx([v + 10.0 for v in Y])
+
+
+def test_occlusion_baseline_follows_the_absolute_offsets():
+    """奥のトレースを隠す背景の下端も、実際にずらした位置(段の番号を掛けない)から決まる。"""
+    from graphica.gui.rendering.common import _waterfall_layout
+    ds0 = _make_waterfall_dataset("wf0", X, [100.0] * 3, offset_y=20.0, waterfall_offset_mode='absolute')
+    ds1 = _make_waterfall_dataset("wf1", X, [100.0] * 3, offset_y=-30.0, waterfall_offset_mode='absolute')
+    layout = _waterfall_layout([ds0, ds1])
+    # ずらした後は 120 と 70。下端は最小値 70 から幅 50 の 5% 下
+    assert layout.baseline == pytest.approx(70.0 - 50.0 * 0.05)

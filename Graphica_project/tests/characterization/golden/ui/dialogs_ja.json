@@ -5428,6 +5428,63 @@
           },
           {
            "class": "QGroupBox",
+           "title": "グラフの操作",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "軸の上のホイールで拡大する速さ",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QComboBox",
+             "items": [
+              "遅い",
+              "普通",
+              "速い"
+             ],
+             "current": 1,
+             "visible": true,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QFrame",
+               "visible": false,
+               "enabled": true,
+               "children": [
+                {
+                 "class": "QListView",
+                 "visible": false,
+                 "enabled": true,
+                 "children": [
+                  {
+                   "class": "QWidget",
+                   "name": "qt_scrollarea_viewport",
+                   "visible": false,
+                   "enabled": true
+                  }
+                 ]
+                },
+                {
+                 "class": "QWidget",
+                 "visible": false,
+                 "enabled": true
+                },
+                {
+                 "class": "QWidget",
+                 "visible": false,
+                 "enabled": true
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
            "title": "パフォーマンス",
            "visible": true,
            "enabled": true,

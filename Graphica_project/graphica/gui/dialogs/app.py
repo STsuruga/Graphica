@@ -36,7 +36,7 @@ class PreferencesDialog(QDialog):
                  current_language=None, autosave_dir="", point_label_max_points=1000,
                  snap_to_grid_enabled=False, snap_grid_interval_px=10,
                  plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None,
-                 default_style_template=""):
+                 default_style_template="", wheel_zoom_speed="normal"):
         """plugin_records=None は一度も読み込んでいない(セーフモードなど)。空のリスト(1つも無い)とは区別して表示する。"""
         super().__init__(parent)
         from graphica.core.i18n import tr, SUPPORTED_LANGUAGES, get_language
@@ -123,6 +123,16 @@ class PreferencesDialog(QDialog):
         template_row.addWidget(self.default_style_template_clear_button)
         template_form.addRow(tr("既定の書式テンプレート"), template_row)
         layout.addWidget(template_group)
+
+        navigation_group = QGroupBox(tr("グラフの操作"))
+        navigation_form = QFormLayout(navigation_group)
+        self.wheel_zoom_speed_combo = QComboBox()
+        for key, label in (("slow", tr("遅い")), ("normal", tr("普通")), ("fast", tr("速い"))):
+            self.wheel_zoom_speed_combo.addItem(label, key)
+        found = self.wheel_zoom_speed_combo.findData(wheel_zoom_speed)
+        self.wheel_zoom_speed_combo.setCurrentIndex(found if found != -1 else 1)
+        navigation_form.addRow(tr("軸の上のホイールで拡大する速さ"), self.wheel_zoom_speed_combo)
+        layout.addWidget(navigation_group)
 
         # 点のラベルは点の数だけ annotate するので、多いと固まる。この数を超えたら描かない
         performance_group = QGroupBox(tr("パフォーマンス"))
@@ -349,6 +359,10 @@ class PreferencesDialog(QDialog):
     def get_default_style_template(self):
         """新しいタブ・プロジェクトに当てる書式テンプレートのパス。空なら使わない。"""
         return self._default_style_template
+
+    def get_wheel_zoom_speed(self):
+        """'slow' / 'normal' / 'fast'。"""
+        return self.wheel_zoom_speed_combo.currentData()
 
     def _on_install_plugin(self):
         from graphica.core.i18n import tr

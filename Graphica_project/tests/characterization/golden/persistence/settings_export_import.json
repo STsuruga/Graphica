@@ -15,7 +15,8 @@
    ],
    "disabled_plugins": [
     "example_plugin"
-   ]
+   ],
+   "wheel_zoom_speed": "normal"
   }
  },
  "export_modals": [

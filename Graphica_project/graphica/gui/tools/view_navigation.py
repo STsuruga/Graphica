@@ -16,13 +16,19 @@ from matplotlib.transforms import Bbox
 from PySide6.QtCore import Qt
 
 from graphica.core.axis_settings import axis_setting
+from graphica.gui import app_settings
 from graphica.gui.rendering.appearance import apply_axis_range, range_signature
 from graphica.gui.tools.manager import MOUSE_MODES_BY_NAME
 from graphica.gui.tools.pointer import legend_at
 
 logger = logging.getLogger(__name__)
 
-AXIS_ZOOM_BASE = 1.2
+# 軸の上のホイールで、マウスのホイール1段あたりに何倍にするか(環境設定の「拡大の速さ」)
+WHEEL_ZOOM_BASES = {'slow': 1.1, 'normal': 1.2, 'fast': 1.4}
+# 1回の通知で変わる量の上限(トラックパッドを速く払っても一気に跳ばないように)
+MAX_WHEEL_ZOOM_PER_EVENT = 1.5
+# Qt の angleDelta でホイールの1段(1/8 度単位で 15 度)
+WHEEL_NOTCH_ANGLE = 120
 # 目盛りラベルを隠した軸(軸の共有など)でもつかめるよう、帯はプロットの枠から最低これだけ外へ取る
 AXIS_BAND_MIN_PX = 15
 # 矩形の幅か高さがこれ未満なら、ズームせずクリックとみなす(matplotlib のズームと同じ)
@@ -283,8 +289,13 @@ class ViewNavigationTool:
         band = self.axis_band_at(event.x, event.y)
         if band is None:
             return
+        notches = wheel_notches(event)
+        if not notches:
+            return
+        base = WHEEL_ZOOM_BASES.get(app_settings.WHEEL_ZOOM_SPEED.read(self._app.settings), WHEEL_ZOOM_BASES['normal'])
+        scale = min(max(base ** (-notches), 1 / MAX_WHEEL_ZOOM_PER_EVENT), MAX_WHEEL_ZOOM_PER_EVENT)
         center = event.x if band.axis_key == 'x' else event.y
-        if self.zoom_axis(band, center, AXIS_ZOOM_BASE ** (-event.step)):
+        if self.zoom_axis(band, center, scale):
             self._app.canvas.draw_idle()
 
     def on_press(self, event):
@@ -385,6 +396,20 @@ class ViewNavigationTool:
         else:
             canvas.setCursor(shape)
         self._cursor_shape = shape
+
+
+def wheel_notches(event):
+    """ホイールの動きを「マウスのホイール何段分か」で返す(上で正)。指を離した後の慣性の分は 0。
+
+    matplotlib の step は、OS がピクセル単位の量を渡すとき(macOS のトラックパッドや Magic Mouse)はピクセル数になり、
+    1回で何十にもなる。Qt の angleDelta はどの OS でも渡されるので、そちらを段の数に直す。
+    """
+    gui_event = getattr(event, 'guiEvent', None)
+    if gui_event is None or not hasattr(gui_event, 'angleDelta'):
+        return event.step
+    if hasattr(gui_event, 'phase') and gui_event.phase() == Qt.ScrollPhase.ScrollMomentum:
+        return 0.0
+    return gui_event.angleDelta().y() / WHEEL_NOTCH_ANGLE
 
 
 def _outer_band(box, axis, renderer, which):

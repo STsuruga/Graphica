@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox, QHeaderView,
     QLabel, QLineEdit,
     QMenu, QPushButton, QSpinBox, QTextEdit, QToolButton, QTreeWidget, QVBoxLayout, QWidget, QWidgetAction)
+from graphica.core.dataset import WATERFALL_OFFSET_ABSOLUTE, WATERFALL_OFFSET_STEP
 from graphica.core.i18n import tr
 from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
@@ -147,6 +148,13 @@ def build_dataset_style_controls(app):
     # 出し入れは property_panel.update_waterfall_controls_visibility
     app.waterfall_checkbox = QCheckBox(tr("ウォーターフォール表示(積み重ね)"))
     app._prop_form('waterfall').addRow(app.waterfall_checkbox)
+
+    # オフセットの欄は大きな値や指数表記(1.5E6)も入れられる(main_window の _enable_scientific_notation_input)
+    app.waterfall_offset_mode_label = QLabel(tr("オフセットの指定"))
+    app.waterfall_offset_mode_combo = QComboBox()
+    app.waterfall_offset_mode_combo.addItem(tr("段ごとの間隔(段の番号 × オフセット)"), WATERFALL_OFFSET_STEP)
+    app.waterfall_offset_mode_combo.addItem(tr("ずらし量をそのまま"), WATERFALL_OFFSET_ABSOLUTE)
+    app._prop_form('waterfall').addRow(app.waterfall_offset_mode_label, app.waterfall_offset_mode_combo)
 
     app.waterfall_offset_x_label = QLabel(tr("Xオフセット"))
     app.waterfall_offset_x_spinbox = QDoubleSpinBox()

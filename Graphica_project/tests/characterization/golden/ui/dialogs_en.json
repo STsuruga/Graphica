@@ -5428,6 +5428,63 @@
           },
           {
            "class": "QGroupBox",
+           "title": "Plot Navigation",
+           "visible": true,
+           "enabled": true,
+           "children": [
+            {
+             "class": "QLabel",
+             "text": "Wheel zoom speed on an axis",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QComboBox",
+             "items": [
+              "Slow",
+              "Normal",
+              "Fast"
+             ],
+             "current": 1,
+             "visible": true,
+             "enabled": true,
+             "children": [
+              {
+               "class": "QFrame",
+               "visible": false,
+               "enabled": true,
+               "children": [
+                {
+                 "class": "QListView",
+                 "visible": false,
+                 "enabled": true,
+                 "children": [
+                  {
+                   "class": "QWidget",
+                   "name": "qt_scrollarea_viewport",
+                   "visible": false,
+                   "enabled": true
+                  }
+                 ]
+                },
+                {
+                 "class": "QWidget",
+                 "visible": false,
+                 "enabled": true
+                },
+                {
+                 "class": "QWidget",
+                 "visible": false,
+                 "enabled": true
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "class": "QGroupBox",
            "title": "Performance",
            "visible": true,
            "enabled": true,

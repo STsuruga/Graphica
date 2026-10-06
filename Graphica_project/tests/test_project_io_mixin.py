@@ -62,6 +62,9 @@ def _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=None, d
         def get_disabled_plugin_names(self):
             return disabled_plugin_names if disabled_plugin_names is not None else set()
 
+        def get_wheel_zoom_speed(self):
+            return captured['kwargs'].get('wheel_zoom_speed', "normal")
+
         def get_default_style_template(self):
             # 指定が無ければ開いたときの値のまま(変えていない)
             if default_style_template is None:

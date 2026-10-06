@@ -2433,7 +2433,7 @@
                        },
                        {
                         "class": "QWidget",
-                        "visible": false,
+                        "visible": true,
                         "enabled": true,
                         "children": [
                          {
@@ -2441,7 +2441,7 @@
                           "name": "property_subsection_toggle",
                           "text": "ウォーターフォール",
                           "checked": true,
-                          "visible": false,
+                          "visible": true,
                           "enabled": true,
                           "receivers": {
                            "pressed()": 1,
@@ -2451,7 +2451,7 @@
                          },
                          {
                           "class": "QWidget",
-                          "visible": false,
+                          "visible": true,
                           "enabled": false,
                           "children": [
                            {
@@ -2466,13 +2466,74 @@
                            },
                            {
                             "class": "QLabel",
+                            "text": "オフセットの指定",
+                            "visible": true,
+                            "enabled": false
+                           },
+                           {
+                            "class": "QComboBox",
+                            "items": [
+                             "段ごとの間隔(段の番号 × オフセット)",
+                             "ずらし量をそのまま"
+                            ],
+                            "current": 0,
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "currentIndexChanged(int)": 1
+                            },
+                            "children": [
+                             {
+                              "class": "QFrame",
+                              "visible": false,
+                              "enabled": false,
+                              "receivers": {
+                               "itemSelected(QModelIndex)": 1,
+                               "resetButton()": 1
+                              },
+                              "children": [
+                               {
+                                "class": "QListView",
+                                "visible": false,
+                                "enabled": false,
+                                "children": [
+                                 {
+                                  "class": "QWidget",
+                                  "name": "qt_scrollarea_viewport",
+                                  "visible": false,
+                                  "enabled": false
+                                 }
+                                ]
+                               },
+                               {
+                                "class": "QWidget",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "doScroll(int)": 1
+                                }
+                               },
+                               {
+                                "class": "QWidget",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "doScroll(int)": 1
+                                }
+                               }
+                              ]
+                             }
+                            ]
+                           },
+                           {
+                            "class": "QLabel",
                             "text": "Xオフセット",
                             "visible": false,
                             "enabled": false
                            },
                            {
                             "class": "QDoubleSpinBox",
-                            "value": "0.0000",
+                            "value": "0",
                             "visible": false,
                             "enabled": false,
                             "receivers": {
@@ -2482,7 +2543,7 @@
                              {
                               "class": "QLineEdit",
                               "name": "qt_spinbox_lineedit",
-                              "text": "0.0000",
+                              "text": "0",
                               "visible": false,
                               "enabled": false,
                               "receivers": {
@@ -2500,7 +2561,7 @@
                            },
                            {
                             "class": "QDoubleSpinBox",
-                            "value": "1.0000",
+                            "value": "1",
                             "visible": false,
                             "enabled": false,
                             "receivers": {
@@ -2510,7 +2571,7 @@
                              {
                               "class": "QLineEdit",
                               "name": "qt_spinbox_lineedit",
-                              "text": "1.0000",
+                              "text": "1",
                               "visible": false,
                               "enabled": false,
                               "receivers": {
