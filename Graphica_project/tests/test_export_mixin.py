@@ -589,12 +589,13 @@ def _patch_export_dialog(monkeypatch, *, accepted=True, width=None, height=None,
     class FakeExportDialog(ExportDialog):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
+            # 単位を切り替えると今の数字が換算されるので、単位を先に決める
+            if unit is not None:
+                self.unit_combo.setCurrentText(unit)
             if width is not None:
                 self.width_spinbox.setValue(width)
             if height is not None:
                 self.height_spinbox.setValue(height)
-            if unit is not None:
-                self.unit_combo.setCurrentText(unit)
             if dpi is not None:
                 self.dpi_spinbox.setValue(dpi)
             if transparent is not None:
@@ -1167,3 +1168,74 @@ def test_generate_caption_handles_empty_title(tmp_path, monkeypatch):
     window._on_generate_caption()  # 例外にならないこと
 
     assert captured == [("", "fig:plot")]
+
+
+# --- 単位の切り替え・大きすぎる画像・プレビューの解像度 ---
+
+def test_export_dialog_converts_numbers_when_the_unit_changes():
+    dialog = ExportDialog()
+    dialog.unit_combo.setCurrentIndex(dialog.unit_combo.findData("インチ (in)"))
+    assert dialog.width_spinbox.value() == pytest.approx(800 / 300, abs=0.01)
+    assert dialog.height_spinbox.value() == pytest.approx(2.0)
+    assert "801 × 600 px" in dialog.output_size_label.text()  # 2.67 in(小数2桁)× 300 dpi
+
+
+def test_export_dialog_journal_preset_keeps_the_height_when_switching_to_mm():
+    dialog = ExportDialog()
+    dialog.journal_preset_combo.setCurrentText("学術誌 単段 (85mm)")
+    assert dialog.width_spinbox.value() == pytest.approx(85.0)
+    assert dialog.height_spinbox.value() == pytest.approx(600 / 300 * 25.4, abs=0.1)
+
+
+def test_export_plot_refuses_a_png_too_large_to_draw(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    out_path = tmp_path / "huge.png"
+    _patch_export_dialog(monkeypatch, accepted=True, width=100, height=3, unit="インチ (in)", dpi=1200)
+    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
+                        staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
+    warnings = []
+    monkeypatch.setattr(notify_module.QMessageBox, "warning", staticmethod(lambda *a, **k: warnings.append(a)))
+    original_size = tuple(window.canvas.fig.get_size_inches())
+
+    window._on_export_plot()
+
+    assert not out_path.exists()
+    assert len(warnings) == 1
+    assert tuple(window.canvas.fig.get_size_inches()) == pytest.approx(original_size)
+
+
+def test_generate_preview_of_a_huge_size_shows_a_message_instead(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    dialog = ExportDialog(window)
+    dialog.unit_combo.setCurrentIndex(dialog.unit_combo.findData("センチメートル (cm)"))
+    dialog.width_spinbox.setValue(800)
+    dialog.height_spinbox.setValue(600)
+
+    window._generate_preview(dialog)
+
+    assert "プレビューを表示しません" in dialog.preview_label.text()
+
+
+def test_generate_preview_of_a_large_size_uses_a_reduced_dpi(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    dialog = ExportDialog(window)
+    dialog.unit_combo.setCurrentIndex(dialog.unit_combo.findData("インチ (in)"))
+    dialog.width_spinbox.setValue(10)
+    dialog.height_spinbox.setValue(8)
+    made = []
+
+    class SpyFigure(Figure):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            made.append(self)
+    monkeypatch.setattr(export_mixin_module, "Figure", SpyFigure)
+
+    window._generate_preview(dialog)
+
+    width_px, height_px = made[0].get_size_inches() * made[0].dpi
+    assert width_px <= dialog.preview_label.width() * 2 + 1
+    assert height_px <= dialog.preview_label.height() * 2 + 1
+    assert not dialog.preview_label.pixmap().isNull()

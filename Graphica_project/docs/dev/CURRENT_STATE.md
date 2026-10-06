@@ -13,17 +13,27 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-06): 軸のホイールの拡大量とウォーターフォールの「ずらし量をそのまま」(ブランチ `feature/wheel-zoom-and-waterfall-offset`)
+## 現在地(2026-10-06): エクスポートの単位の切り替えで固まる(ブランチ `fix/export-unit-conversion`)
+
+- 原因: 単位を切り替えても数字がそのまま新しい単位で読み直され(800 px → 800 cm = 約 47,000 × 35,000 px)、プレビューは書き出しの解像度の
+  まま描いてから縮めていた。
+- 新しい `gui/export_size.py` に集めた: `ExportSizeFields`(単位を切り替えたら同じ大きさのまま換算、単位ごとの小数の桁、画素数の表示。
+  単位のコンボにつなぐほかの処理はこれを作った後につなぐ)、`preview_dpi()`(欄の2倍の画素に合う解像度、下限 20 dpi — それより下は
+  FreeType が小さな文字を拒む。下限でも 4000×4000 px を超える図はプレビューを描かず理由を表示)、`confirm_output_size()`(1辺 65,535 px 超は
+  止め、1億画素超は確認)。プレビューのドック・エクスポートのダイアログ・その書き出しが使う。`_calculate_size_in_inches` は `size_in_inches()` に委ねる。
+- 特性テストの基準(画面の構造: 幅・高さの "800.0" → "800"、画素数の行)と、プレビューのドックの見た目の基準画像を作り直した。
+- 次: PR を作り、ユーザーの指示でマージ。
+
+## 以前の現在地(2026-10-06): 軸のホイールの拡大量とウォーターフォールの「ずらし量をそのまま」(PR #108 でマージ済み)
 
 - **macOS で軸の上のホイールの拡大が大きすぎた**: matplotlib の `scroll_event` の `step` は、Qt が `pixelDelta` を渡すと(トラックパッド・
   Magic Mouse)ピクセル数になる。`view_navigation.wheel_notches()` が Qt の `angleDelta`(どの OS でも来る、1段 = 120)から段の数を出し、
   慣性(`ScrollPhase.ScrollMomentum`)は 0。1回の拡大は `MAX_WHEEL_ZOOM_PER_EVENT`(1.5 倍)まで。速さは環境設定「グラフの操作」
   (`app_settings.WHEEL_ZOOM_SPEED`、slow/normal/fast = 1.1/1.2/1.4、設定の書き出しの末尾)。Mac 実機では未確認 — CI の .app で確かめてもらう。
 - **ウォーターフォールのオフセットの指定**: `Dataset.waterfall_offset_mode`('step' 既定 = 従来どおり段の番号 × オフセット / 'absolute' = その系列を
-  オフセットだけずらす)。ずらす倍数は `rendering/data_1d.waterfall_offset_steps()` の1か所で、描画と `display_to_data` / `data_to_display` が共有
-  (変換の記録に `'mode'` を追加)。奥行き縮小は段の番号のまま。オフセットの欄は指数表記・±∞。
+  オフセットだけずらす)。ずらす倍数は `rendering/common.waterfall_offset_steps()` の1か所で、描画・`display_to_data` / `data_to_display`・
+  オクルージョンの背景の下端が共有(変換の記録に `'mode'` を追加)。奥行き縮小は段の番号のまま。オフセットの欄は指数表記・±∞。
 - 特性テストの基準を作り直した(新しいフィールド、新しい行と環境設定の組、オフセットの欄の表示が "1.0000" → "1")。dialogs_ja のタブバーは元の値に戻した。
-- 次: PR を作り、ユーザーの指示でマージ。
 
 ## 以前の現在地(2026-10-06): v2.1.0 をリリースした
 

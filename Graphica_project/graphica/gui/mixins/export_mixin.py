@@ -17,6 +17,7 @@ from graphica.core.axis_settings import axis_setting
 from graphica.gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
 from graphica.gui.canvas import _HeadlessRenderCanvas, fit_tight_layout
 from graphica.gui.export_settings import export_rc_params
+from graphica.gui.export_size import confirm_output_size, preview_dpi, preview_too_large_text, size_in_inches
 from graphica.gui.task_runner import TaskRunner
 from graphica.models.project import ProjectModel
 from graphica.core.plugin_api import get_plugin_api, get_registered_exporters
@@ -405,6 +406,9 @@ class ExportMixin:
                     )
 
                 width_in, height_in = self._calculate_size_in_inches(options)
+                if export_ext not in ('.pdf', '.svg') and not confirm_output_size(
+                        self, width_in, height_in, options["dpi"]):
+                    return
 
                 # フル解像度なら間引かずに描き直してから保存する(finally で画面用に戻す)
                 full_resolution = options.get('full_resolution', False)
@@ -456,7 +460,14 @@ class ExportMixin:
 
             width_in, height_in = self._calculate_size_in_inches(options)
 
-            temp_fig = Figure(figsize=(width_in, height_in), dpi=100)
+            # 書き出しの大きさのまま描くと、大きな値で固まる。欄に合う解像度で描く
+            dpi = preview_dpi(width_in, height_in, 100,
+                              dialog.preview_label.width(), dialog.preview_label.height())
+            if dpi is None:
+                dialog.preview_label.setPixmap(QPixmap())
+                dialog.preview_label.setText(preview_too_large_text(width_in, height_in, options["dpi"]))
+                return
+            temp_fig = Figure(figsize=(width_in, height_in), dpi=dpi)
             temp_ax = temp_fig.add_subplot(111)
 
             active_index = self.project.active_axis_index
@@ -489,7 +500,7 @@ class ExportMixin:
                 pass
 
             buf = io.BytesIO()
-            temp_fig.savefig(buf, format='png', dpi=100)
+            temp_fig.savefig(buf, format='png', dpi=dpi)
             buf.seek(0)
 
             pixmap = QPixmap()
@@ -506,15 +517,4 @@ class ExportMixin:
 
     def _calculate_size_in_inches(self, options):
             """ダイアログの幅と高さをインチにする。"""
-            width, height, unit, dpi = options["width"], options["height"], options["unit"], options["dpi"]
-
-            if "インチ" in unit:
-                return width, height
-            elif "ミリメートル" in unit:
-                return width / 25.4, height / 25.4
-            elif "センチメートル" in unit:
-                return width / 2.54, height / 2.54
-            elif "ピクセル" in unit:
-                return width / dpi, height / dpi
-
-            return 8, 6
+            return size_in_inches(options["width"], options["height"], options["unit"], options["dpi"])
