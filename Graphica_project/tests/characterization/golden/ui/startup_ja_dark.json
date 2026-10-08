@@ -3197,6 +3197,31 @@
                               ]
                              }
                             ]
+                           },
+                           {
+                            "class": "QLabel",
+                            "text": "凡例の表示名",
+                            "visible": true,
+                            "enabled": false
+                           },
+                           {
+                            "class": "QLineEdit",
+                            "text": "",
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "editingFinished()": 1
+                            }
+                           },
+                           {
+                            "class": "QCheckBox",
+                            "text": "凡例に表示しない",
+                            "checked": false,
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "toggled(bool)": 1
+                            }
                            }
                           ]
                          }
