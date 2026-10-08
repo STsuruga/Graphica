@@ -1,4 +1,5 @@
 """画像・PDF・SVG への書き出し、印刷、クリップボード、書き出しのプレビュー。"""
+import copy
 import datetime
 import io
 import os
@@ -145,6 +146,9 @@ class ExportMixin:
                 return
             items = indices
             worker_fn = self._batch_export_subplots
+            # 別スレッドで描くので、画面のマウスで変えた範囲はここで写しておく
+            options['view_overrides'] = (
+                copy.deepcopy(self.canvas.view_overrides) if dialog.visible_range_checkbox.isChecked() else {})
         else:
             paths = dialog.get_project_file_paths()
             if not paths:
@@ -236,6 +240,9 @@ class ExportMixin:
                 ]
                 temp_canvas = _HeadlessRenderCanvas(width=BATCH_EXPORT_FIGSIZE[0], height=BATCH_EXPORT_FIGSIZE[1], dpi=options['dpi'])
                 temp_canvas.dark_mode = self.canvas.dark_mode
+                visible_range = options.get('view_overrides', {}).get(idx)
+                if visible_range:
+                    temp_canvas.view_overrides = {0: dict(visible_range)}
                 temp_canvas.redraw_all(datasets_for_axis, 1, 1, [settings], full_resolution=options.get('full_resolution', False))
                 self._save_figure_with_options(temp_canvas.fig, out_path, options)
                 results.append((out_name, None))

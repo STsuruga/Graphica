@@ -106,6 +106,7 @@ class ViewNavigationTool:
                 continue
             limits = ax.get_xlim() if axis_key == 'x' else ax.get_ylim()
             entry[axis_key] = (tuple(float(v) for v in limits), range_signature(settings_list[subplot_index], axis_key))
+        self._view_changed()
 
     def forget_view(self, subplot_index, axis_keys=('x', 'y', 'y2')):
         entry = self._app.canvas.view_overrides.get(subplot_index)
@@ -115,9 +116,17 @@ class ViewNavigationTool:
             entry.pop(axis_key, None)
         if not entry:
             del self._app.canvas.view_overrides[subplot_index]
+        self._view_changed()
 
     def forget_all_views(self):
         self._app.canvas.view_overrides.clear()
+        self._view_changed()
+
+    def _view_changed(self):
+        """書き出しのプレビューは表示中の範囲で描くので、範囲が変わったら描き直させる(見えていなければ何もしない)。"""
+        panel = getattr(self._app, 'export_preview_panel', None)
+        if panel is not None:
+            panel.refresh_preview()
 
     def remember_x_of_every_subplot(self):
         """ミニマップは全部の軸の X を変えるので、全部のサブプロットの X を覚える。"""
@@ -258,6 +267,7 @@ class ViewNavigationTool:
             self._app.canvas.view_overrides[subplot_index] = dict(limits['overrides'])
         else:
             self._app.canvas.view_overrides.pop(subplot_index, None)
+        self._view_changed()
         return True
 
     def _start_pan(self, button, event, targets, subplot_index, axis_keys):
