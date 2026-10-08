@@ -979,6 +979,17 @@
                  },
                  {
                   "class": "QCheckBox",
+                  "text": "Export the visible range",
+                  "checked": true,
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "Exports the range you zoomed or panned to on the plot. When unchecked, exports the range set in the plot properties (the whole data when automatic).",
+                  "receivers": {
+                   "toggled(bool)": 1
+                  }
+                 },
+                 {
+                  "class": "QCheckBox",
                   "text": "Convert text to outlines (SVG)",
                   "checked": false,
                   "visible": true,

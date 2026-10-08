@@ -979,6 +979,17 @@
                  },
                  {
                   "class": "QCheckBox",
+                  "text": "表示中の範囲で書き出す",
+                  "checked": true,
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "グラフの上でマウスで拡大・移動した範囲で書き出します。外すと、プロットのプロパティで決めた範囲(自動ならデータ全体)で書き出します。",
+                  "receivers": {
+                   "toggled(bool)": 1
+                  }
+                 },
+                 {
+                  "class": "QCheckBox",
                   "text": "文字をアウトライン化する(SVG)",
                   "checked": false,
                   "visible": true,
