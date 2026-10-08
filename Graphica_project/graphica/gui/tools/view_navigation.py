@@ -331,6 +331,7 @@ class ViewNavigationTool:
             return
         band = self.axis_band_at(event.x, event.y)
         if band is None:
+            self._start_rect_zoom_from_margin(event)
             return
         # 枠の外へドラッグした凡例が帯に重なっていれば、凡例のドラッグに譲る
         if legend_at(self._app.canvas, event) is not None:
@@ -341,6 +342,28 @@ class ViewNavigationTool:
             return
         self._start_pan(1, event, [(band.ax, 'x' if band.axis_key == 'x' else 'y')],
                         band.subplot_index, [band.axis_key])
+
+    def _start_rect_zoom_from_margin(self, event):
+        """軸の帯の外の余白から、いちばん近いサブプロットの矩形ズームを、その縁に合わせた位置から始める(縁ぴったりまで囲めるように)。"""
+        if event.dblclick or event.x is None or event.y is None or self._active_mode() is not None:
+            return
+        if legend_at(self._app.canvas, event) is not None:
+            return
+        nearest = None
+        for index, ax in enumerate(self._app.canvas.all_axes):
+            if not ax.get_visible():
+                continue
+            box = ax.bbox
+            dx = max(box.x0 - event.x, 0, event.x - box.x1)
+            dy = max(box.y0 - event.y, 0, event.y - box.y1)
+            distance = dx * dx + dy * dy
+            if nearest is None or distance < nearest[0]:
+                nearest = (distance, index, box)
+        if nearest is None:
+            return
+        _, index, box = nearest
+        start = (min(max(event.x, box.x0), box.x1), min(max(event.y, box.y0), box.y1))
+        self._rect_zoom = {'subplot_index': index, 'start': start, 'bbox': box}
 
     def on_motion(self, event):
         if self._pan is not None:
