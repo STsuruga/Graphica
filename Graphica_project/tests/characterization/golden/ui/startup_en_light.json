@@ -987,11 +987,11 @@
                  },
                  {
                   "class": "QCheckBox",
-                  "text": "Save/copy at full resolution (no downsampling)",
+                  "text": "Save/copy with all data points (no thinning)",
                   "checked": false,
                   "visible": true,
                   "enabled": true,
-                  "tooltip": "Applies only to \"Save As\" and \"Copy\" (the live preview always stays downsampled to remain responsive). Turns off downsampling of large Line datasets and 2D maps (heat maps/contours) so every point is saved or copied at full resolution."
+                  "tooltip": "For \"Save As\" and \"Copy\", draws large Line datasets and 2D maps (heat maps/contours) with every data point instead of thinning them for the screen (may be slower). This is separate from the image resolution (dpi). The live preview itself always stays thinned to remain responsive."
                  },
                  {
                   "class": "QLabel",
@@ -3674,6 +3674,13 @@
                                 }
                                },
                                {
+                                "class": "QLabel",
+                                "name": "y2_log_note",
+                                "text": "",
+                                "visible": false,
+                                "enabled": true
+                               },
+                               {
                                 "class": "QCheckBox",
                                 "text": "Invert axis",
                                 "checked": false,
@@ -3997,6 +4004,13 @@
                               "receivers": {
                                "stateChanged(int)": 1
                               }
+                             },
+                             {
+                              "class": "QLabel",
+                              "name": "y_log_note",
+                              "text": "",
+                              "visible": false,
+                              "enabled": true
                              }
                             ]
                            },
@@ -4418,6 +4432,13 @@
                               "receivers": {
                                "stateChanged(int)": 1
                               }
+                             },
+                             {
+                              "class": "QLabel",
+                              "name": "x_log_note",
+                              "text": "",
+                              "visible": false,
+                              "enabled": true
                              },
                              {
                               "class": "QLabel",

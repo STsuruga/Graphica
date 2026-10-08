@@ -88,14 +88,11 @@ class ExportDialog(QDialog):
         )
 
         # 表示用の間引き(線は 20,000 点超、2D マップは1軸 500 点超)をしない
-        self.full_resolution_checkbox = QCheckBox("フル解像度でエクスポート(間引きなし)")
-        self.full_resolution_checkbox.setToolTip(
-            "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/"
-            "等高線)は画面表示同様に間引いて描画されます。このチェックを入れると"
-            "間引きを無効化し、常に全データ点/全解像度でエクスポートします"
-            "(処理が遅くなる場合があります)。Scatter/Line+Scatterのマーカーは"
-            "この設定に関わらず常に全点描画されます。"
-        )
+        self.full_resolution_checkbox = QCheckBox(tr("データを間引かずにエクスポート"))
+        self.full_resolution_checkbox.setToolTip(tr(
+            "点数の多い Line(折れ線)データセットや 2D マップ(ヒートマップ/等高線)は、画面表示と同じく間引いて描かれます"
+            "。チェックを入れると間引かず、全データ点でエクスポートします(処理が遅くなる場合があります)。画像の解像度(dpi)とは別の設定です。Scatter/Line+Scatter のマーカーは、この設定に関わらず常に全点描きます。"
+        ))
 
         self.preview_button = QPushButton("プレビュー更新")
         self.preview_button.setToolTip("現在の設定でプレビュー画像を生成します。")
@@ -240,14 +237,11 @@ class BatchExportDialog(QDialog):
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
-        self.full_resolution_checkbox = QCheckBox("フル解像度でエクスポート(間引きなし)")
-        self.full_resolution_checkbox.setToolTip(
-            "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/"
-            "等高線)は画面表示同様に間引いて描画されます。このチェックを入れると"
-            "間引きを無効化し、常に全データ点/全解像度でエクスポートします"
-            "(処理が遅くなる場合があります)。Scatter/Line+Scatterのマーカーは"
-            "この設定に関わらず常に全点描画されます。"
-        )
+        self.full_resolution_checkbox = QCheckBox(tr("データを間引かずにエクスポート"))
+        self.full_resolution_checkbox.setToolTip(tr(
+            "点数の多い Line(折れ線)データセットや 2D マップ(ヒートマップ/等高線)は、画面表示と同じく間引いて描かれます"
+            "。チェックを入れると間引かず、全データ点でエクスポートします(処理が遅くなる場合があります)。画像の解像度(dpi)とは別の設定です。Scatter/Line+Scatter のマーカーは、この設定に関わらず常に全点描きます。"
+        ))
         form.addRow(self.full_resolution_checkbox)
 
         layout.addLayout(form)

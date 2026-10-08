@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QDialog, QFontDialog
 from graphica.core.i18n import tr
 from graphica.gui import notify
 from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
-from graphica.gui import theme
+from graphica.gui import log_axis_notes, theme
 from graphica.gui.axis_bindings import CARRIED_AXIS_KEYS
 from graphica.gui.color_history import get_color_with_history
 from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
@@ -156,6 +156,7 @@ class AxisSettingsPanel:
 
             settings_to_load = self._app.project.all_plot_settings[self._app.project.active_axis_index]
             self._apply_settings_to_ui_controls(settings_to_load)
+            log_axis_notes.update_log_axis_notes(self._app)
 
     def _on_axis_setting_changed(self):
             current_settings = self._gather_settings_from_ui()

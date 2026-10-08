@@ -616,3 +616,67 @@ def test_unknown_wheel_zoom_speed_falls_back_to_normal(window):
     _add(window)
     app_settings_module.WHEEL_ZOOM_SPEED.write(window.settings, "warp")
     assert _wheel_x(window, step=1, angle_y=120) == pytest.approx(10 / 1.2)
+
+
+# --- グラフの外の余白から始める矩形ズーム ---
+
+def _top_right_margin(ax):
+    """プロットの右上の外(軸の帯ではない余白)。"""
+    box = ax.bbox
+    return int(box.x1) + 6, int(box.y1) + 6
+
+
+def test_dragging_from_the_margin_zooms_from_the_plot_edge(window):
+    _add(window)
+    ax = window.canvas.all_axes[0]
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
+    start = _top_right_margin(ax)
+    assert _nav(window).axis_band_at(*start) is None
+    end = _to_px(ax, 4, 40)
+    x_end, y_end = _to_data(ax, *end)
+
+    _drag(window, start, end)
+
+    # 右上の角(X の最大・Y の最大)から囲んだことになる
+    assert ax.get_xlim() == pytest.approx((x_end, xlim[1]))
+    assert ax.get_ylim() == pytest.approx((y_end, ylim[1]))
+
+
+def test_dragging_on_an_axis_band_still_pans(window):
+    _add(window)
+    ax = window.canvas.all_axes[0]
+    xlim = ax.get_xlim()
+    cx, cy = _band_center(window, 'x')
+
+    _drag(window, (cx, cy), (cx - 50, cy))
+
+    assert ax.get_xlim()[1] - ax.get_xlim()[0] == pytest.approx(xlim[1] - xlim[0])
+    assert ax.get_xlim() != pytest.approx(xlim)
+
+
+def test_no_margin_zoom_while_a_mode_is_active(window):
+    _add(window)
+    window._toggle_cursor_mode(True)
+    ax = window.canvas.all_axes[0]
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
+
+    _drag(window, _top_right_margin(ax), _to_px(ax, 4, 40))
+
+    assert ax.get_xlim() == xlim and ax.get_ylim() == ylim
+
+
+def test_margin_zoom_picks_the_nearest_subplot(window):
+    window.subplot_rows_spinbox.setValue(1)
+    window.subplot_cols_spinbox.setValue(2)
+    _add(window)
+    _add(window, name="right", subplot_target=1)
+    left, right = window.canvas.all_axes[0], window.canvas.all_axes[1]
+    left_lim = left.get_xlim()
+    start = (int(right.bbox.x1) + 4, int(right.bbox.y1) + 4)
+    end = _to_px(right, 4, 40)
+    x_end = _to_data(right, *end)[0]
+
+    _drag(window, start, end)
+
+    assert left.get_xlim() == left_lim
+    assert right.get_xlim()[0] == pytest.approx(x_end)

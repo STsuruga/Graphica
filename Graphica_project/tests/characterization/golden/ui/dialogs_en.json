@@ -783,11 +783,11 @@
     },
     {
      "class": "QCheckBox",
-     "text": "フル解像度でエクスポート(間引きなし)",
+     "text": "Export with all data points (no thinning)",
      "checked": false,
      "visible": true,
      "enabled": true,
-     "tooltip": "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/等高線)は画面表示同様に間引いて描画されます。このチェックを入れると間引きを無効化し、常に全データ点/全解像度でエクスポートします(処理が遅くなる場合があります)。Scatter/Line+Scatterのマーカーはこの設定に関わらず常に全点描画されます。"
+     "tooltip": "Large Line datasets and 2D maps (heat maps/contours) are thinned like on the screen. When checked, every data point is exported instead (may be slower). This is separate from the image resolution (dpi). Markers of Scatter/Line+Scatter are always drawn in full regardless of this setting."
     },
     {
      "class": "QDialogButtonBox",
@@ -2839,11 +2839,11 @@
     },
     {
      "class": "QCheckBox",
-     "text": "フル解像度でエクスポート(間引きなし)",
+     "text": "Export with all data points (no thinning)",
      "checked": false,
      "visible": true,
      "enabled": true,
-     "tooltip": "通常、点数の多いLine(折れ線)データセットや2Dマップ(ヒートマップ/等高線)は画面表示同様に間引いて描画されます。このチェックを入れると間引きを無効化し、常に全データ点/全解像度でエクスポートします(処理が遅くなる場合があります)。Scatter/Line+Scatterのマーカーはこの設定に関わらず常に全点描画されます。"
+     "tooltip": "Large Line datasets and 2D maps (heat maps/contours) are thinned like on the screen. When checked, every data point is exported instead (may be slower). This is separate from the image resolution (dpi). Markers of Scatter/Line+Scatter are always drawn in full regardless of this setting."
     },
     {
      "class": "QPushButton",
