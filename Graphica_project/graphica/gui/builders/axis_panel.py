@@ -234,6 +234,9 @@ def build_tick_format_controls(app):
     app.x_log_minor_subs_label.setVisible(False)
     app.x_log_minor_subs_combo.setVisible(False)
     app.x_log_minor_labels_checkbox.setVisible(False)
+    # 対数軸で表示されない 0 以下の値を知らせる(中身は log_axis_notes.update_log_axis_notes)
+    app.x_log_note = _log_note_label("x_log_note")
+    _insert_form_row_after(app.ui.formLayout, app.ui.x_log_checkbox, app.x_log_note)
 
     # X の単位と上に出したい単位が別々に選ばれていれば、単位を変換した第2X軸を上に付ける。
     # ラベルは短く保つ(フォームの全行でラベルの列幅を共有するので、長いとドックに横スクロールが出る。
@@ -288,6 +291,16 @@ def build_tick_format_controls(app):
     app.y_log_minor_subs_label.setVisible(False)
     app.y_log_minor_subs_combo.setVisible(False)
     app.y_log_minor_labels_checkbox.setVisible(False)
+    app.y_log_note = _log_note_label("y_log_note")
+    _insert_form_row_after(app.ui.formLayout_2, app.ui.y_log_checkbox, app.y_log_note)
+
+
+def _log_note_label(name):
+    label = QLabel()
+    label.setObjectName(name)
+    label.setWordWrap(True)
+    label.setVisible(False)
+    return label
 
 
 def build_label_editors(app):

@@ -237,6 +237,8 @@ TRANSLATIONS = {
     "小数桁数": "Decimal places",
     "目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)":
         "Decimal places of tick labels (anything but \"Auto\" overrides the exponent notation)",
+    "0 以下の値の点が {count} 個あり、対数軸では表示されません。": "{count} points are 0 or below and are not shown on a log axis.",
+    "最小値が 0 以下なので、対数軸では無視されます。": "The minimum is 0 or below, so it is ignored on a log axis.",
     "対数補助目盛": "Log minor ticks",
     "対数軸の補助目盛りをどこに打つか": "Where to put minor ticks on a log axis",
     "全て(2〜9)": "All (2–9)",

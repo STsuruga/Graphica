@@ -78,7 +78,7 @@ from graphica.core.version import APP_NAME, __version__
 from graphica.core.i18n import tr, set_language
 from graphica.core.plugin_api import load_plugins_once
 from graphica.core.plugin_types import PluginExecutionError
-from graphica.gui import app_settings
+from graphica.gui import app_settings, log_axis_notes
 from graphica.gui.app_settings import disabled_plugin_names
 from graphica.gui.datasets.colors import ColorController
 from graphica.gui.datasets.transfer import TransferController
@@ -433,6 +433,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
 
         # 表示範囲の操作(軸の上のホイール・ドラッグ、矩形ズーム、ダブルクリックでのリセットなど)は常に有効
         self.view_navigation.connect()
+        # 対数軸で表示されない値の説明は、どの経路で描き直しても最新にする
+        self.canvas.mpl_connect('draw_event', lambda event: log_axis_notes.update_log_axis_notes(self, event))
         # 凡例をドラッグした位置を設定へ保存する
         self.canvas.mpl_connect('button_release_event', self._on_legend_drag_release)
 
