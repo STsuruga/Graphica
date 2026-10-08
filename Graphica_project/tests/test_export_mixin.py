@@ -288,7 +288,7 @@ def _pump_events_until_batch_export_task_done(window, max_iterations=300):
 
 def _patch_batch_export_dialog(monkeypatch, *, accepted=True, mode_index=0, output_dir="",
                                 prefix="export", format_index=0, subplot_checked=None,
-                                project_file_paths=None, full_resolution=None):
+                                project_file_paths=None, full_resolution=None, visible_range=None):
     class FakeBatchExportDialog(BatchExportDialog):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -305,6 +305,8 @@ def _patch_batch_export_dialog(monkeypatch, *, accepted=True, mode_index=0, outp
                     self.project_files_list.addItem(p)
             if full_resolution is not None:
                 self.full_resolution_checkbox.setChecked(full_resolution)
+            if visible_range is not None:
+                self.visible_range_checkbox.setChecked(visible_range)
 
         def exec(self):
             return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
@@ -1239,3 +1241,38 @@ def test_generate_preview_of_a_large_size_uses_a_reduced_dpi(tmp_path, monkeypat
     assert width_px <= dialog.preview_label.width() * 2 + 1
     assert height_px <= dialog.preview_label.height() * 2 + 1
     assert not dialog.preview_label.pixmap().isNull()
+
+
+# --- 表示中の範囲で書き出す(バッチエクスポート) ---
+
+def _zoom_main_view(window):
+    """画面の図の X を 1.5〜2.5 にマウスで変えたことにする。"""
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(1.5, 2.5)
+    window.view_navigation.remember_view(0, ['x'])
+
+
+@pytest.mark.parametrize("visible_range, expected", [(True, (1.5, 2.5)), (False, None)])
+def test_batch_export_subplots_uses_the_visible_range(tmp_path, monkeypatch, visible_range, expected):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    _zoom_main_view(window)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    _patch_batch_export_dialog(monkeypatch, accepted=True, output_dir=str(out_dir), mode_index=0,
+                                subplot_checked=[True], visible_range=visible_range)
+    monkeypatch.setattr(notify_module.QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    saved = []
+    monkeypatch.setattr(window, "_save_figure_with_options",
+                        lambda fig, path, options: saved.append(tuple(fig.axes[0].get_xlim())))
+
+    window._on_batch_export()
+    _pump_events_until_batch_export_task_done(window)
+
+    assert len(saved) == 1
+    if expected is None:
+        assert saved[0] != pytest.approx((1.5, 2.5))
+    else:
+        assert saved[0] == pytest.approx(expected)
+    # 書き出しで画面の記録は変わらない
+    assert 'x' in window.canvas.view_overrides[0]

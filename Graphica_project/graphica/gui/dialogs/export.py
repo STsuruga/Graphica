@@ -180,6 +180,10 @@ class BatchExportDialog(QDialog):
             item.setCheckState(Qt.CheckState.Checked)
             self.subplot_list.addItem(item)
         subplot_page_layout.addWidget(self.subplot_list)
+        self.visible_range_checkbox = QCheckBox(tr("表示中の範囲で書き出す"))
+        self.visible_range_checkbox.setChecked(True)
+        self.visible_range_checkbox.setToolTip(tr("グラフの上でマウスで拡大・移動した範囲で書き出します。外すと、プロットのプロパティで決めた範囲(自動ならデータ全体)で書き出します。"))
+        subplot_page_layout.addWidget(self.visible_range_checkbox)
         self.stack.addWidget(subplot_page)
 
         files_page = QWidget()

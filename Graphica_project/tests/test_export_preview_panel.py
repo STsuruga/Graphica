@@ -612,3 +612,59 @@ def test_save_refuses_an_image_too_large_to_draw_before_asking_for_a_file(window
     panel._on_save_clicked()
 
     assert asked == []
+
+
+# --- 表示中の範囲で書き出す ---
+
+def _zoom_main_view(window):
+    ax = window.canvas.all_axes[0]
+    ax.set_xlim(2.0, 4.0)
+    window.view_navigation.remember_view(0, ['x'])
+
+
+def test_visible_range_is_on_by_default_and_in_the_options(window_with_plot):
+    panel = window_with_plot.export_preview_panel
+    assert panel.visible_range_checkbox.isChecked()
+    assert panel.get_options()["visible_range"] is True
+
+
+def test_temp_canvas_uses_the_range_zoomed_on_the_plot(window_with_plot):
+    window = window_with_plot
+    _zoom_main_view(window)
+    canvas = window.export_preview_panel._make_temp_canvas_for_full_figure(4, 3, 50)
+    assert canvas.all_axes[0].get_xlim() == pytest.approx((2.0, 4.0))
+
+
+def test_unchecking_uses_the_range_from_the_settings(window_with_plot):
+    window = window_with_plot
+    _zoom_main_view(window)
+    window.export_preview_panel.visible_range_checkbox.setChecked(False)
+    canvas = window.export_preview_panel._make_temp_canvas_for_full_figure(4, 3, 50)
+    assert canvas.all_axes[0].get_xlim() != pytest.approx((2.0, 4.0))
+
+
+def test_preview_does_not_change_the_plot_s_recorded_range(window_with_plot):
+    window = window_with_plot
+    _zoom_main_view(window)
+    before = dict(window.canvas.view_overrides[0])
+    window.export_preview_panel._make_temp_canvas_for_full_figure(4, 3, 50)
+    assert window.canvas.view_overrides[0] == before
+
+
+def test_changing_the_view_refreshes_the_preview(window_with_plot, monkeypatch):
+    window = window_with_plot
+    calls = []
+    monkeypatch.setattr(window.export_preview_panel, "refresh_preview", lambda: calls.append(1))
+    nav = window.view_navigation
+    _zoom_main_view(window)
+    nav.forget_view(0, ['x'])
+    nav.forget_all_views()
+    assert len(calls) == 3
+
+
+def test_toggling_the_checkbox_refreshes_the_preview(window_with_plot, monkeypatch):
+    panel = window_with_plot.export_preview_panel
+    calls = []
+    monkeypatch.setattr(panel, "_refresh_timer", type("T", (), {"start": lambda self: calls.append(1)})())
+    panel.visible_range_checkbox.setChecked(False)
+    assert calls == [1]

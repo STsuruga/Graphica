@@ -2,6 +2,7 @@
 
 一時的な MplCanvas に描くので、画面のキャンバスには触れない。
 """
+import copy
 import io
 import os
 import logging
@@ -69,6 +70,12 @@ class ExportPreviewPanel(QWidget):
         self.transparent_checkbox.setChecked(True)
         form.addRow(self.transparent_checkbox)
 
+        # 「名前を付けてエクスポート」は画面の図をそのまま書き出すので、既定はそれと同じ範囲にする
+        self.visible_range_checkbox = QCheckBox("表示中の範囲で書き出す")
+        self.visible_range_checkbox.setChecked(True)
+        self.visible_range_checkbox.setToolTip("グラフの上でマウスで拡大・移動した範囲で書き出します。外すと、プロットのプロパティで決めた範囲(自動ならデータ全体)で書き出します。")
+        form.addRow(self.visible_range_checkbox)
+
         self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
         self.svg_text_as_path_checkbox.setToolTip(
             "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
@@ -115,6 +122,7 @@ class ExportPreviewPanel(QWidget):
         self.height_spinbox.valueChanged.connect(self.refresh_preview)
         self.unit_combo.currentIndexChanged.connect(self.refresh_preview)
         self.dpi_spinbox.valueChanged.connect(self.refresh_preview)
+        self.visible_range_checkbox.toggled.connect(self.refresh_preview)
 
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
@@ -131,6 +139,7 @@ class ExportPreviewPanel(QWidget):
             "transparent": self.transparent_checkbox.isChecked(),
             "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),
             "full_resolution": self.full_resolution_checkbox.isChecked(),
+            "visible_range": self.visible_range_checkbox.isChecked(),
         }
 
     def refresh_preview(self):
@@ -204,6 +213,9 @@ class ExportPreviewPanel(QWidget):
 
         temp_canvas = MplCanvas(width=width_in, height=height_in, dpi=dpi)
         temp_canvas.dark_mode = mw.canvas.dark_mode
+        if self.visible_range_checkbox.isChecked():
+            # 当て直すときに設定と合わない範囲を消すので、画面の記録を写して渡す
+            temp_canvas.view_overrides = copy.deepcopy(mw.canvas.view_overrides)
         temp_canvas.redraw_all(
             mw.project.datasets, rows, cols, mw.project.all_plot_settings, layout_mode=layout_mode,
             panel_labels_enabled=mw.project.panel_labels_enabled,

@@ -422,6 +422,10 @@ TRANSLATIONS = {
         "Large Line datasets and 2D maps (heat maps/contours) are thinned like on the screen. When checked, every "
         "data point is exported instead (may be slower). This is separate from the image resolution (dpi). Markers "
         "of Scatter/Line+Scatter are always drawn in full regardless of this setting.",
+    "表示中の範囲で書き出す": "Export the visible range",
+    "グラフの上でマウスで拡大・移動した範囲で書き出します。外すと、プロットのプロパティで決めた範囲(自動ならデータ全体)で書き出します。":
+        "Exports the range you zoomed or panned to on the plot. When unchecked, exports the range set in the plot "
+        "properties (the whole data when automatic).",
     "プレビューがここに表示されます": "The preview appears here",
     "名前を付けて保存...": "Save As...",
     "コピー": "Copy",
