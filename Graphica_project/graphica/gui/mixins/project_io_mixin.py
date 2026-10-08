@@ -273,7 +273,12 @@ class ProjectIOMixin:
             self._default_dataset_styles = list(template_data.get('dataset_styles') or [])
 
     def _style_imported_dataset(self, dataset):
-        """既定の書式テンプレートのデータセットのスタイルを、読み込んだ順に繰り返し当てる(手動の適用と同じ順)。"""
+        """読み込んだデータセットに、今のパレットの次の色を当て、既定の書式テンプレートがあればそのスタイルを
+        読み込んだ順に繰り返し当てる(手動の適用と同じ順。テンプレートの色が優先)。"""
+        # 何もしないと全部同じ既定の色になり、自動配色を押すまで見分けられない
+        color_cycle = self.colors.active_color_cycle()
+        if color_cycle:
+            dataset.color = color_cycle[len(self.project.datasets) % len(color_cycle)]
         styles = getattr(self, '_default_dataset_styles', None)
         if not styles:
             return

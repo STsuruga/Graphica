@@ -180,6 +180,9 @@ class Dataset:
     # 'cubic_spline'(200点に補間)/ 'moving_average' / 'median' / 'gaussian'(点の数はそのまま)
     smoothing_method: str = 'cubic_spline'
     alpha: float = 1.0
+    # 凡例に出す文字。空ならデータセット名(リストの名前を変えずに凡例だけ変えられる)
+    legend_label: str = ""
+    hide_from_legend: bool = False
 
     # 線の色を color から gradient_color2 へ変える。'fill' と 'both' は Area の塗りにも効く
     gradient_enabled: bool = False
@@ -489,3 +492,10 @@ class Dataset:
         if self.__dict__.get('plot_type') == 'Waterfall':
             self.__dict__['plot_type'] = 'Line'
             self.__dict__['waterfall_enabled'] = True
+
+
+def legend_text(dataset: Any) -> str:
+    """凡例に出す文字。凡例に出さないなら、matplotlib が凡例から外す "_nolegend_"。描画とスクリプトの書き出しで共有する。"""
+    if getattr(dataset, 'hide_from_legend', False):
+        return "_nolegend_"
+    return getattr(dataset, 'legend_label', "") or dataset.name

@@ -133,10 +133,10 @@ def test_the_original_form_layout_is_left_empty(window):
 
 
 def test_every_property_row_lives_in_exactly_one_section(window):
-    """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行、+ ウォーターフォールのオフセットの指定1行)が
+    """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行、+ ウォーターフォールのオフセットの指定1行、+ 凡例の表示名と「凡例に表示しない」2行)が
     過不足なく7セクションに分配されていること。"""
     total = sum(window._prop_form(key).rowCount() for key, _ in DATASET_PROPERTY_SECTIONS)
-    assert total == 41
+    assert total == 43
 
 
 def test_no_property_widget_is_orphaned_from_every_layout(window):

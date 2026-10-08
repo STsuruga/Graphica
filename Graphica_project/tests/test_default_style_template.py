@@ -133,3 +133,49 @@ def test_the_preferences_dialog_offers_and_clears_the_template(qapp, monkeypatch
         assert dialog.get_default_style_template() == ""
     finally:
         dialog.close()
+
+
+
+# --- 読み込んだデータセットの自動配色(#111) ---
+
+def test_imported_datasets_get_the_next_palette_colors(tmp_path, monkeypatch):
+    from graphica.core.color_palettes import default_color_cycle
+    window = _window(tmp_path, monkeypatch)
+    cycle = default_color_cycle()
+
+    colors = [_paste(window, monkeypatch).color for _ in range(3)]
+
+    assert colors == cycle[:3]
+
+
+def test_imported_colors_follow_the_active_palette(tmp_path, monkeypatch):
+    from graphica.core.color_palettes import BUILTIN_PALETTES
+    window = _window(tmp_path, monkeypatch)
+    name = next(iter(BUILTIN_PALETTES))
+    window.colors.set_active_palette(name)
+
+    first = _paste(window, monkeypatch)
+    second = _paste(window, monkeypatch)
+
+    assert [first.color, second.color] == BUILTIN_PALETTES[name][:2]
+
+
+def test_imported_colors_continue_after_existing_datasets(tmp_path, monkeypatch):
+    from graphica.core.color_palettes import default_color_cycle
+    window = _window(tmp_path, monkeypatch)
+    for i in range(3):
+        window.project.datasets.append(
+            Dataset(name=f"old{i}", df=pd.DataFrame({"x": [1], "y": [1]}), x_col_name="x", y_col_name="y"))
+
+    dataset = _paste(window, monkeypatch)
+
+    assert dataset.color == default_color_cycle()[3]
+
+
+def test_the_template_color_wins_over_the_palette(tmp_path, monkeypatch, template_path):
+    window = _window(tmp_path, monkeypatch, template_path)
+    _paste(window, monkeypatch)
+
+    second = _paste(window, monkeypatch)
+
+    assert second.color == '#00aa00'

@@ -94,6 +94,10 @@ DATASET_PROPERTY_BINDINGS = (
     Binding('subplot_target', 'subplot_target_combo', None, lambda _o, w, v: w.setCurrentIndex(v),
             'currentIndexChanged', (_PANEL + 'on_subplot_target_changed',)),
     item_data('error_display', 'error_display_combo', (WATCH,)),
+    # textChanged だと1文字ごとに描き直して重いので editingFinished
+    Binding('legend_label', 'legend_label_edit', lambda _o, w: w.text().strip(), lambda _o, w, v: w.setText(v or ''),
+            'editingFinished', (WATCH,)),
+    check('hide_from_legend', 'hide_from_legend_checkbox', (WATCH,), signal='toggled'),
     item_data('nan_policy', 'nan_policy_combo', (WATCH,)),
     Binding('data_kind', 'data_2d_checkbox', None, lambda _o, w, v: w.setChecked(v == '2d_grid'), 'toggled',
             (_PANEL + 'on_data_2d_toggled',)),
