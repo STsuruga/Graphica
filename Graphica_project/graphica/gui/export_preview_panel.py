@@ -76,12 +76,11 @@ class ExportPreviewPanel(QWidget):
         form.addRow(self.svg_text_as_path_checkbox)
 
         # プレビューは応答を優先して常に間引いて描く。このチェックは保存とコピーだけに効く
-        self.full_resolution_checkbox = QCheckBox("フル解像度で保存/コピー(間引きなし)")
+        # 解像度(dpi)の設定と取り違えられたので、「間引かない」ことを名前にする
+        self.full_resolution_checkbox = QCheckBox("データを間引かずに保存/コピー")
         self.full_resolution_checkbox.setToolTip(
-            "「名前を付けて保存」「コピー」の出力にのみ適用されます(常時更新される"
-            "プレビュー自体は応答性のため常に間引いたまま表示します)。点数の多い"
-            "Line(折れ線)データセットや2Dマップ(ヒートマップ/等高線)の間引きを"
-            "無効化し、常に全データ点/全解像度で保存/コピーします。"
+            "「名前を付けて保存」「コピー」で、点数の多い Line(折れ線)データセットや 2D マップ(ヒートマップ/等高線)を、"
+            "画面表示用に間引かず全データ点で描きます(処理が遅くなる場合があります)。画像の解像度(dpi)とは別の設定です。常に描き直すプレビュー自体は、応答を優先して間引いたまま表示します。"
         )
         form.addRow(self.full_resolution_checkbox)
 
