@@ -659,6 +659,90 @@ class AboutDialog(QDialog):
         layout.addWidget(button_box)
 
 
+class UpdateDialog(QDialog):
+    """新しい版の知らせ。リリースノートと、配布の形(gui/updater.install_kind)に合った更新の方法を出す。
+
+    押したものは choice に入る: 'install'(アプリの中で更新)/ 'download'(添付ファイルを開く)/ 'page'(リリースのページ)/ None。
+    """
+    PIP_COMMAND = "python -m pip install -U graphica-plot"
+
+    def __init__(self, update_info, current_version, install_kind, has_asset, parent=None):
+        super().__init__(parent)
+        from graphica.core.i18n import tr
+
+        self.choice = None
+        self.setWindowTitle(tr("新しいバージョンがあります"))
+        self.resize(560, 460)
+        layout = QVBoxLayout(self)
+
+        tag = update_info.get('tag_name', '')
+        layout.addWidget(QLabel(tr("新しいバージョン {new} が公開されています(今のバージョン: {current})。").format(
+            new=tag, current=current_version)))
+
+        notes = QTextBrowser()
+        notes.setOpenExternalLinks(True)
+        notes.setMarkdown(update_info.get('body') or tr("(リリースノートはありません)"))
+        layout.addWidget(notes, 1)
+
+        explanation = QLabel(self._explanation(install_kind, has_asset, tr))
+        explanation.setWordWrap(True)
+        explanation.setObjectName("update_explanation")
+        layout.addWidget(explanation)
+
+        if install_kind == 'pip':
+            command_row = QHBoxLayout()
+            self.command_edit = QLineEdit(self.PIP_COMMAND)
+            self.command_edit.setReadOnly(True)
+            command_row.addWidget(self.command_edit, 1)
+            copy_button = QPushButton(tr("コピー"))
+            copy_button.clicked.connect(self._copy_command)
+            command_row.addWidget(copy_button)
+            layout.addLayout(command_row)
+
+        buttons = QDialogButtonBox()
+        self.primary_button = None
+        if has_asset and install_kind == 'installer':
+            self.primary_button = buttons.addButton(tr("今すぐ更新"), QDialogButtonBox.ButtonRole.AcceptRole)
+            self.primary_button.clicked.connect(lambda: self._finish('install'))
+        elif has_asset and install_kind in ('windows_zip', 'macos'):
+            label = tr("ZIP をダウンロード") if install_kind == 'windows_zip' else tr("macOS 版をダウンロード")
+            self.primary_button = buttons.addButton(label, QDialogButtonBox.ButtonRole.AcceptRole)
+            self.primary_button.clicked.connect(lambda: self._finish('download'))
+        page_button = buttons.addButton(tr("リリースのページを開く"), QDialogButtonBox.ButtonRole.ActionRole)
+        page_button.clicked.connect(lambda: self._finish('page'))
+        later_button = buttons.addButton(tr("あとで"), QDialogButtonBox.ButtonRole.RejectRole)
+        later_button.clicked.connect(self.reject)
+        if self.primary_button is not None:
+            self.primary_button.setDefault(True)
+        layout.addWidget(buttons)
+
+    @staticmethod
+    def _explanation(install_kind, has_asset, tr):
+        if install_kind == 'installer' and has_asset:
+            return tr("「今すぐ更新」を押すと、新しいインストーラーをダウンロードして確かめたあと、Graphica を閉じて更新し、"
+                      "自動で起動し直します。設定・プラグイン・自動保存はそのまま残ります。"
+                      "保存していない変更があれば、閉じる前に確認します。")
+        if install_kind == 'windows_zip' and has_asset:
+            return tr("ZIP を展開し、今の Graphica のフォルダと置き換えてください。設定とプラグインはユーザーごとの"
+                      "フォルダにあるので残ります。インストーラー版(setup.exe)を使うと、次からはアプリの中で更新できます。")
+        if install_kind == 'macos' and has_asset:
+            return tr("ZIP を展開した Graphica.app を、「アプリケーション」フォルダの今の Graphica.app と置き換えてください。"
+                      "設定とプラグインは残ります。署名していないため、初回は右クリックから「開く」を選んでください。")
+        if install_kind == 'pip':
+            return tr("pip で入れた Graphica は、次のコマンドで更新できます。")
+        if install_kind == 'source':
+            return tr("ソースから実行しています。git pull で最新にしてください。")
+        return tr("リリースのページから、お使いの環境に合ったファイルをダウンロードしてください。")
+
+    def _copy_command(self):
+        from PySide6.QtWidgets import QApplication
+        QApplication.clipboard().setText(self.PIP_COMMAND)
+
+    def _finish(self, choice):
+        self.choice = choice
+        self.accept()
+
+
 class WelcomeDialog(QDialog):
     """初回の案内とスタートアップ画面。操作ガイド、サンプル、最近使ったファイル、書式テンプレートへの入口。
 

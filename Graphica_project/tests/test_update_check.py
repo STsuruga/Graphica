@@ -6,7 +6,7 @@ import urllib.error
 import pytest
 
 import graphica.core.update_check as update_check_module
-from graphica.core.update_check import is_newer_version, fetch_latest_release_info, check_for_update
+from graphica.core.update_check import check_for_update, fetch_latest_release_info, is_newer_version, pick_asset
 
 
 # --- is_newer_version / _parse_version ---
@@ -62,6 +62,8 @@ def test_fetch_latest_release_info_parses_expected_fields(monkeypatch):
         'tag_name': 'v1.4.0',
         'html_url': 'https://github.com/x/y/releases/tag/v1.4.0',
         'name': 'v1.4.0',
+        'body': '',
+        'assets': [],
     }
 
 
@@ -113,3 +115,45 @@ def test_check_for_update_accepts_and_ignores_task_runner_kwargs(monkeypatch):
     result = check_for_update("1.3.5", report_progress=lambda *a: None, is_cancelled=lambda: False)
 
     assert result is None
+
+
+# --- リリースノートと添付ファイル ---
+
+RELEASE = {
+    'tag_name': 'v2.2.0', 'html_url': 'https://github.com/x/y/releases/tag/v2.2.0', 'name': 'v2.2.0',
+    'body': '## 新機能\n- something',
+    'assets': [
+        {'name': 'Graphica-2.2.0-setup.exe', 'browser_download_url': 'https://x/setup.exe', 'size': 123,
+         'digest': 'sha256:ABCDEF'},
+        {'name': 'Graphica-windows.zip', 'browser_download_url': 'https://x/win.zip', 'size': 456},
+        {'name': 'Graphica-macos.zip', 'browser_download_url': 'https://x/mac.zip', 'size': 789, 'digest': None},
+        'not a dict',
+    ],
+}
+
+
+def test_fetch_reads_release_notes_and_assets(monkeypatch):
+    monkeypatch.setattr(update_check_module.urllib.request, "urlopen", lambda *a, **k: _FakeResponse(RELEASE))
+
+    result = fetch_latest_release_info()
+
+    assert result['body'] == '## 新機能\n- something'
+    assert result['assets'] == [
+        {'name': 'Graphica-2.2.0-setup.exe', 'url': 'https://x/setup.exe', 'size': 123, 'sha256': 'abcdef'},
+        {'name': 'Graphica-windows.zip', 'url': 'https://x/win.zip', 'size': 456, 'sha256': ''},
+        {'name': 'Graphica-macos.zip', 'url': 'https://x/mac.zip', 'size': 789, 'sha256': ''},
+    ]
+
+
+@pytest.mark.parametrize("kind, expected", [
+    ('installer', 'Graphica-2.2.0-setup.exe'), ('windows_zip', 'Graphica-windows.zip'),
+    ('macos', 'Graphica-macos.zip'), ('pip', None), ('source', None)])
+def test_pick_asset_for_each_install_kind(monkeypatch, kind, expected):
+    monkeypatch.setattr(update_check_module.urllib.request, "urlopen", lambda *a, **k: _FakeResponse(RELEASE))
+    asset = pick_asset(fetch_latest_release_info(), kind)
+    assert (asset['name'] if asset else None) == expected
+
+
+def test_pick_asset_returns_none_when_the_release_lacks_the_file():
+    assert pick_asset({'assets': [{'name': 'other.zip', 'url': 'https://x/o.zip'}]}, 'installer') is None
+    assert pick_asset({}, 'installer') is None

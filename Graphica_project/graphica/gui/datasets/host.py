@@ -93,7 +93,8 @@ class DatasetHost:
         self._app.statusBar().showMessage(text, msecs)
 
     def set_fit_button_enabled(self, enabled):
-        self._app.fit_curve_button.setEnabled(enabled)
+        # 計算の間に選択を外していたら、終わっても押せないままにする(選択でボタンを決める update_ui_state と同じ)
+        self._app.fit_curve_button.setEnabled(enabled and bool(self.selected_datasets()))
 
     def set_multi_peak_fit_button_enabled(self, enabled):
         self._app.multi_peak_fit_button.setEnabled(enabled)

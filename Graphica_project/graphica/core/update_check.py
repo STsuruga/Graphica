@@ -20,8 +20,22 @@ def is_newer_version(remote_version: str, local_version: str) -> bool:
     return _parse_version(remote_version) > _parse_version(local_version)
 
 
-def fetch_latest_release_info(timeout: float = _DEFAULT_TIMEOUT_SEC) -> dict[str, str]:
-    """最新版の {'tag_name', 'html_url', 'name'}。通信や解釈の失敗は例外のまま(呼び出し側で捕まえる)。"""
+def _asset_info(asset: dict[str, Any]) -> dict[str, Any]:
+    digest = asset.get('digest') or ''
+    return {
+        'name': asset.get('name', '') or '',
+        'url': asset.get('browser_download_url', '') or '',
+        'size': int(asset.get('size') or 0),
+        # GitHub が添付ファイルに付ける 'sha256:<16進>'。無い(古い)添付ファイルでは空
+        'sha256': digest.split(':', 1)[1].lower() if digest.startswith('sha256:') else '',
+    }
+
+
+def fetch_latest_release_info(timeout: float = _DEFAULT_TIMEOUT_SEC) -> dict[str, Any]:
+    """最新版の {'tag_name', 'html_url', 'name', 'body'(リリースノート), 'assets'(添付ファイル)}。
+
+    通信や解釈の失敗は例外のまま(呼び出し側で捕まえる)。
+    """
     request = urllib.request.Request(
         _RELEASES_LATEST_URL,
         headers={'Accept': 'application/vnd.github+json', 'User-Agent': 'Graphica-update-check'},
@@ -32,11 +46,32 @@ def fetch_latest_release_info(timeout: float = _DEFAULT_TIMEOUT_SEC) -> dict[str
         'tag_name': data.get('tag_name', '') or '',
         'html_url': data.get('html_url') or f'https://github.com/{GITHUB_REPO}/releases',
         'name': data.get('name', '') or '',
+        'body': data.get('body', '') or '',
+        'assets': [_asset_info(asset) for asset in data.get('assets') or [] if isinstance(asset, dict)],
     }
 
 
-def check_for_update(current_version: str, timeout: float = _DEFAULT_TIMEOUT_SEC, **_ignored: Any) -> dict[str, str] | None:
-    """TaskRunner 用。新しい版があれば {'tag_name', 'html_url', 'name'}、無ければ None。"""
+# 配布の形 -> 更新に使う添付ファイルの名前の条件(リリースに付ける名前は docs/dev/RELEASE_CHECKLIST.md)
+_ASSET_MATCHERS = {
+    'installer': lambda name: name.startswith('Graphica-') and name.endswith('-setup.exe'),
+    'windows_zip': lambda name: name == 'Graphica-windows.zip',
+    'macos': lambda name: name == 'Graphica-macos.zip',
+}
+
+
+def pick_asset(update_info: dict[str, Any], install_kind: str) -> dict[str, Any] | None:
+    """その配布の形の更新に使う添付ファイル。無ければ None(ダウンロードページを案内する)。"""
+    matches = _ASSET_MATCHERS.get(install_kind)
+    if matches is None:
+        return None
+    for asset in update_info.get('assets') or []:
+        if asset.get('url') and matches(asset.get('name', '')):
+            return asset
+    return None
+
+
+def check_for_update(current_version: str, timeout: float = _DEFAULT_TIMEOUT_SEC, **_ignored: Any) -> dict[str, Any] | None:
+    """TaskRunner 用。新しい版があれば fetch_latest_release_info() の辞書、無ければ None。"""
     info = fetch_latest_release_info(timeout=timeout)
     if info['tag_name'] and is_newer_version(info['tag_name'], current_version):
         return info

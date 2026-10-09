@@ -112,9 +112,9 @@ def test_all_covers_every_defined_dialog():
 def test_the_expected_number_of_dialogs_survived_the_split():
     """
     分割は**純粋な移動**なので、クラスが増減していたら何かを取りこぼしている。
-    分割時点で47個。意図してダイアログを増やしたらこの数字も更新すること(注釈の文字のダイアログを足して48)。
+    分割時点で47個。意図してダイアログを増やしたらこの数字も更新すること(注釈の文字のダイアログを足して48、更新のダイアログを足して49)。
     """
-    assert len(dialogs_package.__all__) == 48
+    assert len(dialogs_package.__all__) == 49
 
 
 # --- 呼び出し側との互換 ---

@@ -83,6 +83,8 @@ class DatasetTreePanel:
     def _on_dataset_search_changed(self, text):
         """名前に検索文字列を含むデータセットだけを出す。フォルダは中に1つでも当たりがあれば出す。"""
         self._app.dataset_order.filter_by_name(text)
+        # 隠れた項目は選択に数えないので、削除などのボタンを決め直す(選択の通知は出ない)
+        self._app.property_panel.update_ui_state()
 
     def _on_new_folder(self):
         """選択中がフォルダならその中に、そうでなければ一番上に作る。"""
@@ -178,6 +180,11 @@ class DatasetTreePanel:
             return
 
         self._app._remove_dataset_items_with_undo(self._top_level_selected_items(selected_items))
+        # Qt は隣の項目を今の項目にするだけで選ばない。選んでおけば、続けてそのまま操作できる
+        tree = self._app.ui.dataset_list_widget
+        neighbour = tree.currentItem()
+        if neighbour is not None and not neighbour.isSelected():
+            tree.setCurrentItem(neighbour)
 
     def _find_dataset_row(self, dataset):
         return self._app.dataset_order.find_row(dataset)
@@ -398,6 +405,7 @@ class DatasetTreePanel:
         self._app.new_folder_button.clicked.connect(self._on_new_folder)
         self._app.dataset_search_edit.textChanged.connect(self._on_dataset_search_changed)
         self._app.ui.dataset_list_widget.currentItemChanged.connect(self._app.property_panel.on_dataset_selected)
+        self._app.ui.dataset_list_widget.itemSelectionChanged.connect(self._app.property_panel.on_dataset_selected)
         self._app.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
         self._app.ui.dataset_list_widget.itemClicked.connect(self._on_dataset_tree_item_clicked)
         # ドラッグでの並べ替え(描画の重なり順)を project.datasets に合わせる
