@@ -308,6 +308,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._data_load_task_runner = None
         self._batch_export_task_runner = None
         self._update_check_task_runner = None
+        self._update_download_runner = None
         # 複数ファイルをまとめて読み込むときの待ち行列と進捗
         self._data_load_queue = []
         self._data_load_queue_total = 0
@@ -611,6 +612,18 @@ class PlotterApp(QMainWindow, UISetupMixin,
             self._update_check_task_runner.wait()
             self._update_check_task_runner.deleteLater()
             self._update_check_task_runner = None
+
+        # 同じ理由(ダウンロードは止めると途中のファイルを消して戻る)
+        if self._update_download_runner is not None:
+            try:
+                self._update_download_runner.succeeded.disconnect()
+                self._update_download_runner.failed.disconnect()
+            except (RuntimeError, TypeError):
+                pass
+            self._update_download_runner.requestInterruption()
+            self._update_download_runner.wait()
+            self._update_download_runner.deleteLater()
+            self._update_download_runner = None
 
         if self._run_startup_checks:
             app_settings.CLEAN_EXIT.write(self.settings, True)
