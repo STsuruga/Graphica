@@ -5,14 +5,14 @@ matplotlib は対数軸の 0 以下の点を黙って消し、0 以下の最小�
 import numpy as np
 import pandas as pd
 
-from graphica.core.axis_settings import axis_setting
+from graphica.core.axis_settings import axis_setting, manual_axis_range
 from graphica.core.i18n import tr
 
-# 軸のキー -> (対数の設定, 自動スケールの設定, 最小値の設定, 説明の欄の名前)
+# 軸のキー -> (対数の設定, 説明の欄の名前)
 _AXES = {
-    'x': ('x_log', 'x_autoscale', 'x_min', 'x_log_note'),
-    'y': ('y_log', 'y_autoscale', 'y_min', 'y_log_note'),
-    'y2': ('y2_log', 'y2_autoscale', 'y2_min', 'y2_log_note'),
+    'x': ('x_log', 'x_log_note'),
+    'y': ('y_log', 'y_log_note'),
+    'y2': ('y2_log', 'y2_log_note'),
 }
 
 
@@ -51,13 +51,14 @@ def update_log_axis_notes(app, _event=None):
     settings_list = app.project.all_plot_settings
     index = app.project.active_axis_index
     settings = settings_list[index] if 0 <= index < len(settings_list) else None
-    for axis_key, (log_key, autoscale_key, min_key, note_name) in _AXES.items():
+    for axis_key, (log_key, note_name) in _AXES.items():
         note = getattr(app, note_name, None)
         if note is None:
             continue
         text = ""
         if settings is not None and axis_setting(settings, log_key):
-            min_ignored = not axis_setting(settings, autoscale_key) and axis_setting(settings, min_key) <= 0
+            manual = manual_axis_range(settings, axis_key)
+            min_ignored = manual is not None and manual[0] <= 0
             count = nonpositive_point_count(app.canvas, app.project.datasets, index, axis_key)
             text = log_note_text(count, min_ignored)
         note.setText(text)

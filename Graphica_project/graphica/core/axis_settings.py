@@ -117,6 +117,28 @@ LEGACY_FALLBACK_KEYS = {
 }
 
 
+def manual_axis_range(settings: dict[str, Any], axis_key: str) -> tuple[float, float] | None:
+    """手動で決めた範囲を小さい順で。自動スケールか、最小と最大が同じなら None。axis_key は 'x' / 'y' / 'y2'。
+
+    最小に大きい方を入れても範囲として使う(向きは axis_inverted で決める)。黙って無視すると自動の範囲になって紛らわしい。
+    """
+    if axis_setting(settings, f'{axis_key}_autoscale'):
+        return None
+    low, high = axis_setting(settings, f'{axis_key}_min'), axis_setting(settings, f'{axis_key}_max')
+    if low == high:
+        return None
+    return (low, high) if low < high else (high, low)
+
+
+def axis_inverted(settings: dict[str, Any], axis_key: str) -> bool:
+    """軸を大きい方から並べるか。「軸を反転」に加え、手動の範囲で最小に大きい方を入れていれば向きを入れ替える。"""
+    inverted = bool(axis_setting(settings, f'{axis_key}_invert'))
+    if not axis_setting(settings, f'{axis_key}_autoscale') \
+            and axis_setting(settings, f'{axis_key}_min') > axis_setting(settings, f'{axis_key}_max'):
+        inverted = not inverted
+    return inverted
+
+
 def axis_setting(settings: dict[str, Any], key: str) -> Any:
     """settings の key の値。無ければ(古いキーがあればその値、それも無ければ)既定値。"""
     if key in settings:

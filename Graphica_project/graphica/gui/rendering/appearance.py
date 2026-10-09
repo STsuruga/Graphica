@@ -2,7 +2,7 @@
 import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
 import numpy as np
-from graphica.core.axis_settings import axis_setting
+from graphica.core.axis_settings import axis_inverted, axis_setting, manual_axis_range
 from graphica.core.unit_conversion import X_AXIS_UNIT_LABELS, X_AXIS_UNIT_NONE, convert_x_axis_unit
 from graphica.gui.mathtext_preview import families_for_texts, font_kwargs_for_text
 from graphica.gui.rendering.common import (
@@ -22,7 +22,7 @@ def apply_appearance(canvas, ax, axis_index, settings):
     # 文字列カテゴリ軸では、範囲・対数などの数値向けの設定はカテゴリの位置と噛み合わないので使わない
     is_category_x = axis_index < len(canvas.axis_is_category_x) and canvas.axis_is_category_x[axis_index]
 
-    canvas._apply_limits_and_scale(ax, settings, is_category_x)
+    canvas._apply_limits_and_scale(ax, settings, is_category_x, axis_index)
     canvas._apply_tick_locators(ax, settings, is_date_x, is_category_x)
     style = canvas._axis_text_and_line_style(settings)
     canvas._apply_titles_and_labels(ax, settings, style)
@@ -55,28 +55,38 @@ def apply_view_override(canvas, ax, axis_index, settings):
         (target.set_xlim if axis_key == 'x' else target.set_ylim)(limits)
 
 
-def apply_axis_range(ax, settings, axis_key, is_category_x=False):
-    """設定どおりの範囲を当てる。axis_key は 'x' / 'y' / 'y2'('y2' なら ax は第2Y軸)。描画と範囲のリセットの共通の経路。"""
+def apply_axis_range(ax, settings, axis_key, is_category_x=False, shift=(0.0, 0.0)):
+    """設定どおりの範囲を当てる。axis_key は 'x' / 'y' / 'y2'('y2' なら ax は第2Y軸)。描画と範囲のリセットの共通の経路。
+
+    shift は (左へ広げる量(0 以下), 右へ広げる量(0 以上))。ウォーターフォールで X をずらしたとき、手動の範囲を手前の
+    トレースの範囲とみなし、奥のトレースが切れないように広げる(waterfall_x_shift)。向きは呼び出し側が axis_inverted で決める。
+    """
     which = 'x' if axis_key == 'x' else 'y'
     if (axis_key == 'x' and is_category_x) or axis_setting(settings, f'{axis_key}_autoscale'):
         ax.autoscale(enable=True, axis=which, tight=True)
         return
-    min_val, max_val = axis_setting(settings, f'{axis_key}_min'), axis_setting(settings, f'{axis_key}_max')
-    if min_val < max_val:
-        (ax.set_xlim if which == 'x' else ax.set_ylim)(min_val, max_val)
+    manual = manual_axis_range(settings, axis_key)
+    if manual is not None:
+        (ax.set_xlim if which == 'x' else ax.set_ylim)(manual[0] + shift[0], manual[1] + shift[1])
 
 
-def apply_limits_and_scale(canvas, ax, settings, is_category_x):
-    apply_axis_range(ax, settings, 'x', is_category_x)
+def waterfall_x_shift(canvas, axis_index):
+    """その軸で、ウォーターフォールでトレースを X にずらした幅 (左へ, 右へ)。ずらしていなければ (0, 0)。"""
+    return getattr(canvas, 'waterfall_x_shift', {}).get(axis_index, (0.0, 0.0))
+
+
+def apply_limits_and_scale(canvas, ax, settings, is_category_x, axis_index=None):
+    apply_axis_range(ax, settings, 'x', is_category_x,
+                     waterfall_x_shift(canvas, axis_index) if axis_index is not None else (0.0, 0.0))
     apply_axis_range(ax, settings, 'y')
 
     if not is_category_x:
         # set_xscale は同じ 'linear' でも Locator/Formatter を既定に戻してしまう。
         # カテゴリ軸では matplotlib が付けたカテゴリ用のものを残したいので呼ばない
         ax.set_xscale('log' if axis_setting(settings, 'x_log') else 'linear')
-    ax.xaxis.set_inverted(axis_setting(settings, 'x_invert'))
+    ax.xaxis.set_inverted(axis_inverted(settings, 'x'))
     ax.set_yscale('log' if axis_setting(settings, 'y_log') else 'linear')
-    ax.yaxis.set_inverted(axis_setting(settings, 'y_invert'))
+    ax.yaxis.set_inverted(axis_inverted(settings, 'y'))
 
 
 def apply_tick_locators(canvas, ax, settings, is_date_x, is_category_x):
@@ -284,7 +294,7 @@ def _apply_secondary_y_limits_and_ticks(secondary_ax, settings):
     # set_yscale は同じ値でも目盛りの Locator を既定に戻すので、変わるときだけ呼ぶ
     if secondary_ax.get_yscale() != ('log' if is_log else 'linear'):
         secondary_ax.set_yscale('log' if is_log else 'linear')
-    secondary_ax.yaxis.set_inverted(axis_setting(settings, 'y2_invert'))
+    secondary_ax.yaxis.set_inverted(axis_inverted(settings, 'y2'))
 
     y_min_lim, y_max_lim = secondary_ax.get_ylim()
     if axis_setting(settings, 'y2_major_tick_mode') == 1:

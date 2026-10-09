@@ -15,9 +15,9 @@ import numpy as np
 from matplotlib.transforms import Bbox
 from PySide6.QtCore import Qt
 
-from graphica.core.axis_settings import axis_setting
+from graphica.core.axis_settings import axis_inverted
 from graphica.gui import app_settings
-from graphica.gui.rendering.appearance import apply_axis_range, range_signature
+from graphica.gui.rendering.appearance import apply_axis_range, range_signature, waterfall_x_shift
 from graphica.gui.tools.manager import MOUSE_MODES_BY_NAME
 from graphica.gui.tools.pointer import legend_at
 
@@ -213,10 +213,11 @@ class ViewNavigationTool:
             return
         settings = settings_list[subplot_index]
         is_category_x = self._app.canvas.axis_is_category_x
+        shift = waterfall_x_shift(self._app.canvas, subplot_index) if axis_key == 'x' else (0.0, 0.0)
         apply_axis_range(ax, settings, axis_key,
-                         subplot_index < len(is_category_x) and is_category_x[subplot_index])
+                         subplot_index < len(is_category_x) and is_category_x[subplot_index], shift)
         # set_xlim/set_ylim は反転を解くので、設定どおりに戻す
-        (ax.xaxis if axis_key == 'x' else ax.yaxis).set_inverted(axis_setting(settings, f'{axis_key}_invert'))
+        (ax.xaxis if axis_key == 'x' else ax.yaxis).set_inverted(axis_inverted(settings, axis_key))
         self.forget_view(subplot_index, [axis_key])
 
     def reset_subplot(self, subplot_index):

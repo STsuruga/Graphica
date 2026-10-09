@@ -680,3 +680,22 @@ def test_margin_zoom_picks_the_nearest_subplot(window):
 
     assert left.get_xlim() == left_lim
     assert right.get_xlim()[0] == pytest.approx(x_end)
+
+
+
+# --- 軸のリセットは描画と同じ範囲(ウォーターフォールのずらし・最小 > 最大) ---
+
+def test_resetting_the_x_axis_keeps_the_waterfall_widening_and_direction(window):
+    for name in "abc":
+        _add(window, name=name, waterfall_enabled=True, waterfall_offset_x=1.0)
+    window.project.all_plot_settings[0].update({'x_autoscale': False, 'x_min': 8, 'x_max': 2})
+    window._update_plot()
+    window.canvas.draw()
+    ax = window.canvas.all_axes[0]
+    expected = ax.get_xlim()
+    assert expected == pytest.approx((10, 2))  # 8〜2 を、奥のトレースが右へ +2 ずれる分だけ広げ、大きい方が左
+
+    ax.set_xlim(0, 1)
+    _nav(window).reset_axis(0, 'x')
+
+    assert ax.get_xlim() == pytest.approx(expected)

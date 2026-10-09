@@ -63,6 +63,8 @@ class _CanvasDrawingMixin:
         # に描かれるので、マウス位置をデータの行に対応づける側は逆変換(display_to_data)を通す。
         # 値は {'index', 'offset_x', 'offset_y', 'depth_scale', 'mode'}。ウォーターフォールでなければ入らない
         self._waterfall_transforms = {}
+        # 軸の番号 -> ウォーターフォールでトレースを X にずらした幅 (左へ, 右へ)。手動の範囲をその分広げる
+        self.waterfall_x_shift = {}
 
     # --- ウォーターフォールの表示座標 ⇔ データ座標 ---
 
@@ -477,8 +479,8 @@ class _CanvasDrawingMixin:
     def _apply_appearance(self, ax, axis_index, settings):
         return appearance.apply_appearance(self, ax, axis_index, settings)
 
-    def _apply_limits_and_scale(self, ax, settings, is_category_x):
-        return appearance.apply_limits_and_scale(self, ax, settings, is_category_x)
+    def _apply_limits_and_scale(self, ax, settings, is_category_x, axis_index=None):
+        return appearance.apply_limits_and_scale(self, ax, settings, is_category_x, axis_index)
 
     def _apply_tick_locators(self, ax, settings, is_date_x, is_category_x):
         return appearance.apply_tick_locators(self, ax, settings, is_date_x, is_category_x)
