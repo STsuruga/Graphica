@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import logging
+import uuid
 
 from PySide6.QtCore import QObject, Signal
 
@@ -117,9 +118,14 @@ class ProjectModel(QObject):
 
     @staticmethod
     def _tree_from_json(node, dataset_map):
-        """_tree_to_json() の逆。見つからない ID は警告して除く(壊れたファイルでも読めるように)。"""
+        """_tree_to_json() の逆。見つからない ID は警告して除く(壊れたファイルでも読めるように)。
+
+        dataset_map は ID -> まだ並びに置いていないデータセットの列。同じ ID の系列があれば(複製が ID まで写していた
+        ころのファイル)、出てきた順に1本ずつ割り当てる。
+        """
         if 'dataset_id' in node:
-            ds = dataset_map.get(node['dataset_id'])
+            candidates = dataset_map.get(node['dataset_id'])
+            ds = candidates.pop(0) if candidates else None
             if ds is None:
                 logger.warning(
                     "dataset_group_tree内に存在しないdataset_idがあるため、"
@@ -134,6 +140,15 @@ class ProjectModel(QObject):
             if converted is not None:
                 children.append(converted)
         return {'name': node.get('name', ''), 'children': children}
+
+    def _make_dataset_ids_unique(self):
+        """同じ ID の2本目以降に新しい ID を振る(並びを決めてから。統計値ラベルなどの参照は1本目を指したまま)。"""
+        seen = set()
+        for ds in self.datasets:
+            if ds.dataset_id in seen:
+                logger.warning("同じ dataset_id のデータセットがあったため、新しい ID を振りました: %s", ds.name)
+                ds.dataset_id = uuid.uuid4().hex
+            seen.add(ds.dataset_id)
 
     def content_fingerprint(self):
         """保存すると書き出される内容のハッシュ(未保存の変更の判定)。
@@ -176,7 +191,9 @@ class ProjectModel(QObject):
         data = _migrate_project_data(data)
 
         self.datasets = [Dataset.from_dict(d) for d in data.get('datasets', [])]
-        dataset_map = {ds.dataset_id: ds for ds in self.datasets}
+        dataset_map = {}
+        for ds in self.datasets:
+            dataset_map.setdefault(ds.dataset_id, []).append(ds)
 
         tree_data = data.get('dataset_group_tree')
         if tree_data:
@@ -186,6 +203,7 @@ class ProjectModel(QObject):
             self.dataset_group_tree = {
                 'name': '', 'children': [{'dataset': ds} for ds in self.datasets]
             }
+        self._make_dataset_ids_unique()
 
         self.all_plot_settings = data.get('all_plot_settings', [])
         self.active_axis_index = data.get('active_axis_index', 0)
