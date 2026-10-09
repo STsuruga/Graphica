@@ -8,6 +8,7 @@
 """
 import copy
 import logging
+import uuid
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt, QTimer
@@ -319,6 +320,8 @@ class DatasetTreePanel:
             original_dataset = item.data(0, Qt.ItemDataRole.UserRole)
             # DataFrame まで独立させる
             new_dataset = copy.deepcopy(original_dataset)
+            # 写すと ID も同じになる。ID で引くもの(ウォーターフォールの段・保存の並び・統計値ラベルなど)が取り違えないように
+            new_dataset.dataset_id = uuid.uuid4().hex
             new_dataset.name = f"{original_dataset.name} (copy)"
             copies.append((new_dataset, item.parent()))
 
