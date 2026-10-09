@@ -10,7 +10,7 @@
     "text": "B",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false
+    "selected": true
    },
    {
     "text": "bb",
@@ -336,7 +336,7 @@
     "text": "B",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false
+    "selected": true
    },
    {
     "text": "bb",
@@ -370,7 +370,7 @@
     "text": "B",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false
+    "selected": true
    },
    {
     "text": "bb",
