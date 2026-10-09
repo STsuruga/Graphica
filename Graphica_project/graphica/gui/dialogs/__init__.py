@@ -83,6 +83,7 @@ from graphica.gui.dialogs.app import (
     QuickAccessManagerDialog,
     AutosaveHistoryDialog,
     PluginParamDialog,
+    UpdateDialog,
 )
 
 __all__ = [
@@ -132,6 +133,7 @@ __all__ = [
     "SavGolDialog",
     "ShortcutsDialog",
     "TextAnnotationDialog",
+    "UpdateDialog",
     "WelcomeDialog",
     "XAxisAlignmentDialog",
 ]

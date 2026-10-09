@@ -111,6 +111,22 @@ jobs:
           }
           $command = (Get-ItemProperty "HKCU:\Software\Classes\Graphica.Project\shell\open\command")."(default)"
           if ($command -notlike "*Graphica.exe*%1*") { throw "unexpected open command: $command" }
+          # アプリの中からの更新(gui/updater.py)と同じ引数で入れ直し、同じ場所に上書きされて起動し直すことを確かめる。
+          # Start-Process -Wait は子孫(起動し直した Graphica)まで待つので、インストーラーだけを待つ
+          $updateArgs = @(python -c "from graphica.gui.updater import INSTALLER_UPDATE_ARGS; print(*INSTALLER_UPDATE_ARGS, sep=chr(10))")
+          $log = Join-Path $env:RUNNER_TEMP "update.log"
+          $update = Start-Process $setup.FullName -ArgumentList ($updateArgs + "/LOG=$log") -PassThru
+          $update.WaitForExit()
+          if ($update.ExitCode -ne 0) { Get-Content $log -Tail 50; throw "the update install failed: $($update.ExitCode)" }
+          $deadline = (Get-Date).AddSeconds(60)
+          while (-not (Get-Process Graphica -ErrorAction SilentlyContinue)) {
+            if ((Get-Date) -gt $deadline) { Get-Content $log -Tail 50; throw "Graphica was not started again after the update" }
+            Start-Sleep -Seconds 1
+          }
+          $relaunched = Get-Process Graphica | Select-Object -First 1
+          if ($relaunched.Path -notlike "$dir*") { throw "started again from $($relaunched.Path), not $dir" }
+          Stop-Process -Name Graphica -Force
+          Start-Sleep -Seconds 3
           Start-Process (Join-Path $dir "unins000.exe") -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
           Start-Sleep -Seconds 3
           if (Test-Path "HKCU:\Software\Classes\Graphica.Project") { throw "the association was not removed" }

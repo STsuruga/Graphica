@@ -58,7 +58,9 @@ Graphica を新しいバージョンとして公開するときの手順。過�
       タグと `__version__` が違うと最初で止まる。PyPI は同じ版を二度上げられないので、
       途中で失敗したら版を上げて打ち直す(TestPyPI だけ上がった版も再利用できない)。
 - [ ] GitHub の Releases で新しいリリースを作成し、両OSの成果物を添付する。
-      本文には `CHANGELOG.md` の該当節を貼る。
+      本文には `CHANGELOG.md` の該当節を貼る(アプリの更新の知らせにリリースノートとして表示される)。
+      **添付ファイルの名前は変えない**: `Graphica-<版>-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`。
+      アプリの中からの更新はこの名前で添付ファイルを探す(`core/update_check.pick_asset`)。
 - [ ] リリースノートに **macOS版は未署名**であることと、初回は右クリック ▸
       「開く」で起動する必要があることを明記(README 7.1 と同じ案内)。
       配布している `.app` は Apple Silicon (arm64) 向け。
