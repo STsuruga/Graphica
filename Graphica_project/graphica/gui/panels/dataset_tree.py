@@ -397,6 +397,7 @@ class DatasetTreePanel:
         self._app.new_folder_button.clicked.connect(self._on_new_folder)
         self._app.dataset_search_edit.textChanged.connect(self._on_dataset_search_changed)
         self._app.ui.dataset_list_widget.currentItemChanged.connect(self._app.property_panel.on_dataset_selected)
+        self._app.ui.dataset_list_widget.itemSelectionChanged.connect(self._app.property_panel.on_dataset_selected)
         self._app.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
         self._app.ui.dataset_list_widget.itemClicked.connect(self._on_dataset_tree_item_clicked)
         # ドラッグでの並べ替え(描画の重なり順)を project.datasets に合わせる

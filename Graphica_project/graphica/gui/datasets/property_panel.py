@@ -17,6 +17,8 @@ class DatasetPropertyPanel:
     def __init__(self, app):
         self._app = app
         self._binder = Binder(app, DATASET_PROPERTY_BINDINGS)
+        # 最後に欄へ反映した (今の項目, 選んでいる項目)。今の項目と選択の通知が両方来ても1回だけ反映する
+        self._shown_selection = None
 
     def connect_signals(self):
         """表(gui/dataset_bindings.py)の欄の変更をつなぐ。"""
@@ -40,9 +42,27 @@ class DatasetPropertyPanel:
             description="描画先プロットの変更"
         )
 
-    def on_dataset_selected(self, current_item, previous_item):
+    def on_dataset_selected(self, current_item=None, previous_item=None):
+        """今の項目が変わったときと、選択が変わったときの両方から呼ぶ。
+
+        ボタンの有効/無効は選択で決まるが、削除の後などは今の項目だけがあって選ばれていない。
+        その項目をクリックしても今の項目は変わらず currentItemChanged が出ないので、選択の通知でも決め直す。
+        """
+        if self._selection_unchanged():
+            return
         self.update_ui_state()
         self._app._notify_plugins_selection_changed()
+
+    def _current_selection(self):
+        tree = self._app.ui.dataset_list_widget
+        return tree.currentItem(), tuple(tree.selectedItems())
+
+    def _selection_unchanged(self):
+        if self._shown_selection is None:
+            return False
+        (current, selected), (shown_current, shown_selected) = self._current_selection(), self._shown_selection
+        return (current is shown_current and len(selected) == len(shown_selected)
+                and all(a is b for a, b in zip(selected, shown_selected)))
 
     def on_legend_name_changed(self):
         dataset = self._app._get_current_dataset()
@@ -200,6 +220,7 @@ class DatasetPropertyPanel:
         """選択に合わせて欄の有効/無効と中身を更新する(何も選ばれていなければ空にする)。"""
         self._app._update_subplot_combos()
 
+        self._shown_selection = self._current_selection()
         # フォルダも選べるので、「何か選ばれているか」(削除用)と「データセットが選ばれているか」を分ける
         current_dataset = self._app._get_current_dataset()
         selected_datasets = self._app._get_selected_datasets()
@@ -214,7 +235,8 @@ class DatasetPropertyPanel:
         self._app.view_edit_data_button.setEnabled(has_dataset_selection)
         self._app.auto_color_button.setEnabled(has_dataset_selection)
 
-        self._app.fit_curve_button.setEnabled(has_dataset_selection)
+        # フィットの計算中は、選び直しても押せるようにしない(終わったときに戻す)
+        self._app.fit_curve_button.setEnabled(has_dataset_selection and self._app.fitting.fit_runner is None)
         self._app.find_peaks_button.setEnabled(has_dataset_selection)
 
         self._app.subplot_target_combo.setEnabled(has_dataset_selection)

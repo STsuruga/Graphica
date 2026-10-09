@@ -313,6 +313,7 @@ class ColorPaletteDialog(QDialog):
         self.delete_palette_button.clicked.connect(self._on_delete_palette)
         self.add_color_button.clicked.connect(self._on_add_color)
         self.remove_color_button.clicked.connect(self._on_remove_color)
+        self.color_list.currentRowChanged.connect(lambda _row: self._update_button_states())
 
         # 組み込みのパレットも初期の選択にする(でないと既定の表示のまま OK を押して上書きしてしまう)
         if active_name in self.palettes or active_name in BUILTIN_PALETTES:
@@ -334,7 +335,7 @@ class ColorPaletteDialog(QDialog):
         self.rename_palette_button.setEnabled(editable)
         self.delete_palette_button.setEnabled(editable)
         self.add_color_button.setEnabled(editable)
-        self.remove_color_button.setEnabled(editable)
+        self.remove_color_button.setEnabled(editable and self.color_list.currentRow() >= 0)
 
     def _refresh_color_list(self):
         # 行は QSS に任せず色見本+テーマの文字色のラベルにする。QSS で ::item に何か当てると、
@@ -495,8 +496,18 @@ class NamedColorManagerDialog(QDialog):
         self.delete_button.clicked.connect(self._on_delete)
         self.up_button.clicked.connect(lambda: self._on_move(-1))
         self.down_button.clicked.connect(lambda: self._on_move(1))
+        self.color_list.currentRowChanged.connect(lambda _row: self._update_button_states())
 
         self._reload_list()
+        self._update_button_states()
+
+    def _update_button_states(self):
+        row = self.color_list.currentRow()
+        has_current = row >= 0
+        self.edit_button.setEnabled(has_current)
+        self.delete_button.setEnabled(has_current)
+        self.up_button.setEnabled(has_current and row > 0)
+        self.down_button.setEnabled(has_current and row < self.color_list.count() - 1)
 
 
     def _reload_list(self, select_index=None):
