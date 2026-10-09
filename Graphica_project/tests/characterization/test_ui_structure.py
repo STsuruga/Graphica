@@ -7,6 +7,8 @@ import pytest
 from PySide6.QtGui import QColor, QImage, QPalette
 from PySide6.QtWidgets import QApplication, QDockWidget, QToolBar
 
+from graphica.core.version import __version__
+
 import recorder
 from scenario import pump
 
@@ -241,7 +243,8 @@ def _dialog_factories(tmp_path):
         "ShortcutsDialog": lambda: d.ShortcutsDialog(actions),
         "TextAnnotationDialog": lambda: d.TextAnnotationDialog(),
         "UpdateDialog": lambda: d.UpdateDialog(
-            {'tag_name': 'v9.9.9', 'body': '- note'}, '2.1.0', 'installer', True),
+            # 今の版はアプリの版を渡す(記録では <VERSION> に置き換わるので、版を上げても基準が変わらない)
+            {'tag_name': 'v9.9.9', 'body': '- note'}, __version__, 'installer', True),
         "WelcomeDialog": lambda: d.WelcomeDialog(recent_files=[]),
         "XAxisAlignmentDialog": lambda: d.XAxisAlignmentDialog("a", "b"),
     }
