@@ -6433,6 +6433,68 @@
   },
   "modals": []
  },
+ "UpdateDialog": {
+  "tree": {
+   "class": "UpdateDialog",
+   "window_title": "新しいバージョンがあります",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "新しいバージョン v9.9.9 が公開されています(今のバージョン: <VERSION>)。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QTextBrowser",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "name": "update_explanation",
+     "text": "「今すぐ更新」を押すと、新しいインストーラーをダウンロードして確かめたあと、Graphica を閉じて更新し、自動で起動し直します。設定・プラグイン・自動保存はそのまま残ります。保存していない変更があれば、閉じる前に確認します。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "今すぐ更新",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "リリースのページを開く",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "あとで",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
  "WelcomeDialog": {
   "tree": {
    "class": "WelcomeDialog",

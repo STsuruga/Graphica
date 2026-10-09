@@ -61,3 +61,12 @@ Root: HKA; Subkey: "Software\Classes\.graphica\OpenWithProgids"; ValueType: stri
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; アプリの中からの更新(gui/updater.py が /RELAUNCH=1 を付けて黙って実行する)では、入れ終わったら起動し直す。
+; 管理者として入れ直したときも、元の利用者の権限で起動する
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: ShouldRelaunch
+
+[Code]
+function ShouldRelaunch: Boolean;
+begin
+  Result := ExpandConstant('{param:relaunch|0}') = '1';
+end;
