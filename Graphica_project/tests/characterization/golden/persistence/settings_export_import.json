@@ -53,6 +53,7 @@
    "example_plugin"
   ],
   "language": "en",
+  "last_dialog_dirs_json": "{\"other\": \"<CASE>\"}",
   "point_label_max_points": 50,
   "quick_access_pinned_actions": [
    "表示/ダークモード"
