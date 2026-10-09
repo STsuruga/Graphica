@@ -1269,7 +1269,7 @@
      "class": "QPushButton",
      "text": "選択した色を削除",
      "visible": true,
-     "enabled": true
+     "enabled": false
     },
     {
      "class": "QLabel",
@@ -4484,25 +4484,25 @@
      "class": "QPushButton",
      "text": "編集...",
      "visible": true,
-     "enabled": true
+     "enabled": false
     },
     {
      "class": "QPushButton",
      "text": "削除",
      "visible": true,
-     "enabled": true
+     "enabled": false
     },
     {
      "class": "QPushButton",
      "text": "上へ",
      "visible": true,
-     "enabled": true
+     "enabled": false
     },
     {
      "class": "QPushButton",
      "text": "下へ",
      "visible": true,
-     "enabled": true
+     "enabled": false
     },
     {
      "class": "QLabel",
