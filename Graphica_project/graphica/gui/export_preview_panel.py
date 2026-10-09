@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout,
 
 from graphica.core.i18n import tr
 from graphica.gui import notify
+from graphica.gui import dialog_dirs
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.export_settings import export_rc_params
 from graphica.gui.export_size import ExportSizeFields, confirm_output_size, preview_dpi, preview_too_large_text
@@ -335,8 +336,10 @@ class ExportPreviewPanel(QWidget):
         if not confirm_output_size(self, width_in, height_in, options["dpi"]):
             return
 
-        file_path, _ = notify.get_save_file_name(
-            self, "プロットを保存", "", "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)"
+        mw = self.main_window
+        file_path, _ = dialog_dirs.get_save_file_name(
+            self, dialog_dirs.EXPORT, "プロットを保存", dialog_dirs.project_stem(mw),
+            "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)", preferred_dir=dialog_dirs.output_dir(mw)
         )
         if not file_path:
             return

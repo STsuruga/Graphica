@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (QDialog, QMenu)
 
 from graphica.gui import notify
+from graphica.gui import dialog_dirs
 from graphica.core.commands import (SetDatasetPropertiesCommand, ReorderDatasetsCommand)
 from graphica.core.dataset import Dataset
 from graphica.gui.datasets.order import DatasetOrder
@@ -52,8 +53,8 @@ class DatasetTreePanel:
         plugin_extensions = get_registered_importer_extensions()
         plugin_pattern = ''.join(f' *{ext}' for ext in plugin_extensions)
         builtin_pattern = ' '.join(f'*{ext}' for ext in BUILTIN_DATA_FILE_EXTENSIONS)
-        file_path, _ = notify.get_open_file_name(
-            self._app, "データファイルを選択", "",
+        file_path, _ = dialog_dirs.get_open_file_name(
+            self._app, dialog_dirs.DATA, "データファイルを選択",
             f"Data Files ({builtin_pattern}{plugin_pattern});;All Files (*)"
         )
         if file_path:

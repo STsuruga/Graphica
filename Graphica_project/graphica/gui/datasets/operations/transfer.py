@@ -9,6 +9,7 @@ import pandas as pd
 from PySide6.QtWidgets import QApplication
 
 from graphica.gui import notify
+from graphica.gui import dialog_dirs
 from graphica.core.dataset import COLUMN_REFERENCE_FIELDS, with_string_columns
 from graphica.core.methods_text import generate_methods_text
 from graphica.gui.datasets.operations.runner import Operation
@@ -29,8 +30,8 @@ def _write_failed(op, error):
 
 def _export_one(op, dataset):
     default_name = re.sub(r'[\\/:*?"<>|]', '_', dataset.name) or "dataset"
-    file_path, selected_filter = notify.get_save_file_name(
-        op.parent, "データ表を書き出す", default_name, "CSV Files (*.csv);;Excel Files (*.xlsx)"
+    file_path, selected_filter = dialog_dirs.get_save_file_name(
+        op.parent, dialog_dirs.TABLE, "データ表を書き出す", default_name, "CSV Files (*.csv);;Excel Files (*.xlsx)"
     )
     if not file_path:
         op.stop()
@@ -49,7 +50,8 @@ def _export_one(op, dataset):
 
 
 def _export_book(op, selected):
-    file_path, _ = notify.get_save_file_name(op.parent, "データ表を書き出す", "datasets.xlsx", "Excel Files (*.xlsx)")
+    file_path, _ = dialog_dirs.get_save_file_name(
+        op.parent, dialog_dirs.TABLE, "データ表を書き出す", "datasets.xlsx", "Excel Files (*.xlsx)")
     if not file_path:
         op.stop()
     if not file_path.lower().endswith('.xlsx'):
@@ -71,7 +73,7 @@ def _export_book(op, selected):
 
 
 def _export_folder(op, selected):
-    dir_path = notify.get_existing_directory(op.parent, "書き出し先フォルダを選択")
+    dir_path = dialog_dirs.get_existing_directory(op.parent, dialog_dirs.TABLE, "書き出し先フォルダを選択")
     if not dir_path:
         op.stop()
     succeeded, failed = [], []

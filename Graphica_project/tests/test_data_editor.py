@@ -1243,7 +1243,8 @@ def test_save_as_csv_suggested_filename_strips_copy_suffix(qapp, monkeypatch):
     dlg = DataEditorDialog(ds)
     try:
         dlg._on_save_as_csv()
-        assert captured["suggested"] == "MyData_edited.csv"
+        # 開く場所はフォルダ付きで渡す(gui/dialog_dirs)。名前の部分を確かめる
+        assert os.path.basename(captured["suggested"]) == "MyData_edited.csv"
     finally:
         dlg.close()
 

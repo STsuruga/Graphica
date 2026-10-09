@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QProgressDialog
 
 from graphica.core.i18n import tr
-from graphica.gui import notify, updater
+from graphica.gui import dialog_dirs, notify, updater
 from graphica.gui.dialogs import HelpDialog, CalcHelpDialog, AboutDialog, ShortcutsDialog, UpdateDialog
 from graphica.gui.task_runner import TaskRunner
 from graphica.core.diagnostics import build_diagnostic_bundle
@@ -51,8 +51,8 @@ class HelpMixin:
     def _on_export_diagnostic_bundle(self):
         """ログ・環境・設定・プラグインの状態を1つの zip にする(不具合の報告用)。"""
         default_name = f"graphica_diagnostics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-        file_path, _ = notify.get_save_file_name(
-            self, "診断情報をエクスポート", default_name, "Zip Files (*.zip)"
+        file_path, _ = dialog_dirs.get_save_file_name(
+            self, dialog_dirs.OTHER, "診断情報をエクスポート", default_name, "Zip Files (*.zip)"
         )
         if not file_path:
             return

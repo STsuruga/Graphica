@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QFont
 from graphica.gui import notify
+from graphica.gui import dialog_dirs
 from graphica.gui.theme import apply_form_spacing
 
 logger = logging.getLogger(__name__)
@@ -561,8 +562,8 @@ class ResultDialog(QDialog):
         QTimer.singleShot(1200, _restore)
 
     def _on_save_csv(self):
-        file_path, _ = notify.get_save_file_name(
-            self, "CSVとして保存", "", "CSV Files (*.csv);;All Files (*)"
+        file_path, _ = dialog_dirs.get_save_file_name(
+            self, dialog_dirs.TABLE, "CSVとして保存", "", "CSV Files (*.csv);;All Files (*)"
         )
         if not file_path:
             return

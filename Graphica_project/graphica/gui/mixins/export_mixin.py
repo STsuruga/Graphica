@@ -14,6 +14,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_pdf import PdfPages
 
 from graphica.gui import notify
+from graphica.gui import dialog_dirs
 from graphica.core.axis_settings import axis_setting
 from graphica.gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
 from graphica.gui.canvas import _HeadlessRenderCanvas, fit_tight_layout
@@ -295,8 +296,9 @@ class ExportMixin:
 
     def _on_export_python_script(self):
         """matplotlib だけで図を再現するスクリプトを書き出す(生成は core/script_export.py)。"""
-        file_path, _ = notify.get_save_file_name(
-            self, "Pythonスクリプトとしてエクスポート", "", "Python Files (*.py)"
+        file_path, _ = dialog_dirs.get_save_file_name(
+            self, dialog_dirs.EXPORT, "Pythonスクリプトとしてエクスポート", dialog_dirs.project_stem(self),
+            "Python Files (*.py)", preferred_dir=dialog_dirs.output_dir(self)
         )
         if not file_path:
             return
@@ -334,8 +336,9 @@ class ExportMixin:
             settings = self.project.all_plot_settings[self.project.active_axis_index]
         title = axis_setting(settings, 'title') or "実験レポート"
 
-        file_path, _ = notify.get_save_file_name(
-            self, "実験レポートを生成", "", "HTML Files (*.html);;PDF Files (*.pdf)"
+        file_path, _ = dialog_dirs.get_save_file_name(
+            self, dialog_dirs.EXPORT, "実験レポートを生成", dialog_dirs.project_stem(self),
+            "HTML Files (*.html);;PDF Files (*.pdf)", preferred_dir=dialog_dirs.output_dir(self)
         )
         if not file_path:
             return
@@ -395,8 +398,9 @@ class ExportMixin:
                 filter_parts = ["PNG (*.png)", "PDF (*.pdf)", "SVG (*.svg)"]
                 for exp in get_registered_exporters():
                     filter_parts.append(f"{exp.format_name} (*{exp.extension})")
-                file_path, _ = notify.get_save_file_name(
-                    self, "プロットを保存", "", ";;".join(filter_parts)
+                file_path, _ = dialog_dirs.get_save_file_name(
+                    self, dialog_dirs.EXPORT, "プロットを保存", dialog_dirs.project_stem(self), ";;".join(filter_parts),
+                    preferred_dir=dialog_dirs.output_dir(self)
                 )
                 if not file_path:
                     return
