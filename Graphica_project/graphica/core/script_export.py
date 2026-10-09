@@ -5,7 +5,7 @@
 プラグインの種類はスクリプトに持ち出せないので Line で代わりに出す。
 """
 
-from graphica.core.axis_settings import axis_setting
+from graphica.core.axis_settings import axis_inverted, axis_setting, manual_axis_range
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, legend_text
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
@@ -135,16 +135,23 @@ def _emit_2d_dataset_plot_call(lines: list[str], ax_var: str, mesh_var: str, ds:
     return has_mappable
 
 
+def _emit_range_and_direction(lines: list[str], ax_var: str, settings: dict[str, Any], axis_key: str) -> None:
+    """画面と同じ判定(manual_axis_range / axis_inverted)で範囲と向きを書く。"""
+    which = 'x' if axis_key == 'x' else 'y'
+    manual = manual_axis_range(settings, axis_key)
+    if manual is not None:
+        lines.append(f"{ax_var}.set_{which}lim({manual[0]!r}, {manual[1]!r})")
+    if axis_inverted(settings, axis_key):
+        lines.append(f"{ax_var}.invert_{which}axis()")
+
+
 def _emit_secondary_y_calls(lines: list[str], ax_var: str, settings: dict[str, Any]) -> None:
     """第 2 Y 軸のラベル・対数・範囲・反転(画面と同じ設定を使う)。"""
     if axis_setting(settings, 'y2_label'):
         lines.append(f"{ax_var}.set_ylabel({axis_setting(settings, 'y2_label')!r})")
     if axis_setting(settings, 'y2_log'):
         lines.append(f"{ax_var}.set_yscale('log')")
-    if not axis_setting(settings, 'y2_autoscale') and axis_setting(settings, 'y2_min') < axis_setting(settings, 'y2_max'):
-        lines.append(f"{ax_var}.set_ylim({axis_setting(settings, 'y2_min')!r}, {axis_setting(settings, 'y2_max')!r})")
-    if axis_setting(settings, 'y2_invert'):
-        lines.append(f"{ax_var}.invert_yaxis()")
+    _emit_range_and_direction(lines, ax_var, settings, 'y2')
 
 
 def _emit_appearance_calls(lines: list[str], ax_var: str, settings: dict[str, Any], mesh_var: str | None = None) -> None:
@@ -158,10 +165,8 @@ def _emit_appearance_calls(lines: list[str], ax_var: str, settings: dict[str, An
         lines.append(f"{ax_var}.set_xscale('log')")
     if axis_setting(settings, 'y_log'):
         lines.append(f"{ax_var}.set_yscale('log')")
-    if not axis_setting(settings, 'x_autoscale'):
-        lines.append(f"{ax_var}.set_xlim({axis_setting(settings, 'x_min')!r}, {axis_setting(settings, 'x_max')!r})")
-    if not axis_setting(settings, 'y_autoscale'):
-        lines.append(f"{ax_var}.set_ylim({axis_setting(settings, 'y_min')!r}, {axis_setting(settings, 'y_max')!r})")
+    _emit_range_and_direction(lines, ax_var, settings, 'x')
+    _emit_range_and_direction(lines, ax_var, settings, 'y')
     if axis_setting(settings, 'grid_visible'):
         lines.append(f"{ax_var}.grid(True)")
     if axis_setting(settings, 'legend_visible'):

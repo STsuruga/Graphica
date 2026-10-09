@@ -46,11 +46,21 @@ def draw_data(canvas, ax, axis_index, datasets, full_resolution=False):
         canvas.all_secondary_axes[axis_index] = secondary_ax
 
     waterfall = _waterfall_layout(datasets_1d_all)
+    canvas.waterfall_x_shift[axis_index] = _waterfall_x_shift(shown_1d, waterfall, is_category_x)
     for ds in shown_1d:
         target_ax = secondary_ax if ds.use_secondary_y else ax
         if target_ax is None:
             continue
         canvas._draw_1d_dataset(target_ax, axis_index, ds, waterfall, is_category_x, full_resolution)
+
+
+def _waterfall_x_shift(datasets, waterfall, is_category_x):
+    """見えているトレースを X にずらした量の (最小, 最大)。0 を含める(手前のトレースはずらさない)。カテゴリ軸ではずらさない。"""
+    if is_category_x:
+        return (0.0, 0.0)
+    shifts = [waterfall_offset_steps(waterfall.index.get(ds.dataset_id, 0), ds.waterfall_offset_mode) * ds.waterfall_offset_x
+              for ds in datasets if ds.waterfall_enabled]
+    return (min([0.0, *shifts]), max([0.0, *shifts]))
 
 
 def record_x_axis_kind(canvas, axis_index, datasets):
