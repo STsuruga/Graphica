@@ -10,7 +10,7 @@
     "text": "F1",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false,
+    "selected": true,
     "children": [
      {
       "text": "B",
@@ -358,7 +358,7 @@
     "text": "F1",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false,
+    "selected": true,
     "children": [
      {
       "text": "B",
@@ -423,7 +423,7 @@
     "text": "F1",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false,
+    "selected": true,
     "children": [
      {
       "text": "B",
