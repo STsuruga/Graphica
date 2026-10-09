@@ -10,7 +10,7 @@
     "text": "A",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false
+    "selected": true
    },
    {
     "text": "D",
@@ -331,7 +331,7 @@
     "text": "A",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false
+    "selected": true
    },
    {
     "text": "F1",
@@ -402,7 +402,7 @@
     "text": "A",
     "checked": "Unchecked",
     "hidden": false,
-    "selected": false
+    "selected": true
    },
    {
     "text": "D",
