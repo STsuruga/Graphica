@@ -25,6 +25,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QEvent, QUrl, Qt
 from PySide6.QtGui import QDesktopServices, QKeySequence
 from graphica.gui import notify
+import os
+from graphica.gui import dialog_dirs
 from graphica.gui import icon_utils
 from graphica.gui.theme import apply_form_spacing
 
@@ -331,8 +333,10 @@ class PreferencesDialog(QDialog):
 
     def _on_browse_autosave_dir(self):
         from graphica.core.i18n import tr
+        from graphica.core.app_paths import get_app_data_dir
+        # 今の保存先(空なら既定の保存先)から開く。作業フォルダから開くとアプリ本体のフォルダになる
         directory = notify.get_existing_directory(
-            self, tr("オートセーブの保存先を選択"), self._autosave_dir or ""
+            self, tr("オートセーブの保存先を選択"), self._autosave_dir or get_app_data_dir()
         )
         if directory:
             self._autosave_dir = directory
@@ -344,9 +348,10 @@ class PreferencesDialog(QDialog):
 
     def _on_browse_default_style_template(self):
         from graphica.core.i18n import tr
-        file_path, _ = notify.get_open_file_name(
-            self, tr("既定の書式テンプレートを選択"), self._default_style_template or "",
-            "Graphica Style Template (*.graphica-style *.json)"
+        file_path, _ = dialog_dirs.get_open_file_name(
+            self, dialog_dirs.TEMPLATE, tr("既定の書式テンプレートを選択"),
+            "Graphica Style Template (*.graphica-style *.json)",
+            preferred_dir=os.path.dirname(self._default_style_template or "")
         )
         if file_path:
             self._default_style_template = file_path
@@ -366,8 +371,8 @@ class PreferencesDialog(QDialog):
 
     def _on_install_plugin(self):
         from graphica.core.i18n import tr
-        zip_path, _ = notify.get_open_file_name(
-            self, tr("プラグインをインストール"), "", tr("Zip files (*.zip)")
+        zip_path, _ = dialog_dirs.get_open_file_name(
+            self, dialog_dirs.OTHER, tr("プラグインをインストール"), tr("Zip files (*.zip)")
         )
         if not zip_path:
             return

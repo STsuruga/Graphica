@@ -84,6 +84,8 @@ AUTOSAVE_INTERVAL_MIN = Setting("autosave_interval_min", DEFAULT_AUTOSAVE_INTERV
 AUTOSAVE_DIR = Setting("autosave_dir", "", str)
 # 新しいタブ・プロジェクトに当てる書式テンプレートのパス(空なら使わない)。パスはその PC だけのものなので書き出さない
 DEFAULT_STYLE_TEMPLATE = Setting("default_style_template", "", str)
+# ファイルダイアログを用途ごとに前回のフォルダで開く(gui/dialog_dirs.py)。{用途: フォルダ} の JSON。PC ごとの場所なので書き出さない
+LAST_DIALOG_DIRS = Setting("last_dialog_dirs_json", "", str)
 POINT_LABEL_MAX_POINTS = Setting("point_label_max_points", DEFAULT_POINT_LABEL_MAX_POINTS, int, export_as=int)
 SNAP_TO_GRID_ENABLED = Setting("snap_to_grid_enabled", DEFAULT_SNAP_TO_GRID_ENABLED, bool, export_as=bool)
 SNAP_GRID_INTERVAL_PX = Setting("snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, int, export_as=int)

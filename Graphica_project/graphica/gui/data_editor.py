@@ -13,6 +13,7 @@ from PySide6.QtCore import Signal, Qt
 logger = logging.getLogger(__name__)
 
 from graphica.gui import notify
+from graphica.gui import dialog_dirs
 from graphica.core.commands import (EditCellCommand, AddRowCommand, DeleteRowsCommand,
                            AddColumnCommand, DeleteColumnCommand, SetMaskedRowsCommand,
                            RenameColumnCommand)
@@ -740,11 +741,8 @@ class DataEditorDialog(QDialog):
         base_name = base_name.split(' (')[0] 
         suggested_name = f"{base_name}_edited.csv"
         
-        file_path, _ = notify.get_save_file_name(
-            self, 
-            "CSVとして保存", 
-            suggested_name, 
-            "CSV Files (*.csv);;All Files (*)"
+        file_path, _ = dialog_dirs.get_save_file_name(
+            self, dialog_dirs.TABLE, "CSVとして保存", suggested_name, "CSV Files (*.csv);;All Files (*)"
         )
         
         if not file_path:

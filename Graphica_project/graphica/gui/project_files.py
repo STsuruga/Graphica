@@ -6,6 +6,7 @@ from datetime import datetime
 from graphica.core.i18n import tr
 from graphica.core.app_paths import get_app_data_dir
 from graphica.gui import app_settings, notify
+from graphica.gui import dialog_dirs
 from graphica.gui.dialogs import AutosaveHistoryDialog
 from graphica.models.project import LEGACY_PICKLE_EXTENSION, PROJECT_FILE_EXTENSION, PROJECT_FILE_EXTENSIONS
 
@@ -204,8 +205,11 @@ def manual_save(app):
 
 
 def manual_save_as(app):
-    filepath, _ = notify.get_save_file_name(
-        app, "名前を付けて保存", "", f"Graphica Project (*{PROJECT_FILE_EXTENSION})"
+    # 保存したことがあればその場所と名前、まだならデータの隣、どちらも無ければ前回のプロジェクトのフォルダ
+    file_name = os.path.basename(app._current_project_path) if app._current_project_path else ''
+    filepath, _ = dialog_dirs.get_save_file_name(
+        app, dialog_dirs.PROJECT, "名前を付けて保存", file_name, f"Graphica Project (*{PROJECT_FILE_EXTENSION})",
+        preferred_dir=dialog_dirs.output_dir(app),
     )
     if filepath:
         # 拡張子を付けないファイルダイアログがある
@@ -236,9 +240,7 @@ def project_file_filter():
 def manual_load(app):
     if not app.confirm_unsaved_changes("別のプロジェクトを開く"):
         return
-    filepath, _ = notify.get_open_file_name(
-        app, "プロジェクトを開く", "", project_file_filter()
-    )
+    filepath, _ = dialog_dirs.get_open_file_name(app, dialog_dirs.PROJECT, "プロジェクトを開く", project_file_filter())
     if filepath:
         app._load_project_from_path(filepath)
 

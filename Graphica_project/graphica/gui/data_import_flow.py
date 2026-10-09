@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 from graphica.core.dataset import Dataset
 from graphica.core.plugin_api import get_registered_importer_extensions
 from graphica.gui import notify
+from graphica.gui import dialog_dirs
 from graphica.gui.dialogs import ColumnPreviewDialog, ExcelMultiSheetDialog, FolderImportDialog
 from graphica.gui.task_runner import TaskRunner
 from graphica.models.project import PROJECT_FILE_EXTENSIONS
@@ -273,7 +274,7 @@ def apply_filename_regex_columns(df, file_path, pattern):
 
 def on_import_folder(app):
     """フォルダ内(サブフォルダは除く)の対応ファイルを、確認させてからドラッグ&ドロップと同じ待ち行列に積む。"""
-    dir_path = notify.get_existing_directory(app, "フォルダから一括インポート", "")
+    dir_path = dialog_dirs.get_existing_directory(app, dialog_dirs.DATA, "フォルダから一括インポート")
     if not dir_path:
         return
 

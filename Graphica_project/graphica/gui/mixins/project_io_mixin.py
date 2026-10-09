@@ -3,6 +3,7 @@ import json
 import logging
 
 from graphica.gui import notify
+from graphica.gui import dialog_dirs
 from graphica.gui import app_settings
 from graphica.gui.dialogs import PreferencesDialog
 from graphica.gui.datasets.operations.transfer import STYLE_ATTRS
@@ -160,8 +161,8 @@ class ProjectIOMixin:
 
     def _on_save_plot_template(self):
         """全サブプロットの見た目と全データセットのスタイルを *.graphica-style に保存する(データは含めない)。"""
-        file_path, _ = notify.get_save_file_name(
-            self, "書式テンプレートを保存", "", "Graphica Style Template (*.graphica-style)"
+        file_path, _ = dialog_dirs.get_save_file_name(
+            self, dialog_dirs.TEMPLATE, "書式テンプレートを保存", "", "Graphica Style Template (*.graphica-style)"
         )
         if not file_path:
             return
@@ -200,8 +201,8 @@ class ProjectIOMixin:
         新しい形式(format_version あり)は、保存した順にサブプロットとデータセットへ繰り返し当てる(数が違ってもよい)。
         古い .json(plot_settings だけ)は今の軸だけに当てる。
         """
-        file_path, _ = notify.get_open_file_name(
-            self, "書式テンプレートを適用", "", "Graphica Style Template (*.graphica-style *.json)"
+        file_path, _ = dialog_dirs.get_open_file_name(
+            self, dialog_dirs.TEMPLATE, "書式テンプレートを適用", "Graphica Style Template (*.graphica-style *.json)"
         )
         if not file_path:
             return
@@ -291,8 +292,8 @@ class ProjectIOMixin:
 
     def _on_export_settings(self):
         """app_settings.EXPORTED_SETTINGS のキーだけを JSON に書き出す(別の PC や研究室での共有用)。"""
-        file_path, _ = notify.get_save_file_name(
-            self, "設定・スタイルをエクスポート", "graphica_settings.json", "JSON Files (*.json)"
+        file_path, _ = dialog_dirs.get_save_file_name(
+            self, dialog_dirs.OTHER, "設定・スタイルをエクスポート", "graphica_settings.json", "JSON Files (*.json)"
         )
         if not file_path:
             return
@@ -315,8 +316,8 @@ class ProjectIOMixin:
 
         言語・ダークモード・パレットなどをその場で当て直すと影響が広いので、次の起動から効くと知らせる。
         """
-        file_path, _ = notify.get_open_file_name(
-            self, "設定・スタイルをインポート", "", "JSON Files (*.json)"
+        file_path, _ = dialog_dirs.get_open_file_name(
+            self, dialog_dirs.OTHER, "設定・スタイルをインポート", "JSON Files (*.json)"
         )
         if not file_path:
             return
