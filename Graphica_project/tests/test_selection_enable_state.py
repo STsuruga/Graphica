@@ -46,23 +46,70 @@ def _tree(window):
     return window.ui.dataset_list_widget
 
 
-def test_clicking_the_item_left_current_after_a_delete_enables_the_buttons(window):
+def test_after_a_delete_the_neighbour_is_selected_and_usable(window):
     _add(window, "a")
     second = _add(window, "b")
     _add(window, "c")
     tree = _tree(window)
     tree.setCurrentItem(window._get_dataset_tree_item(second))
+
     window._on_remove_dataset()
-    leftover = tree.currentItem()
-    assert leftover is not None and not tree.selectedItems()
+
+    neighbour = tree.currentItem()
+    assert neighbour is not None and tree.selectedItems() == [neighbour]
+    assert all(b.isEnabled() for b in _buttons(window))
+    assert window.ui.linewidth_spinbox.isEnabled()
+    assert window.ui.legend_name_edit.text() == neighbour.data(0, 0x0100).name
+
+
+def test_clicking_the_current_item_when_it_is_not_selected_enables_the_buttons(window):
+    """今の項目だけがあって選ばれていない状態(プロジェクトを開いたあとなど)から、その項目をクリックする。"""
+    ds = _add(window, "a")
+    tree = _tree(window)
+    item = window._get_dataset_tree_item(ds)
+    tree.setCurrentItem(item)
+    tree.clearSelection()
+    assert tree.currentItem() is item
     assert not any(b.isEnabled() for b in _buttons(window))
 
-    # 今の項目のままの項目をクリックする(今の項目は変わらず、選択だけが変わる)
-    tree.setCurrentItem(leftover)
+    # 今の項目は変わらず、選択だけが変わる(currentItemChanged は出ない)
+    tree.setCurrentItem(item)
 
-    assert tree.selectedItems() == [leftover]
     assert all(b.isEnabled() for b in _buttons(window))
-    assert window.ui.legend_name_edit.text() == leftover.data(0, 0x0100).name
+
+
+def test_nothing_selected_shows_an_empty_panel_not_the_last_dataset(window):
+    ds = _add(window, "visible name")
+    tree = _tree(window)
+    tree.setCurrentItem(window._get_dataset_tree_item(ds))
+    assert window.ui.legend_name_edit.text() == "visible name"
+
+    tree.clearSelection()
+
+    assert window.ui.legend_name_edit.text() == ""
+    assert not window.ui.linewidth_spinbox.isEnabled()
+    assert ds.name == "visible name"  # 欄を空にしてもデータセットは書き換わらない
+
+
+def test_when_the_current_item_is_deselected_the_panel_shows_a_selected_dataset(window):
+    first, second = _add(window, "a"), _add(window, "b")
+    tree = _tree(window)
+    tree.setCurrentItem(window._get_dataset_tree_item(first))
+    window._get_dataset_tree_item(second).setSelected(True)
+    window._get_dataset_tree_item(first).setSelected(False)  # Ctrl+クリックで今の項目だけ外したのと同じ
+
+    assert window.ui.legend_name_edit.text() == "b"
+
+
+def test_hiding_the_selection_by_search_disables_the_buttons(window):
+    ds = _add(window, "a")
+    _tree(window).setCurrentItem(window._get_dataset_tree_item(ds))
+
+    window.dataset_search_edit.setText("zzz")
+    assert not window.ui.remove_dataset_button.isEnabled()
+
+    window.dataset_search_edit.setText("")
+    assert window.ui.remove_dataset_button.isEnabled()
 
 
 def test_clearing_the_selection_disables_the_buttons(window):

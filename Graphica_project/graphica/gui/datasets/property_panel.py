@@ -53,6 +53,20 @@ class DatasetPropertyPanel:
         self.update_ui_state()
         self._app._notify_plugins_selection_changed()
 
+    def shown_dataset(self):
+        """プロパティに出すデータセット。今の項目が選ばれていればそれ、違えば選んでいる最初のデータセット、無ければ None。
+
+        削除のあとなどは今の項目だけが残って選ばれていない。その値を無効の欄に出すと、選んでいるように見えて紛らわしい。
+        """
+        tree = self._app.ui.dataset_list_widget
+        current_item = tree.currentItem()
+        if current_item is not None and current_item.isSelected():
+            current = self._app._get_current_dataset()
+            if current is not None:
+                return current
+        selected = self._app._get_selected_datasets()
+        return selected[0] if selected else None
+
     def _current_selection(self):
         tree = self._app.ui.dataset_list_widget
         return tree.currentItem(), tuple(tree.selectedItems())
@@ -65,7 +79,7 @@ class DatasetPropertyPanel:
                 and all(a is b for a, b in zip(selected, shown_selected)))
 
     def on_legend_name_changed(self):
-        dataset = self._app._get_current_dataset()
+        dataset = self.shown_dataset()
         if dataset is None:
             return
 
@@ -222,7 +236,7 @@ class DatasetPropertyPanel:
 
         self._shown_selection = self._current_selection()
         # フォルダも選べるので、「何か選ばれているか」(削除用)と「データセットが選ばれているか」を分ける
-        current_dataset = self._app._get_current_dataset()
+        current_dataset = self.shown_dataset()
         selected_datasets = self._app._get_selected_datasets()
         has_any_selection = bool(self._app.ui.dataset_list_widget.selectedItems())
         has_dataset_selection = bool(selected_datasets)
@@ -351,6 +365,8 @@ class DatasetPropertyPanel:
 
             self._app.stats_summary_label.setText("-")
             self._app.dataset_mini_stats_label.setText("-")
+            # 前に出していたデータセットの名前を残さない(editingFinished は出ないので書き込まれない)
+            self._app.ui.legend_name_edit.clear()
             # 行を隠したあとで見出しもそろえる(起動直後もこの経路を通る)
             self._app._update_property_section_visibility()
 
