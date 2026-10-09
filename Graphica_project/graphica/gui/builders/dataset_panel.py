@@ -209,6 +209,14 @@ def build_dataset_style_controls(app):
     app.error_display_combo.addItem(tr("両方"), "both")
     app._prop_form('extra').addRow(app.error_display_label, app.error_display_combo)
 
+    # 凡例名(= データセット名)を変えずに凡例の文字だけ変える。空ならデータセット名
+    app.legend_label_label = QLabel(tr("凡例の表示名"))
+    app.legend_label_edit = QLineEdit()
+    app.legend_label_edit.setPlaceholderText(tr("空ならデータセット名"))
+    app._prop_form('extra').addRow(app.legend_label_label, app.legend_label_edit)
+    app.hide_from_legend_checkbox = QCheckBox(tr("凡例に表示しない"))
+    app._prop_form('extra').addRow(app.hide_from_legend_checkbox)
+
     # X/Y/Z 列の長形式を2Dマップとして描く。関係する欄の出し入れは property_panel.update_2d_controls_visibility
     app.data_2d_checkbox = QCheckBox(tr("2Dグリッドデータとして扱う(ヒートマップ)"))
     app._prop_form('map').addRow(app.data_2d_checkbox)

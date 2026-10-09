@@ -72,6 +72,8 @@
     "smoothing": false,
     "smoothing_method": "cubic_spline",
     "alpha": 1.0,
+    "legend_label": "",
+    "hide_from_legend": false,
     "gradient_enabled": false,
     "gradient_color2": "#ffffff",
     "gradient_target": "line",
@@ -148,7 +150,7 @@
   "title": "resaved.graphica",
   "unsaved": false,
   "file": {
-   "sha256": "48213cf0f5077e9769e20041c2b49cb926a9cfcc93e0c3d3fc038a8521b71142",
+   "sha256": "e8b4ea7bc881cacf2c113672186b004995bcd44c42fddf4700c6661239399b40",
    "content": {
     "format_version": 1,
     "datasets": [
@@ -165,6 +167,8 @@
       "smoothing": false,
       "smoothing_method": "cubic_spline",
       "alpha": 1.0,
+      "legend_label": "",
+      "hide_from_legend": false,
       "gradient_enabled": false,
       "gradient_color2": "#ffffff",
       "gradient_target": "line",
@@ -332,6 +336,8 @@
     "smoothing": false,
     "smoothing_method": "cubic_spline",
     "alpha": 1.0,
+    "legend_label": "",
+    "hide_from_legend": false,
     "gradient_enabled": false,
     "gradient_color2": "#ffffff",
     "gradient_target": "line",

@@ -10,7 +10,7 @@ import logging
 import numpy as np
 from scipy.stats import gaussian_kde
 
-from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, legend_text
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +21,12 @@ def _uses_line_gradient(ds):
 
 def _gradient_line(canvas, ax, ds, x, y):
     return canvas._add_gradient_line(
-        ax, x, y, ds.color, ds.gradient_color2, ds.linewidth, ds.alpha, ds.linestyle, label=ds.name)
+        ax, x, y, ds.color, ds.gradient_color2, ds.linewidth, ds.alpha, ds.linestyle, label=legend_text(ds))
 
 
 def _plain_line(ax, ds, x, y, plot_kwargs, **extra):
     (artist,) = ax.plot(x, y, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth,
-                        alpha=ds.alpha, label=ds.name, **extra, **plot_kwargs)
+                        alpha=ds.alpha, label=legend_text(ds), **extra, **plot_kwargs)
     return artist
 
 
@@ -42,7 +42,7 @@ def draw_line(canvas, ax, ds, x, y, plot_kwargs, axis_index):
 
 
 def draw_scatter(canvas, ax, ds, x, y, plot_kwargs, axis_index):
-    return _markers(ax, ds, x, y, plot_kwargs, label=ds.name)
+    return _markers(ax, ds, x, y, plot_kwargs, label=legend_text(ds))
 
 
 def draw_line_and_scatter(canvas, ax, ds, x, y, plot_kwargs, axis_index):
@@ -52,14 +52,14 @@ def draw_line_and_scatter(canvas, ax, ds, x, y, plot_kwargs, axis_index):
         _markers(ax, ds, x, y, plot_kwargs)
         return artist
     (artist,) = ax.plot(x, y, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth,
-                        marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+                        marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
     return artist
 
 
 def draw_area(canvas, ax, ds, x, y, plot_kwargs, axis_index):
     """0 との間を塗り、輪郭が分かるよう上端に線も重ねる。"""
     if not ds.gradient_enabled:
-        artist = ax.fill_between(x, y, 0, color=ds.color, alpha=ds.alpha * 0.4, label=ds.name, **plot_kwargs)
+        artist = ax.fill_between(x, y, 0, color=ds.color, alpha=ds.alpha * 0.4, label=legend_text(ds), **plot_kwargs)
         ax.plot(x, y, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, **plot_kwargs)
         return artist
     if ds.gradient_target in ('fill', 'both'):
@@ -74,7 +74,7 @@ def draw_area(canvas, ax, ds, x, y, plot_kwargs, axis_index):
 
 
 def draw_bar(canvas, ax, ds, x, y, plot_kwargs, axis_index):
-    return ax.bar(x, y, color=ds.color, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+    return ax.bar(x, y, color=ds.color, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
 
 
 def draw_step(canvas, ax, ds, x, y, plot_kwargs, axis_index):
@@ -90,9 +90,9 @@ def draw_density_scatter(canvas, ax, ds, x, y, plot_kwargs, axis_index):
         xy = np.vstack([x, y])
         density = gaussian_kde(xy)(xy)
         return ax.scatter(x, y, c=density, cmap=ds.colormap, marker=ds.marker, s=ds.markersize**2,
-                          alpha=ds.alpha, label=ds.name, **plot_kwargs)
+                          alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
     except (np.linalg.LinAlgError, ValueError):
-        return _markers(ax, ds, x, y, plot_kwargs, label=ds.name)
+        return _markers(ax, ds, x, y, plot_kwargs, label=legend_text(ds))
 
 
 def draw_color_by_column(canvas, ax, ds, x, y, plot_kwargs, axis_index):
@@ -103,7 +103,7 @@ def draw_color_by_column(canvas, ax, ds, x, y, plot_kwargs, axis_index):
     z_values = ds.z_data
     if z_values is not None and len(z_values) == len(x):
         artist = ax.scatter(x, y, c=z_values, cmap=ds.colormap, vmin=ds.vmin, vmax=ds.vmax,
-                            marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+                            marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
         # カラーバーは1軸に1つ。2Dマップが先に登録していればそちらを優先する
         if axis_index not in canvas._axis_2d_mappables:
             canvas._axis_2d_mappables[axis_index] = artist
@@ -116,7 +116,7 @@ def draw_color_by_column(canvas, ax, ds, x, y, plot_kwargs, axis_index):
             "配列が短くなっている可能性があります)。",
             ds.name, len(z_values), len(x),
         )
-    return _markers(ax, ds, x, y, plot_kwargs, label=ds.name)
+    return _markers(ax, ds, x, y, plot_kwargs, label=legend_text(ds))
 
 
 BUILTIN_PLOT_TYPE_DRAWERS = {

@@ -3197,6 +3197,31 @@
                               ]
                              }
                             ]
+                           },
+                           {
+                            "class": "QLabel",
+                            "text": "Legend label",
+                            "visible": true,
+                            "enabled": false
+                           },
+                           {
+                            "class": "QLineEdit",
+                            "text": "",
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "editingFinished()": 1
+                            }
+                           },
+                           {
+                            "class": "QCheckBox",
+                            "text": "Hide from legend",
+                            "checked": false,
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "toggled(bool)": 1
+                            }
                            }
                           ]
                          }

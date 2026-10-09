@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from graphica.core.analysis import (
     calculate_gaussian_smooth, calculate_lttb_downsample, calculate_median_smooth, calculate_moving_average_smooth)
+from graphica.core.dataset import legend_text
 from graphica.gui.plot_type_drawers import BUILTIN_PLOT_TYPE_DRAWERS
 from graphica.gui.rendering.common import (
     DARK_AXES_FACECOLOR, LIGHT_AXES_FACECOLOR, LTTB_DOWNSAMPLE_TARGET_POINTS, LTTB_DOWNSAMPLE_THRESHOLD,
@@ -194,10 +195,10 @@ def draw_smoothed(canvas, target_ax, ds, plot_x_data, plot_y_data, plot_kwargs):
         if use_line_gradient:
             ds.artist = canvas._add_gradient_line(
                 target_ax, x_smooth, y_smooth, ds.color, ds.gradient_color2,
-                ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
+                ds.linewidth, ds.alpha, ds.linestyle, label=legend_text(ds)
             )
         else:
-            (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+            (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
             ds.artist = artist_line
         if ds.plot_type == 'Line+Scatter':
             target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **plot_kwargs)
@@ -206,10 +207,10 @@ def draw_smoothed(canvas, target_ax, ds, plot_x_data, plot_y_data, plot_kwargs):
         if use_line_gradient:
             ds.artist = canvas._add_gradient_line(
                 target_ax, plot_x_data, plot_y_data, ds.color, ds.gradient_color2,
-                ds.linewidth, ds.alpha, ds.linestyle, label=ds.name
+                ds.linewidth, ds.alpha, ds.linestyle, label=legend_text(ds)
             )
         else:
-            (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+            (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
             ds.artist = artist
         return False
 
@@ -228,7 +229,7 @@ def draw_plot_type(canvas, target_ax, axis_index, ds, plot_x_data, plot_y_data, 
     plugin_plot_type = api.get_plot_type(ds.plot_type) if api is not None else None
     if plugin_plot_type is None:
         logger.warning("未知のplot_type '%s' です。Lineとして描画します。", ds.plot_type)
-        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=ds.name, **plot_kwargs)
+        (artist,) = target_ax.plot(plot_x_data, plot_y_data, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
         return artist
     try:
         artist = plugin_plot_type.drawer(ds, target_ax, plot_x_data, plot_y_data)

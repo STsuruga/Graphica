@@ -6,7 +6,7 @@
 """
 
 from graphica.core.axis_settings import axis_setting
-from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, legend_text
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from graphica.core.dataset import Dataset
@@ -42,7 +42,7 @@ _BUILTIN_PLOT_TYPES = ('Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step',
 
 def _emit_dataset_plot_call(lines: list[str], ax_var: str, ds: "Dataset", mappable_var: str | None = None) -> bool:
     """1次元の系列を描く呼び出しを書く。カラーバー用の mappable を mappable_var に入れたら True。"""
-    kwargs = f"color={ds.color!r}, alpha={ds.alpha!r}, label={ds.name!r}"
+    kwargs = f"color={ds.color!r}, alpha={ds.alpha!r}, label={legend_text(ds)!r}"
     plot_type = ds.plot_type if ds.plot_type in _BUILTIN_PLOT_TYPES else None
 
     if plot_type is None:
@@ -67,7 +67,7 @@ def _emit_dataset_plot_call(lines: list[str], ax_var: str, ds: "Dataset", mappab
             f"{assign}{ax_var}.scatter(x, y, c=z, cmap={ds.colormap!r}, "
             f"vmin={_to_native(ds.vmin)!r}, vmax={_to_native(ds.vmax)!r}, "
             f"marker={ds.marker!r}, s={ds.markersize!r} ** 2, "
-            f"alpha={ds.alpha!r}, label={ds.name!r})"
+            f"alpha={ds.alpha!r}, label={legend_text(ds)!r})"
         )
         return bool(mappable_var)
 
@@ -81,7 +81,7 @@ def _emit_dataset_plot_call(lines: list[str], ax_var: str, ds: "Dataset", mappab
             f"marker={ds.marker!r}, markersize={ds.markersize!r}, {kwargs})"
         )
     elif plot_type == 'Area':
-        lines.append(f"{ax_var}.fill_between(x, y, 0, color={ds.color!r}, alpha={ds.alpha!r} * 0.4, label={ds.name!r})")
+        lines.append(f"{ax_var}.fill_between(x, y, 0, color={ds.color!r}, alpha={ds.alpha!r} * 0.4, label={legend_text(ds)!r})")
         lines.append(f"{ax_var}.plot(x, y, linestyle={ds.linestyle!r}, linewidth={ds.linewidth!r}, color={ds.color!r}, alpha={ds.alpha!r})")
     elif plot_type == 'Bar':
         lines.append(f"{ax_var}.bar(x, y, {kwargs})")
