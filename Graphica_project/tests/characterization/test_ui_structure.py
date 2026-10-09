@@ -240,6 +240,8 @@ def _dialog_factories(tmp_path):
         "SavGolDialog": lambda: d.SavGolDialog("ds", 11),
         "ShortcutsDialog": lambda: d.ShortcutsDialog(actions),
         "TextAnnotationDialog": lambda: d.TextAnnotationDialog(),
+        "UpdateDialog": lambda: d.UpdateDialog(
+            {'tag_name': 'v9.9.9', 'body': '- note'}, '2.1.0', 'installer', True),
         "WelcomeDialog": lambda: d.WelcomeDialog(recent_files=[]),
         "XAxisAlignmentDialog": lambda: d.XAxisAlignmentDialog("a", "b"),
     }

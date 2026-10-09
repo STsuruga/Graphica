@@ -6433,6 +6433,68 @@
   },
   "modals": []
  },
+ "UpdateDialog": {
+  "tree": {
+   "class": "UpdateDialog",
+   "window_title": "A New Version Is Available",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "Version v9.9.9 is available (you have <VERSION>).",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QTextBrowser",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "name": "update_explanation",
+     "text": "\"Update Now\" downloads and verifies the new installer, then closes Graphica, updates it and starts it again. Your settings, plugins and autosaves are kept. You will be asked about unsaved changes before it closes.",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Update Now",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Open Release Page",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Later",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
  "WelcomeDialog": {
   "tree": {
    "class": "WelcomeDialog",
