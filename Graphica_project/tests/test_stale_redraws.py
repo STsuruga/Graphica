@@ -3,13 +3,16 @@
 どれも、全部を描き直したときと同じ状態になっていることで確かめる。
 - 行のマスクの Undo/Redo で描き直さず、統計値も古いまま(マスクしたときも統計値は古いまま)
 - データエディタで編集しても、一覧で何も選んでいないと描き直さない
+- 1つの軸だけ描き直す変更(第2Y軸など)と、キャンバスの大きさの変更で余白を合わせ直さない
 """
 import pandas as pd
 import pytest
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from graphica.core.commands import EditCellCommand
 from graphica.core.dataset import Dataset
+from graphica.gui.canvas import MplCanvas
 from graphica.gui.main_window import PlotterApp
 
 
@@ -32,10 +35,22 @@ def window():
 
 def _settle():
     QApplication.instance().processEvents()
+    QTest.qWait(MplCanvas.RELAYOUT_DELAY_MS * 3)
+    QApplication.instance().processEvents()
 
 
 def _first_line_y(window):
     return list(window.canvas.all_axes[0].get_lines()[0].get_ydata())
+
+
+def _positions(window):
+    return [bound for ax in window.canvas.fig.axes for bound in ax.get_position().bounds]
+
+
+def _assert_layout_matches_a_full_redraw(window):
+    shown = _positions(window)
+    window._update_plot()
+    assert shown == pytest.approx(_positions(window), abs=1e-6)
 
 
 # --- 行のマスク ---
@@ -79,3 +94,19 @@ def test_editing_in_the_data_editor_redraws_with_nothing_selected(window):
 
     assert _first_line_y(window) == [1.0, 50.0, 9.0]
     editor.close()
+
+
+# --- 余白 ---
+
+def test_turning_on_the_secondary_y_axis_refits_the_margins(window):
+    dataset = window.project.datasets[0]
+    window.push_dataset_property_command(dataset, {'use_secondary_y': False}, {'use_secondary_y': True}, "第2Y軸")
+    _settle()
+    _assert_layout_matches_a_full_redraw(window)
+
+
+@pytest.mark.parametrize("dw, dh", [(300, 200), (-300, -200)])
+def test_resizing_the_window_refits_the_margins(window, dw, dh):
+    window.resize(window.width() + dw, window.height() + dh)
+    _settle()
+    _assert_layout_matches_a_full_redraw(window)

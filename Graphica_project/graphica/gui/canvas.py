@@ -1,5 +1,7 @@
 import logging
 
+from PySide6.QtCore import QTimer
+
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -65,6 +67,18 @@ class _CanvasDrawingMixin:
         self._waterfall_transforms = {}
         # 軸の番号 -> ウォーターフォールでトレースを X にずらした幅 (左へ, 右へ)。手動の範囲をその分広げる
         self.waterfall_x_shift = {}
+        # グリッドの配置か。自由配置は利用者が決めた位置なので tight_layout を掛けない
+        self._uses_tight_layout = True
+
+    def _fit_layout(self):
+        """余白を目盛りや軸ラベルに合わせ直す(グリッドの配置だけ)。"""
+        if not self._uses_tight_layout:
+            return
+        # matplotlib の予備フォント(LastResortHE)が欠けた環境では FileNotFoundError になるので、配置を諦めて続ける
+        try:
+            fit_tight_layout(self.fig)
+        except (ValueError, FileNotFoundError):
+            pass
 
     # --- ウォーターフォールの表示座標 ⇔ データ座標 ---
 
@@ -151,6 +165,7 @@ class _CanvasDrawingMixin:
         self.fig.set_facecolor(DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR)
 
         is_free_layout = layout_mode == 'free'
+        self._uses_tight_layout = not is_free_layout
         subplot_count = len(all_plot_settings) if is_free_layout else rows * cols
         if subplot_count == 0:
             return False
@@ -282,6 +297,8 @@ class _CanvasDrawingMixin:
             share_x_axis=share_x_axis, share_y_axis=share_y_axis,
             panel_labels_enabled=panel_labels_enabled, full_resolution=full_resolution,
         )
+        # 目盛りの文字の幅(第2Y軸・範囲・対数)が変わると余白も変わる。ほかの軸も一緒に動く
+        self._fit_layout()
         self.draw_idle()
 
     def add_free_axis(self, datasets, settings, panel_labels_enabled=False):
@@ -511,10 +528,28 @@ class _CanvasDrawingMixin:
 
 
 class MplCanvas(FigureCanvas, _CanvasDrawingMixin):
+    # 大きさを変えている間は待ち、止まってから余白を合わせ直す
+    RELAYOUT_DELAY_MS = 50
+
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         self._init_drawing_state(width, height, dpi)
         super().__init__(self.fig)
         self.setParent(parent)
+        self._relayout_timer = QTimer(self)
+        self._relayout_timer.setSingleShot(True)
+        self._relayout_timer.setInterval(self.RELAYOUT_DELAY_MS)
+        self._relayout_timer.timeout.connect(self._relayout_after_resize)
+
+    def resizeEvent(self, event):
+        # 余白は図に対する割合で持つので、大きさが変わると目盛りの文字との釣り合いが崩れる
+        super().resizeEvent(event)
+        self._relayout_timer.start()
+
+    def _relayout_after_resize(self):
+        if not self.fig.axes:
+            return
+        self._fit_layout()
+        self.draw_idle()
 
 
 class _HeadlessRenderCanvas(FigureCanvasAgg, _CanvasDrawingMixin):
