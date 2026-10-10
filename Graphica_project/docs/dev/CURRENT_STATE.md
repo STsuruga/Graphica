@@ -13,11 +13,15 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-10): v2.2.1 のリリース準備
+## 現在地(2026-10-10): v2.2.1 をリリースした
 
-- `__version__` を 2.2.1 にし、CHANGELOG の「未リリース」を v2.2.1 の節にした(PR #124・#125 の内容)。
-  準備の PR を CI 緑でマージしたら、タグ `v2.2.1` → PyPI(publish.yml)→ GitHub Releases(3つの添付と
-  リリースノート、前回と同じ形)。v2.2.0 のアプリ内の更新で 2.2.1 に上がるかを確かめる最初の機会でもある。
+- **v2.2.1 を公開済み**(タグ `v2.2.1`、準備 PR #126)。PyPI に `graphica-plot` 2.2.1(wheel・sdist)、GitHub Releases に
+  `Graphica-2.2.1-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(zip 2つに `LICENSE` と `THIRD_PARTY_LICENSES.md`、
+  インストーラーはビルドのフォルダをまるごと入れる)。リリースノートは CHANGELOG の v2.2.1 の節と、インストールの表・
+  macOS 版が未署名の案内・ライセンス(前回と同じ形)。
+- `update_check.fetch_latest_release_info()` が v2.2.1 を最新として返し、3つの添付と SHA-256 を拾うことを確認した。
+  v2.2.0 のインストーラー版からアプリの中で更新するのは、これが最初の実地の機会(実機での確認はまだ)。
+- 次: 利用者からの報告を待つ。
 - PR #124・#125 で直したもの:
   - 一覧のドラッグでの並べ替えが描画順(ウォーターフォールの段)に反映されていなかった。`QTreeWidget` のドロップは項目を
     取り出して入れ直すので `rowsMoved` が出ず、`_on_dataset_rows_moved` は一度も呼ばれていなかった(テストはこの関数を直接
