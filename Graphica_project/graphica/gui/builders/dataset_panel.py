@@ -1,10 +1,11 @@
 """データセットの一覧とプロパティ欄の欄の組み立て。"""
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox, QHeaderView,
     QLabel, QLineEdit,
-    QMenu, QPushButton, QSpinBox, QTextEdit, QToolButton, QTreeWidget, QVBoxLayout, QWidget, QWidgetAction)
+    QMenu, QPushButton, QSpinBox, QTextEdit, QToolButton, QTreeWidget, QTreeWidgetItemIterator, QVBoxLayout, QWidget,
+    QWidgetAction)
 from graphica.core.dataset import WATERFALL_OFFSET_ABSOLUTE, WATERFALL_OFFSET_STEP
 from graphica.core.i18n import tr
 from graphica.gui.builders.common import (
@@ -394,6 +395,28 @@ def add_subplot_target_row(app):
     app._prop_form('place').addRow(app.fit_info_label, app.fit_info_textedit)
 
 
+class DatasetTreeWidget(QTreeWidget):
+    """ドロップで項目を動かした後に items_dropped を出す。
+
+    QTreeWidget のドロップは項目を取り出して入れ直すので、モデルの rowsMoved は出ない。
+    引数は、どの項目も親(フォルダ)が変わらなかったか。
+    """
+    items_dropped = Signal(bool)
+
+    def dropEvent(self, event):
+        parents = [(item, item.parent()) for item in self._all_items()]
+        super().dropEvent(event)
+        self.items_dropped.emit(all(item.parent() is parent for item, parent in parents))
+
+    def _all_items(self):
+        items = []
+        iterator = QTreeWidgetItemIterator(self)
+        while iterator.value() is not None:
+            items.append(iterator.value())
+            iterator += 1
+        return items
+
+
 def replace_dataset_list_with_tree(app):
     """Designer の QListWidget を、同じセルに「検索欄 + QTreeWidget」を縦に並べたものへ差し替える。"""
     old_widget = app.ui.dataset_list_widget
@@ -420,7 +443,7 @@ def replace_dataset_list_with_tree(app):
     search_edit.setClearButtonEnabled(True)
     container_layout.addWidget(search_edit)
 
-    tree = QTreeWidget(container)
+    tree = DatasetTreeWidget(container)
     tree.setObjectName("dataset_list_widget")
     tree.setHeaderHidden(True)
     # 列1は表示/非表示の目のアイコン。stretchLastSection のままだと目の列が余白を吸って広がる

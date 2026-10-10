@@ -1,6 +1,6 @@
 """画面の組み立てで共有する定数と小さな部品。main_window からも同じ名前で読める。"""
 import os
-from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QRectF, Qt, Signal
 from PySide6.QtGui import QPainter, QPainterPath
 from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QStyledItemDelegate
 from graphica.core.i18n import tr
@@ -85,6 +85,20 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
             opt.state &= ~QStyle.StateFlag.State_Selected
 
         super().paint(painter, opt, index)
+
+
+class _IgnoreWheelFilter(QObject):
+    def eventFilter(self, watched, event):
+        return event.type() == QEvent.Type.Wheel
+
+
+def disable_wheel_tab_switching(tab_widget):
+    """ホイールでタブが切り替わらないようにする。
+
+    タブバーは QTabWidget が C++ 側で作るので、wheelEvent をクラスごと書き換えても効かない。
+    """
+    tab_bar = tab_widget.tabBar()
+    tab_bar.installEventFilter(_IgnoreWheelFilter(tab_bar))
 
 
 class _ClickableMathPreviewLabel(FitWidthPixmapLabel):

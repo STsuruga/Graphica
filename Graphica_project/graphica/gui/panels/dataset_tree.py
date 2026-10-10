@@ -190,7 +190,14 @@ class DatasetTreePanel:
     def _find_dataset_row(self, dataset):
         return self._app.dataset_order.find_row(dataset)
 
+    def _on_dataset_items_dropped(self, stayed_in_folder):
+        """ドロップ処理の最中にツリーを触ると Qt の処理とぶつかるので、次のイベントループで合わせる。"""
+        QTimer.singleShot(0, self._app, lambda: self._sync_dataset_order_to_tree(stayed_in_folder))
+
     def _on_dataset_rows_moved(self, source_parent, source_start, source_end, dest_parent, dest_row):
+        self._sync_dataset_order_to_tree(source_parent == dest_parent)
+
+    def _sync_dataset_order_to_tree(self, stayed_in_folder):
         """
         ツリーのドラッグ&ドロップ後、project.datasets をツリーの並び(=描画の重なり順)に合わせる。
         同じフォルダ内の並べ替えだけ Undo でき、フォルダをまたぐ移動はフォルダ構造と同じく Undo の対象外。
@@ -209,7 +216,7 @@ class DatasetTreePanel:
         if [id(d) for d in reordered] == [id(d) for d in old_order]:
             return
 
-        if source_parent == dest_parent:
+        if stayed_in_folder:
             command = ReorderDatasetsCommand(
                 self._app.project, old_order, reordered,
                 on_applied=self._on_dataset_order_applied,
@@ -412,7 +419,7 @@ class DatasetTreePanel:
         self._app.ui.dataset_list_widget.customContextMenuRequested.connect(self._on_dataset_tree_context_menu)
         self._app.ui.dataset_list_widget.itemClicked.connect(self._on_dataset_tree_item_clicked)
         # ドラッグでの並べ替え(描画の重なり順)を project.datasets に合わせる
-        self._app.ui.dataset_list_widget.model().rowsMoved.connect(self._on_dataset_rows_moved)
+        self._app.ui.dataset_list_widget.items_dropped.connect(self._on_dataset_items_dropped)
 
 
         # プロパティの欄は表(gui/dataset_bindings.py)の順につなぐ

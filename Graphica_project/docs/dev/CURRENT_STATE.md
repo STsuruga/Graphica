@@ -13,7 +13,16 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-10): v2.2.0 をリリースした
+## 現在地(2026-10-10): リリース後の修正
+
+- 一覧のドラッグでの並べ替えが描画順(ウォーターフォールの段)に反映されていなかった。`QTreeWidget` のドロップは項目を
+  取り出して入れ直すので `rowsMoved` が出ず、`_on_dataset_rows_moved` は一度も呼ばれていなかった(テストはこの関数を直接
+  呼んでいたので気づかなかった)。一覧を `DatasetTreeWidget` にして、ドロップの後に `items_dropped` で合わせる。
+- 軸の設定のタブ(X軸 / Y軸 / ラベル/書式)をホイールで切り替えない(`builders/common.disable_wheel_tab_switching`)。
+  ほかのタブ(プロジェクトのタブ、環境設定)は今までどおり。
+- CHANGELOG の「未リリース」の節に記載。リリースはユーザーの指示を待つ。
+
+## 以前の現在地(2026-10-10): v2.2.0 をリリースした
 
 - **v2.2.0 を公開済み**(タグ `v2.2.0`、PR #122)。PyPI に `graphica-plot` 2.2.0(wheel・sdist)、GitHub Releases に
   `Graphica-2.2.0-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(3つとも `LICENSE` と `THIRD_PARTY_LICENSES.md` 入りを確認)。
