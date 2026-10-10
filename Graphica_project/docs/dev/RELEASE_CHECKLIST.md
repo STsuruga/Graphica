@@ -65,6 +65,26 @@ Graphica を新しいバージョンとして公開するときの手順。過�
       「開く」で起動する必要があることを明記(README 7.1 と同じ案内)。
       配布している `.app` は Apple Silicon (arm64) 向け。
 
+## 実際の流れ(v2.2.0・v2.2.1 で使ったもの)
+
+各段の区切りで止まり、ユーザーの「マージして」「タグ」「リリースを作って」を待つ(タグ・PyPI・リリースは取り消せないので)。
+
+1. ブランチ `release/vX.Y.Z` で `__version__` を上げ、CHANGELOG の「未リリース」を `## vX.Y.Z (日付)` の節にして冒頭に要約を1〜2行書く。
+   `bash scripts/run_coverage.sh`(フルスイートを兼ねる)→ `docs/COVERAGE*.md` と `CURRENT_STATE.md` も一緒にコミットして PR。
+2. CI が緑ならマージ。マージ後の master の CI(Tests・Package・Pages)が成功しているのを `gh run list --commit <sha>` で見てから、
+   `git tag vX.Y.Z origin/master && git push origin vX.Y.Z`。
+3. タグで走った `Publish to PyPI`・`Package`・`Tests` の成功を `gh run list --branch vX.Y.Z` で、PyPI に wheel と sdist が出たのを
+   `https://pypi.org/pypi/graphica-plot/json` で確かめる。
+4. 成果物を作業用の空のフォルダに `gh run download <Package の run id>`。`Graphica-windows` はフォルダで届くので、PowerShell で
+   `Compress-Archive -Path 'Graphica-windows\*' -DestinationPath 'Graphica-windows.zip'`(中身を zip の直下に)。
+   2つの zip に `LICENSE` と `THIRD_PARTY_LICENSES.md` があるのを `zipfile` で確かめる(インストーラーはビルドのフォルダを丸ごと入れる)。
+5. リリースノートは CHANGELOG の節 + インストールの表(インストーラーのファイル名を版に合わせる)+ macOS 未署名の案内 + ライセンス
+   (前の版の `gh release view vX.Y.Z --json body` をひな形に)。
+   `gh release create vX.Y.Z --title vX.Y.Z --notes-file notes.md --verify-tag <setup.exe> Graphica-windows.zip Graphica-macos.zip`。
+6. `PYTHONPATH=. python -c "from graphica.core.update_check import fetch_latest_release_info, pick_asset; ..."` で、最新が新しい版になり、
+   3つの添付と SHA-256 を拾うのを確かめる(GitHub の API の生の JSON ではなく、この関数を通す)。
+7. `CURRENT_STATE.md` を公開済みに更新(docs だけの PR はすぐマージしてよい)。
+
 ## PyPI 公開の初回準備(一度だけ、ユーザーの操作)
 
 配布名は `graphica-plot`(`graphica` は PyPI で別人が使用中)。トークンは使わず
