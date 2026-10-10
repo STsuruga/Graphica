@@ -8,7 +8,6 @@ import logging
 from matplotlib.patches import Rectangle
 
 from graphica.gui import notify
-from graphica.core.commands import SetMaskedRowsCommand
 from graphica.gui.tools.pointer import clamped_data_point, legend_at
 
 logger = logging.getLogger(__name__)
@@ -188,12 +187,10 @@ class RangeSelectTool:
         if new_masked == old_masked:
             return
 
-        command = SetMaskedRowsCommand(
+        self._app.dataset_host.push_masked_rows(
             dataset, old_masked, new_masked,
             description=f"範囲選択でのマスク({len(newly_masked)}件)",
         )
-        self._app.undo_stack.push(command)
-        self._app._update_plot()
         self._app.statusBar().showMessage(
             f"「{dataset.name}」の{len(newly_masked)}点をマスクしました", 3000
         )
