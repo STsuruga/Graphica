@@ -6536,7 +6536,7 @@
               ]
              },
              {
-              "class": "QTreeWidget",
+              "class": "DatasetTreeWidget",
               "name": "dataset_list_widget",
               "visible": true,
               "enabled": true,
@@ -6551,7 +6551,8 @@
                "collapsed(QModelIndex)": 1,
                "itemClicked(QTreeWidgetItem*,int)": 1,
                "currentItemChanged(QTreeWidgetItem*,QTreeWidgetItem*)": 1,
-               "itemSelectionChanged()": 1
+               "itemSelectionChanged()": 1,
+               "items_dropped(bool)": 1
               },
               "children": [
                {
