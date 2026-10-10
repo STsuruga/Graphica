@@ -108,7 +108,8 @@ from graphica.gui.builders import dataset_panel
 from graphica.gui.builders import property_sections
 from graphica.gui import dock_layout
 from graphica.gui.builders.common import (  # noqa: F401
-    DATASET_TREE_VISIBILITY_COLUMN_WIDTH, DOCK_LAYOUT_VERSION, DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, COLORMAP_CHOICES, TOOLBAR_ICON_SIZE, _svg_icon, _DatasetTreeSelectionDelegate, _ClickableMathPreviewLabel, _insert_form_row_after)
+    DATASET_TREE_VISIBILITY_COLUMN_WIDTH, DOCK_LAYOUT_VERSION, DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, COLORMAP_CHOICES, TOOLBAR_ICON_SIZE, _svg_icon, _DatasetTreeSelectionDelegate, _ClickableMathPreviewLabel, _insert_form_row_after,
+    disable_wheel_tab_switching)
 from graphica.gui.resources import resource_path
 from graphica.gui.axis_bindings import AXIS_BINDINGS, AXIS_BUTTONS
 from graphica.gui.binding import Binder
@@ -383,6 +384,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self.ui.gridLayout_2.setRowStretch(1, 1)  # キャンバス
         self.ui.gridLayout_2.setRowStretch(2, 0)  # データセット一覧
         self.ui.gridLayout_2.setRowStretch(3, 0)  # ボタンの行
+        disable_wheel_tab_switching(self.ui.axis_tab_widget)
 
     def _build_canvas_and_toolbar(self):
         return canvas_area.build_canvas_and_toolbar(self)
