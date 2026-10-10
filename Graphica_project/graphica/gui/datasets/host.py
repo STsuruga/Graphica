@@ -2,7 +2,7 @@
 from contextlib import contextmanager
 
 from graphica.core.axis_settings import axis_setting
-from graphica.core.commands import SetAnnotationsCommand
+from graphica.core.commands import SetAnnotationsCommand, SetMaskedRowsCommand
 
 
 class DatasetHost:
@@ -148,6 +148,12 @@ class DatasetHost:
     def settings(self):
         """アプリ全体の設定(QSettings)。"""
         return self._app.settings
+
+    def push_masked_rows(self, dataset, old_masked, new_masked, description):
+        """行のマスクの変更を Undo できる形で積む。積んだときも Undo/Redo でも描き直し、統計値も合わせる。"""
+        self._app.undo_stack.push(SetMaskedRowsCommand(
+            dataset, old_masked, new_masked, description=description,
+            on_applied=self._app.property_panel.on_data_structure_changed))
 
     def push_property_change(self, dataset, old_values, new_values, description, skip_if_unchanged=True):
         """データセットの属性の変更を Undo できる形で積む(skip_if_unchanged なら変化が無いときは何もしない)。"""

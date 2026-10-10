@@ -133,18 +133,24 @@ class SetDatasetPropertiesCommand(QUndoCommand):
 class SetMaskedRowsCommand(QUndoCommand):
     """行のマスクをまとめて切り替える。"""
     def __init__(self, dataset: "Dataset", old_masked_indices: list[Any], new_masked_indices: list[Any],
-                 description: str = "行の除外/解除") -> None:
-        """マスクする行は df の index ラベルのリスト。"""
+                 description: str = "行の除外/解除", on_applied: Callable[[], Any] | None = None) -> None:
+        """マスクする行は df の index ラベルのリスト。on_applied はタブの Undo で積むときの描き直し
+        (データエディタは自分の Undo の通知で描き直すので要らない)。"""
         super().__init__(description)
         self.dataset = dataset
         self.old_masked_indices = list(old_masked_indices)
         self.new_masked_indices = list(new_masked_indices)
+        self.on_applied = on_applied
 
     def redo(self) -> None:
         self.dataset.masked_row_indices = list(self.new_masked_indices)
+        if self.on_applied is not None:
+            self.on_applied()
 
     def undo(self) -> None:
         self.dataset.masked_row_indices = list(self.old_masked_indices)
+        if self.on_applied is not None:
+            self.on_applied()
 
 
 class SetAnnotationsCommand(QUndoCommand):

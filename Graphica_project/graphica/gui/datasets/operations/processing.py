@@ -19,7 +19,6 @@ from graphica.core.analysis import (calculate_savgol,
                            calculate_zscore_outliers, calculate_iqr_outliers,
                            calculate_resample_to_grid, calculate_histogram, calculate_kde, calculate_error_propagation,
                            calculate_cross_correlation_alignment, split_dataframe_by_column)
-from graphica.core.commands import SetMaskedRowsCommand
 from graphica.core.dataset import Dataset
 from graphica.core.safe_eval import safe_eval_column_formula
 from graphica.gui.datasets.operations.runner import Operation
@@ -517,11 +516,10 @@ def detect_duplicate_x(op):
         new_masked = sorted(set(old_masked) | set(to_mask_indices))
         if new_masked == old_masked:
             op.stop_with_information("既にすべてマスク済みです。")
-        op.host.undo_stack.push(SetMaskedRowsCommand(
+        op.host.push_masked_rows(
             original_dataset, old_masked, new_masked,
             description=f"重複X値の除去({len(to_mask_indices)}件をマスク)",
-        ))
-        op.host.redraw()
+        )
         op.status(f"{len(to_mask_indices)}件をマスクしました", 3000)
 
 
@@ -553,10 +551,7 @@ def filter_rows(op):
     if new_masked == old_masked:
         op.stop_with_information("条件を満たさない(新たにマスクされる)行はありませんでした。")
 
-    op.host.undo_stack.push(SetMaskedRowsCommand(
-        original_dataset, old_masked, new_masked, description=f"行フィルタ({formula})",
-    ))
-    op.host.redraw()
+    op.host.push_masked_rows(original_dataset, old_masked, new_masked, description=f"行フィルタ({formula})")
     op.status(f"{len(new_masked) - len(old_masked)}件をマスクしました", 3000)
 
 
@@ -590,10 +585,9 @@ def detect_outliers(op):
         to_mask_indices = visible_index[is_outlier].tolist()
         old_masked = list(original_dataset.masked_row_indices)
         new_masked = sorted(set(old_masked) | set(to_mask_indices))
-        op.host.undo_stack.push(SetMaskedRowsCommand(
+        op.host.push_masked_rows(
             original_dataset, old_masked, new_masked, description=f"外れ値の自動マスク({method_label})",
-        ))
-        op.host.redraw()
+        )
         result_text += f"  → {len(to_mask_indices)}件をマスクに追加しました。\n"
     elif apply_to_mask:
         result_text += "  (マスク対象の行はありませんでした)\n"

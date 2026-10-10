@@ -551,10 +551,10 @@ class DatasetPropertyPanel:
         self._app._push_dataset_property_command(dataset, old_values, new_values, description="誤差列(エラーバー)の変更")
 
     def on_data_structure_changed(self):
-        """データエディタでデータが変わったら、列の選択肢と描画を作り直す。"""
-        if self._app._get_current_dataset() is None:
-            return
+        """データ(データエディタの編集・行のマスク)が変わったら、列の選択肢と統計値と描画を作り直す。
 
+        エディタは一覧の選択と関係なく開いたままなので、何も選んでいなくても描き直す。
+        """
         self.update_ui_state()
         self._app._update_plot()
 
