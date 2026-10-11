@@ -193,7 +193,7 @@ def test_marker_rows_follow_the_plot_type_and_choices(window):
     window.marker_edge_combo.setCurrentIndex(window.marker_edge_combo.findData('color'))
     assert _shown(window.marker_face_color_picker) and _shown(window.marker_edge_color_picker)
 
-    window.ui.marker_combo.setCurrentText('+')
+    window.ui.marker_combo.setCurrentIndex(window.ui.marker_combo.findData('+'))
     assert not _shown(window.marker_fill_combo) and not _shown(window.marker_face_color_picker)
     assert _shown(window.marker_edge_combo)
 
@@ -219,7 +219,7 @@ def test_editing_the_marker_rows_changes_the_dataset_with_undo(window):
 
 def test_selecting_a_dataset_shows_its_marker_style(window):
     _add(window, marker='*', marker_fill='color', marker_face_color='#00ff00', marker_edge_width=0.5)
-    assert window.ui.marker_combo.currentText() == '*'
+    assert window.ui.marker_combo.currentData() == '*'
     assert window.marker_fill_combo.currentData() == 'color'
     assert window.marker_face_color_picker.color_name() == '#00ff00'
     assert window.marker_edge_width_spinbox.value() == 0.5
@@ -228,3 +228,39 @@ def test_selecting_a_dataset_shows_its_marker_style(window):
 def test_style_copy_and_templates_carry_the_marker_style():
     assert {'marker_fill', 'marker_face_color', 'marker_edge', 'marker_edge_color',
             'marker_edge_width'} <= set(STYLE_ATTRS)
+
+
+@pytest.mark.parametrize("plot_type, shown", [
+    ('Line', False), ('Area', False), ('Bar', False), ('Step', False),
+    ('Scatter', True), ('Line+Scatter', True), (COLOR_BY_COLUMN_PLOT_TYPE, True),
+])
+def test_marker_shape_and_size_rows_only_for_types_that_draw_markers(window, plot_type, shown):
+    _add(window, plot_type=plot_type)
+    for widget in (window.ui.marker_combo, window.ui.markersize_spinbox, window.marker_edge_width_spinbox):
+        assert _shown(widget) is shown
+
+
+def test_plugin_plot_types_keep_the_marker_rows(window):
+    """プラグインの種類はマーカーを使うかもしれない。"""
+    _add(window, plot_type='SomePluginType')
+    assert _shown(window.ui.marker_combo) and _shown(window.marker_fill_combo)
+
+
+def test_marker_choices_show_names_and_keep_the_saved_symbols(window):
+    combo = window.ui.marker_combo
+    assert (combo.itemText(0), combo.itemData(0)) == ("円", 'o')
+    assert combo.itemText(combo.findData('None')) == "なし"
+
+    ds = _add(window)
+    combo.setCurrentIndex(combo.findData('p'))
+    assert ds.marker == 'p'
+    combo.setCurrentIndex(combo.findData('None'))
+    assert ds.marker is None
+
+
+def test_a_marker_symbol_missing_from_the_choices_is_shown_and_kept(window):
+    """手で書いたファイルやプラグインの記号を、選択肢に無いからと別の形にしない。"""
+    ds = _add(window, marker='8')
+    combo = window.ui.marker_combo
+    assert combo.currentData() == '8'
+    assert ds.marker == '8'

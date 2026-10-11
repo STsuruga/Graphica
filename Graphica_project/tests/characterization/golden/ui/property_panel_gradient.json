@@ -641,33 +641,33 @@
           "class": "QLabel",
           "name": "marker_label",
           "text": "マーカー",
-          "visible": true,
+          "visible": false,
           "enabled": true
          },
          {
           "class": "QComboBox",
           "name": "marker_combo",
           "items": [
-           "o",
-           "s",
-           "^",
-           "v",
-           "D",
-           "<",
-           ">",
-           "p",
-           "h",
-           "*",
-           "+",
-           "x",
-           ".",
-           "None"
+           "円",
+           "四角",
+           "三角(上)",
+           "三角(下)",
+           "ひし形",
+           "三角(左)",
+           "三角(右)",
+           "五角形",
+           "六角形",
+           "星",
+           "十字",
+           "バツ",
+           "点",
+           "なし"
           ],
           "current": 0,
-          "visible": true,
+          "visible": false,
           "enabled": true,
           "receivers": {
-           "currentTextChanged(QString)": 2
+           "currentIndexChanged(int)": 2
           },
           "children": [
            {
@@ -716,14 +716,14 @@
           "class": "QLabel",
           "name": "makersize_label",
           "text": "マーカーサイズ",
-          "visible": true,
+          "visible": false,
           "enabled": true
          },
          {
           "class": "QDoubleSpinBox",
           "name": "markersize_spinbox",
           "value": "6.00",
-          "visible": true,
+          "visible": false,
           "enabled": true,
           "receivers": {
            "valueChanged(double)": 1
@@ -733,7 +733,7 @@
             "class": "QLineEdit",
             "name": "qt_spinbox_lineedit",
             "text": "6.00",
-            "visible": true,
+            "visible": false,
             "enabled": true,
             "receivers": {
              "textChanged(QString)": 1,
