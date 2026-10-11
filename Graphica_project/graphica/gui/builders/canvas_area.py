@@ -8,6 +8,7 @@ from graphica.gui import app_settings, theme
 from graphica.gui.builders.common import TOOLBAR_ICON_SIZE, _svg_icon
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.minimap_widget import MinimapWidget
+from graphica.gui.theme_color import theme_color_or_default
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,8 @@ def build_canvas_and_toolbar(app):
     app.canvas.dark_mode = app_settings.DARK_MODE.read(app.settings)
     # アイコンは作るときにテーマの色を焼き込むので、アイコンを作り始める前にテーマを当てる
     # (当てないと、ダークモードで起動したときツールバーのアイコンがライト用の色になって見えない)
-    theme.apply_theme(QApplication.instance(), app.canvas.dark_mode)
+    theme.apply_theme(QApplication.instance(), app.canvas.dark_mode,
+                      theme_color_or_default(app_settings.THEME_COLOR.read(app.settings)))
     app.canvas.point_label_max_points = app_settings.POINT_LABEL_MAX_POINTS.read(app.settings)
     # 表示範囲の操作はツールバーではなくマウスで行う(gui/tools/view_navigation.py)ので、matplotlib のツールバーは使わない
     toolbar = QToolBar(tr("プロット"), app)

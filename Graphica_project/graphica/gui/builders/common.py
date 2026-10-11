@@ -79,7 +79,7 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
             path.addRoundedRect(
                 rect, theme.DATASET_LIST_ITEM_RADIUS, theme.DATASET_LIST_ITEM_RADIUS
             )
-            painter.fillPath(path, theme.current_selection_highlight_qcolor())
+            painter.fillPath(path, theme.current_accent_soft_qcolor())
             painter.restore()
             # 標準の選択の背景を重ねないよう落とす(文字とアイコンの色は選択で変わらない)
             opt.state &= ~QStyle.StateFlag.State_Selected

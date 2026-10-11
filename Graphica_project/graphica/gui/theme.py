@@ -9,13 +9,14 @@ from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QComboBox,
                                QProxyStyle, QStyle, QStyleFactory)
 
 from graphica.gui.icon_utils import icon as _svg_icon
+from graphica.gui.theme_color import DEFAULT_THEME_COLOR, derive_accent, normalize_hex
 
-_original_palette = None
-_original_style_name = None
 _wheel_value_change_disabled = False
 _current_proxy_style = None
 _current_tokens = None
-_last_applied_dark = None  # 同じ値での apply_theme() は重い処理を省く
+_current_theme_color = DEFAULT_THEME_COLOR
+_last_applied_dark = None  # 同じ (明暗, テーマカラー) での apply_theme() は重い処理を省く
+_last_applied_theme_color = None
 
 # 選択の角丸を描くデリゲートが使う。QSS の QTreeWidget の border-radius と同じ値にしておくこと
 DATASET_LIST_ITEM_RADIUS = 8
@@ -61,28 +62,49 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
     # QSS の url() は Windows の区切りの \ を読めない
     return path.replace(os.sep, "/")
 
-# 配色の唯一の定義。これを上書きする利用者の設定は無い(配色パレットはデータの線の色で、UI とは別)。
-LIGHT_TOKENS = {
-    "bg": "#F6F7F9", "surface": "#FFFFFF", "surface_2": "#EEF0F3",
-    "border": "#DFE2E1", "border_strong": "#C9CDCB",
-    "text_primary": "#1B1F1E", "text_secondary": "#5B6462", "text_muted": "#8B938F",
-    "accent": "#1F6F78", "accent_soft": "#E4F0EF", "accent_text": "#FFFFFF",
-    # データセット一覧の選択だけに使う半透明の青(アクセントのティールとは別)
-    "selection_highlight": "rgba(37, 99, 235, 0.12)",
-    # selection_highlight と同じ色の不透明版(枠やチェックボックスの塗りには透明だと困る)
-    "selection_accent": "#2563EB",
-    # 欠損値のセル。選択の青とも、アクセントとも被らない
+# 配色の唯一の定義(見本は docs/dev/mockups/gui_redesign/)。利用者が変えられるのはテーマカラーだけで、
+# 強調の4色(accent・accent_fg・on_accent・accent_soft)はそこから theme_color.derive_accent() が作る。
+# 配色パレット(データの線の色)とは別物。
+_LIGHT_BASE_TOKENS = {
+    "bg": "#F1F2F4", "surface": "#FFFFFF", "surface_2": "#F3F5F7",
+    # 上部バー・帯・ステータスバー
+    "chrome": "#E4E7EA",
+    "border": "#E0E3E6", "border_strong": "#CBD0D5",
+    "text_primary": "#191D1F", "text_secondary": "#56606A", "text_muted": "#8A939B",
+    "success": "#22A06B", "danger": "#D1453B",
+    # 欠損値のセル。強調の色と被らない
     "warning_soft": "#FDF1D8",
 }
-DARK_TOKENS = {
-    "bg": "#14171A", "surface": "#1B1F22", "surface_2": "#21262A",
-    "border": "#2C3236", "border_strong": "#3A4147",
-    "text_primary": "#EDEFEF", "text_secondary": "#A6AEB2", "text_muted": "#6E777B",
-    "accent": "#5FB6BE", "accent_soft": "rgba(95, 182, 190, 0.16)", "accent_text": "#0E1113",
-    "selection_highlight": "rgba(59, 130, 246, 0.22)",
-    "selection_accent": "#3B82F6",
+_DARK_BASE_TOKENS = {
+    "bg": "#111417", "surface": "#181B1F", "surface_2": "#1F2328",
+    "chrome": "#0E1013",
+    "border": "#272C32", "border_strong": "#373E46",
+    "text_primary": "#E6E9EC", "text_secondary": "#A0A9B1", "text_muted": "#69737B",
+    "success": "#5BD39A", "danger": "#F1857C",
     "warning_soft": "rgba(250, 204, 21, 0.16)",
 }
+
+
+def build_tokens(dark: bool, theme_color: str = DEFAULT_THEME_COLOR) -> dict:
+    """テーマカラーから強調の色を計算して、明暗の地の色と合わせた全トークンを返す。"""
+    base = _DARK_BASE_TOKENS if dark else _LIGHT_BASE_TOKENS
+    tokens = dict(base)
+    derived = derive_accent(theme_color, base["surface"], dark)
+    for key in ("accent", "accent_fg", "on_accent", "accent_soft"):
+        tokens[key] = derived[key]
+    return tokens
+
+
+# 既定のテーマカラーでの全トークン。起動画面やキャンバスの定数など、設定を読む前に使う所はこれを見る
+LIGHT_TOKENS = build_tokens(False)
+DARK_TOKENS = build_tokens(True)
+
+
+def tokens_for(dark: bool, theme_color: str = DEFAULT_THEME_COLOR) -> dict:
+    """既定の色なら LIGHT_TOKENS / DARK_TOKENS そのもの、それ以外は作り直した辞書。"""
+    if normalize_hex(theme_color) == DEFAULT_THEME_COLOR:
+        return DARK_TOKENS if dark else LIGHT_TOKENS
+    return build_tokens(dark, theme_color)
 
 _FLAT_QSS_TEMPLATE = """
 QMainWindow, QDialog {{
@@ -90,9 +112,8 @@ QMainWindow, QDialog {{
 }}
 QWidget {{
     color: {text_primary};
-    /* 操作の強調(選択・ホバー・押下・フォーカス)は青の selection_highlight / selection_accent にそろえる。
-       ティールの accent は操作の強調ではないもの(QProgressBar::chunk など)だけ。 */
-    selection-background-color: {selection_highlight};
+    /* 操作の強調(選択・ホバー・押下・フォーカス)はすべてテーマカラーの accent / accent_soft にそろえる。 */
+    selection-background-color: {accent_soft};
     selection-color: {text_primary};
 }}
 QToolTip {{
@@ -115,7 +136,7 @@ QMenuBar::item {{
     border-radius: 4px;
 }}
 QMenuBar::item:selected {{
-    background: {selection_highlight};
+    background: {accent_soft};
     color: {text_primary};
 }}
 QMenu {{
@@ -129,7 +150,7 @@ QMenu::item {{
     border-radius: 6px;
 }}
 QMenu::item:selected {{
-    background: {selection_highlight};
+    background: {accent_soft};
     color: {text_primary};
 }}
 QMenu::separator {{
@@ -181,13 +202,13 @@ QToolButton {{
 QToolButton:hover {{
     background: {surface_2};
 }}
-/* ツールバーのボタンは QToolButton なので、QPushButton とは別にホバーと押下を青にする。 */
+/* ツールバーのボタンは QToolButton なので、QPushButton とは別にホバーと押下を強調の色にする。 */
 QToolButton:pressed {{
-    background: {selection_highlight};
+    background: {accent_soft};
 }}
 QToolButton:checked {{
-    background: {selection_highlight};
-    border: 1px solid {selection_accent};
+    background: {accent_soft};
+    border: 1px solid {accent};
 }}
 QStatusBar {{
     background: {surface};
@@ -223,10 +244,10 @@ QDockWidget::title {{
 }}
 /* フォーカスのあるドックの枠。dockActive は install_dock_focus_highlight() が付け外しする。 */
 QDockWidget[dockActive="true"] {{
-    border: 1px solid {selection_accent};
+    border: 1px solid {accent};
 }}
 QDockWidget[dockActive="true"]::title {{
-    border-bottom: 1px solid {selection_accent};
+    border-bottom: 1px solid {accent};
 }}
 
 /* --- スプリッター: 細く控えめにし、ホバーでだけ色を付ける --- */
@@ -242,7 +263,7 @@ QSplitter::handle:vertical {{
     margin: 0 2px;
 }}
 QSplitter::handle:hover {{
-    background: {selection_accent};
+    background: {accent};
 }}
 
 /* --- グループボックス / ボタン --- */
@@ -260,11 +281,11 @@ QGroupBox::title {{
     /* 枠の外にはみ出さない位置にする。はみ出すと、QFontDialog などの Qt 標準のダイアログでは上の余白が無く見切れる。 */
     top: 0px;
     padding: 2px 8px;
-    color: {selection_accent};
+    color: {accent_fg};
     font-size: 12.5px;
     font-weight: 600;
     letter-spacing: .02em;
-    background: {selection_highlight};
+    background: {accent_soft};
     border-radius: 5px;
 }}
 
@@ -308,7 +329,7 @@ QToolButton#collapsible_section_toggle:hover {{
     color: {text_primary};
 }}
 QToolButton#collapsible_section_toggle:pressed {{
-    background: {selection_highlight};
+    background: {accent_soft};
 }}
 
 /* --- プロパティ欄の節の見出し: 本文より少し大きく・太く・濃くし、中身を字下げする。
@@ -332,11 +353,11 @@ QToolButton#property_subsection_toggle[firstSection="true"] {{
 }}
 QToolButton#property_subsection_toggle:hover {{
     background: {surface_2};
-    /* accent_text はライトでは白なので、薄い背景のホバーでは消える。青の文字で強調する */
-    color: {selection_accent};
+    /* on_accent はライトでは白なので、薄い背景のホバーでは消える。文字用の accent_fg で強調する */
+    color: {accent_fg};
 }}
 QToolButton#property_subsection_toggle:pressed {{
-    background: {selection_highlight};
+    background: {accent_soft};
 }}
 QPushButton {{
     background: {surface};
@@ -346,24 +367,24 @@ QPushButton {{
 }}
 QPushButton:hover {{
     background: {surface_2};
-    border-color: {selection_accent};
+    border-color: {accent};
 }}
 QPushButton:pressed {{
-    background: {selection_highlight};
+    background: {accent_soft};
 }}
 QPushButton:disabled {{
     color: {text_muted};
     border-color: {border};
 }}
 QPushButton:default {{
-    /* 既定のボタン(Enter で実行)もほかの強調と同じ青にする。文字色は accent_text(どちらのモードでも読める)。 */
-    background: {selection_accent};
-    border-color: {selection_accent};
-    color: {accent_text};
+    /* 既定のボタン(Enter で実行)もほかの強調と同じ色で塗る。文字色は on_accent(塗りとの比で白か黒を選んである)。 */
+    background: {accent};
+    border-color: {accent};
+    color: {on_accent};
 }}
-/* フォーカスの枠はほかの選択・フォーカスと同じ青。ボタンの通常・ホバー・押下の色はそれぞれの規則で決める。 */
+/* フォーカスの枠はほかの選択・フォーカスと同じ強調の色。ボタンの通常・ホバー・押下の色はそれぞれの規則で決める。 */
 QPushButton:focus, QToolButton:focus {{
-    border: 1px solid {selection_accent};
+    border: 1px solid {accent};
 }}
 
 /* --- アイコンだけの正方形のボタン(大きさは Python 側の setFixedSize) --- */
@@ -377,18 +398,18 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {{
     border: 1px solid {border};
     border-radius: 6px;
     padding: 4px 8px;
-    selection-background-color: {selection_highlight};
+    selection-background-color: {accent_soft};
 }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QComboBox:focus, QTextEdit:focus, QPlainTextEdit:focus {{
-    border-color: {selection_accent};
+    border-color: {accent};
 }}
 QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabled {{
     color: {text_muted};
     background: {surface_2};
 }}
 
-/* --- タイトルと軸ラベルのプレビュー: 入力欄と同じ見た目にし、ホバーで枠を青くしてクリックできることを示す --- */
+/* --- タイトルと軸ラベルのプレビュー: 入力欄と同じ見た目にし、ホバーで枠を強調の色にしてクリックできることを示す --- */
 QLabel#mathtext_preview_label {{
     background: {surface};
     border: 1px solid {border};
@@ -396,7 +417,7 @@ QLabel#mathtext_preview_label {{
     padding: 4px 8px;
 }}
 QLabel#mathtext_preview_label:hover {{
-    border-color: {selection_accent};
+    border-color: {accent};
 }}
 
 /* --- スピンボックスの上下ボタン: 矢印は width / height を指定するだけで描かれなくなるので、
@@ -432,7 +453,7 @@ QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
 }}
 QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
 QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
-    background: {selection_highlight};
+    background: {accent_soft};
 }}
 QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {{
     image: url({spin_up_arrow_url});
@@ -457,7 +478,7 @@ QComboBox::down-arrow {{
 QComboBox QAbstractItemView {{
     background: {surface};
     border: 1px solid {border};
-    selection-background-color: {selection_highlight};
+    selection-background-color: {accent_soft};
     selection-color: {text_primary};
     outline: none;
 }}
@@ -480,7 +501,7 @@ QTreeWidget::item, QListWidget::item, QTableWidget::item {{
     padding: 3px;
 }}
 QTreeWidget::item:selected, QListWidget::item:selected, QTableWidget::item:selected {{
-    background: {selection_highlight};
+    background: {accent_soft};
     color: {text_primary};
 }}
 QTreeWidget::item, QListWidget::item {{
@@ -530,8 +551,8 @@ QTabBar::tab:hover {{
 }}
 QTabBar::tab:selected {{
     background: {surface};
-    border-bottom: 2px solid {selection_accent};
-    color: {selection_accent};
+    border-bottom: 2px solid {accent};
+    color: {accent_fg};
     font-weight: 600;
 }}
 /* QTabBar::close-button には何も指定しない。何か1つでも指定するとアイコンが描かれなくなる
@@ -543,7 +564,7 @@ QToolButton#add_tab_button {{
     padding: 5px;
 }}
 QToolButton#add_tab_button:hover {{
-    background: {selection_highlight};
+    background: {accent_soft};
 }}
 
 /* --- チェックボックスとラジオボタン: QCheckBox::indicator には何も指定しない。何か1つでも指定すると
@@ -556,9 +577,9 @@ QRadioButton::indicator {{
     background: {surface};
 }}
 QRadioButton::indicator:checked {{
-    /* チェックボックスの塗りと同じ青 */
-    background: {selection_accent};
-    border-color: {selection_accent};
+    /* チェックボックスの塗りと同じ色 */
+    background: {accent};
+    border-color: {accent};
 }}
 
 /* --- プログレスバー --- */
@@ -585,7 +606,7 @@ QScrollBar::handle:vertical {{
     min-height: 24px;
 }}
 QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed {{
-    /* つかめる場所を示すだけの部品なので、青ではなく濃いグレー(text_muted)で強調する。
+    /* つかめる場所を示すだけの部品なので、強調の色ではなく濃いグレー(text_muted)で強調する。
        ドラッグ中も :hover が当たり続けるので、:pressed もそろえる。 */
     background: {text_muted};
 }}
@@ -639,24 +660,33 @@ def build_qss(tokens: dict) -> str:
     return _FLAT_QSS_TEMPLATE.format(**format_args)
 
 
-def _build_dark_palette() -> QPalette:
+def _token_qcolor(value: str) -> QColor:
+    """トークンの色を QColor に。QColor(str) は QSS の "rgba(r, g, b, a)" を読めず不透明の黒になるので自前で解釈する。"""
+    match = re.match(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)", value)
+    if not match:
+        return QColor(value)
+    r, g, b, a = match.groups()
+    color = QColor(int(r), int(g), int(b))
+    color.setAlphaF(float(a))
+    return color
+
+
+def build_palette(tokens: dict) -> QPalette:
+    """トークンから QPalette を作る。QSS の効かない所(Qt 標準のダイアログ、palette(...) を使うプラグインの部品)も揃う。"""
     palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor(220, 220, 220))
-    palette.setColor(QPalette.ColorRole.Base, QColor(35, 35, 35))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(53, 53, 53))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(220, 220, 220))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(220, 220, 220))
-    palette.setColor(QPalette.ColorRole.Text, QColor(220, 220, 220))
-    palette.setColor(QPalette.ColorRole.Button, QColor(53, 53, 53))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor(220, 220, 220))
-    palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 80, 80))
-    palette.setColor(QPalette.ColorRole.Link, QColor(90, 160, 230))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor(60, 120, 200))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(127, 127, 127))
-    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(127, 127, 127))
-    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(127, 127, 127))
+    roles = {
+        "Window": "bg", "WindowText": "text_primary",
+        "Base": "surface", "AlternateBase": "surface_2", "Text": "text_primary",
+        "Button": "surface", "ButtonText": "text_primary",
+        "ToolTipBase": "surface", "ToolTipText": "text_primary", "PlaceholderText": "text_muted",
+        "Highlight": "accent", "HighlightedText": "on_accent",
+        "Link": "accent_fg", "LinkVisited": "accent_fg", "BrightText": "danger",
+        "Light": "surface", "Midlight": "border", "Mid": "border_strong", "Dark": "border_strong", "Shadow": "text_muted",
+    }
+    for role, key in roles.items():
+        palette.setColor(getattr(QPalette.ColorRole, role), _token_qcolor(tokens[key]))
+    for role in ("Text", "ButtonText", "WindowText"):
+        palette.setColor(QPalette.ColorGroup.Disabled, getattr(QPalette.ColorRole, role), QColor(tokens["text_muted"]))
     return palette
 
 
@@ -706,7 +736,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
             fill = QColor(tokens["surface_2"])
             border = QColor(tokens["border"])
         elif checked or tristate:
-            fill = QColor(tokens["selection_accent"])
+            fill = QColor(tokens["accent"])
             border = fill
         else:
             fill = QColor(tokens["surface"])
@@ -723,7 +753,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
         painter.drawRoundedRect(rect, 3, 3)
 
         if checked or tristate:
-            check_color = QColor(tokens["accent_text"]) if enabled else QColor(tokens["text_muted"])
+            check_color = QColor(tokens["on_accent"]) if enabled else QColor(tokens["text_muted"])
             check_pen = QPen(check_color)
             check_pen.setWidthF(1.6)
             check_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
@@ -746,21 +776,25 @@ class _FlatThemeProxyStyle(QProxyStyle):
         painter.restore()
 
 
-def apply_theme(app, dark: bool):
-    """ライトでもダークでも Fusion を使い、パレットだけ替える(スタイルを替えるとボタンの大きさや余白まで変わる)。"""
-    global _original_palette, _original_style_name, _current_proxy_style, _current_tokens
-    global _last_applied_dark
-    if _original_palette is None:
-        _original_palette = QPalette(app.palette())
-        _original_style_name = app.style().objectName()
+def apply_theme(app, dark: bool, theme_color: str = None):
+    """ライトでもダークでも Fusion を使い、パレットだけ替える(スタイルを替えるとボタンの大きさや余白まで変わる)。
 
-    tokens = DARK_TOKENS if dark else LIGHT_TOKENS
+    theme_color を省くと、前に当てたテーマカラーのまま明暗だけを替える。
+    """
+    global _current_proxy_style, _current_tokens, _current_theme_color
+    global _last_applied_dark, _last_applied_theme_color
+    if theme_color is not None:
+        _current_theme_color = normalize_hex(theme_color)
+
+    tokens = tokens_for(dark, _current_theme_color)
     _current_tokens = tokens
 
     # 同じ値で何度も呼ばれる(タブごとなど)。setPalette() と setStyleSheet() は1回約130ms かかるので省く
-    if _current_proxy_style is not None and _last_applied_dark == dark:
+    if (_current_proxy_style is not None and _last_applied_dark == dark
+            and _last_applied_theme_color == _current_theme_color):
         return
     _last_applied_dark = dark
+    _last_applied_theme_color = _current_theme_color
 
     # スタイルは QApplication に1つだけ作り、setStyle() も1回だけ。setStyle() は古いスタイルを削除するので、
     # 差し替えるとほかのタブのウィジェットが削除済みのスタイルを触ってプロセスごと落ちる
@@ -770,10 +804,7 @@ def apply_theme(app, dark: bool):
         app.setStyle(_current_proxy_style)
     else:
         _current_proxy_style.update_tokens(tokens)
-    if dark:
-        app.setPalette(_build_dark_palette())
-    else:
-        app.setPalette(_original_palette)
+    app.setPalette(build_palette(tokens))
 
     app.setStyleSheet(build_qss(tokens))
 
@@ -783,20 +814,14 @@ def current_tokens() -> dict:
     return _current_tokens or LIGHT_TOKENS
 
 
-def current_selection_highlight_qcolor() -> QColor:
-    """selection_highlight を QColor で返す。
+def current_theme_color() -> str:
+    """今当てているテーマカラー(利用者が選んだ色。補正の前)。"""
+    return _current_theme_color
 
-    トークンは QSS 用の "rgba(r, g, b, a)" で、QColor(str) はこれを読めず不透明の黒になるので自前で解釈する。
-    """
-    tokens = _current_tokens or LIGHT_TOKENS
-    raw = tokens["selection_highlight"]
-    match = re.match(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)", raw)
-    if not match:
-        return QColor(raw)
-    r, g, b, a = match.groups()
-    color = QColor(int(r), int(g), int(b))
-    color.setAlphaF(float(a))
-    return color
+
+def current_accent_soft_qcolor() -> QColor:
+    """選択の背景(accent_soft)を QColor で返す。"""
+    return _token_qcolor((_current_tokens or LIGHT_TOKENS)["accent_soft"])
 
 
 def install_dock_focus_highlight(window):
