@@ -1,8 +1,11 @@
 """欄と値の対応表(gui/binding.py)。画面を組み立てずに、欄だけを持つ持ち主で確かめる。"""
 import pytest
-from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QLineEdit
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QLineEdit
 
-from graphica.gui.binding import WATCH, Binder, Binding, check, choice, item_data, number, shown_text, text
+from graphica.gui.binding import (
+    WATCH, Binder, Binding, check, choice, item_data, number, shown_text, text, typed_text)
 
 
 class _Owner:
@@ -105,3 +108,42 @@ def test_rows_with_load_watch_and_restore_only_widgets():
     binder.connect(watch=lambda signal, widget: signal.connect(lambda *_: watched.append(widget)))
     owner.size.setValue(3.0)
     assert watched == [owner.size] and owner.calls == ["also"]
+
+
+def _typed_owner():
+    owner = _Owner()
+    binder = Binder(owner, (typed_text("title", "title", ("changed",)),))
+    binder.connect()
+    return owner, binder
+
+
+def test_typed_text_notifies_once_when_typing_is_finished():
+    """1文字ごとに描き直すと、大きなデータでは打つたびに止まる。"""
+    owner, _binder = _typed_owner()
+    QTest.keyClicks(owner.title, "Intensity")
+    assert owner.calls == []
+
+    QTest.keyClick(owner.title, Qt.Key.Key_Return)
+    assert owner.calls == ["changed"]
+
+
+def test_typed_text_does_not_notify_when_leaving_without_typing():
+    owner, _binder = _typed_owner()
+    QTest.keyClicks(owner.title, "a")
+    owner.title.editingFinished.emit()
+    owner.title.editingFinished.emit()
+    assert owner.calls == ["changed"]
+
+
+def test_typed_text_set_by_the_program_notifies_at_once():
+    """編集ダイアログの結果や設定の読み込み(信号を止めていないとき)は、今までどおりすぐ反映する。"""
+    owner, binder = _typed_owner()
+    owner.title.setText("Y2")
+    assert owner.calls == ["changed"]
+
+    owner.calls.clear()
+    binder.block_signals(True)
+    owner.title.setText("x")
+    binder.block_signals(False)
+    QApplication.processEvents()
+    assert owner.calls == []
