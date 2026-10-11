@@ -267,6 +267,9 @@ class _CanvasDrawingMixin:
 
         ax = self.all_axes[axis_index]
         ax.cla()
+        # cla() はデータの範囲(dataLim)を残すので、データが無くなった軸のオートスケールが前の範囲になる。
+        # 全部を描き直す経路(新しい軸)と同じ空の範囲から始める
+        ax.relim()
 
         # cla() で古い artist は消えているので、参照を捨てるだけ
         self._annotation_artists.pop(axis_index, None)
