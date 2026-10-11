@@ -262,6 +262,7 @@ def main_app_window(tmp_path, monkeypatch):
 
     class FakeWelcomeDialog:
         def __init__(self, *args, **kwargs):
+            self.open_project_requested = False
             self.load_sample_requested = False
             self.selected_recent_file = None
             self.load_template_requested = False

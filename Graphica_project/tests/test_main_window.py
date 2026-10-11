@@ -1906,7 +1906,8 @@ def test_check_first_launch_loads_sample_when_requested(tmp_path, monkeypatch):
     window.settings.setValue("has_shown_welcome", False)
 
     class _FakeWelcomeDialog:
-        def __init__(self, parent=None, recent_files=None):
+        def __init__(self, parent=None, recent_files=None, last_tab_closed=False):
+            self.open_project_requested = False
             self.load_sample_requested = True
             self.selected_recent_file = None
             self.load_template_requested = False
@@ -1928,7 +1929,8 @@ def test_check_first_launch_loads_sample_when_requested(tmp_path, monkeypatch):
 
 def _make_fake_welcome_dialog(load_sample=False, selected_recent_file=None, load_template=False):
     class _FakeWelcomeDialog:
-        def __init__(self, parent=None, recent_files=None):
+        def __init__(self, parent=None, recent_files=None, last_tab_closed=False):
+            self.open_project_requested = False
             self.recent_files_passed = recent_files
             self.load_sample_requested = load_sample
             self.selected_recent_file = selected_recent_file
@@ -1957,7 +1959,7 @@ def test_show_startup_screen_passes_recent_files(tmp_path, monkeypatch):
     captured = {}
     original_init = fake_cls.__init__
 
-    def _capturing_init(self, parent=None, recent_files=None):
+    def _capturing_init(self, parent=None, recent_files=None, last_tab_closed=False):
         captured['recent_files'] = recent_files
         original_init(self, parent=parent, recent_files=recent_files)
 

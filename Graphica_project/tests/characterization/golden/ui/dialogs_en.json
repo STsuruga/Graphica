@@ -6523,6 +6523,12 @@
     },
     {
      "class": "QPushButton",
+     "text": "Open project...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
      "text": "Open Sample Data",
      "visible": true,
      "enabled": true

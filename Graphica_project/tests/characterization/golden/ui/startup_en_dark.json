@@ -6990,6 +6990,16 @@
            },
            {
             "class": "QPushButton",
+            "text": "Open project...",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QPushButton",
             "text": "Open Sample Data",
             "visible": false,
             "enabled": true,
