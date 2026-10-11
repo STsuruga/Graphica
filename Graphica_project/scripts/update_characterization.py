@@ -1,6 +1,6 @@
 """特性テストの基準(tests/characterization/golden/)を作り直す。
 
-使うのは挙動を意図して変える fix: のときと、ENVIRONMENT.md の版を上げるときだけ。
+使うのは挙動を意図して変える fix: のとき、GUI 刷新で見た目・配置を意図して変えるとき、ENVIRONMENT.md の版を上げるときだけ。
 refactor: のコミットで基準が変わるなら、それは挙動を変えてしまったということ。
 
     python scripts/update_characterization.py            # すべて作り直して、もう一度回して一致を確かめる
