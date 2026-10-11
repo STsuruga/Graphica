@@ -6990,6 +6990,16 @@
            },
            {
             "class": "QPushButton",
+            "text": "プロジェクトを開く...",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "clicked(bool)": 1,
+             "clicked()": 1
+            }
+           },
+           {
+            "class": "QPushButton",
             "text": "サンプルデータを開く",
             "visible": false,
             "enabled": true,

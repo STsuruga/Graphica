@@ -9,7 +9,6 @@ from PySide6.QtGui import QIcon, QUndoGroup
 from PySide6.QtWidgets import (QMainWindow, QTabWidget, QToolButton, QDockWidget,
                                QUndoView, QWidget, QHBoxLayout)
 
-from graphica.gui import notify
 from graphica.gui import app_settings
 from graphica.gui.main_window import PlotterApp, resource_path
 from graphica.gui.icon_utils import icon as svg_icon
@@ -174,22 +173,22 @@ class MainAppWindow(QMainWindow):
             self.undo_group.setActiveStack(project_window.undo_stack)
 
     def _on_tab_close_requested(self, index):
-        """最後の1つは閉じられない。"""
-        if self.tab_widget.count() <= 1:
-            notify.information(
-                self, "タブを閉じる", "最後の1つのタブは閉じられません。"
-            )
-            return
+        """最後の1つを閉じたら、空のプロジェクトのタブに置き換えてスタートアップ画面を出す。
 
+        タブが無くなる時はつくらない(メニューバーは各タブが持つので、0枚だと何もできなくなる)。
+        """
         project_window = self.tab_widget.widget(index)
         if project_window is not None and not project_window.confirm_unsaved_changes("タブを閉じる"):
             return
-        self.tab_widget.removeTab(index)
+        replacement = self.add_new_project_tab() if self.tab_widget.count() <= 1 else None
+        self.tab_widget.removeTab(self.tab_widget.indexOf(project_window))
         if project_window is not None:
             # 閉じた直後から履歴パネルの対象に残らないよう、明示的に外す
             self.undo_group.removeStack(project_window.undo_stack)
             project_window.close()
             project_window.deleteLater()
+        if replacement is not None:
+            replacement._show_welcome_dialog(last_tab_closed=True)
 
     def closeEvent(self, event):
         """全部のタブに正常終了の処理をさせてから閉じる。"""

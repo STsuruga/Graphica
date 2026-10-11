@@ -35,6 +35,7 @@ def _make_isolated_main_app_window(tmp_path, monkeypatch):
 
     class FakeWelcomeDialog:
         def __init__(self, *args, **kwargs):
+            self.open_project_requested = False
             self.load_sample_requested = False
             # 項目C-912: 実際のWelcomeDialogはこれらも常に設定するため、
             # _show_welcome_dialog()の分岐でAttributeErrorにならないよう

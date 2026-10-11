@@ -34,13 +34,15 @@ def _make_isolated_main_app_window(tmp_path, monkeypatch):
     # 初回起動ウェルカムダイアログ・オートセーブ復元確認ダイアログは、いずれも
     # QTimer.singleShot(0, ...)経由の遅延呼び出し+モーダルexec()のため、
     # 実際に開いてテストをハングさせないよう安全側に倒す。
-    # QMessageBox.information は「最後の1つのタブは閉じられません」の案内
-    # (_on_tab_close_requested)で使われるため、同様にモックしておく。
     monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
 
     class FakeWelcomeDialog:
+        shown = []
+
         def __init__(self, *args, **kwargs):
+            FakeWelcomeDialog.shown.append(kwargs)
+            self.open_project_requested = False
             self.load_sample_requested = False
             # 項目C-912: 実際のWelcomeDialogはこれらも常に設定するため、
             # _show_welcome_dialog()の分岐(elif dialog.selected_recent_file: 等)が
@@ -57,6 +59,7 @@ def _make_isolated_main_app_window(tmp_path, monkeypatch):
     app = QApplication.instance()
     for _ in range(5):
         app.processEvents()
+    window.fake_welcome_dialog = FakeWelcomeDialog
     return window
 
 
@@ -169,12 +172,49 @@ def test_closing_tab_removes_its_stack_from_undo_group(tmp_path, monkeypatch):
     assert second_tab.undo_stack not in stacks_after
 
 
-def test_last_tab_cannot_be_closed_and_stack_stays_registered(tmp_path, monkeypatch):
+def test_closing_the_last_tab_replaces_it_and_shows_the_startup_screen(tmp_path, monkeypatch):
     window = _make_isolated_main_app_window(tmp_path, monkeypatch)
     first_tab = window.tab_widget.widget(0)
-    window._on_tab_close_requested(0)  # 唯一のタブ、閉じられないはず
+    window.fake_welcome_dialog.shown.clear()
+
+    window._on_tab_close_requested(0)
+
     assert window.tab_widget.count() == 1
-    assert first_tab.undo_stack in list(window.undo_group.stacks())
+    replacement = window.tab_widget.widget(0)
+    assert replacement is not first_tab
+    assert not replacement.project.datasets
+    assert first_tab.undo_stack not in list(window.undo_group.stacks())
+    assert replacement.undo_stack in list(window.undo_group.stacks())
+    assert window.fake_welcome_dialog.shown == [{'recent_files': replacement._get_recent_files(),
+                                                 'last_tab_closed': True}]
+
+
+def test_closing_the_last_tab_can_be_cancelled_at_the_unsaved_changes_prompt(tmp_path, monkeypatch):
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    first_tab = window.tab_widget.widget(0)
+    monkeypatch.setattr(first_tab, 'confirm_unsaved_changes', lambda *_a: False)
+
+    window._on_tab_close_requested(0)
+
+    assert window.tab_widget.count() == 1
+    assert window.tab_widget.widget(0) is first_tab
+
+
+def test_startup_screen_can_open_a_project(tmp_path, monkeypatch):
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    tab = window.tab_widget.widget(0)
+    opened = []
+    monkeypatch.setattr(tab, '_on_load_project', lambda: opened.append(True))
+
+    class OpenProject(window.fake_welcome_dialog):
+        def exec(self):
+            self.open_project_requested = True
+            return 1
+
+    monkeypatch.setattr(main_window_module, "WelcomeDialog", OpenProject)
+    tab._show_welcome_dialog(last_tab_closed=True)
+
+    assert opened == [True]
 
 
 def test_undo_history_dock_starts_hidden(tmp_path, monkeypatch):

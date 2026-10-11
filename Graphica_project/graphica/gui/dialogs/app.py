@@ -747,10 +747,11 @@ class WelcomeDialog(QDialog):
     """初回の案内とスタートアップ画面。操作ガイド、サンプル、最近使ったファイル、書式テンプレートへの入口。
 
     ファイルは扱わず、閉じた後に呼び出し側が load_sample_requested / selected_recent_file /
-    load_template_requested を見て処理する。
+    load_template_requested / open_project_requested を見て処理する。
+    last_tab_closed は最後のタブを閉じて空のプロジェクトに置き換えた直後(閉じると空のまま始める)。
     """
 
-    def __init__(self, parent=None, recent_files=None):
+    def __init__(self, parent=None, recent_files=None, last_tab_closed=False):
         super().__init__(parent)
         import os
         from graphica.core.version import APP_NAME
@@ -761,6 +762,7 @@ class WelcomeDialog(QDialog):
         self.load_sample_requested = False
         self.selected_recent_file = None
         self.load_template_requested = False
+        self.open_project_requested = False
         self._recent_file_paths = list(recent_files) if recent_files else []
 
         layout = QVBoxLayout(self)
@@ -815,6 +817,10 @@ class WelcomeDialog(QDialog):
             self.recent_list = None
 
         button_row = QHBoxLayout()
+        self.open_project_button = QPushButton(tr("プロジェクトを開く..."))
+        self.open_project_button.clicked.connect(self._on_open_project_clicked)
+        button_row.addWidget(self.open_project_button)
+
         self.load_sample_button = QPushButton(tr("サンプルデータを開く"))
         self.load_sample_button.clicked.connect(self._on_load_sample_clicked)
         button_row.addWidget(self.load_sample_button)
@@ -824,7 +830,8 @@ class WelcomeDialog(QDialog):
         button_row.addWidget(self.load_template_button)
         button_row.addStretch()
 
-        close_button = QPushButton(tr("閉じる"))
+        close_button = QPushButton(tr("新しいプロジェクトで始める") if last_tab_closed else tr("閉じる"))
+        close_button.setDefault(last_tab_closed)
         close_button.clicked.connect(self.accept)
         button_row.addWidget(close_button)
         layout.addLayout(button_row)
@@ -847,6 +854,10 @@ class WelcomeDialog(QDialog):
 
     def _on_load_template_clicked(self):
         self.load_template_requested = True
+        self.accept()
+
+    def _on_open_project_clicked(self):
+        self.open_project_requested = True
         self.accept()
 
 

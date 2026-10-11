@@ -666,8 +666,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
     def _on_show_startup_screen(self):
         self._show_welcome_dialog()
 
-    def _show_welcome_dialog(self):
-        dialog = WelcomeDialog(self, recent_files=self._get_recent_files())
+    def _show_welcome_dialog(self, last_tab_closed=False):
+        dialog = WelcomeDialog(self, recent_files=self._get_recent_files(), last_tab_closed=last_tab_closed)
         dialog.exec()
         if dialog.load_sample_requested:
             self._load_sample_data()
@@ -675,6 +675,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
             self._on_open_recent_file(dialog.selected_recent_file)
         elif dialog.load_template_requested:
             self._on_load_plot_template()
+        elif dialog.open_project_requested:
+            self._on_load_project()
 
     def _on_show_autosave_history(self):
         return project_files.on_show_autosave_history(self)

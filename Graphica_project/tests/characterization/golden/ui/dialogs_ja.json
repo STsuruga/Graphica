@@ -6523,6 +6523,12 @@
     },
     {
      "class": "QPushButton",
+     "text": "プロジェクトを開く...",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QPushButton",
      "text": "サンプルデータを開く",
      "visible": true,
      "enabled": true
