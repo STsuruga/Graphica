@@ -15,6 +15,7 @@ from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
     _svg_icon)
 from graphica.gui.color_picker_widget import ColorPickerWidget
+from graphica.gui.dataset_bindings import MARKER_CHOICES
 from graphica.gui.dataset_style_icon import (
     DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN, marker_choice_icon)
 
@@ -115,20 +116,16 @@ def build_dataset_list_buttons(app):
     app._build_dataset_property_sections()
 
 
-# Designer の選択肢(o s ^ v D None)の None の前に足す形。保存値は表示の文字そのもの
-EXTRA_MARKER_CHOICES = ('<', '>', 'p', 'h', '*', '+', 'x', '.')
-
-
 def build_marker_style_controls(app):
-    """マーカーの形の選択肢を足し、塗りと枠線の欄を作る。出し入れは property_panel.update_marker_controls_visibility。"""
+    """マーカーの形の選択肢を名前と形の絵にし、塗りと枠線の欄を作る。出し入れは property_panel.update_marker_controls_visibility。"""
     combo = app.ui.marker_combo
-    none_index = combo.findText('None')
-    for offset, marker in enumerate(EXTRA_MARKER_CHOICES):
-        combo.insertItem(none_index + offset, marker)
-    for i in range(combo.count()):
-        icon = marker_choice_icon(combo.itemText(i))
-        if icon is not None:
-            combo.setItemIcon(i, icon)
+    combo.clear()
+    for marker, label in MARKER_CHOICES:
+        icon = marker_choice_icon(marker)
+        if icon is None:
+            combo.addItem(tr(label), marker)
+        else:
+            combo.addItem(icon, tr(label), marker)
 
     style_form = app._prop_form('style')
     app.marker_fill_label = QLabel(tr("マーカーの塗り"))

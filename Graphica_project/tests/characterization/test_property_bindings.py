@@ -220,7 +220,7 @@ EDITS = (
     ("ui.plot_type_combo", lambda w: w.setCurrentText("Area")),
     ("ui.linestyle_combo", lambda w: w.setCurrentIndex(1)),
     ("ui.linewidth_spinbox", lambda w: w.setValue(2.75)),
-    ("ui.marker_combo", lambda w: w.setCurrentText("None")),
+    ("ui.marker_combo", lambda w: w.setCurrentIndex(w.findData("None"))),
     ("ui.marker_combo", lambda w: w.setCurrentIndex(2)),
     ("ui.markersize_spinbox", lambda w: w.setValue(9.0)),
     ("color_picker_widget", lambda w: w.colorChanged.emit("#123456")),

@@ -630,26 +630,26 @@
           "class": "QComboBox",
           "name": "marker_combo",
           "items": [
-           "o",
-           "s",
-           "^",
-           "v",
-           "D",
-           "<",
-           ">",
-           "p",
-           "h",
-           "*",
-           "+",
-           "x",
-           ".",
-           "None"
+           "円",
+           "四角",
+           "三角(上)",
+           "三角(下)",
+           "ひし形",
+           "三角(左)",
+           "三角(右)",
+           "五角形",
+           "六角形",
+           "星",
+           "十字",
+           "バツ",
+           "点",
+           "なし"
           ],
           "current": 0,
           "visible": true,
           "enabled": false,
           "receivers": {
-           "currentTextChanged(QString)": 2
+           "currentIndexChanged(int)": 2
           },
           "children": [
            {

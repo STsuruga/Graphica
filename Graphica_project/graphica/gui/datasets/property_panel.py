@@ -7,8 +7,8 @@ from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.label_utils import infer_axis_label_from_column_name
 from graphica.core.marker_style import MARKER_EDGE_COLOR, MARKER_FILL_COLOR, marker_is_unfilled
 from graphica.gui.binding import Binder
-from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL
-from graphica.gui.dataset_style_icon import MARKER_PLOT_TYPES
+from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL, NO_MARKER
+from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -197,14 +197,18 @@ class DatasetPropertyPanel:
 
     def update_marker_controls_visibility(self):
         """
-        塗りと枠線はマーカーを描く種類でだけ出す。線だけの形(+ ×)には塗りが無いので塗りの欄を隠す。
+        マーカーの欄は、マーカーを描かない組み込みの種類(Line・Area・Bar・Step)では隠す(プラグインの種類は使うかもしれないので出す)。
+        線だけの形(+ ×)には塗りが無いので塗りの欄を隠す。
         値で色分けする種類は塗りを色の対応が受け持つので、塗りの「色を指定」を選べなくする(保存済みの値は変えない)。
         """
         app = self._app
         dataset = app._get_current_dataset()
         plot_type = dataset.plot_type if dataset is not None else app.ui.plot_type_combo.currentText()
-        marker = app.ui.marker_combo.currentText()
-        has_markers = plot_type in MARKER_PLOT_TYPES and marker != 'None'
+        marker = app.ui.marker_combo.currentData()
+        uses_markers = plot_type not in NON_MARKER_PLOT_TYPES
+        for widget in (app.ui.marker_label, app.ui.marker_combo, app.ui.makersize_label, app.ui.markersize_spinbox):
+            widget.setVisible(uses_markers)
+        has_markers = uses_markers and marker != NO_MARKER
         mapped = plot_type in ('Density Scatter', COLOR_BY_COLUMN_PLOT_TYPE)
         fillable = has_markers and not marker_is_unfilled(marker)
 
