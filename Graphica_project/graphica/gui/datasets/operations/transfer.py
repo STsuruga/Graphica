@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # (写すと相手を意図せず2Dマップ扱いにしてしまう)。
 STYLE_ATTRS = ('plot_type', 'color', 'linestyle', 'linewidth', 'marker', 'markersize', 'smoothing',
                'smoothing_method', 'alpha',
+               'marker_fill', 'marker_face_color', 'marker_edge', 'marker_edge_color', 'marker_edge_width',
                'error_display', 'colormap', 'vmin', 'vmax', 'grid_interp_method')
 
 

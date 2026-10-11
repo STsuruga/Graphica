@@ -1931,7 +1931,7 @@
                             "visible": true,
                             "enabled": false,
                             "receivers": {
-                             "currentTextChanged(QString)": 4
+                             "currentTextChanged(QString)": 5
                             },
                             "children": [
                              {
@@ -2125,13 +2125,21 @@
                              "^",
                              "v",
                              "D",
+                             "<",
+                             ">",
+                             "p",
+                             "h",
+                             "*",
+                             "+",
+                             "x",
+                             ".",
                              "None"
                             ],
                             "current": 0,
                             "visible": true,
                             "enabled": false,
                             "receivers": {
-                             "currentTextChanged(QString)": 1
+                             "currentTextChanged(QString)": 2
                             },
                             "children": [
                              {
@@ -2225,6 +2233,231 @@
                               "class": "QLineEdit",
                               "name": "qt_spinbox_lineedit",
                               "text": "1.00",
+                              "visible": true,
+                              "enabled": false,
+                              "receivers": {
+                               "textChanged(QString)": 1,
+                               "cursorPositionChanged(int,int)": 2
+                              }
+                             }
+                            ]
+                           },
+                           {
+                            "class": "QLabel",
+                            "text": "Marker fill",
+                            "visible": true,
+                            "enabled": false
+                           },
+                           {
+                            "class": "QComboBox",
+                            "items": [
+                             "Filled",
+                             "Hollow",
+                             "Custom color"
+                            ],
+                            "current": 0,
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "currentIndexChanged(int)": 2
+                            },
+                            "children": [
+                             {
+                              "class": "QFrame",
+                              "visible": false,
+                              "enabled": false,
+                              "receivers": {
+                               "itemSelected(QModelIndex)": 1,
+                               "resetButton()": 1
+                              },
+                              "children": [
+                               {
+                                "class": "QListView",
+                                "visible": false,
+                                "enabled": false,
+                                "children": [
+                                 {
+                                  "class": "QWidget",
+                                  "name": "qt_scrollarea_viewport",
+                                  "visible": false,
+                                  "enabled": false
+                                 }
+                                ]
+                               },
+                               {
+                                "class": "QWidget",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "doScroll(int)": 1
+                                }
+                               },
+                               {
+                                "class": "QWidget",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "doScroll(int)": 1
+                                }
+                               }
+                              ]
+                             }
+                            ]
+                           },
+                           {
+                            "class": "QLabel",
+                            "text": "Fill color",
+                            "visible": true,
+                            "enabled": false
+                           },
+                           {
+                            "class": "ColorPickerWidget",
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "colorChanged(QString)": 1
+                            },
+                            "children": [
+                             {
+                              "class": "QPushButton",
+                              "text": "",
+                              "visible": true,
+                              "enabled": false,
+                              "tooltip": "Click to open the palette",
+                              "receivers": {
+                               "clicked(bool)": 1,
+                               "clicked()": 1
+                              }
+                             },
+                             {
+                              "class": "QLineEdit",
+                              "text": "#ffffff",
+                              "visible": true,
+                              "enabled": false,
+                              "receivers": {
+                               "textChanged(QString)": 1,
+                               "editingFinished()": 1
+                              }
+                             }
+                            ]
+                           },
+                           {
+                            "class": "QLabel",
+                            "text": "Marker edge",
+                            "visible": true,
+                            "enabled": false
+                           },
+                           {
+                            "class": "QComboBox",
+                            "items": [
+                             "Series color",
+                             "Custom color"
+                            ],
+                            "current": 0,
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "currentIndexChanged(int)": 2
+                            },
+                            "children": [
+                             {
+                              "class": "QFrame",
+                              "visible": false,
+                              "enabled": false,
+                              "receivers": {
+                               "itemSelected(QModelIndex)": 1,
+                               "resetButton()": 1
+                              },
+                              "children": [
+                               {
+                                "class": "QListView",
+                                "visible": false,
+                                "enabled": false,
+                                "children": [
+                                 {
+                                  "class": "QWidget",
+                                  "name": "qt_scrollarea_viewport",
+                                  "visible": false,
+                                  "enabled": false
+                                 }
+                                ]
+                               },
+                               {
+                                "class": "QWidget",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "doScroll(int)": 1
+                                }
+                               },
+                               {
+                                "class": "QWidget",
+                                "visible": false,
+                                "enabled": false,
+                                "receivers": {
+                                 "doScroll(int)": 1
+                                }
+                               }
+                              ]
+                             }
+                            ]
+                           },
+                           {
+                            "class": "QLabel",
+                            "text": "Edge color",
+                            "visible": true,
+                            "enabled": false
+                           },
+                           {
+                            "class": "ColorPickerWidget",
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "colorChanged(QString)": 1
+                            },
+                            "children": [
+                             {
+                              "class": "QPushButton",
+                              "text": "",
+                              "visible": true,
+                              "enabled": false,
+                              "tooltip": "Click to open the palette",
+                              "receivers": {
+                               "clicked(bool)": 1,
+                               "clicked()": 1
+                              }
+                             },
+                             {
+                              "class": "QLineEdit",
+                              "text": "#000000",
+                              "visible": true,
+                              "enabled": false,
+                              "receivers": {
+                               "textChanged(QString)": 1,
+                               "editingFinished()": 1
+                              }
+                             }
+                            ]
+                           },
+                           {
+                            "class": "QLabel",
+                            "text": "Edge width",
+                            "visible": true,
+                            "enabled": false
+                           },
+                           {
+                            "class": "QDoubleSpinBox",
+                            "value": "1.0",
+                            "visible": true,
+                            "enabled": false,
+                            "receivers": {
+                             "valueChanged(double)": 1
+                            },
+                            "children": [
+                             {
+                              "class": "QLineEdit",
+                              "name": "qt_spinbox_lineedit",
+                              "text": "1.0",
                               "visible": true,
                               "enabled": false,
                               "receivers": {

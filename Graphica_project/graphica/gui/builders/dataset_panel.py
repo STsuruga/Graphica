@@ -8,11 +8,15 @@ from PySide6.QtWidgets import (
     QWidgetAction)
 from graphica.core.dataset import WATERFALL_OFFSET_ABSOLUTE, WATERFALL_OFFSET_STEP
 from graphica.core.i18n import tr
+from graphica.core.marker_style import (
+    DEFAULT_MARKER_EDGE_WIDTH, MARKER_EDGE_COLOR, MARKER_EDGE_SAME, MARKER_FILL_COLOR, MARKER_FILL_HOLLOW,
+    MARKER_FILL_SOLID)
 from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
     _svg_icon)
 from graphica.gui.color_picker_widget import ColorPickerWidget
-from graphica.gui.dataset_style_icon import DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN
+from graphica.gui.dataset_style_icon import (
+    DATASET_TREE_NAME_COLUMN, DATASET_TREE_VISIBILITY_COLUMN, marker_choice_icon)
 
 
 def build_dataset_color_picker(app):
@@ -111,6 +115,52 @@ def build_dataset_list_buttons(app):
     app._build_dataset_property_sections()
 
 
+# Designer の選択肢(o s ^ v D None)の None の前に足す形。保存値は表示の文字そのもの
+EXTRA_MARKER_CHOICES = ('<', '>', 'p', 'h', '*', '+', 'x', '.')
+
+
+def build_marker_style_controls(app):
+    """マーカーの形の選択肢を足し、塗りと枠線の欄を作る。出し入れは property_panel.update_marker_controls_visibility。"""
+    combo = app.ui.marker_combo
+    none_index = combo.findText('None')
+    for offset, marker in enumerate(EXTRA_MARKER_CHOICES):
+        combo.insertItem(none_index + offset, marker)
+    for i in range(combo.count()):
+        icon = marker_choice_icon(combo.itemText(i))
+        if icon is not None:
+            combo.setItemIcon(i, icon)
+
+    style_form = app._prop_form('style')
+    app.marker_fill_label = QLabel(tr("マーカーの塗り"))
+    app.marker_fill_combo = QComboBox()
+    app.marker_fill_combo.addItem(tr("塗りつぶし"), MARKER_FILL_SOLID)
+    app.marker_fill_combo.addItem(tr("白抜き"), MARKER_FILL_HOLLOW)
+    app.marker_fill_combo.addItem(tr("色を指定"), MARKER_FILL_COLOR)
+    style_form.addRow(app.marker_fill_label, app.marker_fill_combo)
+
+    app.marker_face_color_label = QLabel(tr("塗りの色"))
+    app.marker_face_color_picker = ColorPickerWidget(app.settings, app, initial_color='#ffffff')
+    style_form.addRow(app.marker_face_color_label, app.marker_face_color_picker)
+
+    app.marker_edge_label = QLabel(tr("マーカーの枠線"))
+    app.marker_edge_combo = QComboBox()
+    app.marker_edge_combo.addItem(tr("系列の色"), MARKER_EDGE_SAME)
+    app.marker_edge_combo.addItem(tr("色を指定"), MARKER_EDGE_COLOR)
+    style_form.addRow(app.marker_edge_label, app.marker_edge_combo)
+
+    app.marker_edge_color_label = QLabel(tr("枠線の色"))
+    app.marker_edge_color_picker = ColorPickerWidget(app.settings, app, initial_color='#000000')
+    style_form.addRow(app.marker_edge_color_label, app.marker_edge_color_picker)
+
+    app.marker_edge_width_label = QLabel(tr("枠線の太さ"))
+    app.marker_edge_width_spinbox = QDoubleSpinBox()
+    app.marker_edge_width_spinbox.setRange(0.0, 10.0)
+    app.marker_edge_width_spinbox.setSingleStep(0.5)
+    app.marker_edge_width_spinbox.setDecimals(1)
+    app.marker_edge_width_spinbox.setValue(DEFAULT_MARKER_EDGE_WIDTH)
+    style_form.addRow(app.marker_edge_width_label, app.marker_edge_width_spinbox)
+
+
 def build_dataset_style_controls(app):
     app.x_col_combo = QComboBox()
     app.y_col_combo = QComboBox()
@@ -129,6 +179,8 @@ def build_dataset_style_controls(app):
     app.alpha_spinbox.setDecimals(2)
     app.alpha_spinbox.setValue(1.0)
     app._prop_form('style').addRow(app.alpha_label, app.alpha_spinbox)
+
+    build_marker_style_controls(app)
 
     # グラデーション(線・面の塗り)。出し入れは property_panel.update_gradient_controls_visibility
     app.gradient_checkbox = QCheckBox(tr("グラデーションを適用"))

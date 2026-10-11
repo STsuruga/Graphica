@@ -133,10 +133,10 @@ def test_the_original_form_layout_is_left_empty(window):
 
 
 def test_every_property_row_lives_in_exactly_one_section(window):
-    """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行、+ ウォーターフォールのオフセットの指定1行、+ 凡例の表示名と「凡例に表示しない」2行)が
-    過不足なく7セクションに分配されていること。"""
+    """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行、+ ウォーターフォールのオフセットの指定1行、+ 凡例の表示名と「凡例に表示しない」2行、
+    + マーカーの塗りと枠線5行)が過不足なく7セクションに分配されていること。"""
     total = sum(window._prop_form(key).rowCount() for key, _ in DATASET_PROPERTY_SECTIONS)
-    assert total == 43
+    assert total == 48
 
 
 def test_no_property_widget_is_orphaned_from_every_layout(window):
@@ -173,6 +173,11 @@ def test_no_property_widget_is_orphaned_from_every_layout(window):
     ('data', 'y_err_col_combo'),
     ('data', 'nan_policy_combo'),
     ('style', 'alpha_spinbox'),
+    ('style', 'marker_fill_combo'),
+    ('style', 'marker_face_color_picker'),
+    ('style', 'marker_edge_combo'),
+    ('style', 'marker_edge_color_picker'),
+    ('style', 'marker_edge_width_spinbox'),
     ('style', 'smoothing_method_combo'),
     ('gradient', 'gradient_checkbox'),
     ('gradient', 'gradient_color2_picker'),
