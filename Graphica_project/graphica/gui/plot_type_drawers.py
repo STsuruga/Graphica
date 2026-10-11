@@ -11,6 +11,8 @@ import numpy as np
 from scipy.stats import gaussian_kde
 
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, legend_text
+from graphica.core.marker_style import (
+    apply_mapped_hollow, line_marker_kwargs, mapped_scatter_marker_kwargs, scatter_marker_kwargs)
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +33,18 @@ def _plain_line(ax, ds, x, y, plot_kwargs, **extra):
 
 
 def _markers(ax, ds, x, y, plot_kwargs, **extra):
-    return ax.scatter(x, y, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha,
-                      **extra, **plot_kwargs)
+    style = {'color': ds.color, **scatter_marker_kwargs(ds)}
+    return ax.scatter(x, y, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **style, **extra, **plot_kwargs)
+
+
+def _mapped_markers(ax, ds, x, y, plot_kwargs, **mapping):
+    """値で色分けするマーカー。mapping は c・cmap など色の対応。"""
+    style, hollow = mapped_scatter_marker_kwargs(ds)
+    artist = ax.scatter(x, y, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=legend_text(ds),
+                        **mapping, **style, **plot_kwargs)
+    if hollow:
+        apply_mapped_hollow(artist, ds)
+    return artist
 
 
 def draw_line(canvas, ax, ds, x, y, plot_kwargs, axis_index):
@@ -52,7 +64,8 @@ def draw_line_and_scatter(canvas, ax, ds, x, y, plot_kwargs, axis_index):
         _markers(ax, ds, x, y, plot_kwargs)
         return artist
     (artist,) = ax.plot(x, y, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth,
-                        marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
+                        marker=ds.marker, markersize=ds.markersize, alpha=ds.alpha, label=legend_text(ds),
+                        **line_marker_kwargs(ds), **plot_kwargs)
     return artist
 
 
@@ -89,8 +102,7 @@ def draw_density_scatter(canvas, ax, ds, x, y, plot_kwargs, axis_index):
             raise ValueError("点数不足")
         xy = np.vstack([x, y])
         density = gaussian_kde(xy)(xy)
-        return ax.scatter(x, y, c=density, cmap=ds.colormap, marker=ds.marker, s=ds.markersize**2,
-                          alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
+        return _mapped_markers(ax, ds, x, y, plot_kwargs, c=density, cmap=ds.colormap)
     except (np.linalg.LinAlgError, ValueError):
         return _markers(ax, ds, x, y, plot_kwargs, label=legend_text(ds))
 
@@ -102,8 +114,7 @@ def draw_color_by_column(canvas, ax, ds, x, y, plot_kwargs, axis_index):
     """
     z_values = ds.z_data
     if z_values is not None and len(z_values) == len(x):
-        artist = ax.scatter(x, y, c=z_values, cmap=ds.colormap, vmin=ds.vmin, vmax=ds.vmax,
-                            marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
+        artist = _mapped_markers(ax, ds, x, y, plot_kwargs, c=z_values, cmap=ds.colormap, vmin=ds.vmin, vmax=ds.vmax)
         # カラーバーは1軸に1つ。2Dマップが先に登録していればそちらを優先する
         if axis_index not in canvas._axis_2d_mappables:
             canvas._axis_2d_mappables[axis_index] = artist

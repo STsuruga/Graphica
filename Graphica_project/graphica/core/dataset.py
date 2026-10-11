@@ -6,6 +6,8 @@ import pandas as pd
 from dataclasses import dataclass, field, fields, MISSING
 from typing import Any
 
+from graphica.core.marker_style import DEFAULT_MARKER_EDGE_WIDTH, MARKER_EDGE_SAME, MARKER_FILL_SOLID
+
 # 線種は短い記号('-')とコンボの表示名('solid')の両方で保存されている。保存値は書き換えず
 # (既存のプロジェクトのため)、表示と比較の直前に揃える。
 LINESTYLE_NAMES = ('solid', 'dashed', 'dotted', 'dashdot')
@@ -176,6 +178,13 @@ class Dataset:
     linewidth: float = 1.5
     marker: str = 'o'
     markersize: float = 6.0
+    # 'solid'(系列の色で塗る)/ 'hollow'(白抜き)/ 'color'(marker_face_color で塗る)。core/marker_style.py
+    marker_fill: str = MARKER_FILL_SOLID
+    marker_face_color: str = '#ffffff'
+    # 'same'(系列の色)/ 'color'(marker_edge_color)
+    marker_edge: str = MARKER_EDGE_SAME
+    marker_edge_color: str = '#000000'
+    marker_edge_width: float = DEFAULT_MARKER_EDGE_WIDTH
     smoothing: bool = False
     # 'cubic_spline'(200点に補間)/ 'moving_average' / 'median' / 'gaussian'(点の数はそのまま)
     smoothing_method: str = 'cubic_spline'

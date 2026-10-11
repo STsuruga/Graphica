@@ -5,6 +5,7 @@ import pandas as pd
 from graphica.core.analysis import (
     calculate_gaussian_smooth, calculate_lttb_downsample, calculate_median_smooth, calculate_moving_average_smooth)
 from graphica.core.dataset import legend_text
+from graphica.core.marker_style import scatter_marker_kwargs
 from graphica.gui.plot_type_drawers import BUILTIN_PLOT_TYPE_DRAWERS
 from graphica.gui.rendering.common import (
     DARK_AXES_FACECOLOR, LIGHT_AXES_FACECOLOR, LTTB_DOWNSAMPLE_TARGET_POINTS, LTTB_DOWNSAMPLE_THRESHOLD,
@@ -211,7 +212,8 @@ def draw_smoothed(canvas, target_ax, ds, plot_x_data, plot_y_data, plot_kwargs):
             (artist_line,) = target_ax.plot(x_smooth, y_smooth, color=ds.color, linestyle=ds.linestyle, linewidth=ds.linewidth, alpha=ds.alpha, label=legend_text(ds), **plot_kwargs)
             ds.artist = artist_line
         if ds.plot_type == 'Line+Scatter':
-            target_ax.scatter(plot_x_data, plot_y_data, color=ds.color, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha, **plot_kwargs)
+            target_ax.scatter(plot_x_data, plot_y_data, marker=ds.marker, s=ds.markersize**2, alpha=ds.alpha,
+                              **{'color': ds.color, **scatter_marker_kwargs(ds)}, **plot_kwargs)
         return True
     except ValueError:
         if use_line_gradient:
