@@ -1498,9 +1498,19 @@ def test_remove_last_free_axis_noop_when_no_axes(canvas):
     assert canvas.all_axes == []
 
 
-# --- 項目H-3: matplotlib(Figure)側の配色をgui/theme.pyのトークンと連動させる
-#     (以前はcanvas.py独自のハードコード値を持ち、theme.pyのトークンとは
-#     完全に無関係だった、H-0調査で判明した既知の不整合) ---
+# --- グラフの配色: ダークは gui/theme.py のトークンと連動、ライトは書き出す図の見た目なので固定 ---
+
+# GUI 刷新の前のトークンの値。UI の配色を変えても、ライトで書き出す図は変わらない
+_FROZEN_LIGHT_FIGURE_COLORS = {
+    'LIGHT_FIGURE_FACECOLOR': '#FFFFFF', 'LIGHT_AXES_FACECOLOR': '#FFFFFF', 'LIGHT_TEXT_COLOR': '#1B1F1E',
+    'LIGHT_LEGEND_FACECOLOR': '#EEF0F3', 'LIGHT_LEGEND_EDGECOLOR': '#C9CDCB', 'LIGHT_GRID_COLOR': '#C9CDCB',
+}
+
+
+def test_light_figure_colors_are_frozen():
+    from graphica.gui.rendering import common
+    for name, value in _FROZEN_LIGHT_FIGURE_COLORS.items():
+        assert getattr(common, name) == value, name
 
 def test_figure_and_axes_facecolor_constants_match_theme_surface_token():
     from graphica.gui.canvas import (
@@ -1509,17 +1519,16 @@ def test_figure_and_axes_facecolor_constants_match_theme_surface_token():
     )
     from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
 
-    assert LIGHT_FIGURE_FACECOLOR == LIGHT_TOKENS['surface']
-    assert LIGHT_AXES_FACECOLOR == LIGHT_TOKENS['surface']
+    assert LIGHT_FIGURE_FACECOLOR == LIGHT_AXES_FACECOLOR == LIGHT_TOKENS['surface']
     assert DARK_FIGURE_FACECOLOR == DARK_TOKENS['surface']
     assert DARK_AXES_FACECOLOR == DARK_TOKENS['surface']
 
 
 def test_text_color_constants_match_theme_text_primary_token():
     from graphica.gui.canvas import LIGHT_TEXT_COLOR, DARK_TEXT_COLOR
-    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.theme import DARK_TOKENS
 
-    assert LIGHT_TEXT_COLOR == LIGHT_TOKENS['text_primary']
+    assert LIGHT_TEXT_COLOR == _FROZEN_LIGHT_FIGURE_COLORS['LIGHT_TEXT_COLOR']
     assert DARK_TEXT_COLOR == DARK_TOKENS['text_primary']
 
 
@@ -1528,10 +1537,10 @@ def test_legend_color_constants_match_theme_surface2_and_border_strong_tokens():
         LIGHT_LEGEND_FACECOLOR, LIGHT_LEGEND_EDGECOLOR,
         DARK_LEGEND_FACECOLOR, DARK_LEGEND_EDGECOLOR,
     )
-    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.theme import DARK_TOKENS
 
-    assert LIGHT_LEGEND_FACECOLOR == LIGHT_TOKENS['surface_2']
-    assert LIGHT_LEGEND_EDGECOLOR == LIGHT_TOKENS['border_strong']
+    assert LIGHT_LEGEND_FACECOLOR == _FROZEN_LIGHT_FIGURE_COLORS['LIGHT_LEGEND_FACECOLOR']
+    assert LIGHT_LEGEND_EDGECOLOR == _FROZEN_LIGHT_FIGURE_COLORS['LIGHT_LEGEND_EDGECOLOR']
     assert DARK_LEGEND_FACECOLOR == DARK_TOKENS['surface_2']
     assert DARK_LEGEND_EDGECOLOR == DARK_TOKENS['border_strong']
 
@@ -1560,7 +1569,7 @@ def test_grid_lines_use_theme_border_strong_color(canvas):
     以前グリッド線の色はmatplotlibの既定値(rcParams、テーマと無関係な固定の
     薄灰色)任せだった。border_strongトークンを明示的に使うことを確認する。
     """
-    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
+    from graphica.gui.theme import DARK_TOKENS
     import matplotlib.colors as mcolors
 
     ds = _make_dataset(3, show_point_labels=False)
@@ -1569,7 +1578,7 @@ def test_grid_lines_use_theme_border_strong_color(canvas):
     canvas.redraw_all([ds], 1, 1, [{'grid_visible': True}])
     gridline = canvas.all_axes[0].xaxis.get_gridlines()[0]
     assert mcolors.to_rgba(gridline.get_color()) == pytest.approx(
-        mcolors.to_rgba(LIGHT_TOKENS['border_strong'])
+        mcolors.to_rgba(_FROZEN_LIGHT_FIGURE_COLORS['LIGHT_GRID_COLOR'])
     )
 
     canvas.dark_mode = True

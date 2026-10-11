@@ -34,6 +34,7 @@ def test_export_list_keeps_the_saved_json_layout():
         ("quick_access_pinned_actions", list, []),
         ("disabled_plugins", list, []),
         ("wheel_zoom_speed", str, "normal"),
+        ("theme_color", str, "#0F4C5C"),
     ]
 
 
