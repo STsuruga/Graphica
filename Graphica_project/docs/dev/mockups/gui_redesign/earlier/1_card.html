@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graphica GUI 刷新モックアップ</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{
+  --page:#E9EBEE;
+  font-family:"Yu Gothic UI","Meiryo UI","Segoe UI",system-ui,sans-serif;
+}
+body{margin:0;background:var(--page);color:#1B1F1E}
+.controls{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:14px 20px;font-size:13px}
+.controls .grp{display:flex;gap:4px;align-items:center;background:#fff;border:1px solid #D5D9DD;border-radius:8px;padding:3px}
+.controls .lbl{color:#5B6462;margin:0 6px 0 4px}
+.controls button{font:inherit;border:0;background:transparent;padding:5px 12px;border-radius:6px;cursor:pointer;color:#1B1F1E}
+.controls button.on{background:#1B1F1E;color:#fff}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.stage{padding:0 20px 24px}
+.scaler{transform-origin:top left}
+.current{display:none}
+.current img{width:1440px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.note{font-size:12.5px;color:#5B6462;padding:0 20px 10px;line-height:1.7}
+
+/* ===== 提案のテーマトークン ===== */
+.app{
+  --bg:#F3F4F6; --surface:#FFFFFF; --surface-2:#F1F3F5; --chrome:#E7E9EC;
+  --border:#E3E6E8; --border-strong:#CDD2D6;
+  --text:#191D1F; --text-2:#59636A; --text-3:#8D969C;
+  --plot-bg:#FFFFFF; --plot-fg:#222;
+  width:1440px;height:880px;border-radius:12px;overflow:hidden;
+  background:var(--bg);color:var(--text);font-size:13px;
+  display:grid;grid-template-rows:40px 44px 1fr 26px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18)
+}
+.app[data-theme=dark]{
+  --bg:#121518; --surface:#1A1E22; --surface-2:#22272C; --chrome:#0D0F11;
+  --border:#2A3036; --border-strong:#3A4249;
+  --text:#E8EBED; --text-2:#A3ADB3; --text-3:#6C767C;
+  --plot-bg:#1A1E22; --plot-fg:#C9D0D4;
+}
+.app[data-accent=teal]  {--accent:#1F7A80; --accent-soft:rgba(31,122,128,.12); --accent-text:#14595E}
+.app[data-accent=indigo]{--accent:#4F46E5; --accent-soft:rgba(79,70,229,.11);  --accent-text:#3730A3}
+.app[data-accent=blue]  {--accent:#2563EB; --accent-soft:rgba(37,99,235,.11);  --accent-text:#1D4ED8}
+.app[data-theme=dark][data-accent=teal]  {--accent:#4FB6BC; --accent-soft:rgba(79,182,188,.16); --accent-text:#8ED3D7}
+.app[data-theme=dark][data-accent=indigo]{--accent:#818CF8; --accent-soft:rgba(129,140,248,.18); --accent-text:#B4BBFC}
+.app[data-theme=dark][data-accent=blue]  {--accent:#60A5FA; --accent-soft:rgba(96,165,250,.16); --accent-text:#A5CBFD}
+
+.ti{font-size:17px;line-height:1}
+/* 1段目: タブ */
+.tabs{background:var(--chrome);display:flex;align-items:flex-end;padding:0 10px;gap:2px}
+.logo{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px 0 4px;font-weight:600;letter-spacing:.02em}
+.logo .mark{width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700}
+.tab{height:32px;display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;border-radius:8px 8px 0 0;color:var(--text-2)}
+.tab.active{background:var(--surface);color:var(--text);font-weight:600}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.tab .x{font-size:14px;color:var(--text-3)}
+.tab-add{height:32px;width:32px;display:grid;place-items:center;color:var(--text-2);border-radius:8px}
+.tabs .spacer{flex:1}
+.win{display:flex;align-self:stretch;align-items:center;gap:18px;color:var(--text-2);padding:0 6px}
+/* 2段目: メニュー + クイックアクセス + コマンド検索 */
+.bar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:2px}
+.menu{padding:5px 10px;border-radius:6px;color:var(--text)}
+.menu:hover{background:var(--surface-2)}
+.vsep{width:1px;height:20px;background:var(--border);margin:0 8px}
+.ib{width:30px;height:30px;display:grid;place-items:center;border-radius:7px;color:var(--text-2)}
+.ib:hover{background:var(--surface-2);color:var(--text)}
+.bar .spacer{flex:1}
+.cmd{width:300px;height:30px;border-radius:8px;background:var(--surface-2);display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--text-3)}
+.kbd{margin-left:auto;font-size:11px;border:1px solid var(--border-strong);border-radius:4px;padding:1px 5px;color:var(--text-2)}
+.btn-primary{display:flex;align-items:center;gap:6px;background:var(--accent);color:#fff;border-radius:7px;padding:6px 12px;font-weight:600}
+.app[data-theme=dark] .btn-primary{color:#0D0F11}
+
+/* 本体 */
+.main{display:grid;grid-template-columns:1fr 380px;gap:10px;padding:10px;min-height:0}
+.left{display:grid;grid-template-rows:1fr 250px;gap:10px;min-height:0}
+.card{background:var(--surface);border-radius:12px;border:1px solid var(--border);min-height:0;position:relative}
+.canvas-card{display:grid;grid-template-rows:1fr 64px;padding:10px 14px 10px}
+.pill{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:3px;border-radius:10px;
+  background:var(--surface);border:1px solid var(--border);box-shadow:0 4px 14px rgba(0,0,0,.08);z-index:2}
+.pill .ib{width:30px;height:28px}
+.pill .ib.on{background:var(--accent-soft);color:var(--accent-text)}
+.pill .vsep{height:18px;margin:5px 4px}
+svg text{font-family:"Segoe UI",sans-serif}
+.minimap{border-top:1px solid var(--border);padding-top:8px}
+
+/* データセット */
+.ds{display:grid;grid-template-rows:auto 1fr auto}
+.ds-head{display:flex;align-items:center;gap:8px;padding:12px 14px 8px}
+.h{font-weight:600;font-size:13.5px}
+.count{font-size:11.5px;color:var(--text-2);background:var(--surface-2);border-radius:10px;padding:1px 8px}
+.search{flex:1;max-width:280px;margin-left:auto;height:28px;border-radius:7px;background:var(--surface-2);display:flex;align-items:center;gap:6px;padding:0 9px;color:var(--text-3);font-size:12.5px}
+.rows{padding:0 8px;overflow:hidden}
+.row{display:grid;grid-template-columns:22px 1fr 70px 84px 110px 28px;align-items:center;gap:8px;height:36px;padding:0 8px;border-radius:8px;color:var(--text)}
+.row + .row{margin-top:2px}
+.row.sel{background:var(--accent-soft)}
+.row .line{width:18px;height:3px;border-radius:2px}
+.badge{font-size:11px;border-radius:5px;padding:1px 7px;background:var(--surface-2);color:var(--text-2);justify-self:start}
+.meta{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
+.row .ti{font-size:16px;color:var(--text-3)}
+.folder{color:var(--text-2);font-size:12px;display:flex;align-items:center;gap:6px;height:30px;padding:0 8px}
+.ds-foot{display:flex;align-items:center;gap:2px;border-top:1px solid var(--border);padding:6px 10px}
+.ds-foot .ib{width:32px;height:30px}
+.ds-foot .spacer{flex:1}
+
+/* プロパティ */
+.props{display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+.seg{display:flex;margin:12px 12px 4px;background:var(--surface-2);border-radius:9px;padding:3px}
+.seg div{flex:1;text-align:center;padding:5px 0;border-radius:7px;color:var(--text-2)}
+.seg div.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.10)}
+.app[data-theme=dark] .seg div.on{background:var(--border-strong)}
+.scroll{overflow:hidden;padding:4px 14px 14px}
+.target{display:flex;align-items:center;gap:10px;padding:10px 4px 6px}
+.target .line{width:22px;height:4px;border-radius:2px;background:#1f77b4}
+.target .sub{font-size:11.5px;color:var(--text-2)}
+.sec{border-top:1px solid var(--border);padding:10px 0 4px}
+.sec-h{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;color:var(--text);padding:2px 4px 8px}
+.sec-h .ti{font-size:15px;color:var(--text-3)}
+.sec-h .state{margin-left:auto;font-weight:400;font-size:11.5px;color:var(--text-3)}
+.sec.closed .sec-h{padding-bottom:4px}
+.f{display:grid;grid-template-columns:86px 1fr;align-items:center;gap:10px;padding:4px 4px}
+.f label{color:var(--text-2);font-size:12.5px}
+.in{height:30px;border-radius:7px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;padding:0 10px;gap:8px;color:var(--text)}
+.app[data-theme=dark] .in{background:var(--surface-2)}
+.in .ti{font-size:15px;color:var(--text-3);margin-left:auto}
+.in.focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.colorrow{display:flex;gap:6px;align-items:center}
+.chip{width:22px;height:22px;border-radius:6px;border:1px solid rgba(0,0,0,.08)}
+.chip.big{width:30px;height:30px;border-radius:8px;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
+.segline{display:flex;background:var(--surface-2);border-radius:8px;padding:3px;gap:2px}
+.segline div{flex:1;height:24px;display:grid;place-items:center;border-radius:6px}
+.segline div.on{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.10)}
+.app[data-theme=dark] .segline div.on{background:var(--border-strong)}
+.segline svg{width:34px;height:6px}
+.slider{display:flex;align-items:center;gap:10px}
+.track{flex:1;height:4px;border-radius:2px;background:var(--border-strong);position:relative}
+.track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
+.track .knob{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--accent);transform:translate(-50%,-50%)}
+.num{width:52px;height:26px;border-radius:6px;border:1px solid var(--border);display:grid;place-items:center;font-variant-numeric:tabular-nums;font-size:12.5px}
+.toggle{width:34px;height:20px;border-radius:10px;background:var(--border-strong);position:relative}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:.15s}
+.toggle.on{background:var(--accent)}
+.toggle.on::after{left:17px}
+.sw{display:flex;align-items:center;justify-content:space-between;padding:6px 4px;color:var(--text)}
+
+/* ステータスバー */
+.status{background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 12px;font-size:11.5px;color:var(--text-2)}
+.status .ok{display:flex;align-items:center;gap:6px}
+.status .ok i{width:7px;height:7px;border-radius:50%;background:#22A06B;display:inline-block}
+.status .spacer{flex:1}
+.mono{font-family:Consolas,"Cascadia Mono",monospace;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="grp"><span class="lbl">表示</span>
+    <button data-view="proposal" class="on">提案</button>
+    <button data-view="current">現状</button>
+  </div>
+  <div class="grp"><span class="lbl">テーマ</span>
+    <button data-theme="light" class="on">ライト</button>
+    <button data-theme="dark">ダーク</button>
+  </div>
+  <div class="grp"><span class="lbl">アクセント</span>
+    <button data-accent="teal" class="on"><span class="swatch" style="background:#1F7A80"></span>ティール(今の色)</button>
+    <button data-accent="indigo"><span class="swatch" style="background:#4F46E5"></span>インディゴ</button>
+    <button data-accent="blue"><span class="swatch" style="background:#2563EB"></span>ブルー</button>
+  </div>
+</div>
+<div class="note">A(テーマ: 配色・余白・角丸の統一、QPalette をトークンから生成)+ B の一部(上部を2段に集約、キャンバスの浮くツールバー、データセット一覧と操作ボタン、プロパティの入力部品)。グラフ本体(matplotlib)の見た目は今のままです。</div>
+
+<div class="stage">
+ <div class="scaler" id="scaler">
+  <div class="current" id="current"><img src="../current_light.png" alt="現状の画面"></div>
+
+  <div class="app" id="app" data-theme="light" data-accent="teal">
+    <!-- 1段目: タブ -->
+    <div class="tabs">
+      <div class="logo"><div class="mark">G</div>Graphica</div>
+      <div class="tab active"><span class="dot"></span>冷却曲線の解析<span class="x ti ti-x"></span></div>
+      <div class="tab">無題のプロジェクト 2<span class="x ti ti-x"></span></div>
+      <div class="tab-add"><i class="ti ti-plus"></i></div>
+      <div class="spacer"></div>
+      <div class="win"><i class="ti ti-history" title="自動保存の履歴"></i><i class="ti ti-file-export"></i></div>
+    </div>
+    <!-- 2段目: メニュー + クイックアクセス -->
+    <div class="bar">
+      <span class="menu">ファイル</span><span class="menu">編集</span><span class="menu">データセット</span>
+      <span class="menu">表示</span><span class="menu">プラグイン</span><span class="menu">ヘルプ</span>
+      <div class="vsep"></div>
+      <div class="ib" title="元に戻す"><i class="ti ti-arrow-back-up"></i></div>
+      <div class="ib" title="やり直す"><i class="ti ti-arrow-forward-up"></i></div>
+      <div class="ib" title="保存"><i class="ti ti-device-floppy"></i></div>
+      <div class="ib" title="エクスポート"><i class="ti ti-photo-down"></i></div>
+      <div class="ib" title="クイックアクセスの管理"><i class="ti ti-pin"></i></div>
+      <div class="spacer"></div>
+      <div class="cmd"><i class="ti ti-search" style="font-size:15px"></i>コマンドを検索<span class="kbd">Ctrl+Shift+P</span></div>
+      <div class="vsep"></div>
+      <div class="ib" id="themeBtn" title="ダークモード"><i class="ti ti-moon"></i></div>
+      <div class="ib" title="設定"><i class="ti ti-settings"></i></div>
+    </div>
+
+    <!-- 本体 -->
+    <div class="main">
+      <div class="left">
+        <div class="card canvas-card">
+          <div class="pill">
+            <div class="ib on" title="データカーソル"><i class="ti ti-pointer"></i></div>
+            <div class="ib" title="注釈"><i class="ti ti-message-2"></i></div>
+            <div class="ib" title="レイアウト編集"><i class="ti ti-layout-grid"></i></div>
+            <div class="ib" title="範囲選択"><i class="ti ti-box-margin"></i></div>
+            <div class="ib" title="ピーク配置"><i class="ti ti-triangle"></i></div>
+            <div class="ib" title="スライス抽出"><i class="ti ti-chart-line"></i></div>
+            <div class="ib" title="領域ハイライト"><i class="ti ti-highlight"></i></div>
+            <div class="vsep"></div>
+            <div class="ib" title="表示範囲をリセット"><i class="ti ti-zoom-reset"></i></div>
+            <div class="ib" title="サブプロット"><i class="ti ti-chart-dots-3"></i></div>
+          </div>
+          <svg id="plot" viewBox="0 0 1000 440" preserveAspectRatio="none" style="width:100%;height:100%;padding-top:46px;box-sizing:border-box"></svg>
+          <div class="minimap"><svg id="mini" viewBox="0 0 1000 50" preserveAspectRatio="none" style="width:100%;height:100%"></svg></div>
+        </div>
+
+        <div class="card ds">
+          <div class="ds-head">
+            <span class="h">データセット</span><span class="count">3</span>
+            <div class="search"><i class="ti ti-search" style="font-size:14px"></i>データセットを検索</div>
+            <div class="btn-primary"><i class="ti ti-plus" style="font-size:15px"></i>データを追加</div>
+          </div>
+          <div class="rows">
+            <div class="row sel"><span class="line" style="background:#1f77b4"></span><span>cooling_curve</span><span class="badge">Line</span><span class="meta">n = 41</span><span class="meta">平均 42.99</span><i class="ti ti-eye"></i></div>
+            <div class="folder"><i class="ti ti-folder" style="font-size:15px"></i>比較用</div>
+            <div class="row" style="padding-left:28px"><span class="line" style="background:#ff7f0e"></span><span>cooling_curve_2</span><span class="badge">Scatter</span><span class="meta">n = 41</span><span class="meta">平均 45.12</span><i class="ti ti-eye"></i></div>
+            <div class="row" style="padding-left:28px;color:var(--text-3)"><span class="line" style="background:#2ca02c;opacity:.4"></span><span>fit_exp</span><span class="badge">Line</span><span class="meta">n = 200</span><span class="meta">R² 0.998</span><i class="ti ti-eye-off"></i></div>
+          </div>
+          <div class="ds-foot">
+            <div class="ib" title="データを編集"><i class="ti ti-table"></i></div>
+            <div class="ib" title="複製"><i class="ti ti-copy"></i></div>
+            <div class="ib" title="名前を変更"><i class="ti ti-pencil"></i></div>
+            <div class="ib" title="フォルダ"><i class="ti ti-folder-plus"></i></div>
+            <div class="vsep"></div>
+            <div class="ib" title="フィッティング"><i class="ti ti-chart-line"></i></div>
+            <div class="ib" title="ピーク"><i class="ti ti-triangle"></i></div>
+            <div class="ib" title="色"><i class="ti ti-palette"></i></div>
+            <div class="spacer"></div>
+            <div class="ib" title="その他"><i class="ti ti-dots"></i></div>
+            <div class="ib" title="削除"><i class="ti ti-trash"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card props">
+        <div class="seg"><div class="on">プロパティ</div><div>軸・レイアウト</div><div>エクスポート</div></div>
+        <div class="scroll">
+          <div class="target"><span class="line"></span><div><div class="h">cooling_curve</div><div class="sub">時間_s → 温度_degC</div></div></div>
+
+          <div class="sec">
+            <div class="sec-h"><i class="ti ti-chevron-down"></i>データ列</div>
+            <div class="f"><label>X 軸の列</label><div class="in">時間_s<i class="ti ti-selector"></i></div></div>
+            <div class="f"><label>Y 軸の列</label><div class="in">温度_degC<i class="ti ti-selector"></i></div></div>
+            <div class="f"><label>誤差</label><div class="in" style="color:var(--text-3)">なし<i class="ti ti-selector"></i></div></div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-h"><i class="ti ti-chevron-down"></i>基本スタイル</div>
+            <div class="f"><label>凡例名</label><div class="in focus">cooling_curve</div></div>
+            <div class="f"><label>種別</label><div class="in">Line<i class="ti ti-selector"></i></div></div>
+            <div class="f"><label>色</label>
+              <div class="colorrow"><span class="chip big" style="background:#1f77b4"></span>
+                <span class="chip" style="background:#ff7f0e"></span><span class="chip" style="background:#2ca02c"></span>
+                <span class="chip" style="background:#d62728"></span><span class="chip" style="background:#9467bd"></span>
+                <span class="mono" style="margin-left:auto;color:var(--text-2);font-size:12px">#1F77B4</span></div></div>
+            <div class="f"><label>線の種類</label>
+              <div class="segline">
+                <div class="on"><svg><line x1="0" y1="3" x2="34" y2="3" stroke="currentColor" stroke-width="2"/></svg></div>
+                <div><svg><line x1="0" y1="3" x2="34" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="7 4"/></svg></div>
+                <div><svg><line x1="0" y1="3" x2="34" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="2 3"/></svg></div>
+                <div><svg><line x1="0" y1="3" x2="34" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="8 3 2 3"/></svg></div>
+              </div></div>
+            <div class="f"><label>線の太さ</label><div class="slider"><div class="track"><div class="fill" style="width:30%"></div><div class="knob" style="left:30%"></div></div><div class="num">1.50</div></div></div>
+            <div class="f"><label>透明度</label><div class="slider"><div class="track"><div class="fill" style="width:100%"></div><div class="knob" style="left:100%"></div></div><div class="num">1.00</div></div></div>
+            <div class="sw"><span style="color:var(--text-2);font-size:12.5px">平滑化</span><div class="toggle"></div></div>
+          </div>
+
+          <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>マーカー<span class="state">なし</span></div></div>
+          <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>グラデーション<span class="state">オフ</span></div></div>
+          <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>ウォーターフォール<span class="state">オフ</span></div></div>
+          <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>2D マップ・値による配色<span class="state">オフ</span></div></div>
+          <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>表示の追加要素</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status">
+      <span class="ok"><i></i>準備完了</span>
+      <span>サブプロット 1 / 1</span>
+      <div class="spacer"></div>
+      <span class="mono">X = 7.42　Y = 40.18</span>
+      <span>自動保存 2 分前</span>
+    </div>
+  </div>
+ </div>
+</div>
+
+<script>
+const app = document.getElementById('app');
+const pts = [];
+for (let i = 0; i <= 40; i++) {
+  const t = i * 0.5;
+  const n = Math.sin(i * 1.7) * 0.6 + Math.cos(i * 0.9) * 0.4;
+  pts.push([t, 26.5 + 63.5 * Math.exp(-t / 5.0) + n]);
+}
+function drawPlot() {
+  const dark = app.dataset.theme === 'dark';
+  const fg = dark ? '#C9D0D4' : '#222';
+  const bg = dark ? '#1A1E22' : '#fff';
+  const L = 60, R = 980, T = 10, B = 400;
+  const sx = t => L + (t / 20) * (R - L);
+  const sy = v => B - ((v - 25) / 68) * (B - T);
+  let s = `<rect x="0" y="0" width="1000" height="440" fill="${bg}"/>`;
+  s += `<rect x="${L}" y="${T}" width="${R - L}" height="${B - T}" fill="none" stroke="${fg}" stroke-width="1.2"/>`;
+  for (let v = 30; v <= 90; v += 10) {
+    s += `<line x1="${L - 5}" x2="${L}" y1="${sy(v)}" y2="${sy(v)}" stroke="${fg}"/>`;
+    s += `<text x="${L - 9}" y="${sy(v) + 5}" font-size="14" text-anchor="end" fill="${fg}">${v}</text>`;
+  }
+  for (let t = 0; t <= 20; t += 2.5) {
+    s += `<line x1="${sx(t)}" x2="${sx(t)}" y1="${B}" y2="${B + 5}" stroke="${fg}"/>`;
+    s += `<text x="${sx(t)}" y="${B + 22}" font-size="14" text-anchor="middle" fill="${fg}">${t.toFixed(1)}</text>`;
+  }
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + sx(p[0]).toFixed(1) + ' ' + sy(p[1]).toFixed(1)).join(' ');
+  const d2 = pts.map((p, i) => (i ? 'L' : 'M') + sx(p[0]).toFixed(1) + ' ' + sy(p[1] + 3 + Math.sin(i) * 0.8).toFixed(1)).join(' ');
+  s += `<path d="${d}" fill="none" stroke="#1f77b4" stroke-width="2"/>`;
+  pts.forEach(p => { s += `<circle cx="${sx(p[0])}" cy="${sy(p[1] + 3 + Math.sin(pts.indexOf(p)) * 0.8)}" r="3.5" fill="#ff7f0e"/>`; });
+  s += `<rect x="${R - 190}" y="${T + 12}" width="176" height="56" rx="3" fill="${bg}" stroke="${dark ? '#444' : '#ccc'}"/>`;
+  s += `<line x1="${R - 178}" x2="${R - 148}" y1="${T + 32}" y2="${T + 32}" stroke="#1f77b4" stroke-width="2"/><text x="${R - 140}" y="${T + 37}" font-size="14" fill="${fg}">cooling_curve</text>`;
+  s += `<circle cx="${R - 163}" cy="${T + 54}" r="3.5" fill="#ff7f0e"/><text x="${R - 140}" y="${T + 59}" font-size="14" fill="${fg}">cooling_curve_2</text>`;
+  const cx = sx(7.42), cy = sy(pts[15][1]);
+  s += `<line x1="${cx}" x2="${cx}" y1="${T}" y2="${B}" stroke="var(--accent)" stroke-dasharray="4 4" opacity=".7"/>`;
+  s += `<circle cx="${cx}" cy="${cy}" r="5" fill="${bg}" stroke="var(--accent)" stroke-width="2"/>`;
+  document.getElementById('plot').innerHTML = s;
+
+  const mx = t => 30 + (t / 20) * 940, my = v => 44 - ((v - 25) / 68) * 38;
+  let m = `<rect x="30" y="4" width="940" height="42" rx="6" fill="var(--surface-2)"/>`;
+  m += `<rect x="${mx(5)}" y="4" width="${mx(12) - mx(5)}" height="42" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>`;
+  m += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + mx(p[0]).toFixed(1) + ' ' + my(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="#1f77b4" stroke-width="1.4"/>`;
+  document.getElementById('mini').innerHTML = m;
+}
+
+function pick(attr, val) {
+  document.querySelectorAll(`[data-${attr}]`).forEach(b => {
+    if (b.tagName === 'BUTTON') b.classList.toggle('on', b.dataset[attr] === val);
+  });
+}
+document.querySelectorAll('.controls button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.view) {
+    pick('view', b.dataset.view);
+    const cur = b.dataset.view === 'current';
+    document.getElementById('current').style.display = cur ? 'block' : 'none';
+    app.style.display = cur ? 'none' : 'grid';
+    fit();
+  }
+  if (b.dataset.theme) { app.dataset.theme = b.dataset.theme; pick('theme', b.dataset.theme); drawPlot(); }
+  if (b.dataset.accent) { app.dataset.accent = b.dataset.accent; pick('accent', b.dataset.accent); }
+}));
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const t = app.dataset.theme === 'dark' ? 'light' : 'dark';
+  app.dataset.theme = t; pick('theme', t); drawPlot();
+});
+
+function fit() {
+  const sc = document.getElementById('scaler');
+  const w = document.querySelector('.stage').clientWidth - 40;
+  const s = Math.min(1, w / 1440);
+  sc.style.transform = `scale(${s})`;
+  const h = (app.style.display === 'none' ? document.querySelector('#current img').offsetHeight || 900 : 880);
+  sc.style.height = (h * s) + 'px';
+  sc.parentElement.style.height = (h * s) + 'px';
+}
+window.addEventListener('resize', fit);
+drawPlot(); fit();
+</script>
+</body>
+</html>

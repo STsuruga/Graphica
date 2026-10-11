@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graphica GUI 案2×案4</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{font-family:"Yu Gothic UI","Meiryo UI","Segoe UI",system-ui,sans-serif}
+body{margin:0;background:#E6E8EB;color:#1B1F1E}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 20px 8px;font-size:13px}
+.grp{display:flex;gap:3px;align-items:center;background:#fff;border:1px solid #D3D7DB;border-radius:9px;padding:3px}
+.grp .lbl{color:#5B6462;margin:0 6px}
+.grp button{font:inherit;border:0;background:transparent;padding:5px 12px;border-radius:6px;cursor:pointer;color:#1B1F1E}
+.grp button.on{background:#1B1F1E;color:#fff}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.note{margin:2px 20px 12px;font-size:12.5px;color:#5B6462;line-height:1.7}
+.stage{padding:0 20px 28px}
+.scaler{transform-origin:top left}
+
+.app{
+  --bg:#ECEEF1; --surface:#FFFFFF; --surface-2:#F3F5F7; --chrome:#E2E5E9; --rail:#E2E5E9;
+  --border:#E0E3E6; --border-strong:#CBD0D5;
+  --text:#191D1F; --text-2:#56606A; --text-3:#8A939B;
+  --plot-bg:#FFFFFF; --plot-fg:#222; --legend-border:#ccc;
+  --fs:12.5px; --row:28px; --pg:28px;
+  width:1440px;height:900px;border-radius:12px;overflow:hidden;
+  background:var(--bg);color:var(--text);font-size:var(--fs);
+  display:grid;grid-template-rows:38px 1fr 24px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18)
+}
+.app.compact{--fs:12px; --row:24px; --pg:25px}
+.app[data-theme=dark]{
+  --bg:#0C0E11; --surface:#16191D; --surface-2:#1D2126; --chrome:#0C0E11; --rail:#101317;
+  --border:#262B31; --border-strong:#363D45;
+  --text:#E6E9EC; --text-2:#A0A9B1; --text-3:#69737B;
+  --plot-bg:#16191D; --plot-fg:#C9D0D4; --legend-border:#444;
+}
+.app[data-accent=teal]  {--accent:#1F7A80; --accent-soft:rgba(31,122,128,.12); --accent-text:#14595E; --on-accent:#fff}
+.app[data-accent=indigo]{--accent:#4F46E5; --accent-soft:rgba(79,70,229,.11);  --accent-text:#3730A3; --on-accent:#fff}
+.app[data-accent=blue]  {--accent:#2563EB; --accent-soft:rgba(37,99,235,.11);  --accent-text:#1D4ED8; --on-accent:#fff}
+.app[data-theme=dark][data-accent=teal]  {--accent:#4FB6BC; --accent-soft:rgba(79,182,188,.16); --accent-text:#8ED3D7; --on-accent:#0C0E11}
+.app[data-theme=dark][data-accent=indigo]{--accent:#818CF8; --accent-soft:rgba(129,140,248,.18); --accent-text:#B4BBFC; --on-accent:#0C0E11}
+.app[data-theme=dark][data-accent=blue]  {--accent:#60A5FA; --accent-soft:rgba(96,165,250,.16); --accent-text:#A5CBFD; --on-accent:#0C0E11}
+
+.ti{font-size:16px;line-height:1}
+.spacer{flex:1}
+.vsep{width:1px;height:18px;background:var(--border-strong);margin:0 6px;flex:none;opacity:.7}
+.ib{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;color:var(--text-2);flex:none;cursor:default}
+.ib.on{background:var(--accent-soft);color:var(--accent-text)}
+.mono{font-family:Consolas,"Cascadia Mono",monospace;font-variant-numeric:tabular-nums}
+.meta{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.line{width:16px;height:3px;border-radius:2px;flex:none}
+.search{height:26px;border-radius:7px;background:var(--surface-2);display:flex;align-items:center;gap:6px;padding:0 9px;color:var(--text-3);font-size:12px}
+.kbd{margin-left:auto;font-size:10.5px;border:1px solid var(--border-strong);border-radius:4px;padding:0 5px;color:var(--text-2)}
+.btn-primary{display:flex;align-items:center;gap:6px;background:var(--accent);color:var(--on-accent);border-radius:7px;padding:4px 11px;font-weight:600;white-space:nowrap}
+.count{font-size:11px;color:var(--text-2);background:var(--surface-2);border-radius:10px;padding:0 7px}
+.toggle{width:30px;height:17px;border-radius:9px;background:var(--border-strong);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:2.5px;left:3px;width:12px;height:12px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--accent)}
+.toggle.on::after{left:15px}
+
+/* 上部: メニュー + タブ + 検索 + 操作(案4の1段目) */
+.top{background:var(--chrome);display:flex;align-items:center;padding:0 8px 0 0;gap:2px;border-bottom:1px solid var(--border)}
+.logo{width:52px;height:38px;display:grid;place-items:center;flex:none}
+.logo .mark{width:22px;height:22px;border-radius:6px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:12.5px;font-weight:700}
+.menu{padding:4px 8px;border-radius:6px;white-space:nowrap}
+.tab{height:28px;display:flex;align-items:center;gap:8px;padding:0 8px 0 11px;border-radius:7px;color:var(--text-2);white-space:nowrap}
+.tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.tab .x{font-size:13px;color:var(--text-3)}
+
+/* 本体: 帯 | 左パネル | 中央 | 右インスペクタ(案2の骨格) */
+.body{display:grid;grid-template-columns:52px 268px 1fr 330px;min-height:0}
+.rail{background:var(--rail);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px}
+.rail .ib{width:38px;height:38px;border-radius:10px;cursor:pointer;position:relative}
+.rail .ib .ti{font-size:20px}
+.rail .ib.on{background:var(--accent);color:var(--on-accent)}
+.rail .ib .dotb{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:#E5484D;border:2px solid var(--rail)}
+.side{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.panel-h{display:flex;align-items:center;gap:6px;height:40px;padding:0 8px 0 14px;flex:none}
+.panel-h .h{font-weight:600;font-size:13px}
+.tree{padding:0 6px;display:flex;flex-direction:column}
+.trow{display:grid;grid-template-columns:18px 16px 1fr auto 18px;align-items:center;gap:7px;height:var(--row);padding:0 8px;border-radius:6px}
+.trow.sel{background:var(--accent-soft)}
+.trow .ti{font-size:14px;color:var(--text-3)}
+.trow .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub-h{display:flex;align-items:center;gap:6px;height:30px;padding:0 10px 0 14px;font-size:11.5px;color:var(--text-2);font-weight:600;border-top:1px solid var(--border);margin-top:auto;flex:none}
+.kv{display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:6px 14px 10px;font-size:12px}
+.kv span:nth-child(odd){color:var(--text-2)}
+.kv span:nth-child(even){font-variant-numeric:tabular-nums;text-align:right}
+.side-foot{display:flex;gap:1px;padding:6px 8px;border-top:1px solid var(--border)}
+.list-card{margin:4px 10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:3px}
+.list-card .t{display:flex;align-items:center;gap:6px;font-weight:600}
+.list-card.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.badge{font-size:10.5px;border-radius:5px;padding:0 6px;background:var(--surface-2);color:var(--text-2);font-weight:400}
+.badge.ok{background:rgba(34,160,107,.14);color:#1A7F55}
+.app[data-theme=dark] .badge.ok{color:#5BD39A}
+
+/* 中央 */
+.center{display:grid;grid-template-rows:38px 1fr 6px 200px;min-height:0;background:var(--bg)}
+.ctool{display:flex;align-items:center;gap:2px;padding:0 8px;background:var(--surface);border-bottom:1px solid var(--border)}
+.lb{display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;white-space:nowrap;color:var(--text)}
+.lb .ti{font-size:15px;color:var(--text-2)}
+.lb.on{background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.lb.on .ti{color:var(--accent-text)}
+.segbox{display:flex;gap:1px;background:var(--surface-2);border-radius:8px;padding:2px}
+.canvas-wrap{padding:8px 8px 0;min-height:0;display:grid}
+.canvas{background:var(--plot-bg);border:1px solid var(--border);border-radius:8px;display:grid;grid-template-rows:1fr 44px;padding:8px 10px 6px;min-height:0;position:relative}
+.canvas .corner{position:absolute;top:8px;right:10px;display:flex;gap:2px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px}
+.plot{width:100%;height:100%;display:block}
+.grip{display:grid;place-items:center;cursor:row-resize}
+.grip::after{content:"";width:40px;height:3px;border-radius:2px;background:var(--border-strong)}
+.bottom{margin:0 8px 8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{display:flex;align-items:center;height:30px;border-bottom:1px solid var(--border);padding:0 4px 0 4px;flex:none;gap:2px}
+.pt{height:24px;display:flex;align-items:center;gap:5px;padding:0 10px;color:var(--text-2);border-radius:6px;font-size:12px;white-space:nowrap}
+.pt.on{background:var(--surface-2);color:var(--text);font-weight:600}
+.pt .ti{font-size:14px}
+.ph .ib{width:24px;height:24px}
+.ph .ib .ti{font-size:14px}
+.dtable{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}
+.dtable th{background:var(--surface-2);color:var(--text-2);font-weight:600;text-align:right;padding:3px 12px;border-bottom:1px solid var(--border)}
+.dtable th:first-child,.dtable td:first-child{text-align:center;color:var(--text-3);width:40px}
+.dtable td{text-align:right;padding:2px 12px;border-bottom:1px solid var(--border)}
+.dtable tr.hl td{background:var(--accent-soft)}
+.dtable td.neg{color:#D1453B}
+.app[data-theme=dark] .dtable td.neg{color:#F1857C}
+
+/* 右: インスペクタ(案4のプロパティグリッド) */
+.insp{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.utabs{display:flex;gap:16px;padding:0 14px;border-bottom:1px solid var(--border);flex:none}
+.utabs div{padding:11px 0 8px;color:var(--text-2);border-bottom:2px solid transparent;white-space:nowrap}
+.utabs div.on{color:var(--text);font-weight:600;border-color:var(--accent)}
+.target{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);flex:none}
+.target .sub{font-size:11px;color:var(--text-3)}
+.target .h{font-weight:600}
+.pg{display:grid;grid-template-columns:104px 1fr;overflow:hidden}
+.gh{grid-column:1/-1;font-weight:600;padding:0 10px;height:28px;display:flex;align-items:center;gap:5px;border-bottom:1px solid var(--border);font-size:12px;background:var(--surface-2)}
+.gh .ti{font-size:13px;color:var(--text-3)}
+.gh .state{margin-left:auto;font-weight:400;font-size:11px;color:var(--text-3)}
+.k{padding:0 10px 0 22px;height:var(--pg);display:flex;align-items:center;color:var(--text-2);border-bottom:1px solid var(--border);white-space:nowrap}
+.v{padding:0 8px;height:var(--pg);display:flex;align-items:center;gap:7px;border-bottom:1px solid var(--border);min-width:0;white-space:nowrap}
+.v > .ti{margin-left:auto;font-size:13px;color:var(--text-3)}
+.v.focus{box-shadow:inset 0 0 0 1.5px var(--accent);border-radius:4px}
+.v.dim{color:var(--text-3)}
+.sq{width:14px;height:14px;border-radius:4px;flex:none}
+.chips{display:flex;gap:4px;margin-left:auto}
+.chips span{width:12px;height:12px;border-radius:3px}
+.track{flex:1;height:4px;border-radius:2px;background:var(--border-strong);position:relative}
+.track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
+.track .knob{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;background:#fff;border:2px solid var(--accent);transform:translate(-50%,-50%)}
+.lsel{display:flex;gap:2px;background:var(--surface-2);border-radius:6px;padding:2px;flex:1}
+.lsel div{flex:1;height:18px;display:grid;place-items:center;border-radius:4px}
+.lsel div.on{background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.app[data-theme=dark] .lsel div.on{background:var(--border-strong)}
+.lsel svg{width:26px;height:4px}
+.status{background:var(--chrome);border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 12px;font-size:11px;color:var(--text-2)}
+.status .ok{display:flex;align-items:center;gap:6px}
+.status .ok i{width:7px;height:7px;border-radius:50%;background:#22A06B;display:inline-block}
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="grp"><span class="lbl">テーマ</span><button data-theme="light" class="on">ライト</button><button data-theme="dark">ダーク</button></div>
+  <div class="grp"><span class="lbl">アクセント</span>
+    <button data-accent="teal" class="on"><span class="swatch" style="background:#1F7A80"></span>ティール</button>
+    <button data-accent="indigo"><span class="swatch" style="background:#4F46E5"></span>インディゴ</button>
+    <button data-accent="blue"><span class="swatch" style="background:#2563EB"></span>ブルー</button>
+  </div>
+  <div class="grp"><span class="lbl">密度</span><button data-density="normal" class="on">標準</button><button data-density="compact">高密度</button></div>
+</div>
+<div class="note">骨格は案2(左端の帯でパネルを切り替える・グラフは中央)、中身は案4(メニューは見えるまま・文字付きのツール・下のデータ表/フィット結果/ログ・表形式のプロパティ)。<b>左端の帯のアイコンはクリックで切り替わります</b>(「プラグイン」でプラグインのパネルの入り方を確認できます)。</div>
+
+<div class="stage"><div class="scaler" id="scaler">
+<div class="app" id="app" data-theme="light" data-accent="teal">
+  <div class="top">
+    <div class="logo"><div class="mark">G</div></div>
+    <span class="menu">ファイル</span><span class="menu">編集</span><span class="menu">データセット</span><span class="menu">表示</span><span class="menu">解析</span><span class="menu">プラグイン</span><span class="menu">ヘルプ</span>
+    <div class="vsep"></div>
+    <div class="tab active"><span class="dot"></span>冷却曲線の解析<span class="x ti ti-x"></span></div>
+    <div class="tab">無題のプロジェクト 2<span class="x ti ti-x"></span></div>
+    <div class="ib"><i class="ti ti-plus"></i></div>
+    <div class="spacer"></div>
+    <div class="search" style="width:280px;background:var(--surface)"><i class="ti ti-search" style="font-size:14px"></i>コマンド・設定を検索<span class="kbd">Ctrl+Shift+P</span></div>
+    <div class="vsep"></div>
+    <div class="ib" title="元に戻す"><i class="ti ti-arrow-back-up"></i></div>
+    <div class="ib" title="やり直す"><i class="ti ti-arrow-forward-up"></i></div>
+    <div class="ib" title="保存"><i class="ti ti-device-floppy"></i></div>
+    <div class="btn-primary" style="margin-left:6px"><i class="ti ti-photo-down" style="font-size:14px"></i>エクスポート</div>
+  </div>
+
+  <div class="body">
+    <div class="rail" id="rail">
+      <div class="ib on" data-panel="data" title="データセット"><i class="ti ti-database"></i></div>
+      <div class="ib" data-panel="analysis" title="解析"><i class="ti ti-math-function"></i></div>
+      <div class="ib" data-panel="notes" title="注釈"><i class="ti ti-message-2"></i></div>
+      <div class="ib" data-panel="layout" title="レイアウト"><i class="ti ti-layout-grid"></i></div>
+      <div class="ib" data-panel="plugin" title="プラグイン"><i class="ti ti-puzzle"></i><span class="dotb"></span></div>
+      <div class="spacer"></div>
+      <div class="ib" id="themeBtn" title="ダークモード"><i class="ti ti-moon"></i></div>
+      <div class="ib" title="設定"><i class="ti ti-settings"></i></div>
+    </div>
+
+    <div class="side" id="side"></div>
+
+    <div class="center">
+      <div class="ctool">
+        <div class="segbox">
+          <div class="lb on"><i class="ti ti-pointer"></i>カーソル</div>
+          <div class="lb"><i class="ti ti-message-2"></i>注釈</div>
+          <div class="lb"><i class="ti ti-box-margin"></i>範囲選択</div>
+          <div class="lb"><i class="ti ti-triangle"></i>ピーク</div>
+          <div class="lb"><i class="ti ti-highlight"></i>領域</div>
+          <div class="lb"><i class="ti ti-chart-line"></i>スライス</div>
+          <div class="lb"><i class="ti ti-layout-grid"></i>配置</div>
+        </div>
+        <div class="vsep"></div>
+        <div class="lb"><i class="ti ti-math-function"></i>フィット</div>
+        <div class="lb"><i class="ti ti-wave-sine"></i>平滑化</div>
+        <div class="spacer"></div>
+        <span class="meta" style="margin-right:6px">サブプロット 1 / 1</span>
+      </div>
+      <div class="canvas-wrap">
+        <div class="canvas">
+          <div class="corner">
+            <div class="ib" title="範囲をリセット"><i class="ti ti-zoom-reset"></i></div>
+            <div class="ib" title="ミニマップ"><i class="ti ti-map"></i></div>
+            <div class="ib" title="別ウィンドウ"><i class="ti ti-external-link"></i></div>
+          </div>
+          <svg class="plot" data-plot="main"></svg>
+          <svg class="plot" data-plot="mini"></svg>
+        </div>
+      </div>
+      <div class="grip"></div>
+      <div class="bottom">
+        <div class="ph">
+          <div class="pt on"><i class="ti ti-table"></i>データ表</div>
+          <div class="pt"><i class="ti ti-math-function"></i>フィット結果<span class="badge ok">R² 0.998</span></div>
+          <div class="pt"><i class="ti ti-history"></i>来歴</div>
+          <div class="pt"><i class="ti ti-terminal-2"></i>ログ</div>
+          <div class="spacer"></div>
+          <span class="meta" style="margin-right:6px">cooling_curve · 41 行</span>
+          <div class="ib"><i class="ti ti-filter"></i></div><div class="ib"><i class="ti ti-arrows-maximize"></i></div><div class="ib"><i class="ti ti-chevron-down"></i></div>
+        </div>
+        <div style="overflow:hidden;flex:1"><table class="dtable" id="dtable"></table></div>
+      </div>
+    </div>
+
+    <div class="insp">
+      <div class="utabs"><div class="on">プロパティ</div><div>軸</div><div>凡例</div><div>エクスポート</div></div>
+      <div class="target"><span class="line" style="background:#1f77b4;width:22px;height:4px"></span><div><div class="h">cooling_curve</div><div class="sub">時間_s → 温度_degC · Line</div></div><div class="spacer"></div><div class="ib"><i class="ti ti-pin"></i></div></div>
+      <div class="pg">
+        <div class="gh"><i class="ti ti-chevron-down"></i>データ列</div>
+        <div class="k">X 軸の列</div><div class="v">時間_s<i class="ti ti-chevron-down"></i></div>
+        <div class="k">Y 軸の列</div><div class="v">温度_degC<i class="ti ti-chevron-down"></i></div>
+        <div class="k">誤差</div><div class="v dim">なし<i class="ti ti-chevron-down"></i></div>
+        <div class="gh"><i class="ti ti-chevron-down"></i>基本スタイル</div>
+        <div class="k">凡例名</div><div class="v focus">cooling_curve</div>
+        <div class="k">種別</div><div class="v">Line<i class="ti ti-chevron-down"></i></div>
+        <div class="k">色</div><div class="v"><span class="sq" style="background:#1f77b4"></span><span class="mono">#1F77B4</span><div class="chips"><span style="background:#ff7f0e"></span><span style="background:#2ca02c"></span><span style="background:#d62728"></span><span style="background:#9467bd"></span></div></div>
+        <div class="k">線の種類</div><div class="v"><div class="lsel">
+          <div class="on"><svg><line x1="0" y1="2" x2="26" y2="2" stroke="currentColor" stroke-width="2"/></svg></div>
+          <div><svg><line x1="0" y1="2" x2="26" y2="2" stroke="currentColor" stroke-width="2" stroke-dasharray="6 3"/></svg></div>
+          <div><svg><line x1="0" y1="2" x2="26" y2="2" stroke="currentColor" stroke-width="2" stroke-dasharray="2 3"/></svg></div>
+          <div><svg><line x1="0" y1="2" x2="26" y2="2" stroke="currentColor" stroke-width="2" stroke-dasharray="7 3 2 3"/></svg></div></div></div>
+        <div class="k">線の太さ</div><div class="v"><div class="track"><div class="fill" style="width:30%"></div><div class="knob" style="left:30%"></div></div><span class="mono" style="width:34px;text-align:right">1.50</span></div>
+        <div class="k">透明度</div><div class="v"><div class="track"><div class="fill" style="width:100%"></div><div class="knob" style="left:100%"></div></div><span class="mono" style="width:34px;text-align:right">1.00</span></div>
+        <div class="k">平滑化</div><div class="v"><div class="toggle"></div></div>
+        <div class="gh"><i class="ti ti-chevron-right"></i>マーカー<span class="state">なし</span></div>
+        <div class="gh"><i class="ti ti-chevron-right"></i>グラデーション<span class="state">オフ</span></div>
+        <div class="gh"><i class="ti ti-chevron-right"></i>ウォーターフォール<span class="state">オフ</span></div>
+        <div class="gh"><i class="ti ti-chevron-right"></i>2D マップ・値による配色<span class="state">オフ</span></div>
+        <div class="gh"><i class="ti ti-chevron-right"></i>表示の追加要素</div>
+        <div class="gh"><i class="ti ti-chevron-right"></i>配置・情報</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status"><span class="ok"><i></i>準備完了</span><span>3 データセット · 1 選択</span><div class="spacer"></div><span class="mono">X = 7.42　Y = 40.18</span><span>自動保存 2 分前</span></div>
+</div>
+</div></div>
+
+<template id="p-data">
+  <div class="panel-h"><span class="h">データセット</span><span class="count">3</span><div class="spacer"></div><div class="ib" title="フォルダ"><i class="ti ti-folder-plus"></i></div><div class="ib" title="データを追加" style="background:var(--accent);color:var(--on-accent)"><i class="ti ti-plus"></i></div></div>
+  <div style="padding:0 10px 8px"><div class="search"><i class="ti ti-search" style="font-size:13px"></i>データセットを検索</div></div>
+  <div class="tree">
+    <div class="trow sel"><i class="ti ti-eye"></i><span class="line" style="background:#1f77b4"></span><span class="name">cooling_curve</span><span class="meta">41</span><i class="ti ti-dots-vertical"></i></div>
+    <div class="trow" style="color:var(--text-2)"><i class="ti ti-chevron-down"></i><i class="ti ti-folder"></i><span class="name">比較用</span><span></span><span></span></div>
+    <div class="trow" style="padding-left:24px"><i class="ti ti-eye"></i><span class="line" style="background:#ff7f0e"></span><span class="name">cooling_curve_2</span><span class="meta">41</span><i class="ti ti-dots-vertical"></i></div>
+    <div class="trow" style="padding-left:24px;color:var(--text-3)"><i class="ti ti-eye-off"></i><span class="line" style="background:#2ca02c;opacity:.4"></span><span class="name">fit_exp</span><span class="meta">200</span><i class="ti ti-dots-vertical"></i></div>
+  </div>
+  <div class="sub-h"><i class="ti ti-chevron-down" style="font-size:13px"></i>統計<span class="meta" style="font-weight:400;margin-left:4px">cooling_curve</span></div>
+  <div class="kv"><span>n</span><span>41</span><span>平均</span><span>42.99</span><span>SD</span><span>17.54</span><span>最小 / 最大</span><span>26.84 / 90.18</span><span>X 範囲</span><span>0.0 – 20.0</span><span>欠損</span><span>0</span></div>
+  <div class="side-foot"><div class="ib" title="データを編集"><i class="ti ti-table"></i></div><div class="ib" title="複製"><i class="ti ti-copy"></i></div><div class="ib" title="名前を変更"><i class="ti ti-pencil"></i></div><div class="ib" title="色"><i class="ti ti-palette"></i></div><div class="spacer"></div><div class="ib"><i class="ti ti-dots"></i></div><div class="ib" title="削除"><i class="ti ti-trash"></i></div></div>
+</template>
+<template id="p-analysis">
+  <div class="panel-h"><span class="h">解析</span><div class="spacer"></div><div class="ib" style="background:var(--accent);color:var(--on-accent)"><i class="ti ti-plus"></i></div></div>
+  <div class="list-card sel"><div class="t"><i class="ti ti-math-function" style="font-size:15px;color:var(--accent-text)"></i>指数関数フィット<span class="spacer"></span><span class="badge ok">R² 0.998</span></div><span class="meta">cooling_curve · y = A·exp(−x/τ) + C</span><span class="meta mono">τ = 5.02 ± 0.08</span></div>
+  <div class="list-card"><div class="t"><i class="ti ti-triangle" style="font-size:15px;color:var(--text-2)"></i>ピーク検出<span class="spacer"></span><span class="badge">0 件</span></div><span class="meta">cooling_curve_2</span></div>
+  <div class="list-card"><div class="t"><i class="ti ti-baseline" style="font-size:15px;color:var(--text-2)"></i>ベースライン補正<span class="spacer"></span><span class="badge">未実行</span></div><span class="meta">—</span></div>
+  <div class="sub-h">よく使う処理</div>
+  <div class="tree" style="padding-bottom:8px">
+    <div class="trow" style="grid-template-columns:18px 1fr"><i class="ti ti-wave-sine"></i><span>平滑化</span></div>
+    <div class="trow" style="grid-template-columns:18px 1fr"><i class="ti ti-arrows-diff"></i><span>微分・積分</span></div>
+    <div class="trow" style="grid-template-columns:18px 1fr"><i class="ti ti-percentage"></i><span>規格化</span></div>
+  </div>
+</template>
+<template id="p-notes">
+  <div class="panel-h"><span class="h">注釈</span><span class="count">2</span><div class="spacer"></div><div class="ib" style="background:var(--accent);color:var(--on-accent)"><i class="ti ti-plus"></i></div></div>
+  <div class="tree">
+    <div class="trow sel" style="grid-template-columns:18px 1fr auto"><i class="ti ti-letter-t"></i><span class="name">相転移の開始</span><span class="meta">テキスト</span></div>
+    <div class="trow" style="grid-template-columns:18px 1fr auto"><i class="ti ti-arrow-up-right"></i><span class="name">矢印 1</span><span class="meta">矢印</span></div>
+  </div>
+</template>
+<template id="p-layout">
+  <div class="panel-h"><span class="h">レイアウト</span></div>
+  <div style="padding:0 14px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+    <div style="aspect-ratio:1.3;border:2px solid var(--accent);border-radius:6px;background:var(--accent-soft)"></div>
+    <div style="aspect-ratio:1.3;border:1px solid var(--border-strong);border-radius:6px;display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px"><span style="background:var(--surface-2)"></span><span style="background:var(--surface-2)"></span></div>
+    <div style="aspect-ratio:1.3;border:1px solid var(--border-strong);border-radius:6px;display:grid;grid-template-rows:1fr 1fr;gap:3px;padding:3px"><span style="background:var(--surface-2)"></span><span style="background:var(--surface-2)"></span></div>
+  </div>
+  <div class="sub-h" style="margin-top:12px">サブプロット</div>
+  <div class="tree"><div class="trow sel" style="grid-template-columns:18px 1fr auto"><i class="ti ti-square"></i><span>1 · 温度の変化</span><span class="meta">3 系列</span></div></div>
+</template>
+<template id="p-plugin">
+  <div class="panel-h"><span class="h">マススペクトル</span><span class="badge">プラグイン</span><div class="spacer"></div><div class="ib"><i class="ti ti-dots"></i></div></div>
+  <div style="padding:0 12px;color:var(--text-2);font-size:12px;line-height:1.7">プラグインが <span class="mono">register_panel</span> で登録したパネルは、ここ(帯の1つ)に入ります。中身は今と同じ Qt の部品なので、テーマはそのまま効きます。</div>
+  <div style="margin:10px 12px;border:1px solid var(--border);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;gap:6px;align-items:center"><span class="meta">m/z 範囲</span><div class="search" style="flex:1;height:24px;color:var(--text)">50 – 500</div></div>
+    <svg viewBox="0 0 240 80" style="width:100%;height:80px">
+      <line x1="0" y1="78" x2="240" y2="78" stroke="var(--border-strong)"/>
+      <g stroke="var(--accent)" stroke-width="2"><line x1="20" y1="78" x2="20" y2="50"/><line x1="48" y1="78" x2="48" y2="20"/><line x1="70" y1="78" x2="70" y2="62"/><line x1="110" y1="78" x2="110" y2="8"/><line x1="140" y1="78" x2="140" y2="58"/><line x1="182" y1="78" x2="182" y2="36"/><line x1="214" y1="78" x2="214" y2="66"/></g>
+    </svg>
+    <div class="btn-primary" style="justify-content:center">ピークを同定</div>
+  </div>
+  <div class="sub-h">ほかのプラグイン</div>
+  <div class="tree"><div class="trow" style="grid-template-columns:18px 1fr"><i class="ti ti-palette"></i><span>カラースタジオ</span></div><div class="trow" style="grid-template-columns:18px 1fr"><i class="ti ti-atom"></i><span>元素の定数</span></div></div>
+</template>
+
+<script>
+const app = document.getElementById('app');
+const pts = [];
+for (let i = 0; i <= 40; i++) { const t = i * 0.5, n = Math.sin(i * 1.7) * 0.6 + Math.cos(i * 0.9) * 0.4; pts.push([t, 26.5 + 63.5 * Math.exp(-t / 5.0) + n]); }
+const pts2 = pts.map((p, i) => [p[0], p[1] + 3 + Math.sin(i) * 0.8]);
+const fit = t => 26.6 + 63.4 * Math.exp(-t / 5.02);
+const cv = n => getComputedStyle(app).getPropertyValue(n).trim();
+
+function drawMain(svg) {
+  const W = svg.clientWidth, H = svg.clientHeight; if (!W || !H) return;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const fg = cv('--plot-fg'), bg = cv('--plot-bg'), lb = cv('--legend-border'), fs = 12;
+  const L = 46, R = W - 12, T = 8, B = H - 24;
+  const sx = t => L + (t / 20) * (R - L), sy = v => B - ((v - 25) / 68) * (B - T);
+  let s = `<rect width="${W}" height="${H}" fill="${bg}"/><rect x="${L}" y="${T}" width="${R - L}" height="${B - T}" fill="none" stroke="${fg}"/>`;
+  for (let v = 30; v <= 90; v += 10) s += `<line x1="${L - 4}" x2="${L}" y1="${sy(v)}" y2="${sy(v)}" stroke="${fg}"/><text x="${L - 7}" y="${sy(v) + 4}" font-size="${fs}" text-anchor="end" fill="${fg}" font-family="Segoe UI">${v}</text>`;
+  for (let t = 0; t <= 20; t += 2.5) s += `<line x1="${sx(t)}" x2="${sx(t)}" y1="${B}" y2="${B + 4}" stroke="${fg}"/><text x="${sx(t)}" y="${B + 17}" font-size="${fs}" text-anchor="middle" fill="${fg}" font-family="Segoe UI">${t.toFixed(1)}</text>`;
+  let fd = ''; for (let t = 0; t <= 20; t += 0.25) fd += (t ? 'L' : 'M') + sx(t).toFixed(1) + ' ' + sy(fit(t)).toFixed(1);
+  s += `<path d="${fd}" fill="none" stroke="#2ca02c" stroke-width="1.4" stroke-dasharray="5 3" opacity=".45"/>`;
+  s += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + sx(p[0]).toFixed(1) + ' ' + sy(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="#1f77b4" stroke-width="1.8"/>`;
+  pts2.forEach(p => s += `<circle cx="${sx(p[0])}" cy="${sy(p[1])}" r="3" fill="#ff7f0e"/>`);
+  const lx = R - 210, ly = T + 44;
+  s += `<rect x="${lx}" y="${ly}" width="196" height="64" rx="3" fill="${bg}" stroke="${lb}"/>`;
+  [['#1f77b4', 'cooling_curve', 'l'], ['#ff7f0e', 'cooling_curve_2', 'c'], ['#2ca02c', 'fit_exp', 'd']].forEach((e, i) => {
+    const y = ly + 16 + i * 17;
+    s += e[2] === 'c' ? `<circle cx="${lx + 23}" cy="${y}" r="3" fill="${e[0]}"/>` : `<line x1="${lx + 10}" x2="${lx + 36}" y1="${y}" y2="${y}" stroke="${e[0]}" stroke-width="2" ${e[2] === 'd' ? 'stroke-dasharray="5 3" opacity=".45"' : ''}/>`;
+    s += `<text x="${lx + 44}" y="${y + 4}" font-size="${fs}" fill="${fg}" font-family="Segoe UI">${e[1]}</text>`;
+  });
+  const cx = sx(7.5), cy = sy(pts[15][1]);
+  s += `<line x1="${cx}" x2="${cx}" y1="${T}" y2="${B}" stroke="var(--accent)" stroke-dasharray="4 4" opacity=".7"/><circle cx="${cx}" cy="${cy}" r="5" fill="${bg}" stroke="var(--accent)" stroke-width="2"/>`;
+  s += `<g transform="translate(${cx + 10},${cy - 34})"><rect width="118" height="26" rx="5" fill="var(--surface)" stroke="var(--border-strong)"/><text x="9" y="17" font-size="11.5" fill="${fg}" font-family="Consolas">#16  7.50, 41.12</text></g>`;
+  svg.innerHTML = s;
+}
+function drawMini(svg) {
+  const W = svg.clientWidth, H = svg.clientHeight; if (!W || !H) return;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const mx = t => 46 + (t / 20) * (W - 58), my = v => H - 4 - ((v - 25) / 68) * (H - 10);
+  let m = `<rect x="46" y="3" width="${W - 58}" height="${H - 6}" rx="6" fill="var(--surface-2)"/>`;
+  m += `<rect x="${mx(5)}" y="3" width="${mx(12) - mx(5)}" height="${H - 6}" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>`;
+  m += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + mx(p[0]).toFixed(1) + ' ' + my(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="#1f77b4" stroke-width="1.3"/>`;
+  svg.innerHTML = m;
+}
+function redraw() { app.querySelectorAll('[data-plot=main]').forEach(drawMain); app.querySelectorAll('[data-plot=mini]').forEach(drawMini); }
+
+(function table() {
+  let h = '<tr><th>#</th><th>時間_s</th><th>温度_degC</th><th>フィット値</th><th>残差</th></tr>';
+  pts.slice(11, 22).forEach((p, j) => {
+    const i = j + 11, f = fit(p[0]), r = p[1] - f;
+    h += `<tr class="${i === 15 ? 'hl' : ''}"><td>${i + 1}</td><td>${p[0].toFixed(1)}</td><td>${p[1].toFixed(2)}</td><td>${f.toFixed(2)}</td><td class="${r < 0 ? 'neg' : ''}">${r.toFixed(3)}</td></tr>`;
+  });
+  document.getElementById('dtable').innerHTML = h;
+})();
+
+function showPanel(name) {
+  const side = document.getElementById('side');
+  side.innerHTML = '';
+  side.appendChild(document.getElementById('p-' + name).content.cloneNode(true));
+  document.querySelectorAll('#rail [data-panel]').forEach(b => b.classList.toggle('on', b.dataset.panel === name));
+}
+document.querySelectorAll('#rail [data-panel]').forEach(b => b.addEventListener('click', () => showPanel(b.dataset.panel)));
+
+const state = {theme: 'light', accent: 'teal', density: 'normal'};
+function apply() {
+  app.dataset.theme = state.theme; app.dataset.accent = state.accent;
+  app.classList.toggle('compact', state.density === 'compact');
+  document.querySelectorAll('.controls button').forEach(b => {
+    if (b.dataset.theme) b.classList.toggle('on', b.dataset.theme === state.theme);
+    if (b.dataset.accent) b.classList.toggle('on', b.dataset.accent === state.accent);
+    if (b.dataset.density) b.classList.toggle('on', b.dataset.density === state.density);
+  });
+  redraw(); fitScale();
+}
+document.querySelectorAll('.controls button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.theme) state.theme = b.dataset.theme;
+  if (b.dataset.accent) state.accent = b.dataset.accent;
+  if (b.dataset.density) state.density = b.dataset.density;
+  apply();
+}));
+document.getElementById('themeBtn').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; apply(); });
+function fitScale() {
+  const sc = document.getElementById('scaler');
+  const s = Math.min(1, (document.querySelector('.stage').clientWidth - 40) / 1440);
+  sc.style.transform = `scale(${s})`;
+  sc.parentElement.style.height = (900 * s) + 'px';
+}
+window.addEventListener('resize', fitScale);
+showPanel('data'); apply();
+</script>
+</body>
+</html>
