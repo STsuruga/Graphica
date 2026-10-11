@@ -105,6 +105,19 @@ def test_optimizer_results_get_a_looser_tolerance_on_other_machines():
     assert recorder.tolerant_diff_summary(expected, moved, recorder.OPTIMIZER_REL_TOL) != ""
 
 
+
+def test_layout_positions_get_a_looser_tolerance_on_other_machines():
+    """tight_layout の軸の位置は CI のランナーで相対 1e-8 ほど揺れる。ほかの数値は今までどおり厳しく比べる。"""
+    expected = {"axes": [{"position": [0.125, 0.11, 0.775, 0.724759333], "xlim": [0.0, 0.724759333]}]}
+    jittered = {"axes": [{"position": [0.125, 0.11, 0.775, 0.7247593268], "xlim": [0.0, 0.724759333]}]}
+    assert recorder.tolerant_diff_summary(expected, jittered) == ""
+
+    moved = {"axes": [{"position": [0.125, 0.11, 0.775, 0.7248], "xlim": [0.0, 0.724759333]}]}
+    assert "/position" in recorder.tolerant_diff_summary(expected, moved)
+    other_number = {"axes": [{"position": [0.125, 0.11, 0.775, 0.724759333], "xlim": [0.0, 0.7247593268]}]}
+    assert "/xlim" in recorder.tolerant_diff_summary(expected, other_number)
+
+
 def test_the_machine_that_made_the_goldens_compares_bit_for_bit(golden_in_tmp, monkeypatch):
     monkeypatch.setenv(recorder.UPDATE_ENV, "1")
     recorder.check("group/case", {"v": (1.5).hex()})

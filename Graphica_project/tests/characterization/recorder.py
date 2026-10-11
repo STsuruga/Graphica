@@ -40,6 +40,10 @@ NUMERIC_REL_TOL = 1e-9
 # 範囲制約つき・頑健な損失のフィット(least_squares)は ftol=xtol=1e-8 で止まるので、計算経路の違いがその大きさで
 # 結果に残る(OpenBLAS の核を変えて測ると最大 1.2e-8)。
 OPTIMIZER_REL_TOL = 1e-6
+# 余白の自動調整(tight_layout)が決める軸の位置。文字の幅から繰り返し求めるので、GitHub のランナーの CPU によって
+# 相対 1e-8 ほど揺れる(rendering の annotations/axes[0]/position が 0.724759333 と 0.7247593268 で行き来した)
+LAYOUT_REL_TOL = 1e-6
+LAYOUT_KEYS = frozenset({"position"})
 ARRAY_SAMPLE_SIZE = 16
 MAX_DIFF_LINES = 40
 
@@ -290,8 +294,9 @@ def _tolerant_diff(expected: Any, actual: Any, path: str, lines: list[str], rel_
             elif key not in expected:
                 lines.append(f"+ {path}/{key}: {actual[key]!r}")
             elif not (array and key == "sha256"):
-                tol = rel_tol * scale * (size if key == "sum" else 1)
-                _tolerant_diff(expected[key], actual[key], f"{path}/{key}", lines, rel_tol, tol)
+                key_rel_tol = max(rel_tol, LAYOUT_REL_TOL) if key in LAYOUT_KEYS else rel_tol
+                tol = key_rel_tol * scale * (size if key == "sum" else 1)
+                _tolerant_diff(expected[key], actual[key], f"{path}/{key}", lines, key_rel_tol, tol)
         return
     if isinstance(expected, list) and isinstance(actual, list):
         tol = max(abs_tol, rel_tol * _scale(expected))
