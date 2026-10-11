@@ -344,6 +344,8 @@ TRANSLATIONS = {
     "マーカー": "Marker",
     "マーカーサイズ": "Marker size",
     "マーカーの塗り": "Marker fill",
+    "プロジェクトを開く...": "Open project...",
+    "新しいプロジェクトで始める": "Start a new project",
     "円": "Circle",
     "四角": "Square",
     "三角(上)": "Tri. up",
