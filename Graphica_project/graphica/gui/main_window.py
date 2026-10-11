@@ -70,7 +70,7 @@ from graphica.gui import notify
 
 
 from PySide6.QtWidgets import (QMainWindow, QWidget,
-                               QDockWidget, QLabel, QTreeWidgetItem)
+                               QAbstractSpinBox, QDockWidget, QLabel, QTreeWidgetItem)
 from PySide6.QtGui import QFont, QIcon, QValidator, QUndoStack
 from PySide6.QtCore import Qt, QTimer, Signal
 from graphica.models.project import ProjectModel
@@ -519,6 +519,11 @@ class PlotterApp(QMainWindow, UISetupMixin,
         # ウォーターフォールのオフセットもデータの単位なので、大きい値やマイナス・指数表記を入れられるように
         for spin_box in [self.waterfall_offset_x_spinbox, self.waterfall_offset_y_spinbox]:
             _enable_scientific_notation_input(spin_box, minimum=-np.inf, maximum=np.inf)
+
+        # 打ち込んだ数値は Enter か欄を離れたときに反映する(▲▼・矢印キー・ホイールはすぐ)。1文字ごとに反映すると、
+        # 反映で欄が書き直されて("0" → "0.00")小数を打てず、大きなデータでは打つたびに描き直しで止まる
+        for spin_box in self.ui.control_dock_widget.findChildren(QAbstractSpinBox):
+            spin_box.setKeyboardTracking(False)
 
         self._update_plot()
         # 環境設定の既定の書式テンプレート(新しいタブはどれも空のプロジェクトから始まる)
