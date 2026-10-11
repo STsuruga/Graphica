@@ -3120,7 +3120,7 @@ def test_property_changed_marker_none_maps_to_none_attr(tmp_path, monkeypatch):
     ds = _make_simple_dataset("d0")
     _add_and_select_dataset(window, ds)
 
-    window.ui.marker_combo.setCurrentText("None")
+    window.ui.marker_combo.setCurrentIndex(window.ui.marker_combo.findData("None"))
 
     assert ds.marker is None
 

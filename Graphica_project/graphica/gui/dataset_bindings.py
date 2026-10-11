@@ -12,6 +12,14 @@ NO_ERROR_COLUMN_LABEL = "(なし)"
 # データ点ラベルの内容の欄で「Y値そのもの」を表す選択肢
 POINT_LABEL_Y_VALUE_LABEL = "Y値"
 
+# マーカーの形の選択肢(保存値 = matplotlib の記号, 表示名)。'None' はマーカーを描かない
+NO_MARKER = 'None'
+MARKER_CHOICES = (
+    ('o', "円"), ('s', "四角"), ('^', "三角(上)"), ('v', "三角(下)"), ('D', "ひし形"),
+    ('<', "三角(左)"), ('>', "三角(右)"), ('p', "五角形"), ('h', "六角形"), ('*', "星"),
+    ('+', "十字"), ('x', "バツ"), ('.', "点"), (NO_MARKER, "なし"),
+)
+
 _PANEL = 'property_panel.'
 
 
@@ -28,8 +36,19 @@ def _linestyle(key, widget):
 
 
 def _marker(key, widget, slots):
-    return Binding(key, widget, lambda _o, w: None if w.currentText() == 'None' else w.currentText(),
-                   lambda _o, w, v: w.setCurrentText(v if v is not None else 'None'), 'currentTextChanged', slots)
+    """選択肢のデータが保存値。表に無い記号(手で書いたファイル・プラグイン)は、消さずに選択肢を足して出す。"""
+    def read(_owner, combo):
+        value = combo.currentData()
+        return None if value == NO_MARKER else value
+
+    def write(_owner, combo, value):
+        value = NO_MARKER if value is None else value
+        found = combo.findData(value)
+        if found == -1:
+            combo.addItem(str(value), value)
+            found = combo.count() - 1
+        combo.setCurrentIndex(found)
+    return Binding(key, widget, read, write, 'currentIndexChanged', slots)
 
 
 def _color(key, widget, slot):
