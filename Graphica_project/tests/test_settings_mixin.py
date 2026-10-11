@@ -19,8 +19,9 @@ import contextlib
 import matplotlib
 matplotlib.use("Agg")
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QFont
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 import graphica.gui.notify as notify_module
@@ -565,3 +566,18 @@ def test_changing_any_control_reaches_the_project_settings(window):
             not_wired.append(f"{key}: 期待 {expected!r} / 実際 {stored!r}")
 
     assert not not_wired, "操作がプロジェクト設定へ届いていないキー:\n" + "\n".join(not_wired)
+
+
+@pytest.mark.parametrize("edit_name, key", [("y2_label_text_edit", "y2_label"), ("colorbar_label_edit", "colorbar_label")])
+def test_typing_a_label_redraws_once_when_finished(window, monkeypatch, edit_name, key):
+    """1文字ごとに描き直すと、大きなデータでは打つたびに1秒以上止まる。Enter かフォーカスを外したときに1回だけ。"""
+    redraws = []
+    monkeypatch.setattr(window, '_update_plot_appearance', lambda *a, **k: redraws.append(1))
+    edit = getattr(window, edit_name)
+
+    QTest.keyClicks(edit, "Intensity")
+    assert redraws == []
+
+    QTest.keyClick(edit, Qt.Key.Key_Return)
+    assert redraws == [1]
+    assert window.project.all_plot_settings[window.project.active_axis_index][key] == "Intensity"

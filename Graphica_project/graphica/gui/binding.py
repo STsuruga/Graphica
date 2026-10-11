@@ -21,6 +21,8 @@ class Binding:
     slots: tuple[Any, ...] = ()
     # 保存元から値を取り出す。None ならキーで引く
     load: Callable[[Any], Any] | None = None
+    # 打ち込んだ文字は確定(Enter・フォーカスを外す)のときだけ知らせる(connect_typed_text)
+    typed: bool = False
 
 
 # slots に置くと、Binder.connect に渡した watch(signal, widget) でつなぐ
@@ -29,6 +31,30 @@ WATCH = object()
 
 def text(key, widget, slots):
     return Binding(key, widget, lambda _o, w: w.text(), lambda _o, w, v: w.setText(v), 'textChanged', slots)
+
+
+def typed_text(key, widget, slots):
+    """1文字ごとに知らせると重い欄(大きなデータの描き直し)。slots は引数なしで呼ぶ。"""
+    return Binding(key, widget, lambda _o, w: w.text(), lambda _o, w, v: w.setText(v), 'textChanged', slots,
+                   typed=True)
+
+
+def connect_typed_text(line_edit, slot):
+    """打ち込みは確定のときに1回だけ slot を呼ぶ。プログラムからの setText(isModified が偽)はすぐ呼ぶ。
+
+    editingFinished は何も変えずにフォーカスを外しても出るので、打ち込んだ(isModified)ときだけ呼ぶ。
+    """
+    def on_text_changed(*_args):
+        if not line_edit.isModified():
+            slot()
+
+    def on_editing_finished():
+        if line_edit.isModified():
+            line_edit.setModified(False)
+            slot()
+
+    line_edit.textChanged.connect(on_text_changed)
+    line_edit.editingFinished.connect(on_editing_finished)
 
 
 def check(key, widget, slots, signal='stateChanged'):
@@ -127,6 +153,10 @@ class Binder:
             if binding.signal is None:
                 continue
             widget = self._widget(binding)
+            if binding.typed:
+                for slot in binding.slots:
+                    connect_typed_text(widget, resolve(self._owner, slot))
+                continue
             signal = getattr(widget, binding.signal)
             for slot in binding.slots:
                 if slot is WATCH:

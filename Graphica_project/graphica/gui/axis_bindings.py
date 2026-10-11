@@ -5,7 +5,7 @@
 from PySide6.QtGui import QFont
 
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES
-from graphica.gui.binding import Binding, check, choice, index, item_data, number, shown_text, text
+from graphica.gui.binding import Binding, check, choice, index, item_data, number, shown_text, text, typed_text
 from graphica.gui.canvas import MINOR_TICK_LENGTH_AUTO
 
 _CHANGED = ('_on_axis_setting_changed',)
@@ -112,7 +112,8 @@ AXIS_BINDINGS = (
     text('y_label', 'ui.y_label_text_edit', _CHANGED),
     check('x_label_visible', 'x_label_visible_checkbox', _CHANGED),
     check('y_label_visible', 'y_label_visible_checkbox', _CHANGED),
-    text('y2_label', 'y2_label_text_edit', _CHANGED),
+    # 見えている文字の欄。タイトルと X・Y 軸ラベルは編集ダイアログの確定で1回だけ setText される
+    typed_text('y2_label', 'y2_label_text_edit', _CHANGED),
 
     *_axis_rows('x'),
     choice('x_secondary_axis_source_unit', 'x_secondary_axis_source_unit_combo', X_AXIS_UNIT_CHOICES, _CHANGED),
@@ -156,7 +157,7 @@ AXIS_BINDINGS = (
     check('colorbar_enabled', 'colorbar_enabled_checkbox', _CHANGED),
     item_data('colorbar_position', 'colorbar_position_combo', _CHANGED),
     number('colorbar_width_fraction', 'colorbar_width_spinbox', _CHANGED),
-    text('colorbar_label', 'colorbar_label_edit', _CHANGED),
+    typed_text('colorbar_label', 'colorbar_label_edit', _CHANGED),
 
     # 第 2 Y 軸。見え方(有効・無効)の切り替えもつなぐ
     # 範囲を欄に入れてから設定を集め直す(_on_y2_autoscale_changed が最後に _on_axis_setting_changed を呼ぶ)。

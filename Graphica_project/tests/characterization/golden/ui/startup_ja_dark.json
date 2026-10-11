@@ -5149,7 +5149,8 @@
                               "visible": false,
                               "enabled": true,
                               "receivers": {
-                               "textChanged(QString)": 1
+                               "textChanged(QString)": 1,
+                               "editingFinished()": 1
                               }
                              },
                              {
@@ -5993,7 +5994,8 @@
                               "visible": true,
                               "enabled": true,
                               "receivers": {
-                               "textChanged(QString)": 1
+                               "textChanged(QString)": 1,
+                               "editingFinished()": 1
                               }
                              },
                              {
