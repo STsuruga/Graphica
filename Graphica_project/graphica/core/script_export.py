@@ -7,6 +7,8 @@
 
 from graphica.core.axis_settings import axis_inverted, axis_setting, manual_axis_range
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE, legend_text
+from graphica.core.marker_style import (
+    MARKER_EDGE_COLOR, line_marker_kwargs, mapped_scatter_marker_kwargs, scatter_marker_kwargs)
 from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from graphica.core.dataset import Dataset
@@ -40,6 +42,18 @@ _BUILTIN_PLOT_TYPES = ('Line', 'Scatter', 'Line+Scatter', 'Area', 'Bar', 'Step',
                        COLOR_BY_COLUMN_PLOT_TYPE)
 
 
+def _kwargs_text(kwargs: dict[str, Any]) -> str:
+    return "".join(f", {key}={_to_native(value)!r}" for key, value in kwargs.items())
+
+
+def _single_color_scatter(ax_var: str, ds: "Dataset") -> str:
+    style = scatter_marker_kwargs(ds)
+    # 線だけの形で枠線の色を指定すると color が変わる(描画の _markers と同じ)
+    color = style.pop('color', ds.color)
+    return (f"{ax_var}.scatter(x, y, marker={ds.marker!r}, s={ds.markersize!r} ** 2, "
+            f"color={color!r}, alpha={ds.alpha!r}, label={legend_text(ds)!r}{_kwargs_text(style)})")
+
+
 def _emit_dataset_plot_call(lines: list[str], ax_var: str, ds: "Dataset", mappable_var: str | None = None) -> bool:
     """1次元の系列を描く呼び出しを書く。カラーバー用の mappable を mappable_var に入れたら True。"""
     kwargs = f"color={ds.color!r}, alpha={ds.alpha!r}, label={legend_text(ds)!r}"
@@ -58,27 +72,32 @@ def _emit_dataset_plot_call(lines: list[str], ax_var: str, ds: "Dataset", mappab
             lines.append(
                 "# Z列が未設定/長さ不一致のため、単色のScatterとして出力しています"
             )
-            lines.append(
-                f"{ax_var}.scatter(x, y, marker={ds.marker!r}, s={ds.markersize!r} ** 2, {kwargs})"
-            )
+            lines.append(_single_color_scatter(ax_var, ds))
             return False
-        assign = f"{mappable_var} = " if mappable_var else ""
+        style, hollow = mapped_scatter_marker_kwargs(ds)
+        artist_var = mappable_var or ("markers" if hollow else None)
+        assign = f"{artist_var} = " if artist_var else ""
         lines.append(
             f"{assign}{ax_var}.scatter(x, y, c=z, cmap={ds.colormap!r}, "
             f"vmin={_to_native(ds.vmin)!r}, vmax={_to_native(ds.vmax)!r}, "
             f"marker={ds.marker!r}, s={ds.markersize!r} ** 2, "
-            f"alpha={ds.alpha!r}, label={legend_text(ds)!r})"
+            f"alpha={ds.alpha!r}, label={legend_text(ds)!r}{_kwargs_text(style)})"
         )
+        if hollow:
+            # c と facecolors を一緒に渡すと c が勝つので、描いたあとに塗りを消す
+            lines.append(f"{artist_var}.set_facecolor('none')")
+            if ds.marker_edge != MARKER_EDGE_COLOR:
+                lines.append(f"{artist_var}.set_edgecolor(None)")
         return bool(mappable_var)
 
     if plot_type == 'Line':
         lines.append(f"{ax_var}.plot(x, y, linestyle={ds.linestyle!r}, linewidth={ds.linewidth!r}, {kwargs})")
     elif plot_type == 'Scatter':
-        lines.append(f"{ax_var}.scatter(x, y, marker={ds.marker!r}, s={ds.markersize!r} ** 2, {kwargs})")
+        lines.append(_single_color_scatter(ax_var, ds))
     elif plot_type == 'Line+Scatter':
         lines.append(
             f"{ax_var}.plot(x, y, linestyle={ds.linestyle!r}, linewidth={ds.linewidth!r}, "
-            f"marker={ds.marker!r}, markersize={ds.markersize!r}, {kwargs})"
+            f"marker={ds.marker!r}, markersize={ds.markersize!r}, {kwargs}{_kwargs_text(line_marker_kwargs(ds))})"
         )
     elif plot_type == 'Area':
         lines.append(f"{ax_var}.fill_between(x, y, 0, color={ds.color!r}, alpha={ds.alpha!r} * 0.4, label={legend_text(ds)!r})")

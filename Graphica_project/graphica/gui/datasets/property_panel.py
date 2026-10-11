@@ -5,8 +5,10 @@ import numpy as np
 from graphica.core.analysis import sample_standard_deviation
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.label_utils import infer_axis_label_from_column_name
+from graphica.core.marker_style import MARKER_EDGE_COLOR, MARKER_FILL_COLOR, marker_is_unfilled
 from graphica.gui.binding import Binder
 from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL
+from graphica.gui.dataset_style_icon import MARKER_PLOT_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -193,6 +195,35 @@ class DatasetPropertyPanel:
             if index != -1:
                 model.item(index).setEnabled(band_ok)
 
+    def update_marker_controls_visibility(self):
+        """
+        塗りと枠線はマーカーを描く種類でだけ出す。線だけの形(+ ×)には塗りが無いので塗りの欄を隠す。
+        値で色分けする種類は塗りを色の対応が受け持つので、塗りの「色を指定」を選べなくする(保存済みの値は変えない)。
+        """
+        app = self._app
+        dataset = app._get_current_dataset()
+        plot_type = dataset.plot_type if dataset is not None else app.ui.plot_type_combo.currentText()
+        marker = app.ui.marker_combo.currentText()
+        has_markers = plot_type in MARKER_PLOT_TYPES and marker != 'None'
+        mapped = plot_type in ('Density Scatter', COLOR_BY_COLUMN_PLOT_TYPE)
+        fillable = has_markers and not marker_is_unfilled(marker)
+
+        app.marker_fill_label.setVisible(fillable)
+        app.marker_fill_combo.setVisible(fillable)
+        color_item = app.marker_fill_combo.findData(MARKER_FILL_COLOR)
+        app.marker_fill_combo.model().item(color_item).setEnabled(not mapped)
+        show_face_color = fillable and not mapped and app.marker_fill_combo.currentData() == MARKER_FILL_COLOR
+        app.marker_face_color_label.setVisible(show_face_color)
+        app.marker_face_color_picker.setVisible(show_face_color)
+
+        for widget in (app.marker_edge_label, app.marker_edge_combo,
+                       app.marker_edge_width_label, app.marker_edge_width_spinbox):
+            widget.setVisible(has_markers)
+        show_edge_color = has_markers and app.marker_edge_combo.currentData() == MARKER_EDGE_COLOR
+        app.marker_edge_color_label.setVisible(show_edge_color)
+        app.marker_edge_color_picker.setVisible(show_edge_color)
+        app._update_property_section_visibility()
+
     def update_waterfall_controls_visibility(self):
         """
         オフセットなどの詳細はウォーターフォールを有効にしたときだけ出す。
@@ -277,6 +308,7 @@ class DatasetPropertyPanel:
             self.update_waterfall_controls_visibility()
             self.update_smoothing_control_visibility()
             self.update_error_display_control_items()
+            self.update_marker_controls_visibility()
             self.update_2d_controls_visibility()
             self.update_point_labels_limit_note()
 
