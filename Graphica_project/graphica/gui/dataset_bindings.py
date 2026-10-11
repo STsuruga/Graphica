@@ -27,13 +27,17 @@ def _linestyle(key, widget):
     return Binding(key, widget, lambda _o, w: w.currentText(), write, 'currentTextChanged', (WATCH,))
 
 
-def _marker(key, widget):
+def _marker(key, widget, slots):
     return Binding(key, widget, lambda _o, w: None if w.currentText() == 'None' else w.currentText(),
-                   lambda _o, w, v: w.setCurrentText(v if v is not None else 'None'), 'currentTextChanged', (WATCH,))
+                   lambda _o, w, v: w.setCurrentText(v if v is not None else 'None'), 'currentTextChanged', slots)
 
 
 def _color(key, widget, slot):
     return Binding(key, widget, None, lambda _o, w, v: w.set_color(v), 'colorChanged', (slot,))
+
+
+def _picked_color(key, widget):
+    return Binding(key, widget, lambda _o, w: w.color_name(), lambda _o, w, v: w.set_color(v), 'colorChanged', (WATCH,))
 
 
 def _point_label_column(key, widget):
@@ -63,11 +67,16 @@ DATASET_PROPERTY_BINDINGS = (
     # 種類によって意味のある欄が変わるので、種類が変わるたびに出し入れし直す
     shown_text('plot_type', 'ui.plot_type_combo',
                (WATCH, _PANEL + 'update_gradient_controls_visibility', _PANEL + 'update_smoothing_control_visibility',
-                _PANEL + 'update_error_display_control_items')),
+                _PANEL + 'update_error_display_control_items', _PANEL + 'update_marker_controls_visibility')),
     _linestyle('linestyle', 'ui.linestyle_combo'),
     number('linewidth', 'ui.linewidth_spinbox', (WATCH,)),
-    _marker('marker', 'ui.marker_combo'),
+    _marker('marker', 'ui.marker_combo', (WATCH, _PANEL + 'update_marker_controls_visibility')),
     number('markersize', 'ui.markersize_spinbox', (WATCH,)),
+    item_data('marker_fill', 'marker_fill_combo', (WATCH, _PANEL + 'update_marker_controls_visibility')),
+    _picked_color('marker_face_color', 'marker_face_color_picker'),
+    item_data('marker_edge', 'marker_edge_combo', (WATCH, _PANEL + 'update_marker_controls_visibility')),
+    _picked_color('marker_edge_color', 'marker_edge_color_picker'),
+    number('marker_edge_width', 'marker_edge_width_spinbox', (WATCH,)),
     _color('color', 'color_picker_widget', 'colors.on_color_changed'),
     # 平滑化のチェックで手法の欄の有効/無効も切り替える
     check('smoothing', 'ui.smoothing_checkbox', (WATCH, _PANEL + 'update_smoothing_control_visibility')),
