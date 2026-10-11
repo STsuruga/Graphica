@@ -12,21 +12,21 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "5924dbf810ca13485a59a3cc08f957c26b04c390a997780ee57ed60b7de88966",
+  "stylesheet_sha256": "939b63a3b358c35f8430d1cb7403754afc183cc856eb0730f30a9478fb7bcb49",
   "palette": {
-   "Window": "#ff353535",
-   "WindowText": "#ffdcdcdc",
-   "Base": "#ff232323",
-   "AlternateBase": "#ff353535",
-   "Text": "#ffdcdcdc",
-   "Button": "#ff353535",
-   "ButtonText": "#ffdcdcdc",
-   "Highlight": "#ff3c78c8",
-   "HighlightedText": "#ffffffff",
-   "ToolTipBase": "#ffdcdcdc",
-   "ToolTipText": "#ffdcdcdc",
-   "PlaceholderText": "#80000000",
-   "Link": "#ff5aa0e6"
+   "Window": "#ff111417",
+   "WindowText": "#ffe6e9ec",
+   "Base": "#ff181b1f",
+   "AlternateBase": "#ff1f2328",
+   "Text": "#ffe6e9ec",
+   "Button": "#ff181b1f",
+   "ButtonText": "#ffe6e9ec",
+   "Highlight": "#ff1d91af",
+   "HighlightedText": "#ff0c0e11",
+   "ToolTipBase": "#ff181b1f",
+   "ToolTipText": "#ffe6e9ec",
+   "PlaceholderText": "#ff69737b",
+   "Link": "#ff24b5db"
   }
  },
  "main_docks": [

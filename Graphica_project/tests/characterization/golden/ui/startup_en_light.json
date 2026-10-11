@@ -12,21 +12,21 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "9aa38127fae52e08d3a7e16b5cc962e3d2cbf72eda660ad136272d36c10108af",
+  "stylesheet_sha256": "1710e158a398299a9a054d2d1d0ea0b141384df1193ab1e52799fd0cd77b3edf",
   "palette": {
-   "Window": "#ffefefef",
-   "WindowText": "#ff000000",
+   "Window": "#fff1f2f4",
+   "WindowText": "#ff191d1f",
    "Base": "#ffffffff",
-   "AlternateBase": "#fff7f7f7",
-   "Text": "#ff000000",
-   "Button": "#ffefefef",
-   "ButtonText": "#ff000000",
-   "Highlight": "#ff308cc6",
+   "AlternateBase": "#fff3f5f7",
+   "Text": "#ff191d1f",
+   "Button": "#ffffffff",
+   "ButtonText": "#ff191d1f",
+   "Highlight": "#ff0f4c5c",
    "HighlightedText": "#ffffffff",
-   "ToolTipBase": "#ffffffdc",
-   "ToolTipText": "#ff000000",
-   "PlaceholderText": "#80000000",
-   "Link": "#ff0000ff"
+   "ToolTipBase": "#ffffffff",
+   "ToolTipText": "#ff191d1f",
+   "PlaceholderText": "#ff8a939b",
+   "Link": "#ff0f4c5c"
   }
  },
  "main_docks": [
