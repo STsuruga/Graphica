@@ -400,20 +400,26 @@ class DatasetPropertyPanel:
             self._app.waterfall_depth_ratio_spinbox.setVisible(False)
 
             self._app.stats_summary_label.setText("-")
-            self._app.dataset_mini_stats_label.setText("-")
+            self._set_dataset_page_stats(None)
             # 前に出していたデータセットの名前を残さない(editingFinished は出ないので書き込まれない)
             self._app.ui.legend_name_edit.clear()
             # 行を隠したあとで見出しもそろえる(起動直後もこの経路を通る)
             self._app._update_property_section_visibility()
 
+    def _set_dataset_page_stats(self, dataset):
+        # 左パネルの統計カード(タブの骨組みを作る前に呼ばれることがある)
+        page = getattr(self._app, 'dataset_page', None)
+        if page is not None:
+            page.set_stats(dataset)
+
     def update_stats_summary_label(self, dataset):
-        """Y の件数・平均・標準偏差・最小・最大を、プロパティ欄とデータセット一覧の下の1行に出す(NaN は除く)。"""
+        """Y の件数・平均・標準偏差・最小・最大を、プロパティ欄の1行と左パネルの統計カードに出す(NaN は除く)。"""
+        self._set_dataset_page_stats(dataset)
         try:
             y = np.asarray(dataset.y_data, dtype=float)
             valid = y[~np.isnan(y)]
             if len(valid) == 0:
                 self._app.stats_summary_label.setText("-")
-                self._app.dataset_mini_stats_label.setText(dataset.name)
                 return
             # 標本標準偏差(n−1)。1点では定義できないので「-」
             std = sample_standard_deviation(valid)
@@ -422,13 +428,8 @@ class DatasetPropertyPanel:
                 f"件数: {len(valid)}   平均: {np.mean(valid):.4g}   "
                 f"標準偏差: {std_text}   最小: {np.min(valid):.4g}   最大: {np.max(valid):.4g}"
             )
-            self._app.dataset_mini_stats_label.setText(
-                f"{dataset.name} 〈n={len(valid)}, 平均={np.mean(valid):.4g}, "
-                f"SD={std_text}〉"
-            )
         except (TypeError, ValueError):
             self._app.stats_summary_label.setText("-")
-            self._app.dataset_mini_stats_label.setText(dataset.name)
 
     def on_plot_column_changed(self):
         dataset = self._app._get_current_dataset()

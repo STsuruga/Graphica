@@ -511,13 +511,6 @@ def replace_dataset_list_with_tree(app):
     tree.setItemDelegate(_DatasetTreeSelectionDelegate(tree))
     container_layout.addWidget(tree)
 
-    # 一覧のすぐ下に、選んでいるデータセットの短い統計値
-    mini_stats_label = QLabel("-")
-    mini_stats_label.setObjectName("dataset_mini_stats_label")
-    mini_stats_label.setWordWrap(True)
-    container_layout.addWidget(mini_stats_label)
-    app.dataset_mini_stats_label = mini_stats_label
-
     if isinstance(parent_layout, QGridLayout) and row is not None:
         parent_layout.addWidget(container, row, col, rowspan, colspan)
     else:

@@ -79,6 +79,7 @@ packages = [
     "graphica.gui.mixins",
     "graphica.gui.panels",
     "graphica.gui.rendering",
+    "graphica.gui.shell",
     "graphica.gui.tools",
     "graphica.gui.widgets",
     "graphica.models",
