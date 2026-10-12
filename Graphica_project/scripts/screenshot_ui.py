@@ -97,12 +97,18 @@ def main():
             app.processEvents()
 
     saved = []
+    # モードの切り替え(GUI 刷新 PR 3 から)。無い版でも動くように
+    modes = ("lite", "advanced") if hasattr(window, "set_ui_mode") else (None,)
     for dark in (False, True):
         tab._on_toggle_dark_mode(dark)
-        settle()
-        path = os.path.join(args.out_dir, f"{'dark' if dark else 'light'}.png")
-        window.grab().save(path)
-        saved.append(path)
+        for mode in modes:
+            if mode is not None:
+                window.set_ui_mode(mode)
+            settle()
+            suffix = "" if mode is None else f"_{mode}"
+            path = os.path.join(args.out_dir, f"{'dark' if dark else 'light'}{suffix}.png")
+            window.grab().save(path)
+            saved.append(path)
     for path in saved:
         print(path, flush=True)
     # 終了処理(自動保存や設定の書き込み)は要らないので、そのまま抜ける

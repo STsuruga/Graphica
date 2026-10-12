@@ -680,13 +680,18 @@ def test_dataset_search_edit_has_object_name_for_qss_scoping(tmp_path, monkeypat
 
 def test_dataset_search_edit_and_list_remain_separate_boxes_with_spacing(tmp_path, monkeypatch):
     """
-    検索ボックスとリストは統合された1つの箱ではなく、間に余白を持つ独立した
-    箱のままであることを確認する(実機フィードバックで「隙間を1.5倍くらい
-    広く」と指定され、4px→6pxに変更した経緯がある)。
+    検索ボックスとリストは統合された1つの箱ではなく、間に余白を持つ独立した箱のまま
+    (実機フィードバックで隙間を広げた経緯がある)。GUI 刷新で左パネルに移り、間は検索欄の行の下の余白 8px。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    container_layout = window.dataset_search_edit.parentWidget().layout()
-    assert container_layout.spacing() == 6
+    window.resize(1300, 850)
+    window.show()
+    QApplication.instance().processEvents()
+    search, tree = window.dataset_search_edit, window.ui.dataset_list_widget
+    assert search.parentWidget() is window.dataset_page and tree.parentWidget() is window.dataset_page
+    gap = tree.geometry().top() - search.geometry().bottom()
+    assert gap >= 6
+    window.close()
 
 
 # --- ドックのフォーカス時強調(項目H-2-3) ---
