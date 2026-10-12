@@ -153,7 +153,7 @@ def test_data_cursor_reports_data_values_not_shifted_display_values(tmp_path, mo
     window._on_pick(_FakePickEvent(artist, mouse, ind=[1]))
 
     assert window.cursor_annotation is not None
-    assert window.cursor_annotation.get_text() == "X: 1\nY: 1"
+    assert window.cursor_annotation.get_text() == "#2 · x 1 · y 1"
     # 注釈が指す位置(矢印の先)は、実際に描かれている表示座標のままであること
     assert window.cursor_annotation.xy == pytest.approx((drawn_x, drawn_y))
 
@@ -169,7 +169,7 @@ def test_data_cursor_is_unchanged_without_waterfall(tmp_path, monkeypatch):
     mouse = _FakeMplEvent(window.all_axes[0], 2.0, 4.0)
     window._on_pick(_FakePickEvent(artist, mouse, ind=[2]))
 
-    assert window.cursor_annotation.get_text() == "X: 2\nY: 4"
+    assert window.cursor_annotation.get_text() == "#3 · x 2 · y 4"
 
 
 # --- データエディタ連動ハイライト ---

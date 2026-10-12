@@ -277,3 +277,43 @@ def test_standalone_tab_keeps_its_menu_bar(qapp):
 
 def test_main_window_is_a_main_app_window(main_window):
     assert isinstance(main_window, MainAppWindow)
+
+
+# --- グラフのカード(PR 5) ---
+
+def test_graph_tools_follow_the_mode(main_window):
+    tab = main_window.tab_widget.currentWidget()
+    main_window.set_ui_mode(ui_mode.LITE)
+    assert not tab.plot_tool_rail.isHidden() and tab.plot_toolbar.isHidden()
+    assert tab.card_subplot_label.isHidden() and tab.card_minimap_button.isHidden()
+    main_window.set_ui_mode(ui_mode.ADVANCED)
+    assert tab.plot_tool_rail.isHidden() and not tab.plot_toolbar.isHidden()
+    # どちらの並びも同じ QAction(モードの排他はそのまま)
+    assert tab.cursor_action in tab.plot_tool_rail.actions() and tab.cursor_action in tab.plot_toolbar.actions()
+
+
+def test_lite_tools_are_the_mockups_four(main_window):
+    tab = main_window.tab_widget.currentWidget()
+    actions = [a for a in tab.plot_tool_rail.actions() if not a.isSeparator()]
+    assert actions == [tab.cursor_action, tab.annotation_action, tab.range_select_action, tab.fit_tool_action]
+
+
+def test_card_title_shows_the_subplot_title_or_its_number(main_window):
+    from graphica.gui.builders.canvas_area import refresh_card_title
+    tab = main_window.tab_widget.currentWidget()
+    tab._add_dataset(_dataset("a"))
+    refresh_card_title(tab)
+    assert tab.card_title_label.text() == "サブプロット 1"
+    assert tab.card_series_label.text() == "1 系列"
+    tab.project.all_plot_settings[0]['title'] = "温度の変化 $T$"
+    refresh_card_title(tab)
+    assert tab.card_title_label.text() == "温度の変化 T"
+
+
+def test_card_minimap_button_uses_the_menu_action(main_window):
+    tab = main_window.tab_widget.currentWidget()
+    before = tab.minimap_action.isChecked()
+    tab.card_minimap_button.click()
+    assert tab.minimap_action.isChecked() is not before
+    assert tab.card_minimap_button.isChecked() is tab.minimap_action.isChecked()
+    tab.card_minimap_button.click()

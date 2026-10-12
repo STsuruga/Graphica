@@ -313,8 +313,8 @@ def test_on_pick_scatter_shows_annotation_at_clicked_point(tmp_path, monkeypatch
     ))
 
     assert window.cursor_annotation is not None
-    assert "X: 2" in window.cursor_annotation.get_text()
-    assert "Y: 4" in window.cursor_annotation.get_text()
+    assert "x 2" in window.cursor_annotation.get_text()
+    assert "y 4" in window.cursor_annotation.get_text()
 
 
 def test_on_pick_line_shows_annotation_at_nearest_point(tmp_path, monkeypatch):
@@ -328,8 +328,8 @@ def test_on_pick_line_shows_annotation_at_nearest_point(tmp_path, monkeypatch):
     ))
 
     assert window.cursor_annotation is not None
-    assert "X: 2" in window.cursor_annotation.get_text()
-    assert "Y: 4" in window.cursor_annotation.get_text()
+    assert "x 2" in window.cursor_annotation.get_text()
+    assert "y 4" in window.cursor_annotation.get_text()
 
 
 def test_on_pick_unsupported_artist_is_ignored(tmp_path, monkeypatch):
@@ -363,7 +363,7 @@ def test_on_pick_replaces_previous_annotation(tmp_path, monkeypatch):
 
     assert second_annotation is not first_annotation
     assert first_annotation.axes is None  # 1つ目はremove()済み
-    assert "X: 3" in second_annotation.get_text()
+    assert "x 3" in second_annotation.get_text()
 
 
 def test_on_pick_highlights_row_in_open_data_editor_dialog(tmp_path, monkeypatch):
@@ -504,7 +504,7 @@ def test_cursor_keeps_working_after_a_redraw(tmp_path, monkeypatch):
     _click_through_canvas(window, 3, 9)
 
     assert errors == []
-    assert window.cursor_annotation.get_text() == "X: 3\nY: 9"
+    assert window.cursor_annotation.get_text() == "#3 · x 3 · y 9"
     assert window.cursor_annotation.axes in window.canvas.fig.axes
 
 
@@ -558,7 +558,7 @@ def test_clicking_a_bar_reads_its_top(tmp_path, monkeypatch):
     window._on_pick(SimpleNamespace(artist=bar, mouseevent=_mouse(bar, xdata=2.0, ydata=-1.0)))
 
     assert window.cursor_annotation.xy == pytest.approx((2.0, -2.0))
-    assert window.cursor_annotation.get_text() == "X: 2\nY: -2"
+    assert window.cursor_annotation.get_text() == "#2 · x 2 · y -2"
 
 
 def test_clicking_a_2d_map_reads_the_nearest_grid_value(tmp_path, monkeypatch):
@@ -573,4 +573,15 @@ def test_clicking_a_2d_map_reads_the_nearest_grid_value(tmp_path, monkeypatch):
     window._on_pick(SimpleNamespace(artist=ds.artist, mouseevent=_mouse(ds.artist, xdata=1.2, ydata=19.0)))
 
     assert window.cursor_annotation.xy == pytest.approx((1.0, 20.0))
-    assert window.cursor_annotation.get_text() == "X: 1\nY: 20\nZ: 120"
+    assert window.cursor_annotation.get_text() == "x 1 · y 20 · Z 120"
+
+
+# --- 吹き出しの文字(GUI 刷新: 「列名 値 · 列名 値」、アドバンスドは先頭に行番号) ---
+
+def test_cursor_label_text_formats():
+    from graphica.gui.tools.cursor import cursor_label_text
+    from graphica.gui.ui_mode import ADVANCED, LITE
+    ds = Dataset(name="d", df=pd.DataFrame({"t": [0.0], "temp": [1.0]}), x_col_name="t", y_col_name="temp")
+    assert cursor_label_text(ds, 7.5, 41.12, row_number=16, mode=LITE) == "t 7.5 · temp 41.12"
+    assert cursor_label_text(ds, 7.5, 41.12, row_number=16, mode=ADVANCED) == "#16 · t 7.5 · temp 41.12"
+    assert cursor_label_text(None, 1, 2, z=3, mode=ADVANCED) == "X 1 · Y 2 · Z 3"

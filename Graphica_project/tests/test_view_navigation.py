@@ -455,7 +455,8 @@ def test_plot_toolbar_has_no_matplotlib_navigation_buttons(window):
     for removed in ("Home", "Back", "Forward", "Pan", "Zoom", "Subplots", "Customize", "Save"):
         assert removed not in texts
     assert window.cursor_action in window.plot_toolbar.actions()
-    assert window.reset_zoom_action in window.plot_toolbar.actions()
+    # 表示のリセットは、グラフのカードのタイトルの行のボタン(GUI 刷新)
+    window.card_reset_button.click()
 
 
 
