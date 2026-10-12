@@ -5,7 +5,7 @@ import tempfile
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QPixmap
-from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QComboBox,
+from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QCheckBox, QComboBox,
                                QProxyStyle, QStyle, QStyleFactory)
 
 from graphica.gui.icon_utils import icon as _svg_icon
@@ -1276,6 +1276,12 @@ def build_palette(tokens: dict) -> QPalette:
     return palette
 
 
+def _is_toggle_switch(widget):
+    """スイッチの見た目にするのはチェックボックスだけ。型を先に確かめる(Qt から渡る widget を、PySide が
+    消えた別の部品の器と取り違えて返すことがあり、そのまま property() を呼ぶと例外が連鎖する)。"""
+    return isinstance(widget, QCheckBox) and bool(widget.property(TOGGLE_SWITCH_PROPERTY))
+
+
 class _FlatThemeProxyStyle(QProxyStyle):
     """QSS では描けないもの(QSS を当てると中身が消えるもの)をここで描く。
 
@@ -1304,7 +1310,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
         return super().standardPixmap(standard_pixmap, option, widget)
 
     def pixelMetric(self, metric, option=None, widget=None):
-        if widget is not None and widget.property(TOGGLE_SWITCH_PROPERTY):
+        if _is_toggle_switch(widget):
             if metric == QStyle.PixelMetric.PM_IndicatorWidth:
                 return TOGGLE_SWITCH_SIZE[0]
             if metric == QStyle.PixelMetric.PM_IndicatorHeight:
@@ -1313,7 +1319,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
 
     def drawPrimitive(self, element, option, painter, widget=None):
         if element == QStyle.PrimitiveElement.PE_IndicatorCheckBox:
-            if widget is not None and widget.property(TOGGLE_SWITCH_PROPERTY):
+            if _is_toggle_switch(widget):
                 self._draw_toggle_switch(option, painter)
             else:
                 self._draw_checkbox_indicator(option, painter)
