@@ -530,8 +530,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
         # 既定の配置の版(DOCK_LAYOUT_VERSION)が保存時と違えば戻さない(戻すと新しい既定が既存の利用者に届かない)。
         # 戻すのはイベントループが一巡してタブが最終の大きさになってから。ここで戻すと仮の大きさで
         # スプリッターの位置が決まり、見た目とクリックの位置がずれる。
-        # 「リセット」用の素の配置は、戻す前のここで控える
-        self._pristine_dock_state = self.saveState()
 
         # タブに結び付けておく(先にタブが閉じられたら呼ばない。閉じたタブのドックを触ると落ちる)
         QTimer.singleShot(0, self, self._restore_dock_layout)
@@ -556,26 +554,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
 
     def _restore_dock_layout(self):
         return dock_layout.restore_dock_layout(self)
-
-    # 名前付きのドック配置。起動時の復元(最初のタブだけ)と違い、どのタブでもいつでも使える
-
-    def _load_dock_layout_presets(self):
-        return dock_layout.load_dock_layout_presets(self)
-
-    def _save_dock_layout_presets(self, presets: dict):
-        return dock_layout.save_dock_layout_presets(self, presets)
-
-    def _on_save_dock_layout_preset(self):
-        return dock_layout.on_save_dock_layout_preset(self)
-
-    def _populate_load_layout_menu(self):
-        return dock_layout.populate_load_layout_menu(self)
-
-    def _on_load_dock_layout_preset(self, name):
-        return dock_layout.on_load_dock_layout_preset(self, name)
-
-    def _on_reset_dock_layout(self):
-        return dock_layout.on_reset_dock_layout(self)
 
     def closeEvent(self, event):
         # 読み込み中の QThread を破棄すると Qt がプロセスごと止め、ほかのタブの未保存データも失う。

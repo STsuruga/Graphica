@@ -59,7 +59,7 @@ def test_menus_survive_being_walked_repeatedly(tmp_path, monkeypatch):
     gc.collect()
 
     assert second == first
-    assert window._dock_layout_menu.actions()
+    assert window._export_menu.actions()
     assert window.recent_files_menu.menuAction() is window._recent_files_menu_action
 
 
@@ -72,7 +72,7 @@ def test_pinned_menu_paths_keep_their_text(tmp_path, monkeypatch):
         ("ファイル(F)", "上書き保存(P)"),
         ("ファイル(F)", "エクスポート", "印刷(R)..."),
         ("編集(E)", "コマンドパレット(K)..."),
-        ("表示(V)", "ドックレイアウト", "既定のレイアウトにリセット"),
+        ("表示(V)", "エクスポートプレビュー"),
         ("表示(V)", "ダークモード"),
     ):
         assert expected in paths, expected

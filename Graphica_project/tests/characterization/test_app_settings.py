@@ -57,7 +57,6 @@ def _what_the_tab_read(tab):
         "quick_access_toolbar": list(getattr(tab, "_quick_access_actions", {}).keys()),
         "disabled_plugins": sorted(disabled_plugin_names(tab.settings)),
         "collapsed_sections": sorted(tab._load_collapsed_property_sections()),
-        "dock_presets": sorted(tab._load_dock_layout_presets()),
         "palettes": tab.colors.load_palettes(),
         "active_color_cycle": tab.colors.active_color_cycle(),
         "named_colors": load_named_colors(tab.settings),
@@ -99,7 +98,7 @@ def _seed_broken(env, ini, case):
     _write_ini(ini, [
         "dark_mode=maybe", "autosave_interval_min=abc", "point_label_max_points=-5", "snap_grid_interval_px=x",
         "dataset_property_collapsed_sections=not json", "custom_color_palettes_json={broken",
-        "active_color_palette=存在しない", "named_colors_json=[{\"name\": 1}]", "dock_layout_presets=[1,2",
+        "active_color_palette=存在しない", "named_colors_json=[{\"name\": 1}]",
         "clean_exit=false",
     ])
 
@@ -193,11 +192,6 @@ def _op_palettes(tab, modal_log, tmp_path):
     tab.colors.manage_palettes()
 
 
-def _op_dock_preset(tab, modal_log, tmp_path):
-    modal_log.respond_to("getText", ("自分の配置", True))
-    tab._on_save_dock_layout_preset()
-
-
 def _op_collapse_section(tab, modal_log, tmp_path):
     tab._prop_sections["waterfall"]["toggle"].setChecked(False)
     tab._prop_sections["map"]["toggle"].setChecked(False)
@@ -229,7 +223,7 @@ OPERATIONS = {
     "preferences": _op_preferences, "preferences_unchanged": _op_preferences_unchanged,
     "autosave_interval": _op_autosave_interval, "dark_mode": _op_dark_mode, "minimap": _op_minimap,
     "recent_files": _op_recent_files, "quick_access": _op_quick_access, "palettes": _op_palettes,
-    "dock_preset": _op_dock_preset, "collapse_section": _op_collapse_section, "detach_canvas": _op_detach_canvas,
+    "collapse_section": _op_collapse_section, "detach_canvas": _op_detach_canvas,
     "named_colors": _op_named_colors, "recent_colors": _op_recent_colors,
 }
 

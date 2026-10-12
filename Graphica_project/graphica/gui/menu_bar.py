@@ -166,13 +166,6 @@ VIEW_MENU = TopMenu("表示(&V)", "_view_menu", (
     Item("パネルラベルを自動表示 ((a)(b)(c)...)", "_on_toggle_panel_labels", attr="panel_labels_action",
          checked="project.panel_labels_enabled"),
     Item("色覚シミュレーションプレビュー...", "_on_show_cvd_simulation", attr="cvd_simulation_action"),
-    Submenu("ドックレイアウト", attr="_dock_layout_menu", action_attr="_dock_layout_menu_action", items=(
-        Item("現在のレイアウトを保存...", "_on_save_dock_layout_preset", attr="_save_layout_action"),
-        Submenu("レイアウトを読み込み", attr="load_layout_menu", action_attr="_load_layout_menu_action",
-                on_show="_populate_load_layout_menu"),
-        SEPARATOR,
-        Item("既定のレイアウトにリセット", "_on_reset_dock_layout", attr="_reset_layout_action"),
-    )),
     # クイックアクセスのツールバーはここで作る(表示メニューの項目と同じ順番で組み立てる必要がある)
     Call("_create_quick_access_toolbar"),
     SEPARATOR,
