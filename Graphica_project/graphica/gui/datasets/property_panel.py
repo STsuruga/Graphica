@@ -7,6 +7,7 @@ from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.label_utils import infer_axis_label_from_column_name
 from graphica.core.marker_style import MARKER_EDGE_COLOR, MARKER_FILL_COLOR, marker_is_unfilled
 from graphica.gui.binding import Binder
+from graphica.gui.builders import property_sections, property_widgets
 from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL, NO_MARKER
 from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES
 
@@ -145,6 +146,18 @@ class DatasetPropertyPanel:
             )
         if is_batch:
             self._app.undo_stack.endMacro()
+
+    def update_mode_visibility(self):
+        """シンプル / アドバンスドを替えたとき: シンプルで隠した行を一度出し、今の条件で出し入れし直す
+        (各 update_*_visibility の最後の節の出し入れが、シンプルならまた隠す)。"""
+        for widget in property_sections.lite_hidden_property_widgets(self._app):
+            widget.setVisible(True)
+        self.update_gradient_controls_visibility()
+        self.update_waterfall_controls_visibility()
+        self.update_smoothing_control_visibility()
+        self.update_marker_controls_visibility()
+        self.update_2d_controls_visibility()
+        self._app._update_property_section_visibility()
 
     def update_gradient_controls_visibility(self):
         """
@@ -308,6 +321,7 @@ class DatasetPropertyPanel:
             self._app.vmin_spinbox.setEnabled(not is_range_auto)
             self._app.vmax_spinbox.setEnabled(not is_range_auto)
             self._binder.block_signals(False)
+            property_widgets.refresh_property_widgets(self._app)
             self.update_gradient_controls_visibility()
             self.update_waterfall_controls_visibility()
             self.update_smoothing_control_visibility()

@@ -3,7 +3,7 @@ import json
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFormLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
-from graphica.gui import app_settings
+from graphica.gui import app_settings, ui_mode
 from graphica.gui.builders.common import DATASET_PROPERTY_SECTIONS, _svg_icon, cap_combo_width
 from graphica.gui.widgets import SectionHeader
 
@@ -80,6 +80,11 @@ def build_dataset_property_sections(app):
     app._set_dataset_property_fields_enabled(False)
 
     style_form = app._prop_form('style')
+    # シンプルの種類のタイル(中身は property_widgets.build_property_widgets)。節の先頭の行
+    app._plot_type_tiles_row = QWidget()
+    tiles_layout = QVBoxLayout(app._plot_type_tiles_row)
+    tiles_layout.setContentsMargins(0, 0, 0, 2)
+    style_form.addRow(app._plot_type_tiles_row)
     style_form.addRow(app.ui.legend_name_label, app.ui.legend_name_edit)
     style_form.addRow(app.ui.plot_type_label, app.ui.plot_type_combo)
     style_form.addRow(app.ui.color_label, app.color_picker_widget)
@@ -96,10 +101,11 @@ def prop_form(app, section_key):
     return app._prop_sections[section_key]['form']
 
 
-def align_form_label_columns(app, forms):
+def align_form_label_columns(app, forms, width=None):
     """ラベルの列幅を複数の QFormLayout で揃え、入力欄の左端を合わせる。決めた幅(px)を返す。
 
     隠れているラベルも数える(QFormLayout は隠れたものを外すので、出た瞬間に列幅が変わって欄がずれる)。
+    width を渡すとその幅に固定し、入らない名前は折り返す(インスペクタのプロパティは見本どおり 92px)。
     """
     labels = []
     widest = 0
@@ -112,6 +118,11 @@ def align_form_label_columns(app, forms):
             labels.append(label)
             widest = max(widest, label.sizeHint().width())
 
+    if width is not None:
+        for label in labels:
+            label.setFixedWidth(width)
+            label.setWordWrap(True)
+        return width
     for label in labels:
         label.setMinimumWidth(widest)
     return widest
@@ -149,11 +160,34 @@ def on_property_section_toggled(app, section_key, checked):
     app_settings.DATASET_PROPERTY_COLLAPSED_SECTIONS.write(app.settings, json.dumps(collapsed))
 
 
+def lite_hidden_property_widgets(app):
+    """シンプルで隠す行の欄と名前。"""
+    widgets = []
+    for dotted_name in ui_mode.LITE_HIDDEN_PROPERTY_FIELDS:
+        field = ui_mode.resolve(app, dotted_name)
+        if field is None:
+            continue
+        widgets.append(field)
+        for entry in app._prop_sections.values():
+            label = entry['form'].labelForField(field)
+            if label is not None:
+                widgets.append(label)
+                break
+    return widgets
+
+
 def update_property_section_visibility(app):
-    """中の行が全部隠れた節は見出しごと隠す。"""
+    """シンプルで隠す行を隠し、中の行が全部隠れた節は見出しごと隠す(シンプルで出さない節も)。
+
+    行の出し入れ(property_panel の update_*_visibility)の最後に呼ばれるので、モードの条件はここで当てる。
+    """
     sections = getattr(app, '_prop_sections', None)
     if not sections:
         return
+    lite = getattr(app, 'ui_mode', None) == ui_mode.LITE
+    if lite:
+        for widget in lite_hidden_property_widgets(app):
+            widget.setVisible(False)
     for key, _ in DATASET_PROPERTY_SECTIONS:
         entry = sections.get(key)
         if entry is None:
@@ -171,4 +205,4 @@ def update_property_section_visibility(app):
                     break
             if has_visible:
                 break
-        entry['section'].setVisible(has_visible)
+        entry['section'].setVisible(has_visible and (not lite or key in ui_mode.LITE_PROPERTY_SECTIONS))

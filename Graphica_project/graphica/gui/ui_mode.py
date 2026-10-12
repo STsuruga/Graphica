@@ -22,7 +22,19 @@ MODE_ONLY_ELEMENTS = (
     ("plot_toolbar", ADVANCED),
     ("card_subplot_label", ADVANCED),
     ("card_minimap_button", ADVANCED),
+    # プロパティ: シンプルは種類のタイルと「アドバンスドですべて表示」の案内、色の 16 進はアドバンスドだけ
+    ("_plot_type_tiles_row", LITE),
+    ("lite_more_box", LITE),
+    ("color_picker_widget.hex_edit", ADVANCED),
 )
+
+# シンプルで隠すプロパティの行(欄の属性の名前。名前の欄も一緒に隠す)。種類などによる今の出し入れより強い
+LITE_HIDDEN_PROPERTY_FIELDS = (
+    "x_err_col_combo", "y_err_col_combo", "nan_policy_combo",
+    "ui.plot_type_combo", "alpha_slider", "ui.smoothing_checkbox", "smoothing_method_combo",
+)
+# シンプルで出すプロパティの節(ほかの節は見出しごと隠す)
+LITE_PROPERTY_SECTIONS = ("data", "style")
 
 
 # インスペクタのタブ(キー, 出すモード)
@@ -48,7 +60,7 @@ def initial_mode(settings):
     return mode
 
 
-def _resolve(app, dotted_name):
+def resolve(app, dotted_name):
     target = app
     for part in dotted_name.split("."):
         target = getattr(target, part, None)
@@ -62,7 +74,7 @@ def apply_ui_mode(app, mode):
     if mode not in MODES:
         raise ValueError(f"知らないモード: {mode!r}")
     for dotted_name, only_in in MODE_ONLY_ELEMENTS:
-        widget = _resolve(app, dotted_name)
+        widget = resolve(app, dotted_name)
         if widget is not None:
             widget.setVisible(mode == only_in)
     inspector = getattr(app, 'inspector', None)
@@ -70,3 +82,7 @@ def apply_ui_mode(app, mode):
         for key, only_in in MODE_ONLY_INSPECTOR_PAGES:
             inspector.set_page_visible(key, mode == only_in)
     app.ui_mode = mode
+    # プロパティの行は種類などの条件でも出し入れするので、条件を当て直してからモードで隠す
+    property_panel = getattr(app, 'property_panel', None)
+    if property_panel is not None:
+        property_panel.update_mode_visibility()

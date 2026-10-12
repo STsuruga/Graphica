@@ -9,6 +9,7 @@ from graphica.core.i18n import tr
 from graphica.core.marker_style import (
     DEFAULT_MARKER_EDGE_WIDTH, MARKER_EDGE_COLOR, MARKER_EDGE_SAME, MARKER_FILL_COLOR, MARKER_FILL_HOLLOW,
     MARKER_FILL_SOLID)
+from graphica.gui.builders import property_widgets
 from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
     _svg_icon, cap_combo_width)
@@ -338,6 +339,8 @@ def build_dataset_style_controls(app):
     # (そうしないと間に「透明度」が挟まる)
     app._prop_form('style').addRow(app.ui.smoothing_checkbox)
     app._prop_form('style').addRow(app.smoothing_method_label, app.smoothing_method_combo)
+
+    property_widgets.build_property_widgets(app)
 
 
 def build_fit_info_and_stats(app):

@@ -51,6 +51,7 @@ def _strip_trailing_colon_from_labels(widget):
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
 CONTROL_DOCK_WIDTH = 340  # 右のインスペクタの幅(見本どおり)。軸の設定の長い行は名前を上に折り返して収める
+PROPERTY_LABEL_WIDTH = 92  # プロパティの名前の列(見本どおり)。長い名前は折り返す
 SPIN_BOX_MAX_DECIMALS = 16
 
 
@@ -494,13 +495,11 @@ class PlotterApp(QMainWindow, UISetupMixin,
 
         spacing_value = 6
         if self.ui.formLayout_3: self.ui.formLayout_3.setSpacing(spacing_value)
-        # formLayout_4 は空なので、各節の QFormLayout に掛ける
-        for key, _title in DATASET_PROPERTY_SECTIONS:
-            self._prop_form(key).setSpacing(spacing_value)
 
         # 入力欄の左端を揃える(プロパティ欄の7節どうし、X/Y 軸のタブどうし)。ラベルが全部できた後で
-        self._align_form_label_columns(
-            [self._prop_form(key) for key, _title in DATASET_PROPERTY_SECTIONS])
+        property_sections.align_form_label_columns(
+            self, [self._prop_form(key) for key, _title in DATASET_PROPERTY_SECTIONS],
+            width=PROPERTY_LABEL_WIDTH)
         self._align_form_label_columns([self.ui.formLayout, self.ui.formLayout_2])
 
 
@@ -782,6 +781,14 @@ class PlotterApp(QMainWindow, UISetupMixin,
         """右のインスペクタの「エクスポート」のタブを開く(表示メニュー)。"""
         self.properties_dock_widget.show()
         self.inspector.show_page("export")
+
+    def show_advanced_mode(self):
+        """アドバンスドに切り替える(シンプルのプロパティの案内から)。ウィンドウに入っていれば全部のタブに当てて保存する。"""
+        main_window = self.window()
+        if main_window is not self and hasattr(main_window, 'set_ui_mode'):
+            main_window.set_ui_mode(ui_mode.ADVANCED)
+        else:
+            ui_mode.apply_ui_mode(self, ui_mode.ADVANCED)
 
     def show_plugin_panel(self, name):
         """左端の帯の「プラグイン」のページを開き、そのパネルを出す。"""
