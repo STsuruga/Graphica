@@ -1,11 +1,8 @@
-"""ドックの配置: 組み立て、起動時の復元、名前を付けた配置の保存・読み込み・リセット。"""
-import base64
-import json
+"""ドックの配置: 右のインスペクタの組み立てと、起動時の復元(パネルは固定で、動かせない)。"""
 import logging
-from PySide6.QtCore import QByteArray
 from PySide6.QtWidgets import QDockWidget, QFormLayout, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
-from graphica.gui import app_settings, notify
+from graphica.gui import app_settings
 from graphica.gui.builders.common import DOCK_LAYOUT_VERSION
 from graphica.gui.export_preview_panel import ExportPreviewPanel
 from graphica.gui.shell.inspector import (INSPECTOR_PAGES, Inspector, TargetHeader, scroll_page,
@@ -120,63 +117,3 @@ def restore_dock_layout(app):
     # 戻せなければ(初回・追加したタブ)組み立てたときの配置のまま。タブで並べたドックは後から足した方が前に出るので
     # プロパティを前にする(表示される前の raise_() は効かないので、表示された後のここで行う)
     app.ui.control_dock_widget.raise_()
-
-
-def load_dock_layout_presets(app):
-    """{名前: base64 の saveState}"""
-    raw = app_settings.DOCK_LAYOUT_PRESETS.read(app.settings)
-    if not isinstance(raw, str):
-        raw = "{}"
-    try:
-        presets = json.loads(raw)
-    except (TypeError, ValueError):
-        logger.warning("ドックレイアウトプリセットの読み込みに失敗しました。空として扱います。")
-        return {}
-    return presets if isinstance(presets, dict) else {}
-
-
-def save_dock_layout_presets(app, presets: dict):
-    app_settings.DOCK_LAYOUT_PRESETS.write(app.settings, json.dumps(presets))
-
-
-def on_save_dock_layout_preset(app):
-    name, ok = notify.get_text(app, "レイアウトを保存", "プリセット名:")
-    name = name.strip()
-    if not ok or not name:
-        return
-    presets = app._load_dock_layout_presets()
-    presets[name] = base64.b64encode(bytes(app.saveState())).decode('ascii')
-    app._save_dock_layout_presets(presets)
-    app.statusBar().showMessage(f"レイアウト「{name}」を保存しました", 3000)
-
-
-def populate_load_layout_menu(app):
-    """保存や削除のたびに更新しなくて済むよう、開く直前に作り直す。"""
-    app.load_layout_menu.clear()
-    presets = app._load_dock_layout_presets()
-    if not presets:
-        empty_action = app.load_layout_menu.addAction("(保存済みレイアウトはありません)")
-        empty_action.setEnabled(False)
-        return
-    for name in sorted(presets.keys()):
-        action = app.load_layout_menu.addAction(name)
-        action.triggered.connect(lambda checked=False, n=name: app._on_load_dock_layout_preset(n))
-
-
-def on_load_dock_layout_preset(app, name):
-    presets = app._load_dock_layout_presets()
-    state_b64 = presets.get(name)
-    if state_b64 is None:
-        return
-    try:
-        state_bytes = base64.b64decode(state_b64)
-    except (ValueError, TypeError):
-        notify.warning(app, "レイアウトの復元", "保存されたレイアウトデータが壊れています。")
-        return
-    if not app.restoreState(QByteArray(state_bytes)):
-        notify.warning(app, "レイアウトの復元", "レイアウトの復元に失敗しました。")
-
-
-def on_reset_dock_layout(app):
-    """組み立てた直後、配置を戻す前に控えた状態(_pristine_dock_state)に戻す。"""
-    app.restoreState(app._pristine_dock_state)

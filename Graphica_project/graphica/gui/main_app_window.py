@@ -82,7 +82,7 @@ class MainAppWindow(QMainWindow):
 
     def _create_undo_history_dock(self):
         """表示中のタブの Undo 履歴(既定では隠す)。"""
-        self.undo_history_dock = QDockWidget("Undo履歴", self)
+        self.undo_history_dock = QDockWidget(tr("Undo履歴"), self)
         self.undo_history_dock.setObjectName("undo_history_dock")
         undo_view = QUndoView(self.undo_group, self.undo_history_dock)
         self.undo_history_dock.setWidget(undo_view)

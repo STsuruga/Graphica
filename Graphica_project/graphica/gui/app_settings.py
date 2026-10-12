@@ -23,7 +23,6 @@ DEFAULT_SNAP_GRID_INTERVAL_PX = 10
 CANVAS_DETACHED_GEOMETRY_KEY = "canvas_detached_geometry"
 CANVAS_WAS_DETACHED_KEY = "canvas_was_detached"
 # 名前を付けて保存するドック配置(起動時に戻す直近の window_state とは別)
-DOCK_LAYOUT_PRESETS_SETTINGS_KEY = "dock_layout_presets"
 # 閉じている節のキーの JSON 配列。無い・空なら全部開く(節を足しても既定は開いたまま)
 DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY = "dataset_property_collapsed_sections"
 DISABLED_PLUGINS_SETTINGS_KEY = "disabled_plugins"
@@ -110,7 +109,6 @@ RECENT_COLORS = Setting(RECENT_COLORS_SETTINGS_KEY, [])
 WINDOW_GEOMETRY = Setting("window_geometry")
 WINDOW_STATE = Setting("window_state")
 DOCK_LAYOUT_VERSION = Setting("dock_layout_version", 0, int)
-DOCK_LAYOUT_PRESETS = Setting(DOCK_LAYOUT_PRESETS_SETTINGS_KEY, "{}")
 DATASET_PROPERTY_COLLAPSED_SECTIONS = Setting(DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY, "[]")
 CANVAS_WAS_DETACHED = Setting(CANVAS_WAS_DETACHED_KEY, False, bool)
 CANVAS_DETACHED_GEOMETRY = Setting(CANVAS_DETACHED_GEOMETRY_KEY)

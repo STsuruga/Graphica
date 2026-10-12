@@ -405,47 +405,6 @@
      }
     },
     {
-     "text": "ドックレイアウト",
-     "receivers": {
-      "changed()": 1,
-      "triggered(bool)": 1,
-      "triggered()": 1,
-      "hovered()": 1
-     },
-     "submenu": [
-      {
-       "text": "現在のレイアウトを保存...",
-       "tooltip": "現在のレイアウトを保存",
-       "receivers": {
-        "triggered(bool)": 2,
-        "triggered()": 2,
-        "hovered()": 1
-       }
-      },
-      {
-       "text": "レイアウトを読み込み",
-       "receivers": {
-        "changed()": 1,
-        "triggered(bool)": 1,
-        "triggered()": 1,
-        "hovered()": 1
-       },
-       "submenu": []
-      },
-      {
-       "separator": true
-      },
-      {
-       "text": "既定のレイアウトにリセット",
-       "receivers": {
-        "triggered(bool)": 2,
-        "triggered()": 2,
-        "hovered()": 1
-       }
-      }
-     ]
-    },
-    {
      "text": "クイックアクセスツールバー",
      "checked": true,
      "receivers": {

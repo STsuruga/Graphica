@@ -1454,134 +1454,27 @@ def test_restore_dock_layout_swallows_resizedocks_exception(tmp_path, monkeypatc
     window._restore_dock_layout()
 
 
-# --- ドックレイアウトの保存/復元/リセット(項目152、C-911) ---
+# --- サブメニューの永続参照(shiboken の回収の癖) ---
 
-def test_load_dock_layout_presets_empty_by_default(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    assert window._load_dock_layout_presets() == {}
-
-
-def test_save_dock_layout_preset_persists_current_state(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(notify_module.QInputDialog, "getText",
-                         staticmethod(lambda *a, **k: ("My Layout", True)))
-
-    window._on_save_dock_layout_preset()
-
-    presets = window._load_dock_layout_presets()
-    assert "My Layout" in presets
-    assert isinstance(presets["My Layout"], str)
-    assert len(presets["My Layout"]) > 0
-
-
-def test_save_dock_layout_preset_cancelled_does_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(notify_module.QInputDialog, "getText",
-                         staticmethod(lambda *a, **k: ("", False)))
-
-    window._on_save_dock_layout_preset()
-
-    assert window._load_dock_layout_presets() == {}
-
-
-def test_save_dock_layout_preset_empty_name_does_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(notify_module.QInputDialog, "getText",
-                         staticmethod(lambda *a, **k: ("   ", True)))
-
-    window._on_save_dock_layout_preset()
-
-    assert window._load_dock_layout_presets() == {}
-
-
-def test_populate_load_layout_menu_shows_placeholder_when_empty(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-
-    window._populate_load_layout_menu()
-
-    actions = window.load_layout_menu.actions()
-    assert len(actions) == 1
-    assert actions[0].isEnabled() is False
-
-
-def test_populate_load_layout_menu_lists_saved_presets_sorted(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._save_dock_layout_presets({"Zebra": "abc", "Alpha": "def"})
-
-    window._populate_load_layout_menu()
-
-    texts = [a.text() for a in window.load_layout_menu.actions()]
-    assert texts == ["Alpha", "Zebra"]
-
-
-def test_load_dock_layout_preset_restores_saved_state(tmp_path, monkeypatch):
-    import base64
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    state_b64 = base64.b64encode(bytes(window.saveState())).decode('ascii')
-    window._save_dock_layout_presets({"Saved": state_b64})
-
-    window._on_load_dock_layout_preset("Saved")  # 例外にならないこと(復元成功パス)
-
-
-def test_load_dock_layout_preset_unknown_name_does_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_load_dock_layout_preset("does not exist")  # 例外にならないこと
-
-
-def test_load_dock_layout_preset_corrupted_data_shows_warning(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._save_dock_layout_presets({"Broken": "not-valid-base64!!!"})
-    warn_calls = []
-    monkeypatch.setattr(main_window_module.QMessageBox, "warning",
-                         staticmethod(lambda *a, **k: warn_calls.append(a)))
-
-    window._on_load_dock_layout_preset("Broken")
-
-    assert len(warn_calls) == 1
-
-
-def test_reset_dock_layout_restores_pristine_state(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    calls = []
-    monkeypatch.setattr(window, "restoreState", lambda state: calls.append(state) or True)
-
-    window._on_reset_dock_layout()
-
-    assert calls == [window._pristine_dock_state]
-
-
-def test_dock_layout_menu_survives_collect_menu_actions(tmp_path, monkeypatch):
+def test_submenus_survive_collect_menu_actions(tmp_path, monkeypatch):
     """
-    回帰テスト: 「ドックレイアウト」サブメニュー追加(項目152、C-911)により、
-    _collect_menu_actions()(コマンドパレット・クイックアクセス管理ダイアログ・
-    ショートカット一覧が使う)を一度でも呼ぶと、view_menu.actions()を辿って
-    このサブメニューの「開くためのQAction」(dock_layout_menu.menuAction())への
-    一時参照が失われた際にPySide6側でQMenu本体ごと破棄されてしまう不具合が
-    実際に発生していた(RuntimeError: Internal C++ object already deleted)。
-    menuAction()自体も self._dock_layout_menu_action 等として明示的に永続参照を
-    保持することで防いでいる。_collect_menu_actions()を呼んだ後も、ドック
-    レイアウト関連のメニュー/アクションが生きていることを確認する。
+    回帰テスト: _collect_menu_actions()(コマンドパレット・クイックアクセス管理・ショートカット一覧が使う)で
+    サブメニューを辿ると、開くための QAction(menuAction())への一時参照が失われたとき PySide6 側で QMenu ごと
+    破棄されることがあった(RuntimeError: Internal C++ object already deleted)。build_menu_bar() が
+    QMenu と menuAction() を _menu_keepalive に持つので、2回呼んでも「エクスポート」のサブメニューが生きていること。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
     results = window._collect_menu_actions()
     assert len(results) > 0
-
-    # 呼び出し後も壊れていないこと(壊れているとRuntimeErrorが飛ぶ)
-    assert window._dock_layout_menu.title()  # QMenu本体
-    assert not window._save_layout_action.isSeparator()
-    assert not window._reset_layout_action.isSeparator()
-    assert window.load_layout_menu.title()
-
-    # 「ドックレイアウト」配下の項目がコマンドパレット候補にも含まれていること
+    assert window._export_menu.title()
+    assert not window.save_action.isSeparator()
     labels = [" > ".join(path) for path, _ in results]
-    assert any("現在のレイアウトを保存" in label for label in labels)
-    assert any("既定のレイアウトにリセット" in label for label in labels)
+    assert any("名前を付けてエクスポート" in label for label in labels)
 
-    # 2回目の呼び出しも壊れずに成功すること(一度で壊れる不具合だったため)
     results2 = window._collect_menu_actions()
     assert len(results2) > 0
-    assert not window._save_layout_action.isSeparator()
+    assert window._export_menu.actions()
 
 
 def test_collect_menu_actions_never_leaks_recent_files(tmp_path, monkeypatch):
@@ -1591,8 +1484,8 @@ def test_collect_menu_actions_never_leaks_recent_files(tmp_path, monkeypatch):
     候補に含めてはならない。
 
     以前は除外判定が action.menu() の identity 比較
-    (submenu is not self.recent_files_menu)だけに依存しており、_dock_layout_menu
-    と同じ shiboken/PySide6 の癖で、繰り返し走査するうちにこの identity が
+    (submenu is not self.recent_files_menu)だけに依存しており、サブメニューの
+    回収と同じ shiboken/PySide6 の癖で、繰り返し走査するうちにこの identity が
     失効して2回目以降の呼び出しで子アクションがリークすることがあった。
     開閉用アクション self._recent_files_menu_action を永続参照として保持し、
     その identity でも判定するよう修正した。

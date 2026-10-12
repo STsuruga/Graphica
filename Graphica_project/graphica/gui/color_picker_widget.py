@@ -78,7 +78,8 @@ class ColorPickerWidget(QWidget):
             self.quick_colors_row.colorPicked.connect(self._apply_color_name)
             self.layout().insertWidget(1, self.quick_colors_row)
             # チップが並ぶと幅が足りないので、入力欄は #RRGGBB が入るだけの幅にする
-            self.hex_edit.setFixedWidth(self.hex_edit.fontMetrics().horizontalAdvance("#FFFFFF") + 18)
+            # 文字幅に、QSS の入力欄の左右の余白と枠の分を足す
+            self.hex_edit.setFixedWidth(self.hex_edit.fontMetrics().horizontalAdvance("#DDDDDD") + 30)
             self.layout().setStretchFactor(self.hex_edit, 0)
             self.layout().setStretchFactor(self.quick_colors_row, 1)
         normalized = [QColor(c).name().upper() for c in colors]

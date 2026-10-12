@@ -22,6 +22,14 @@ data to a finished figure stays in one place. Free and open source (MIT), for Wi
 
 ## Features
 
+**One window, two views**
+- **Simple** shows only the essentials (columns, plot type icons, color, line style and width); **Advanced** adds
+  every setting, a labeled tool bar above the plot, and a bottom panel with a data table, fit results, residuals,
+  processing history and a log. Switching never changes your data or settings.
+- A left rail for datasets, analysis, annotations, plugins and layout; an inspector on the right with properties,
+  axes, legend and a live export preview
+- Light and dark themes, and a theme color of your choice (adjusted automatically when a color would be hard to read)
+
 **Importing data**
 - CSV and text files (`.csv` / `.txt`) with automatic detection of encoding (UTF-8, Shift_JIS, …) and delimiter
   (comma, tab, semicolon, whitespace)
@@ -34,7 +42,7 @@ data to a finished figure stays in one place. Free and open source (MIT), for Wi
   (nm / eV / cm⁻¹ / Hz)
 - Multiple subplots in a grid or free layout, with automatic panel labels ((a), (b), (c), …)
 - Waterfall (stacked) display, gradients, and 2D maps as heatmaps or contour plots
-- Fine control over ticks, grids, fonts, legends and mathtext labels; dark mode
+- Fine control over ticks, grids, fonts, legends and mathtext labels
 - Named colors, so the same sample keeps the same color across figures
 
 **Processing and analysis**
@@ -72,7 +80,7 @@ No installation is needed.
 
 ### Switching the interface to English
 
-1. Open **編集 (Edit) ▸ 環境設定... (Preferences...)**.
+1. Click **⚙** at the bottom of the left rail and choose **環境設定... (Preferences...)**, or open **≡ ▸ 編集 (Edit) ▸ 環境設定...**.
 2. On the **一般** (General) tab, set **言語** (Language) to **English**.
 3. Click OK and restart Graphica.
 

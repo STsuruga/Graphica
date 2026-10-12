@@ -148,8 +148,8 @@ def document_title(app):
     if app._current_project_path:
         return os.path.basename(app._current_project_path)
     if app._restored_unsaved:
-        return "無題のプロジェクト(復元)"
-    return "無題のプロジェクト"
+        return tr("無題のプロジェクト(復元)")
+    return tr("無題のプロジェクト")
 
 
 def has_unsaved_changes(app):

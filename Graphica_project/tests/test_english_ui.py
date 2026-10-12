@@ -5,11 +5,12 @@ import pandas as pd
 import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import (QAbstractButton, QComboBox, QDockWidget, QGroupBox, QLabel, QLineEdit, QMenu,
-                               QTabWidget, QToolBar, QWidget)
+                               QPlainTextEdit, QTabBar, QTabWidget, QTextEdit, QToolBar, QWidget)
 
 import graphica.gui.app_settings as app_settings_module
 from graphica.core import i18n
 from graphica.core.dataset import Dataset
+from graphica.gui.dataset_bindings import NO_ERROR_COLUMN_LABEL, POINT_LABEL_Y_VALUE_LABEL
 
 _JAPANESE = re.compile(r"[぀-ヿ一-鿿]")
 # プラグイン(example_plugin)が自分で付けたメニューの名前は、本体の訳の対象ではない
@@ -49,9 +50,11 @@ def _japanese_texts(root):
             note(widget.windowTitle())
         if isinstance(widget, QLineEdit):
             note(widget.placeholderText())
-        if isinstance(widget, QTabWidget):
+        if isinstance(widget, (QTabWidget, QTabBar)):
             for i in range(widget.count()):
                 note(widget.tabText(i))
+        if isinstance(widget, (QTextEdit, QPlainTextEdit)):
+            note(widget.placeholderText())
         if isinstance(widget, QComboBox):
             for i in range(widget.count()):
                 note(widget.itemText(i))
@@ -82,6 +85,28 @@ def test_main_window_menus_and_dataset_menu_are_english(english):
         populate_dataset_actions_menu(window, menu)
         leftovers |= {t for t in _menu_texts(menu) if _JAPANESE.search(t) and t not in _PLUGIN_TEXTS}
         assert leftovers == set()
+    finally:
+        window.close()
+
+
+@pytest.mark.parametrize("mode", ["lite", "advanced"])
+def test_the_whole_window_is_english_in_both_modes(english, tmp_path, monkeypatch, mode):
+    """上部バー・左端の帯・インスペクタ・下のパネル・ステータスバー・⚙ のポップアップまで(GUI 刷新)。"""
+    from graphica.gui.shell.settings_popover import toggle_settings_popover
+    from test_main_app_window import _make_isolated_main_app_window
+
+    # 下の関数は設定を tmp_path/test_settings.ini に向ける。その設定でも英語にしておく
+    QSettings(str(tmp_path / "test_settings.ini"), QSettings.Format.IniFormat).setValue("language", "en")
+    window = _make_isolated_main_app_window(tmp_path, monkeypatch)
+    try:
+        window.set_ui_mode(mode)
+        tab = window.tab_widget.currentWidget()
+        tab._add_dataset(Dataset(name="d", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x",
+                                 y_col_name="y"))
+        toggle_settings_popover(tab, tab.settings_rail_button)
+        leftovers = _japanese_texts(window) | _japanese_texts(tab.settings_popover)
+        # 列のコンボの「(なし)」「Y値」は、選んだ値として文字のまま比べる目印なので訳さない(dataset_bindings.py)
+        assert leftovers - {NO_ERROR_COLUMN_LABEL, POINT_LABEL_Y_VALUE_LABEL} == set()
     finally:
         window.close()
 

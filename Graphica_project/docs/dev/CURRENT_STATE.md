@@ -13,7 +13,18 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-12): GUI 刷新を統合ブランチ `feature/gui-redesign` で始めた
+## 現在地(2026-10-12): GUI 刷新の PR 0〜8 を統合ブランチにマージし、PR 9(仕上げ)を作った
+
+- PR 1〜8(#142〜#150)は統合ブランチ `feature/gui-redesign` にマージ済み。PR 9 は仕上げ(ドックレイアウトのプリセットの削除・
+  英語表示のテストを両モードで・README とサイトの画像・CHANGELOG の「未リリース」)。
+- **残り(ユーザー)**: macOS 実機の確認(PR 9 にまとめる指示)、`feature/gui-redesign` → `master` の最終確認。
+  master に入れたら `build.yml` の `pull_request.branches` から統合ブランチを外す。
+- **ユーザーの了承が要るもの(未実施)**: ユーザー向け Wiki の画面写真と説明の更新、プラグイン開発ハブへの連絡
+  (プラグインのパネルは左端の帯の「プラグイン」ページ・幅 280px。mass-spec のパネルは空でウィンドウを開く作りなので、ページが空に見える。
+  color-studio の下のボタンが幅に入らない)。
+- 刷新の前の記録は下の節。
+
+## 以前の現在地(2026-10-12): GUI 刷新を統合ブランチ `feature/gui-redesign` で始めた
 
 - **まず `docs/dev/GUI_REDESIGN_PLAN.md` を読むこと。** 決まったこと・PR の順番(0〜9)・進み具合の表がある。
   計画の全文と再現する見本は `docs/dev/mockups/gui_redesign/`(`plan.html`・`final_lite_advanced.html`)。
