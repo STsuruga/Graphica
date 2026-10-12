@@ -306,6 +306,7 @@
     {
      "text": "プロパティパネル",
      "checked": true,
+     "enabled": false,
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -314,7 +315,6 @@
     },
     {
      "text": "エクスポートプレビュー",
-     "checked": true,
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -515,17 +515,6 @@
  ],
  "tab_docks": [
   {
-   "name": "ExportPreviewDockWidget",
-   "title": "エクスポートプレビュー",
-   "area": "RightDockWidgetArea",
-   "floating": false,
-   "visible": true,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": [
-    "control_dock_widget"
-   ]
-  },
-  {
    "name": "ResidualDockWidget",
    "title": "残差プロット",
    "area": "BottomDockWidgetArea",
@@ -549,10 +538,8 @@
    "area": "RightDockWidgetArea",
    "floating": false,
    "visible": true,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": [
-    "ExportPreviewDockWidget"
-   ]
+   "features": "NoDockWidgetFeatures",
+   "tabified_with": []
   }
  ]
 }
