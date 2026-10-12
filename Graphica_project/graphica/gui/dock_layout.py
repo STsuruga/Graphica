@@ -3,82 +3,70 @@ import base64
 import json
 import logging
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtWidgets import QDockWidget, QGroupBox, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDockWidget, QFormLayout, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, notify
 from graphica.gui.builders.common import DOCK_LAYOUT_VERSION
 from graphica.gui.export_preview_panel import ExportPreviewPanel
 from graphica.gui.provenance_panel import ProvenancePanel
+from graphica.gui.shell.inspector import (INSPECTOR_PAGES, Inspector, TargetHeader, scroll_page,
+                                          section_state_texts, wrap_long_rows)
 from graphica.gui.residual_panel import ResidualPanel
 
 logger = logging.getLogger(__name__)
 
 
 def arrange_property_docks(app):
-    # 「プロットのプロパティ」と「データセットのプロパティ」を1つのドックに縦に並べ、1枚のパネルに見せる。
-    # properties_dock_widget は control_dock_widget の別名(表示メニューなどがこの名前で使う)
-    app.properties_dock_widget = app.ui.control_dock_widget
-    app.ui.control_dock_widget.setWindowTitle(tr("プロパティ"))
+    """右のインスペクタ(GUI 刷新): プロパティ・軸・凡例・エクスポートのタブを、プロパティのドックの中に並べる。
 
-    original_control_widget = app.ui.control_dock_widget.widget()
-    plot_properties_group = QGroupBox(tr("プロットのプロパティ"))
-    plot_properties_layout = QVBoxLayout(plot_properties_group)
-    plot_properties_layout.setContentsMargins(0, 4, 0, 0)
-    if original_control_widget:
-        plot_properties_layout.addWidget(original_control_widget)
-    else:
+    ドックは動かさない(決定 5)。見出しの帯はタブが兼ねるので出さない。properties_dock_widget は
+    control_dock_widget の別名(表示メニューなどがこの名前で使う)。
+    """
+    dock = app.ui.control_dock_widget
+    app.properties_dock_widget = dock
+    dock.setWindowTitle(tr("プロパティ"))
+    dock.setTitleBarWidget(QWidget())
+    dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+
+    plot_properties = dock.widget()
+    if plot_properties is None:
         logger.warning("control_dock_widget の中身が見つかりません。")
+        plot_properties = QWidget()
+    legend_page = _take_legend_rows(app)
+    app.ui.properties_groupbox.setTitle("")
+    # theme.py はグループボックスのタイトル用に上の余白を取る。タイトルが無いので、それを 0 にする目印
+    app.ui.properties_groupbox.setProperty("collapsibleBody", True)
 
-    app.ui.properties_groupbox.setTitle(tr("データセットのプロパティ"))
+    app.inspector = Inspector()
+    app.inspector_target = TargetHeader()
+    properties_page = QWidget()
+    properties_page.setObjectName("inspector_page")
+    properties_layout = QVBoxLayout(properties_page)
+    properties_layout.setContentsMargins(0, 0, 0, 0)
+    properties_layout.setSpacing(0)
+    properties_layout.addWidget(app.inspector_target)
+    properties_layout.addWidget(app.ui.properties_groupbox)
+    properties_layout.addStretch(1)
 
-    # どちらも長いので開閉できるようにする。中身を1つずつ隠すと入れ子のレイアウトを取りこぼすので、
-    # グループボックスごと出し入れする開閉ボタンを外に付ける(見出しはボタン側だけに出す)
-    dataset_section = app._wrap_in_collapsible_section(
-        app.ui.properties_groupbox, tr("データセットのプロパティ"))
-    plot_section = app._wrap_in_collapsible_section(
-        plot_properties_group, tr("プロットのプロパティ"))
+    plot_properties.setObjectName("inspector_axes_content")
+    wrap_long_rows(plot_properties)
+    # 見本どおり左右 16px の余白(欄が欄の端に付かないように)
+    app.ui.gridLayout_4.setContentsMargins(16, 0, 16, 8)
+    if plot_properties.layout() is not None:
+        plot_properties.layout().setContentsMargins(16, 8, 16, 8)
 
-    # 既定の余白だと縦スクロールバーの分だけ中身がはみ出し、横スクロールバーが出るので左右を詰める
-    merged_properties_container = QWidget()
-    merged_properties_layout = QVBoxLayout(merged_properties_container)
-    merged_properties_layout.setContentsMargins(2, 4, 2, 4)
-    merged_properties_layout.addWidget(dataset_section)
-    merged_properties_layout.addWidget(plot_section)
-    merged_properties_layout.addStretch()
-
-    merged_scroll_area = QScrollArea()
-    merged_scroll_area.setWidgetResizable(True)
-    merged_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-    merged_scroll_area.setWidget(merged_properties_container)
-    app.ui.control_dock_widget.setWidget(merged_scroll_area)
-
-    # エクスポートのプレビュー。プロパティと同じ場所にタブで並べ、前面はプロパティにする。
-    # プレビューは見えている間だけ描く(ExportPreviewPanel.refresh_preview)ので、裏のタブにあれば重くならない
+    # エクスポートのプレビュー。見えている間だけ描く(ExportPreviewPanel.refresh_preview)ので、裏のタブにあれば重くならない
     app.export_preview_panel = ExportPreviewPanel(app)
-    app.export_preview_dock_widget = QDockWidget(tr("エクスポートプレビュー"), app)
-    app.export_preview_dock_widget.setObjectName("ExportPreviewDockWidget")
-    # パネルは高さが 440px ほど要る。そのまま置くとプロパティと同じ場所の最小の高さを引き上げ、ウィンドウを縮められなくなる
-    preview_scroll_area = QScrollArea()
-    preview_scroll_area.setWidgetResizable(True)
-    preview_scroll_area.setWidget(app.export_preview_panel)
-    app.export_preview_dock_widget.setWidget(preview_scroll_area)
-    app.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, app.export_preview_dock_widget)
-    app.tabifyDockWidget(app.ui.control_dock_widget, app.export_preview_dock_widget)
-    app._export_preview_first_show = True
 
-    def _on_export_preview_visibility_changed(visible):
-        if not visible:
-            return
-        # 浮いたドックは表示されるまで大きさを持たないことがあるので、最初に表示したときに整える
-        if app._export_preview_first_show and app.export_preview_dock_widget.isFloating():
-            app._export_preview_first_show = False
-            preview_width, preview_height = 820, 680
-            app.export_preview_dock_widget.resize(preview_width, preview_height)
-            center = app.geometry().center()
-            app.export_preview_dock_widget.move(
-                center.x() - preview_width // 2, center.y() - preview_height // 2
-            )
-        app.export_preview_panel.refresh_preview()
+    for key, title in INSPECTOR_PAGES:
+        widget = {"properties": properties_page, "axes": plot_properties, "legend": legend_page,
+                  "export": app.export_preview_panel}[key]
+        app.inspector.add_page(key, title, scroll_page(widget, f"inspector_scroll_{key}"))
+    app.inspector.tab_bar.currentChanged.connect(lambda _index: _on_inspector_page_changed(app))
+    dock.setWidget(app.inspector)
+
+    # 選んでいるデータセットの見出しと節の状態は、描き直すたびに合わせる(選択・名前・種類の変更をまとめて拾える)
+    app.canvas.mpl_connect('draw_event', lambda _event: refresh_inspector(app))
 
     # 選んだデータセットのフィットの残差。既定では隠し、開くときはキャンバスの下に付ける
     app.residual_panel = ResidualPanel(app)
@@ -96,7 +84,48 @@ def arrange_property_docks(app):
     app.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, app.provenance_dock_widget)
     app.provenance_dock_widget.hide()
 
-    app.export_preview_dock_widget.visibilityChanged.connect(_on_export_preview_visibility_changed)
+
+# 凡例のタブに移す行(軸の設定の formLayout_3 から)。表示のチェックは格子の表示と同じ行の中なので、それも取り出す
+_LEGEND_FIELDS = ("legend_loc_combo", "legend_font_button", "legend_color_button", "legend_order_button")
+
+
+def _take_legend_rows(app):
+    page = QWidget()
+    page.setObjectName("inspector_legend_content")
+    form = QFormLayout(page)
+    form.setContentsMargins(16, 10, 16, 10)
+    form.setSpacing(6)
+    form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+    visible_checkbox = app.ui.legend_visible_checkbox
+    visible_checkbox.parentWidget().layout().removeWidget(visible_checkbox)
+    form.addRow(visible_checkbox)
+    source = app.ui.formLayout_3
+    for attr in _LEGEND_FIELDS:
+        row, _role = source.getWidgetPosition(getattr(app, attr))
+        taken = source.takeRow(row)
+        label = taken.labelItem.widget() if taken.labelItem is not None else None
+        field = taken.fieldItem.widget() if taken.fieldItem is not None else None
+        if label is not None and field is not None:
+            form.addRow(label, field)
+        else:
+            form.addRow(field or label)
+    return page
+
+
+def _on_inspector_page_changed(app):
+    if app.inspector.current_page() == "export":
+        app.export_preview_panel.refresh_preview()
+
+
+def refresh_inspector(app):
+    """右の見出しと、節の見出しの右の状態の文字を、表示しているデータセットに合わせる。"""
+    dataset = app.property_panel.shown_dataset()
+    app.inspector_target.set_dataset(dataset)
+    states = section_state_texts(dataset)
+    for key, entry in getattr(app, '_prop_sections', {}).items():
+        toggle = entry['toggle']
+        if hasattr(toggle, 'set_state_text'):
+            toggle.set_state_text(states.get(key, ""))
 
 
 def restore_dock_layout(app):

@@ -147,7 +147,7 @@ DATASET_MENU = TopMenu("データセット(&D)", "_dataset_menu", action_attr="_
 
 VIEW_MENU = TopMenu("表示(&V)", "_view_menu", (
     DockToggle("ui.control_dock_widget", "プロパティパネル"),
-    DockToggle("export_preview_dock_widget", "エクスポートプレビュー"),
+    Item("エクスポートプレビュー", "show_export_preview"),
     DockToggle("residual_dock_widget", "残差プロット"),
     DockToggle("provenance_dock_widget", "処理履歴"),
     Item("ミニマップ(レンジスライダー)", "_on_toggle_minimap", attr="minimap_action", checked="minimap_visible"),

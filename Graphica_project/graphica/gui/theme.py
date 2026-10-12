@@ -406,26 +406,6 @@ QDockWidget QGroupBox::title {{
     border-radius: 0;
 }}
 
-/* --- 開閉できる見出し(データセットのプロパティ / プロットのプロパティ): 横いっぱい・左寄せ・太字 --- */
-QToolButton#collapsible_section_toggle {{
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 4px;
-    text-align: left;
-    font-weight: 600;
-    /* フォームのラベルは既定の 9pt(約 12px)で描かれるので、見出しはそれより大きくする(見出し > 節の見出し > 項目) */
-    font-size: {heading_pt}pt;
-    color: {text_secondary};
-}}
-QToolButton#collapsible_section_toggle:hover {{
-    background: {surface_2};
-    color: {text_primary};
-}}
-QToolButton#collapsible_section_toggle:pressed {{
-    background: {accent_soft};
-}}
-
 /* --- プロパティ欄の節の見出し: 本文より少し大きく・太く・濃くし、中身を字下げする。
    区切りは細い罫線1本。1本目は親の見出しのすぐ下で二重線に見えるので引かない。 --- */
 QToolButton#property_subsection_toggle {{
@@ -433,9 +413,9 @@ QToolButton#property_subsection_toggle {{
     border: none;
     border-top: 1px solid {border};
     border-radius: 0;
-    /* 親の見出し(padding-left: 4px)より内側に入れて、親 → 子 → 中身の階段にする。
-       罫線はパディングを含む全幅に引かれるので、字下げしても横いっぱいのまま。 */
-    padding: 6px 2px 4px 12px;
+    /* 見本の節の見出し: 上に細い罫線、中身は 20px 字下げ(罫線はパディングを含む全幅に引かれる) */
+    padding: 9px 2px 5px 0;
+    margin-top: 4px;
     text-align: left;
     font-weight: 600;
     font-size: {subheading_pt}pt;
@@ -443,15 +423,76 @@ QToolButton#property_subsection_toggle {{
 }}
 QToolButton#property_subsection_toggle[firstSection="true"] {{
     border-top: none;
-    padding-top: 2px;
+    margin-top: 0;
+}}
+QToolButton#property_subsection_toggle:!checked {{
+    padding-top: 7px;
+    padding-bottom: 7px;
+    margin-top: 0;
 }}
 QToolButton#property_subsection_toggle:hover {{
-    background: {surface_2};
+    background: transparent;
     /* on_accent はライトでは白なので、薄い背景のホバーでは消える。文字用の accent_fg で強調する */
     color: {accent_fg};
 }}
 QToolButton#property_subsection_toggle:pressed {{
-    background: {accent_soft};
+    background: transparent;
+}}
+QWidget#property_section_body QLabel {{
+    color: {text_secondary};
+    background: transparent;
+}}
+/* --- 右のインスペクタ(GUI 刷新): ドックの枠と見出しの帯は出さず、左に1本の罫線 --- */
+QDockWidget#control_dock_widget {{
+    background: {surface};
+    border: none;
+    border-left: 1px solid {border};
+    border-radius: 0;
+}}
+QWidget#inspector, QWidget#inspector_page, QWidget#inspector_axes_content, QWidget#inspector_legend_content,
+QScrollArea#inspector_scroll_properties, QScrollArea#inspector_scroll_axes,
+QScrollArea#inspector_scroll_legend, QScrollArea#inspector_scroll_export,
+QScrollArea#inspector_scroll_properties > QWidget > QWidget, QScrollArea#inspector_scroll_axes > QWidget > QWidget,
+QScrollArea#inspector_scroll_legend > QWidget > QWidget, QScrollArea#inspector_scroll_export > QWidget > QWidget {{
+    background: {surface};
+    border: none;
+}}
+QWidget#inspector_tab_row {{
+    background: {surface};
+    border-bottom: 1px solid {border};
+}}
+QTabBar#inspector_tabs::tab {{
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 12px 0 9px 0;
+    margin-right: 16px;
+    color: {text_secondary};
+    font-weight: 400;
+}}
+QTabBar#inspector_tabs::tab:hover {{
+    background: transparent;
+    color: {text_primary};
+}}
+QTabBar#inspector_tabs::tab:selected {{
+    background: transparent;
+    border-bottom: 2px solid {accent};
+    color: {text_primary};
+    font-weight: 600;
+}}
+QWidget#inspector_target {{
+    background: {surface};
+    border-bottom: 1px solid {border};
+}}
+QLabel#inspector_target_name {{
+    font-weight: 600;
+    background: transparent;
+}}
+QLabel#inspector_target_sub {{
+    color: {text_muted};
+    font-size: 11px;
+    background: transparent;
 }}
 QPushButton {{
     background: {surface};
@@ -1040,8 +1081,7 @@ def build_qss(tokens: dict) -> str:
     format_args = dict(tokens)
     format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_primary"])
     format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_primary"])
-    heading_pt, subheading_pt = heading_point_sizes()
-    format_args["heading_pt"] = f"{heading_pt:.1f}"
+    _heading_pt, subheading_pt = heading_point_sizes()
     format_args["subheading_pt"] = f"{subheading_pt:.1f}"
     return _FLAT_QSS_TEMPLATE.format(**format_args)
 

@@ -11,7 +11,7 @@ import time
 import pandas as pd
 from PySide6.QtCore import QSettings, Qt, QUrl, QPoint, QPointF, QMimeData
 from PySide6.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
@@ -578,44 +578,46 @@ def test_drop_event_loads_file_with_plugin_registered_extension(tmp_path, monkey
 
 def test_properties_dock_has_no_horizontal_scrollbar(tmp_path, monkeypatch):
     """
-    バグ回帰テスト: 「データセットのプロパティ」「プロットのプロパティ」を
-    折りたたみ可能にした際(項目102)、縦スクロールバー分の幅を差し引いた
-    ビューポート幅に対して中身がわずかにはみ出し、意図しない横スクロールバーが
-    常時表示されてしまっていた。CONTROL_DOCK_WIDTHの拡幅とレイアウト余白の
-    圧縮で解消済み。
+    右のインスペクタのどのタブも、横スクロールバーを出さず、中身が幅(GUI 刷新で 340px)に収まる
+    (以前、縦スクロールバーの分だけはみ出して横スクロールバーが常に出ていた)。
     """
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    scroll_area = window.ui.control_dock_widget.widget()
+    from PySide6.QtWidgets import QScrollArea
 
-    assert scroll_area.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-    assert scroll_area.horizontalScrollBar().maximum() == 0
-    # 中身の最小幅は、スクロールバー分を差し引いたビューポート幅に収まっているべき
-    assert scroll_area.widget().minimumSizeHint().width() <= scroll_area.viewport().width()
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.resize(1440, 900)
+    window.show()
+    app = QApplication.instance()
+    for key in ("properties", "axes", "legend", "export"):
+        window.inspector.show_page(key)
+        for _ in range(5):
+            app.processEvents()
+        scroll_area = window.findChild(QScrollArea, f"inspector_scroll_{key}")
+        assert scroll_area.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        assert scroll_area.widget().minimumSizeHint().width() <= scroll_area.viewport().width(), key
+    window.close()
 
 
 def test_properties_dock_vertical_scroll_still_works_after_collapse(tmp_path, monkeypatch):
-    """
-    折りたたみアコーディオン(項目102)のトグル後も、縦スクロールバーの範囲が
-    正しく再計算されることを確認する(横スクロールバー修正の副作用がないことの確認)。
-    """
+    """節を閉じたあとも、縦スクロールバーの範囲が正しく計算し直される。"""
+    from PySide6.QtWidgets import QScrollArea
+
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    scroll_area = window.ui.control_dock_widget.widget()
-    vbar = scroll_area.verticalScrollBar()
+    window.resize(1440, 700)
+    window.show()
+    app = QApplication.instance()
+    for _ in range(10):
+        app.processEvents()
+    vbar = window.findChild(QScrollArea, "inspector_scroll_properties").verticalScrollBar()
     max_before = vbar.maximum()
     assert max_before > 0
 
-    toggle_buttons = [
-        b for b in window.ui.control_dock_widget.findChildren(QToolButton)
-        if b.objectName() == "collapsible_section_toggle"
-    ]
-    assert len(toggle_buttons) == 2
-    toggle_buttons[0].setChecked(False)
-
-    app = QApplication.instance()
+    for key in ("data", "style", "marker"):
+        window._prop_sections[key]['toggle'].setChecked(False)
     for _ in range(10):
         app.processEvents()
 
     assert vbar.maximum() < max_before
+    window.close()
 
 
 # --- ギリシャ文字/記号パレット(項目81: mathtext拡充、H-2-4で算術/数学記号を追加) ---
@@ -706,6 +708,8 @@ def test_control_dock_gets_focus_highlight_installed(tmp_path, monkeypatch):
     from PySide6.QtWidgets import QLineEdit, QWidget
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    # タイトル/軸ラベル欄は「軸」のタブにある(GUI 刷新)
+    window.inspector.show_page("axes")
     # データセット未選択だと大半のプロパティ欄はdisabledで(disabledな
     # ウィジェットはフォーカスを受け取れずno-opになる)、常にenabledな欄を
     # 探して使う(タイトル/軸ラベル欄など、プロット全体設定は選択不要のため)。
@@ -1099,18 +1103,11 @@ def test_clickable_math_preview_label_has_hover_attribute_enabled(qapp):
 
 def test_properties_dock_content_actually_renders_bg_token_color(tmp_path, monkeypatch):
     """
-    実際にウィジェットをレンダリングしてピクセル色を確認する統合テスト
-    (実機フィードバック「プロパティウィンドウの背景色が他と違う」の回帰、
-    QDockWidgetにbackgroundを追加した後も再発した2回目の修正)。
-
-    QSSの文字列に`background: {bg}`が含まれているかどうかを確認するだけの
-    テスト(test_theme.pyのgenerated_qss系)では、実際に画面へ出る色までは
-    検証できず、本バグ(QScrollAreaの中身のwidgetがアプリ全体QSSの副作用で
-    OSネイティブパレット色に不透明に塗りつぶされ、QSSの指定が実際には
-    見えなくなっていた)を検出できなかった実例。QWidget.grab()で実際に
-    描画させ、ピクセル色がbgトークンと一致することを直接確認する。
+    実際に描かせてピクセルの色を確かめる(QSS の文字列だけでは、中身の部品が OS のパレットの色で塗られる
+    実例を検出できなかった)。GUI 刷新で、右のインスペクタの地は surface。
     """
     from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QScrollArea
     from graphica.gui import theme
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -1119,12 +1116,11 @@ def test_properties_dock_content_actually_renders_bg_token_color(tmp_path, monke
     for _ in range(3):
         app.processEvents()
 
-    scroll_area = window.ui.control_dock_widget.widget()
-    content_widget = scroll_area.widget()
+    content_widget = window.findChild(QScrollArea, "inspector_scroll_properties").widget()
     image = content_widget.grab().toImage()
-    # 左上の余白部分(データセットのプロパティグループボックスの枠外)をサンプル
-    sample = image.pixelColor(2, 2)
-    expected = QColor(theme.LIGHT_TOKENS["bg"])
+    # 右下の余白(節の中身の外)をサンプル
+    sample = image.pixelColor(image.width() - 3, image.height() - 3)
+    expected = QColor(theme.LIGHT_TOKENS["surface"])
     assert (sample.red(), sample.green(), sample.blue()) == (
         expected.red(), expected.green(), expected.blue(),
     )
@@ -1337,15 +1333,15 @@ def test_refresh_custom_svg_icons_updates_collapsible_toggle_buttons(tmp_path, m
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
-    assert len(window._collapsible_toggle_buttons) > 0
-    btn = window._collapsible_toggle_buttons[0]
+    btn = window._prop_sections['data']['toggle']
     window._refresh_custom_svg_icons()
-    before = btn.icon().pixmap(14, 14).toImage()
+    before = btn.icon().pixmap(13, 13).toImage()
 
     window._on_toggle_dark_mode(True)
 
-    after = btn.icon().pixmap(14, 14).toImage()
+    after = btn.icon().pixmap(13, 13).toImage()
     assert before != after
+    window._on_toggle_dark_mode(False)
 
 
 # --- フォームラベルの末尾コロン除去(項目H-2-4、実機フィードバック:

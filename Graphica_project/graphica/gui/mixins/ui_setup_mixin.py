@@ -145,10 +145,6 @@ class UISetupMixin:
                 getattr(self, part).refresh_icons()
         for button, icon_name in getattr(self, '_field_icon_buttons', {}).items():
             button.setIcon(_svg_icon(icon_name, size=16))
-        for toggle_button in getattr(self, '_collapsible_toggle_buttons', []):
-            toggle_button.setIcon(
-                _svg_icon("chevron-down" if toggle_button.isChecked() else "chevron-right", size=14)
-            )
         # プロパティ欄の節の見出しも同じ矢印
         for entry in getattr(self, '_prop_sections', {}).values():
             button = entry['toggle']

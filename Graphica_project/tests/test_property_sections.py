@@ -117,9 +117,9 @@ def _make_dataset(window, name="ds"):
 
 # --- 構造 ---
 
-def test_seven_sections_exist_in_the_declared_order(window):
+def test_sections_exist_in_the_declared_order(window):
     keys = [key for key, _title in DATASET_PROPERTY_SECTIONS]
-    assert keys == ['data', 'style', 'gradient', 'waterfall', 'map', 'extra', 'place']
+    assert keys == ['data', 'style', 'marker', 'gradient', 'waterfall', 'map', 'extra', 'place']
     assert set(window._prop_sections) == set(keys)
 
 
@@ -173,11 +173,11 @@ def test_no_property_widget_is_orphaned_from_every_layout(window):
     ('data', 'y_err_col_combo'),
     ('data', 'nan_policy_combo'),
     ('style', 'alpha_spinbox'),
-    ('style', 'marker_fill_combo'),
-    ('style', 'marker_face_color_picker'),
-    ('style', 'marker_edge_combo'),
-    ('style', 'marker_edge_color_picker'),
-    ('style', 'marker_edge_width_spinbox'),
+    ('marker', 'marker_fill_combo'),
+    ('marker', 'marker_face_color_picker'),
+    ('marker', 'marker_edge_combo'),
+    ('marker', 'marker_edge_color_picker'),
+    ('marker', 'marker_edge_width_spinbox'),
     ('style', 'smoothing_method_combo'),
     ('gradient', 'gradient_checkbox'),
     ('gradient', 'gradient_color2_picker'),
@@ -236,20 +236,11 @@ def test_fit_info_is_the_last_row_of_its_section(window):
 # --- 見出しのトグル ---
 
 def test_subsection_toggles_use_their_own_object_name(window):
-    """
-    トップレベルの2セクション(項目102)と同じ objectName を使うと、
-    theme.py のスタイルが同じ強さで当たって階層が読めなくなるうえ、
-    「トグルボタンはちょうど2つ」を前提にした既存テストも壊れる。
-    """
+    """節の見出しは theme.py の property_subsection_toggle の規則で描く(SectionHeader 既定の名前ではない)。"""
     groupbox = window.ui.properties_groupbox
     subs = [b for b in groupbox.findChildren(QToolButton)
             if b.objectName() == "property_subsection_toggle"]
     assert len(subs) == len(DATASET_PROPERTY_SECTIONS)
-
-    dock = window.ui.control_dock_widget
-    tops = [b for b in dock.findChildren(QToolButton)
-            if b.objectName() == "collapsible_section_toggle"]
-    assert len(tops) == 2
 
 
 def test_all_sections_are_expanded_by_default(window):
@@ -506,7 +497,8 @@ def test_a_long_plugin_plot_type_name_does_not_widen_the_dock(tmp_path, monkeypa
         assert window.ui.plot_type_combo.findText(
             "Extremely Long Plugin Plot Type Name That Would Overflow") != -1
 
-        scroll_area = window.ui.control_dock_widget.widget()
+        from PySide6.QtWidgets import QScrollArea
+        scroll_area = window.findChild(QScrollArea, "inspector_scroll_properties")
         assert scroll_area.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         assert scroll_area.horizontalScrollBar().maximum() == 0
         assert scroll_area.widget().minimumSizeHint().width() <= scroll_area.viewport().width()
@@ -540,27 +532,15 @@ def _rendered_height(widget):
     return QFontMetrics(widget.font()).height()
 
 
-def _top_level_toggle(window):
-    for button in window.ui.control_dock_widget.findChildren(QToolButton):
-        if button.objectName() == "collapsible_section_toggle":
-            return button
-    raise AssertionError("トップレベルのアコーディオン見出しが見つからない")
-
-
-def test_indent_forms_a_ladder_from_parent_to_child_to_content(window):
-    """
-    ★ 実機フィードバックの回帰テスト:「インデントが逆転してるのなんかやだ」。
-    親の見出しは padding-left:4px で描かれるのに子は0で、子のほうが4px左に
-    出ていた。親 < 子 < 中身 の順に深くなること。
-    """
+def test_section_content_is_indented_under_its_heading(window):
+    """実機フィードバック「インデントが逆転してるのなんかやだ」の歯止め: 見出し < 中身 の順に深くなる。"""
     from graphica.gui import theme
     qss = theme.build_qss(theme.LIGHT_TOKENS)
 
-    parent = _left_padding(qss, "QToolButton#collapsible_section_toggle")
-    child = _left_padding(qss, "QToolButton#property_subsection_toggle")
+    heading = _left_padding(qss, "QToolButton#property_subsection_toggle")
     content = window._prop_form('data').contentsMargins().left()
 
-    assert parent < child < content, f"親={parent} 子={child} 中身={content}"
+    assert heading < content, f"見出し={heading} 中身={content}"
 
 
 def test_headings_are_larger_than_the_fields_they_contain(window):
@@ -578,12 +558,11 @@ def test_headings_are_larger_than_the_fields_they_contain(window):
     """
     from PySide6.QtWidgets import QFormLayout
 
-    parent = _rendered_height(_top_level_toggle(window))
     child = _rendered_height(window._prop_sections['data']['toggle'])
     label_widget = window._prop_form('data').itemAt(0, QFormLayout.ItemRole.LabelRole).widget()
     field = _rendered_height(label_widget)
 
-    assert parent > child > field,         f"親見出し={parent} サブ見出し={child} 項目ラベル={field}"
+    assert child > field, f"節の見出し={child} 項目ラベル={field}"
 
 
 def test_heading_sizes_follow_the_application_font(window):
@@ -600,8 +579,7 @@ def test_heading_sizes_follow_the_application_font(window):
 
     qss = theme.build_qss(theme.LIGHT_TOKENS)
     # px 指定が残っていたら、OSごとの既定フォントの違いに追従できない
-    for selector in ("QToolButton#collapsible_section_toggle",
-                     "QToolButton#property_subsection_toggle"):
+    for selector in ("QToolButton#property_subsection_toggle",):
         import re
         block = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", qss).group(1)
         decl = re.search(r"font-size:\s*([^;]+);", block).group(1).strip()

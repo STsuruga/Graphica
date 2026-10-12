@@ -2,7 +2,7 @@
 import os
 from PySide6.QtCore import QEvent, QObject, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath
-from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QStyledItemDelegate
+from PySide6.QtWidgets import QComboBox, QStyle, QStyleOptionViewItem, QStyledItemDelegate
 from graphica.core.i18n import tr
 from graphica.gui import theme
 from graphica.gui.dataset_style_icon import DATASET_TREE_NAME_COLUMN
@@ -24,6 +24,7 @@ DOCK_LAYOUT_VERSION = 5
 DATASET_PROPERTY_SECTIONS = (
     ('data',      'データ列'),
     ('style',     '基本スタイル'),
+    ('marker',    'マーカー'),
     ('gradient',  'グラデーション'),
     ('waterfall', 'ウォーターフォール'),
     ('map',       '2Dマップ・値による配色'),
@@ -34,7 +35,13 @@ DATASET_PROPERTY_SECTIONS = (
 
 # プラグインの種類名は任意の長さなので、コンボの希望幅を固定して省略表示させる
 # (広がると QFormLayout の列幅を通じてドックに横スクロールバーが出る)。
-PLOT_TYPE_COMBO_MIN_CHARS = 16
+PLOT_TYPE_COMBO_MIN_CHARS = 11
+
+
+def cap_combo_width(combo):
+    """長い項目があっても、コンボの希望幅を種別の欄と同じ文字数にそろえる(項目は開いた一覧で全文が見える)。"""
+    combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    combo.setMinimumContentsLength(PLOT_TYPE_COMBO_MIN_CHARS)
 
 
 COLORMAP_CHOICES = [
