@@ -273,8 +273,9 @@ gh release create v1.0.0 dist/&lt;plugin_name&gt;-1.0.0.zip --title "v1.0.0" --n
           <li><div>
             <h3>ハブと Wiki の一覧を更新する</h3>
             <p><code>state: "done"</code>、<code>repo</code>、<code>version</code>、<code>release_url</code>、<code>note</code> を書き込み、更新後の状態をユーザーに表で示します。本体リポジトリの <code>docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md</code> の表にも1行追記します。</p>
+            <p><strong>最初のリリースでは、本体リポジトリの <code>Graphica_project/docs/plugin_index.json</code>(公開プラグインの一覧)に1行足します</strong>(<code>{"folder": インストール先のフォルダ名, "name": plugin.json の name, "repo": "STsuruga/graphica-plugin-…"}</code>)。Graphica はこの一覧と GitHub の最新リリース(タグ = 版、添付の最初の zip)を見て、利用者に新しい版を知らせて入れ替えます。2回目以降のリリースは一覧を触らなくても届きます。zip のトップのフォルダ名を変えると別のプラグイン扱いになるので変えないでください。</p>
             <p>利用者向けの <a href="https://github.com/STsuruga/Graphica/wiki/17-プラグイン一覧">Wiki「プラグイン一覧」</a>も更新します。新しいプラグインなら表に1行と紹介の節(何ができるか、メニューのどこから開くか、リリースへのリンク)を足し、更新なら表の版と zip へのリンクを新しい版に直します。Wiki は <code>https://github.com/STsuruga/Graphica.wiki.git</code> を clone して編集し、push します(公開される操作なので、push の前に差分をユーザーに見せて了承を得ます)。書くのは利用者向けの言葉で、開発の経緯や項目番号は載せません。</p>
-            <p class="hint">本体側で書き込んでよいのは、この進捗表の1行と Wiki の「プラグイン一覧」だけです。本体のコードやほかの Wiki ページは変更しません(直したい箇所に気づいたら、ハブの <code>note</code> に書いてユーザーに伝えます)。</p>
+            <p class="hint">本体側で書き込んでよいのは、この進捗表の1行、公開プラグインの一覧(<code>docs/plugin_index.json</code>)の1行と Wiki の「プラグイン一覧」だけです。本体のコードやほかの Wiki ページは変更しません(直したい箇所に気づいたら、ハブの <code>note</code> に書いてユーザーに伝えます)。</p>
           </div></li>
         </ol>
       </section>
@@ -439,7 +440,7 @@ data: { "state": "in_progress", "repo": "STsuruga/graphica-plugin-uvvis",
             <tr><td class="sig">register_exporter(format_name, extension, writer, *, name=None)</td><td><code>writer(Figure, path)</code></td><td>エクスポートとバッチエクスポートの形式</td></tr>
             <tr><td class="sig">register_processor(name, fn, *, category="general", param_schema=None)</td><td><code>fn(Dataset, params) -&gt; Dataset</code>(新しいもの)</td><td>プラグイン ▸ データ処理 ▸ category</td></tr>
             <tr><td class="sig">register_analyzer(name, fn, *, output_kind="table", param_schema=None)</td><td><code>fn(Dataset, params) -&gt; AnalysisResult</code></td><td>プラグイン ▸ 解析(選択中のデータセットに対して実行)</td></tr>
-            <tr><td class="sig">register_panel(name, widget_factory, *, area="right")</td><td><code>widget_factory(ctx) -&gt; QWidget</code>。タブごとに呼ばれる。初期状態は非表示。<code>ctx.on_datasets_changed</code> / <code>on_selection_changed</code> で表示を更新</td><td>ドックパネル(プラグインメニューから表示)</td></tr>
+            <tr><td class="sig">register_panel(name, widget_factory, *, area="right")</td><td><code>widget_factory(ctx) -&gt; QWidget</code>。タブごとに呼ばれる。初期状態は非表示。<code>ctx.on_datasets_changed</code> / <code>on_selection_changed</code> で表示を更新</td><td>左端の帯の「プラグイン」ページ(幅 280px、ページ上の選択で切り替え。GUI 刷新後。<code>area</code> は希望として受け取るだけ)</td></tr>
             <tr><td class="sig">register_plot_type(type_name, drawer, *, requires_2d=False)</td><td><code>drawer(Dataset, Axes, x, y) -&gt; Artist|None</code>。<code>x, y</code> はウォーターフォール等を適用済み</td><td>プロパティの「種別」</td></tr>
             <tr><td class="sig">register_render_backend(name, backend)</td><td>登録されるだけで、<strong>描画にはまだ接続されていない</strong></td><td>(なし)</td></tr>
           </tbody>
@@ -722,7 +723,7 @@ const DETAIL = {
       "サンプル3件を msconvert で変換し、mzML の中身(profile か centroid か、スキャン数、1スキャンの点数、圧縮)を確かめる。msconvert の推奨設定と変換の手順を README に書く。",
       "TIC から時間範囲を選ぶ操作: 数値入力にするか、プラグインの画面に置いた matplotlib で範囲をドラッグするか(本体の範囲選択モードはプラグインの画面では使えない)。",
       "背景の差し引き(別の時間範囲の平均を引く)を v1.0 に入れるか。",
-      "画面の置き場所(独立ウィンドウ / ドックパネル)。正負のファイルを並べて比べる使い方をするか。",
+      "画面の置き場所(独立ウィンドウ / パネル)。正負のファイルを並べて比べる使い方をするか。",
       "付加イオンの一覧(APCI で実際に使うもの)と、ユーザー定義の付加イオン。電荷数 2 以上を扱うか。",
       "同位体パターンの計算方法(元素ごとの同位体分布の畳み込み+近い質量の束ね)と、分解能・線形(ガウス)の指定方法。",
       "スキャン数×点数が大きいときの読み込み時間とメモリ(すべて GUI スレッドで動く)。計測して note に残す。",
@@ -742,7 +743,7 @@ const DETAIL = {
       "色覚への配慮: P型・D型・T型の見え方に切り替えて表示し、隣り合う色が見分けにくい組み合わせを警告する(色差 ΔE の閾値で判定)。本体の色覚シミュレーション(graphica.core.cvd_simulation、sRGB に掛ける 3×3 の近似行列)は内部なので import できない。同じ方式の行列をプラグイン内に持つ。",
       "【ライブラリ】作ったグラデーションとパレットに名前を付けてプラグイン専用の保存先に保存・一覧・削除・複製。JSON で書き出し / 読み込み(研究室内での共有用)。",
       "【本体への受け渡し】(1) 本体の登録色(色見本メニューの登録色)へ名前付きで追加: ctx.named_colors() で読み、追加して ctx.set_named_colors() で書く(本体と同じ検証が入る)。(2) 本体の配色パレットとして登録: ctx.color_palettes() / ctx.set_color_palettes()。いま有効なパレットは ctx.active_color_cycle() で読める。本体の「自動配色」ボタンで、選択中のデータセットに順番に色を割り当てられる。QSettings のキーを直接読み書きしない。",
-      "UI: カラーホイールや色見本は幅が要るので、ドックパネル(register_panel)よりも、プラグインメニューから開く独立したウィンドウ(register_menu_action)が向く。パネルにはライブラリの一覧と「開く」ボタンだけを置く案もある。",
+      "UI: カラーホイールや色見本は幅が要るので、パネル(register_panel、幅 280px)よりも、プラグインメニューから開く独立したウィンドウ(register_menu_action)が向く。パネルにはライブラリの一覧と「開く」ボタンだけを置く案もある。",
     ],
     decide: [
       "グラデーションを補間する色空間: RGB(単純だが中間色がくすむ)/ OKLab・OKLCH(知覚的に均一で見た目がきれい、推奨)/ HSV。切り替えられるようにするか。",
@@ -750,7 +751,7 @@ const DETAIL = {
       "v1.0 の範囲: 3つの作り方(基準色・画像・ホイール)と配色ルールを全部入れるか、グラデーション作成+ホイール+配色ルールを先に出して画像からの抽出を次の版に回すか。",
       "データセットへの色の適用方法: 本体の配色パレット経由で「自動配色」を使う(本体の操作と同じ・推奨)か、プラグインの画面から選択中のデータセットに直接割り当てる(ctx.selected_datasets() と ctx.set_dataset_properties(ds, {\"color\": …})、Undo 付き)か。",
       "ライブラリの保存先: ctx.data_dir(プラグイン専用の書き込み用フォルダ)の下に JSON ファイルで保存する(推奨。バックアップや共有がしやすい)。",
-      "UI の置き場所: 独立ウィンドウ / ドックパネル / 両方。",
+      "UI の置き場所: 独立ウィンドウ / パネル / 両方。",
     ],
     notes: [
       "登録色と配色パレットは、プラグイン API 2.0 の窓口(ctx.named_colors / set_named_colors / color_palettes / set_color_palettes / active_color_cycle)で読み書きする。本体の保存形式(QSettings のキー)には触らない。テストは FakePluginContext で行える。",
@@ -827,7 +828,7 @@ function promptFor(p) {
   lines.push("   開発環境はリポジトリごとの仮想環境(python -m venv .venv)に pip install \"graphica-plot>=2.0,<3\" と requirements-dev.txt を入れる。ふだんの Python には入れない。");
   lines.push("4. 計算は本体非依存のモジュールに分けて単体テスト、register() と窓口(ctx)を使う処理は FakeGraphicaPluginAPI / FakePluginContext、本番の読み込み経路は load_plugin_like_graphica でテストする(どれも graphica.plugin.testing)。");
   lines.push("5. zip をビルドし、仮想環境の graphica コマンドと GitHub Releases の exe の両方でインストールして動作を確認。画面を伴う機能はユーザーにも確認してもらう。");
-  lines.push("6. GitHub Release に zip を添付し、ハブの db を state \"done\" / repo / version / release_url / note で更新して、更新後の状態を表で報告する。本体の docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表にも1行追記する。");
+  lines.push("6. GitHub Release に zip を添付し、ハブの db を state \"done\" / repo / version / release_url / note で更新して、更新後の状態を表で報告する。本体の docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表にも1行追記する。最初のリリースなら本体の Graphica_project/docs/plugin_index.json(公開プラグインの一覧。Graphica の自動更新が使う)に folder / name / repo の1行を足す。");
   lines.push("7. Wiki の「プラグイン一覧」(https://github.com/STsuruga/Graphica/wiki/17-プラグイン一覧、git は https://github.com/STsuruga/Graphica.wiki.git)に、このプラグインの行と紹介の節を足す(更新なら版と zip のリンクを直す)。push の前に差分をユーザーに見せて了承を得る。");
   lines.push("");
   lines.push("## 守ること");
@@ -999,8 +1000,8 @@ Graphica(https://github.com/STsuruga/Graphica)用プラグイン <P-xxx 名前> 
 
 ## 作業の範囲
 - このリポジトリ専用。ほかのプラグインのリポジトリと Graphica 本体は変更しない
-  (本体への書き込みは docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表への1行と、
-  Wiki の「プラグイン一覧」ページの更新だけ)。
+  (本体への書き込みは docs/dev/PLUGIN_DEVELOPMENT_PROGRESS.md の表への1行、
+  docs/plugin_index.json(公開プラグインの一覧)への1行と、Wiki の「プラグイン一覧」ページの更新だけ)。
 - 新しいプラグインを始めるときは、新しいチャットでハブの引継ぎプロンプトから始める。
 
 ## このプラグイン
