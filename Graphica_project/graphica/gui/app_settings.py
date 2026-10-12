@@ -9,6 +9,7 @@ from typing import Any
 from PySide6.QtCore import QSettings
 
 from graphica.core.i18n import DEFAULT_LANGUAGE
+from graphica.gui.theme_color import DEFAULT_THEME_COLOR
 
 ORGANIZATION_NAME = "Graphica"
 APPLICATION_NAME = "Graphica"
@@ -80,6 +81,8 @@ def as_list_keeping_empty_string(value: Any) -> list[Any]:
 
 LANGUAGE = Setting("language", DEFAULT_LANGUAGE, export_as=str, export_default="")
 DARK_MODE = Setting("dark_mode", False, bool, export_as=bool)
+# UI の強調に使う色(利用者が選んだ色そのもの。読みやすさの補正は gui/theme_color.py が毎回する)
+THEME_COLOR = Setting("theme_color", DEFAULT_THEME_COLOR, str, export_as=str)
 AUTOSAVE_INTERVAL_MIN = Setting("autosave_interval_min", DEFAULT_AUTOSAVE_INTERVAL_MIN, int, export_as=int)
 AUTOSAVE_DIR = Setting("autosave_dir", "", str)
 # 新しいタブ・プロジェクトに当てる書式テンプレートのパス(空なら使わない)。パスはその PC だけのものなので書き出さない
@@ -114,7 +117,7 @@ CANVAS_DETACHED_GEOMETRY = Setting(CANVAS_DETACHED_GEOMETRY_KEY)
 EXPORTED_SETTINGS: tuple[Setting, ...] = (
     LANGUAGE, DARK_MODE, AUTOSAVE_INTERVAL_MIN, POINT_LABEL_MAX_POINTS, SNAP_TO_GRID_ENABLED, SNAP_GRID_INTERVAL_PX,
     CUSTOM_COLOR_PALETTES, ACTIVE_COLOR_PALETTE, QUICK_ACCESS_PINNED_ACTIONS, DISABLED_PLUGINS,
-    WHEEL_ZOOM_SPEED,
+    WHEEL_ZOOM_SPEED, THEME_COLOR,
 )
 
 

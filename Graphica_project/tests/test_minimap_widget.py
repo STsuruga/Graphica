@@ -20,8 +20,7 @@ import graphica.gui.app_settings as app_settings_module
 from graphica.gui.main_window import PlotterApp
 from graphica.gui.minimap_widget import (
     MinimapWidget,
-    DARK_AXES_FACECOLOR,
-    LIGHT_AXES_FACECOLOR,
+    minimap_colors,
     MINIMAP_DOWNSAMPLE_THRESHOLD,
     MINIMAP_DOWNSAMPLE_TARGET_POINTS,
 )
@@ -118,14 +117,14 @@ def test_minimap_refresh_skips_2d_grid_datasets(minimap):
 def test_minimap_refresh_applies_dark_theme_colors(minimap):
     minimap.refresh([_make_dataset("a")], dark_mode=True)
     assert minimap.ax.get_facecolor() == pytest.approx(
-        matplotlib.colors.to_rgba(DARK_AXES_FACECOLOR)
+        matplotlib.colors.to_rgba(minimap_colors(True)[1])
     )
 
 
 def test_minimap_refresh_applies_light_theme_colors(minimap):
     minimap.refresh([_make_dataset("a")], dark_mode=False)
     assert minimap.ax.get_facecolor() == pytest.approx(
-        matplotlib.colors.to_rgba(LIGHT_AXES_FACECOLOR)
+        matplotlib.colors.to_rgba(minimap_colors(False)[1])
     )
 
 
@@ -358,40 +357,25 @@ def test_minimap_visibility_persists_and_restores_via_qsettings(tmp_path, monkey
     assert window2.minimap.isVisible() is False
 
 
-# --- ミニマップの配色をアプリ全体のテーマと揃える(実機フィードバック:
-#     「ミニマップの灰色も他の所の背景と色のテイストをそろえて、同じ色には
-#     しないで少しだけ暗い色にして」) ---
+# --- ミニマップの配色(GUI 刷新の見本 docs/dev/mockups/gui_redesign/ に合わせる) ---
 
-def test_minimap_axes_facecolor_is_not_a_flat_neutral_gray():
-    """
-    以前の#f2f2f2(ライト)/#1e1e1e(ダーク)は R=G=B の無彩色グレーで、
-    gui/theme.pyの寒色寄りトークン(R<G<Bの傾向)と色味が揃っていなかった。
-    """
-    from PySide6.QtGui import QColor
-
-    for hex_color in (LIGHT_AXES_FACECOLOR, DARK_AXES_FACECOLOR):
-        color = QColor(hex_color)
-        assert color.isValid()
-        # 無彩色(R=G=B)ではなく、bg/surface_2トークンと同じ寒色寄りの傾向
-        # (R <= G <= B)を持つことを確認する。
-        assert not (color.red() == color.green() == color.blue())
-        assert color.red() <= color.green() <= color.blue()
+@pytest.mark.parametrize("dark", [False, True])
+def test_minimap_colors_follow_the_theme_tokens(dark):
+    """図の地はカードの面、軸の地は一段違う面(surface_2)、線と選択範囲はテーマカラー。"""
+    from graphica.gui import theme
+    tokens = theme.tokens_for(dark, theme.current_theme_color())
+    assert minimap_colors(dark) == (tokens["surface"], tokens["surface_2"], tokens["accent"])
+    # 周りの面と同じ色にはしない(以前の利用者の要望)
+    assert tokens["surface_2"] != tokens["surface"]
 
 
-def test_minimap_axes_facecolor_is_darker_than_nearest_theme_surface():
-    """
-    「他の所の背景と同じ色にはしないで少しだけ暗い色に」の回帰テスト。
-    ライトはsurface_2(#EEF0F3)より、ダークはbg(#14171A)より暗いことを確認する。
-    """
-    from graphica.gui.theme import LIGHT_TOKENS, DARK_TOKENS
-    from PySide6.QtGui import QColor
-
-    def luminance(hex_color):
-        c = QColor(hex_color)
-        return c.red() + c.green() + c.blue()
-
-    assert luminance(LIGHT_AXES_FACECOLOR) < luminance(LIGHT_TOKENS["surface_2"])
-    assert luminance(DARK_AXES_FACECOLOR) < luminance(DARK_TOKENS["bg"])
+def test_minimap_span_follows_a_custom_theme_color(qapp):
+    from graphica.gui import theme
+    theme.apply_theme(qapp, dark=False, theme_color="#E11D48")
+    try:
+        assert minimap_colors(False)[2] == theme.current_tokens()["accent"]
+    finally:
+        theme.apply_theme(qapp, dark=False, theme_color=theme.DEFAULT_THEME_COLOR)
 
 
 # --- 点で描く種別(v1.4.2: ピーク検出の結果が線で結ばれていた) ---

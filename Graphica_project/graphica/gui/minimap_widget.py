@@ -12,6 +12,7 @@ from PySide6.QtCore import Signal
 
 from graphica.core.analysis import calculate_lttb_downsample
 from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
+from graphica.gui import theme
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +26,12 @@ MINIMAP_HEIGHT_PX = 70
 MINIMAP_DOWNSAMPLE_THRESHOLD = 2000
 MINIMAP_DOWNSAMPLE_TARGET_POINTS = 500
 
-# gui/canvas.py の配色と揃える
-DARK_FIGURE_FACECOLOR = '#2b2b2b'
-# 周りのパネルと同じ寒色寄りの色味で、少しだけ暗くして一段くぼんだ領域に見せる
-DARK_AXES_FACECOLOR = '#0E1114'
-DARK_LINE_COLOR = '#8ab4f8'
-DARK_SPAN_COLOR = '#8ab4f8'
-LIGHT_FIGURE_FACECOLOR = '#ffffff'
-LIGHT_AXES_FACECOLOR = '#E3E6EB'
-LIGHT_LINE_COLOR = '#1a73e8'
-LIGHT_SPAN_COLOR = '#1a73e8'
+
+
+def minimap_colors(dark_mode):
+    """(図の地, 軸の地, 線と選択範囲) の色。地はカードの面、軸の地は一段くぼんだ面、線と選択範囲はテーマカラー。"""
+    tokens = theme.tokens_for(dark_mode, theme.current_theme_color())
+    return tokens['surface'], tokens['surface_2'], tokens['accent']
 
 
 class MinimapWidget(FigureCanvas):
@@ -69,7 +66,7 @@ class MinimapWidget(FigureCanvas):
         """
         if getattr(self, '_span_selector', None) is not None:
             self._span_selector.disconnect_events()
-        span_color = DARK_SPAN_COLOR if self.dark_mode else LIGHT_SPAN_COLOR
+        span_color = minimap_colors(self.dark_mode)[2]
         self._span_selector = SpanSelector(
             self.ax,
             self._on_select,
@@ -81,8 +78,7 @@ class MinimapWidget(FigureCanvas):
         )
 
     def _apply_theme_colors(self):
-        fig_face = DARK_FIGURE_FACECOLOR if self.dark_mode else LIGHT_FIGURE_FACECOLOR
-        axes_face = DARK_AXES_FACECOLOR if self.dark_mode else LIGHT_AXES_FACECOLOR
+        fig_face, axes_face, _ = minimap_colors(self.dark_mode)
         self.fig.set_facecolor(fig_face)
         self.ax.set_facecolor(axes_face)
 
@@ -113,7 +109,7 @@ class MinimapWidget(FigureCanvas):
         self._configure_axes_style()
         self._apply_theme_colors()
 
-        line_color = DARK_LINE_COLOR if dark_mode else LIGHT_LINE_COLOR
+        line_color = minimap_colors(dark_mode)[2]
         has_data = False
         for ds in datasets:
             # メインと同じく隠した系列は出さない

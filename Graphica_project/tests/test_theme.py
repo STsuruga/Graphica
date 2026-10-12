@@ -10,6 +10,8 @@ QSpinBox/QDoubleSpinBox/QComboBoxは既定でマウスホイールにより値�
 """
 import re
 
+import pytest
+
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QColor, QPainter, QWheelEvent
 from PySide6.QtWidgets import (QApplication, QComboBox, QDoubleSpinBox, QMainWindow,
@@ -157,7 +159,6 @@ class TestFlatThemeProxyStyle:
                 assert m, f"QScrollBar::handle:{orientation}:hover/:pressedのルールが見つからない"
                 assert tokens["text_muted"] in m.group(1)
                 assert tokens["accent"] not in m.group(1)
-                assert tokens["selection_accent"] not in m.group(1)
 
     def test_generated_qss_does_not_style_checkbox_indicator(self):
         # QCheckBox::indicator { ... } を指定するとチェックマークが描画され
@@ -251,9 +252,10 @@ class TestSpinboxArrowIcons:
 # --- デザイントークン(項目H-1) ---
 
 _REQUIRED_TOKEN_KEYS = {
-    "bg", "surface", "surface_2", "border", "border_strong",
+    "bg", "surface", "surface_2", "chrome", "border", "border_strong",
     "text_primary", "text_secondary", "text_muted",
-    "accent", "accent_soft", "accent_text",
+    "accent", "accent_soft", "accent_fg", "on_accent",
+    "success", "danger", "warning_soft",
 }
 
 
@@ -327,30 +329,23 @@ def test_build_qss_output_identical_for_light_and_dark_token_dicts_by_value():
     assert theme.build_qss(theme.LIGHT_TOKENS) == theme.build_qss(tokens_copy)
 
 
-# --- データセットリストの選択ハイライト(項目H-2-2) ---
+# --- データセットリストの選択ハイライト ---
 
 
-def test_selection_highlight_token_present_in_both_themes():
-    assert "selection_highlight" in theme.LIGHT_TOKENS
-    assert "selection_highlight" in theme.DARK_TOKENS
-
-
-def test_current_selection_highlight_qcolor_reflects_active_theme(qapp):
-    # rgba(...)形式のQSS文字列はQColor(str)コンストラクタでは解釈できず、
-    # 不透明の黒に無効フォールバックしてしまう(実機で確認)ため、
-    # current_selection_highlight_qcolor()が正しくパースして有効な色を
-    # 返すことを検証する。
+def test_current_accent_soft_qcolor_reflects_active_theme(qapp):
+    # トークンは QSS 用の rgba(...) で、QColor(str) では読めず不透明の黒になる。自前で解釈できていること
     theme.apply_theme(qapp, dark=False)
-    light_color = theme.current_selection_highlight_qcolor()
-    assert light_color.isValid()
-    assert (light_color.red(), light_color.green(), light_color.blue()) == (37, 99, 235)
+    light_color = theme.current_accent_soft_qcolor()
+    accent = QColor(theme.LIGHT_TOKENS["accent"])
+    assert (light_color.red(), light_color.green(), light_color.blue()) == (accent.red(), accent.green(), accent.blue())
     assert 0.0 < light_color.alphaF() < 1.0
 
     theme.apply_theme(qapp, dark=True)
-    dark_color = theme.current_selection_highlight_qcolor()
-    assert dark_color.isValid()
-    assert (dark_color.red(), dark_color.green(), dark_color.blue()) == (59, 130, 246)
+    dark_color = theme.current_accent_soft_qcolor()
+    accent = QColor(theme.DARK_TOKENS["accent"])
+    assert (dark_color.red(), dark_color.green(), dark_color.blue()) == (accent.red(), accent.green(), accent.blue())
     assert 0.0 < dark_color.alphaF() < 1.0
+    theme.apply_theme(qapp, dark=False)
 
 
 def test_dataset_list_item_radius_is_a_positive_int():
@@ -486,100 +481,59 @@ class TestDockFocusHighlight:
         other_edit.close()
 
 
-# --- 選択色をデータセットリストに揃える(項目H-2-4、実機フィードバック:
-#     「選択時とかポップアップとか色が緑だからデータセットリストの方に
-#     色合わせて」) ---
+# --- 操作の強調(選択・ホバー・押下・フォーカス)はすべてテーマカラーの accent / accent_soft にそろえる ---
 
-def test_generated_qss_uses_selection_highlight_for_text_selection():
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QWidget\s*\{[^}]*selection-background-color:\s*\{?selection_highlight\}?", qss
-    ) or "selection-background-color: rgba(37, 99, 235, 0.12)" in qss
+_L = theme.LIGHT_TOKENS
 
 
-def test_generated_qss_uses_selection_highlight_for_menu_and_menubar():
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QMenuBar::item:selected\s*\{[^}]*background:\s*rgba\(37, 99, 235, 0\.12\)", qss
-    )
-    assert re.search(
-        r"QMenu::item:selected\s*\{[^}]*background:\s*rgba\(37, 99, 235, 0\.12\)", qss
-    )
+@pytest.mark.parametrize("selector, prop, key", [
+    ("QWidget", "selection-background-color", "accent_soft"),
+    ("QMenuBar::item:selected", "background", "accent_soft"),
+    ("QMenu::item:selected", "background", "accent_soft"),
+    ("QComboBox QAbstractItemView", "selection-background-color", "accent_soft"),
+    ("QTreeWidget::item:selected, QListWidget::item:selected, QTableWidget::item:selected", "background", "accent_soft"),
+    ("QPushButton:pressed", "background", "accent_soft"),
+    ("QToolButton:pressed", "background", "accent_soft"),
+    ("QToolButton:checked", "background", "accent_soft"),
+    ("QToolButton:checked", "border", "accent"),
+    ("QPushButton:hover", "border-color", "accent"),
+    ("QPushButton:focus, QToolButton:focus", "border", "accent"),
+    ('QDockWidget[dockActive="true"]', "border", "accent"),
+    ("QTabBar::tab:selected", "border-bottom", "accent"),
+    ("QRadioButton::indicator:checked", "background", "accent"),
+    ("QRadioButton::indicator:checked", "border-color", "accent"),
+    ("QPushButton:default", "background", "accent"),
+    ("QPushButton:default", "color", "on_accent"),
+    ("QGroupBox::title", "background", "accent_soft"),
+])
+def test_interaction_states_use_the_theme_color(selector, prop, key):
+    qss = theme.build_qss(_L)
+    body = _qss_block(qss, selector)
+    values = re.findall(r"(?:^|;)\s*" + re.escape(prop) + r":\s*([^;]+);", body)
+    assert values, f"{selector} に {prop} が無い"
+    assert any(_L[key] in value for value in values), (selector, prop, values)
 
 
-def test_generated_qss_uses_selection_highlight_for_combobox_popup():
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QComboBox QAbstractItemView\s*\{[^}]*selection-background-color:\s*rgba\(37, 99, 235, 0\.12\)",
-        qss,
-    )
+@pytest.mark.parametrize("selector", [
+    "QTabBar::tab:selected",
+    "QGroupBox::title",
+    "QToolButton#property_subsection_toggle:hover",
+])
+def test_text_in_the_theme_color_uses_accent_fg(selector):
+    """強調の色で書く文字は、文字用に濃さを調整した accent_fg(塗りの accent より読みやすい)。"""
+    body = _qss_block(theme.build_qss(_L), selector)
+    assert re.search(r"(?:^|;)\s*color:\s*" + re.escape(_L["accent_fg"]), body)
 
 
-def test_generated_qss_uses_selection_highlight_for_generic_lists():
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QTreeWidget::item:selected,\s*QListWidget::item:selected,\s*"
-        r"QTableWidget::item:selected\s*\{[^}]*background:\s*rgba\(37, 99, 235, 0\.12\)",
-        qss,
-    )
-
-
-def test_generated_qss_does_not_use_teal_accent_for_any_selection_state():
-    # 「緑っぽい」の原因だったティール系accent/accent_softが、選択系の
-    # プロパティ(selection-background-color、::item:selected、
-    # ::item(menu/menubar):selectedのbackground)にもう使われていないことを
-    # 回帰的に確認する。
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert "selection-background-color: #1F6F78" not in qss
-    assert "selection-background-color: #E4F0EF" not in qss
-
-
-# --- selection_accent(opaqueな青、H-2-4の追加フィードバック): 「フォーカス時
-#     の色が緑のまま」「チェックボックスの塗りつぶしの色も」「タブの選択色も」 ---
-
-
-def test_selection_accent_token_present_and_opaque_in_both_themes():
+def test_accent_tokens_are_opaque_except_the_soft_one():
     for tokens in (theme.LIGHT_TOKENS, theme.DARK_TOKENS):
-        assert "selection_accent" in tokens
-        color = QColor(tokens["selection_accent"])
-        assert color.isValid()
-        assert color.alpha() == 255  # opaque(枠線・塗りつぶし用途のため透過なし)
+        for key in ("accent", "accent_fg", "on_accent"):
+            color = QColor(tokens[key])
+            assert color.isValid() and color.alpha() == 255
+        assert tokens["accent_soft"].startswith("rgba(")
 
 
-def test_generated_qss_uses_selection_accent_for_focus_borders():
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QPushButton:focus,\s*QToolButton:focus\s*\{[^}]*border:\s*1px solid #2563EB", qss
-    )
-    assert re.search(
-        r"QComboBox:focus,\s*QTextEdit:focus,\s*QPlainTextEdit:focus\s*\{[^}]*"
-        r"border-color:\s*#2563EB",
-        qss,
-    )
-
-
-def test_generated_qss_uses_selection_accent_for_dock_focus_highlight():
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(r'QDockWidget\[dockActive="true"\]\s*\{[^}]*border:\s*1px solid #2563EB', qss)
-
-
-def test_generated_qss_uses_selection_accent_for_selected_tab():
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QTabBar::tab:selected\s*\{[^}]*border-bottom:\s*2px solid #2563EB[^}]*color:\s*#2563EB",
-        qss,
-    )
-
-
-def test_generated_qss_uses_selection_accent_for_checked_radio_button():
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QRadioButton::indicator:checked\s*\{[^}]*background:\s*#2563EB[^}]*border-color:\s*#2563EB",
-        qss,
-    )
-
-
-def test_checkbox_indicator_checked_fill_uses_selection_accent(qapp):
+def test_checkbox_indicator_checked_fill_uses_accent(qapp):
     from PySide6.QtCore import QRect
     from PySide6.QtGui import QPixmap
     from PySide6.QtWidgets import QStyleOptionButton
@@ -598,123 +552,29 @@ def test_checkbox_indicator_checked_fill_uses_selection_accent(qapp):
     finally:
         painter.end()
 
-    # (4, 4) はチェックマーク(レ点)のパスから離れた塗りつぶし部分のみの座標
-    # (中心付近はチェックマークのストロークと重なりアンチエイリアスで色が
-    # 混ざるため避ける)。
+    # (4, 4) はチェックマークから離れた塗りだけの点(中心付近はレ点と混ざる)
     fill_color = pixmap.toImage().pixelColor(4, 4)
-    expected = QColor(theme.LIGHT_TOKENS["selection_accent"])
+    expected = QColor(theme.LIGHT_TOKENS["accent"])
     assert (fill_color.red(), fill_color.green(), fill_color.blue()) == (
         expected.red(), expected.green(), expected.blue(),
     )
 
 
 def test_generated_qss_gives_dock_widget_a_background(qapp):
-    """
-    実機フィードバック「プロパティウィンドウの背景色がそのまま」の回帰テスト。
-    QDockWidgetに{bg}の明示的なbackgroundが無いと、OSネイティブのパレット
-    既定色が透けて見えてしまう(bg/surface_2トークンを変更しても無反映になる)。
-    """
+    """QDockWidget に bg の背景が無いと、OS のパレットの色が透ける(実機で起きた)。"""
     qss = theme.build_qss(theme.LIGHT_TOKENS)
     assert re.search(
-        r"^QDockWidget\s*\{[^}]*background:\s*#F6F7F9", qss, re.MULTILINE
-    )
-
-
-def test_generated_qss_uses_selection_accent_for_button_hover_border():
-    """
-    実機フィードバック「フォーカス時は青になっているのに、マウスを合わせた
-    ときの色が緑のまま」の回帰テスト。:hoverのborder-colorが:focusと同じ
-    selection_accentを使っていることを確認する。
-    """
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QPushButton:hover\s*\{[^}]*border-color:\s*#2563EB", qss
+        r"^QDockWidget\s*\{[^}]*background:\s*" + re.escape(_L["bg"]), qss, re.MULTILINE
     )
 
 
 def test_generated_qss_gives_scroll_area_and_its_content_widget_a_background():
-    """
-    実機フィードバック「プロパティウィンドウの背景色が他と違う」の回帰テスト
-    (QDockWidgetにbackgroundを追加した後も再発した、その2回目の修正)。
-
-    実測(widgetAt()での特定+QWidget.grab()での分離検証)の結果、QScrollArea
-    自体やそのビューポート(QScrollArea直下の子QWidget)にbackgroundを
-    指定しただけでは不十分で、setWidget()で入れている中身のwidget
-    (QScrollArea直下の"孫"QWidget)がアプリ全体QSSの副作用でOSネイティブの
-    パレットWindowロール色を不透明に描画してしまい、これが実際に見えている
-    色だったと判明した。QScrollArea・その子・その孫の3階層すべてに{bg}が
-    指定されていることを確認する。
-    """
+    """QScrollArea・ビューポート・中身の3段すべてに bg が要る(中身がパレットの色で塗られた実例がある)。"""
     qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(r"^QScrollArea\s*\{[^}]*background:\s*#F6F7F9", qss, re.MULTILINE)
-    assert re.search(r"QScrollArea > QWidget\s*\{[^}]*background:\s*#F6F7F9", qss)
-    assert re.search(r"QScrollArea > QWidget > QWidget\s*\{[^}]*background:\s*#F6F7F9", qss)
-
-
-def test_generated_qss_uses_selection_highlight_for_button_pressed_background():
-    """
-    実機フィードバック「フォント選択/色選択ボタンのクリックした瞬間の色が
-    緑のまま」の回帰テスト。:hover/:focusの枠線は既に青系に揃えていたが、
-    :pressedの背景だけティール系accent_softのまま取り残されていた。
-    """
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QPushButton:pressed\s*\{[^}]*background:\s*rgba\(37, 99, 235", qss
-    )
-
-
-def test_generated_qss_uses_selection_colors_for_toolbutton_pressed_and_checked():
-    """
-    項目H-2-5(クイックアクセスツールバーの実機確認で発覚)の回帰テスト。
-    QPushButton側は:pressed/:hoverとも青系へ統一済みだったが、QToolButton側
-    (ツールバーの全ボタンはQToolButton)は同じ更新が漏れており、クイック
-    アクセスに登録したボタンを押すと依然ティール系accent_softの緑っぽい色に
-    なっていた。
-    """
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QToolButton:pressed\s*\{[^}]*background:\s*rgba\(37, 99, 235", qss
-    )
-    assert re.search(
-        r"QToolButton:checked\s*\{[^}]*background:\s*rgba\(37, 99, 235[^}]*"
-        r"border:\s*1px solid #2563EB",
-        qss,
-    )
-
-
-def test_generated_qss_uses_selection_accent_for_default_button():
-    """
-    実機フィードバック(画像提示、複数のポップアップダイアログ: バッチ
-    エクスポートの「実行」、環境設定/フォント選択/色選択/メッセージボックス
-    の「OK」、ヘルプの「Close」)の回帰テスト。ダイアログの既定ボタン
-    (Enterキーで実行される、QDialogButtonBoxが自動的にdefaultにする
-    ボタン)は他の全ての強調表現と揃っていなかった唯一の箇所で、ティール系
-    accentのまま残っていた。
-    """
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    assert re.search(
-        r"QPushButton:default\s*\{[^}]*background:\s*#2563EB[^}]*"
-        r"border-color:\s*#2563EB",
-        qss,
-    )
-    assert "background: #1F6F78;" not in re.search(
-        r"QPushButton:default\s*\{[^}]*\}", qss
-    ).group(0)
-
-
-def test_generated_qss_uses_selection_colors_for_groupbox_title_chip():
-    """
-    実機フィードバック(画像提示、環境設定/フォント選択ダイアログ)の回帰
-    テスト:「外観/言語/保存...やEffect/Sampleのチップの色が緑」。
-    """
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-    match = re.search(r"^QGroupBox::title\s*\{([^}]*)\}", qss, re.MULTILINE)
-    assert match, "QGroupBox::title のルールが見つかりません"
-    body = match.group(1)
-    assert "#2563EB" in body  # color: selection_accent
-    assert "rgba(37, 99, 235" in body  # background: selection_highlight
-    assert "#1F6F78" not in body
-    assert "#E4F0EF" not in body
+    bg = re.escape(_L["bg"])
+    assert re.search(r"^QScrollArea\s*\{[^}]*background:\s*" + bg, qss, re.MULTILINE)
+    assert re.search(r"QScrollArea > QWidget\s*\{[^}]*background:\s*" + bg, qss)
+    assert re.search(r"QScrollArea > QWidget > QWidget\s*\{[^}]*background:\s*" + bg, qss)
 
 
 def test_generated_qss_groupbox_title_chip_does_not_overflow_above_border():
@@ -842,40 +702,8 @@ def _qss_block(qss, selector):
     return re.sub(r"/\*.*?\*/", "", match.group(1), flags=re.S)
 
 
-def test_no_interaction_state_uses_the_teal_accent_anymore():
-    """
-    ★ 実機フィードバックの回帰テスト:「どのタブも押したときの色が緑だから
-    青で統一して」。hover/pressed/selected/checked/focus といった操作の
-    フィードバックは、全て青系(selection_highlight / selection_accent)を使う。
-    ティール系の accent / accent_soft が残ってよいのは、操作状態ではない表現
-    (QProgressBar::chunk など)だけ。
-
-    トークン名ではなく**展開後の実際の色**で見るので、将来トークンを
-    経由せず直接ティールを書いた場合も検出できる。
-    """
-    teal_values = {
-        theme.LIGHT_TOKENS["accent"].lower(),
-        theme.LIGHT_TOKENS["accent_soft"].lower(),
-    }
-    qss = theme.build_qss(theme.LIGHT_TOKENS)
-
-    offenders = []
-    for match in re.finditer(r"([^{}]+)\{([^}]*)\}", qss):
-        selector, body = match.group(1).strip(), match.group(2)
-        if not re.search(r":(hover|pressed|selected|checked|focus)\b", selector):
-            continue
-        for value in re.findall(r":\s*([^;]+);", body):
-            for teal in teal_values:
-                if teal in value.lower():
-                    offenders.append((selector.splitlines()[-1].strip(), value.strip()))
-    assert not offenders, f"操作状態にティール系が残っている: {offenders}"
-
-
 def test_subsection_hover_text_stays_readable():
-    """
-    ★ accent_text はライトモードで #FFFFFF(アクセント背景に載せる文字色)。
-    薄い背景のホバーに使うと白文字になって消える。実際に一度そう書いていた。
-    """
+    """on_accent はライトで白(塗りの上の文字色)。薄い背景のホバーに使うと文字が消える。実際に一度そう書いていた。"""
     qss = theme.build_qss(theme.LIGHT_TOKENS)
     body = _qss_block(qss, "QToolButton#property_subsection_toggle:hover")
-    assert theme.LIGHT_TOKENS["accent_text"] not in body
+    assert theme.LIGHT_TOKENS["on_accent"] not in body

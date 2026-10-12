@@ -59,4 +59,7 @@
 
 | PR | 状態 | メモ |
 |---|---|---|
-| 0 | 作業中 | 見本と計画の取り込み |
+| 0 | マージ済み(#141) | 見本と計画の取り込み |
+| 1 | 確認待ち | テーマの土台。`gui/theme_color.py`(色の計算。判定は丸めた後の色で行う。見本の JavaScript は丸めで比が 4.4956 のように割ることがあった)、トークンを見本の値に、青の `selection_*` を廃止してテーマカラーの `accent` 系に統合(`accent_text` → `on_accent`、強調の色の文字は `accent_fg`)、QPalette をトークンから(ライトも)、設定 `theme_color`(既定 `#0F4C5C`、書き出しの対象)、`apply_theme(app, dark, theme_color=None)` の省略の条件に色、ミニマップの色をトークンから。`scripts/screenshot_ui.py` で見本と並べる画像を撮る |
+
+PR ごとの確認: `python scripts/screenshot_ui.py <出力フォルダ>` で撮った画像を、見本の同じ状態と並べてユーザーに見せ、OK をもらってから統合ブランチにマージする(2026-10-12 ユーザー指示)。

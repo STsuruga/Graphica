@@ -68,12 +68,14 @@ def _sample_stroke_pixel_color(pixmap):
     試して最初に見つかった不透明ピクセルを返す。
     """
     image = pixmap.toImage()
+    # 縁の半透明の点は、乗算済みアルファから戻すときに色が1ずれることがあるので、いちばん不透明な点を使う
+    best = None
     for y in range(image.height()):
         for x in range(image.width()):
             pixel = image.pixelColor(x, y)
-            if pixel.alpha() > 0:
-                return pixel
-    return None
+            if pixel.alpha() > 0 and (best is None or pixel.alpha() > best.alpha()):
+                best = pixel
+    return best
 
 
 def test_icon_without_explicit_color_uses_light_theme_text_secondary(qapp):
