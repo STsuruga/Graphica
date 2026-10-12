@@ -1,19 +1,18 @@
 """データセットの一覧とプロパティ欄の欄の組み立て。"""
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox, QHeaderView,
     QLabel, QLineEdit,
-    QMenu, QPushButton, QSpinBox, QTextEdit, QToolButton, QTreeWidget, QTreeWidgetItemIterator, QVBoxLayout, QWidget,
-    QWidgetAction)
+    QMenu, QPushButton, QSpinBox, QTextEdit, QToolButton, QTreeWidget, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
 from graphica.core.dataset import WATERFALL_OFFSET_ABSOLUTE, WATERFALL_OFFSET_STEP
 from graphica.core.i18n import tr
 from graphica.core.marker_style import (
     DEFAULT_MARKER_EDGE_WIDTH, MARKER_EDGE_COLOR, MARKER_EDGE_SAME, MARKER_FILL_COLOR, MARKER_FILL_HOLLOW,
     MARKER_FILL_SOLID)
+from graphica.gui.builders import property_widgets
 from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
-    _svg_icon)
+    _svg_icon, cap_combo_width)
 from graphica.gui.color_picker_widget import ColorPickerWidget
 from graphica.gui.dataset_bindings import MARKER_CHOICES
 from graphica.gui.dataset_style_icon import (
@@ -127,27 +126,27 @@ def build_marker_style_controls(app):
         else:
             combo.addItem(icon, tr(label), marker)
 
-    style_form = app._prop_form('style')
+    marker_form = app._prop_form('marker')
     app.marker_fill_label = QLabel(tr("マーカーの塗り"))
     app.marker_fill_combo = QComboBox()
     app.marker_fill_combo.addItem(tr("塗りつぶし"), MARKER_FILL_SOLID)
     app.marker_fill_combo.addItem(tr("白抜き"), MARKER_FILL_HOLLOW)
     app.marker_fill_combo.addItem(tr("色を指定"), MARKER_FILL_COLOR)
-    style_form.addRow(app.marker_fill_label, app.marker_fill_combo)
+    marker_form.addRow(app.marker_fill_label, app.marker_fill_combo)
 
     app.marker_face_color_label = QLabel(tr("塗りの色"))
     app.marker_face_color_picker = ColorPickerWidget(app.settings, app, initial_color='#ffffff')
-    style_form.addRow(app.marker_face_color_label, app.marker_face_color_picker)
+    marker_form.addRow(app.marker_face_color_label, app.marker_face_color_picker)
 
     app.marker_edge_label = QLabel(tr("マーカーの枠線"))
     app.marker_edge_combo = QComboBox()
     app.marker_edge_combo.addItem(tr("系列の色"), MARKER_EDGE_SAME)
     app.marker_edge_combo.addItem(tr("色を指定"), MARKER_EDGE_COLOR)
-    style_form.addRow(app.marker_edge_label, app.marker_edge_combo)
+    marker_form.addRow(app.marker_edge_label, app.marker_edge_combo)
 
     app.marker_edge_color_label = QLabel(tr("枠線の色"))
     app.marker_edge_color_picker = ColorPickerWidget(app.settings, app, initial_color='#000000')
-    style_form.addRow(app.marker_edge_color_label, app.marker_edge_color_picker)
+    marker_form.addRow(app.marker_edge_color_label, app.marker_edge_color_picker)
 
     app.marker_edge_width_label = QLabel(tr("枠線の太さ"))
     app.marker_edge_width_spinbox = QDoubleSpinBox()
@@ -155,7 +154,7 @@ def build_marker_style_controls(app):
     app.marker_edge_width_spinbox.setSingleStep(0.5)
     app.marker_edge_width_spinbox.setDecimals(1)
     app.marker_edge_width_spinbox.setValue(DEFAULT_MARKER_EDGE_WIDTH)
-    style_form.addRow(app.marker_edge_width_label, app.marker_edge_width_spinbox)
+    marker_form.addRow(app.marker_edge_width_label, app.marker_edge_width_spinbox)
 
 
 def build_dataset_style_controls(app):
@@ -204,6 +203,7 @@ def build_dataset_style_controls(app):
     app.waterfall_offset_mode_combo = QComboBox()
     app.waterfall_offset_mode_combo.addItem(tr("段ごとの間隔(段の番号 × オフセット)"), WATERFALL_OFFSET_STEP)
     app.waterfall_offset_mode_combo.addItem(tr("ずらし量をそのまま"), WATERFALL_OFFSET_ABSOLUTE)
+    cap_combo_width(app.waterfall_offset_mode_combo)
     app._prop_form('waterfall').addRow(app.waterfall_offset_mode_label, app.waterfall_offset_mode_combo)
 
     app.waterfall_offset_x_label = QLabel(tr("Xオフセット"))
@@ -268,7 +268,7 @@ def build_dataset_style_controls(app):
     app._prop_form('extra').addRow(app.hide_from_legend_checkbox)
 
     # X/Y/Z 列の長形式を2Dマップとして描く。関係する欄の出し入れは property_panel.update_2d_controls_visibility
-    app.data_2d_checkbox = QCheckBox(tr("2Dグリッドデータとして扱う(ヒートマップ)"))
+    app.data_2d_checkbox = QCheckBox(tr("2Dグリッドとして扱う(ヒートマップ)"))
     app._prop_form('map').addRow(app.data_2d_checkbox)
 
     app.z_col_label = QLabel(tr("Z軸の列"))
@@ -340,50 +340,32 @@ def build_dataset_style_controls(app):
     app._prop_form('style').addRow(app.ui.smoothing_checkbox)
     app._prop_form('style').addRow(app.smoothing_method_label, app.smoothing_method_combo)
 
+    property_widgets.build_property_widgets(app)
+
 
 def build_fit_info_and_stats(app):
-    app.fit_info_label = QLabel("フィット情報")
+    # フィットの結果の文。置き場所は下のパネルの「フィット結果」のタブ(shell/bottom_panel.py)
     app.fit_info_textedit = QTextEdit()
+    app.fit_info_textedit.setObjectName("fit_info_textedit")
     app.fit_info_textedit.setReadOnly(True)
-    app.fit_info_textedit.setFixedHeight(100)
-    # 節の最後(描画先の後ろ)に置く(_add_subplot_target_row)。フィットが無いと隠れる欄なので、
-    # 先頭に置くとフィットのたびに下の項目が押し下げられる
+    app.fit_info_textedit.setPlaceholderText(tr("フィットした曲線か、フィットしたデータセットを選ぶと、ここに式とパラメータが出ます。"))
 
-    # 統計値はいつも見るものではないので、ツールバーのボタンから開く小窓に出す。
-    # 中身は選択が変わるたびに property_panel.update_stats_summary_label が更新する(閉じている間も)
+    # 統計の1行(件数・平均・標準偏差・最小・最大)。選択が変わるたびに property_panel.update_stats_summary_label が
+    # 更新する。画面には左パネルの統計カードを出す(GUI 刷新の決定 10 でツールバーの統計ボタンはやめた)
     app.stats_summary_label = QLabel("-")
     app.stats_summary_label.setWordWrap(True)
     app.stats_summary_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
-    app.stats_toolbar_button = QToolButton()
-    app.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
-    app.stats_toolbar_button.setToolTip(tr("統計情報 (選択中データセットのY列の要約統計量)"))
-    app.stats_toolbar_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
-    stats_popup = QWidget()
-    stats_popup_layout = QVBoxLayout(stats_popup)
-    stats_popup_layout.setContentsMargins(10, 8, 10, 8)
-    stats_popup_title = QLabel(tr("統計 (Y列)"))
-    stats_popup_title_font = QFont(stats_popup_title.font())
-    stats_popup_title_font.setBold(True)
-    stats_popup_title.setFont(stats_popup_title_font)
-    stats_popup_layout.addWidget(stats_popup_title)
-    app.stats_summary_label.setMinimumWidth(260)
-    stats_popup_layout.addWidget(app.stats_summary_label)
-
-    stats_menu = QMenu(app.stats_toolbar_button)
-    stats_widget_action = QWidgetAction(app.stats_toolbar_button)
-    stats_widget_action.setDefaultWidget(stats_popup)
-    stats_menu.addAction(stats_widget_action)
-    app.stats_toolbar_button.setMenu(stats_menu)
-    app.plot_toolbar.addSeparator()
-    app.plot_toolbar.addWidget(app.stats_toolbar_button)
+Y2_SPINBOX_MIN_WIDTH = 100
 
 
 def _y2_value_spinbox(decimals=2):
     spinbox = QDoubleSpinBox()
     spinbox.setRange(-2147483648.0, 2147483648.0)
     spinbox.setDecimals(decimals)
+    # 既定の最小幅は範囲の桁数(-2147483648.00)で決まり、右のインスペクタ(340px)からはみ出す
+    spinbox.setMinimumWidth(Y2_SPINBOX_MIN_WIDTH)
     return spinbox
 
 
@@ -440,8 +422,6 @@ def add_subplot_target_row(app):
     app.subplot_target_label = QLabel("描画先プロット")
     app.subplot_target_combo = QComboBox()
     app._prop_form('place').addRow(app.subplot_target_label, app.subplot_target_combo)
-    # フィット情報欄 (上で構築済み) は、このセクションの最後に置く
-    app._prop_form('place').addRow(app.fit_info_label, app.fit_info_textedit)
 
 
 class DatasetTreeWidget(QTreeWidget):
@@ -510,13 +490,6 @@ def replace_dataset_list_with_tree(app):
     tree.setMinimumHeight(90)
     tree.setItemDelegate(_DatasetTreeSelectionDelegate(tree))
     container_layout.addWidget(tree)
-
-    # 一覧のすぐ下に、選んでいるデータセットの短い統計値
-    mini_stats_label = QLabel("-")
-    mini_stats_label.setObjectName("dataset_mini_stats_label")
-    mini_stats_label.setWordWrap(True)
-    container_layout.addWidget(mini_stats_label)
-    app.dataset_mini_stats_label = mini_stats_label
 
     if isinstance(parent_layout, QGridLayout) and row is not None:
         parent_layout.addWidget(container, row, col, rowspan, colspan)

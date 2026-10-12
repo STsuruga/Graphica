@@ -208,7 +208,7 @@ def test_preferences_dialog_dark_matches_baseline(tmp_path, monkeypatch):
 def test_export_preview_panel_light_matches_baseline(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _populate_sample_plot(window)
-    window.export_preview_dock_widget.show()
+    window.show_export_preview()
     app = QApplication.instance()
     for _ in range(5):
         app.processEvents()
@@ -220,7 +220,7 @@ def test_export_preview_panel_dark_matches_baseline(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _populate_sample_plot(window)
     _set_dark_mode(window, True)
-    window.export_preview_dock_widget.show()
+    window.show_export_preview()
     app = QApplication.instance()
     for _ in range(5):
         app.processEvents()

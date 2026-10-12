@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graphica Lite と Advanced</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{font-family:"Yu Gothic UI","Meiryo UI","Segoe UI",system-ui,sans-serif}
+body{margin:0;background:#E6E8EB;color:#1B1F1E}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 20px 8px;font-size:13px}
+.grp{display:flex;gap:3px;align-items:center;background:#fff;border:1px solid #D3D7DB;border-radius:9px;padding:3px}
+.grp .lbl{color:#5B6462;margin:0 6px}
+.grp button{font:inherit;border:0;background:transparent;padding:5px 12px;border-radius:6px;cursor:pointer;color:#1B1F1E}
+.grp button.on{background:#1B1F1E;color:#fff}
+.swrow{display:flex;gap:4px;padding:0 4px}
+.sw{width:22px;height:22px;border-radius:6px;cursor:pointer;border:0;padding:0;position:relative}
+.sw.on{box-shadow:0 0 0 2px #fff,0 0 0 4px #1B1F1E}
+.custom{display:flex;align-items:center;gap:6px;padding:2px 8px 2px 4px;cursor:pointer;color:#1B1F1E}
+.custom input{width:26px;height:24px;border:0;padding:0;background:none;cursor:pointer}
+.note{margin:2px 20px 12px;font-size:12.5px;color:#5B6462;line-height:1.7}
+.stage{padding:0 20px 28px}
+.scaler{transform-origin:top left}
+
+.app{
+  --bg:#F1F2F4; --surface:#FFFFFF; --surface-2:#F3F5F7; --chrome:#E4E7EA; --rail:#E4E7EA;
+  --border:#E0E3E6; --border-strong:#CBD0D5;
+  --text:#191D1F; --text-2:#56606A; --text-3:#8A939B;
+  --plot-bg:#FFFFFF; --plot-fg:#222; --legend-border:#ccc;
+  width:1440px;height:900px;border-radius:12px;overflow:hidden;
+  background:var(--bg);color:var(--text);font-size:13px;
+  display:grid;grid-template-rows:48px 1fr 26px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18)
+}
+.app[data-theme=dark]{
+  --bg:#111417; --surface:#181B1F; --surface-2:#1F2328; --chrome:#0E1013; --rail:#0E1013;
+  --border:#272C32; --border-strong:#373E46;
+  --text:#E6E9EC; --text-2:#A0A9B1; --text-3:#69737B;
+  --plot-bg:#181B1F; --plot-fg:#C9D0D4; --legend-border:#444;
+}
+
+/* モード: 同じ画面のまま、Advanced で部品が増えるだけ */
+.app[data-mode=lite] .adv-only{display:none !important}
+.app[data-mode=adv] .lite-only{display:none !important}
+.app.hl[data-mode=adv] .adv-only{outline:2px dashed #E8590C;outline-offset:-2px;border-radius:7px}
+
+.ti{font-size:16px;line-height:1}
+.spacer{flex:1}
+.vsep{width:1px;height:18px;background:var(--border-strong);margin:0 6px;flex:none;opacity:.7}
+.ib{width:28px;height:28px;display:grid;place-items:center;border-radius:7px;color:var(--text-2);flex:none}
+.ib.on{background:var(--accent-soft);color:var(--accent-text)}
+.mono{font-family:Consolas,"Cascadia Mono",monospace;font-variant-numeric:tabular-nums}
+.meta{font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.line{width:18px;height:3px;border-radius:2px;flex:none}
+.search{height:28px;border-radius:7px;background:var(--surface-2);display:flex;align-items:center;gap:6px;padding:0 9px;color:var(--text-3);font-size:12px}
+.kbd{margin-left:auto;font-size:10.5px;border:1px solid var(--border-strong);border-radius:4px;padding:0 5px;color:var(--text-2)}
+.btn-primary{display:flex;align-items:center;gap:6px;background:var(--accent);color:var(--on-accent);border-radius:7px;padding:5px 12px;font-weight:600;white-space:nowrap}
+.count{font-size:11px;color:var(--text-2);background:var(--surface-2);border-radius:10px;padding:0 7px}
+.toggle{width:30px;height:17px;border-radius:9px;background:var(--border-strong);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:2.5px;left:3px;width:12px;height:12px;border-radius:50%;background:#fff}
+.badge{font-size:10.5px;border-radius:5px;padding:0 6px;background:var(--surface-2);color:var(--text-2);white-space:nowrap}
+.badge.ok{background:rgba(34,160,107,.14);color:#1A7F55}
+.app[data-theme=dark] .badge.ok{color:#5BD39A}
+
+/* 上部 */
+.top{background:var(--chrome);display:flex;align-items:center;padding:0 12px 0 8px;gap:6px;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:8px;font-weight:600;margin-right:8px}
+.logo .mark{width:22px;height:22px;border-radius:6px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:12.5px;font-weight:700}
+.tab{height:32px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-radius:8px;color:var(--text-2);white-space:nowrap}
+.tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.tab .x{font-size:13px;color:var(--text-3)}
+.mode{display:flex;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:2px;gap:2px;cursor:pointer}
+.mode div{padding:3px 11px;border-radius:7px;color:var(--text-2);font-size:12px;display:flex;align-items:center;gap:5px}
+.mode div .ti{font-size:14px}
+.mode div.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.app[data-theme=dark] .mode div.on{background:var(--border-strong)}
+
+/* 本体 */
+.body{display:grid;grid-template-columns:56px 280px minmax(0,1fr) 340px;min-height:0}
+.rail{background:var(--rail);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px}
+.rail .ib{width:38px;height:38px;border-radius:10px}
+.rail .ib .ti{font-size:20px}
+.rail .ib.on{background:var(--accent);color:var(--on-accent)}
+.side{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.panel-h{display:flex;align-items:center;gap:6px;height:52px;padding:0 10px 0 14px;flex:none}
+.panel-h .h{font-weight:600;font-size:15px}
+.tree{padding:0 8px;display:flex;flex-direction:column;gap:2px}
+.trow{display:grid;grid-template-columns:18px 1fr auto 18px;align-items:center;gap:8px;height:38px;padding:0 8px;border-radius:7px}
+.trow.sel{background:var(--accent-soft)}
+.trow .ti{font-size:16px;color:var(--text-3)}
+.trow .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.statlabel{padding:0 14px 6px;font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:6px}
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 12px 12px}
+.stat{background:var(--surface-2);border-radius:9px;padding:7px 10px}
+.stat .l{font-size:11px;color:var(--text-3)}
+.stat .v{font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
+.side-foot{display:flex;gap:1px;padding:6px 8px;border-top:1px solid var(--border)}
+
+.center{padding:14px;display:grid;grid-template-rows:1fr;min-height:0;gap:0}
+.app[data-mode=adv] .center{grid-template-rows:1fr 10px 200px}
+.canvas{position:relative;background:var(--plot-bg);border:1px solid var(--border);border-radius:14px;display:grid;grid-template-rows:auto 1fr 50px;padding:12px 18px 10px 72px;min-height:0}
+.ctitle{display:flex;align-items:center;gap:8px;padding:0 0 6px}
+.ctitle .t{font-size:15px;font-weight:600}
+.vtools{position:absolute;left:14px;top:56px;display:flex;flex-direction:column;gap:3px;padding:5px;border-radius:13px;background:var(--surface);border:1px solid var(--border);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.vtools .ib{width:34px;height:34px;border-radius:9px}
+.vtools .ib .ti{font-size:18px}
+.vtools .vsep{width:20px;height:1px;margin:4px auto}
+.plot{width:100%;height:100%;display:block}
+.app[data-mode=adv] .canvas{grid-template-rows:auto auto 1fr 50px;padding-left:18px;padding-top:8px}
+.ptool{display:flex;align-items:center;gap:2px;padding:0 0 8px;margin:0 0 8px;border-bottom:1px solid var(--border);min-width:0;overflow:hidden}
+.segbox{display:flex;gap:1px;background:var(--surface-2);border-radius:8px;padding:2px}
+.lb{display:flex;align-items:center;gap:4px;padding:4px 7px;border-radius:6px;white-space:nowrap;font-size:12px}
+.lb .ti{font-size:15px;color:var(--text-2)}
+.lb.on{background:var(--surface);color:var(--accent-text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.app[data-theme=dark] .lb.on{background:var(--border-strong)}
+.lb.on .ti{color:var(--accent-text)}
+.grip{display:grid;place-items:center}
+.grip::after{content:"";width:40px;height:3px;border-radius:2px;background:var(--border-strong)}
+.bottom{background:var(--surface);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{display:flex;align-items:center;height:36px;border-bottom:1px solid var(--border);padding:0 6px;flex:none;gap:2px}
+.pt{height:26px;display:flex;align-items:center;gap:5px;padding:0 10px;color:var(--text-2);border-radius:7px;white-space:nowrap}
+.pt.on{background:var(--surface-2);color:var(--text);font-weight:600}
+.pt .ti{font-size:14px}
+.dtable{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+.dtable th{background:var(--surface-2);color:var(--text-2);font-weight:600;text-align:right;padding:4px 14px;border-bottom:1px solid var(--border)}
+.dtable th:first-child,.dtable td:first-child{text-align:center;color:var(--text-3);width:40px}
+.dtable td{text-align:right;padding:3px 14px;border-bottom:1px solid var(--border)}
+.dtable tr.hl td{background:var(--accent-soft)}
+.dtable td.neg{color:#D1453B}
+.app[data-theme=dark] .dtable td.neg{color:#F1857C}
+
+.insp{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.utabs{display:flex;gap:16px;padding:0 16px;border-bottom:1px solid var(--border);flex:none}
+.utabs div{padding:12px 0 9px;color:var(--text-2);border-bottom:2px solid transparent;white-space:nowrap}
+.utabs div.on{color:var(--text);font-weight:600;border-color:var(--accent)}
+.target{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);flex:none}
+.target .sub{font-size:11px;color:var(--text-3)}
+.target .h{font-weight:600}
+.form{padding:2px 16px 10px;display:flex;flex-direction:column;overflow-y:auto;min-height:0}
+.form > *{flex:none}
+.csec{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;padding:10px 0 5px;border-top:1px solid var(--border);margin-top:4px}
+.csec:first-child{border-top:none;margin-top:0}
+.csec .ti{font-size:14px;color:var(--text-3)}
+.csec .state{margin-left:auto;font-weight:400;font-size:11.5px;color:var(--text-3)}
+.csec.closed{padding:7px 0;margin-top:0}
+.f{display:grid;grid-template-columns:92px 1fr;align-items:center;gap:10px;padding:2px 0 2px 20px;min-height:34px;box-sizing:border-box}
+.f label{color:var(--text-2);font-size:12.5px}
+.in{height:30px;border-radius:7px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;padding:0 10px;gap:8px;min-width:0}
+.app[data-theme=dark] .in{background:var(--surface-2)}
+.in .ti{font-size:15px;color:var(--text-3);margin-left:auto}
+.in.focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.in.dim{color:var(--text-3)}
+.in.dis{background:var(--surface-2);color:var(--text-3)}
+.colorrow{display:flex;gap:6px;align-items:center}
+.chip{width:20px;height:20px;border-radius:6px;flex:none}
+.chip.big{width:26px;height:26px;border-radius:7px;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
+.typegrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.typegrid div{border:1px solid var(--border);border-radius:9px;height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text-2);font-size:11.5px}
+.typegrid div .ti{font-size:19px}
+.typegrid div.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.lsel{display:flex;gap:2px;background:var(--surface-2);border-radius:7px;padding:2px;flex:1}
+.lsel div{flex:1;height:22px;display:grid;place-items:center;border-radius:5px}
+.lsel div.on{background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.app[data-theme=dark] .lsel div.on{background:var(--border-strong)}
+.lsel svg{width:26px;height:4px}
+.sl{display:flex;align-items:center;gap:10px}
+.track{flex:1;height:4px;border-radius:2px;background:var(--border-strong);position:relative}
+.track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
+.track .knob{position:absolute;top:50%;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--accent);transform:translate(-50%,-50%)}
+.more{margin-top:12px;border:1px dashed var(--border-strong);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.more .row{display:flex;align-items:center;gap:8px;color:var(--text-2);font-size:12.5px}
+.more .row .ti{font-size:15px;color:var(--text-3)}
+.more .go{color:var(--accent-text);font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer}
+
+.app{position:relative}
+.pop{position:absolute;left:64px;bottom:34px;width:318px;background:var(--surface);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);padding:14px 16px;z-index:20;display:none}
+.pop.open{display:block}
+.pop .ttl{font-weight:600;font-size:14px;display:flex;align-items:center}
+.pop .sub{color:var(--text-3);font-size:11.5px;margin:2px 0 10px}
+.pop .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pop .opt{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--text-2);cursor:pointer}
+.pop .opt .c{width:34px;height:34px;border-radius:9px}
+.pop .opt.on .c{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--text)}
+.pop .row{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.pop .row input{width:34px;height:30px;border:0;padding:0;background:none;cursor:pointer}
+.pop .prev{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;align-items:center;margin-top:10px;font-size:12px;color:var(--text-2)}
+.pop .prev .chip2{display:flex;align-items:center;gap:6px;font-family:Consolas,monospace;color:var(--text)}
+.pop .prev .chip2 i{width:14px;height:14px;border-radius:4px;display:inline-block}
+.pop .fix{margin-top:10px;font-size:11.5px;color:var(--text-2);background:var(--surface-2);border-radius:8px;padding:6px 8px;display:none;gap:6px;line-height:1.5}
+.pop .fix.show{display:flex}
+.pop .btns{display:flex;gap:8px;margin-top:12px}
+.pop .ghost{border:1px solid var(--border-strong);border-radius:7px;padding:4px 10px;color:var(--text-2);cursor:pointer}
+.rail .ib.active-set{background:var(--surface);color:var(--text);box-shadow:0 0 0 1px var(--border-strong)}
+.status{background:var(--chrome);border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 12px;font-size:11px;color:var(--text-2)}
+.status .ok{display:flex;align-items:center;gap:6px}
+.status .ok i{width:7px;height:7px;border-radius:50%;background:#22A06B;display:inline-block}
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="grp"><span class="lbl">モード</span><button data-mode="lite" class="on">Lite</button><button data-mode="adv">Advanced</button></div>
+  <div class="grp"><span class="lbl">Advanced で増える部分</span><button data-hl="off" class="on">ふつう</button><button data-hl="on">点線で強調</button></div>
+  <div class="grp"><span class="lbl">テーマ</span><button data-theme="light" class="on">ライト</button><button data-theme="dark">ダーク</button></div>
+  <div class="grp"><span class="lbl">テーマカラー</span><span class="swrow" data-swatches></span>
+    <label class="custom"><input type="color" data-custom value="#0F4C5C">カスタム</label></div>
+</div>
+<div class="note">テーマカラーは上のバーか、アプリ左下の <b>⚙ → テーマカラー</b> で変えられます。既定はアプリアイコンの背景色(#0F4C5C)です。黄色や薄い色を選ぶと、読みやすい濃さに自動で調整します。<br>Lite と Advanced は同じ画面です。上部・帯・データセット一覧・グラフのカード・プロパティの位置とデザインは変わらず、Advanced では項目とグラフの下のパネルが<b>足されるだけ</b>です。グラフの道具だけは、Lite は左に浮くアイコン、Advanced はプロットエリアの上に文字付きで並べます。「点線で強調」にすると、Advanced で増える部分が分かります。</div>
+
+<div class="stage"><div class="scaler" id="scaler">
+<div class="app" id="app" data-mode="lite" data-theme="light" data-accent="teal">
+  <div class="top">
+    <div class="ib" title="メニュー"><i class="ti ti-menu-2" style="font-size:19px"></i></div>
+    <div class="logo"><div class="mark">G</div>Graphica</div>
+    <div class="tab active"><span class="dot"></span>冷却曲線の解析<span class="x ti ti-x"></span></div>
+    <div class="tab">無題のプロジェクト 2<span class="x ti ti-x"></span></div>
+    <div class="ib"><i class="ti ti-plus"></i></div>
+    <div class="spacer"></div>
+    <div class="search" style="width:300px;background:var(--surface)"><i class="ti ti-search" style="font-size:14px"></i>コマンドを検索<span class="kbd">Ctrl+Shift+P</span></div>
+    <div class="spacer"></div>
+    <div class="mode" id="modeSwitch"><div data-m="lite"><i class="ti ti-sparkles"></i>Lite</div><div data-m="adv"><i class="ti ti-adjustments"></i>Advanced</div></div>
+    <div class="vsep"></div>
+    <div class="ib"><i class="ti ti-arrow-back-up"></i></div><div class="ib"><i class="ti ti-arrow-forward-up"></i></div>
+    <div class="ib" title="保存"><i class="ti ti-device-floppy"></i></div>
+    <div class="btn-primary"><i class="ti ti-photo-down" style="font-size:15px"></i>エクスポート</div>
+  </div>
+
+  <div class="body">
+    <div class="rail">
+      <div class="ib on" title="データセット"><i class="ti ti-database"></i></div>
+      <div class="ib" title="解析"><i class="ti ti-math-function"></i></div>
+      <div class="ib" title="注釈"><i class="ti ti-message-2"></i></div>
+      <div class="ib" title="プラグイン"><i class="ti ti-puzzle"></i></div>
+      <div class="ib" title="レイアウト"><i class="ti ti-layout-grid"></i></div>
+      <div class="spacer"></div>
+      <div class="ib" id="themeBtn" title="ダークモード"><i class="ti ti-moon"></i></div>
+      <div class="ib" id="setBtn" title="設定" style="cursor:pointer"><i class="ti ti-settings"></i></div>
+    </div>
+
+    <div class="side">
+      <div class="panel-h"><span class="h">データセット</span><span class="count">3</span><div class="spacer"></div>
+        <div class="ib" title="フォルダ"><i class="ti ti-folder-plus"></i></div>
+        <div class="btn-primary"><i class="ti ti-plus" style="font-size:14px"></i>追加</div></div>
+      <div style="padding:0 12px 8px"><div class="search"><i class="ti ti-search" style="font-size:13px"></i>データセットを検索</div></div>
+      <div class="tree">
+        <div class="trow sel"><span class="line" style="background:#1f77b4"></span><span class="name">cooling_curve</span><span class="meta">41 点</span><i class="ti ti-eye"></i></div>
+        <div class="trow" style="color:var(--text-2)"><i class="ti ti-folder"></i><span class="name">比較用</span><span></span><i class="ti ti-chevron-down"></i></div>
+        <div class="trow" style="padding-left:28px"><span class="line" style="background:#ff7f0e"></span><span class="name">cooling_curve_2</span><span class="meta">41 点</span><i class="ti ti-eye"></i></div>
+        <div class="trow" style="padding-left:28px;color:var(--text-3)"><span class="line" style="background:#2ca02c;opacity:.4"></span><span class="name">fit_exp</span><span class="meta">200 点</span><i class="ti ti-eye-off"></i></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="statlabel"><span class="line" style="background:#1f77b4;width:14px"></span>cooling_curve</div>
+      <div class="statgrid">
+        <div class="stat"><div class="l">点の数</div><div class="v">41</div></div>
+        <div class="stat"><div class="l">平均</div><div class="v">42.99</div></div>
+        <div class="stat"><div class="l">標準偏差</div><div class="v">17.54</div></div>
+        <div class="stat adv-only"><div class="l">最小</div><div class="v">26.84</div></div>
+        <div class="stat adv-only"><div class="l">最大</div><div class="v">90.18</div></div>
+        <div class="stat adv-only"><div class="l">欠損</div><div class="v">0</div></div>
+      </div>
+      <div class="side-foot"><div class="ib" title="データを編集"><i class="ti ti-table"></i></div><div class="ib" title="複製"><i class="ti ti-copy"></i></div><div class="ib" title="名前を変更"><i class="ti ti-pencil"></i></div><div class="ib" title="色"><i class="ti ti-palette"></i></div><div class="spacer"></div><div class="ib"><i class="ti ti-dots"></i></div><div class="ib" title="削除"><i class="ti ti-trash"></i></div></div>
+    </div>
+
+    <div class="center">
+      <div class="canvas">
+        <div class="ctitle"><span class="t">温度の変化</span><span class="meta">3 系列</span><div class="spacer"></div><span class="meta adv-only" style="padding:0 6px">サブプロット 1 / 1</span>
+          <div class="ib" title="範囲をリセット"><i class="ti ti-zoom-reset"></i></div>
+          <div class="ib adv-only" title="ミニマップ"><i class="ti ti-map"></i></div>
+          <div class="ib" title="別ウィンドウ"><i class="ti ti-external-link"></i></div></div>
+        <div class="ptool adv-only">
+          <div class="segbox">
+            <div class="lb on"><i class="ti ti-pointer"></i>カーソル</div><div class="lb"><i class="ti ti-message-2"></i>注釈</div><div class="lb"><i class="ti ti-box-margin"></i>範囲選択</div><div class="lb"><i class="ti ti-triangle"></i>ピーク</div><div class="lb"><i class="ti ti-highlight"></i>領域</div><div class="lb"><i class="ti ti-chart-line"></i>スライス</div><div class="lb"><i class="ti ti-layout-grid"></i>配置</div>
+          </div>
+          <div class="vsep"></div>
+          <div class="lb"><i class="ti ti-math-function"></i>フィット</div><div class="lb"><i class="ti ti-wave-sine"></i>平滑化</div>
+        </div>
+        <div class="vtools lite-only">
+          <div class="ib on" title="カーソル"><i class="ti ti-pointer"></i></div>
+          <div class="ib" title="注釈"><i class="ti ti-message-2"></i></div>
+          <div class="ib" title="範囲選択"><i class="ti ti-box-margin"></i></div>
+          <div class="ib adv-only" title="ピーク"><i class="ti ti-triangle"></i></div>
+          <div class="ib adv-only" title="領域"><i class="ti ti-highlight"></i></div>
+          <div class="ib adv-only" title="スライス"><i class="ti ti-chart-line"></i></div>
+          <div class="ib adv-only" title="配置"><i class="ti ti-layout-grid"></i></div>
+          <div class="vsep"></div>
+          <div class="ib" title="フィット"><i class="ti ti-math-function"></i></div>
+          <div class="ib adv-only" title="平滑化"><i class="ti ti-wave-sine"></i></div>
+        </div>
+        <svg class="plot" data-plot="main"></svg>
+        <svg class="plot" data-plot="mini"></svg>
+      </div>
+      <div class="grip adv-only" style="outline:none"></div>
+      <div class="bottom adv-only">
+        <div class="ph">
+          <div class="pt on"><i class="ti ti-table"></i>データ表</div><div class="pt"><i class="ti ti-math-function"></i>フィット結果<span class="badge ok">R² 0.998</span></div><div class="pt"><i class="ti ti-history"></i>来歴</div><div class="pt"><i class="ti ti-terminal-2"></i>ログ</div>
+          <div class="spacer"></div><span class="meta" style="margin-right:6px">cooling_curve · 41 行</span>
+          <div class="ib"><i class="ti ti-filter"></i></div><div class="ib"><i class="ti ti-chevron-down"></i></div>
+        </div>
+        <div style="overflow:hidden;flex:1"><table class="dtable" id="dtable"></table></div>
+      </div>
+    </div>
+
+    <div class="insp">
+      <div class="utabs"><div class="on">プロパティ</div><div>軸</div><div class="adv-only">凡例</div><div>エクスポート</div></div>
+      <div class="target"><span class="line" style="background:#1f77b4;width:22px;height:4px"></span><div><div class="h">cooling_curve</div><div class="sub">時間_s → 温度_degC · Line</div></div></div>
+      <div class="form">
+        <div class="csec"><i class="ti ti-chevron-down"></i>データ列</div>
+        <div class="f"><label>X 軸の列</label><div class="in">時間_s<i class="ti ti-selector"></i></div></div>
+        <div class="f"><label>Y 軸の列</label><div class="in">温度_degC<i class="ti ti-selector"></i></div></div>
+        <div class="f adv-only"><label>X 誤差列</label><div class="in dim">なし<i class="ti ti-selector"></i></div></div>
+        <div class="f adv-only"><label>Y 誤差列</label><div class="in dim">なし<i class="ti ti-selector"></i></div></div>
+        <div class="f adv-only"><label>欠損値の扱い</label><div class="in">線を切る(既定)<i class="ti ti-selector"></i></div></div>
+
+        <div class="csec"><i class="ti ti-chevron-down"></i>基本スタイル</div>
+        <div class="f lite-only" style="grid-template-columns:1fr;padding-left:20px"><div class="typegrid">
+          <div class="on"><i class="ti ti-chart-line"></i>線</div><div><i class="ti ti-chart-dots"></i>点</div><div><i class="ti ti-chart-dots-2"></i>線+点</div><div><i class="ti ti-chart-bar"></i>棒</div></div></div>
+        <div class="f"><label>凡例名</label><div class="in focus">cooling_curve</div></div>
+        <div class="f adv-only"><label>種別</label><div class="in">Line<i class="ti ti-selector"></i></div></div>
+        <div class="f"><label>色</label><div class="colorrow"><span class="chip big" style="background:#1f77b4"></span><span class="chip" style="background:#ff7f0e"></span><span class="chip" style="background:#2ca02c"></span><span class="chip" style="background:#d62728"></span><span class="chip" style="background:#9467bd"></span><span class="mono adv-only" style="margin-left:auto;color:var(--text-2);font-size:11.5px">#1F77B4</span></div></div>
+        <div class="f"><label>線の種類</label><div class="lsel">
+          <div class="on"><svg><line x1="0" y1="2" x2="26" y2="2" stroke="currentColor" stroke-width="2"/></svg></div>
+          <div><svg><line x1="0" y1="2" x2="26" y2="2" stroke="currentColor" stroke-width="2" stroke-dasharray="6 3"/></svg></div>
+          <div><svg><line x1="0" y1="2" x2="26" y2="2" stroke="currentColor" stroke-width="2" stroke-dasharray="2 3"/></svg></div>
+          <div><svg><line x1="0" y1="2" x2="26" y2="2" stroke="currentColor" stroke-width="2" stroke-dasharray="7 3 2 3"/></svg></div></div></div>
+        <div class="f"><label>線の太さ</label><div class="sl"><div class="track"><div class="fill" style="width:30%"></div><div class="knob" style="left:30%"></div></div><span class="mono" style="width:34px;text-align:right">1.50</span></div></div>
+        <div class="f adv-only"><label>透明度</label><div class="sl"><div class="track"><div class="fill" style="width:100%"></div><div class="knob" style="left:100%"></div></div><span class="mono" style="width:34px;text-align:right">1.00</span></div></div>
+        <div class="f adv-only"><label>平滑化</label><div><div class="toggle"></div></div></div>
+        <div class="f adv-only"><label>平滑化の手法</label><div class="in dis">CubicSpline(既定)<i class="ti ti-selector"></i></div></div>
+
+        <div class="csec closed adv-only"><i class="ti ti-chevron-right"></i>マーカー<span class="state">なし</span></div>
+        <div class="csec closed adv-only"><i class="ti ti-chevron-right"></i>グラデーション<span class="state">オフ</span></div>
+        <div class="csec closed adv-only"><i class="ti ti-chevron-right"></i>ウォーターフォール<span class="state">オフ</span></div>
+        <div class="csec closed adv-only"><i class="ti ti-chevron-right"></i>2D マップ・値による配色<span class="state">オフ</span></div>
+        <div class="csec closed adv-only"><i class="ti ti-chevron-right"></i>表示の追加要素</div>
+        <div class="csec closed adv-only"><i class="ti ti-chevron-right"></i>配置・情報</div>
+
+        <div class="more lite-only">
+          <div class="row"><i class="ti ti-lock"></i>誤差・透明度・平滑化・マーカー・グラデーション・ウォーターフォール・2D マップなど</div>
+          <div class="go" id="toAdv">Advanced ですべて表示<i class="ti ti-arrow-right" style="font-size:14px"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pop" id="pop">
+    <div class="ttl">テーマカラー<span class="spacer"></span><i class="ti ti-x" id="popClose" style="cursor:pointer;color:var(--text-3)"></i></div>
+    <div class="sub">ボタン・選択・枠などに使う色です。グラフの線の色は変わりません。</div>
+    <div class="grid" id="popGrid"></div>
+    <div class="row"><input type="color" data-custom value="#0F4C5C"><div><div style="font-weight:600">カスタム</div><div class="meta">好きな色を選ぶ</div></div><span class="spacer"></span><span class="mono" id="popHex" style="font-size:12px"></span></div>
+    <div class="prev"><span>ライトで使う色</span><span class="chip2" id="prevL"></span><span>ダークで使う色</span><span class="chip2" id="prevD"></span></div>
+    <div class="fix" id="fix"><i class="ti ti-info-circle" style="font-size:15px;color:var(--accent-text)"></i><span id="fixText"></span></div>
+    <div class="btns"><span class="ghost" id="reset">既定に戻す(アイコンの色)</span></div>
+  </div>
+  <div class="status"><span class="ok"><i></i>準備完了</span><span class="adv-only">3 データセット · 1 選択</span><div class="spacer"></div><span class="mono adv-only">X = 7.42　Y = 40.18</span><span>自動保存 2 分前</span></div>
+</div>
+</div></div>
+
+<script>
+const app = document.getElementById('app');
+const pts = [];
+for (let i = 0; i <= 40; i++) { const t = i * 0.5, n = Math.sin(i * 1.7) * 0.6 + Math.cos(i * 0.9) * 0.4; pts.push([t, 26.5 + 63.5 * Math.exp(-t / 5.0) + n]); }
+const pts2 = pts.map((p, i) => [p[0], p[1] + 3 + Math.sin(i) * 0.8]);
+const fit = t => 26.6 + 63.4 * Math.exp(-t / 5.02);
+const cv = n => getComputedStyle(app).getPropertyValue(n).trim();
+
+function drawMain(svg) {
+  const W = svg.clientWidth, H = svg.clientHeight; if (!W || !H) return;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const fg = cv('--plot-fg'), bg = cv('--plot-bg'), lb = cv('--legend-border'), fs = 12.5;
+  const adv = app.dataset.mode === 'adv';
+  const L = 46, R = W - 12, T = 8, B = H - 24;
+  const sx = t => L + (t / 20) * (R - L), sy = v => B - ((v - 25) / 68) * (B - T);
+  let s = `<rect width="${W}" height="${H}" fill="${bg}"/><rect x="${L}" y="${T}" width="${R - L}" height="${B - T}" fill="none" stroke="${fg}"/>`;
+  for (let v = 30; v <= 90; v += 10) s += `<line x1="${L - 4}" x2="${L}" y1="${sy(v)}" y2="${sy(v)}" stroke="${fg}"/><text x="${L - 7}" y="${sy(v) + 4}" font-size="${fs}" text-anchor="end" fill="${fg}" font-family="Segoe UI">${v}</text>`;
+  for (let t = 0; t <= 20; t += 2.5) s += `<line x1="${sx(t)}" x2="${sx(t)}" y1="${B}" y2="${B + 4}" stroke="${fg}"/><text x="${sx(t)}" y="${B + 17}" font-size="${fs}" text-anchor="middle" fill="${fg}" font-family="Segoe UI">${t.toFixed(1)}</text>`;
+  let fd = ''; for (let t = 0; t <= 20; t += 0.25) fd += (t ? 'L' : 'M') + sx(t).toFixed(1) + ' ' + sy(fit(t)).toFixed(1);
+  s += `<path d="${fd}" fill="none" stroke="#2ca02c" stroke-width="1.4" stroke-dasharray="5 3" opacity=".45"/>`;
+  s += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + sx(p[0]).toFixed(1) + ' ' + sy(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="#1f77b4" stroke-width="1.8"/>`;
+  pts2.forEach(p => s += `<circle cx="${sx(p[0])}" cy="${sy(p[1])}" r="3" fill="#ff7f0e"/>`);
+  const lx = R - 210, ly = T + 12;
+  s += `<rect x="${lx}" y="${ly}" width="196" height="64" rx="3" fill="${bg}" stroke="${lb}"/>`;
+  [['#1f77b4', 'cooling_curve', 'l'], ['#ff7f0e', 'cooling_curve_2', 'c'], ['#2ca02c', 'fit_exp', 'd']].forEach((e, i) => {
+    const y = ly + 16 + i * 17;
+    s += e[2] === 'c' ? `<circle cx="${lx + 23}" cy="${y}" r="3" fill="${e[0]}"/>` : `<line x1="${lx + 10}" x2="${lx + 36}" y1="${y}" y2="${y}" stroke="${e[0]}" stroke-width="2" ${e[2] === 'd' ? 'stroke-dasharray="5 3" opacity=".45"' : ''}/>`;
+    s += `<text x="${lx + 44}" y="${y + 4}" font-size="12" fill="${fg}" font-family="Segoe UI">${e[1]}</text>`;
+  });
+  const cx = sx(7.5), cy = sy(pts[15][1]);
+  s += `<line x1="${cx}" x2="${cx}" y1="${T}" y2="${B}" stroke="var(--accent)" stroke-dasharray="4 4" opacity=".7"/><circle cx="${cx}" cy="${cy}" r="5" fill="${bg}" stroke="var(--accent)" stroke-width="2"/>`;
+  const label = (adv ? '#16 · ' : '') + '時間 7.5 s · 温度 41.1 ℃';
+  const lw = adv ? 196 : 164;
+  s += `<g transform="translate(${cx + 10},${cy - 34})"><rect width="${lw}" height="26" rx="6" fill="var(--surface)" stroke="var(--border-strong)"/><text x="9" y="17" font-size="11.5" fill="${fg}" font-family="Yu Gothic UI">${label}</text></g>`;
+  svg.innerHTML = s;
+}
+function drawMini(svg) {
+  const W = svg.clientWidth, H = svg.clientHeight; if (!W || !H) return;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const mx = t => 46 + (t / 20) * (W - 58), my = v => H - 4 - ((v - 25) / 68) * (H - 10);
+  let m = `<rect x="46" y="3" width="${W - 58}" height="${H - 6}" rx="6" fill="var(--surface-2)"/>`;
+  m += `<rect x="${mx(5)}" y="3" width="${mx(12) - mx(5)}" height="${H - 6}" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>`;
+  m += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + mx(p[0]).toFixed(1) + ' ' + my(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="#1f77b4" stroke-width="1.3"/>`;
+  svg.innerHTML = m;
+}
+(function table() {
+  let h = '<tr><th>#</th><th>時間_s</th><th>温度_degC</th><th>フィット値</th><th>残差</th></tr>';
+  pts.slice(12, 21).forEach((p, j) => {
+    const i = j + 12, f = fit(p[0]), r = p[1] - f;
+    h += `<tr class="${i === 15 ? 'hl' : ''}"><td>${i + 1}</td><td>${p[0].toFixed(1)}</td><td>${p[1].toFixed(2)}</td><td>${f.toFixed(2)}</td><td class="${r < 0 ? 'neg' : ''}">${r.toFixed(3)}</td></tr>`;
+  });
+  document.getElementById('dtable').innerHTML = h;
+})();
+
+const DEFAULT = '#0F4C5C';
+const PRESETS = [['アイコン', '#0F4C5C'], ['ティール', '#1F7A80'], ['インディゴ', '#4F46E5'], ['ブルー', '#2563EB'],
+                 ['パープル', '#7C3AED'], ['ローズ', '#E11D48'], ['オレンジ', '#F97316'], ['イエロー', '#FACC15']];
+const LIGHT_BG = [255, 255, 255], DARK_BG = [24, 27, 31], INK = [12, 14, 17];
+const hexToRgb = h => { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); };
+const rgbToHex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+function lum(c) { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; }
+function contrast(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+function rgbToHsl([r, g, b]) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b); let h = 0, s = 0; const l = (mx + mn) / 2;
+  if (mx !== mn) { const d = mx - mn; s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6; } return [h, s, l]; }
+function hslToRgb(h, s, l) { if (!s) return [l * 255, l * 255, l * 255];
+  const q = l < .5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < .5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255]; }
+function untilContrast(c, bg, target, dir) { let [h, s, l] = rgbToHsl(c), out = c;
+  for (let i = 0; i < 100 && contrast(out, bg) < target; i++) { l = Math.max(0, Math.min(1, l + dir * 0.01)); out = hslToRgb(h, s, l); } return out.map(Math.round); }
+function derive(hex, dark) {
+  const base = hexToRgb(hex), bg = dark ? DARK_BG : LIGHT_BG, dir = dark ? 1 : -1;
+  const acc = untilContrast(base, bg, 4.5, dir);
+  const text = untilContrast(acc, bg, dark ? 7 : 4.5, dir);
+  const on = contrast(acc, [255, 255, 255]) >= contrast(acc, INK) ? '#FFFFFF' : rgbToHex(INK);
+  return {accent: rgbToHex(acc), text: rgbToHex(text), on, soft: `rgba(${acc.join(',')},${dark ? .18 : .12})`, changed: rgbToHex(acc) !== hex.toUpperCase()};
+}
+const state = {mode: 'lite', hl: 'off', theme: 'light', color: DEFAULT};
+function buildSwatches() {
+  document.querySelectorAll('[data-swatches]').forEach(el => {
+    el.innerHTML = PRESETS.map(([n, c]) => `<button class="sw" title="${n} ${c}" data-color="${c}" style="background:${c}"></button>`).join('');
+  });
+  document.getElementById('popGrid').innerHTML = PRESETS.map(([n, c]) =>
+    `<div class="opt" data-color="${c}"><span class="c" style="background:${c}"></span>${n}</div>`).join('');
+  document.querySelectorAll('[data-color]').forEach(el => el.addEventListener('click', () => { state.color = el.dataset.color; apply(); }));
+  document.querySelectorAll('[data-custom]').forEach(el => el.addEventListener('input', () => { state.color = el.value.toUpperCase(); apply(); }));
+}
+function applyColor() {
+  const t = derive(state.color, state.theme === 'dark');
+  app.style.setProperty('--accent', t.accent); app.style.setProperty('--accent-text', t.text);
+  app.style.setProperty('--on-accent', t.on); app.style.setProperty('--accent-soft', t.soft);
+  const L = derive(state.color, false), D = derive(state.color, true);
+  document.getElementById('prevL').innerHTML = `<i style="background:${L.accent}"></i>${L.accent}`;
+  document.getElementById('prevD').innerHTML = `<i style="background:${D.accent}"></i>${D.accent}`;
+  document.getElementById('popHex').textContent = state.color.toUpperCase();
+  const msgs = [];
+  if (L.changed) msgs.push('ライトでは白い背景で見えるよう濃く');
+  if (D.changed) msgs.push('ダークでは暗い背景で見えるよう明るく');
+  document.getElementById('fix').classList.toggle('show', msgs.length > 0);
+  document.getElementById('fixText').textContent = msgs.join('、') + 'しています(読みやすさの自動調整)。';
+  document.querySelectorAll('[data-color]').forEach(el => el.classList.toggle('on', el.dataset.color.toUpperCase() === state.color.toUpperCase()));
+  document.querySelectorAll('[data-custom]').forEach(el => { el.value = state.color.toLowerCase(); });
+}
+function apply() {
+  app.dataset.mode = state.mode; app.dataset.theme = state.theme;
+  applyColor();
+  app.classList.toggle('hl', state.hl === 'on');
+  document.querySelectorAll('#modeSwitch [data-m]').forEach(d => d.classList.toggle('on', d.dataset.m === state.mode));
+  document.querySelectorAll('.controls button').forEach(b => {
+    for (const k of ['mode', 'hl', 'theme']) if (b.dataset[k]) b.classList.toggle('on', b.dataset[k] === state[k]);
+  });
+  requestAnimationFrame(() => {
+    app.querySelectorAll('[data-plot=main]').forEach(drawMain);
+    app.querySelectorAll('[data-plot=mini]').forEach(drawMini);
+  });
+  fitScale();
+}
+document.querySelectorAll('.controls button:not(.sw)').forEach(b => b.addEventListener('click', () => {
+  for (const k of ['mode', 'hl', 'theme']) if (b.dataset[k]) state[k] = b.dataset[k];
+  apply();
+}));
+document.querySelectorAll('#modeSwitch [data-m]').forEach(d => d.addEventListener('click', () => { state.mode = d.dataset.m; apply(); }));
+document.getElementById('toAdv').addEventListener('click', () => { state.mode = 'adv'; apply(); });
+document.getElementById('themeBtn').addEventListener('click', () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; apply(); });
+function fitScale() {
+  const sc = document.getElementById('scaler');
+  const s = Math.min(1, (document.querySelector('.stage').clientWidth - 40) / 1440);
+  sc.style.transform = `scale(${s})`;
+  sc.parentElement.style.height = (900 * s) + 'px';
+}
+window.addEventListener('resize', fitScale);
+const pop = document.getElementById('pop'), setBtn = document.getElementById('setBtn');
+setBtn.addEventListener('click', () => { pop.classList.toggle('open'); setBtn.classList.toggle('active-set', pop.classList.contains('open')); });
+document.getElementById('popClose').addEventListener('click', () => { pop.classList.remove('open'); setBtn.classList.remove('active-set'); });
+document.getElementById('reset').addEventListener('click', () => { state.color = DEFAULT; apply(); });
+buildSwatches();
+apply();
+</script>
+</body>
+</html>

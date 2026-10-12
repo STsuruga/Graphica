@@ -5290,6 +5290,30 @@
              "checked": false,
              "visible": true,
              "enabled": true
+            },
+            {
+             "class": "QLabel",
+             "text": "テーマカラー",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QLabel",
+             "text": "#0F4C5C",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QPushButton",
+             "text": "既定に戻す",
+             "visible": true,
+             "enabled": true
             }
            ]
           },

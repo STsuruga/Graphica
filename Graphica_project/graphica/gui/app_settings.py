@@ -9,6 +9,7 @@ from typing import Any
 from PySide6.QtCore import QSettings
 
 from graphica.core.i18n import DEFAULT_LANGUAGE
+from graphica.gui.theme_color import DEFAULT_THEME_COLOR
 
 ORGANIZATION_NAME = "Graphica"
 APPLICATION_NAME = "Graphica"
@@ -22,7 +23,6 @@ DEFAULT_SNAP_GRID_INTERVAL_PX = 10
 CANVAS_DETACHED_GEOMETRY_KEY = "canvas_detached_geometry"
 CANVAS_WAS_DETACHED_KEY = "canvas_was_detached"
 # 名前を付けて保存するドック配置(起動時に戻す直近の window_state とは別)
-DOCK_LAYOUT_PRESETS_SETTINGS_KEY = "dock_layout_presets"
 # 閉じている節のキーの JSON 配列。無い・空なら全部開く(節を足しても既定は開いたまま)
 DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY = "dataset_property_collapsed_sections"
 DISABLED_PLUGINS_SETTINGS_KEY = "disabled_plugins"
@@ -80,6 +80,10 @@ def as_list_keeping_empty_string(value: Any) -> list[Any]:
 
 LANGUAGE = Setting("language", DEFAULT_LANGUAGE, export_as=str, export_default="")
 DARK_MODE = Setting("dark_mode", False, bool, export_as=bool)
+# UI の強調に使う色(利用者が選んだ色そのもの。読みやすさの補正は gui/theme_color.py が毎回する)
+THEME_COLOR = Setting("theme_color", DEFAULT_THEME_COLOR, str, export_as=str)
+# 表示のモード: "lite"(シンプル)/ "advanced"(アドバンスド)。空なら初回に gui/ui_mode.initial_mode() が決める
+UI_MODE = Setting("ui_mode", "", str, export_as=str)
 AUTOSAVE_INTERVAL_MIN = Setting("autosave_interval_min", DEFAULT_AUTOSAVE_INTERVAL_MIN, int, export_as=int)
 AUTOSAVE_DIR = Setting("autosave_dir", "", str)
 # 新しいタブ・プロジェクトに当てる書式テンプレートのパス(空なら使わない)。パスはその PC だけのものなので書き出さない
@@ -105,7 +109,6 @@ RECENT_COLORS = Setting(RECENT_COLORS_SETTINGS_KEY, [])
 WINDOW_GEOMETRY = Setting("window_geometry")
 WINDOW_STATE = Setting("window_state")
 DOCK_LAYOUT_VERSION = Setting("dock_layout_version", 0, int)
-DOCK_LAYOUT_PRESETS = Setting(DOCK_LAYOUT_PRESETS_SETTINGS_KEY, "{}")
 DATASET_PROPERTY_COLLAPSED_SECTIONS = Setting(DATASET_PROPERTY_COLLAPSED_SECTIONS_KEY, "[]")
 CANVAS_WAS_DETACHED = Setting(CANVAS_WAS_DETACHED_KEY, False, bool)
 CANVAS_DETACHED_GEOMETRY = Setting(CANVAS_DETACHED_GEOMETRY_KEY)
@@ -114,7 +117,7 @@ CANVAS_DETACHED_GEOMETRY = Setting(CANVAS_DETACHED_GEOMETRY_KEY)
 EXPORTED_SETTINGS: tuple[Setting, ...] = (
     LANGUAGE, DARK_MODE, AUTOSAVE_INTERVAL_MIN, POINT_LABEL_MAX_POINTS, SNAP_TO_GRID_ENABLED, SNAP_GRID_INTERVAL_PX,
     CUSTOM_COLOR_PALETTES, ACTIVE_COLOR_PALETTE, QUICK_ACCESS_PINNED_ACTIONS, DISABLED_PLUGINS,
-    WHEEL_ZOOM_SPEED,
+    WHEEL_ZOOM_SPEED, THEME_COLOR, UI_MODE,
 )
 
 

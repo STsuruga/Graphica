@@ -169,6 +169,26 @@ def _run_curve_fit_with_overrides(fit_func: Callable[..., Any], params_info: lis
     return popt, pcov
 
 
+def evaluate_saved_fit(fit_result: dict[str, Any], x: Any) -> Any:
+    """保存したフィット結果(Dataset.fit_result)の曲線の値を x で計算する。式が分からない・計算できないときは None。
+
+    Args:
+        fit_result: calculate_curve_fit の結果から作った、データセットに保存する形の辞書。
+        x: 値を求める X(数値の並び)。
+
+    Returns:
+        x と同じ長さの float の ndarray、または None。
+    """
+    try:
+        model = resolve_fit_model(fit_result.get('fit_type', ''), fit_result.get('custom_formula'),
+                                  _PLUGIN_FIT_FUNCTIONS, fit_result.get('fit_model_id'))
+        x_values = np.asarray(x, dtype=float)
+        values = np.asarray(model.func(x_values, *fit_result.get('params', [])), dtype=float)
+        return np.broadcast_to(values, x_values.shape).copy()
+    except (ValueError, TypeError, ArithmeticError, KeyError, IndexError):
+        return None
+
+
 def calculate_curve_fit(x_data: Any, y_data: Any, fit_type: str, custom_formula: str | None = None, sigma: Any = None,
                         x_range: tuple[float, float] | None = None, p0_overrides: dict[str, float] | None = None,
                         fixed_params: dict[str, float] | None = None,

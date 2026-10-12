@@ -16,7 +16,9 @@
    "disabled_plugins": [
     "example_plugin"
    ],
-   "wheel_zoom_speed": "normal"
+   "wheel_zoom_speed": "normal",
+   "theme_color": "#0F4C5C",
+   "ui_mode": ""
   }
  },
  "export_modals": [

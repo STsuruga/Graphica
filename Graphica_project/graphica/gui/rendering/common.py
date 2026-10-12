@@ -6,7 +6,7 @@ import pandas as pd
 from graphica.core.analysis import sample_standard_deviation
 from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
 from graphica.core.dataset import WATERFALL_OFFSET_ABSOLUTE
-from graphica.gui.theme import DARK_TOKENS, LIGHT_TOKENS
+from graphica.gui.theme import DARK_TOKENS
 from typing import NamedTuple
 
 # 注釈を「まだ一度も描いていない」を表す番兵。None だとキーが None のときに一致してしまう
@@ -316,20 +316,22 @@ def _resolve_tick_lengths(settings):
     return major, minor
 
 
-# グラフの配色は gui/theme.py のトークンから取る。Figure も Axes も surface にするのは、キャンバスを囲む
-# Qt 側の余白(surface)との間に色の継ぎ目を作らないため
+# ダークのグラフの配色は gui/theme.py のトークンから取る。Figure も Axes も surface にするのは、キャンバスを
+# 囲む Qt 側の面(surface)との間に色の継ぎ目を作らないため
 DARK_FIGURE_FACECOLOR = DARK_TOKENS['surface']
 DARK_AXES_FACECOLOR = DARK_TOKENS['surface']
 DARK_TEXT_COLOR = DARK_TOKENS['text_primary']
-LIGHT_FIGURE_FACECOLOR = LIGHT_TOKENS['surface']
-LIGHT_AXES_FACECOLOR = LIGHT_TOKENS['surface']
-LIGHT_TEXT_COLOR = LIGHT_TOKENS['text_primary']
+# ライトは書き出す図の既定の見た目なので、値を固定して UI のトークンと切り離す(UI の配色を変えても、
+# 書き出した図が変わらないように)。値は GUI 刷新の前のトークンのまま
+LIGHT_FIGURE_FACECOLOR = '#FFFFFF'
+LIGHT_AXES_FACECOLOR = '#FFFFFF'
+LIGHT_TEXT_COLOR = '#1B1F1E'
 
 # 凡例は軸の背景と同化しないよう、一段違う面色と濃い枠線にする
 DARK_LEGEND_FACECOLOR = DARK_TOKENS['surface_2']
 DARK_LEGEND_EDGECOLOR = DARK_TOKENS['border_strong']
-LIGHT_LEGEND_FACECOLOR = LIGHT_TOKENS['surface_2']
-LIGHT_LEGEND_EDGECOLOR = LIGHT_TOKENS['border_strong']
+LIGHT_LEGEND_FACECOLOR = '#EEF0F3'
+LIGHT_LEGEND_EDGECOLOR = '#C9CDCB'
 
 DARK_GRID_COLOR = DARK_TOKENS['border_strong']
-LIGHT_GRID_COLOR = LIGHT_TOKENS['border_strong']
+LIGHT_GRID_COLOR = '#C9CDCB'

@@ -1,46 +1,11 @@
-"""データセットのプロパティ欄の 7 つの節(折りたたみ・開閉の保存・見出しの出し入れ・ラベル列の幅)。"""
+"""データセットのプロパティ欄の節(折りたたみ・開閉の保存・見出しの出し入れ・ラベル列の幅)。"""
 import json
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QFormLayout, QLabel, QSizePolicy, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFormLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
-from graphica.gui import app_settings
-from graphica.gui.builders.common import DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, _svg_icon
-
-
-def wrap_in_collapsible_section(app, group_box, title):
-    """group_box の外に開閉ボタンを付け、グループボックスごと出し入れする。見出しはボタンにだけ出す。"""
-    group_box.setTitle("")
-    # theme.py はグループボックスのタイトル用に上の余白を取る。タイトルを空にしたので、それを 0 にする目印
-    group_box.setProperty("collapsibleBody", True)
-
-    wrapper = QWidget()
-    wrapper_layout = QVBoxLayout(wrapper)
-    wrapper_layout.setContentsMargins(0, 0, 0, 0)
-    wrapper_layout.setSpacing(2)
-
-    toggle_button = QToolButton()
-    toggle_button.setText(title)
-    toggle_button.setCheckable(True)
-    toggle_button.setChecked(True)
-    toggle_button.setIcon(_svg_icon("chevron-down", size=14))
-    toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-    toggle_button.setObjectName("collapsible_section_toggle")
-    toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
-    toggle_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-
-    def _on_toggled(checked, box=group_box, btn=toggle_button):
-        box.setVisible(checked)
-        btn.setIcon(_svg_icon("chevron-down" if checked else "chevron-right", size=14))
-
-    toggle_button.toggled.connect(_on_toggled)
-    # ダークモードの切り替えでアイコンを作り直すので、ボタンを集めておく
-    if not hasattr(app, '_collapsible_toggle_buttons'):
-        app._collapsible_toggle_buttons = []
-    app._collapsible_toggle_buttons.append(toggle_button)
-
-    wrapper_layout.addWidget(toggle_button)
-    wrapper_layout.addWidget(group_box)
-    return wrapper
+from graphica.gui import app_settings, ui_mode
+from graphica.gui.builders.common import DATASET_PROPERTY_SECTIONS, _svg_icon, cap_combo_width
+from graphica.gui.widgets import SectionHeader
 
 
 def build_dataset_property_sections(app):
@@ -60,14 +25,16 @@ def build_dataset_property_sections(app):
 
     for key, title in DATASET_PROPERTY_SECTIONS:
         body = QWidget()
+        body.setObjectName("property_section_body")
         form = QFormLayout(body)
-        # 親の見出し(4px)→ 子の見出し(12px)→ 中身、の階段になるよう字下げする
-        form.setContentsMargins(24, 2, 0, 6)
-        form.setSpacing(6)
+        # 見本どおり、見出しより 20px 字下げし、名前と欄の間 10px、行の間 4px
+        form.setContentsMargins(20, 0, 0, 6)
+        form.setHorizontalSpacing(10)
+        form.setVerticalSpacing(4)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
 
-        toggle_button = QToolButton()
-        toggle_button.setText(tr(title))
-        toggle_button.setCheckable(True)
+        # 閉じていても今の状態(「オフ」など)が右に出る見出し(GUI 刷新)
+        toggle_button = SectionHeader(tr(title))
         toggle_button.setIcon(_svg_icon("chevron-down", size=13))
         toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         # 上の2つの開閉ボタンとは別の名前(theme.py で控えめに描き、2つだけであることをテストが確かめる)
@@ -113,27 +80,32 @@ def build_dataset_property_sections(app):
     app._set_dataset_property_fields_enabled(False)
 
     style_form = app._prop_form('style')
+    # シンプルの種類のタイル(中身は property_widgets.build_property_widgets)。節の先頭の行
+    app._plot_type_tiles_row = QWidget()
+    tiles_layout = QVBoxLayout(app._plot_type_tiles_row)
+    tiles_layout.setContentsMargins(0, 0, 0, 2)
+    style_form.addRow(app._plot_type_tiles_row)
     style_form.addRow(app.ui.legend_name_label, app.ui.legend_name_edit)
     style_form.addRow(app.ui.plot_type_label, app.ui.plot_type_combo)
     style_form.addRow(app.ui.color_label, app.color_picker_widget)
     style_form.addRow(app.ui.linestyle_label, app.ui.linestyle_combo)
     style_form.addRow(app.ui.linewidth_label, app.ui.linewidth_spinbox)
-    style_form.addRow(app.ui.marker_label, app.ui.marker_combo)
-    style_form.addRow(app.ui.makersize_label, app.ui.markersize_spinbox)
+    marker_form = app._prop_form('marker')
+    marker_form.addRow(app.ui.marker_label, app.ui.marker_combo)
+    marker_form.addRow(app.ui.makersize_label, app.ui.markersize_spinbox)
 
-    app.ui.plot_type_combo.setSizeAdjustPolicy(
-        QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-    app.ui.plot_type_combo.setMinimumContentsLength(PLOT_TYPE_COMBO_MIN_CHARS)
+    cap_combo_width(app.ui.plot_type_combo)
 
 
 def prop_form(app, section_key):
     return app._prop_sections[section_key]['form']
 
 
-def align_form_label_columns(app, forms):
+def align_form_label_columns(app, forms, width=None):
     """ラベルの列幅を複数の QFormLayout で揃え、入力欄の左端を合わせる。決めた幅(px)を返す。
 
     隠れているラベルも数える(QFormLayout は隠れたものを外すので、出た瞬間に列幅が変わって欄がずれる)。
+    width を渡すとその幅に固定し、入らない名前は折り返す(インスペクタのプロパティは見本どおり 92px)。
     """
     labels = []
     widest = 0
@@ -146,6 +118,11 @@ def align_form_label_columns(app, forms):
             labels.append(label)
             widest = max(widest, label.sizeHint().width())
 
+    if width is not None:
+        for label in labels:
+            label.setFixedWidth(width)
+            label.setWordWrap(True)
+        return width
     for label in labels:
         label.setMinimumWidth(widest)
     return widest
@@ -183,11 +160,34 @@ def on_property_section_toggled(app, section_key, checked):
     app_settings.DATASET_PROPERTY_COLLAPSED_SECTIONS.write(app.settings, json.dumps(collapsed))
 
 
+def lite_hidden_property_widgets(app):
+    """シンプルで隠す行の欄と名前。"""
+    widgets = []
+    for dotted_name in ui_mode.LITE_HIDDEN_PROPERTY_FIELDS:
+        field = ui_mode.resolve(app, dotted_name)
+        if field is None:
+            continue
+        widgets.append(field)
+        for entry in app._prop_sections.values():
+            label = entry['form'].labelForField(field)
+            if label is not None:
+                widgets.append(label)
+                break
+    return widgets
+
+
 def update_property_section_visibility(app):
-    """中の行が全部隠れた節は見出しごと隠す。"""
+    """シンプルで隠す行を隠し、中の行が全部隠れた節は見出しごと隠す(シンプルで出さない節も)。
+
+    行の出し入れ(property_panel の update_*_visibility)の最後に呼ばれるので、モードの条件はここで当てる。
+    """
     sections = getattr(app, '_prop_sections', None)
     if not sections:
         return
+    lite = getattr(app, 'ui_mode', None) == ui_mode.LITE
+    if lite:
+        for widget in lite_hidden_property_widgets(app):
+            widget.setVisible(False)
     for key, _ in DATASET_PROPERTY_SECTIONS:
         entry = sections.get(key)
         if entry is None:
@@ -205,4 +205,4 @@ def update_property_section_visibility(app):
                     break
             if has_visible:
                 break
-        entry['section'].setVisible(has_visible)
+        entry['section'].setVisible(has_visible and (not lite or key in ui_mode.LITE_PROPERTY_SECTIONS))

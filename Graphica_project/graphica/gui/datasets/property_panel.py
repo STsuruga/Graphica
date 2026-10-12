@@ -7,6 +7,8 @@ from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.label_utils import infer_axis_label_from_column_name
 from graphica.core.marker_style import MARKER_EDGE_COLOR, MARKER_FILL_COLOR, marker_is_unfilled
 from graphica.gui.binding import Binder
+from graphica.gui.builders import canvas_area, property_sections, property_widgets
+from graphica.gui.shell import bottom_panel
 from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL, NO_MARKER
 from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES
 
@@ -146,6 +148,18 @@ class DatasetPropertyPanel:
         if is_batch:
             self._app.undo_stack.endMacro()
 
+    def update_mode_visibility(self):
+        """シンプル / アドバンスドを替えたとき: シンプルで隠した行を一度出し、今の条件で出し入れし直す
+        (各 update_*_visibility の最後の節の出し入れが、シンプルならまた隠す)。"""
+        for widget in property_sections.lite_hidden_property_widgets(self._app):
+            widget.setVisible(True)
+        self.update_gradient_controls_visibility()
+        self.update_waterfall_controls_visibility()
+        self.update_smoothing_control_visibility()
+        self.update_marker_controls_visibility()
+        self.update_2d_controls_visibility()
+        self._app._update_property_section_visibility()
+
     def update_gradient_controls_visibility(self):
         """
         グラデーションは線か塗りのある種別('Line'/'Line+Scatter'/'Area')でだけ出す。
@@ -270,6 +284,7 @@ class DatasetPropertyPanel:
         self._app._update_subplot_combos()
 
         self._shown_selection = self._current_selection()
+        canvas_area.refresh_status_bar(self._app)
         # フォルダも選べるので、「何か選ばれているか」(削除用)と「データセットが選ばれているか」を分ける
         current_dataset = self.shown_dataset()
         selected_datasets = self._app._get_selected_datasets()
@@ -308,6 +323,7 @@ class DatasetPropertyPanel:
             self._app.vmin_spinbox.setEnabled(not is_range_auto)
             self._app.vmax_spinbox.setEnabled(not is_range_auto)
             self._binder.block_signals(False)
+            property_widgets.refresh_property_widgets(self._app)
             self.update_gradient_controls_visibility()
             self.update_waterfall_controls_visibility()
             self.update_smoothing_control_visibility()
@@ -351,20 +367,8 @@ class DatasetPropertyPanel:
                 self._app.z_col_combo.setCurrentText(dataset.z_col_name)
             self._app.z_col_combo.blockSignals(False)
 
-            if dataset.fit_info:
-                self._app.fit_info_label.setVisible(True)
-                self._app.fit_info_textedit.setVisible(True)
-                self._app.fit_info_textedit.setText(dataset.fit_info)
-            else:
-                self._app.fit_info_label.setVisible(False)
-                self._app.fit_info_textedit.setVisible(False)
-                self._app.fit_info_textedit.clear()
-
             self.update_stats_summary_label(dataset)
-
-            self._app.residual_panel.refresh(dataset)
-
-            self._app.provenance_panel.refresh(dataset, self._app.project)
+            bottom_panel.refresh_bottom_panel(self._app, dataset)
 
         else:
             # 空にするのは表示だけ。信号を出すと、フォルダを今の項目にしたままデータセットを選んでいるとき
@@ -377,11 +381,7 @@ class DatasetPropertyPanel:
                 combo.blockSignals(False)
             self.update_2d_controls_visibility()
 
-            self._app.fit_info_label.setVisible(False)
-            self._app.fit_info_textedit.setVisible(False)
-            self._app.fit_info_textedit.clear()
-            self._app.residual_panel.refresh(None)
-            self._app.provenance_panel.refresh(None, self._app.project)
+            bottom_panel.refresh_bottom_panel(self._app, None)
 
             self._app.gradient_checkbox.setVisible(False)
             self._app.gradient_color2_label.setVisible(False)
@@ -400,20 +400,26 @@ class DatasetPropertyPanel:
             self._app.waterfall_depth_ratio_spinbox.setVisible(False)
 
             self._app.stats_summary_label.setText("-")
-            self._app.dataset_mini_stats_label.setText("-")
+            self._set_dataset_page_stats(None)
             # 前に出していたデータセットの名前を残さない(editingFinished は出ないので書き込まれない)
             self._app.ui.legend_name_edit.clear()
             # 行を隠したあとで見出しもそろえる(起動直後もこの経路を通る)
             self._app._update_property_section_visibility()
 
+    def _set_dataset_page_stats(self, dataset):
+        # 左パネルの統計カード(タブの骨組みを作る前に呼ばれることがある)
+        page = getattr(self._app, 'dataset_page', None)
+        if page is not None:
+            page.set_stats(dataset)
+
     def update_stats_summary_label(self, dataset):
-        """Y の件数・平均・標準偏差・最小・最大を、プロパティ欄とデータセット一覧の下の1行に出す(NaN は除く)。"""
+        """Y の件数・平均・標準偏差・最小・最大を、プロパティ欄の1行と左パネルの統計カードに出す(NaN は除く)。"""
+        self._set_dataset_page_stats(dataset)
         try:
             y = np.asarray(dataset.y_data, dtype=float)
             valid = y[~np.isnan(y)]
             if len(valid) == 0:
                 self._app.stats_summary_label.setText("-")
-                self._app.dataset_mini_stats_label.setText(dataset.name)
                 return
             # 標本標準偏差(n−1)。1点では定義できないので「-」
             std = sample_standard_deviation(valid)
@@ -422,13 +428,8 @@ class DatasetPropertyPanel:
                 f"件数: {len(valid)}   平均: {np.mean(valid):.4g}   "
                 f"標準偏差: {std_text}   最小: {np.min(valid):.4g}   最大: {np.max(valid):.4g}"
             )
-            self._app.dataset_mini_stats_label.setText(
-                f"{dataset.name} 〈n={len(valid)}, 平均={np.mean(valid):.4g}, "
-                f"SD={std_text}〉"
-            )
         except (TypeError, ValueError):
             self._app.stats_summary_label.setText("-")
-            self._app.dataset_mini_stats_label.setText(dataset.name)
 
     def on_plot_column_changed(self):
         dataset = self._app._get_current_dataset()

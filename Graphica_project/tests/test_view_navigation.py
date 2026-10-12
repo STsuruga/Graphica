@@ -455,7 +455,8 @@ def test_plot_toolbar_has_no_matplotlib_navigation_buttons(window):
     for removed in ("Home", "Back", "Forward", "Pan", "Zoom", "Subplots", "Customize", "Save"):
         assert removed not in texts
     assert window.cursor_action in window.plot_toolbar.actions()
-    assert window.reset_zoom_action in window.plot_toolbar.actions()
+    # 表示のリセットは、グラフのカードのタイトルの行のボタン(GUI 刷新)
+    window.card_reset_button.click()
 
 
 
@@ -464,8 +465,11 @@ def test_legend_dragged_onto_an_axis_band_is_still_dragged_not_panned(window):
     ax = window.canvas.all_axes[0]
     xlim = ax.get_xlim()
     legend = ax.get_legend()
-    # 凡例を x 軸の帯の上に置く(軸に対する座標で、枠の少し下)
-    legend.set_loc((0.4, -0.12))
+    # 凡例を x 軸の帯の上に置く。中心が枠の 12px 下に来るよう、ピクセルから軸に対する座標に直す
+    # (軸の高さはウィンドウの配置で変わるので、決め打ちの割合だと帯の外に出ることがある)
+    window.canvas.draw()
+    height = legend.get_window_extent().height
+    legend.set_loc((0.4, (-12 - height / 2) / ax.bbox.height))
     window.canvas.draw()
     box = legend.get_window_extent()
     center = ((box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2)

@@ -3,7 +3,35 @@ import logging
 import numpy as np
 from matplotlib.patches import Rectangle
 
+from graphica.gui import theme
+from graphica.gui.shell import bottom_panel
+from graphica.gui.ui_mode import ADVANCED
+
 logger = logging.getLogger(__name__)
+
+
+# ステータスバーの座標(見本: 「X = 7.42　Y = 40.18」。アドバンスドだけ出る)
+COORDINATE_EMPTY_TEXT = "X = ---　Y = ---"
+
+
+def coordinate_text(x, y, prefix=""):
+    """prefix はどのサブプロットか(「P1 · 」など)。"""
+    return f"{prefix}X = {x:.4g}　Y = {y:.4g}"
+
+
+def cursor_label_text(dataset, x, y, z=None, row_number=None, mode=ADVANCED):
+    """データカーソルの吹き出しの文字: 「時間_s 7.5 · 温度_degC 41.12」。
+
+    アドバンスドは先頭に行番号(データエディタの行と同じ、1始まり)を付ける。データセットが分からなければ X / Y。
+    """
+    x_name = getattr(dataset, 'x_col_name', None) or "X"
+    y_name = getattr(dataset, 'y_col_name', None) or "Y"
+    parts = [f"{x_name} {x:.4g}", f"{y_name} {y:.4g}"]
+    if z is not None:
+        parts.append(f"Z {z:.4g}")
+    if mode == ADVANCED and row_number is not None:
+        parts.insert(0, f"#{row_number}")
+    return " · ".join(parts)
 
 
 class CursorTool:
@@ -51,7 +79,7 @@ class CursorTool:
                         logger.warning("オブジェクト %s は set_picker をサポートしていません。", item)
         else:
             logger.debug("データカーソルモード OFF")
-            self._app.coordinate_label.setText("X= ---, Y= ---")
+            self._app.coordinate_label.setText(COORDINATE_EMPTY_TEXT)
 
             if self.cursor_connection_id:
                 self._app.canvas.mpl_disconnect(self.cursor_connection_id)
@@ -79,22 +107,22 @@ class CursorTool:
 
             try:
                 ax_index = self._app.all_axes.index(ax)
-                ax_label = f"P{ax_index+1}: "
+                ax_label = f"P{ax_index+1} · "
             except ValueError:
                 # 第2軸は all_axes に無い
                  try:
                       sec_ax_index = self._app.all_secondary_axes.index(ax)
-                      ax_label = f"P{sec_ax_index+1}(Y2): "
+                      ax_label = f"P{sec_ax_index+1}(Y2) · "
                  except ValueError:
-                      ax_label = "?: "
+                      ax_label = "? · "
 
             self._app.coordinate_label.setText(
-                f"{ax_label}X= {x:.4g}, Y= {y:.4g}{self._current_dataset_readout(event)}"
+                coordinate_text(x, y, ax_label) + self._current_dataset_readout(event)
             )
 
         else:
             if not self.cursor_mode_enabled:
-                self._app.coordinate_label.setText("X= ---, Y= ---")
+                self._app.coordinate_label.setText(COORDINATE_EMPTY_TEXT)
 
     def _current_dataset_readout(self, event):
         """選んでいるデータセットが、マウスのあるサブプロットにずらして(ウォーターフォールで)描かれていれば、
@@ -109,7 +137,7 @@ class CursorTool:
         # 第2軸のあるサブプロットではマウスの下の Axes が系列の軸と違うことがあるので、ピクセルから系列の軸で読む
         x, y = dataset_ax.transData.inverted().transform((event.x, event.y))
         data_x, data_y = self._app.canvas.display_to_data(dataset, x, y)
-        return f" | 「{dataset.name}」: X= {data_x:.4g}, Y= {data_y:.4g}"
+        return f"　|　「{dataset.name}」 " + coordinate_text(data_x, data_y)
 
     def _on_element_pick(self, event):
         """グラフの系列やタイトルをクリックして選ぶ(常に有効)。"""
@@ -178,6 +206,22 @@ class CursorTool:
             return None
         return dataset, ind, points[ind][0], points[ind][1], None
 
+    def _picked_row_number(self, dataset, ind):
+        """クリックした点の、元の表での行の番号(1始まり)。分からなければ None。
+
+        ind は描いた点(除外した行を除き、間引いていれば間引いた後)の位置なので、元の行まで戻す。
+        """
+        if dataset is None or ind is None:
+            return None
+        try:
+            index_map = self._app.canvas.downsample_index_map.get(dataset.dataset_id)
+            if index_map is not None:
+                ind = index_map[ind]
+            master_index = dataset.visible_df.index[ind]
+            return int(dataset.df.index.get_loc(master_index)) + 1
+        except (IndexError, KeyError, TypeError):
+            return None
+
     @staticmethod
     def _picked_grid_value(dataset, ax, mouse):
         """2D マップは、クリックした位置にいちばん近い格子点の値を読む。"""
@@ -213,16 +257,21 @@ class CursorTool:
             self._remove_cursor_annotation()
 
             ax = artist.axes
-            text = f"X: {data_x:.4g}\nY: {data_y:.4g}"
-            if z is not None:
-                text += f"\nZ: {z:.4g}"
-
+            row_number = self._picked_row_number(owning_dataset, ind)
+            text = cursor_label_text(owning_dataset, data_x, data_y, z, row_number,
+                                     getattr(self._app, 'ui_mode', ADVANCED))
+            # 下のパネルのデータ表でも、その行に印を付ける
+            bottom_panel.highlight_table_row(self._app, owning_dataset, row_number)
+            tokens = theme.tokens_for(self._app.canvas.dark_mode, theme.current_theme_color())
             self.cursor_annotation = ax.annotate(text,
                 xy=(x, y),
-                xytext=(10, -10),
+                xytext=(10, 14),
                 textcoords="offset points",
-                bbox=dict(boxstyle="round,pad=0.3", fc="yellow", alpha=0.7),
-                arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0.3")
+                color=tokens["text_primary"],
+                fontsize=9,
+                bbox=dict(boxstyle="round,pad=0.45,rounding_size=0.5", fc=tokens["surface"],
+                          ec=tokens["border_strong"], lw=0.8),
+                arrowprops=dict(arrowstyle="-", color=tokens["accent"], lw=1.0)
             )
 
             self._app.canvas.draw_idle()

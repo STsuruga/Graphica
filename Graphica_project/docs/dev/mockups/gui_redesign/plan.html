@@ -1,0 +1,453 @@
+<title>Graphica GUI 刷新計画</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Kaku+Gothic+New:wght@700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* 計画書: 左に目次、右に本文の1段組。画面の各部は A〜H の記号で全節を通して指す */
+:root{
+  --bg:#F4F6F7; --paper:#FFFFFF; --ink:#172025; --ink-2:#4E5B62; --ink-3:#86939A;
+  --line:#DDE3E6; --line-2:#C5CED3; --tint:#E8F1F3;
+  --brand:#0F4C5C; --brand-ink:#0F4C5C; --wave:#F2B134; --wave-ink:#7A5208; --wave-soft:#FCF1DA;
+  --ok:#1A7F55; --ok-soft:#E3F4EC; --warn:#9A5B00; --warn-soft:#FDF0DC;
+  --f-body:"Noto Sans JP","Yu Gothic UI","Meiryo",sans-serif;
+  --f-head:"Zen Kaku Gothic New","Noto Sans JP","Yu Gothic UI",sans-serif;
+  --f-mono:"JetBrains Mono",Consolas,"Cascadia Mono",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1316; --paper:#161B1F; --ink:#E5EAEC; --ink-2:#A6B2B8; --ink-3:#6E7B82;
+  --line:#263036; --line-2:#36424A; --tint:#15303A;
+  --brand:#1D91AF; --brand-ink:#5FC3DD; --wave:#F2B134; --wave-ink:#F5C463; --wave-soft:#3A2D10;
+  --ok:#5BD39A; --ok-soft:#173528; --warn:#F2B76A; --warn-soft:#3A2A12; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1316; --paper:#161B1F; --ink:#E5EAEC; --ink-2:#A6B2B8; --ink-3:#6E7B82;
+  --line:#263036; --line-2:#36424A; --tint:#15303A;
+  --brand:#1D91AF; --brand-ink:#5FC3DD; --wave:#F2B134; --wave-ink:#F5C463; --wave-soft:#3A2D10;
+  --ok:#5BD39A; --ok-soft:#173528; --warn:#F2B76A; --warn-soft:#3A2A12; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.8;padding-inline:16px;padding-block:0 64px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:220px minmax(0,1fr);gap:40px}
+@media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+.toc{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;padding-top:40px;font-size:13px;line-height:1.6}
+.toc .lbl{font-size:11px;letter-spacing:.08em;color:var(--ink-3);margin-bottom:8px}
+.toc a{display:block;color:var(--ink-2);text-decoration:none;padding:5px 10px;border-left:2px solid var(--line)}
+.toc a:hover,.toc a:focus-visible{color:var(--brand-ink);border-left-color:var(--brand)}
+main{min-width:0;padding-top:36px}
+header.top{display:flex;gap:18px;align-items:flex-start;padding-bottom:22px;border-bottom:1px solid var(--line);margin-bottom:8px;flex-wrap:wrap}
+.mark{width:52px;height:52px;border-radius:13px;background:#0F4C5C;flex:none;display:grid;place-items:center}
+h1{font-family:var(--f-head);font-size:32px;line-height:1.3;margin:0;text-wrap:balance}
+.meta{color:var(--ink-3);font-size:13px;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 16px}
+.meta code{font-size:12px}
+h2{font-family:var(--f-head);font-size:23px;line-height:1.4;margin:52px 0 6px;text-wrap:balance;display:flex;gap:10px;align-items:baseline}
+h2 .n{font-family:var(--f-mono);font-size:14px;color:var(--brand-ink);font-weight:600}
+h3{font-size:17px;margin:30px 0 4px;line-height:1.5;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+h4{font-size:14px;margin:18px 0 4px;color:var(--ink-2)}
+p{margin:6px 0 10px;max-width:72ch}
+ul,ol{margin:6px 0 12px;padding-left:1.4em;max-width:76ch}
+li{margin:3px 0}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+code{background:var(--tint);border-radius:4px;padding:1px 5px;overflow-wrap:anywhere}
+a{color:var(--brand-ink)}
+.lead{font-size:16px;color:var(--ink-2);max-width:70ch}
+.region{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 6px;border-radius:7px;background:var(--brand);color:#fff;font-family:var(--f-mono);font-size:13px;font-weight:600}
+.pill{display:inline-block;font-size:12px;line-height:1.6;border-radius:999px;padding:0 9px;border:1px solid var(--line-2);color:var(--ink-2);white-space:nowrap}
+.pill.lite{border-color:transparent;background:var(--tint);color:var(--brand-ink)}
+.pill.adv{border-color:transparent;background:var(--wave-soft);color:var(--wave-ink)}
+.pill.new{border-color:transparent;background:var(--ok-soft);color:var(--ok)}
+.box{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0}
+.decide{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:16px 0}
+.decide .box{margin:0}
+.decide .k{font-size:12px;color:var(--ink-3);letter-spacing:.04em}
+.decide .v{font-weight:500;line-height:1.6;margin-top:2px}
+.tw{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;line-height:1.6}
+th,td{text-align:left;vertical-align:top;padding:8px 12px;border-bottom:1px solid var(--line)}
+th{font-weight:500;color:var(--ink-2);background:var(--bg);font-size:12.5px;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px;border:1px solid rgba(0,0,0,.12)}
+/* 画面の地図: モックアップの配置をそのまま縮めたもの */
+.map{display:grid;grid-template-columns:5% 19% 1fr 24%;grid-template-rows:38px 1fr 64px 22px;gap:4px;height:340px;background:var(--line);border-radius:12px;padding:4px;margin:16px 0;font-size:12.5px;line-height:1.4;min-width:560px}
+.map > div{background:var(--paper);border-radius:7px;padding:6px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.map .t{font-weight:500}
+.map .s{color:var(--ink-3);font-size:11.5px}
+.map .hdr{grid-column:1/-1}
+.map .rail{grid-row:2/4;align-items:center;padding:6px 2px}
+.map .left{grid-row:2/4}
+.map .card{grid-row:2/3}
+.map .bottom{grid-row:3/4;border:1.5px dashed var(--wave)}
+.map .insp{grid-row:2/4}
+.map .st{grid-column:1/-1;flex-direction:row;align-items:center;gap:8px;padding:2px 8px}
+.mapwrap{overflow-x:auto}
+.pr{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:14px 0;display:grid;grid-template-columns:54px minmax(0,1fr);gap:4px 16px}
+.pr .no{font-family:var(--f-mono);font-weight:600;font-size:22px;color:var(--brand-ink);line-height:1.2}
+.pr h3{margin:0 0 4px;font-size:16.5px}
+.pr .body{min-width:0}
+.pr dl{display:grid;grid-template-columns:96px minmax(0,1fr);gap:4px 12px;margin:8px 0 0;font-size:13.5px;line-height:1.65}
+.pr dt{color:var(--ink-3)}
+.pr dd{margin:0;min-width:0}
+@media (max-width:560px){.pr{grid-template-columns:minmax(0,1fr)}.pr dl{grid-template-columns:minmax(0,1fr)}.pr dt{margin-top:6px}}
+.note{border-left:3px solid var(--wave);background:var(--wave-soft);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14px;max-width:80ch}
+.note.info{border-left-color:var(--brand);background:var(--tint)}
+.q td:first-child{font-family:var(--f-mono);color:var(--ink-3);white-space:nowrap}
+.rec{color:var(--ok);font-weight:500}
+pre{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:12px 16px;overflow-x:auto;font-family:var(--f-mono);font-size:12.5px;line-height:1.65;margin:12px 0}
+footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--line);color:var(--ink-3);font-size:13px}
+a:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:3px}
+</style>
+
+<div class="wrap">
+<nav class="toc" aria-label="目次">
+  <div class="lbl">目次</div>
+  <a href="#decided">決まったこと</a>
+  <a href="#map">画面の地図</a>
+  <a href="#principles">1. 設計の原則</a>
+  <a href="#regions">2. 画面の各部 A〜H</a>
+  <a href="#theme">3. テーマと色</a>
+  <a href="#modes">4. Lite と Advanced</a>
+  <a href="#prs">5. PR の段取り</a>
+  <a href="#tests">6. テストと確認</a>
+  <a href="#dims">7. 寸法の表</a>
+  <a href="#risks">8. リスク</a>
+  <a href="#open">9. 決めたこと(詳細)</a>
+</nav>
+
+<main>
+<header class="top">
+  <div class="mark" aria-hidden="true">
+    <svg width="34" height="34" viewBox="0 0 34 34"><path d="M24.5 9.5A11 11 0 1 0 28 17h-8" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/><path d="M17 17h3l2-4 2.5 7 2-3H30" fill="none" stroke="#F2B134" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  <div style="min-width:0;flex:1">
+    <h1>Graphica GUI 刷新計画</h1>
+    <div class="meta"><span>2026-10-12</span><span>基準: <code>master</code> ed0cad1</span><span>見本: <code>docs/dev/mockups/gui_redesign/final_lite_advanced.html</code></span></div>
+  </div>
+</header>
+
+<p class="lead">チャットで決めたモックアップを、Qt(PySide6)の Graphica にそのまま再現するための計画です。画面の各部を A〜H の記号で呼び、各部について「モックアップで何が見えるか」「Qt で何を作るか」「今のコードのどこを変えるか」「Lite と Advanced で何が違うか」を並べます。最後に PR の順番と、細部で決めたことを挙げます。</p>
+
+<h2 id="decided">決まったこと</h2>
+<div class="decide">
+  <div class="box"><div class="k">構成</div><div class="v">上部1段、左端のアイコンの帯、左にデータセット、中央にグラフ、右にプロパティ</div></div>
+  <div class="box"><div class="k">モード</div><div class="v">Lite と Advanced は同じ画面。Advanced は部品が足されるだけ</div></div>
+  <div class="box"><div class="k">例外</div><div class="v">グラフの道具は Lite が左に浮くアイコン、Advanced がプロットの上に文字付き</div></div>
+  <div class="box"><div class="k">テーマカラー</div><div class="v">利用者が選べる。既定はアイコンの背景色 <span class="sw" style="background:#0F4C5C"></span><code>#0F4C5C</code></div></div>
+  <div class="box"><div class="k">読みにくい色</div><div class="v">明るさだけを動かし、背景とのコントラスト比 4.5 以上に自動補正</div></div>
+  <div class="box"><div class="k">外したもの</div><div class="v">プロパティのピン(固定)、表形式のプロパティグリッド、密度の切り替え</div></div>
+  <div class="box"><div class="k">マージ</div><div class="v">統合ブランチ <code>feature/gui-redesign</code> に集め、master へはユーザーの最終確認の後だけ</div></div>
+</div>
+
+<h2 id="map">画面の地図</h2>
+<p>モックアップ(Advanced)の配置を縮めたものです。点線の <span class="region">E</span> は Advanced だけに出ます。<span class="region">H</span> はアプリ左下の ⚙ から開く設定です。</p>
+<div class="mapwrap">
+<div class="map" role="img" aria-label="画面の配置: 上に上部バー A、左端に帯 B、その右にデータセット C、中央にグラフのカード D とその下に下のパネル E、右にインスペクタ F、最下段にステータスバー G">
+  <div class="hdr"><span class="t"><span class="region">A</span> 上部バー</span><span class="s">≡ メニュー・タブ・コマンドを検索・モード切り替え・元に戻す/やり直す・保存・エクスポート</span></div>
+  <div class="rail"><span class="region">B</span><span class="s" style="text-align:center">帯</span></div>
+  <div class="left"><span class="t"><span class="region">C</span> 左パネル</span><span class="s">データセット一覧・検索・統計カード・操作ボタン。帯で解析・注釈・プラグイン・レイアウトに切り替え</span></div>
+  <div class="card"><span class="t"><span class="region">D</span> グラフのカード</span><span class="s">タイトル行・道具(Lite は左に縦、Advanced は上に文字付き)・キャンバス・ミニマップ</span></div>
+  <div class="bottom"><span class="t"><span class="region">E</span> 下のパネル</span><span class="s">データ表・フィット結果・来歴・ログ</span></div>
+  <div class="insp"><span class="t"><span class="region">F</span> インスペクタ</span><span class="s">プロパティ・軸・凡例・エクスポートのタブ。見出し付きのフォーム</span></div>
+  <div class="st"><span class="region" style="height:18px;min-width:20px;font-size:11px">G</span><span class="s">ステータスバー</span></div>
+</div>
+</div>
+
+<h2 id="principles"><span class="n">1</span>設計の原則</h2>
+<ol>
+  <li><b>部品は1組だけ作る。</b>Lite と Advanced で別の画面を作らず、同じ部品の表示・非表示だけを切り替える。どの部品がどちらのモードに出るかは1つの表(<code>gui/ui_mode.py</code>)に書く。</li>
+  <li><b>今の部品を「値の持ち主」として残す。</b>線の種類のセグメントボタンやトグルのような新しい見た目の部品は、今の <code>QComboBox</code>・<code>QCheckBox</code>・<code>QDoubleSpinBox</code> と同じ使い方ができる形で作るか、今の部品と同期させる。<code>DATASET_PROPERTY_BINDINGS</code>・<code>AXIS_BINDINGS</code>・特性テストの property_bindings を壊さないため。</li>
+  <li><b>色はトークンだけで決める。</b>QSS・QPalette・matplotlib の背景・ミニマップ・起動画面まで、<code>gui/theme.py</code> のトークンから取る。アクセントは利用者が選んだ1色から計算する。</li>
+  <li><b>保存形式は変えない。</b>プロジェクト(<code>.gra</code>)には何も足さない。新しい設定(モード・テーマカラー)は <code>gui/app_settings.py</code> の表に1行ずつ足す。</li>
+  <li><b>モードを切り替えても値は変わらない。</b>隠すだけで、リセットも書き戻しもしない。<code>content_fingerprint()</code> が切り替えの前後で同じことをテストで確かめる。</li>
+  <li><b>プラグイン API は変えない。</b><code>register_panel</code> のパネルは帯の「プラグイン」に入る。<code>area</code> は置き場所の希望として読む。</li>
+</ol>
+
+<h2 id="regions"><span class="n">2</span>画面の各部 A〜H</h2>
+<p>各部ごとに、作るもの、今のコードとの対応、モードの違いを書きます。<span class="pill lite">Lite</span> <span class="pill adv">Advanced</span> は出るモード、<span class="pill new">新規</span> は今のアプリに無いものです。</p>
+
+<h3><span class="region">A</span>上部バー</h3>
+<p>今は「タブの帯」「タブごとのメニューバー」「クイックアクセスのツールバー」の3段です。これを高さ 48px の1段にまとめます。</p>
+<div class="tw"><table>
+<tr><th>モックアップ</th><th>Qt で作るもの</th><th>今のコードとの対応</th><th>モード</th></tr>
+<tr><td>≡ ボタン</td><td><code>QToolButton</code>(InstantPopup)。開くと今のタブのメニュー(ファイル〜ヘルプ)をそのまま出す</td><td><code>gui/menu_bar.py</code> の表で作った <code>app._file_menu</code> などを <code>addMenu()</code> で並べる。各タブの <code>menuBar()</code> は隠す(macOS はネイティブのメニューバーのまま)</td><td><span class="pill">両方</span></td></tr>
+<tr><td>ロゴと「Graphica」</td><td><code>QLabel</code> 2つ。マークはアクセント色の角丸に G</td><td><span class="pill new">新規</span></td><td><span class="pill">両方</span></td></tr>
+<tr><td>プロジェクトのタブ・＋</td><td><code>QTabBar</code> を上部バーに移し、角丸の「浮いたタブ」に描く</td><td><code>MainAppWindow.tab_widget</code> のタブバーを取り出し、<code>QTabWidget</code> は <code>QStackedWidget</code> 相当として使う。今の角の「＋」と Undo 履歴ボタンは、＋をタブの右へ、Undo 履歴を ≡ の「表示」へ</td><td><span class="pill">両方</span></td></tr>
+<tr><td>コマンドを検索 <code>Ctrl+Shift+P</code></td><td>検索欄の見た目のボタン。押すと今のコマンドパレットを開く</td><td><code>app.command_palette_action</code>(<code>gui/menu_bar.py</code>)</td><td><span class="pill">両方</span></td></tr>
+<tr><td>Lite / Advanced の切り替え</td><td>2択のセグメント(新しい部品 <code>SegmentedControl</code>)</td><td><span class="pill new">新規</span>。<code>UI_MODE</code> の設定を書き、全タブに反映</td><td><span class="pill">両方</span></td></tr>
+<tr><td>元に戻す・やり直す・保存・エクスポート</td><td>アイコンの <code>QToolButton</code> 3つと、塗りの主ボタン「エクスポート」</td><td>表示中のタブの <code>undo_stack</code> の操作、<code>manual_save</code>、「名前を付けてエクスポート」の <code>QAction</code>。タブが替わったら付け替える</td><td><span class="pill">両方</span></td></tr>
+</table></div>
+<div class="note">メニューバーを隠すと、そこにしか付いていない <code>QAction</code> のショートカットが効かなくなります。メニューの表から作った全部の <code>QAction</code> を、タブの <code>PlotterApp</code> にも <code>addAction()</code> しておく必要があります。クイックアクセス(ピン留め)は、上部バーの「元に戻す・やり直す」の右にアイコンで並べます(<a href="#open">9 の 3</a>)。</div>
+
+<h3><span class="region">B</span>左端の帯</h3>
+<div class="tw"><table>
+<tr><th>モックアップ</th><th>Qt で作るもの</th><th>今のコードとの対応</th><th>モード</th></tr>
+<tr><td>幅 56px の縦の帯。ボタン 38px、角丸 10、選んでいるものはアクセント色の塗り</td><td><code>ActivityRail</code>(<code>QWidget</code>+縦の <code>QVBoxLayout</code>、排他の <code>QButtonGroup</code>)。押すと <span class="region">C</span> のページを替える</td><td><span class="pill new">新規</span> <code>gui/shell/rail.py</code></td><td><span class="pill">両方</span></td></tr>
+<tr><td>上: データセット・解析・注釈・プラグイン・レイアウト</td><td>ページごとに1つのボタン</td><td>解析・注釈・レイアウトのページは、今の操作へのボタンの並びで出す。中身の作り込みは刷新の後に別の項目で(<a href="#open">9 の 6</a>)</td><td><span class="pill">両方</span></td></tr>
+<tr><td>下: ダークモード・⚙</td><td>ダークモードの切り替えと、⚙ のポップアップ(<span class="region">H</span>)</td><td>ダークモードは今の <code>UISetupMixin</code> の切り替えを呼ぶ</td><td><span class="pill">両方</span></td></tr>
+</table></div>
+
+<h3><span class="region">C</span>左パネル(データセット)</h3>
+<p>今はグラフの下(<code>gridLayout_2</code> の 2〜3 行目)にあるデータセット一覧とボタンの行を、左の幅 280px のパネルへ移します。</p>
+<div class="tw"><table>
+<tr><th>モックアップ</th><th>今の部品</th><th>変えること</th><th>モード</th></tr>
+<tr><td>見出し「データセット」+件数、フォルダ追加、主ボタン「＋ 追加」</td><td><code>ui.add_dataset_button</code>、<code>new_folder_button</code></td><td>見出し行を新しく作り、2つを移す。件数は一覧の数から</td><td><span class="pill">両方</span></td></tr>
+<tr><td>検索欄</td><td><code>dataset_search_edit</code></td><td>見出しの下に移す。角丸と塗りの背景</td><td><span class="pill">両方</span></td></tr>
+<tr><td>一覧の行(高さ 38px): 線の見本、名前、「41 点」、目のアイコン</td><td><code>dataset_list_widget</code>(<code>DatasetTreeWidget</code>)と <code>dataset_style_icon.py</code></td><td>行の高さと点の数の列を足す。選択の角丸は今の delegate のまま、色はアクセントの薄い色に</td><td><span class="pill">両方</span></td></tr>
+<tr><td>統計カード: 点の数・平均・標準偏差</td><td><code>dataset_mini_stats_label</code>、ツールバーの <code>stats_toolbar_button</code></td><td>3枚のカードに置き換える。ミニ統計のラベルとツールバーの統計ボタンは無くす(<a href="#open">9 の 10</a>)</td><td><span class="pill">両方</span></td></tr>
+<tr><td>統計カードの2段目: 最小・最大・欠損</td><td>同上</td><td>2段目の3枚を足す</td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td>操作の行: データ編集・複製・名前の変更・色・…・削除</td><td><code>horizontalLayout_3</code> のアイコンボタンと <code>dataset_overflow_button</code></td><td>パネルの一番下へ移す。曲線フィット・ピーク検出・多峰フィット・新規作成は「…」のメニューと <span class="region">D</span> の道具へ</td><td><span class="pill">両方</span></td></tr>
+</table></div>
+<p>帯で別のページを選んだときは、このパネルの中身が <code>QStackedWidget</code> で替わります。プラグインのパネルは「プラグイン」のページに入ります。プラグインが複数あるときは、ページの上で切り替えます。</p>
+
+<h3><span class="region">D</span>グラフのカード</h3>
+<div class="tw"><table>
+<tr><th>モックアップ</th><th>Qt で作るもの</th><th>今のコードとの対応</th><th>モード</th></tr>
+<tr><td>角丸 14 の白いカード</td><td><code>plot_container</code> の QSS を変える</td><td><code>gui/builders/canvas_area.py</code>。区切り線 <code>canvas_separator</code> は消す</td><td><span class="pill">両方</span></td></tr>
+<tr><td>タイトル行: 「温度の変化」「3 系列」、範囲をリセット、別ウィンドウ</td><td>行の <code>QWidget</code>。タイトルは選んでいるサブプロットのタイトル。無ければ「サブプロット N」(<a href="#open">9 の 8</a>)</td><td><code>reset_zoom_action</code> と、キャンバスの切り離し(<code>canvas_detached</code>)のボタン</td><td><span class="pill">両方</span></td></tr>
+<tr><td>タイトル行: 「サブプロット 1 / 1」、ミニマップの切り替え</td><td>ラベルとボタン</td><td><code>minimap_visible</code></td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td>Lite: 左に浮く縦の道具(カーソル・注釈・範囲選択|フィット)</td><td>縦の <code>QToolBar</code> をカードの左の列に置き、角丸の枠と影で浮かせる。キャンバスの上には重ねない(matplotlib のマウス操作とぶつかるため)</td><td>今の <code>cursor_action</code> などの <code>QAction</code> をそのまま入れる(同じ QAction を2つのツールバーに入れられる)</td><td><span class="pill lite">Lite</span></td></tr>
+<tr><td>Advanced: プロットの上に文字付き(7モード | フィット・平滑化)</td><td>横の <code>QToolBar</code>(<code>ToolButtonTextBesideIcon</code>)。モードの7つは1つの塗りの枠に入れる。幅が足りないときは「»」に畳む</td><td>今の <code>plot_toolbar</code> を作り直す。フィットは <code>fitting</code>、平滑化は <code>processing</code> の操作</td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td>カーソルの吹き出し「時間 7.5 s · 温度 41.1 ℃」</td><td>キャンバス上の注釈の文字の形を変える</td><td><code>gui/tools/</code> の <code>CursorTool</code>。列名と値で出す。Advanced は先頭に「#16 · 」(行番号)</td><td><span class="pill">両方</span>(形が違う)</td></tr>
+<tr><td>ミニマップ: 表示範囲をアクセントの薄い色の角丸で示す</td><td><code>MinimapWidget</code> の色をトークンから取る</td><td><code>minimap_widget.py</code> の固定の色(<code>#2b2b2b</code> など)をやめる</td><td><span class="pill">両方</span></td></tr>
+</table></div>
+
+<h3><span class="region">E</span>下のパネル <span class="pill adv">Advanced</span></h3>
+<p>グラフのカードの下に、つまんで高さを変えられる(<code>QSplitter</code>)角丸のパネルを置きます。タブは4つです。</p>
+<div class="tw"><table>
+<tr><th>タブ</th><th>中身</th><th>今のコードとの対応</th></tr>
+<tr><td>データ表</td><td>選んだデータセットの表(#・X・Y・フィット値・残差)。読むだけ。残差が負なら赤。カーソルのある行をアクセントの薄い色で示す。右上に「cooling_curve · 41 行」と絞り込み</td><td><span class="pill new">新規</span> <code>QTableView</code>+モデル。編集は今までどおりデータエディタ(<code>data_editor.py</code>)で行う。行は <code>visible_df</code> に合わせる(マスクした行の扱いに注意)</td></tr>
+<tr><td>フィット結果</td><td>今のフィット情報。タブに R² のバッジ</td><td><code>fit_info_textedit</code>(プロパティ欄から移す)</td></tr>
+<tr><td>来歴</td><td>処理の履歴</td><td><code>ProvenancePanel</code>(今は隠れたドック)</td></tr>
+<tr><td>ログ</td><td>アプリのログ</td><td><span class="pill new">新規</span> <code>logging.Handler</code> から <code>QPlainTextEdit</code> へ。<code>graphica.log</code> と同じ内容</td></tr>
+</table></div>
+<p>残差プロットのドック(<code>ResidualPanel</code>)も、ここのタブに入れるのが自然です(<a href="#open">9 の 11</a>)。</p>
+
+<h3><span class="region">F</span>インスペクタ(右)</h3>
+<p>今のプロパティのドック(<code>control_dock_widget</code>、幅 <code>CONTROL_DOCK_WIDTH</code>)を、幅 340px のタブ付きパネルにします。上に下線のタブ、その下に「対象の見出し」、その下にフォームです。</p>
+<div class="tw"><table>
+<tr><th>タブ</th><th>中身</th><th>今のコードとの対応</th><th>モード</th></tr>
+<tr><td>プロパティ</td><td>選んだデータセットのプロパティ(下の表)</td><td><code>properties_groupbox</code> の7つの節</td><td><span class="pill">両方</span></td></tr>
+<tr><td>軸</td><td>X 軸・Y 軸・ラベル/書式・レイアウト</td><td>「プロットのプロパティ」(<code>axis_tab_widget</code> ほか)</td><td><span class="pill">両方</span></td></tr>
+<tr><td>凡例</td><td>凡例の位置・文字など</td><td>今は軸の設定の中にあるものを移す</td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td>エクスポート</td><td>エクスポートのプレビューと設定</td><td><code>ExportPreviewPanel</code>(今はタブにしたドック)。見えている間だけ描く仕組み(<code>visibleRegion()</code>)はそのまま効く</td><td><span class="pill">両方</span></td></tr>
+</table></div>
+<p>対象の見出しは、線の見本、名前、「時間_s → 温度_degC · Line」です。プロパティのタブの中身は次のとおりです。節の見出しは「&gt; 名前 … 状態」の形で、行の高さはすべて 34px、ラベル列は 92px です。</p>
+<div class="tw"><table>
+<tr><th>節</th><th>行(モックアップの順)</th><th>部品</th><th>モード</th></tr>
+<tr><td>データ列</td><td>X 軸の列、Y 軸の列</td><td>コンボ(角丸 7、高さ 30)</td><td><span class="pill">両方</span></td></tr>
+<tr><td></td><td>X 誤差列、Y 誤差列、欠損値の扱い</td><td>コンボ</td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td>基本スタイル</td><td>グラフの種類(線・点・線+点・棒のアイコン4択)</td><td><span class="pill new">新規</span> <code>TypeTileGroup</code>。裏で <code>plot_type_combo</code> を書く。「線+点」は種類 Line のまま、マーカーが無ければ「円」にする(<a href="#open">9 の 7</a>)</td><td><span class="pill lite">Lite</span></td></tr>
+<tr><td></td><td>凡例名</td><td>入力欄。フォーカスでアクセントの枠と薄い外側の輪</td><td><span class="pill">両方</span></td></tr>
+<tr><td></td><td>種別</td><td>今の <code>plot_type_combo</code></td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td></td><td>色: 大きな見本+パレットの色4つ(+16進は Advanced)</td><td>今の <code>ColorPickerWidget</code> の見た目を変え、チップの行を足す</td><td><span class="pill">両方</span></td></tr>
+<tr><td></td><td>線の種類: 実線・破線・点線・一点鎖線</td><td><span class="pill new">新規</span> <code>SegmentedControl</code>(線の絵)。<code>linestyle_combo</code> と同じ値</td><td><span class="pill">両方</span></td></tr>
+<tr><td></td><td>線の太さ: スライダー+数値</td><td><span class="pill new">新規</span> <code>SliderSpin</code>。数値は今の <code>linewidth_spinbox</code></td><td><span class="pill">両方</span></td></tr>
+<tr><td></td><td>透明度: スライダー+数値</td><td><code>SliderSpin</code></td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td></td><td>平滑化: トグル、平滑化の手法: コンボ(オフの間は薄く)</td><td><span class="pill new">新規</span> <code>ToggleSwitch</code>(<code>QCheckBox</code> の子クラスで、描き方だけ替える)</td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td>閉じた節</td><td>マーカー(なし)、グラデーション(オフ)、ウォーターフォール(オフ)、2D マップ・値による配色(オフ)、表示の追加要素、配置・情報</td><td>節の見出しの右に、今の状態の要約を出す <span class="pill new">新規</span>。マーカーは今「基本スタイル」の中にあるので、新しい節 <code>'marker'</code> に分ける</td><td><span class="pill adv">Advanced</span></td></tr>
+<tr><td>案内の枠</td><td>「誤差・透明度・平滑化・マーカー…」+「Advanced ですべて表示 →」</td><td><span class="pill new">新規</span>。押すと Advanced に切り替える</td><td><span class="pill lite">Lite</span></td></tr>
+</table></div>
+<div class="note info">節の開閉の保存(<code>DATASET_PROPERTY_COLLAPSED_SECTIONS</code>)は「閉じている節の一覧」なので、節 <code>'marker'</code> を足しても移行は要りません。行の表示・非表示は、今の条件(例: 線のときはマーカーの行を隠す)と、モードの条件の両方を満たすときだけ出す形にします。節の見出しを隠す <code>_update_property_section_visibility()</code> も、両方を見るようにします。</div>
+
+<h3><span class="region">G</span>ステータスバー</h3>
+<div class="tw"><table>
+<tr><th>モックアップ</th><th>今のコードとの対応</th><th>モード</th></tr>
+<tr><td>緑の点+「準備完了」、右に「自動保存 2 分前」</td><td>「自動保存 N 分前」は <span class="pill new">新規</span>(最後に自動保存した時刻を持つ)</td><td><span class="pill">両方</span></td></tr>
+<tr><td>「3 データセット · 1 選択」、座標「X = 7.42 Y = 40.18」(等幅)</td><td><code>coordinate_label</code> の文字の形を変える</td><td><span class="pill adv">Advanced</span></td></tr>
+</table></div>
+
+<h3><span class="region">H</span>⚙ の設定ポップアップ(テーマカラー)</h3>
+<p>帯の ⚙ を押すと、左下に幅 318px のポップアップが開きます。中身は次のとおりです。</p>
+<ul>
+  <li>見出し「テーマカラー」と説明「ボタン・選択・枠などに使う色です。グラフの線の色は変わりません。」</li>
+  <li>プリセット8色(4列): アイコン <code>#0F4C5C</code>、ティール <code>#1F7A80</code>、インディゴ <code>#4F46E5</code>、ブルー <code>#2563EB</code>、パープル <code>#7C3AED</code>、ローズ <code>#E11D48</code>、オレンジ <code>#F97316</code>、イエロー <code>#FACC15</code></li>
+  <li>カスタム(今の色選びの部品)と、選んだ色の16進</li>
+  <li>「ライトで使う色」「ダークで使う色」(補正後の色)</li>
+  <li>補正したときだけ出す案内:「ライトでは白い背景で見えるよう濃く…しています(読みやすさの自動調整)。」</li>
+  <li>「既定に戻す(アイコンの色)」</li>
+</ul>
+<p>ポップアップには「環境設定...」への入口も足します。同じテーマカラーの欄を、今の <code>PreferencesDialog</code>(<code>gui/dialogs/app.py</code>)にも置きます。</p>
+
+<h2 id="theme"><span class="n">3</span>テーマと色</h2>
+<h3>トークン(モックアップの値)</h3>
+<p>今の <code>LIGHT_TOKENS</code> / <code>DARK_TOKENS</code> を置き換えます。青の <code>selection_highlight</code> / <code>selection_accent</code> と、ティールの <code>accent</code> の二重の強調はやめて、アクセント1系統にします。</p>
+<div class="tw"><table>
+<tr><th>トークン</th><th>役割</th><th class="num">ライト</th><th class="num">ダーク</th><th>今の名前</th></tr>
+<tr><td><code>bg</code></td><td>ウィンドウの地</td><td class="num"><span class="sw" style="background:#F1F2F4"></span>#F1F2F4</td><td class="num"><span class="sw" style="background:#111417"></span>#111417</td><td><code>bg</code></td></tr>
+<tr><td><code>surface</code></td><td>パネル・カード・入力欄</td><td class="num"><span class="sw" style="background:#FFFFFF"></span>#FFFFFF</td><td class="num"><span class="sw" style="background:#181B1F"></span>#181B1F</td><td><code>surface</code></td></tr>
+<tr><td><code>surface_2</code></td><td>検索欄・統計カード・セグメントの地</td><td class="num"><span class="sw" style="background:#F3F5F7"></span>#F3F5F7</td><td class="num"><span class="sw" style="background:#1F2328"></span>#1F2328</td><td><code>surface_2</code></td></tr>
+<tr><td><code>chrome</code></td><td>上部バー・帯・ステータスバー</td><td class="num"><span class="sw" style="background:#E4E7EA"></span>#E4E7EA</td><td class="num"><span class="sw" style="background:#0E1013"></span>#0E1013</td><td>新規</td></tr>
+<tr><td><code>border</code></td><td>罫線</td><td class="num"><span class="sw" style="background:#E0E3E6"></span>#E0E3E6</td><td class="num"><span class="sw" style="background:#272C32"></span>#272C32</td><td><code>border</code></td></tr>
+<tr><td><code>border_strong</code></td><td>強い罫線・つまみ</td><td class="num"><span class="sw" style="background:#CBD0D5"></span>#CBD0D5</td><td class="num"><span class="sw" style="background:#373E46"></span>#373E46</td><td><code>border_strong</code></td></tr>
+<tr><td><code>text_primary</code></td><td>本文</td><td class="num"><span class="sw" style="background:#191D1F"></span>#191D1F</td><td class="num"><span class="sw" style="background:#E6E9EC"></span>#E6E9EC</td><td><code>text_primary</code></td></tr>
+<tr><td><code>text_secondary</code></td><td>ラベル</td><td class="num"><span class="sw" style="background:#56606A"></span>#56606A</td><td class="num"><span class="sw" style="background:#A0A9B1"></span>#A0A9B1</td><td><code>text_secondary</code></td></tr>
+<tr><td><code>text_muted</code></td><td>補足・「なし」</td><td class="num"><span class="sw" style="background:#8A939B"></span>#8A939B</td><td class="num"><span class="sw" style="background:#69737B"></span>#69737B</td><td><code>text_muted</code></td></tr>
+<tr><td><code>accent</code></td><td>主ボタン・選択中の帯・スライダー</td><td colspan="2">選んだ色から計算(下)</td><td><code>selection_accent</code> と統合</td></tr>
+<tr><td><code>accent_soft</code></td><td>選択の行・押した道具</td><td class="num">accent の 12%</td><td class="num">accent の 18%</td><td><code>selection_highlight</code> と統合</td></tr>
+<tr><td><code>accent_fg</code></td><td>アクセント色の文字</td><td colspan="2">計算(下)</td><td>新規</td></tr>
+<tr><td><code>on_accent</code></td><td>アクセントの塗りの上の文字</td><td colspan="2">白か <code>#0C0E11</code> の読みやすい方</td><td><code>accent_text</code> の名前を変える</td></tr>
+<tr><td><code>success</code> / <code>danger</code></td><td>状態の点・R² のバッジ / 負の残差</td><td class="num">#22A06B / #D1453B</td><td class="num">#5BD39A / #F1857C</td><td>新規</td></tr>
+</table></div>
+<p><code>gui/theme.py</code> の外でトークンを名前で読んでいる箇所は 13 ファイル(<code>builders/common.py</code>・<code>color_picker_widget.py</code>・<code>dataset_style_icon.py</code>・<code>data_editor.py</code>・<code>dialogs/</code> の4つ・<code>icon_utils.py</code>・<code>panels/axis_settings.py</code>・<code>rendering/common.py</code>・<code>residual_panel.py</code>・<code>splash.py</code>)です。名前を変えるトークン(<code>accent_text</code>・<code>selection_*</code>)は、これらを同じ PR で移します。</p>
+
+<h3>テーマカラーから色を計算する</h3>
+<p>Qt に依存しない純粋な関数として <code>gui/theme_color.py</code> に置き、Qt なしでテストします。モックアップの JavaScript と同じ手順です。</p>
+<pre>derive(選んだ色, dark) -&gt; {accent, accent_fg, on_accent, accent_soft}
+  背景 = dark ? surface(#181B1F) : #FFFFFF
+  accent    = 明るさ(HSL の L)だけを 0.01 ずつ動かし、背景とのコントラスト比が 4.5 以上になるまで
+              (ライトは暗く、ダークは明るく。色相と鮮やかさは変えない)
+  accent_fg = accent からさらに同じ向きに、比 4.5(ライト)/ 7(ダーク)以上まで
+  on_accent = 白と #0C0E11 のうち、accent との比が大きい方
+  accent_soft = accent を透明度 12%(ライト)/ 18%(ダーク)で
+コントラスト比は WCAG 2 の相対輝度で計算する</pre>
+<div class="tw"><table>
+<tr><th>選んだ色</th><th class="num">ライトの accent</th><th class="num">ダークの accent</th><th class="num">ダークの accent_fg</th><th>補正</th></tr>
+<tr><td>アイコン(既定)</td><td class="num"><span class="sw" style="background:#0F4C5C"></span>#0F4C5C</td><td class="num"><span class="sw" style="background:#1D91AF"></span>#1D91AF</td><td class="num">#24B5DB</td><td>ダークで明るく</td></tr>
+<tr><td>ブルー #2563EB</td><td class="num"><span class="sw" style="background:#2563EB"></span>#2563EB</td><td class="num"><span class="sw" style="background:#4A7EEE"></span>#4A7EEE</td><td class="num">#82A6F3</td><td>ダークで明るく</td></tr>
+<tr><td>イエロー #FACC15</td><td class="num"><span class="sw" style="background:#8C7103"></span>#8C7103</td><td class="num"><span class="sw" style="background:#FACC15"></span>#FACC15</td><td class="num">#FACC15</td><td>ライトで濃く。ダークのボタンの文字は黒</td></tr>
+<tr><td>薄いグレー #E5E7EB</td><td class="num"><span class="sw" style="background:#6A758A"></span>#6A758A</td><td class="num"><span class="sw" style="background:#E5E7EB"></span>#E5E7EB</td><td class="num">#E5E7EB</td><td>ライトで濃く</td></tr>
+</table></div>
+<p>この表をそのままテストの期待値にします。ほかに、ランダムな色を数百個与えて、どれも比 4.5 以上になることも確かめます。設定には「選んだ色」だけを保存し、補正は毎回計算します。</p>
+
+<h3>Qt への当て方</h3>
+<ul>
+  <li><b>QPalette をトークンから作る。</b>今はライトのとき OS のパレットのままで、ダークは固定の <code>(53,53,53)</code> です。両方ともトークンから作ります。<code>palette(base)</code> などを使うプラグイン(color-studio、mass-spec)と、Qt 標準のダイアログが揃います。</li>
+  <li><b><code>apply_theme()</code> の省略の条件に色を入れる。</b>今は「ダークかどうか」が同じなら処理を省いていますが、テーマカラーを変えたときも作り直す必要があります。条件を <code>(dark, 選んだ色)</code> にします。</li>
+  <li><b>色を焼き込んだアイコンを作り直す。</b>スピンボックスの矢印の PNG は、ファイル名に色が入っているのでそのまま使えます。<code>icon_utils.icon()</code> のアイコンは、テーマカラーを変えたときにも <code>_refresh_custom_svg_icons</code> を呼びます。</li>
+  <li><b>キャンバス・ミニマップ・起動画面。</b><code>rendering/common.py</code> の <code>DARK_FIGURE_FACECOLOR</code> はすでに <code>DARK_TOKENS['surface']</code> です。値が変わるので、ダークの描画のゴールデンが変わります(<a href="#tests">6</a>)。<code>minimap_widget.py</code> の固定の色はトークンに替えます。</li>
+  <li><b>文字の大きさ。</b>モックアップの本文は 13px で、今のアプリのフォントは 9.5pt(96 dpi で約 12.7px)です。差は小さく、変えると文字の幅に関わるテストやゴールデンが広く動くので、9.5pt のままにします。</li>
+</ul>
+
+<h2 id="modes"><span class="n">4</span>Lite と Advanced の仕組み</h2>
+<ul>
+  <li><b>設定:</b> <code>UI_MODE = Setting("ui_mode", …, str, export_as=str)</code> と <code>THEME_COLOR = Setting("theme_color", "#0F4C5C", str, export_as=str)</code>(PR 1 で追加済み) を <code>gui/app_settings.py</code> に足します。既定のモードは、初めて起動した人は Lite、今の利用者は Advanced です(<a href="#open">9 の 1</a>)。設定に <code>ui_mode</code> が無いとき、<code>has_shown_welcome</code> が真なら今の利用者とみなして Advanced を書き込みます。画面の表示名は日本語が「シンプル / アドバンスド」、英語が Lite / Advanced です。</li>
+  <li><b>表:</b> <code>gui/ui_mode.py</code> に、部品の名前(タブの属性名)と出すモードの組を並べます。例: <code>('stats_row_advanced', ADVANCED)</code>、<code>('type_tiles', LITE)</code>、<code>('bottom_panel', ADVANCED)</code>。<code>apply_ui_mode(app, mode)</code> がこの表を見て <code>setVisible()</code> します。</li>
+  <li><b>プロパティの行:</b> <code>DATASET_PROPERTY_BINDINGS</code> の各行に「Lite でも出すか」の列を足します。表示の判定は「今の条件 かつ モードの条件」です。</li>
+  <li><b>全タブで同時に:</b> モードとテーマカラーはアプリ全体の設定です。<code>MainAppWindow</code> が全タブに知らせます。後から開いたタブは、作るときに今のモードで組み立てます。</li>
+  <li><b>切り替えは軽く:</b> 切り替えでは QSS を当て直さず、表示・非表示だけにします(<code>setStyleSheet()</code> は1回約 130ms)。</li>
+  <li><b>Lite で隠れている設定が使われているとき:</b> 案内の枠に「使用中: グラデーション」のように出すと、見えない設定に気付けます(提案。モックアップには無い)。</li>
+  <li><b>メニューとショートカット:</b> 両方のモードで同じです。Lite でも ≡ からすべての機能に届きます。</li>
+</ul>
+
+<h2 id="prs"><span class="n">5</span>PR の段取り</h2>
+<h3>ブランチの運用</h3>
+<p>大きな変更なので、master には最終確認ができてから入れます。<code>refactor/architecture</code> のときと同じ形です。</p>
+<ol>
+  <li><b>統合ブランチを作る。</b>master から <code>feature/gui-redesign</code> を切る。最初のコミットで <code>.github/workflows/build.yml</code> の <code>pull_request.branches</code> に <code>feature/gui-redesign</code> を足す(今は <code>master</code> と <code>refactor/architecture</code> だけなので、足さないと統合ブランチ向けの PR で CI が走らない)。</li>
+  <li><b>各 PR は統合ブランチへ向ける。</b>下の PR 0〜9 は、すべて <code>feature/gui-redesign</code> から切り、<code>feature/gui-redesign</code> にマージする。CI が全部通れば確認なしでマージしてよい(今の運用と同じ)。macOS 実機の確認が要る PR(3 と 9)は、確認を取ってからマージする。</li>
+  <li><b>master の変更を取り込む。</b>刷新の途中で master に入った修正は、区切りごとに統合ブランチへマージする。インストーラーと exe の確認(<code>package.yml</code>)は master 向けの PR でしか自動で走らないので、区切りで手動実行(<code>workflow_dispatch</code>)する。</li>
+  <li><b>最終確認。</b>PR 9 の後、統合ブランチから exe を作ってユーザーが実際のアプリで確かめる。直すものがあれば統合ブランチで直す。</li>
+  <li><b>master へ。</b>ユーザーの了承を得てから、<code>feature/gui-redesign</code> → <code>master</code> の PR を作ってマージする。<code>build.yml</code> に足した統合ブランチの行は、その後に外す。</li>
+</ol>
+<p>番号は作業の順番です。各 PR の中は、CLAUDE.md の規律どおり「部品 → 組み込み → 配線 → テスト」の層ごとにコミットを分けます。どの PR も <code>gui/theme.py</code> か画面の骨組みに触れるので、マージ前に <code>scripts/run_tests_chunked.sh</code> でフルスイートを回します。</p>
+
+<div class="pr"><div class="no">0</div><div class="body"><h3>見本と計画をリポジトリに入れる</h3>
+<p>モックアップはリポジトリの外(<code>dev/Graphica/mockups/</code>)で作ったので、実装の各セッションが参照できるように取り込みます。以後はリポジトリの <code>plan.html</code> を正とし、変えたら Artifact に公開し直します。</p>
+<dl><dt>置き場所</dt><dd><code>docs/dev/mockups/gui_redesign/</code>(決定版 <code>final_lite_advanced.html</code>、この計画 <code>plan.html</code>、途中の案 <code>earlier/</code>)、<code>docs/dev/GUI_REDESIGN_PLAN.md</code>(この計画の要点)、<code>CURRENT_STATE.md</code> の更新</dd>
+<dt>コード</dt><dd>変えない(CI の対象外)</dd></dl></div></div>
+
+<div class="pr"><div class="no">1</div><div class="body"><h3>テーマの土台(配置は変えない)</h3>
+<dl><dt>内容</dt><dd>トークンをモックアップの値に替える。アクセント1系統に統合する。<code>theme_color.py</code>(色の計算)。QPalette をトークンから作る。<code>THEME_ACCENT_COLOR</code> の設定(既定 #0F4C5C)。<code>apply_theme()</code> の省略の条件を <code>(dark, 色)</code> に。ミニマップ・起動画面・キャンバスの色をトークンから</dd>
+<dt>ファイル</dt><dd><code>gui/theme.py</code>、<span class="pill new">新規</span> <code>gui/theme_color.py</code>、<code>gui/app_settings.py</code>、<code>gui/minimap_widget.py</code>、<code>gui/splash.py</code>、トークンを読む 13 ファイル</dd>
+<dt>テスト</dt><dd>色の計算の期待値とランダムな色、パレットがトークンどおりか、設定の表のテスト(<code>tests/test_app_settings_table.py</code>)</dd>
+<dt>ゴールデン</dt><dd>ui(stylesheet の hash・palette)、rendering の dark。理由をコミット本文に書いて作り直す</dd></dl></div></div>
+
+<div class="pr"><div class="no">2</div><div class="body"><h3>新しい部品</h3>
+<dl><dt>内容</dt><dd><code>SegmentedControl</code>(文字・アイコン・線の絵の3種類)、<code>ToggleSwitch</code>(<code>QCheckBox</code> の子クラス)、<code>SliderSpin</code>(スライダー+今のスピンボックス)、<code>ColorChipRow</code>、<code>TypeTileGroup</code>、<code>SectionHeader</code>(開閉+状態の要約)、<code>StatCard</code>。それぞれの QSS。まだ画面には入れない</dd>
+<dt>ファイル</dt><dd><span class="pill new">新規</span> <code>gui/widgets/</code>(パッケージ。<code>pyproject.toml</code> の <code>packages</code> に足す)</dd>
+<dt>テスト</dt><dd>値の出し入れ、シグナル、同期する相手の部品と値が一致すること</dd></dl></div></div>
+
+<div class="pr"><div class="no">3</div><div class="body"><h3>画面の骨組みとモードの仕組み</h3>
+<dl><dt>内容</dt><dd>上部バー <span class="region">A</span>(≡・タブ・検索・モードの切り替え・元に戻す/やり直す/保存/エクスポート)、タブのメニューバーを隠して <code>QAction</code> をタブに足す、帯 <span class="region">B</span> と左パネルの入れ物、<code>ui_mode.py</code> と <code>UI_MODE</code> の設定、全タブへの通知。<code>DOCK_LAYOUT_VERSION</code> を 5 に上げる</dd>
+<dt>ファイル</dt><dd><code>gui/main_app_window.py</code>、<span class="pill new">新規</span> <code>gui/shell/</code>(<code>header.py</code>・<code>rail.py</code>・<code>left_panel.py</code>。<code>pyproject.toml</code> に足す)、<span class="pill new">新規</span> <code>gui/ui_mode.py</code>、<code>gui/menu_bar.py</code>、<code>gui/dock_layout.py</code>、<code>gui/builders/common.py</code></dd>
+<dt>テスト</dt><dd>メニューを隠してもショートカットが効く、タブを替えると上部バーの操作が今のタブを指す、モードの切り替えで <code>content_fingerprint()</code> が変わらない、2つ目のタブも同じモードで開く</dd>
+<dt>確認</dt><dd>macOS 実機(ネイティブのメニューバーとの共存)。ユーザーに依頼</dd></dl></div></div>
+
+<div class="pr"><div class="no">4</div><div class="body"><h3>左パネル(データセット)<span class="region">C</span> とプラグインのページ</h3>
+<dl><dt>内容</dt><dd>データセット一覧・検索・ボタンを中央から左へ移す、見出し行・統計カード・操作の行、行の高さと点の数。プラグインのパネルを帯の「プラグイン」のページへ。解析・注釈・レイアウトのページは、今の操作へのボタンの並びで仮に作る</dd>
+<dt>ファイル</dt><dd><code>gui/builders/dataset_panel.py</code>、<code>gui/panels/dataset_tree.py</code>、<code>gui/main_window.py</code>(プラグインのパネル)、<code>gui/shell/left_panel.py</code></dd>
+<dt>テスト</dt><dd>今のデータセットのテスト一式、プラグインのパネルがページに出る、<code>docs/plugin_development.md</code> の置き場所の説明を直す</dd></dl></div></div>
+
+<div class="pr"><div class="no">5</div><div class="body"><h3>グラフのカード <span class="region">D</span></h3>
+<dl><dt>内容</dt><dd>カードの見た目、タイトル行、Lite の縦の道具、Advanced の文字付きの道具(同じ <code>QAction</code>)、幅が足りないときの「»」、ミニマップの色、カーソルの吹き出しの形、統計ボタンを無くす</dd>
+<dt>ファイル</dt><dd><code>gui/builders/canvas_area.py</code>、<code>gui/tools/</code>(カーソル)、<code>gui/minimap_widget.py</code></dd>
+<dt>テスト</dt><dd><code>tests/test_mouse_modes.py</code>(排他は同じ QAction なので変わらない)、両方のツールバーにモードの全部が入っている(Lite は4つ)</dd></dl></div></div>
+
+<div class="pr"><div class="no">6</div><div class="body"><h3>インスペクタ <span class="region">F</span></h3>
+<dl><dt>内容</dt><dd>タブ(プロパティ・軸・凡例・エクスポート)、対象の見出し、フォームの見た目(行 34px・ラベル 92px)、新しい部品への置き換え、節 <code>'marker'</code>、節の状態の要約、エクスポートのプレビューをタブへ、Lite のアイコン4択と案内の枠、行ごとのモードの列</dd>
+<dt>ファイル</dt><dd><code>gui/dock_layout.py</code>、<code>gui/builders/property_sections.py</code>・<code>dataset_panel.py</code>・<code>axis_panel.py</code>・<code>common.py</code>、<code>gui/dataset_bindings.py</code>、<code>gui/datasets/property_panel.py</code></dd>
+<dt>テスト</dt><dd>property_bindings の特性テストが変わらない(値の対応は同じ)、<code>tests/test_main_window.py</code> の節の見出しの数、英語表示の幅(<code>tests/test_english_ui.py</code>)、Lite の行が Advanced の行の一部であること</dd></dl></div></div>
+
+<div class="pr"><div class="no">7</div><div class="body"><h3>下のパネル <span class="region">E</span>(Advanced)</h3>
+<dl><dt>内容</dt><dd>データ表(新しいモデル。<code>visible_df</code>・フィット値・残差・カーソルの行)、フィット結果(<code>fit_info_textedit</code> を移す)、来歴(<code>ProvenancePanel</code>)、ログ(ログの Handler)、つまんで高さを変える仕切り</dd>
+<dt>ファイル</dt><dd><span class="pill new">新規</span> <code>gui/shell/bottom_panel.py</code>・<code>gui/data_table_model.py</code>、<code>gui/dock_layout.py</code>、<code>gui/provenance_panel.py</code>、<code>gui/residual_panel.py</code></dd>
+<dt>テスト</dt><dd>マスクした行・ウォーターフォールのときに表とカーソルの行がずれない、大きなデータ(数万行)でも表示が詰まらない</dd></dl></div></div>
+
+<div class="pr"><div class="no">8</div><div class="body"><h3>ステータスバー <span class="region">G</span> と設定 <span class="region">H</span></h3>
+<dl><dt>内容</dt><dd>「準備完了」と「自動保存 N 分前」、Advanced の選択数と座標。⚙ のポップアップ(テーマカラー・環境設定への入口)、<code>PreferencesDialog</code> にテーマカラーの欄</dd>
+<dt>ファイル</dt><dd><code>gui/builders/canvas_area.py</code>(ステータスバー)、<code>gui/project_files.py</code>(自動保存の時刻)、<span class="pill new">新規</span> <code>gui/shell/settings_popover.py</code>、<code>gui/dialogs/app.py</code></dd>
+<dt>テスト</dt><dd>色を選ぶと全タブの QSS とパレットが変わる、既定に戻せる、設定の書き出し・読み込みに入る</dd></dl></div></div>
+
+<div class="pr"><div class="no">9</div><div class="body"><h3>仕上げ</h3>
+<dl><dt>内容</dt><dd>英語の訳(<code>core/translations_en.py</code>)、モックアップとの並べ比べ、README とサイトのスクリーンショット(<code>docs/images/main_window.png</code>)、CHANGELOG、ユーザー向けの Wiki、プラグイン開発ハブへの連絡(見た目が変わったこと)</dd>
+<dt>確認</dt><dd>macOS 実機、mass-spec と color-studio のパネルの見え方</dd></dl></div></div>
+
+<h2 id="tests"><span class="n">6</span>テストと確認</h2>
+<h3>モックアップとの並べ比べ</h3>
+<p>「忠実に再現できたか」を毎回同じ条件で確かめるため、<code>scripts/screenshot_ui.py</code> を作ります。決まったサンプル(<code>cooling_curve_sample.csv</code> と、比較用の2本)を読み込み、ライト/ダーク × Lite/Advanced の4枚を <code>QWidget.grab()</code> で PNG に保存します。PR ごとに、モックアップの同じ状態と並べて差を確かめます。設定は一時的な INI に向けて、利用者のレジストリには触れません。</p>
+<h3>特性テストのゴールデン</h3>
+<p>見た目と配置を意図して変えるので、ui のゴールデン(stylesheet の hash、パレット、ドック、ツールバー、メニュー、部品の木)は PR ごとに変わります。PR 1 ではダークの描画も変わります。CLAUDE.md では「ゴールデンを作り直してよいのは <code>fix:</code> のコミットだけ」なので、刷新では作り直しのコミットを分け、本文に理由を書く運用にします(<a href="#open">9 の 9</a>)。</p>
+<h3>足すテスト</h3>
+<ul>
+  <li>色の計算: 期待値の表、ランダムな色が全部 4.5 以上、<code>on_accent</code> の選び方</li>
+  <li>モード: 切り替えで <code>content_fingerprint()</code> が変わらない、Lite で見える部品が Advanced で見える部品の一部である、英語表示のテストを両方のモードで</li>
+  <li>骨組み: メニューを隠してもショートカットが効く、タブを替えると上部バーの操作が今のタブを指す</li>
+  <li>プラグイン: パネルが帯のページに出る、<code>area</code> の値が何でも起動が止まらない</li>
+  <li>データ表: マスク・ウォーターフォールで行と点がずれない</li>
+</ul>
+
+<h2 id="dims"><span class="n">7</span>寸法の表</h2>
+<p>モックアップの CSS の値です。Qt の論理ピクセルとして、そのまま使います。</p>
+<div class="tw"><table>
+<tr><th>場所</th><th>寸法</th><th class="num">値</th></tr>
+<tr><td>ウィンドウ</td><td>上部バーの高さ / ステータスバーの高さ</td><td class="num">48 / 26</td></tr>
+<tr><td><span class="region">A</span></td><td>タブの高さ・角丸 / 検索欄の幅・高さ・角丸</td><td class="num">32・8 / 300・28・7</td></tr>
+<tr><td><span class="region">B</span></td><td>帯の幅 / ボタンの大きさ・角丸・アイコン</td><td class="num">56 / 38・10・20</td></tr>
+<tr><td><span class="region">C</span></td><td>パネルの幅 / 見出し行の高さ / 一覧の行の高さ・角丸 / 統計カードの角丸・間隔</td><td class="num">280 / 52 / 38・7 / 9・6</td></tr>
+<tr><td><span class="region">D</span></td><td>外側の余白 / カードの角丸 / 縦の道具のボタン・角丸 / 道具の入れ物の角丸 / ミニマップの高さ</td><td class="num">14 / 14 / 34・9 / 13 / 50</td></tr>
+<tr><td><span class="region">E</span></td><td>既定の高さ / タブの行の高さ / 表の文字</td><td class="num">200 / 36 / 12px</td></tr>
+<tr><td><span class="region">F</span></td><td>幅 / ラベルの列 / 行の高さ / 入力欄の高さ・角丸 / 節の見出しの文字</td><td class="num">340 / 92 / 34 / 30・7 / 12.5px 太字</td></tr>
+<tr><td><span class="region">H</span></td><td>幅 / 角丸 / プリセットの色の大きさ・角丸</td><td class="num">318 / 12 / 34・9</td></tr>
+<tr><td>共通</td><td>主ボタンの角丸 / アイコンボタン / トグル / スライダーのつまみ</td><td class="num">7 / 28・7 / 30×17 / 12</td></tr>
+</table></div>
+
+<h2 id="risks"><span class="n">8</span>リスク</h2>
+<div class="tw"><table>
+<tr><th>リスク</th><th>対策</th></tr>
+<tr><td>メニューバーを隠すと、ショートカットが効かなくなる</td><td>表から作った全部の <code>QAction</code> をタブにも足す。テストで主なショートカットを押して確かめる</td></tr>
+<tr><td>macOS はメニューバーが画面の上にあり、≡ と二重になる</td><td>macOS ではネイティブのメニューバーを残し、≡ は同じメニューを出すだけにする。実機の確認はユーザーに依頼する</td></tr>
+<tr><td>保存したドックの配置が新しい配置と合わない</td><td><code>DOCK_LAYOUT_VERSION</code> を上げて既定の配置に戻す。名前を付けて保存した配置(プリセット)が戻せないときは警告を出す</td></tr>
+<tr><td>タブごとの <code>QMainWindow</code> の作りと、アプリ全体の上部バーの組み合わせ</td><td>上部バーは <code>MainAppWindow</code> に1つだけ置き、表示中のタブの操作を付け替える。タブは今までどおり独立させる</td></tr>
+<tr><td>見え方を変えると、値の対応(バインディング)が壊れる</td><td>今の部品を値の持ち主として残す(原則 2)。property_bindings・axis_bindings の特性テストは変わらないはず</td></tr>
+<tr><td>英語の文字が長く、幅 340 に収まらない</td><td><code>tests/test_english_ui.py</code> と幅の確認。訳を短くする</td></tr>
+<tr><td>ゴールデンの作り直しが毎回入る</td><td>作り直しのコミットを分け、何が変わったか(配置・色)を本文に書く</td></tr>
+<tr><td>プラグインの独自スタイル(mass-spec の文字 11px)</td><td>パレットはトークンから作るので大半は揃う。残りはプラグインのリポジトリで直すよう、ハブで知らせる</td></tr>
+</table></div>
+
+<h2 id="open"><span class="n">9</span>決めたこと(詳細)</h2>
+<p>2026-10-12 に、すべて推奨どおりで決まりました。</p>
+<div class="tw"><table class="q">
+<tr><th>#</th><th>こと</th><th>決定</th><th>関わる PR</th></tr>
+<tr><td>1</td><td>既定のモード(初めて起動した人・今の利用者)</td><td class="rec">初めての人は Lite、今の利用者は Advanced(更新した人の手元で項目が消えないように)</td><td>3</td></tr>
+<tr><td>2</td><td>モードの表示名</td><td class="rec">日本語は「シンプル / アドバンスド」、英語は Lite / Advanced(「ライト」はテーマのライトと紛らわしい。「詳細」から変更)</td><td>3</td></tr>
+<tr><td>3</td><td>クイックアクセス(ピン留め)の置き場所。モックアップには無い</td><td class="rec">上部バーの「元に戻す・やり直す」の右に、アイコンで並べる</td><td>3</td></tr>
+<tr><td>4</td><td>≡ にまとめたメニュー</td><td class="rec">Windows は ≡ のみ。macOS はネイティブのメニューバーも残す</td><td>3</td></tr>
+<tr><td>5</td><td>ドックを動かす・切り離す機能と「ドックレイアウト」のプリセットを残すか</td><td class="rec">左・右・下のパネルは固定にし、プリセットの機能はやめる(新しい構成では使い道が少ない)。キャンバスの切り離しは残す</td><td>3〜7</td></tr>
+<tr><td>6</td><td>帯の「解析」「注釈」「レイアウト」のページの中身</td><td class="rec">最初は今の操作へのボタンの並び。中身(結果のカード一覧など)は刷新の後に別の項目で</td><td>4</td></tr>
+<tr><td>7</td><td>Lite のアイコン4択の「線+点」</td><td class="rec">種類は Line のまま、マーカーが無ければ「円」にする</td><td>6</td></tr>
+<tr><td>8</td><td>グラフのカードのタイトルに出す文字</td><td class="rec">選んでいるサブプロットのタイトル。無ければ「サブプロット N」</td><td>5</td></tr>
+<tr><td>9</td><td>刷新の PR でゴールデンを作り直すこと</td><td class="rec">作り直しのコミットを分けて、本文に理由を書く(CLAUDE.md に「意図した見た目の変更」も追記する)</td><td>1〜9</td></tr>
+<tr><td>10</td><td>ツールバーの統計ボタンとミニ統計のラベルを無くす</td><td class="rec">無くす(統計カードに置き換わる)</td><td>4〜5</td></tr>
+<tr><td>11</td><td>残差プロットのドック</td><td class="rec">下のパネルのタブ「残差」にする</td><td>7</td></tr>
+</table></div>
+
+<footer>この計画は、チャットで決めたモックアップ(<code>docs/dev/mockups/gui_redesign/final_lite_advanced.html</code>)と、<code>master</code> ed0cad1 のコード(<code>gui/theme.py</code>・<code>gui/main_app_window.py</code>・<code>gui/dock_layout.py</code>・<code>gui/builders/</code>・<code>gui/app_settings.py</code>・<code>tests/characterization/test_ui_structure.py</code>)を読んで書きました。</footer>
+</main>
+</div>

@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graphica GUI 案の比較</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{font-family:"Yu Gothic UI","Meiryo UI","Segoe UI",system-ui,sans-serif}
+body{margin:0;background:#E6E8EB;color:#1B1F1E}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 20px 8px;font-size:13px}
+.grp{display:flex;gap:3px;align-items:center;background:#fff;border:1px solid #D3D7DB;border-radius:9px;padding:3px}
+.grp .lbl{color:#5B6462;margin:0 6px 0 6px}
+.grp button{font:inherit;border:0;background:transparent;padding:5px 12px;border-radius:6px;cursor:pointer;color:#1B1F1E}
+.grp button.on{background:#1B1F1E;color:#fff}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.desc{margin:4px 20px 12px;background:#fff;border:1px solid #D3D7DB;border-radius:10px;padding:12px 16px;font-size:13px;line-height:1.75;display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:18px}
+.desc h3{margin:0 0 4px;font-size:14px}
+.desc .k{font-weight:600;font-size:12px;color:#5B6462;margin-bottom:2px}
+.desc ul{margin:0;padding-left:18px}
+.stage{padding:0 20px 28px}
+.scaler{transform-origin:top left}
+.current img{width:1440px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);display:block}
+
+/* ===== 共通トークン ===== */
+.app{
+  --bg:#F3F4F6; --surface:#FFFFFF; --surface-2:#F1F3F5; --chrome:#E7E9EC;
+  --border:#E3E6E8; --border-strong:#CDD2D6;
+  --text:#191D1F; --text-2:#59636A; --text-3:#8D969C;
+  --plot-bg:#FFFFFF; --plot-fg:#222; --legend-border:#ccc;
+  width:1440px;height:880px;border-radius:12px;overflow:hidden;
+  background:var(--bg);color:var(--text);font-size:13px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);display:none
+}
+.app.show{display:grid}
+.app[data-theme=dark]{
+  --bg:#121518; --surface:#1A1E22; --surface-2:#22272C; --chrome:#0D0F11;
+  --border:#2A3036; --border-strong:#3A4249;
+  --text:#E8EBED; --text-2:#A3ADB3; --text-3:#6C767C;
+  --plot-bg:#1A1E22; --plot-fg:#C9D0D4; --legend-border:#444;
+}
+.app[data-accent=teal]  {--accent:#1F7A80; --accent-soft:rgba(31,122,128,.12); --accent-text:#14595E; --on-accent:#fff}
+.app[data-accent=indigo]{--accent:#4F46E5; --accent-soft:rgba(79,70,229,.11);  --accent-text:#3730A3; --on-accent:#fff}
+.app[data-accent=blue]  {--accent:#2563EB; --accent-soft:rgba(37,99,235,.11);  --accent-text:#1D4ED8; --on-accent:#fff}
+.app[data-theme=dark][data-accent=teal]  {--accent:#4FB6BC; --accent-soft:rgba(79,182,188,.16); --accent-text:#8ED3D7; --on-accent:#0D0F11}
+.app[data-theme=dark][data-accent=indigo]{--accent:#818CF8; --accent-soft:rgba(129,140,248,.18); --accent-text:#B4BBFC; --on-accent:#0D0F11}
+.app[data-theme=dark][data-accent=blue]  {--accent:#60A5FA; --accent-soft:rgba(96,165,250,.16); --accent-text:#A5CBFD; --on-accent:#0D0F11}
+/* 案3: 暖色寄りのニュートラル */
+.app.v3{--bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#F5F5F3; --chrome:#FAFAF9; --border:#ECEAE6; --border-strong:#D6D3CE; --text:#1C1A17; --text-2:#6B6760; --text-3:#A19C94}
+.app.v3[data-theme=dark]{--bg:#171615; --surface:#171615; --surface-2:#22201E; --chrome:#1C1B19; --border:#2D2B28; --border-strong:#403D39; --text:#ECEAE6; --text-2:#A8A39B; --text-3:#716C65; --plot-bg:#171615}
+/* 案4: 高密度 */
+.app.v4{font-size:12px;--bg:#E4E7EA;--chrome:#D9DDE1}
+.app.v4[data-theme=dark]{--bg:#0B0D10;--surface:#15191D;--surface-2:#1C2126;--chrome:#0B0D10;--plot-bg:#15191D}
+
+.ti{font-size:17px;line-height:1}
+.ib{width:30px;height:30px;display:grid;place-items:center;border-radius:7px;color:var(--text-2);flex:none}
+.ib.on{background:var(--accent-soft);color:var(--accent-text)}
+.vsep{width:1px;height:20px;background:var(--border);margin:0 6px;flex:none}
+.spacer{flex:1}
+.h{font-weight:600;font-size:13.5px}
+.mono{font-family:Consolas,"Cascadia Mono",monospace;font-variant-numeric:tabular-nums}
+.btn-primary{display:flex;align-items:center;gap:6px;background:var(--accent);color:var(--on-accent);border-radius:7px;padding:6px 12px;font-weight:600;white-space:nowrap}
+.btn-ghost{display:flex;align-items:center;gap:6px;color:var(--text-2);border-radius:7px;padding:5px 10px;white-space:nowrap}
+.in{height:30px;border-radius:7px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;padding:0 10px;gap:8px;color:var(--text);min-width:0}
+.app[data-theme=dark] .in{background:var(--surface-2)}
+.in .ti{font-size:15px;color:var(--text-3);margin-left:auto}
+.in.focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.search{height:28px;border-radius:7px;background:var(--surface-2);display:flex;align-items:center;gap:6px;padding:0 9px;color:var(--text-3);font-size:12.5px}
+.kbd{margin-left:auto;font-size:11px;border:1px solid var(--border-strong);border-radius:4px;padding:0 5px;color:var(--text-2)}
+.chip{width:22px;height:22px;border-radius:6px;border:1px solid rgba(0,0,0,.08);flex:none}
+.chip.big{width:28px;height:28px;border-radius:8px;box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
+.colorrow{display:flex;gap:6px;align-items:center}
+.segline{display:flex;background:var(--surface-2);border-radius:8px;padding:3px;gap:2px}
+.segline div{flex:1;height:24px;display:grid;place-items:center;border-radius:6px}
+.segline div.on{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.10)}
+.app[data-theme=dark] .segline div.on{background:var(--border-strong)}
+.segline svg{width:30px;height:6px}
+.slider{display:flex;align-items:center;gap:10px}
+.track{flex:1;height:4px;border-radius:2px;background:var(--border-strong);position:relative}
+.track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--accent)}
+.track .knob{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--accent);transform:translate(-50%,-50%)}
+.num{width:50px;height:26px;border-radius:6px;border:1px solid var(--border);display:grid;place-items:center;font-variant-numeric:tabular-nums;font-size:12.5px;flex:none}
+.toggle{width:34px;height:20px;border-radius:10px;background:var(--border-strong);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff}
+.toggle.on{background:var(--accent)}
+.toggle.on::after{left:17px}
+.badge{font-size:11px;border-radius:5px;padding:1px 7px;background:var(--surface-2);color:var(--text-2);justify-self:start;white-space:nowrap}
+.line{width:18px;height:3px;border-radius:2px;flex:none}
+.meta{font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.plot{width:100%;height:100%;display:block}
+.status{background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 12px;font-size:11.5px;color:var(--text-2)}
+.status .ok{display:flex;align-items:center;gap:6px}
+.status .ok i{width:7px;height:7px;border-radius:50%;background:#22A06B;display:inline-block}
+
+/* ===== 案1: カード ===== */
+.v1{grid-template-rows:40px 44px 1fr 26px}
+.v1 .tabs{background:var(--chrome);display:flex;align-items:flex-end;padding:0 10px;gap:2px}
+.logo{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px 0 4px;font-weight:600;letter-spacing:.02em;flex:none}
+.logo .mark{width:22px;height:22px;border-radius:6px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:13px;font-weight:700}
+.v1 .tab{height:32px;display:flex;align-items:center;gap:8px;padding:0 10px 0 14px;border-radius:8px 8px 0 0;color:var(--text-2)}
+.v1 .tab.active{background:var(--surface);color:var(--text);font-weight:600}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.tab .x{font-size:14px;color:var(--text-3)}
+.v1 .bar{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 10px;gap:2px}
+.menu{padding:5px 10px;border-radius:6px;color:var(--text);white-space:nowrap}
+.v1 .main{display:grid;grid-template-columns:1fr 380px;gap:10px;padding:10px;min-height:0}
+.v1 .left{display:grid;grid-template-rows:1fr 250px;gap:10px;min-height:0}
+.card{background:var(--surface);border-radius:12px;border:1px solid var(--border);min-height:0;position:relative;overflow:hidden}
+.v1 .canvas-card{display:grid;grid-template-rows:1fr 60px;padding:52px 14px 10px}
+.pill{position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--surface);border:1px solid var(--border);box-shadow:0 4px 14px rgba(0,0,0,.08);z-index:2}
+.pill .ib{width:30px;height:28px}
+.pill .vsep{height:18px;margin:5px 4px}
+.minimap{border-top:1px solid var(--border);padding-top:8px}
+.v1 .ds{display:grid;grid-template-rows:auto 1fr auto}
+.v1 .ds-head{display:flex;align-items:center;gap:8px;padding:12px 14px 8px}
+.count{font-size:11.5px;color:var(--text-2);background:var(--surface-2);border-radius:10px;padding:1px 8px}
+.rows{padding:0 8px}
+.row{display:grid;grid-template-columns:22px 1fr 70px 84px 110px 28px;align-items:center;gap:8px;height:36px;padding:0 8px;border-radius:8px}
+.row.sel{background:var(--accent-soft)}
+.row .ti{font-size:16px;color:var(--text-3)}
+.folder{color:var(--text-2);font-size:12px;display:flex;align-items:center;gap:6px;height:30px;padding:0 8px}
+.ds-foot{display:flex;align-items:center;gap:2px;border-top:1px solid var(--border);padding:6px 10px}
+.v1 .props{display:grid;grid-template-rows:auto 1fr}
+.seg{display:flex;margin:12px 12px 4px;background:var(--surface-2);border-radius:9px;padding:3px}
+.seg div{flex:1;text-align:center;padding:5px 0;border-radius:7px;color:var(--text-2)}
+.seg div.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.10)}
+.app[data-theme=dark] .seg div.on{background:var(--border-strong)}
+.scroll{overflow:hidden;padding:4px 14px 14px}
+.target{display:flex;align-items:center;gap:10px;padding:10px 4px 6px}
+.target .sub{font-size:11.5px;color:var(--text-2)}
+.sec{border-top:1px solid var(--border);padding:10px 0 4px}
+.sec-h{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12.5px;padding:2px 4px 8px}
+.sec-h .ti{font-size:15px;color:var(--text-3)}
+.sec-h .state{margin-left:auto;font-weight:400;font-size:11.5px;color:var(--text-3)}
+.sec.closed .sec-h{padding-bottom:4px}
+.f{display:grid;grid-template-columns:86px 1fr;align-items:center;gap:10px;padding:4px}
+.f label{color:var(--text-2);font-size:12.5px}
+.sw{display:flex;align-items:center;justify-content:space-between;padding:6px 4px}
+.sw span{color:var(--text-2);font-size:12.5px}
+
+/* ===== 案2: サイドバー ===== */
+.v2{grid-template-rows:46px 1fr 26px}
+.v2 .top{background:var(--chrome);display:flex;align-items:center;padding:0 10px;gap:6px;border-bottom:1px solid var(--border)}
+.v2 .tab{height:30px;display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;border-radius:8px;color:var(--text-2)}
+.v2 .tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.v2 .body{display:grid;grid-template-columns:52px 290px 1fr 340px;min-height:0}
+.rail{background:var(--chrome);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:4px}
+.rail .ib{width:38px;height:38px;border-radius:10px}
+.rail .ib .ti{font-size:20px}
+.rail .ib.on{background:var(--accent);color:var(--on-accent)}
+.v2 .side{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.panel-h{display:flex;align-items:center;gap:8px;padding:14px 14px 10px}
+.panel-h .h{font-size:14px}
+.tree{padding:0 8px;display:flex;flex-direction:column;gap:2px}
+.titem{display:flex;align-items:center;gap:9px;height:34px;padding:0 8px;border-radius:8px}
+.titem.sel{background:var(--accent-soft)}
+.titem .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.titem .ti{font-size:15px;color:var(--text-3)}
+.titem .sub{font-size:11px;color:var(--text-3)}
+.side .foot{margin-top:auto;border-top:1px solid var(--border);padding:10px;display:flex;flex-direction:column;gap:8px}
+.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.stat{background:var(--surface-2);border-radius:8px;padding:6px 8px}
+.stat .l{font-size:10.5px;color:var(--text-3)}
+.stat .v{font-weight:600;font-variant-numeric:tabular-nums}
+.v2 .center{display:grid;grid-template-rows:40px 1fr 70px;min-height:0;background:var(--bg)}
+.v2 .ctool{display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--surface)}
+.v2 .crumb{color:var(--text-2);display:flex;align-items:center;gap:6px}
+.v2 .crumb b{color:var(--text);font-weight:600}
+.v2 .canvas{position:relative;margin:14px 14px 0 64px;background:var(--plot-bg);border-radius:10px;border:1px solid var(--border);overflow:hidden}
+.vtools{position:absolute;left:12px;top:56px;display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:0 4px 14px rgba(0,0,0,.08)}
+.vtools .vsep{width:20px;height:1px;margin:4px auto}
+.v2 .mini{margin:10px 14px 12px 64px;background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:6px 10px}
+.v2 .insp{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.utabs{display:flex;gap:18px;padding:0 16px;border-bottom:1px solid var(--border)}
+.utabs div{padding:13px 0 10px;color:var(--text-2);border-bottom:2px solid transparent}
+.utabs div.on{color:var(--text);font-weight:600;border-color:var(--accent)}
+
+/* ===== 案3: ミニマル ===== */
+.v3{grid-template-rows:48px 1fr}
+.v3 .top{display:flex;align-items:center;padding:0 14px;gap:4px;border-bottom:1px solid var(--border);background:var(--chrome)}
+.v3 .proj{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:8px;font-weight:600}
+.v3 .proj .n{font-size:11px;font-weight:400;color:var(--text-3);border:1px solid var(--border-strong);border-radius:10px;padding:0 6px}
+.v3 .menu{color:var(--text-2)}
+.v3 .body{display:grid;grid-template-columns:240px 1fr 300px;min-height:0}
+.v3 .side{border-right:1px solid var(--border);padding:16px 10px;display:flex;flex-direction:column;gap:2px}
+.cap{font-size:11.5px;color:var(--text-3);padding:12px 8px 6px;display:flex;align-items:center}
+.cap:first-child{padding-top:0}
+.v3 .titem{height:30px}
+.v3 .titem.sel{background:var(--surface-2)}
+.v3 .titem.sel .name{font-weight:600}
+.v3 .center{position:relative;display:grid;grid-template-rows:auto 1fr 56px;min-height:0;padding:22px 28px 76px}
+.v3 .title{display:flex;align-items:baseline;gap:12px;padding:0 4px 8px}
+.v3 .title .t{font-size:20px;font-weight:600;letter-spacing:.01em}
+.v3 .title .s{color:var(--text-3);font-size:12.5px}
+.dock{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:2px;align-items:center;padding:5px;border-radius:14px;background:#1C1A17;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.app[data-theme=dark] .dock{background:#2D2B28}
+.dock .ib{color:#BDB8B0;width:34px;height:32px;border-radius:9px}
+.dock .ib.on{background:var(--accent);color:var(--on-accent)}
+.dock .vsep{background:#3F3B36;height:20px;margin:0 4px}
+.v3 .insp{border-left:1px solid var(--border);padding:16px 18px;overflow:hidden}
+.st{display:flex;flex-direction:column;gap:5px;padding:7px 0}
+.st label{font-size:11.5px;color:var(--text-3)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.v3 .in{border-color:transparent;background:var(--surface-2)}
+.v3 .in.focus{border-color:var(--accent);background:var(--surface)}
+.v3 .hr{height:1px;background:var(--border);margin:10px 0}
+.v3 .more{display:flex;align-items:center;justify-content:space-between;color:var(--text-2);padding:7px 0}
+.v3 .more .ti{font-size:15px;color:var(--text-3)}
+
+/* ===== 案4: 高密度プロ ===== */
+.v4{grid-template-rows:32px 38px 1fr 22px}
+.v4 .tabs{display:flex;align-items:flex-end;padding:0 6px;gap:1px;background:var(--chrome)}
+.v4 .tab{height:27px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px 6px 0 0;color:var(--text-2);font-size:12px}
+.v4 .tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:inset 0 2px 0 var(--accent)}
+.v4 .menu{padding:3px 8px;font-size:12px}
+.v4 .tb{background:var(--surface);display:flex;align-items:center;gap:2px;padding:0 6px;border-bottom:1px solid var(--border)}
+.lb{display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:6px;color:var(--text);white-space:nowrap}
+.lb .ti{font-size:16px;color:var(--text-2)}
+.lb.on{background:var(--accent-soft);color:var(--accent-text)}
+.lb.on .ti{color:var(--accent-text)}
+.v4 .body{display:grid;grid-template-columns:270px 1fr 320px;gap:4px;padding:4px;min-height:0}
+.pane{background:var(--surface);border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.ph{display:flex;align-items:center;height:28px;border-bottom:1px solid var(--border);background:var(--surface-2);padding:0 4px 0 0;flex:none}
+.ph .pt{height:28px;display:flex;align-items:center;padding:0 10px;color:var(--text-2);font-size:11.5px;border-right:1px solid var(--border)}
+.ph .pt.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent)}
+.ph .ib{width:22px;height:22px}
+.ph .ib .ti{font-size:14px}
+.v4 .mid{display:grid;grid-template-rows:1fr 210px;gap:4px;min-height:0}
+.v4 .left{display:grid;grid-template-rows:1fr 190px;gap:4px;min-height:0}
+.dtable{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums}
+.dtable th{position:sticky;top:0;background:var(--surface-2);color:var(--text-2);font-weight:600;text-align:right;padding:4px 10px;border-bottom:1px solid var(--border)}
+.dtable th:first-child,.dtable td:first-child{text-align:center;color:var(--text-3);width:36px}
+.dtable td{text-align:right;padding:3px 10px;border-bottom:1px solid var(--border)}
+.dtable tr.hl td{background:var(--accent-soft)}
+.trow{display:grid;grid-template-columns:16px 14px 1fr 46px 18px;align-items:center;gap:6px;height:24px;padding:0 8px;font-size:12px}
+.trow.sel{background:var(--accent-soft)}
+.trow .ti{font-size:13px;color:var(--text-3)}
+.pg{display:grid;grid-template-columns:96px 1fr;font-size:12px}
+.pg .gh{grid-column:1/-1;background:var(--surface-2);font-weight:600;padding:4px 8px;display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--border);font-size:11.5px}
+.pg .gh .ti{font-size:13px;color:var(--text-3)}
+.pg .k{padding:0 8px;height:26px;display:flex;align-items:center;color:var(--text-2);border-bottom:1px solid var(--border);border-right:1px solid var(--border)}
+.pg .v{padding:0 6px;height:26px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--border)}
+.pg .v .ti{margin-left:auto;font-size:13px;color:var(--text-3)}
+.pg .v.focus{box-shadow:inset 0 0 0 1px var(--accent)}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 10px;font-size:12px}
+.kv span:nth-child(odd){color:var(--text-2)}
+.kv span:nth-child(even){font-variant-numeric:tabular-nums;text-align:right}
+</style>
+</head>
+<body>
+<div class="controls">
+  <div class="grp" id="variantBtns"><span class="lbl">案</span>
+    <button data-v="v1" class="on">1 カード</button>
+    <button data-v="v2">2 サイドバー</button>
+    <button data-v="v3">3 ミニマル</button>
+    <button data-v="v4">4 高密度プロ</button>
+    <button data-v="cur">現状</button>
+  </div>
+  <div class="grp"><span class="lbl">テーマ</span>
+    <button data-theme="light" class="on">ライト</button>
+    <button data-theme="dark">ダーク</button>
+  </div>
+  <div class="grp"><span class="lbl">アクセント</span>
+    <button data-accent="teal" class="on"><span class="swatch" style="background:#1F7A80"></span>ティール</button>
+    <button data-accent="indigo"><span class="swatch" style="background:#4F46E5"></span>インディゴ</button>
+    <button data-accent="blue"><span class="swatch" style="background:#2563EB"></span>ブルー</button>
+  </div>
+</div>
+<div class="desc" id="desc"></div>
+
+<div class="stage">
+ <div class="scaler" id="scaler">
+
+  <div class="current app-like" id="cur" style="display:none"><img src="../current_light.png" alt="現状の画面"></div>
+
+  <!-- ================= 案1 カード ================= -->
+  <div class="app v1 show" id="v1">
+    <div class="tabs">
+      <div class="logo"><div class="mark">G</div>Graphica</div>
+      <div class="tab active"><span class="dot"></span>冷却曲線の解析<span class="x ti ti-x"></span></div>
+      <div class="tab">無題のプロジェクト 2<span class="x ti ti-x"></span></div>
+      <div class="ib"><i class="ti ti-plus"></i></div>
+      <div class="spacer"></div>
+      <div class="ib"><i class="ti ti-history"></i></div>
+    </div>
+    <div class="bar">
+      <span class="menu">ファイル</span><span class="menu">編集</span><span class="menu">データセット</span><span class="menu">表示</span><span class="menu">プラグイン</span><span class="menu">ヘルプ</span>
+      <div class="vsep"></div>
+      <div class="ib"><i class="ti ti-arrow-back-up"></i></div><div class="ib"><i class="ti ti-arrow-forward-up"></i></div>
+      <div class="ib"><i class="ti ti-device-floppy"></i></div><div class="ib"><i class="ti ti-photo-down"></i></div><div class="ib"><i class="ti ti-pin"></i></div>
+      <div class="spacer"></div>
+      <div class="search" style="width:290px"><i class="ti ti-search" style="font-size:15px"></i>コマンドを検索<span class="kbd">Ctrl+Shift+P</span></div>
+      <div class="vsep"></div>
+      <div class="ib"><i class="ti ti-moon"></i></div><div class="ib"><i class="ti ti-settings"></i></div>
+    </div>
+    <div class="main">
+      <div class="left">
+        <div class="card canvas-card">
+          <div class="pill">
+            <div class="ib on"><i class="ti ti-pointer"></i></div><div class="ib"><i class="ti ti-message-2"></i></div><div class="ib"><i class="ti ti-layout-grid"></i></div><div class="ib"><i class="ti ti-box-margin"></i></div><div class="ib"><i class="ti ti-triangle"></i></div><div class="ib"><i class="ti ti-chart-line"></i></div><div class="ib"><i class="ti ti-highlight"></i></div>
+            <div class="vsep"></div><div class="ib"><i class="ti ti-zoom-reset"></i></div><div class="ib"><i class="ti ti-chart-dots-3"></i></div>
+          </div>
+          <svg class="plot" data-plot="main"></svg>
+          <div class="minimap"><svg class="plot" data-plot="mini"></svg></div>
+        </div>
+        <div class="card ds" style="display:grid;grid-template-rows:auto 1fr auto">
+          <div class="ds-head">
+            <span class="h">データセット</span><span class="count">3</span>
+            <div class="search" style="flex:1;max-width:280px;margin-left:auto"><i class="ti ti-search" style="font-size:14px"></i>データセットを検索</div>
+            <div class="btn-primary"><i class="ti ti-plus" style="font-size:15px"></i>データを追加</div>
+          </div>
+          <div class="rows">
+            <div class="row sel"><span class="line" style="background:#1f77b4"></span><span>cooling_curve</span><span class="badge">Line</span><span class="meta">n = 41</span><span class="meta">平均 42.99</span><i class="ti ti-eye"></i></div>
+            <div class="folder"><i class="ti ti-folder" style="font-size:15px"></i>比較用</div>
+            <div class="row" style="padding-left:28px"><span class="line" style="background:#ff7f0e"></span><span>cooling_curve_2</span><span class="badge">Scatter</span><span class="meta">n = 41</span><span class="meta">平均 45.12</span><i class="ti ti-eye"></i></div>
+            <div class="row" style="padding-left:28px;color:var(--text-3)"><span class="line" style="background:#2ca02c;opacity:.4"></span><span>fit_exp</span><span class="badge">Line</span><span class="meta">n = 200</span><span class="meta">R² 0.998</span><i class="ti ti-eye-off"></i></div>
+          </div>
+          <div class="ds-foot">
+            <div class="ib"><i class="ti ti-table"></i></div><div class="ib"><i class="ti ti-copy"></i></div><div class="ib"><i class="ti ti-pencil"></i></div><div class="ib"><i class="ti ti-folder-plus"></i></div>
+            <div class="vsep"></div><div class="ib"><i class="ti ti-chart-line"></i></div><div class="ib"><i class="ti ti-triangle"></i></div><div class="ib"><i class="ti ti-palette"></i></div>
+            <div class="spacer"></div><div class="ib"><i class="ti ti-dots"></i></div><div class="ib"><i class="ti ti-trash"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="card props">
+        <div class="seg"><div class="on">プロパティ</div><div>軸・レイアウト</div><div>エクスポート</div></div>
+        <div class="scroll" data-props="card"></div>
+      </div>
+    </div>
+    <div class="status"><span class="ok"><i></i>準備完了</span><span>サブプロット 1 / 1</span><div class="spacer"></div><span class="mono">X = 7.42　Y = 40.18</span><span>自動保存 2 分前</span></div>
+  </div>
+
+  <!-- ================= 案2 サイドバー ================= -->
+  <div class="app v2" id="v2">
+    <div class="top">
+      <div class="ib" title="メニュー"><i class="ti ti-menu-2"></i></div>
+      <div class="logo"><div class="mark">G</div>Graphica</div>
+      <div class="vsep"></div>
+      <div class="tab active"><span class="dot"></span>冷却曲線の解析<span class="x ti ti-x"></span></div>
+      <div class="tab">無題のプロジェクト 2<span class="x ti ti-x"></span></div>
+      <div class="ib"><i class="ti ti-plus"></i></div>
+      <div class="spacer"></div>
+      <div class="search" style="width:320px;background:var(--surface)"><i class="ti ti-search" style="font-size:15px"></i>コマンド・設定・データセットを検索<span class="kbd">Ctrl+K</span></div>
+      <div class="spacer"></div>
+      <div class="ib"><i class="ti ti-arrow-back-up"></i></div><div class="ib"><i class="ti ti-arrow-forward-up"></i></div>
+      <div class="ib"><i class="ti ti-device-floppy"></i></div>
+      <div class="btn-primary" style="margin-left:6px"><i class="ti ti-photo-down" style="font-size:15px"></i>エクスポート</div>
+    </div>
+    <div class="body">
+      <div class="rail">
+        <div class="ib on" title="データセット"><i class="ti ti-database"></i></div>
+        <div class="ib" title="解析"><i class="ti ti-math-function"></i></div>
+        <div class="ib" title="注釈"><i class="ti ti-message-2"></i></div>
+        <div class="ib" title="レイアウト"><i class="ti ti-layout-grid"></i></div>
+        <div class="ib" title="プラグイン"><i class="ti ti-puzzle"></i></div>
+        <div class="spacer"></div>
+        <div class="ib" title="ダークモード"><i class="ti ti-moon"></i></div>
+        <div class="ib" title="設定"><i class="ti ti-settings"></i></div>
+      </div>
+      <div class="side">
+        <div class="panel-h"><span class="h">データセット</span><span class="count">3</span><div class="spacer"></div><div class="ib"><i class="ti ti-folder-plus"></i></div><div class="ib" style="background:var(--accent);color:var(--on-accent)"><i class="ti ti-plus"></i></div></div>
+        <div style="padding:0 12px 10px"><div class="search"><i class="ti ti-search" style="font-size:14px"></i>検索</div></div>
+        <div class="tree">
+          <div class="titem sel"><span class="line" style="background:#1f77b4"></span><span class="name">cooling_curve</span><span class="sub">41</span><i class="ti ti-eye"></i></div>
+          <div class="titem" style="color:var(--text-2)"><i class="ti ti-chevron-down"></i><i class="ti ti-folder"></i><span class="name">比較用</span></div>
+          <div class="titem" style="padding-left:30px"><span class="line" style="background:#ff7f0e"></span><span class="name">cooling_curve_2</span><span class="sub">41</span><i class="ti ti-eye"></i></div>
+          <div class="titem" style="padding-left:30px;color:var(--text-3)"><span class="line" style="background:#2ca02c;opacity:.4"></span><span class="name">fit_exp</span><span class="sub">200</span><i class="ti ti-eye-off"></i></div>
+        </div>
+        <div class="foot">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)"><span class="line" style="background:#1f77b4"></span>cooling_curve の統計</div>
+          <div class="statgrid">
+            <div class="stat"><div class="l">n</div><div class="v">41</div></div>
+            <div class="stat"><div class="l">平均</div><div class="v">42.99</div></div>
+            <div class="stat"><div class="l">SD</div><div class="v">17.54</div></div>
+          </div>
+          <div style="display:flex;gap:2px"><div class="ib"><i class="ti ti-table"></i></div><div class="ib"><i class="ti ti-copy"></i></div><div class="ib"><i class="ti ti-pencil"></i></div><div class="ib"><i class="ti ti-palette"></i></div><div class="spacer"></div><div class="ib"><i class="ti ti-dots"></i></div><div class="ib"><i class="ti ti-trash"></i></div></div>
+        </div>
+      </div>
+      <div class="center">
+        <div class="ctool">
+          <div class="crumb"><i class="ti ti-chart-line" style="font-size:15px"></i>サブプロット <b>1</b> / 1</div>
+          <div class="spacer"></div>
+          <div class="btn-ghost"><i class="ti ti-zoom-reset" style="font-size:15px"></i>範囲をリセット</div>
+          <div class="btn-ghost"><i class="ti ti-layout-columns" style="font-size:15px"></i>1 × 1</div>
+          <div class="btn-ghost"><i class="ti ti-map" style="font-size:15px"></i>ミニマップ</div>
+        </div>
+        <div style="position:relative;min-height:0;display:grid">
+          <div class="vtools">
+            <div class="ib on"><i class="ti ti-pointer"></i></div><div class="ib"><i class="ti ti-message-2"></i></div><div class="ib"><i class="ti ti-layout-grid"></i></div><div class="ib"><i class="ti ti-box-margin"></i></div>
+            <div class="vsep"></div>
+            <div class="ib"><i class="ti ti-triangle"></i></div><div class="ib"><i class="ti ti-chart-line"></i></div><div class="ib"><i class="ti ti-highlight"></i></div>
+          </div>
+          <div class="canvas"><svg class="plot" data-plot="main"></svg></div>
+        </div>
+        <div class="mini"><svg class="plot" data-plot="mini"></svg></div>
+      </div>
+      <div class="insp">
+        <div class="utabs"><div class="on">スタイル</div><div>データ列</div><div>軸</div><div>情報</div></div>
+        <div class="scroll" data-props="card" data-skip-cols="1" style="padding-top:8px"></div>
+      </div>
+    </div>
+    <div class="status"><span class="ok"><i></i>準備完了</span><div class="spacer"></div><span class="mono">X = 7.42　Y = 40.18</span><span>自動保存 2 分前</span></div>
+  </div>
+
+  <!-- ================= 案3 ミニマル ================= -->
+  <div class="app v3" id="v3">
+    <div class="top">
+      <div class="logo" style="padding-right:4px"><div class="mark">G</div></div>
+      <div class="proj">冷却曲線の解析<i class="ti ti-chevron-down" style="font-size:14px;color:var(--text-3)"></i><span class="n">2 タブ</span></div>
+      <div class="vsep"></div>
+      <span class="menu">ファイル</span><span class="menu">編集</span><span class="menu">データセット</span><span class="menu">表示</span><span class="menu">プラグイン</span><span class="menu">ヘルプ</span>
+      <div class="spacer"></div>
+      <div class="search" style="width:220px"><i class="ti ti-search" style="font-size:14px"></i>検索<span class="kbd">Ctrl+K</span></div>
+      <div class="ib"><i class="ti ti-arrow-back-up"></i></div><div class="ib"><i class="ti ti-arrow-forward-up"></i></div>
+      <div class="btn-ghost" style="border:1px solid var(--border-strong);margin-left:6px"><i class="ti ti-photo-down" style="font-size:15px"></i>エクスポート</div>
+    </div>
+    <div class="body">
+      <div class="side">
+        <div class="cap">データセット<div class="spacer"></div><i class="ti ti-plus" style="font-size:15px;color:var(--text-2)"></i></div>
+        <div class="titem sel"><span class="line" style="background:#1f77b4"></span><span class="name">cooling_curve</span><i class="ti ti-eye"></i></div>
+        <div class="titem" style="color:var(--text-2)"><i class="ti ti-folder"></i><span class="name">比較用</span></div>
+        <div class="titem" style="padding-left:26px"><span class="line" style="background:#ff7f0e"></span><span class="name">cooling_curve_2</span><i class="ti ti-eye"></i></div>
+        <div class="titem" style="padding-left:26px;color:var(--text-3)"><span class="line" style="background:#2ca02c;opacity:.4"></span><span class="name">fit_exp</span><i class="ti ti-eye-off"></i></div>
+        <div class="cap" style="margin-top:12px">サブプロット</div>
+        <div class="titem sel" style="background:transparent"><i class="ti ti-square" style="color:var(--accent)"></i><span class="name">1 · 温度の変化</span></div>
+        <div class="titem" style="color:var(--text-3)"><i class="ti ti-plus"></i><span class="name">サブプロットを追加</span></div>
+        <div class="spacer"></div>
+        <div class="cap">cooling_curve</div>
+        <div style="padding:0 8px;color:var(--text-2);font-size:12px;line-height:1.9" class="mono">n 41 · 平均 42.99<br>SD 17.54 · 範囲 0–20</div>
+      </div>
+      <div class="center">
+        <div class="title"><span class="t">温度の変化</span><span class="s">時間_s → 温度_degC · 3 系列</span></div>
+        <svg class="plot" data-plot="main"></svg>
+        <svg class="plot" data-plot="mini" style="opacity:.9"></svg>
+        <div class="dock">
+          <div class="ib on"><i class="ti ti-pointer"></i></div><div class="ib"><i class="ti ti-hand-move"></i></div><div class="ib"><i class="ti ti-zoom-in-area"></i></div>
+          <div class="vsep"></div>
+          <div class="ib"><i class="ti ti-message-2"></i></div><div class="ib"><i class="ti ti-box-margin"></i></div><div class="ib"><i class="ti ti-triangle"></i></div><div class="ib"><i class="ti ti-chart-line"></i></div><div class="ib"><i class="ti ti-highlight"></i></div>
+          <div class="vsep"></div>
+          <div class="ib"><i class="ti ti-layout-grid"></i></div><div class="ib"><i class="ti ti-zoom-reset"></i></div>
+        </div>
+      </div>
+      <div class="insp">
+        <div style="display:flex;align-items:center;gap:8px;padding-bottom:8px"><span class="line" style="background:#1f77b4;width:22px;height:4px"></span><span class="h">cooling_curve</span><div class="spacer"></div><i class="ti ti-dots" style="color:var(--text-3)"></i></div>
+        <div class="st"><label>凡例名</label><div class="in focus">cooling_curve</div></div>
+        <div class="pair"><div class="st"><label>X</label><div class="in">時間_s<i class="ti ti-selector"></i></div></div><div class="st"><label>Y</label><div class="in">温度_degC<i class="ti ti-selector"></i></div></div></div>
+        <div class="hr"></div>
+        <div class="st"><label>種別</label>
+          <div class="segline"><div class="on" style="font-size:12px">線</div><div style="font-size:12px;color:var(--text-2)">点</div><div style="font-size:12px;color:var(--text-2)">線+点</div><div style="font-size:12px;color:var(--text-2)">棒</div><div style="font-size:12px;color:var(--text-2)"><i class="ti ti-dots" style="font-size:14px"></i></div></div></div>
+        <div class="st"><label>色</label><div class="colorrow"><span class="chip big" style="background:#1f77b4"></span><span class="chip" style="background:#ff7f0e"></span><span class="chip" style="background:#2ca02c"></span><span class="chip" style="background:#d62728"></span><span class="chip" style="background:#9467bd"></span><span class="chip" style="background:#8c564b"></span></div></div>
+        <div class="st"><label>線</label>
+          <div class="segline">
+            <div class="on"><svg><line x1="0" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2"/></svg></div>
+            <div><svg><line x1="0" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="7 4"/></svg></div>
+            <div><svg><line x1="0" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="2 3"/></svg></div>
+            <div><svg><line x1="0" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="8 3 2 3"/></svg></div>
+          </div></div>
+        <div class="pair"><div class="st"><label>太さ</label><div class="in mono">1.50</div></div><div class="st"><label>不透明度</label><div class="in mono">100 %</div></div></div>
+        <div class="hr"></div>
+        <div class="more">平滑化<div class="toggle"></div></div>
+        <div class="more">マーカー<i class="ti ti-plus"></i></div>
+        <div class="more">誤差棒<i class="ti ti-plus"></i></div>
+        <div class="more">グラデーション<i class="ti ti-plus"></i></div>
+        <div class="more">ウォーターフォール<i class="ti ti-plus"></i></div>
+        <div class="more">2D マップ・値による配色<i class="ti ti-plus"></i></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 案4 高密度プロ ================= -->
+  <div class="app v4" id="v4">
+    <div class="tabs">
+      <div class="logo" style="height:32px;font-size:12px"><div class="mark" style="width:18px;height:18px;font-size:11px">G</div></div>
+      <span class="menu">ファイル</span><span class="menu">編集</span><span class="menu">データセット</span><span class="menu">表示</span><span class="menu">解析</span><span class="menu">プラグイン</span><span class="menu">ヘルプ</span>
+      <div class="vsep" style="align-self:center"></div>
+      <div class="tab active">冷却曲線の解析<span class="x ti ti-x"></span></div>
+      <div class="tab">無題のプロジェクト 2<span class="x ti ti-x"></span></div>
+      <div class="ib" style="width:24px;height:24px;align-self:center"><i class="ti ti-plus" style="font-size:14px"></i></div>
+      <div class="spacer"></div>
+      <div class="search" style="width:240px;height:24px;align-self:center;background:var(--surface)"><i class="ti ti-search" style="font-size:13px"></i>コマンドを検索<span class="kbd">Ctrl+Shift+P</span></div>
+    </div>
+    <div class="tb">
+      <div class="lb"><i class="ti ti-file-plus"></i>データを追加</div>
+      <div class="lb"><i class="ti ti-device-floppy"></i>保存</div>
+      <div class="vsep"></div>
+      <div class="lb on"><i class="ti ti-pointer"></i>カーソル</div>
+      <div class="lb"><i class="ti ti-message-2"></i>注釈</div>
+      <div class="lb"><i class="ti ti-box-margin"></i>範囲選択</div>
+      <div class="lb"><i class="ti ti-triangle"></i>ピーク</div>
+      <div class="lb"><i class="ti ti-highlight"></i>領域</div>
+      <div class="lb"><i class="ti ti-layout-grid"></i>レイアウト</div>
+      <div class="vsep"></div>
+      <div class="lb"><i class="ti ti-math-function"></i>フィット</div>
+      <div class="lb"><i class="ti ti-wave-sine"></i>平滑化</div>
+      <div class="lb"><i class="ti ti-baseline"></i>ベースライン</div>
+      <div class="spacer"></div>
+      <div class="lb"><i class="ti ti-photo-down"></i>エクスポート</div>
+      <div class="ib"><i class="ti ti-moon"></i></div>
+    </div>
+    <div class="body">
+      <div class="left">
+        <div class="pane">
+          <div class="ph"><div class="pt on">データセット</div><div class="pt">サブプロット</div><div class="spacer"></div><div class="ib"><i class="ti ti-plus"></i></div><div class="ib"><i class="ti ti-folder-plus"></i></div></div>
+          <div style="padding:6px"><div class="search" style="height:24px"><i class="ti ti-search" style="font-size:13px"></i>検索</div></div>
+          <div class="trow sel"><i class="ti ti-eye"></i><span class="line" style="background:#1f77b4;width:14px"></span><span>cooling_curve</span><span class="meta">41</span><i class="ti ti-dots-vertical"></i></div>
+          <div class="trow" style="color:var(--text-2)"><i class="ti ti-chevron-down"></i><i class="ti ti-folder"></i><span>比較用</span><span></span><span></span></div>
+          <div class="trow" style="padding-left:24px"><i class="ti ti-eye"></i><span class="line" style="background:#ff7f0e;width:14px"></span><span>cooling_curve_2</span><span class="meta">41</span><i class="ti ti-dots-vertical"></i></div>
+          <div class="trow" style="padding-left:24px;color:var(--text-3)"><i class="ti ti-eye-off"></i><span class="line" style="background:#2ca02c;width:14px;opacity:.4"></span><span>fit_exp</span><span class="meta">200</span><i class="ti ti-dots-vertical"></i></div>
+        </div>
+        <div class="pane">
+          <div class="ph"><div class="pt on">統計</div><div class="pt">来歴</div></div>
+          <div class="kv"><span>n</span><span>41</span><span>平均</span><span>42.99</span><span>SD</span><span>17.54</span><span>最小 / 最大</span><span>26.84 / 90.18</span><span>X 範囲</span><span>0.0 – 20.0</span><span>欠損</span><span>0</span></div>
+        </div>
+      </div>
+      <div class="mid">
+        <div class="pane">
+          <div class="ph"><div class="pt on">グラフ</div><div class="pt">エクスポートプレビュー</div><div class="spacer"></div><span class="meta" style="padding-right:8px">サブプロット 1 / 1</span><div class="ib"><i class="ti ti-zoom-reset"></i></div><div class="ib"><i class="ti ti-arrows-diagonal"></i></div></div>
+          <div style="flex:1;min-height:0;padding:6px 8px 4px;display:grid;grid-template-rows:1fr 42px;gap:4px">
+            <svg class="plot" data-plot="main"></svg><svg class="plot" data-plot="mini"></svg>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="ph"><div class="pt on">データ表</div><div class="pt">フィット結果</div><div class="pt">ログ</div><div class="spacer"></div><div class="ib"><i class="ti ti-filter"></i></div><div class="ib"><i class="ti ti-chevron-down"></i></div></div>
+          <div style="overflow:hidden;flex:1"><table class="dtable" id="dtable"></table></div>
+        </div>
+      </div>
+      <div class="pane">
+        <div class="ph"><div class="pt on">プロパティ</div><div class="pt">軸</div><div class="pt">凡例</div><div class="spacer"></div><div class="ib"><i class="ti ti-pin"></i></div></div>
+        <div class="pg">
+          <div class="gh"><i class="ti ti-chevron-down"></i>データ列</div>
+          <div class="k">X 軸の列</div><div class="v">時間_s<i class="ti ti-chevron-down"></i></div>
+          <div class="k">Y 軸の列</div><div class="v">温度_degC<i class="ti ti-chevron-down"></i></div>
+          <div class="k">X 誤差</div><div class="v" style="color:var(--text-3)">(なし)<i class="ti ti-chevron-down"></i></div>
+          <div class="k">Y 誤差</div><div class="v" style="color:var(--text-3)">(なし)<i class="ti ti-chevron-down"></i></div>
+          <div class="gh"><i class="ti ti-chevron-down"></i>基本スタイル</div>
+          <div class="k">凡例名</div><div class="v focus">cooling_curve</div>
+          <div class="k">種別</div><div class="v">Line<i class="ti ti-chevron-down"></i></div>
+          <div class="k">色</div><div class="v"><span class="chip" style="width:14px;height:14px;border-radius:3px;background:#1f77b4"></span><span class="mono">#1F77B4</span><i class="ti ti-chevron-down"></i></div>
+          <div class="k">線の種類</div><div class="v"><svg width="40" height="6"><line x1="0" y1="3" x2="40" y2="3" stroke="currentColor" stroke-width="2"/></svg>solid<i class="ti ti-chevron-down"></i></div>
+          <div class="k">線の太さ</div><div class="v mono">1.50<i class="ti ti-selector"></i></div>
+          <div class="k">透明度</div><div class="v"><div class="track" style="flex:1"><div class="fill" style="width:100%"></div></div><span class="mono">1.00</span></div>
+          <div class="k">平滑化</div><div class="v"><div class="toggle" style="transform:scale(.8);transform-origin:left"></div></div>
+          <div class="gh"><i class="ti ti-chevron-right"></i>マーカー</div>
+          <div class="gh"><i class="ti ti-chevron-right"></i>グラデーション</div>
+          <div class="gh"><i class="ti ti-chevron-right"></i>ウォーターフォール</div>
+          <div class="gh"><i class="ti ti-chevron-right"></i>2D マップ・値による配色</div>
+          <div class="gh"><i class="ti ti-chevron-right"></i>表示の追加要素</div>
+          <div class="gh"><i class="ti ti-chevron-right"></i>配置・情報</div>
+        </div>
+      </div>
+    </div>
+    <div class="status" style="font-size:11px"><span class="ok"><i></i>準備完了</span><span>3 データセット · 1 選択</span><div class="spacer"></div><span class="mono">X = 7.42　Y = 40.18</span><span>自動保存 2 分前</span><span>100%</span></div>
+  </div>
+
+ </div>
+</div>
+
+<template id="propsCard">
+  <div class="target"><span class="line" style="background:#1f77b4;width:22px;height:4px"></span><div><div class="h">cooling_curve</div><div class="sub">時間_s → 温度_degC</div></div></div>
+  <div class="sec cols">
+    <div class="sec-h"><i class="ti ti-chevron-down"></i>データ列</div>
+    <div class="f"><label>X 軸の列</label><div class="in">時間_s<i class="ti ti-selector"></i></div></div>
+    <div class="f"><label>Y 軸の列</label><div class="in">温度_degC<i class="ti ti-selector"></i></div></div>
+    <div class="f"><label>誤差</label><div class="in" style="color:var(--text-3)">なし<i class="ti ti-selector"></i></div></div>
+  </div>
+  <div class="sec">
+    <div class="sec-h"><i class="ti ti-chevron-down"></i>基本スタイル</div>
+    <div class="f"><label>凡例名</label><div class="in focus">cooling_curve</div></div>
+    <div class="f"><label>種別</label><div class="in">Line<i class="ti ti-selector"></i></div></div>
+    <div class="f"><label>色</label><div class="colorrow"><span class="chip big" style="background:#1f77b4"></span><span class="chip" style="background:#ff7f0e"></span><span class="chip" style="background:#2ca02c"></span><span class="chip" style="background:#d62728"></span><span class="chip" style="background:#9467bd"></span><span class="mono" style="margin-left:auto;color:var(--text-2);font-size:12px">#1F77B4</span></div></div>
+    <div class="f"><label>線の種類</label><div class="segline">
+      <div class="on"><svg><line x1="0" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2"/></svg></div>
+      <div><svg><line x1="0" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="7 4"/></svg></div>
+      <div><svg><line x1="0" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="2 3"/></svg></div>
+      <div><svg><line x1="0" y1="3" x2="30" y2="3" stroke="currentColor" stroke-width="2" stroke-dasharray="8 3 2 3"/></svg></div></div></div>
+    <div class="f"><label>線の太さ</label><div class="slider"><div class="track"><div class="fill" style="width:30%"></div><div class="knob" style="left:30%"></div></div><div class="num">1.50</div></div></div>
+    <div class="f"><label>透明度</label><div class="slider"><div class="track"><div class="fill" style="width:100%"></div><div class="knob" style="left:100%"></div></div><div class="num">1.00</div></div></div>
+    <div class="sw"><span>平滑化</span><div class="toggle"></div></div>
+  </div>
+  <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>マーカー<span class="state">なし</span></div></div>
+  <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>グラデーション<span class="state">オフ</span></div></div>
+  <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>ウォーターフォール<span class="state">オフ</span></div></div>
+  <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>2D マップ・値による配色<span class="state">オフ</span></div></div>
+  <div class="sec closed"><div class="sec-h"><i class="ti ti-chevron-right"></i>表示の追加要素</div></div>
+</template>
+
+<script>
+const DESC = {
+  v1: {t: '案1 カード(前回の案)', c: '今のドックの並びのまま、各パネルを角丸のカードにする。上部はタブとメニューの2段にし、キャンバスのツールバーをグラフの上に浮かせる。',
+       p: ['今の構造に最も近く、壊れにくい', 'プラグインのドックもそのままカードになる'],
+       m: ['データセット一覧が下にあるので、グラフの高さが削られる', '「おしゃれ」の伸びしろは中くらい'], cost: '中'},
+  v2: {t: '案2 サイドバー(Figma・VS Code 風)', c: '左端のアイコンの帯でパネルを切り替える。データセットは左、グラフは中央の縦長、プロパティは右。メニューは ≡ にまとめ、上部を1段にする。',
+       p: ['グラフに使える縦の高さが最大', '解析・注釈・プラグインなどの入口が帯に並んで分かりやすい'],
+       m: ['ドックの配置とメニューの作りを大きく変える(保存済みのドック配置の作り直し)', 'メニューを ≡ に入れると、上部の1段化に配線の手間がかかる'], cost: '大'},
+  v3: {t: '案3 ミニマル(Linear・Apple 風)', c: '枠とカードをやめ、余白と細い罫線だけで区切る。道具は下中央に浮かぶ暗いドックにし、プロパティは「ラベルが上・入力が下」の詰めた形。使っていない機能は「＋」で後から足す。',
+       p: ['見た目は最もすっきりして「おしゃれ」', '使っていない設定が隠れるので、迷いにくい'],
+       m: ['設定項目の多い Graphica では、「＋」で隠すと探しにくくなる', 'グラフにタイトル行を足すなど、見た目以外の変更も入る'], cost: '中〜大'},
+  v4: {t: '案4 高密度プロ(Origin・計測ソフトの現代版)', c: '文字を少し小さくして情報を詰める。ラベル付きのツールバー、グラフの下にデータ表・フィット結果・ログのタブ、プロパティは表形式のプロパティグリッド。',
+       p: ['今のドック方式(QDockWidget のタブ)にそのまま合い、実装のリスクが低い', '解析作業で一度に見える情報が最も多い'],
+       m: ['すっきり感は他の案より弱い', 'データ表のドックなどは新しく作る部品'], cost: '小〜中'},
+  cur: {t: '現状', c: '比較用の今の画面(ライト)です。', p: [], m: [], cost: '—'}
+};
+const pts = [];
+for (let i = 0; i <= 40; i++) {
+  const t = i * 0.5, n = Math.sin(i * 1.7) * 0.6 + Math.cos(i * 0.9) * 0.4;
+  pts.push([t, 26.5 + 63.5 * Math.exp(-t / 5.0) + n]);
+}
+const pts2 = pts.map((p, i) => [p[0], p[1] + 3 + Math.sin(i) * 0.8]);
+
+function cssVar(el, name) { return getComputedStyle(el).getPropertyValue(name).trim(); }
+function drawMain(svg, app) {
+  const W = svg.clientWidth, H = svg.clientHeight;
+  if (!W || !H) return;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const fg = cssVar(app, '--plot-fg'), bg = cssVar(app, '--plot-bg'), lb = cssVar(app, '--legend-border');
+  const dense = app.classList.contains('v4');
+  const fs = dense ? 11.5 : 13;
+  const L = dense ? 44 : 52, R = W - 14, T = 10, B = H - (dense ? 24 : 28);
+  const sx = t => L + (t / 20) * (R - L), sy = v => B - ((v - 25) / 68) * (B - T);
+  let s = `<rect width="${W}" height="${H}" fill="${bg}"/>`;
+  s += `<rect x="${L}" y="${T}" width="${R - L}" height="${B - T}" fill="none" stroke="${fg}" stroke-width="1"/>`;
+  for (let v = 30; v <= 90; v += 10) s += `<line x1="${L - 4}" x2="${L}" y1="${sy(v)}" y2="${sy(v)}" stroke="${fg}"/><text x="${L - 7}" y="${sy(v) + 4}" font-size="${fs}" text-anchor="end" fill="${fg}" font-family="Segoe UI">${v}</text>`;
+  for (let t = 0; t <= 20; t += 2.5) s += `<line x1="${sx(t)}" x2="${sx(t)}" y1="${B}" y2="${B + 4}" stroke="${fg}"/><text x="${sx(t)}" y="${B + fs + 6}" font-size="${fs}" text-anchor="middle" fill="${fg}" font-family="Segoe UI">${t.toFixed(1)}</text>`;
+  s += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + sx(p[0]).toFixed(1) + ' ' + sy(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="#1f77b4" stroke-width="1.8"/>`;
+  pts2.forEach(p => s += `<circle cx="${sx(p[0])}" cy="${sy(p[1])}" r="${dense ? 2.8 : 3.3}" fill="#ff7f0e"/>`);
+  const lw = dense ? 150 : 170;
+  s += `<rect x="${R - lw - 10}" y="${T + 10}" width="${lw}" height="${fs * 4}" rx="3" fill="${bg}" stroke="${lb}"/>`;
+  s += `<line x1="${R - lw}" x2="${R - lw + 26}" y1="${T + 10 + fs * 1.3}" y2="${T + 10 + fs * 1.3}" stroke="#1f77b4" stroke-width="2"/><text x="${R - lw + 34}" y="${T + 14 + fs * 1.3}" font-size="${fs}" fill="${fg}" font-family="Segoe UI">cooling_curve</text>`;
+  s += `<circle cx="${R - lw + 13}" cy="${T + 10 + fs * 2.8}" r="3.3" fill="#ff7f0e"/><text x="${R - lw + 34}" y="${T + 14 + fs * 2.8}" font-size="${fs}" fill="${fg}" font-family="Segoe UI">cooling_curve_2</text>`;
+  const cx = sx(7.5), cy = sy(pts[15][1]);
+  s += `<line x1="${cx}" x2="${cx}" y1="${T}" y2="${B}" stroke="var(--accent)" stroke-dasharray="4 4" opacity=".7"/><circle cx="${cx}" cy="${cy}" r="5" fill="${bg}" stroke="var(--accent)" stroke-width="2"/>`;
+  svg.innerHTML = s;
+}
+function drawMini(svg, app) {
+  const W = svg.clientWidth, H = svg.clientHeight;
+  if (!W || !H) return;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const mx = t => 6 + (t / 20) * (W - 12), my = v => H - 4 - ((v - 25) / 68) * (H - 10);
+  let m = `<rect x="6" y="2" width="${W - 12}" height="${H - 4}" rx="6" fill="var(--surface-2)"/>`;
+  m += `<rect x="${mx(5)}" y="2" width="${mx(12) - mx(5)}" height="${H - 4}" rx="6" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.2"/>`;
+  m += `<path d="${pts.map((p, i) => (i ? 'L' : 'M') + mx(p[0]).toFixed(1) + ' ' + my(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="#1f77b4" stroke-width="1.4"/>`;
+  svg.innerHTML = m;
+}
+function redraw() {
+  document.querySelectorAll('.app.show').forEach(app => {
+    app.querySelectorAll('[data-plot=main]').forEach(s => drawMain(s, app));
+    app.querySelectorAll('[data-plot=mini]').forEach(s => drawMini(s, app));
+  });
+}
+document.querySelectorAll('[data-props=card]').forEach(el => {
+  el.appendChild(document.getElementById('propsCard').content.cloneNode(true));
+  if (el.dataset.skipCols) el.querySelector('.sec.cols').remove();
+});
+(function table() {
+  let h = '<tr><th>#</th><th>時間_s</th><th>温度_degC</th><th>残差</th></tr>';
+  pts.slice(10, 24).forEach((p, i) => {
+    const r = (Math.sin((i + 10) * 1.7) * 0.6 + Math.cos((i + 10) * 0.9) * 0.4).toFixed(3);
+    h += `<tr class="${i + 10 === 15 ? 'hl' : ''}"><td>${i + 11}</td><td>${p[0].toFixed(1)}</td><td>${p[1].toFixed(2)}</td><td>${r}</td></tr>`;
+  });
+  document.getElementById('dtable').innerHTML = h;
+})();
+
+const state = {v: 'v1', theme: 'light', accent: 'teal'};
+function apply() {
+  ['v1', 'v2', 'v3', 'v4'].forEach(id => {
+    const a = document.getElementById(id);
+    a.classList.toggle('show', state.v === id);
+    a.dataset.theme = state.theme; a.dataset.accent = state.accent;
+  });
+  document.getElementById('cur').style.display = state.v === 'cur' ? 'block' : 'none';
+  document.querySelectorAll('.controls button').forEach(b => {
+    if (b.dataset.v) b.classList.toggle('on', b.dataset.v === state.v);
+    if (b.dataset.theme) b.classList.toggle('on', b.dataset.theme === state.theme);
+    if (b.dataset.accent) b.classList.toggle('on', b.dataset.accent === state.accent);
+  });
+  const d = DESC[state.v];
+  document.getElementById('desc').innerHTML =
+    `<div><h3>${d.t}</h3>${d.c}<div style="margin-top:6px;color:#5B6462">実装の手間: <b style="color:#1B1F1E">${d.cost}</b></div></div>` +
+    (d.p.length ? `<div><div class="k">良い点</div><ul>${d.p.map(x => `<li>${x}</li>`).join('')}</ul></div><div><div class="k">気になる点</div><ul>${d.m.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '<div></div><div></div>');
+  redraw(); fit();
+}
+document.querySelectorAll('.controls button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.v) state.v = b.dataset.v;
+  if (b.dataset.theme) state.theme = b.dataset.theme;
+  if (b.dataset.accent) state.accent = b.dataset.accent;
+  apply();
+}));
+function fit() {
+  const sc = document.getElementById('scaler');
+  const w = document.querySelector('.stage').clientWidth - 40;
+  const s = Math.min(1, w / 1440);
+  sc.style.transform = `scale(${s})`;
+  const h = state.v === 'cur' ? (document.querySelector('#cur img').offsetHeight || 1000) : 880;
+  sc.parentElement.style.height = (h * s) + 'px';
+}
+window.addEventListener('resize', fit);
+document.querySelector('#cur img').addEventListener('load', fit);
+apply();
+</script>
+</body>
+</html>

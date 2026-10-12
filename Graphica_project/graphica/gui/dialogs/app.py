@@ -29,6 +29,7 @@ import os
 from graphica.gui import dialog_dirs
 from graphica.gui import icon_utils
 from graphica.gui.theme import apply_form_spacing
+from graphica.gui.theme_color import DEFAULT_THEME_COLOR, theme_color_or_default
 
 
 class PreferencesDialog(QDialog):
@@ -38,7 +39,7 @@ class PreferencesDialog(QDialog):
                  current_language=None, autosave_dir="", point_label_max_points=1000,
                  snap_to_grid_enabled=False, snap_grid_interval_px=10,
                  plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None,
-                 default_style_template="", wheel_zoom_speed="normal"):
+                 default_style_template="", wheel_zoom_speed="normal", theme_color=DEFAULT_THEME_COLOR):
         """plugin_records=None は一度も読み込んでいない(セーフモードなど)。空のリスト(1つも無い)とは区別して表示する。"""
         super().__init__(parent)
         from graphica.core.i18n import tr, SUPPORTED_LANGUAGES, get_language
@@ -59,6 +60,21 @@ class PreferencesDialog(QDialog):
         self.dark_mode_checkbox = QCheckBox(tr("ダークモードを有効にする"))
         self.dark_mode_checkbox.setChecked(bool(dark_mode))
         appearance_layout.addWidget(self.dark_mode_checkbox)
+        # テーマカラー(⚙ のポップアップと同じ設定)。ボタン・選択・枠の色で、グラフの線の色は変わらない
+        theme_row = QHBoxLayout()
+        theme_row.addWidget(QLabel(tr("テーマカラー")))
+        self.theme_color_button = QPushButton()
+        self.theme_color_button.setFixedSize(34, 24)
+        self.theme_color_button.clicked.connect(self._on_pick_theme_color)
+        self.theme_color_label = QLabel()
+        reset_theme_button = QPushButton(tr("既定に戻す"))
+        reset_theme_button.clicked.connect(lambda: self._set_theme_color(DEFAULT_THEME_COLOR))
+        theme_row.addWidget(self.theme_color_button)
+        theme_row.addWidget(self.theme_color_label)
+        theme_row.addStretch(1)
+        theme_row.addWidget(reset_theme_button)
+        appearance_layout.addLayout(theme_row)
+        self._set_theme_color(theme_color)
         layout.addWidget(appearance_group)
 
         # 切り替えは次の起動から(作った画面をその場で訳し直す仕組みは無い)
@@ -364,6 +380,24 @@ class PreferencesDialog(QDialog):
     def get_default_style_template(self):
         """新しいタブ・プロジェクトに当てる書式テンプレートのパス。空なら使わない。"""
         return self._default_style_template
+
+    def _set_theme_color(self, color):
+        self._theme_color = theme_color_or_default(color)
+        self.theme_color_button.setStyleSheet(
+            f"background: {self._theme_color}; border: 1px solid rgba(0, 0, 0, 0.2); border-radius: 6px;")
+        self.theme_color_label.setText(self._theme_color)
+
+    def _on_pick_theme_color(self):
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QColorDialog
+        from graphica.core.i18n import tr
+        chosen = QColorDialog.getColor(QColor(self._theme_color), self, tr("テーマカラー"))
+        if chosen.isValid():
+            self._set_theme_color(chosen.name())
+
+    def get_theme_color(self):
+        """#RRGGBB(大文字)。"""
+        return self._theme_color
 
     def get_wheel_zoom_speed(self):
         """'slow' / 'normal' / 'fast'。"""

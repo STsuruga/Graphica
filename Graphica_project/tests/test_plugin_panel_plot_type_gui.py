@@ -49,25 +49,31 @@ def test_plugin_panel_dock_created_and_hidden_by_default(tmp_path, monkeypatch):
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
-    assert "My Panel" in window._plugin_panel_docks
-    dock = window._plugin_panel_docks["My Panel"]
-    assert isinstance(dock.widget(), QLabel)
-    assert dock.isVisible() is False
+    # GUI 刷新で、パネルは左端の帯の「プラグイン」のページに入る(以前はドック)
+    assert "My Panel" in window._plugin_panels
+    panel = window._plugin_panels["My Panel"]
+    assert isinstance(panel, QLabel)
+    assert window.plugin_page.panels["My Panel"] is panel
+    assert window.left_panel.currentWidget() is not window.plugin_page  # 開くまでは見せない
     assert len(received) == 1
     assert received[0] is window.plugin_context(api.get_panels()[0].plugin_name)
 
 
-def test_plugin_panel_area_maps_to_dock_widget_area(tmp_path, monkeypatch):
-    from PySide6.QtCore import Qt
-
+def test_plugin_panel_area_is_only_a_hint_and_every_panel_goes_to_the_plugin_page(tmp_path, monkeypatch):
     api = GraphicaPluginAPI()
     api.register_panel("Left Panel", lambda ctx: QLabel("x"), area="left")
+    api.register_panel("Bottom Panel", lambda ctx: QLabel("y"), area="bottom")
     _set_singleton_plugin_api(monkeypatch, api)
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
-    dock = window._plugin_panel_docks["Left Panel"]
-    assert window.dockWidgetArea(dock) == Qt.DockWidgetArea.LeftDockWidgetArea
+    assert set(window.plugin_page.panels) == {"Left Panel", "Bottom Panel"}
+    # 2つ以上なら上の欄で選ぶ
+    assert not window.plugin_page.selector.isHidden()
+    window.show_plugin_panel("Bottom Panel")
+    assert window.left_panel.currentWidget() is window.plugin_page
+    assert window.plugin_page.stack.currentWidget() is window._plugin_panels["Bottom Panel"]
+    assert window.activity_rail.current_page() == "plugins"
 
 
 def test_plugin_panel_construction_failure_is_isolated(tmp_path, monkeypatch):
@@ -80,7 +86,7 @@ def test_plugin_panel_construction_failure_is_isolated(tmp_path, monkeypatch):
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)  # クラッシュしない
 
-    assert "Broken Panel" not in window._plugin_panel_docks
+    assert "Broken Panel" not in window._plugin_panels
 
 
 def test_plugin_panel_wrong_return_type_is_isolated(tmp_path, monkeypatch):
@@ -90,7 +96,7 @@ def test_plugin_panel_wrong_return_type_is_isolated(tmp_path, monkeypatch):
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
-    assert "Bad Return" not in window._plugin_panel_docks
+    assert "Bad Return" not in window._plugin_panels
 
 
 def test_plugin_menu_has_panel_toggle_action(tmp_path, monkeypatch):
@@ -105,8 +111,10 @@ def test_plugin_menu_has_panel_toggle_action(tmp_path, monkeypatch):
         if action.menu() is not None and action.menu().title().replace('&', '') == "パネル":
             panel_menu = action.menu()
     assert panel_menu is not None
-    action_texts = [a.text() for a in panel_menu.actions()]
-    assert "My Panel" in action_texts
+    actions = {a.text(): a for a in panel_menu.actions()}
+    assert "My Panel" in actions
+    actions["My Panel"].trigger()
+    assert window.left_panel.currentWidget() is window.plugin_page
 
 
 def test_no_panels_registered_leaves_docks_dict_empty(tmp_path, monkeypatch):
@@ -115,7 +123,9 @@ def test_no_panels_registered_leaves_docks_dict_empty(tmp_path, monkeypatch):
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
-    assert window._plugin_panel_docks == {}
+    assert window._plugin_panels == {}
+    # パネルが無いときは、案内を出す
+    assert window.plugin_page.stack.currentWidget() is window.plugin_page.empty
 
 
 # --- register_plot_type() (項目D-2) ---

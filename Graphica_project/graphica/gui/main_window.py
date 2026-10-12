@@ -50,7 +50,8 @@ def _strip_trailing_colon_from_labels(widget):
 
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
-CONTROL_DOCK_WIDTH = 472  # 縦スクロールバーの分まで含めた幅。狭めると横スクロールバーが出る
+CONTROL_DOCK_WIDTH = 340  # 右のインスペクタの幅(見本どおり)。軸の設定の長い行は名前を上に折り返して収める
+PROPERTY_LABEL_WIDTH = 92  # プロパティの名前の列(見本どおり)。長い名前は折り返す
 SPIN_BOX_MAX_DECIMALS = 16
 
 
@@ -69,8 +70,8 @@ from graphica.gui import notify
 
 
 
-from PySide6.QtWidgets import (QMainWindow, QWidget,
-                               QAbstractSpinBox, QDockWidget, QLabel, QTreeWidgetItem)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget,
+                               QAbstractSpinBox, QLabel, QTreeWidgetItem)
 from PySide6.QtGui import QFont, QIcon, QValidator, QUndoStack
 from PySide6.QtCore import Qt, QTimer, Signal
 from graphica.models.project import ProjectModel
@@ -107,6 +108,9 @@ from graphica.gui.builders import canvas_area
 from graphica.gui.builders import dataset_panel
 from graphica.gui.builders import property_sections
 from graphica.gui import dock_layout
+from graphica.gui import ui_mode
+from graphica.gui.shell.side_pages import populate_side_pages
+from graphica.gui.shell.tab_shell import build_tab_shell
 from graphica.gui.builders.common import (  # noqa: F401
     DATASET_TREE_VISIBILITY_COLUMN_WIDTH, DOCK_LAYOUT_VERSION, DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, COLORMAP_CHOICES, TOOLBAR_ICON_SIZE, _svg_icon, _DatasetTreeSelectionDelegate, _ClickableMathPreviewLabel, _insert_form_row_after,
     disable_wheel_tab_switching)
@@ -125,6 +129,7 @@ from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.commands import AddDatasetCommand, DeferRedrawCommand, RemoveDatasetCommand
 from graphica.gui.detached_canvas_window import DetachedCanvasWindow
 from graphica.gui import theme
+from graphica.gui.theme_color import theme_color_or_default
 from graphica.gui.theme import apply_form_spacing
 from graphica.gui.dialogs import (WelcomeDialog)
 
@@ -193,15 +198,6 @@ def plugin_search_paths():
     return paths
 
 
-# core は Qt に依存しないので、area の文字列から Qt の値への変換はここでする
-_PLUGIN_PANEL_AREA_MAP = {
-    "right": Qt.DockWidgetArea.RightDockWidgetArea,
-    "left": Qt.DockWidgetArea.LeftDockWidgetArea,
-    "top": Qt.DockWidgetArea.TopDockWidgetArea,
-    "bottom": Qt.DockWidgetArea.BottomDockWidgetArea,
-}
-
-
 
 
 
@@ -257,10 +253,13 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._build_label_editors()
         self._add_subplot_target_row()
         self._arrange_property_docks()
+        self._build_tab_shell()
         self._rebuild_label_tab()
         self._connect_and_initialize()
         # 英語表示のとき、組み立てた画面の文字をまとめて訳す(Designer の部品にも効かせる)
         translate_widget_texts(self)
+        # 単独で作ったタブ(テストなど)はアドバンスドの見た目。MainAppWindow に入れると、そのモードで当て直す
+        ui_mode.apply_ui_mode(self, ui_mode.ADVANCED)
 
     def _load_designer_ui(self):
         self.ui = Ui_MainWindow()
@@ -425,6 +424,9 @@ class PlotterApp(QMainWindow, UISetupMixin,
     def _arrange_property_docks(self):
         return dock_layout.arrange_property_docks(self)
 
+    def _build_tab_shell(self):
+        return build_tab_shell(self)
+
     def _rebuild_label_tab(self):
         return axis_panel.rebuild_label_tab(self)
 
@@ -450,9 +452,9 @@ class PlotterApp(QMainWindow, UISetupMixin,
         # プラグインへの窓口は (このタブ, プラグイン) ごとに1つ。
         self._plugin_contexts = {}
 
-        # プラグインのパネル。メニューに表示切替を足すのは _create_menu_bar() なので、
-        # ドックはそれより前に作る。1つ失敗しても他のパネルとタブの起動は続ける。
-        self._plugin_panel_docks = {}
+        # プラグインのパネル。左端の帯の「プラグイン」のページに入れる(GUI 刷新。以前はドック)。メニューに
+        # 開く項目を足すのは _create_menu_bar() なので、それより前に作る。1つ失敗しても他のパネルとタブの起動は続ける。
+        self._plugin_panels = {}
         for panel in self.plugin_api.get_panels():
             try:
                 widget = panel.widget_factory(self.plugin_context(panel.plugin_name))
@@ -464,12 +466,9 @@ class PlotterApp(QMainWindow, UISetupMixin,
                     panel.plugin_name, panel.name, e,
                 )
                 continue
-            dock = QDockWidget(panel.name, self)
-            dock.setObjectName(f"PluginPanel_{panel.name}")
-            dock.setWidget(widget)
-            self.addDockWidget(_PLUGIN_PANEL_AREA_MAP.get(panel.area, Qt.DockWidgetArea.RightDockWidgetArea), dock)
-            dock.hide()  # 表示するかはドック配置の復元に任せる
-            self._plugin_panel_docks[panel.name] = dock
+            widget.setObjectName(f"PluginPanel_{panel.name}")
+            self.plugin_page.add_panel(panel.name, widget)
+            self._plugin_panels[panel.name] = widget
 
         # フォーカスのあるドックの枠を強調する(プラグインのドックも含め、全部に効く)
         theme.install_dock_focus_highlight(self)
@@ -481,6 +480,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._connect_signals()
 
         self._create_menu_bar()
+        populate_side_pages(self)
+        canvas_area.finish_card(self)
 
         # クイックアクセスのピン留めを戻す。プラグインのものを含めて全メニューができた後であること
         self._restore_quick_access_actions()
@@ -492,18 +493,14 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._set_initial_ui_state()
         # 生成物の ui_main_window.py のラベルには末尾に「：」が付いている。.ui が無く作り直せないので、ここで取る
         _strip_trailing_colon_from_labels(self)
-        # 下の1行の統計値の分だけ、一覧の高さの上限を控えめにする
-        self.ui.dataset_list_widget.setMaximumHeight(175)
 
         spacing_value = 6
         if self.ui.formLayout_3: self.ui.formLayout_3.setSpacing(spacing_value)
-        # formLayout_4 は空なので、各節の QFormLayout に掛ける
-        for key, _title in DATASET_PROPERTY_SECTIONS:
-            self._prop_form(key).setSpacing(spacing_value)
 
         # 入力欄の左端を揃える(プロパティ欄の7節どうし、X/Y 軸のタブどうし)。ラベルが全部できた後で
-        self._align_form_label_columns(
-            [self._prop_form(key) for key, _title in DATASET_PROPERTY_SECTIONS])
+        property_sections.align_form_label_columns(
+            self, [self._prop_form(key) for key, _title in DATASET_PROPERTY_SECTIONS],
+            width=PROPERTY_LABEL_WIDTH)
         self._align_form_label_columns([self.ui.formLayout, self.ui.formLayout_2])
 
 
@@ -533,8 +530,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
         # 既定の配置の版(DOCK_LAYOUT_VERSION)が保存時と違えば戻さない(戻すと新しい既定が既存の利用者に届かない)。
         # 戻すのはイベントループが一巡してタブが最終の大きさになってから。ここで戻すと仮の大きさで
         # スプリッターの位置が決まり、見た目とクリックの位置がずれる。
-        # 「リセット」用の素の配置は、戻す前のここで控える
-        self._pristine_dock_state = self.saveState()
 
         # タブに結び付けておく(先にタブが閉じられたら呼ばない。閉じたタブのドックを触ると落ちる)
         QTimer.singleShot(0, self, self._restore_dock_layout)
@@ -559,26 +554,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
 
     def _restore_dock_layout(self):
         return dock_layout.restore_dock_layout(self)
-
-    # 名前付きのドック配置。起動時の復元(最初のタブだけ)と違い、どのタブでもいつでも使える
-
-    def _load_dock_layout_presets(self):
-        return dock_layout.load_dock_layout_presets(self)
-
-    def _save_dock_layout_presets(self, presets: dict):
-        return dock_layout.save_dock_layout_presets(self, presets)
-
-    def _on_save_dock_layout_preset(self):
-        return dock_layout.on_save_dock_layout_preset(self)
-
-    def _populate_load_layout_menu(self):
-        return dock_layout.populate_load_layout_menu(self)
-
-    def _on_load_dock_layout_preset(self, name):
-        return dock_layout.on_load_dock_layout_preset(self, name)
-
-    def _on_reset_dock_layout(self):
-        return dock_layout.on_reset_dock_layout(self)
 
     def closeEvent(self, event):
         # 読み込み中の QThread を破棄すると Qt がプロセスごと止め、ほかのタブの未保存データも失う。
@@ -780,6 +755,41 @@ class PlotterApp(QMainWindow, UISetupMixin,
     @property
     def dataset_host(self):
         return self._dataset_host
+
+    def show_export_preview(self):
+        """右のインスペクタの「エクスポート」のタブを開く(表示メニュー)。"""
+        self.properties_dock_widget.show()
+        self.inspector.show_page("export")
+
+    def show_bottom_page(self, key):
+        """グラフの下のパネルのタブを開く(表示メニュー)。シンプルでは出ないので、アドバンスドに切り替える。"""
+        if getattr(self, 'ui_mode', None) != ui_mode.ADVANCED:
+            self.show_advanced_mode()
+        self.bottom_panel.show_page(key)
+
+    def set_theme_color(self, color):
+        """テーマカラーを替えて保存する(⚙ のポップアップ・環境設定から)。ウィンドウに入っていれば全部のタブに当てる。"""
+        main_window = self.window()
+        if main_window is not self and hasattr(main_window, 'set_theme_color'):
+            main_window.set_theme_color(color)
+            return
+        color = theme_color_or_default(color)
+        app_settings.THEME_COLOR.write(self.settings, color)
+        theme.apply_theme(QApplication.instance(), self.canvas.dark_mode, color)
+        self.refresh_theme_colors()
+
+    def show_advanced_mode(self):
+        """アドバンスドに切り替える(シンプルのプロパティの案内から)。ウィンドウに入っていれば全部のタブに当てて保存する。"""
+        main_window = self.window()
+        if main_window is not self and hasattr(main_window, 'set_ui_mode'):
+            main_window.set_ui_mode(ui_mode.ADVANCED)
+        else:
+            ui_mode.apply_ui_mode(self, ui_mode.ADVANCED)
+
+    def show_plugin_panel(self, name):
+        """左端の帯の「プラグイン」のページを開き、そのパネルを出す。"""
+        self.activity_rail.select_page("plugins")
+        self.plugin_page.show_panel(name)
 
     def plugin_context(self, plugin_name):
         context = self._plugin_contexts.get(plugin_name)
@@ -1030,8 +1040,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
             self.data_editor_dialog.dataset, self.data_editor_dialog.get_selected_master_indices()
         )
 
-    def _wrap_in_collapsible_section(self, group_box, title):
-        return property_sections.wrap_in_collapsible_section(self, group_box, title)
 
 
     def _build_dataset_property_sections(self):

@@ -306,6 +306,7 @@
     {
      "text": "プロパティパネル",
      "checked": true,
+     "enabled": false,
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -314,7 +315,6 @@
     },
     {
      "text": "エクスポートプレビュー",
-     "checked": true,
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -322,8 +322,7 @@
      }
     },
     {
-     "text": "残差プロット",
-     "checked": false,
+     "text": "データ表",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -331,8 +330,31 @@
      }
     },
     {
-     "text": "処理履歴",
-     "checked": false,
+     "text": "フィット結果",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "残差",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "来歴",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "ログ",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -343,20 +365,22 @@
      "text": "ミニマップ(レンジスライダー)",
      "checked": true,
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 3
      }
     },
     {
      "text": "キャンバスを別ウィンドウに切り離す",
      "checked": false,
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
@@ -364,10 +388,11 @@
      "checked": false,
      "tooltip": "パネルラベルを自動表示 ((a)(b)(c))",
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
@@ -378,47 +403,6 @@
       "triggered()": 2,
       "hovered()": 1
      }
-    },
-    {
-     "text": "ドックレイアウト",
-     "receivers": {
-      "changed()": 1,
-      "triggered(bool)": 1,
-      "triggered()": 1,
-      "hovered()": 1
-     },
-     "submenu": [
-      {
-       "text": "現在のレイアウトを保存...",
-       "tooltip": "現在のレイアウトを保存",
-       "receivers": {
-        "triggered(bool)": 2,
-        "triggered()": 2,
-        "hovered()": 1
-       }
-      },
-      {
-       "text": "レイアウトを読み込み",
-       "receivers": {
-        "changed()": 1,
-        "triggered(bool)": 1,
-        "triggered()": 1,
-        "hovered()": 1
-       },
-       "submenu": []
-      },
-      {
-       "separator": true
-      },
-      {
-       "text": "既定のレイアウトにリセット",
-       "receivers": {
-        "triggered(bool)": 2,
-        "triggered()": 2,
-        "hovered()": 1
-       }
-      }
-     ]
     },
     {
      "text": "クイックアクセスツールバー",
@@ -439,7 +423,7 @@
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     }
    ]
@@ -512,44 +496,13 @@
  ],
  "tab_docks": [
   {
-   "name": "ExportPreviewDockWidget",
-   "title": "エクスポートプレビュー",
-   "area": "RightDockWidgetArea",
-   "floating": false,
-   "visible": true,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": [
-    "control_dock_widget"
-   ]
-  },
-  {
-   "name": "ResidualDockWidget",
-   "title": "残差プロット",
-   "area": "BottomDockWidgetArea",
-   "floating": false,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
-  {
-   "name": "ProvenanceDockWidget",
-   "title": "処理履歴",
-   "area": "RightDockWidgetArea",
-   "floating": false,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
-  {
    "name": "control_dock_widget",
    "title": "プロパティ",
    "area": "RightDockWidgetArea",
    "floating": false,
    "visible": true,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": [
-    "ExportPreviewDockWidget"
-   ]
+   "features": "NoDockWidgetFeatures",
+   "tabified_with": []
   }
  ]
 }

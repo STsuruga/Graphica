@@ -60,7 +60,7 @@ def _process_events():
 def window_with_plot(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _populate_sample_plot(window)
-    window.export_preview_dock_widget.show()
+    window.show_export_preview()
     _process_events()
     return window
 

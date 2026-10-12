@@ -15,6 +15,7 @@ from graphica.gui.color_history import get_color_with_history
 _SWATCH_ICON_SIZE = 14
 
 DEFAULT_COLOR = "#1f77b4"
+QUICK_CHIP_SIZE = 18
 
 
 class ColorPickerWidget(QWidget):
@@ -44,6 +45,8 @@ class ColorPickerWidget(QWidget):
 
         layout.addWidget(self.swatch_button)
         layout.addWidget(self.hex_edit, 1)
+        # 今のパレットの色(show_quick_colors で出す。出さない欄では None のまま)
+        self.quick_colors_row = None
 
         self._update_swatch()
         self.hex_edit.setText(self._color.name())
@@ -61,9 +64,28 @@ class ColorPickerWidget(QWidget):
             return
         self._color = new_color
         self._update_swatch()
+        if self.quick_colors_row is not None:
+            self.quick_colors_row.set_current_color(self._color.name())
         self.hex_edit.blockSignals(True)
         self.hex_edit.setText(self._color.name())
         self.hex_edit.blockSignals(False)
+
+    def show_quick_colors(self, colors):
+        """見本と入力欄の間に、押すとすぐその色になるチップを並べる(色が同じなら作り直さない)。"""
+        from graphica.gui.widgets import ColorChipRow
+        if self.quick_colors_row is None:
+            self.quick_colors_row = ColorChipRow(chip_size=QUICK_CHIP_SIZE, parent=self)
+            self.quick_colors_row.colorPicked.connect(self._apply_color_name)
+            self.layout().insertWidget(1, self.quick_colors_row)
+            # チップが並ぶと幅が足りないので、入力欄は #RRGGBB が入るだけの幅にする
+            # 文字幅に、QSS の入力欄の左右の余白と枠の分を足す
+            self.hex_edit.setFixedWidth(self.hex_edit.fontMetrics().horizontalAdvance("#DDDDDD") + 30)
+            self.layout().setStretchFactor(self.hex_edit, 0)
+            self.layout().setStretchFactor(self.quick_colors_row, 1)
+        normalized = [QColor(c).name().upper() for c in colors]
+        if normalized != self.quick_colors_row.colors():
+            self.quick_colors_row.set_colors(normalized)
+        self.quick_colors_row.set_current_color(self._color.name())
 
     def blockSignals(self, block):
         # ほかの欄と同じく blockSignals で値を入れられるよう、中の部品にも伝える

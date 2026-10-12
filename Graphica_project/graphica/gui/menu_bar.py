@@ -97,6 +97,17 @@ def _add_command_palette(app, menu, keep):
     menu.addAction(app.command_palette_action)
 
 
+def _add_bottom_panel_items(app, menu, keep):
+    """下のパネルのタブを開く項目(シンプルならアドバンスドに切り替える)。"""
+    from graphica.gui.shell.bottom_panel import BOTTOM_PAGES
+    app.bottom_panel_actions = {}
+    for key, title, _icon in BOTTOM_PAGES:
+        action = menu.addAction(tr(title))
+        action.triggered.connect(lambda _checked=False, k=key: app.show_bottom_page(k))
+        keep.append(action)
+        app.bottom_panel_actions[key] = action
+
+
 FILE_MENU = TopMenu("ファイル(&F)", "_file_menu", (
     # Ctrl+O は「プロジェクトを開く」のもの
     Item("データファイルを開く(&D)...", "_on_add_dataset", attr="open_data_file_action"),
@@ -147,22 +158,14 @@ DATASET_MENU = TopMenu("データセット(&D)", "_dataset_menu", action_attr="_
 
 VIEW_MENU = TopMenu("表示(&V)", "_view_menu", (
     DockToggle("ui.control_dock_widget", "プロパティパネル"),
-    DockToggle("export_preview_dock_widget", "エクスポートプレビュー"),
-    DockToggle("residual_dock_widget", "残差プロット"),
-    DockToggle("provenance_dock_widget", "処理履歴"),
+    Item("エクスポートプレビュー", "show_export_preview"),
+    Custom(_add_bottom_panel_items),
     Item("ミニマップ(レンジスライダー)", "_on_toggle_minimap", attr="minimap_action", checked="minimap_visible"),
     Item("キャンバスを別ウィンドウに切り離す", "_on_toggle_canvas_detached", attr="canvas_detach_action",
          checked="canvas_detached"),
     Item("パネルラベルを自動表示 ((a)(b)(c)...)", "_on_toggle_panel_labels", attr="panel_labels_action",
          checked="project.panel_labels_enabled"),
     Item("色覚シミュレーションプレビュー...", "_on_show_cvd_simulation", attr="cvd_simulation_action"),
-    Submenu("ドックレイアウト", attr="_dock_layout_menu", action_attr="_dock_layout_menu_action", items=(
-        Item("現在のレイアウトを保存...", "_on_save_dock_layout_preset", attr="_save_layout_action"),
-        Submenu("レイアウトを読み込み", attr="load_layout_menu", action_attr="_load_layout_menu_action",
-                on_show="_populate_load_layout_menu"),
-        SEPARATOR,
-        Item("既定のレイアウトにリセット", "_on_reset_dock_layout", attr="_reset_layout_action"),
-    )),
     # クイックアクセスのツールバーはここで作る(表示メニューの項目と同じ順番で組み立てる必要がある)
     Call("_create_quick_access_toolbar"),
     SEPARATOR,
@@ -259,7 +262,7 @@ def _add_plugin_menu(app, menu_bar, keep):
     api = app.plugin_api
     processors = api.get_processors()
     analyzers = api.get_analyzers()
-    if not (api.menu_actions or processors or analyzers or app._plugin_panel_docks):
+    if not (api.menu_actions or processors or analyzers or app._plugin_panels):
         return
     plugin_menu = menu_bar.addMenu(tr("プラグイン(&P)"))
     _hold_menu(app, plugin_menu, "_plugin_menu", None, keep)
@@ -296,14 +299,15 @@ def _add_plugin_menu(app, menu_bar, keep):
             action.triggered.connect(lambda checked=False, a=analyzer: app.plugin_runs.run_analyzer(a))
             keep.append(action)
 
-    if app._plugin_panel_docks:
+    if app._plugin_panels:
         if api.menu_actions or processors or analyzers:
             plugin_menu.addSeparator()
         panel_menu = plugin_menu.addMenu(tr("パネル"))
         _hold_menu(app, panel_menu, None, None, keep)
-        for name in sorted(app._plugin_panel_docks.keys()):
-            action = app._plugin_panel_docks[name].toggleViewAction()
-            panel_menu.addAction(action)
+        # パネルは左端の帯の「プラグイン」のページにある。選ぶと、そのページでそのパネルを出す
+        for name in sorted(app._plugin_panels.keys()):
+            action = panel_menu.addAction(name)
+            action.triggered.connect(lambda checked=False, n=name: app.show_plugin_panel(n))
             keep.append(action)
 
 

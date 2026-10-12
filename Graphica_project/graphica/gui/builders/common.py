@@ -1,10 +1,11 @@
 """画面の組み立てで共有する定数と小さな部品。main_window からも同じ名前で読める。"""
 import os
-from PySide6.QtCore import QEvent, QObject, QRectF, Qt, Signal
-from PySide6.QtGui import QPainter, QPainterPath
-from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QStyledItemDelegate
+from PySide6.QtCore import QEvent, QObject, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPainterPath
+from PySide6.QtWidgets import QComboBox, QStyle, QStyleOptionViewItem, QStyledItemDelegate
 from graphica.core.i18n import tr
 from graphica.gui import theme
+from graphica.gui.dataset_style_icon import DATASET_TREE_NAME_COLUMN
 from graphica.gui.icon_utils import ICONS_DIR, load_svg_icon
 from graphica.gui.mathtext_preview import FitWidthPixmapLabel
 from graphica.gui.resources import resource_path
@@ -16,13 +17,14 @@ DATASET_TREE_VISIBILITY_COLUMN_WIDTH = 26  # 目のアイコン(16px)+クリッ�
 
 # ドックの既定の配置を変えたら上げる。保存時の値と違えば保存済みの配置を戻さない
 # (戻すと、新しい既定の配置が既存の利用者に届かない)。
-DOCK_LAYOUT_VERSION = 4
+DOCK_LAYOUT_VERSION = 6
 
 
 # データセットのプロパティ欄の節。行は self._prop_form(キー).addRow で足す(番号指定の挿入はしない)。
 DATASET_PROPERTY_SECTIONS = (
     ('data',      'データ列'),
     ('style',     '基本スタイル'),
+    ('marker',    'マーカー'),
     ('gradient',  'グラデーション'),
     ('waterfall', 'ウォーターフォール'),
     ('map',       '2Dマップ・値による配色'),
@@ -33,7 +35,13 @@ DATASET_PROPERTY_SECTIONS = (
 
 # プラグインの種類名は任意の長さなので、コンボの希望幅を固定して省略表示させる
 # (広がると QFormLayout の列幅を通じてドックに横スクロールバーが出る)。
-PLOT_TYPE_COMBO_MIN_CHARS = 16
+PLOT_TYPE_COMBO_MIN_CHARS = 11
+
+
+def cap_combo_width(combo):
+    """長い項目があっても、コンボの希望幅を種別の欄と同じ文字数にそろえる(項目は開いた一覧で全文が見える)。"""
+    combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+    combo.setMinimumContentsLength(PLOT_TYPE_COMBO_MIN_CHARS)
 
 
 COLORMAP_CHOICES = [
@@ -79,12 +87,49 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
             path.addRoundedRect(
                 rect, theme.DATASET_LIST_ITEM_RADIUS, theme.DATASET_LIST_ITEM_RADIUS
             )
-            painter.fillPath(path, theme.current_selection_highlight_qcolor())
+            painter.fillPath(path, theme.current_accent_soft_qcolor())
             painter.restore()
             # 標準の選択の背景を重ねないよう落とす(文字とアイコンの色は選択で変わらない)
             opt.state &= ~QStyle.StateFlag.State_Selected
 
+        count_text = _point_count_text(index)
+        if not count_text:
+            super().paint(painter, opt, index)
+            return
+        # 右端に点の数を出す。名前はその手前で省略されるよう、文字の幅を縮めてから描く
+        full_rect = QRect(opt.rect)
+        count_width = opt.fontMetrics.horizontalAdvance(count_text) + DATASET_TREE_COUNT_PADDING
+        opt.rect = full_rect.adjusted(0, 0, -count_width, 0)
         super().paint(painter, opt, index)
+        painter.save()
+        painter.setPen(QColor(theme.current_tokens()["text_muted"]))
+        painter.drawText(full_rect.adjusted(0, 0, -DATASET_TREE_COUNT_PADDING // 2, 0),
+                         int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter), count_text)
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        hint = super().sizeHint(option, index)
+        hint.setHeight(max(hint.height(), DATASET_TREE_ROW_HEIGHT))
+        return hint
+
+
+# 一覧の行の高さと、右端の点の数の余白(見本 docs/dev/mockups/gui_redesign/ の 38px から行の間の分を引いた高さ)
+DATASET_TREE_ROW_HEIGHT = 34
+DATASET_TREE_COUNT_PADDING = 12
+
+
+def _point_count_text(index):
+    """データセットの行なら「41 点」(除外した行は数えない)。フォルダや目の列は空。"""
+    if index.column() != DATASET_TREE_NAME_COLUMN:
+        return ""
+    dataset = index.data(Qt.ItemDataRole.UserRole)
+    if dataset is None:
+        return ""
+    try:
+        count = len(dataset.df) - len(getattr(dataset, "masked_row_indices", ()) or ())
+    except TypeError:
+        return ""
+    return f"{max(count, 0)} {tr('点')}"
 
 
 class _IgnoreWheelFilter(QObject):

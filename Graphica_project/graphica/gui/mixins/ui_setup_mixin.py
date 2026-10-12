@@ -6,6 +6,7 @@ from graphica.gui.theme import apply_theme
 from graphica.gui.dialogs import CommandPaletteDialog
 from graphica.gui.datasets.actions_menu import populate_dataset_actions_menu
 from graphica.gui.menu_bar import build_menu_bar
+from graphica.gui.shell import bottom_panel
 
 
 class UISetupMixin:
@@ -69,6 +70,12 @@ class UISetupMixin:
         apply_theme(QApplication.instance(), checked)
         self.canvas.dark_mode = checked
         app_settings.DARK_MODE.write(self.settings, checked)
+        self.refresh_theme_colors()
+        # QSS はアプリ全体に効くが、グラフ・アイコン・メニューのチェックはタブごとなので、ほかのタブにも当てる
+        self._sync_dark_mode_to_sibling_tabs(checked)
+
+    def refresh_theme_colors(self):
+        """テーマ(明暗・テーマカラー)を替えた後、このタブで色を焼き込んで作ったものを描き直す。"""
         self._update_plot(light=True)  # 軸の数は変わらないので軽い描き直しでよい
         # 以下は作ったときにテーマの色を焼き込んでいるので、描き直す:
         # タイトルと軸ラベルのプレビュー
@@ -86,8 +93,6 @@ class UISetupMixin:
             dialog = getattr(self, dialog_attr, None)
             if dialog is not None and hasattr(dialog, 'refresh_theme'):
                 dialog.refresh_theme()
-        # QSS はアプリ全体に効くが、グラフ・アイコン・メニューのチェックはタブごとなので、ほかのタブにも当てる
-        self._sync_dark_mode_to_sibling_tabs(checked)
 
     def _sync_dark_mode_to_sibling_tabs(self, checked):
         """ほかのタブにも同じダークモードを当てる(QSS はアプリ全体だが、グラフやアイコンはタブごと)。"""
@@ -109,11 +114,7 @@ class UISetupMixin:
             tab.dark_mode_action.blockSignals(True)
             tab.dark_mode_action.setChecked(checked)
             tab.dark_mode_action.blockSignals(False)
-            tab._update_plot(light=True)
-            tab._refresh_all_label_previews()
-            tab.color_picker_widget.refresh_theme()
-            tab.gradient_color2_picker.refresh_theme()
-            tab._refresh_custom_svg_icons()
+            tab.refresh_theme_colors()
 
     def _refresh_custom_svg_icons(self):
         """
@@ -122,16 +123,14 @@ class UISetupMixin:
         """
         from graphica.gui.main_window import _svg_icon
 
-        if hasattr(self, 'cursor_action'):
-            self.cursor_action.setIcon(_svg_icon("pointer"))
-        if hasattr(self, 'annotation_action'):
-            self.annotation_action.setIcon(_svg_icon("message-2"))
-        if hasattr(self, 'layout_edit_action'):
-            self.layout_edit_action.setIcon(_svg_icon("layout-grid"))
-        if hasattr(self, 'reset_zoom_action'):
-            self.reset_zoom_action.setIcon(_svg_icon("refresh"))
-        if hasattr(self, 'stats_toolbar_button'):
-            self.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
+        from graphica.gui.builders.canvas_area import TOOL_ACTION_ICONS
+        for attr, icon_name in TOOL_ACTION_ICONS:
+            if hasattr(self, attr):
+                getattr(self, attr).setIcon(_svg_icon(icon_name))
+        for button in (getattr(self, name, None) for name in ('card_reset_button', 'card_minimap_button',
+                                                                'card_detach_button')):
+            if button is not None:
+                button.setIcon(_svg_icon(button.property("iconName")))
         if hasattr(self, 'manage_palette_action'):
             self.manage_palette_action.setIcon(_svg_icon("palette", size=16))
         if hasattr(self, 'colormap_assign_action'):
@@ -139,12 +138,15 @@ class UISetupMixin:
 
         for button, (icon_name, _label) in getattr(self, '_dataset_action_button_icons', {}).items():
             button.setIcon(_svg_icon(icon_name, size=18))
+        # 左端の帯と左パネル(色の違うアイコンがあるので、それぞれが作り直す)
+        for part in ('activity_rail', 'dataset_page'):
+            if hasattr(self, part):
+                getattr(self, part).refresh_icons()
         for button, icon_name in getattr(self, '_field_icon_buttons', {}).items():
             button.setIcon(_svg_icon(icon_name, size=16))
-        for toggle_button in getattr(self, '_collapsible_toggle_buttons', []):
-            toggle_button.setIcon(
-                _svg_icon("chevron-down" if toggle_button.isChecked() else "chevron-right", size=14)
-            )
+        bottom_panel.refresh_theme(self)
+        if hasattr(self, 'lite_more_icon'):
+            self.lite_more_icon.setPixmap(_svg_icon("lock", size=15).pixmap(15, 15))
         # プロパティ欄の節の見出しも同じ矢印
         for entry in getattr(self, '_prop_sections', {}).values():
             button = entry['toggle']
@@ -164,9 +166,6 @@ class UISetupMixin:
             self.tick_direction_y2_label.setVisible(False)
             self.major_tick_direction_y2_combo.setVisible(False)
             self.minor_tick_direction_y2_combo.setVisible(False)
-
-            self.fit_info_label.setVisible(False)
-            self.fit_info_textedit.setVisible(False)
 
             self.ui.grid_visible_checkbox.setChecked(False)
             self.ui.minor_grid_visible_checkbox.setChecked(False)

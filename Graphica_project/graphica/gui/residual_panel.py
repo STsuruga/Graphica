@@ -1,4 +1,4 @@
-"""選んだデータセットのフィットの残差を出すドック。dataset.fit_result の残差をそのまま描く(計算し直さない)。
+"""選んだデータセットのフィットの残差(下のパネルの「残差」のタブ)。fit_result の残差をそのまま描く(計算し直さない)。
 
 メインのグラフを上下2段に分けないのは、サブプロットの数・配置・自由配置・第2Y軸などの前提と絡み合うため。
 """
@@ -8,7 +8,9 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 
+from graphica.core.i18n import tr
 from graphica.gui import theme
+from graphica.gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +31,15 @@ class ResidualPanel(QWidget):
 
         self.fig = Figure(figsize=(4, 2.2), dpi=dpi, tight_layout=True)
         self.canvas = FigureCanvas(self.fig)
-        self.canvas.setMinimumHeight(160)
+        self.canvas.setMinimumHeight(110)
         self.ax = self.fig.add_subplot(111)
         layout.addWidget(self.canvas)
         self.canvas.setVisible(False)
 
-    def refresh(self, dataset):
-        """fit_result が無いか残差が空なら案内の文を出す。"""
-        fit_result = dataset.fit_result if dataset is not None else None
+    def refresh(self, dataset, fit_result=None):
+        """fit_result を省くと dataset の fit_result。無いか残差が空なら案内の文を出す。"""
+        if fit_result is None:
+            fit_result = dataset.fit_result if dataset is not None else None
         residual_x = fit_result.get('residual_x') if fit_result else None
         residuals = fit_result.get('residuals') if fit_result else None
 
@@ -53,9 +56,10 @@ class ResidualPanel(QWidget):
         self.ax.cla()
         self.ax.set_facecolor(tokens['surface'])
         self.ax.axhline(0, color=tokens['border_strong'], linewidth=0.8, linestyle='--')
-        self.ax.scatter(residual_x, residuals, s=14, color='#1F6F78')
+        self.ax.scatter(residual_x, residuals, s=14, color=tokens['accent'])
         self.ax.set_xlabel("X", fontsize=8, color=tokens['text_primary'])
-        self.ax.set_ylabel("残差", fontsize=8, color=tokens['text_primary'])
+        # matplotlib の既定の字体には日本語が無い
+        self.ax.set_ylabel(tr("残差"), fontsize=8, color=tokens['text_primary'], fontfamily=JP_CAPABLE_FONT_FAMILIES)
         self.ax.tick_params(labelsize=7, colors=tokens['text_primary'])
         for spine in self.ax.spines.values():
             spine.set_color(tokens['border_strong'])

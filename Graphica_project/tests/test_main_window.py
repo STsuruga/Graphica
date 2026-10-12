@@ -11,7 +11,7 @@ import time
 import pandas as pd
 from PySide6.QtCore import QSettings, Qt, QUrl, QPoint, QPointF, QMimeData
 from PySide6.QtGui import QCloseEvent, QDragEnterEvent, QDropEvent
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QToolButton
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 import graphica.gui.notify as notify_module
 import graphica.gui.app_settings as app_settings_module
@@ -578,44 +578,46 @@ def test_drop_event_loads_file_with_plugin_registered_extension(tmp_path, monkey
 
 def test_properties_dock_has_no_horizontal_scrollbar(tmp_path, monkeypatch):
     """
-    バグ回帰テスト: 「データセットのプロパティ」「プロットのプロパティ」を
-    折りたたみ可能にした際(項目102)、縦スクロールバー分の幅を差し引いた
-    ビューポート幅に対して中身がわずかにはみ出し、意図しない横スクロールバーが
-    常時表示されてしまっていた。CONTROL_DOCK_WIDTHの拡幅とレイアウト余白の
-    圧縮で解消済み。
+    右のインスペクタのどのタブも、横スクロールバーを出さず、中身が幅(GUI 刷新で 340px)に収まる
+    (以前、縦スクロールバーの分だけはみ出して横スクロールバーが常に出ていた)。
     """
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    scroll_area = window.ui.control_dock_widget.widget()
+    from PySide6.QtWidgets import QScrollArea
 
-    assert scroll_area.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-    assert scroll_area.horizontalScrollBar().maximum() == 0
-    # 中身の最小幅は、スクロールバー分を差し引いたビューポート幅に収まっているべき
-    assert scroll_area.widget().minimumSizeHint().width() <= scroll_area.viewport().width()
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    window.resize(1440, 900)
+    window.show()
+    app = QApplication.instance()
+    for key in ("properties", "axes", "legend", "export"):
+        window.inspector.show_page(key)
+        for _ in range(5):
+            app.processEvents()
+        scroll_area = window.findChild(QScrollArea, f"inspector_scroll_{key}")
+        assert scroll_area.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        assert scroll_area.widget().minimumSizeHint().width() <= scroll_area.viewport().width(), key
+    window.close()
 
 
 def test_properties_dock_vertical_scroll_still_works_after_collapse(tmp_path, monkeypatch):
-    """
-    折りたたみアコーディオン(項目102)のトグル後も、縦スクロールバーの範囲が
-    正しく再計算されることを確認する(横スクロールバー修正の副作用がないことの確認)。
-    """
+    """節を閉じたあとも、縦スクロールバーの範囲が正しく計算し直される。"""
+    from PySide6.QtWidgets import QScrollArea
+
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    scroll_area = window.ui.control_dock_widget.widget()
-    vbar = scroll_area.verticalScrollBar()
+    window.resize(1440, 700)
+    window.show()
+    app = QApplication.instance()
+    for _ in range(10):
+        app.processEvents()
+    vbar = window.findChild(QScrollArea, "inspector_scroll_properties").verticalScrollBar()
     max_before = vbar.maximum()
     assert max_before > 0
 
-    toggle_buttons = [
-        b for b in window.ui.control_dock_widget.findChildren(QToolButton)
-        if b.objectName() == "collapsible_section_toggle"
-    ]
-    assert len(toggle_buttons) == 2
-    toggle_buttons[0].setChecked(False)
-
-    app = QApplication.instance()
+    for key in ("data", "style", "marker"):
+        window._prop_sections[key]['toggle'].setChecked(False)
     for _ in range(10):
         app.processEvents()
 
     assert vbar.maximum() < max_before
+    window.close()
 
 
 # --- ギリシャ文字/記号パレット(項目81: mathtext拡充、H-2-4で算術/数学記号を追加) ---
@@ -680,13 +682,18 @@ def test_dataset_search_edit_has_object_name_for_qss_scoping(tmp_path, monkeypat
 
 def test_dataset_search_edit_and_list_remain_separate_boxes_with_spacing(tmp_path, monkeypatch):
     """
-    検索ボックスとリストは統合された1つの箱ではなく、間に余白を持つ独立した
-    箱のままであることを確認する(実機フィードバックで「隙間を1.5倍くらい
-    広く」と指定され、4px→6pxに変更した経緯がある)。
+    検索ボックスとリストは統合された1つの箱ではなく、間に余白を持つ独立した箱のまま
+    (実機フィードバックで隙間を広げた経緯がある)。GUI 刷新で左パネルに移り、間は検索欄の行の下の余白 8px。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    container_layout = window.dataset_search_edit.parentWidget().layout()
-    assert container_layout.spacing() == 6
+    window.resize(1300, 850)
+    window.show()
+    QApplication.instance().processEvents()
+    search, tree = window.dataset_search_edit, window.ui.dataset_list_widget
+    assert search.parentWidget() is window.dataset_page and tree.parentWidget() is window.dataset_page
+    gap = tree.geometry().top() - search.geometry().bottom()
+    assert gap >= 6
+    window.close()
 
 
 # --- ドックのフォーカス時強調(項目H-2-3) ---
@@ -701,6 +708,8 @@ def test_control_dock_gets_focus_highlight_installed(tmp_path, monkeypatch):
     from PySide6.QtWidgets import QLineEdit, QWidget
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    # タイトル/軸ラベル欄は「軸」のタブにある(GUI 刷新)
+    window.inspector.show_page("axes")
     # データセット未選択だと大半のプロパティ欄はdisabledで(disabledな
     # ウィジェットはフォーカスを受け取れずno-opになる)、常にenabledな欄を
     # 探して使う(タイトル/軸ラベル欄など、プロット全体設定は選択不要のため)。
@@ -1094,18 +1103,11 @@ def test_clickable_math_preview_label_has_hover_attribute_enabled(qapp):
 
 def test_properties_dock_content_actually_renders_bg_token_color(tmp_path, monkeypatch):
     """
-    実際にウィジェットをレンダリングしてピクセル色を確認する統合テスト
-    (実機フィードバック「プロパティウィンドウの背景色が他と違う」の回帰、
-    QDockWidgetにbackgroundを追加した後も再発した2回目の修正)。
-
-    QSSの文字列に`background: {bg}`が含まれているかどうかを確認するだけの
-    テスト(test_theme.pyのgenerated_qss系)では、実際に画面へ出る色までは
-    検証できず、本バグ(QScrollAreaの中身のwidgetがアプリ全体QSSの副作用で
-    OSネイティブパレット色に不透明に塗りつぶされ、QSSの指定が実際には
-    見えなくなっていた)を検出できなかった実例。QWidget.grab()で実際に
-    描画させ、ピクセル色がbgトークンと一致することを直接確認する。
+    実際に描かせてピクセルの色を確かめる(QSS の文字列だけでは、中身の部品が OS のパレットの色で塗られる
+    実例を検出できなかった)。GUI 刷新で、右のインスペクタの地は surface。
     """
     from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QScrollArea
     from graphica.gui import theme
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
@@ -1114,12 +1116,11 @@ def test_properties_dock_content_actually_renders_bg_token_color(tmp_path, monke
     for _ in range(3):
         app.processEvents()
 
-    scroll_area = window.ui.control_dock_widget.widget()
-    content_widget = scroll_area.widget()
+    content_widget = window.findChild(QScrollArea, "inspector_scroll_properties").widget()
     image = content_widget.grab().toImage()
-    # 左上の余白部分(データセットのプロパティグループボックスの枠外)をサンプル
-    sample = image.pixelColor(2, 2)
-    expected = QColor(theme.LIGHT_TOKENS["bg"])
+    # 右下の余白(節の中身の外)をサンプル
+    sample = image.pixelColor(image.width() - 3, image.height() - 3)
+    expected = QColor(theme.LIGHT_TOKENS["surface"])
     assert (sample.red(), sample.green(), sample.blue()) == (
         expected.red(), expected.green(), expected.blue(),
     )
@@ -1332,15 +1333,15 @@ def test_refresh_custom_svg_icons_updates_collapsible_toggle_buttons(tmp_path, m
 
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     theme.apply_theme(QApplication.instance(), dark=False)  # 実行順序に依らず既知の状態から開始
-    assert len(window._collapsible_toggle_buttons) > 0
-    btn = window._collapsible_toggle_buttons[0]
+    btn = window._prop_sections['data']['toggle']
     window._refresh_custom_svg_icons()
-    before = btn.icon().pixmap(14, 14).toImage()
+    before = btn.icon().pixmap(13, 13).toImage()
 
     window._on_toggle_dark_mode(True)
 
-    after = btn.icon().pixmap(14, 14).toImage()
+    after = btn.icon().pixmap(13, 13).toImage()
     assert before != after
+    window._on_toggle_dark_mode(False)
 
 
 # --- フォームラベルの末尾コロン除去(項目H-2-4、実機フィードバック:
@@ -1453,134 +1454,27 @@ def test_restore_dock_layout_swallows_resizedocks_exception(tmp_path, monkeypatc
     window._restore_dock_layout()
 
 
-# --- ドックレイアウトの保存/復元/リセット(項目152、C-911) ---
+# --- サブメニューの永続参照(shiboken の回収の癖) ---
 
-def test_load_dock_layout_presets_empty_by_default(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    assert window._load_dock_layout_presets() == {}
-
-
-def test_save_dock_layout_preset_persists_current_state(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(notify_module.QInputDialog, "getText",
-                         staticmethod(lambda *a, **k: ("My Layout", True)))
-
-    window._on_save_dock_layout_preset()
-
-    presets = window._load_dock_layout_presets()
-    assert "My Layout" in presets
-    assert isinstance(presets["My Layout"], str)
-    assert len(presets["My Layout"]) > 0
-
-
-def test_save_dock_layout_preset_cancelled_does_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(notify_module.QInputDialog, "getText",
-                         staticmethod(lambda *a, **k: ("", False)))
-
-    window._on_save_dock_layout_preset()
-
-    assert window._load_dock_layout_presets() == {}
-
-
-def test_save_dock_layout_preset_empty_name_does_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    monkeypatch.setattr(notify_module.QInputDialog, "getText",
-                         staticmethod(lambda *a, **k: ("   ", True)))
-
-    window._on_save_dock_layout_preset()
-
-    assert window._load_dock_layout_presets() == {}
-
-
-def test_populate_load_layout_menu_shows_placeholder_when_empty(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-
-    window._populate_load_layout_menu()
-
-    actions = window.load_layout_menu.actions()
-    assert len(actions) == 1
-    assert actions[0].isEnabled() is False
-
-
-def test_populate_load_layout_menu_lists_saved_presets_sorted(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._save_dock_layout_presets({"Zebra": "abc", "Alpha": "def"})
-
-    window._populate_load_layout_menu()
-
-    texts = [a.text() for a in window.load_layout_menu.actions()]
-    assert texts == ["Alpha", "Zebra"]
-
-
-def test_load_dock_layout_preset_restores_saved_state(tmp_path, monkeypatch):
-    import base64
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    state_b64 = base64.b64encode(bytes(window.saveState())).decode('ascii')
-    window._save_dock_layout_presets({"Saved": state_b64})
-
-    window._on_load_dock_layout_preset("Saved")  # 例外にならないこと(復元成功パス)
-
-
-def test_load_dock_layout_preset_unknown_name_does_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._on_load_dock_layout_preset("does not exist")  # 例外にならないこと
-
-
-def test_load_dock_layout_preset_corrupted_data_shows_warning(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    window._save_dock_layout_presets({"Broken": "not-valid-base64!!!"})
-    warn_calls = []
-    monkeypatch.setattr(main_window_module.QMessageBox, "warning",
-                         staticmethod(lambda *a, **k: warn_calls.append(a)))
-
-    window._on_load_dock_layout_preset("Broken")
-
-    assert len(warn_calls) == 1
-
-
-def test_reset_dock_layout_restores_pristine_state(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    calls = []
-    monkeypatch.setattr(window, "restoreState", lambda state: calls.append(state) or True)
-
-    window._on_reset_dock_layout()
-
-    assert calls == [window._pristine_dock_state]
-
-
-def test_dock_layout_menu_survives_collect_menu_actions(tmp_path, monkeypatch):
+def test_submenus_survive_collect_menu_actions(tmp_path, monkeypatch):
     """
-    回帰テスト: 「ドックレイアウト」サブメニュー追加(項目152、C-911)により、
-    _collect_menu_actions()(コマンドパレット・クイックアクセス管理ダイアログ・
-    ショートカット一覧が使う)を一度でも呼ぶと、view_menu.actions()を辿って
-    このサブメニューの「開くためのQAction」(dock_layout_menu.menuAction())への
-    一時参照が失われた際にPySide6側でQMenu本体ごと破棄されてしまう不具合が
-    実際に発生していた(RuntimeError: Internal C++ object already deleted)。
-    menuAction()自体も self._dock_layout_menu_action 等として明示的に永続参照を
-    保持することで防いでいる。_collect_menu_actions()を呼んだ後も、ドック
-    レイアウト関連のメニュー/アクションが生きていることを確認する。
+    回帰テスト: _collect_menu_actions()(コマンドパレット・クイックアクセス管理・ショートカット一覧が使う)で
+    サブメニューを辿ると、開くための QAction(menuAction())への一時参照が失われたとき PySide6 側で QMenu ごと
+    破棄されることがあった(RuntimeError: Internal C++ object already deleted)。build_menu_bar() が
+    QMenu と menuAction() を _menu_keepalive に持つので、2回呼んでも「エクスポート」のサブメニューが生きていること。
     """
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
     results = window._collect_menu_actions()
     assert len(results) > 0
-
-    # 呼び出し後も壊れていないこと(壊れているとRuntimeErrorが飛ぶ)
-    assert window._dock_layout_menu.title()  # QMenu本体
-    assert not window._save_layout_action.isSeparator()
-    assert not window._reset_layout_action.isSeparator()
-    assert window.load_layout_menu.title()
-
-    # 「ドックレイアウト」配下の項目がコマンドパレット候補にも含まれていること
+    assert window._export_menu.title()
+    assert not window.save_action.isSeparator()
     labels = [" > ".join(path) for path, _ in results]
-    assert any("現在のレイアウトを保存" in label for label in labels)
-    assert any("既定のレイアウトにリセット" in label for label in labels)
+    assert any("名前を付けてエクスポート" in label for label in labels)
 
-    # 2回目の呼び出しも壊れずに成功すること(一度で壊れる不具合だったため)
     results2 = window._collect_menu_actions()
     assert len(results2) > 0
-    assert not window._save_layout_action.isSeparator()
+    assert window._export_menu.actions()
 
 
 def test_collect_menu_actions_never_leaks_recent_files(tmp_path, monkeypatch):
@@ -1590,8 +1484,8 @@ def test_collect_menu_actions_never_leaks_recent_files(tmp_path, monkeypatch):
     候補に含めてはならない。
 
     以前は除外判定が action.menu() の identity 比較
-    (submenu is not self.recent_files_menu)だけに依存しており、_dock_layout_menu
-    と同じ shiboken/PySide6 の癖で、繰り返し走査するうちにこの identity が
+    (submenu is not self.recent_files_menu)だけに依存しており、サブメニューの
+    回収と同じ shiboken/PySide6 の癖で、繰り返し走査するうちにこの identity が
     失効して2回目以降の呼び出しで子アクションがリークすることがあった。
     開閉用アクション self._recent_files_menu_action を永続参照として保持し、
     その identity でも判定するよう修正した。
