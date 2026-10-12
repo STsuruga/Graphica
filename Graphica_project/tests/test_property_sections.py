@@ -30,7 +30,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from PySide6.QtCore import Qt, QSettings
-from PySide6.QtWidgets import QApplication, QFormLayout, QToolButton
+from PySide6.QtWidgets import QApplication, QFormLayout, QToolButton, QWidget
 
 import graphica.gui.app_settings as app_settings_module
 import graphica.core.plugin_api as plugin_api_module
@@ -71,7 +71,9 @@ def _pump():
 
 
 def _section_widgets(window, key):
-    """セクション内の全ウィジェットを、行順・(ラベル→フィールド)の順で返す。"""
+    """セクション内の全ウィジェットを、行順・(ラベル→フィールド)の順で返す。
+
+    見た目の部品に取り込んだ値の持ち主(線の種類のコンボ・スライダーの数値の欄)も、その欄の後に数える。"""
     form = window._prop_form(key)
     out = []
     for row in range(form.rowCount()):
@@ -82,6 +84,7 @@ def _section_widgets(window, key):
             if item is not None and item.widget() is not None \
                     and item.widget() not in out:
                 out.append(item.widget())
+                out.extend(w for w in item.widget().findChildren(QWidget) if w not in out)
     return out
 
 
@@ -134,9 +137,9 @@ def test_the_original_form_layout_is_left_empty(window):
 
 def test_every_property_row_lives_in_exactly_one_section(window):
     """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行、+ ウォーターフォールのオフセットの指定1行、+ 凡例の表示名と「凡例に表示しない」2行、
-    + マーカーの塗りと枠線5行)が過不足なく7セクションに分配されていること。"""
+    + マーカーの塗りと枠線5行、+ シンプルの種類のタイル1行)が過不足なく節に分配されていること。"""
     total = sum(window._prop_form(key).rowCount() for key, _ in DATASET_PROPERTY_SECTIONS)
-    assert total == 48
+    assert total == 49
 
 
 def test_no_property_widget_is_orphaned_from_every_layout(window):
@@ -229,8 +232,10 @@ def test_fit_info_is_the_last_row_of_its_section(window):
     フィットが無いときは隠れる100px高の欄なので、セクションの先頭にあると
     フィットするたびに下の項目が押し下げられる。末尾に置く。
     """
-    widgets = _section_widgets(window, 'place')
-    assert widgets[-1] is window.fit_info_textedit
+    form = window._prop_form('place')
+    last_row = form.rowCount() - 1
+    item = form.itemAt(last_row, QFormLayout.ItemRole.FieldRole)         or form.itemAt(last_row, QFormLayout.ItemRole.SpanningRole)
+    assert item.widget() is window.fit_info_textedit
 
 
 # --- 見出しのトグル ---

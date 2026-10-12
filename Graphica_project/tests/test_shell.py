@@ -106,7 +106,7 @@ def test_every_mode_only_element_exists_on_a_tab(main_window):
     tab = main_window.tab_widget.currentWidget()
     for dotted_name, only_in in ui_mode.MODE_ONLY_ELEMENTS:
         assert only_in in ui_mode.MODES
-        assert ui_mode._resolve(tab, dotted_name) is not None, dotted_name
+        assert ui_mode.resolve(tab, dotted_name) is not None, dotted_name
 
 
 # --- モードの切り替え ---

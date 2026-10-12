@@ -130,8 +130,6 @@ class UISetupMixin:
                                                                 'card_detach_button')):
             if button is not None:
                 button.setIcon(_svg_icon(button.property("iconName")))
-        if hasattr(self, 'stats_toolbar_button'):
-            self.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
         if hasattr(self, 'manage_palette_action'):
             self.manage_palette_action.setIcon(_svg_icon("palette", size=16))
         if hasattr(self, 'colormap_assign_action'):
@@ -145,6 +143,8 @@ class UISetupMixin:
                 getattr(self, part).refresh_icons()
         for button, icon_name in getattr(self, '_field_icon_buttons', {}).items():
             button.setIcon(_svg_icon(icon_name, size=16))
+        if hasattr(self, 'lite_more_icon'):
+            self.lite_more_icon.setPixmap(_svg_icon("lock", size=15).pixmap(15, 15))
         # プロパティ欄の節の見出しも同じ矢印
         for entry in getattr(self, '_prop_sections', {}).values():
             button = entry['toggle']

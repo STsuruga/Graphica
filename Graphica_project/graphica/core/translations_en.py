@@ -644,4 +644,9 @@ TRANSLATIONS = {
     "凡例": "Legend",
     "オン": "On",
     "オフ": "Off",
+    "線+点": "Line+dots",
+    "棒": "Bars",
+    "グラフの種類": "Graph type",
+    "誤差・透明度・平滑化・マーカー・グラデーション・ウォーターフォール・2D マップなど": "Errors, opacity, smoothing, markers, gradient, waterfall, 2D maps and more",
+    "アドバンスドですべて表示 →": "Show all in Advanced →",
 }

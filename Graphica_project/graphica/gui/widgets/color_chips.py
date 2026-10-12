@@ -41,7 +41,10 @@ class ColorChip(QAbstractButton):
 
 
 class ColorChipRow(QWidget):
-    """色のチップを並べる。押すと colorPicked(#RRGGBB) を出す(どれを選んでいるかは set_current_color で合わせる)。"""
+    """色のチップを並べる。押すと colorPicked(#RRGGBB) を出す(どれを選んでいるかは set_current_color で合わせる)。
+
+    幅が足りないときは入るだけ並べ、残りは隠す(最小幅を 0 にして、フォームの行が折り返されないように)。
+    """
 
     colorPicked = Signal(str)
 
@@ -56,15 +59,31 @@ class ColorChipRow(QWidget):
 
     def set_colors(self, colors):
         layout = self.layout()
-        for chip in self.chips:
-            layout.removeWidget(chip)
-            chip.deleteLater()
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
         self.chips = []
         for color in colors:
             chip = ColorChip(color, self._chip_size, self)
             chip.clicked.connect(lambda _checked=False, c=chip: self._on_chip_clicked(c))
             layout.addWidget(chip)
             self.chips.append(chip)
+        layout.addStretch(1)
+        self._fit_chips()
+
+    def minimumSizeHint(self):
+        return QSize(0, self._chip_size + 8)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_chips()
+
+    def _fit_chips(self):
+        cell = self._chip_size + 8
+        fits = max(0, self.width() // cell)
+        for index, chip in enumerate(self.chips):
+            chip.setVisible(index < fits)
 
     def colors(self):
         return [chip.color.name().upper() for chip in self.chips]
