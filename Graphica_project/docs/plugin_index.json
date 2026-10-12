@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "plugins": [
+    {
+      "folder": "element_constants",
+      "name": "Element & Physical Constants Table",
+      "repo": "STsuruga/graphica-plugin-element-constants"
+    },
+    {
+      "folder": "color_studio",
+      "name": "Color Studio",
+      "repo": "STsuruga/graphica-plugin-color-studio"
+    },
+    {
+      "folder": "mass_spec",
+      "name": "Mass Spec Pack",
+      "repo": "STsuruga/graphica-plugin-mass-spec"
+    }
+  ]
+}

@@ -5194,6 +5194,74 @@
   },
   "modals": []
  },
+ "PluginUpdatesDialog": {
+  "tree": {
+   "class": "PluginUpdatesDialog",
+   "window_title": "Plugin Updates",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "New versions of some plugins are available. Choose the ones to update.",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QTextBrowser",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "Updated plugins are used after Graphica restarts.",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "Update Selected",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "Later",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
  "PreferencesDialog": {
   "tree": {
    "class": "PreferencesDialog",
@@ -5226,6 +5294,12 @@
           {
            "class": "QPushButton",
            "text": "Open Plugin Folder",
+           "visible": false,
+           "enabled": true
+          },
+          {
+           "class": "QPushButton",
+           "text": "Check for Updates...",
            "visible": false,
            "enabled": true
           },

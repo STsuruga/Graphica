@@ -39,7 +39,8 @@ class PreferencesDialog(QDialog):
                  current_language=None, autosave_dir="", point_label_max_points=1000,
                  snap_to_grid_enabled=False, snap_grid_interval_px=10,
                  plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None,
-                 default_style_template="", wheel_zoom_speed="normal", theme_color=DEFAULT_THEME_COLOR):
+                 default_style_template="", wheel_zoom_speed="normal", theme_color=DEFAULT_THEME_COLOR,
+                 on_check_plugin_updates=None):
         """plugin_records=None は一度も読み込んでいない(セーフモードなど)。空のリスト(1つも無い)とは区別して表示する。"""
         super().__init__(parent)
         from graphica.core.i18n import tr, SUPPORTED_LANGUAGES, get_language
@@ -221,6 +222,13 @@ class PreferencesDialog(QDialog):
         self.open_plugins_folder_button.clicked.connect(self._on_open_plugins_folder)
         self.open_plugins_folder_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         plugin_actions_row.addWidget(self.open_plugins_folder_button)
+        # 確認は呼び出し側(タブ)が別スレッドで行う。結果は環境設定を閉じた後でも知らせる
+        self.check_plugin_updates_button = QPushButton(tr("更新を確認..."))
+        self.check_plugin_updates_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.check_plugin_updates_button.setVisible(on_check_plugin_updates is not None)
+        if on_check_plugin_updates is not None:
+            self.check_plugin_updates_button.clicked.connect(on_check_plugin_updates)
+        plugin_actions_row.addWidget(self.check_plugin_updates_button)
         plugin_actions_row.addStretch()
         plugin_tab_layout.addLayout(plugin_actions_row)
 
@@ -775,6 +783,57 @@ class UpdateDialog(QDialog):
     def _finish(self, choice):
         self.choice = choice
         self.accept()
+
+
+class PluginUpdatesDialog(QDialog):
+    """入れたプラグインの新しい版の一覧。チェックしたものを selected_updates() で返す(既定は全部)。"""
+
+    def __init__(self, updates, parent=None):
+        super().__init__(parent)
+        from graphica.core.i18n import tr
+        self.setWindowTitle(tr("プラグインの更新"))
+        self.resize(520, 360)
+        self._updates = list(updates)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(tr("新しい版が出ているプラグインがあります。更新するものを選んでください。")))
+        self.update_list = QListWidget()
+        for update in self._updates:
+            item = QListWidgetItem(f"{update['name']}  {update['current']} → {update['latest']}")
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked)
+            item.setToolTip(update.get('html_url', ''))
+            self.update_list.addItem(item)
+        self.update_list.currentRowChanged.connect(self._show_notes)
+        layout.addWidget(self.update_list)
+        self.notes = QTextBrowser()
+        self.notes.setOpenExternalLinks(True)
+        layout.addWidget(self.notes, 1)
+        note = QLabel(tr("更新したプラグインは、Graphica を起動し直すと使われます。"))
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        buttons = QDialogButtonBox()
+        self.update_button = buttons.addButton(tr("選んだものを更新"), QDialogButtonBox.ButtonRole.AcceptRole)
+        self.update_button.clicked.connect(self.accept)
+        self.update_button.setDefault(True)
+        later_button = buttons.addButton(tr("あとで"), QDialogButtonBox.ButtonRole.RejectRole)
+        later_button.clicked.connect(self.reject)
+        layout.addWidget(buttons)
+        if self._updates:
+            self.update_list.setCurrentRow(0)
+
+    def _show_notes(self, row):
+        from graphica.core.i18n import tr
+        if not 0 <= row < len(self._updates):
+            self.notes.clear()
+            return
+        update = self._updates[row]
+        body = update.get('body') or tr("(リリースノートはありません)")
+        url = update.get('html_url', '')
+        self.notes.setMarkdown(f"**{update['name']} {update['latest']}**\n\n{body}\n\n[{url}]({url})")
+
+    def selected_updates(self):
+        return [update for row, update in enumerate(self._updates)
+                if self.update_list.item(row).checkState() == Qt.CheckState.Checked]
 
 
 class WelcomeDialog(QDialog):

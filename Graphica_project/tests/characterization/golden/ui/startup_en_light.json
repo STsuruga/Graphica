@@ -650,6 +650,15 @@
      }
     },
     {
+     "text": "Check for Plugin Updates...",
+     "tooltip": "Check for Plugin Updates",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
      "separator": true
     },
     {

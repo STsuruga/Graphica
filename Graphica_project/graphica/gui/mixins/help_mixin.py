@@ -90,6 +90,11 @@ class HelpMixin:
         logger.info("起動時のアップデート確認に失敗しました(オフライン等の可能性): %s", _message)
         self._update_check_task_runner = None
 
+    def _on_check_plugin_updates(self):
+        """「プラグインの更新を確認...」(ヘルプメニュー・環境設定のプラグインのタブ)。"""
+        from graphica.gui import plugin_update_flow
+        plugin_update_flow.check_now(self)
+
     def _on_check_for_update(self):
         """「アップデートを確認...」メニューの処理。手動確認は失敗時もエラーを表示する。"""
         if self._update_check_task_runner is not None:

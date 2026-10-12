@@ -233,6 +233,9 @@ def _dialog_factories(tmp_path):
             "設定", [{"name": "n", "type": "int", "default": 3, "label": "回数"},
                      {"name": "k", "type": "choice", "choices": ["a", "b"], "default": "b"},
                      {"name": "f", "type": "bool", "default": True, "label": "有効"}]),
+        "PluginUpdatesDialog": lambda: d.PluginUpdatesDialog(
+            [{"folder": "mass_spec", "name": "Mass Spec Pack", "current": "0.2.0", "latest": "1.0.0",
+              "html_url": "https://example.invalid/release", "body": "- note", "zip": {}}]),
         "PreferencesDialog": lambda: d.PreferencesDialog(False, 5),
         "QuickAccessManagerDialog": lambda: d.QuickAccessManagerDialog(actions, lambda *_: False, lambda *_: None),
         "ReplicateErrorDialog": lambda: d.ReplicateErrorDialog(columns),
