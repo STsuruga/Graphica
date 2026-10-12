@@ -10,6 +10,15 @@ from graphica.gui.ui_mode import ADVANCED
 logger = logging.getLogger(__name__)
 
 
+# ステータスバーの座標(見本: 「X = 7.42　Y = 40.18」。アドバンスドだけ出る)
+COORDINATE_EMPTY_TEXT = "X = ---　Y = ---"
+
+
+def coordinate_text(x, y, prefix=""):
+    """prefix はどのサブプロットか(「P1 · 」など)。"""
+    return f"{prefix}X = {x:.4g}　Y = {y:.4g}"
+
+
 def cursor_label_text(dataset, x, y, z=None, row_number=None, mode=ADVANCED):
     """データカーソルの吹き出しの文字: 「時間_s 7.5 · 温度_degC 41.12」。
 
@@ -70,7 +79,7 @@ class CursorTool:
                         logger.warning("オブジェクト %s は set_picker をサポートしていません。", item)
         else:
             logger.debug("データカーソルモード OFF")
-            self._app.coordinate_label.setText("X= ---, Y= ---")
+            self._app.coordinate_label.setText(COORDINATE_EMPTY_TEXT)
 
             if self.cursor_connection_id:
                 self._app.canvas.mpl_disconnect(self.cursor_connection_id)
@@ -98,22 +107,22 @@ class CursorTool:
 
             try:
                 ax_index = self._app.all_axes.index(ax)
-                ax_label = f"P{ax_index+1}: "
+                ax_label = f"P{ax_index+1} · "
             except ValueError:
                 # 第2軸は all_axes に無い
                  try:
                       sec_ax_index = self._app.all_secondary_axes.index(ax)
-                      ax_label = f"P{sec_ax_index+1}(Y2): "
+                      ax_label = f"P{sec_ax_index+1}(Y2) · "
                  except ValueError:
-                      ax_label = "?: "
+                      ax_label = "? · "
 
             self._app.coordinate_label.setText(
-                f"{ax_label}X= {x:.4g}, Y= {y:.4g}{self._current_dataset_readout(event)}"
+                coordinate_text(x, y, ax_label) + self._current_dataset_readout(event)
             )
 
         else:
             if not self.cursor_mode_enabled:
-                self._app.coordinate_label.setText("X= ---, Y= ---")
+                self._app.coordinate_label.setText(COORDINATE_EMPTY_TEXT)
 
     def _current_dataset_readout(self, event):
         """選んでいるデータセットが、マウスのあるサブプロットにずらして(ウォーターフォールで)描かれていれば、
@@ -128,7 +137,7 @@ class CursorTool:
         # 第2軸のあるサブプロットではマウスの下の Axes が系列の軸と違うことがあるので、ピクセルから系列の軸で読む
         x, y = dataset_ax.transData.inverted().transform((event.x, event.y))
         data_x, data_y = self._app.canvas.display_to_data(dataset, x, y)
-        return f" | 「{dataset.name}」: X= {data_x:.4g}, Y= {data_y:.4g}"
+        return f"　|　「{dataset.name}」 " + coordinate_text(data_x, data_y)
 
     def _on_element_pick(self, event):
         """グラフの系列やタイトルをクリックして選ぶ(常に有効)。"""

@@ -7,7 +7,7 @@ from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.label_utils import infer_axis_label_from_column_name
 from graphica.core.marker_style import MARKER_EDGE_COLOR, MARKER_FILL_COLOR, marker_is_unfilled
 from graphica.gui.binding import Binder
-from graphica.gui.builders import property_sections, property_widgets
+from graphica.gui.builders import canvas_area, property_sections, property_widgets
 from graphica.gui.shell import bottom_panel
 from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL, NO_MARKER
 from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES
@@ -284,6 +284,7 @@ class DatasetPropertyPanel:
         self._app._update_subplot_combos()
 
         self._shown_selection = self._current_selection()
+        canvas_area.refresh_status_bar(self._app)
         # フォルダも選べるので、「何か選ばれているか」(削除用)と「データセットが選ばれているか」を分ける
         current_dataset = self.shown_dataset()
         selected_datasets = self._app._get_selected_datasets()

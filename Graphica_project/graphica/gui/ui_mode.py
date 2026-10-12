@@ -15,7 +15,9 @@ MODE_LABELS = {LITE: "シンプル", ADVANCED: "アドバンスド"}
 
 # (タブの属性の名前(ドットで辿る), 出すモード)。ここに無い部品は両方のモードで出す
 MODE_ONLY_ELEMENTS = (
+    # ステータスバー: 座標と、データセット・選択の数
     ("coordinate_label", ADVANCED),
+    ("status_selection_label", ADVANCED),
     ("dataset_stats_advanced_row", ADVANCED),
     # グラフの道具: シンプルは左に縦のアイコン、アドバンスドはプロットの上に文字付き(同じ QAction)
     ("plot_tool_rail", LITE),
