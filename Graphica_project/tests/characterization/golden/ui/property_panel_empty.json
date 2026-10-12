@@ -607,7 +607,7 @@
               "class": "ColorChip",
               "text": "",
               "checked": true,
-              "visible": true,
+              "visible": false,
               "enabled": false,
               "tooltip": "#1F77B4",
               "receivers": {
