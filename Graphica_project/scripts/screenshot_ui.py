@@ -52,6 +52,28 @@ def _sample_datasets():
     return [first, second]
 
 
+def _shoot_settings_popover(window, tab, out_dir, settle):
+    """⚙ のポップアップ。ポップアップは別の窓なので、それ自体を撮る。"""
+    from graphica.gui.shell.settings_popover import toggle_settings_popover
+    saved = []
+    for dark in (False, True):
+        tab._on_toggle_dark_mode(dark)
+        for name, color in (("default", "#0F4C5C"), ("yellow", "#FACC15")):
+            tab.set_theme_color(color)
+            toggle_settings_popover(tab, tab.settings_rail_button)
+            settle()
+            path = os.path.join(out_dir, f"settings_{name}_{'dark' if dark else 'light'}.png")
+            tab.settings_popover.grab().save(path)
+            saved.append(path)
+            if name == "yellow":
+                path = os.path.join(out_dir, f"{'dark' if dark else 'light'}_yellow.png")
+                window.grab().save(path)
+                saved.append(path)
+            tab.settings_popover.hide()
+    tab.set_theme_color("#0F4C5C")
+    return saved
+
+
 def _shoot_bottom_panel(window, tab, out_dir, settle):
     """1本目のデータに指数関数でフィットした曲線を足し、元のデータを選んで下のパネルのタブを撮る。"""
     from PySide6.QtCore import QPoint, QRect
@@ -95,6 +117,8 @@ def main():
                         help="右のインスペクタの各タブも撮る(アドバンスド、インスペクタの所だけ)")
     parser.add_argument("--bottom", action="store_true",
                         help="1本目に指数関数でフィットし、グラフの下のパネルの各タブも撮る(アドバンスド、パネルの所だけ)")
+    parser.add_argument("--settings", action="store_true",
+                        help="⚙ のテーマカラーのポップアップも撮る(既定の色と、調整が入る黄色)")
     parser.add_argument("--pages", action="store_true",
                         help="左パネルの各ページ(帯の切り替え先)も撮る(帯と左パネルの所だけ)")
     args = parser.parse_args()
@@ -179,6 +203,8 @@ def main():
                 window.grab(rect).save(path)
                 saved.append(path)
         tab.inspector.show_page("properties")
+    if args.settings and hasattr(tab, "settings_rail_button"):
+        saved += _shoot_settings_popover(window, tab, args.out_dir, settle)
     if args.bottom and hasattr(tab, "bottom_panel"):
         saved += _shoot_bottom_panel(window, tab, args.out_dir, settle)
     for path in saved:

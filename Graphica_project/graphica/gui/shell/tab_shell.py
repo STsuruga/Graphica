@@ -5,6 +5,7 @@ from graphica.core.i18n import tr
 from graphica.gui.shell.bottom_panel import build_bottom_panel
 from graphica.gui.shell.dataset_page import LEFT_PANEL_WIDTH, DatasetPage
 from graphica.gui.shell.rail import ActivityRail
+from graphica.gui.shell.settings_popover import toggle_settings_popover
 from graphica.gui.shell.side_pages import PluginPage
 
 
@@ -36,8 +37,9 @@ def build_tab_shell(app):
         lambda key: app.left_panel.setCurrentWidget(app._left_panel_pages[key]))
     app.activity_rail.add_bottom_button(
         "moon", tr("ダークモード"), lambda: app.dark_mode_action.trigger())
-    app.activity_rail.add_bottom_button(
-        "settings", tr("環境設定"), lambda: app._on_show_preferences())
+    # ⚙ はテーマカラーのポップアップ(環境設定への入口もその中)
+    app.settings_rail_button = app.activity_rail.add_bottom_button(
+        "settings", tr("設定"), lambda: toggle_settings_popover(app, app.settings_rail_button))
 
     # グラフのカードの下のパネル(アドバンスドだけ)。残差・来歴のドックはここのタブになった
     build_bottom_panel(app)

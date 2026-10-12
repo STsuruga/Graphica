@@ -70,7 +70,7 @@ from graphica.gui import notify
 
 
 
-from PySide6.QtWidgets import (QMainWindow, QWidget,
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget,
                                QAbstractSpinBox, QLabel, QTreeWidgetItem)
 from PySide6.QtGui import QFont, QIcon, QValidator, QUndoStack
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -129,6 +129,7 @@ from graphica.core.dataset import COLOR_BY_COLUMN_PLOT_TYPE
 from graphica.core.commands import AddDatasetCommand, DeferRedrawCommand, RemoveDatasetCommand
 from graphica.gui.detached_canvas_window import DetachedCanvasWindow
 from graphica.gui import theme
+from graphica.gui.theme_color import theme_color_or_default
 from graphica.gui.theme import apply_form_spacing
 from graphica.gui.dialogs import (WelcomeDialog)
 
@@ -787,6 +788,17 @@ class PlotterApp(QMainWindow, UISetupMixin,
         if getattr(self, 'ui_mode', None) != ui_mode.ADVANCED:
             self.show_advanced_mode()
         self.bottom_panel.show_page(key)
+
+    def set_theme_color(self, color):
+        """テーマカラーを替えて保存する(⚙ のポップアップ・環境設定から)。ウィンドウに入っていれば全部のタブに当てる。"""
+        main_window = self.window()
+        if main_window is not self and hasattr(main_window, 'set_theme_color'):
+            main_window.set_theme_color(color)
+            return
+        color = theme_color_or_default(color)
+        app_settings.THEME_COLOR.write(self.settings, color)
+        theme.apply_theme(QApplication.instance(), self.canvas.dark_mode, color)
+        self.refresh_theme_colors()
 
     def show_advanced_mode(self):
         """アドバンスドに切り替える(シンプルのプロパティの案内から)。ウィンドウに入っていれば全部のタブに当てて保存する。"""
