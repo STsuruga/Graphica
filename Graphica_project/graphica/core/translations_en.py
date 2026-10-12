@@ -631,4 +631,12 @@ TRANSLATIONS = {
     "パネルラベルを自動表示": "Auto panel labels",
     "レイアウト編集(自由配置のとき)": "Edit layout (free layout)",
     "ミニマップ": "Minimap",
+    # --- GUI 刷新: グラフのカード ---
+    "カーソル": "Cursor",
+    "領域": "Region",
+    "スライス": "Slice",
+    "道具": "Tools",
+    "サブプロット {n}": "Subplot {n}",
+    "{n} 系列": "{n} series",
+    "サブプロット {i} / {n}": "Subplot {i} / {n}",
 }

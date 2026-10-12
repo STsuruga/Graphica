@@ -1,11 +1,9 @@
 """データセットの一覧とプロパティ欄の欄の組み立て。"""
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox, QHeaderView,
     QLabel, QLineEdit,
-    QMenu, QPushButton, QSpinBox, QTextEdit, QToolButton, QTreeWidget, QTreeWidgetItemIterator, QVBoxLayout, QWidget,
-    QWidgetAction)
+    QMenu, QPushButton, QSpinBox, QTextEdit, QToolButton, QTreeWidget, QTreeWidgetItemIterator, QVBoxLayout, QWidget)
 from graphica.core.dataset import WATERFALL_OFFSET_ABSOLUTE, WATERFALL_OFFSET_STEP
 from graphica.core.i18n import tr
 from graphica.core.marker_style import (
@@ -349,35 +347,11 @@ def build_fit_info_and_stats(app):
     # 節の最後(描画先の後ろ)に置く(_add_subplot_target_row)。フィットが無いと隠れる欄なので、
     # 先頭に置くとフィットのたびに下の項目が押し下げられる
 
-    # 統計値はいつも見るものではないので、ツールバーのボタンから開く小窓に出す。
-    # 中身は選択が変わるたびに property_panel.update_stats_summary_label が更新する(閉じている間も)
+    # 統計の1行(件数・平均・標準偏差・最小・最大)。選択が変わるたびに property_panel.update_stats_summary_label が
+    # 更新する。画面には左パネルの統計カードを出す(GUI 刷新の決定 10 でツールバーの統計ボタンはやめた)
     app.stats_summary_label = QLabel("-")
     app.stats_summary_label.setWordWrap(True)
     app.stats_summary_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-
-    app.stats_toolbar_button = QToolButton()
-    app.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
-    app.stats_toolbar_button.setToolTip(tr("統計情報 (選択中データセットのY列の要約統計量)"))
-    app.stats_toolbar_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-
-    stats_popup = QWidget()
-    stats_popup_layout = QVBoxLayout(stats_popup)
-    stats_popup_layout.setContentsMargins(10, 8, 10, 8)
-    stats_popup_title = QLabel(tr("統計 (Y列)"))
-    stats_popup_title_font = QFont(stats_popup_title.font())
-    stats_popup_title_font.setBold(True)
-    stats_popup_title.setFont(stats_popup_title_font)
-    stats_popup_layout.addWidget(stats_popup_title)
-    app.stats_summary_label.setMinimumWidth(260)
-    stats_popup_layout.addWidget(app.stats_summary_label)
-
-    stats_menu = QMenu(app.stats_toolbar_button)
-    stats_widget_action = QWidgetAction(app.stats_toolbar_button)
-    stats_widget_action.setDefaultWidget(stats_popup)
-    stats_menu.addAction(stats_widget_action)
-    app.stats_toolbar_button.setMenu(stats_menu)
-    app.plot_toolbar.addSeparator()
-    app.plot_toolbar.addWidget(app.stats_toolbar_button)
 
 
 def _y2_value_spinbox(decimals=2):

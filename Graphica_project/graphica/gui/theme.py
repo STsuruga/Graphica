@@ -180,11 +180,102 @@ QLabel#dataset_mini_stats_label {{
 /* --- キャンバスの周り: 角丸の背景のカード。枠線は付けない --- */
 QWidget#plot_container {{
     background: {surface};
-    border-radius: 8px;
+    border: 1px solid {border};
+    border-radius: 14px;
 }}
+/* グラフのカード(GUI 刷新): ミニマップとの間は線を引かず、すき間だけ */
 QFrame#canvas_separator {{
-    background: {border};
-    max-height: 1px;
+    background: transparent;
+    border: none;
+}}
+QLabel#card_title {{
+    font-size: 15px;
+    font-weight: 600;
+    background: transparent;
+}}
+QLabel#card_meta {{
+    color: {text_muted};
+    font-size: 11.5px;
+    background: transparent;
+}}
+QToolButton#card_button {{
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    padding: 3px;
+}}
+QToolButton#card_button:hover {{
+    background: {surface_2};
+}}
+QToolButton#card_button:checked {{
+    background: {accent_soft};
+    border: none;
+}}
+/* アドバンスドの道具: プロットの上に文字付き。モードの7つは1つの塊(toolSegment) */
+QToolBar#plot_toolbar {{
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid {border};
+    padding: 0 0 6px 0;
+    spacing: 0;
+}}
+QToolBar#plot_toolbar QToolButton {{
+    border: none;
+    border-radius: 6px;
+    padding: 3px 7px;
+    margin: 0 2px 0 0;
+    color: {text_primary};
+    font-size: 12px;
+}}
+QToolBar#plot_toolbar QToolButton[toolSegment="first"],
+QToolBar#plot_toolbar QToolButton[toolSegment="middle"],
+QToolBar#plot_toolbar QToolButton[toolSegment="last"] {{
+    background: {surface_2};
+    border-radius: 0;
+    margin: 0;
+    padding: 4px 8px;
+}}
+QToolBar#plot_toolbar QToolButton[toolSegment="first"] {{
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}}
+QToolBar#plot_toolbar QToolButton[toolSegment="last"] {{
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+    margin-right: 4px;
+}}
+QToolBar#plot_toolbar QToolButton:hover {{
+    background: {surface_2};
+}}
+QToolBar#plot_toolbar QToolButton[toolSegment="first"]:hover,
+QToolBar#plot_toolbar QToolButton[toolSegment="middle"]:hover,
+QToolBar#plot_toolbar QToolButton[toolSegment="last"]:hover {{
+    color: {accent_fg};
+}}
+QToolBar#plot_toolbar QToolButton:checked {{
+    background: {raised};
+    color: {accent_fg};
+    border: none;
+    font-weight: 600;
+}}
+/* シンプルの道具: グラフの左に浮かせた縦の並び */
+QToolBar#plot_tool_rail {{
+    background: {surface};
+    border: 1px solid {border};
+    border-radius: 13px;
+    padding: 4px;
+    spacing: 3px;
+}}
+QToolBar#plot_tool_rail QToolButton {{
+    border: none;
+    border-radius: 9px;
+    padding: 6px;
+}}
+QToolBar#plot_tool_rail QToolButton:hover {{
+    background: {surface_2};
+}}
+QToolBar#plot_tool_rail QToolButton:checked {{
+    background: {accent_soft};
     border: none;
 }}
 
