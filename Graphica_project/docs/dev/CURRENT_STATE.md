@@ -13,11 +13,18 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-13): v2.4.0(GUI 刷新・プラグインの更新)を公開する
+## 現在地(2026-10-13): v2.4.0(GUI 刷新・プラグインの更新)を公開した
 
-- ユーザーの指示「v2.4.0 で今出す」(macOS 実機の確認の前に出すことも了承)。準備の PR(`release/v2.4.0`)→ タグ → PyPI・
-  GitHub Releases の順に、段ごとに結果を確かめて進める。
-- 公開後に確かめること: `update_check` が v2.4.0 と3つの添付を拾うこと、v2.4.0 でプラグインの更新の知らせが出ること。
+- **v2.4.0 を公開済み**(タグ `v2.4.0` = `34f27a9`、準備 PR #154)。PyPI に `graphica-plot` 2.4.0(wheel・sdist)、GitHub Releases に
+  `Graphica-2.4.0-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(zip 2つに `LICENSE` と `THIRD_PARTY_LICENSES.md`)。
+  リリースノートは CHANGELOG の節と、インストールの表(メニューの場所を新しい画面の ≡ / ⚙ に直した)・macOS 未署名の案内・ライセンス。
+- `update_check` が v2.4.0 と3つの添付・SHA-256 を拾い、2.3.0 からは更新ありと判定することを確認した。サイトも新しい画像で公開済み。
+- macOS 実機の確認の前に出すことはユーザーが了承(確認は後で)。
+- 準備 PR の途中で、スタイルの `pixelMetric` / `drawPrimitive` が渡された部品の型を確かめずに `property()` を呼んでいたのを直した
+  (CI でまれにプロセスごと落ちる・例外が連鎖するのが刷新の後に2回出たため。PySide が消えた QWidgetItem の器と取り違える症状)。
+  master の CI の `app_settings/written_by_preferences` は、ステータスバーの知らせ(3秒)が記録の前に消える時間依存で1回落ち、流し直しで通った。
+- **残り**: macOS 実機の確認、ユーザー向け Wiki の更新(今度でいい、とのこと)、master に入り済みの統合ブランチ
+  `feature/gui-redesign`・`docs/gui-redesign-plan` の片付け(ユーザーの判断待ち)。
 
 ## 以前の現在地(2026-10-12): GUI 刷新を master に入れ、プラグインの自動更新を作った
 
