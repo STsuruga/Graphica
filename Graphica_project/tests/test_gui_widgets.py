@@ -237,6 +237,18 @@ def test_toggle_switch_indicator_size(qapp):
     assert style.pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, plain) != theme.TOGGLE_SWITCH_SIZE[0]
 
 
+def test_only_checkboxes_can_be_toggle_switches(qapp):
+    """スイッチかどうかは型を先に確かめる(Qt から別の型の器が渡っても property() を呼ばない)。"""
+    from PySide6.QtWidgets import QLabel, QWidgetItem
+    theme.apply_theme(qapp, False)
+    label = QLabel()
+    label.setProperty(theme.TOGGLE_SWITCH_PROPERTY, True)
+    assert not theme._is_toggle_switch(label)
+    assert not theme._is_toggle_switch(QWidgetItem(label))
+    assert not theme._is_toggle_switch(None)
+    assert theme._is_toggle_switch(theme.make_toggle_switch(QCheckBox()))
+
+
 @pytest.mark.parametrize("checked", [False, True])
 def test_toggle_switch_track_color(qapp, checked):
     theme.apply_theme(qapp, False)
