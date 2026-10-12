@@ -17,7 +17,7 @@ DATASET_TREE_VISIBILITY_COLUMN_WIDTH = 26  # 目のアイコン(16px)+クリッ�
 
 # ドックの既定の配置を変えたら上げる。保存時の値と違えば保存済みの配置を戻さない
 # (戻すと、新しい既定の配置が既存の利用者に届かない)。
-DOCK_LAYOUT_VERSION = 5
+DOCK_LAYOUT_VERSION = 6
 
 
 # データセットのプロパティ欄の節。行は self._prop_form(キー).addRow で足す(番号指定の挿入はしない)。
