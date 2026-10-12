@@ -271,8 +271,8 @@ def test_status_bar_also_shows_the_selected_stacked_traces_data_coordinates(tmp_
     window._on_mouse_move(_FakeMplEvent(ax, 2.0 + OFFSET_X, 4.0 + OFFSET_Y))
 
     text = window.coordinate_label.text()
-    assert text.startswith(f"P1: X= {2.0 + OFFSET_X:.4g}, Y= {4.0 + OFFSET_Y:.4g}")
-    assert text.endswith("| 「wf1」: X= 2, Y= 4")
+    assert text.startswith(f"P1 · X = {2.0 + OFFSET_X:.4g}　Y = {4.0 + OFFSET_Y:.4g}")
+    assert text.endswith("|　「wf1」 X = 2　Y = 4")
 
 
 def test_status_bar_shows_only_display_coordinates_without_waterfall(tmp_path, monkeypatch):
@@ -283,4 +283,4 @@ def test_status_bar_shows_only_display_coordinates_without_waterfall(tmp_path, m
 
     window._on_mouse_move(_FakeMplEvent(ax, 2.0, 4.0))
 
-    assert window.coordinate_label.text() == "P1: X= 2, Y= 4"
+    assert window.coordinate_label.text() == "P1 · X = 2　Y = 4"

@@ -39,7 +39,7 @@ def _make_isolated_plotter_app(tmp_path, monkeypatch):
 
 
 def _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=None, disabled_plugin_names=None,
-                              default_style_template=None):
+                              default_style_template=None, theme_color=None):
     """
     PreferencesDialog を、実ウィジェットを構築せず exec() でイベントループを
     ブロックしないフェイクに差し替える。呼び出し側 (_on_show_preferences) が
@@ -64,6 +64,10 @@ def _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=None, d
 
         def get_wheel_zoom_speed(self):
             return captured['kwargs'].get('wheel_zoom_speed', "normal")
+
+        def get_theme_color(self):
+            # 指定が無ければ開いたときの色のまま(変えていない)
+            return theme_color or captured['kwargs'].get('theme_color')
 
         def get_default_style_template(self):
             # 指定が無ければ開いたときの値のまま(変えていない)
@@ -244,6 +248,21 @@ def test_on_show_preferences_applies_snap_to_grid_changes(tmp_path, monkeypatch)
     assert window.snap_grid_interval_px == 25
     assert window.settings.value("snap_to_grid_enabled", type=bool) is True
     assert window.settings.value("snap_grid_interval_px", type=int) == 25
+
+
+def test_on_show_preferences_applies_a_new_theme_color(tmp_path, monkeypatch):
+    from graphica.gui import theme
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    new_settings = (window.canvas.dark_mode, 0, "ja", "", 1000, False, 10)
+    captured = _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=new_settings,
+                                         theme_color="#7C3AED")
+    try:
+        window._on_show_preferences()
+        assert captured['kwargs']['theme_color'] == "#0F4C5C"
+        assert theme.current_theme_color() == "#7C3AED"
+        assert app_settings_module.THEME_COLOR.read(window.settings) == "#7C3AED"
+    finally:
+        theme.apply_theme(QApplication.instance(), False, "#0F4C5C")
 
 
 def test_on_show_preferences_language_change_shows_restart_notice(tmp_path, monkeypatch):

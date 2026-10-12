@@ -5,6 +5,9 @@ import logging
 from graphica.gui import notify
 from graphica.gui import dialog_dirs
 from graphica.gui import app_settings
+from graphica.gui import theme
+from graphica.gui.builders import canvas_area
+from graphica.gui.theme_color import normalize_hex
 from graphica.gui.dialogs import PreferencesDialog
 from graphica.gui.datasets.operations.transfer import STYLE_ATTRS
 from graphica.core.i18n import tr, get_language
@@ -69,6 +72,7 @@ class ProjectIOMixin:
             self.statusBar().showMessage(f"オートセーブ間隔を{minutes}分に設定しました", 3000)
 
         self._update_autosave_menu_text()
+        canvas_area.refresh_status_bar(self)
 
     def _on_show_preferences(self):
         current_minutes = (self.autosave_timer.interval() // 60000) if self.autosave_timer.isActive() else 0
@@ -97,6 +101,7 @@ class ProjectIOMixin:
             disabled_plugin_names=current_disabled_plugin_names,
             default_style_template=current_default_template,
             wheel_zoom_speed=current_wheel_zoom_speed,
+            theme_color=theme.current_theme_color(),
         )
         if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
             return
@@ -123,6 +128,10 @@ class ProjectIOMixin:
         new_wheel_zoom_speed = dlg.get_wheel_zoom_speed()
         if new_wheel_zoom_speed != current_wheel_zoom_speed:
             app_settings.WHEEL_ZOOM_SPEED.write(self.settings, new_wheel_zoom_speed)
+
+        new_theme_color = dlg.get_theme_color()
+        if new_theme_color != normalize_hex(theme.current_theme_color()):
+            self.set_theme_color(new_theme_color)
 
         # 表示メニューのチェック経由で切り替える(toggled から _on_toggle_dark_mode が適用し、チェックの状態も揃う)
         if new_dark_mode != self.canvas.dark_mode:

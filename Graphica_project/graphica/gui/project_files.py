@@ -1,12 +1,14 @@
 """プロジェクトのファイル: 保存・読み込み・未保存の変更の確認・オートセーブと世代・最近使ったファイル。"""
 import logging
 import os
+import time
 from PySide6.QtWidgets import QDialog, QMessageBox
 from datetime import datetime
 from graphica.core.i18n import tr
 from graphica.core.app_paths import get_app_data_dir
 from graphica.gui import app_settings, notify
 from graphica.gui import dialog_dirs
+from graphica.gui.builders import canvas_area
 from graphica.gui.dialogs import AutosaveHistoryDialog
 from graphica.models.project import LEGACY_PICKLE_EXTENSION, PROJECT_FILE_EXTENSION, PROJECT_FILE_EXTENSIONS
 
@@ -190,6 +192,9 @@ def auto_save(app):
         app._sync_project_from_ui()
         app._rotate_autosave_generations()
         app.project.save_project(app._autosave_filename)
+        # ステータスバーの「自動保存 N 分前」の起点
+        app._last_autosave_time = time.monotonic()
+        canvas_area.refresh_status_bar(app)
         app.statusBar().showMessage("オートセーブ完了", 3000)
     except Exception as e:
         logger.exception("オートセーブに失敗しました")

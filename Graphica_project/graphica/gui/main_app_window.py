@@ -8,10 +8,11 @@ import sys
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QUndoGroup
-from PySide6.QtWidgets import QDockWidget, QMainWindow, QMenu, QUndoView, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow, QMenu, QUndoView, QVBoxLayout, QWidget
 
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, theme, ui_mode
+from graphica.gui.theme_color import theme_color_or_default
 from graphica.gui.main_window import PlotterApp, resource_path
 from graphica.gui.shell.header import AppHeader
 from graphica.gui.shell.project_tabs import ProjectTabs
@@ -112,6 +113,19 @@ class MainAppWindow(QMainWindow):
         action = getattr(tab, action_attr, None) if tab is not None else None
         if action is not None:
             action.trigger()
+
+    def set_theme_color(self, color):
+        """テーマカラーを替えて保存し、全部のタブと上部バーに当てる(QSS とパレットはアプリ全体、アイコンや図はタブごと)。"""
+        color = theme_color_or_default(color)
+        app_settings.THEME_COLOR.write(self._settings, color)
+        current = self.tab_widget.currentWidget()
+        dark = current.canvas.dark_mode if current is not None else app_settings.DARK_MODE.read(self._settings)
+        theme.apply_theme(QApplication.instance(), dark, color)
+        for index in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(index)
+            if tab is not None and hasattr(tab, 'refresh_theme_colors'):
+                tab.refresh_theme_colors()
+        self.header.refresh_icons()
 
     def set_ui_mode(self, mode):
         """シンプル / アドバンスドを全部のタブに当て、次の起動のために保存する。"""

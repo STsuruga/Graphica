@@ -1,15 +1,17 @@
 """キャンバス・ツールバー・ミニマップ・ステータスバーの組み立て。"""
 import logging
-from PySide6.QtCore import QSize, Qt
+import time
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel, QToolBar, QToolButton,
-                               QVBoxLayout)
+                               QVBoxLayout, QWidget)
 from graphica.core.axis_settings import axis_setting
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, theme
 from graphica.gui.builders.common import TOOLBAR_ICON_SIZE, _svg_icon
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.minimap_widget import MinimapWidget
+from graphica.gui.tools.cursor import COORDINATE_EMPTY_TEXT
 from graphica.gui.theme_color import theme_color_or_default
 
 logger = logging.getLogger(__name__)
@@ -209,7 +211,70 @@ def refresh_card_title(app):
     app.card_subplot_label.setText(tr("サブプロット {i} / {n}").format(i=index + 1, n=total))
 
 
+# 自動保存の「N 分前」を書き直す間隔
+STATUS_REFRESH_MS = 30_000
+
+
+def autosave_status_text(enabled, interval_minutes, seconds_since_save):
+    """ステータスバーの自動保存の文字。seconds_since_save は、このタブでまだ保存していなければ None。"""
+    if not enabled:
+        return tr("自動保存 オフ")
+    if seconds_since_save is None:
+        return tr("自動保存 {n} 分ごと").format(n=interval_minutes)
+    minutes = int(seconds_since_save // 60)
+    if minutes < 1:
+        return tr("自動保存 たった今")
+    return tr("自動保存 {n} 分前").format(n=minutes)
+
+
 def setup_status_bar(app):
-    app.coordinate_label = QLabel("X= ---, Y= ---")
-    app.ui.statusbar.addPermanentWidget(app.coordinate_label)
+    """見本のステータスバー: 左に「● 準備完了」と(アドバンスド)データセットと選択の数、右に(アドバンスド)座標と自動保存。
+
+    左の2つは通常の部品なので、showMessage() の間は一時的に知らせに置き換わる。
+    """
+    bar = app.ui.statusbar
+    bar.setSizeGripEnabled(False)
+    app.status_ready = QWidget()
+    ready_layout = QHBoxLayout(app.status_ready)
+    ready_layout.setContentsMargins(4, 0, 8, 0)
+    ready_layout.setSpacing(6)
+    dot = QFrame()
+    dot.setObjectName("status_dot")
+    dot.setFixedSize(7, 7)
+    ready_text = QLabel(tr("準備完了"))
+    ready_text.setObjectName("status_text")
+    ready_layout.addWidget(dot)
+    ready_layout.addWidget(ready_text)
+    bar.addWidget(app.status_ready)
+    app.status_selection_label = QLabel()
+    app.status_selection_label.setObjectName("status_text")
+    bar.addWidget(app.status_selection_label)
+
+    app.coordinate_label = QLabel(COORDINATE_EMPTY_TEXT)
+    app.coordinate_label.setObjectName("status_coordinates")
+    bar.addPermanentWidget(app.coordinate_label)
+    app.autosave_status_label = QLabel()
+    app.autosave_status_label.setObjectName("status_text")
+    bar.addPermanentWidget(app.autosave_status_label)
+
+    app._last_autosave_time = None
+    app.status_refresh_timer = QTimer(app)
+    app.status_refresh_timer.timeout.connect(lambda: refresh_status_bar(app))
+    app.status_refresh_timer.start(STATUS_REFRESH_MS)
+    app.canvas.mpl_connect('draw_event', lambda _event: refresh_status_bar(app))
+
+
+def refresh_status_bar(app):
+    """データセットと選択の数、自動保存の文字を今の状態に合わせる。"""
+    if not hasattr(app, 'status_selection_label'):
+        return
+    total = len(app.project.datasets)
+    selected = len(app._get_selected_datasets()) if hasattr(app, 'property_panel') else 0
+    app.status_selection_label.setText(tr("{n} データセット · {m} 選択").format(n=total, m=selected))
+    timer = getattr(app, 'autosave_timer', None)
+    enabled = timer is not None and timer.isActive()
+    interval = timer.interval() // 60000 if enabled else 0
+    last = app._last_autosave_time
+    since = None if last is None else time.monotonic() - last
+    app.autosave_status_label.setText(autosave_status_text(enabled, interval, since))
 

@@ -70,6 +70,12 @@ class UISetupMixin:
         apply_theme(QApplication.instance(), checked)
         self.canvas.dark_mode = checked
         app_settings.DARK_MODE.write(self.settings, checked)
+        self.refresh_theme_colors()
+        # QSS はアプリ全体に効くが、グラフ・アイコン・メニューのチェックはタブごとなので、ほかのタブにも当てる
+        self._sync_dark_mode_to_sibling_tabs(checked)
+
+    def refresh_theme_colors(self):
+        """テーマ(明暗・テーマカラー)を替えた後、このタブで色を焼き込んで作ったものを描き直す。"""
         self._update_plot(light=True)  # 軸の数は変わらないので軽い描き直しでよい
         # 以下は作ったときにテーマの色を焼き込んでいるので、描き直す:
         # タイトルと軸ラベルのプレビュー
@@ -87,8 +93,6 @@ class UISetupMixin:
             dialog = getattr(self, dialog_attr, None)
             if dialog is not None and hasattr(dialog, 'refresh_theme'):
                 dialog.refresh_theme()
-        # QSS はアプリ全体に効くが、グラフ・アイコン・メニューのチェックはタブごとなので、ほかのタブにも当てる
-        self._sync_dark_mode_to_sibling_tabs(checked)
 
     def _sync_dark_mode_to_sibling_tabs(self, checked):
         """ほかのタブにも同じダークモードを当てる(QSS はアプリ全体だが、グラフやアイコンはタブごと)。"""
@@ -110,11 +114,7 @@ class UISetupMixin:
             tab.dark_mode_action.blockSignals(True)
             tab.dark_mode_action.setChecked(checked)
             tab.dark_mode_action.blockSignals(False)
-            tab._update_plot(light=True)
-            tab._refresh_all_label_previews()
-            tab.color_picker_widget.refresh_theme()
-            tab.gradient_color2_picker.refresh_theme()
-            tab._refresh_custom_svg_icons()
+            tab.refresh_theme_colors()
 
     def _refresh_custom_svg_icons(self):
         """

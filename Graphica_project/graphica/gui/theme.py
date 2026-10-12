@@ -379,8 +379,69 @@ QToolButton:checked {{
     background: {accent_soft};
     border: 1px solid {accent};
 }}
+/* ステータスバー(GUI 刷新): 上部バー・帯と同じ chrome の地、小さめの文字 */
 QStatusBar {{
+    background: {chrome};
+    border-top: 1px solid {border};
+    min-height: 26px;
+    color: {text_secondary};
+    font-size: 11px;
+}}
+QStatusBar::item {{
+    border: none;
+}}
+QStatusBar QLabel#status_text, QStatusBar QLabel#status_coordinates {{
+    color: {text_secondary};
+    font-size: 11px;
+    background: transparent;
+    padding: 0 6px;
+}}
+QStatusBar QLabel#status_coordinates {{
+    font-family: "Consolas", "Menlo", monospace;
+}}
+QFrame#status_dot {{
+    background: {success};
+    border: none;
+    border-radius: 3px;
+}}
+/* ⚙ のポップアップ(テーマカラー) */
+QFrame#settings_popover {{
     background: {surface};
+    border: 1px solid {border_strong};
+    border-radius: 12px;
+}}
+QFrame#settings_popover QLabel {{
+    background: transparent;
+}}
+QLabel#settings_popover_title {{
+    font-weight: 600;
+    font-size: 14px;
+}}
+QLabel#settings_popover_sub {{
+    color: {text_muted};
+    font-size: 11.5px;
+}}
+QLabel#settings_popover_strong {{
+    font-weight: 600;
+}}
+QLabel#settings_popover_label {{
+    color: {text_secondary};
+    font-size: 12px;
+}}
+QLabel#settings_popover_mono {{
+    font-family: "Consolas", "Menlo", monospace;
+    font-size: 12px;
+}}
+QLabel#settings_popover_note {{
+    color: {text_secondary};
+    background: {surface_2};
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 11.5px;
+}}
+QFrame#settings_popover_row {{
+    background: transparent;
+    border: none;
     border-top: 1px solid {border};
 }}
 /* QScrollArea は既定の枠を消す。背景は QScrollArea・ビューポート・中身のウィジェットの3段すべてに指定する

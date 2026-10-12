@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "5df0073529fc805e502c011dfee0c4b744d949977218631fb92e82a035ed39c6",
+  "stylesheet_sha256": "53480fc883e726ff8168f573588e3a81442dcc6e52aecbd7dd5340c048d0cfd8",
   "palette": {
    "Window": "#ff111417",
    "WindowText": "#ffe6e9ec",
@@ -1056,14 +1056,44 @@
             "enabled": true,
             "children": [
              {
-              "class": "QSizeGrip",
+              "class": "QWidget",
               "visible": true,
+              "enabled": true,
+              "children": [
+               {
+                "class": "QFrame",
+                "name": "status_dot",
+                "visible": true,
+                "enabled": true
+               },
+               {
+                "class": "QLabel",
+                "name": "status_text",
+                "text": "Ready",
+                "visible": true,
+                "enabled": true
+               }
+              ]
+             },
+             {
+              "class": "QLabel",
+              "name": "status_text",
+              "text": "0 datasets · 0 selected",
+              "visible": false,
               "enabled": true
              },
              {
               "class": "QLabel",
-              "text": "X= ---, Y= ---",
+              "name": "status_coordinates",
+              "text": "X = ---　Y = ---",
               "visible": false,
+              "enabled": true
+             },
+             {
+              "class": "QLabel",
+              "name": "status_text",
+              "text": "Autosave every 5 min",
+              "visible": true,
               "enabled": true
              }
             ]
@@ -1190,7 +1220,7 @@
                 "text": "",
                 "visible": true,
                 "enabled": true,
-                "tooltip": "Preferences",
+                "tooltip": "Settings",
                 "receivers": {
                  "pressed()": 1,
                  "released()": 1,
