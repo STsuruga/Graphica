@@ -494,6 +494,30 @@ QLabel#inspector_target_sub {{
     font-size: 11px;
     background: transparent;
 }}
+/* シンプルのプロパティの下の案内(点線の枠と、アドバンスドに切り替えるリンク) */
+QFrame#lite_more_box {{
+    background: transparent;
+    border: 1px dashed {border_strong};
+    border-radius: 10px;
+    margin: 12px 0 4px 0;
+}}
+QLabel#lite_more_text, QLabel#lite_more_icon {{
+    color: {text_secondary};
+    background: transparent;
+    border: none;
+}}
+QPushButton#lite_more_button {{
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: {accent_fg};
+    font-weight: 600;
+    text-align: left;
+}}
+QPushButton#lite_more_button:hover {{
+    background: transparent;
+    text-decoration: underline;
+}}
 QPushButton {{
     background: {surface};
     border: 1px solid {border_strong};
