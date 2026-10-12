@@ -871,6 +871,40 @@ QLabel#stats_target_label {{
     font-size: 12px;
     background: transparent;
 }}
+QWidget#side_page, QScrollArea#side_page_scroll, QScrollArea#side_page_scroll > QWidget,
+QWidget#side_page_body {{
+    background: {surface};
+    border: none;
+}}
+QLabel#side_page_section {{
+    color: {text_muted};
+    font-size: 11.5px;
+    padding: 10px 6px 4px 6px;
+    background: transparent;
+}}
+QLabel#side_page_note {{
+    color: {text_secondary};
+    background: transparent;
+}}
+QPushButton#side_page_row {{
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    padding: 4px 8px;
+    text-align: left;
+    color: {text_primary};
+}}
+QPushButton#side_page_row:hover {{
+    background: {surface_2};
+}}
+QPushButton#side_page_row:checked {{
+    background: {accent_soft};
+    color: {accent_fg};
+    font-weight: 600;
+}}
+QPushButton#side_page_row:disabled {{
+    color: {text_muted};
+}}
 QFrame#panel_foot {{
     background: transparent;
     border: none;

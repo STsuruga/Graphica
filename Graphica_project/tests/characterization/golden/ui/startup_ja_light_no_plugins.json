@@ -343,20 +343,22 @@
      "text": "ミニマップ(レンジスライダー)",
      "checked": true,
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
      "text": "キャンバスを別ウィンドウに切り離す",
      "checked": false,
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
@@ -364,10 +366,11 @@
      "checked": false,
      "tooltip": "パネルラベルを自動表示 ((a)(b)(c))",
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {

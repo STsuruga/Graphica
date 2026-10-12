@@ -61,8 +61,12 @@
 |---|---|---|
 | 0 | マージ済み(#141) | 見本と計画の取り込み |
 | 1 | マージ済み(#142) | テーマの土台。`gui/theme_color.py`(色の計算。判定は丸めた後の色で行う。見本の JavaScript は丸めで比が 4.4956 のように割ることがあった)、トークンを見本の値に、青の `selection_*` を廃止してテーマカラーの `accent` 系に統合(`accent_text` → `on_accent`、強調の色の文字は `accent_fg`)、QPalette をトークンから(ライトも)、設定 `theme_color`(既定 `#0F4C5C`、書き出しの対象)、`apply_theme(app, dark, theme_color=None)` の省略の条件に色、ミニマップの色をトークンから。`scripts/screenshot_ui.py` で見本と並べる画像を撮る |
-| 2 | 確認待ち | 新しい部品 `gui/widgets/`(画面にはまだ入れない)。`SegmentedControl`(文字・アイコン・線の見本)、`TypeTileGroup`、`SliderSpin`、`ColorChipRow`、`StatCard`、`SectionHeader`。どれも今の部品を値の持ち主にしたまま同期する: コンボは `ComboMirror`、スピンボックスは `SliderSpin` が中に取り込む。バインディングの「戻す」はシグナルを止めるので、戻したあと `refresh()` を呼ぶ。スイッチは部品を替えず `theme.make_toggle_switch(checkbox)`(プロキシスタイルが描く)。`scripts/screenshot_widgets.py` で部品だけを撮る |
+| 2 | マージ済み(#143) | 新しい部品 `gui/widgets/`(画面にはまだ入れない)。`SegmentedControl`(文字・アイコン・線の見本)、`TypeTileGroup`、`SliderSpin`、`ColorChipRow`、`StatCard`、`SectionHeader`。どれも今の部品を値の持ち主にしたまま同期する: コンボは `ComboMirror`、スピンボックスは `SliderSpin` が中に取り込む。バインディングの「戻す」はシグナルを止めるので、戻したあと `refresh()` を呼ぶ。スイッチは部品を替えず `theme.make_toggle_switch(checkbox)`(プロキシスタイルが描く)。`scripts/screenshot_widgets.py` で部品だけを撮る |
+| 3 | マージ済み(#144) | 上部バー(`gui/shell/header.py`。タブの帯を置くため `QTabWidget` を同じ呼び方の `ProjectTabs` に)・左端の帯・左パネルのデータセット(計画では PR 4 だったが、骨組みだけでは左が空になるので前倒し)・`gui/ui_mode.py`(表 `MODE_ONLY_ELEMENTS`、設定 `ui_mode`)。Windows はメニューバーを隠して ≡ に、ショートカットはタブに `addAction`。クイックアクセスは上部バーへ、管理は ≡ へ。一覧の下の1行の統計と高さの上限(175px)はやめた。キャンバスの幅が変わるので、画面の図をそのまま書き出す経路の図の大きさも変わる |
+| 4 | 確認待ち | 帯の残りのページ(`gui/shell/side_pages.py`): 解析(フィット・ピーク・よく使うデータ処理)・注釈・レイアウトは今の操作のボタンの並び(行はメニューと同じ QAction と同期する `QPushButton`。`QToolButton` は文字を左に寄せられない)。プラグインのパネルはドックをやめて「プラグイン」のページへ(`_plugin_panel_docks` → `_plugin_panels`、`area` は希望として受け取るだけ。`docs/plugin_development.md` も更新)。`screenshot_ui.py --pages` で各ページを撮る |
 
 CI の揺れ: `test_rendering[dark]` の画素(注釈のシナリオ)が CI だけで1回落ち、再実行で通った(PR 1)。master でも同じテストが時々落ちる(#137 で直したのはレイアウトの数値だけ)。続くようなら画素の比較にも許容を入れるか、画像を CI の成果物に残す。
+
+macOS 実機の確認は PR ごとにせず、PR 9 にまとめる(2026-10-12 ユーザー指示)。
 
 PR ごとの確認: `python scripts/screenshot_ui.py <出力フォルダ>` で撮った画像を、見本の同じ状態と並べてユーザーに見せ、OK をもらってから統合ブランチにマージする(2026-10-12 ユーザー指示)。

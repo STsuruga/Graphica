@@ -70,7 +70,7 @@ from graphica.gui import notify
 
 
 from PySide6.QtWidgets import (QMainWindow, QWidget,
-                               QAbstractSpinBox, QDockWidget, QLabel, QTreeWidgetItem)
+                               QAbstractSpinBox, QLabel, QTreeWidgetItem)
 from PySide6.QtGui import QFont, QIcon, QValidator, QUndoStack
 from PySide6.QtCore import Qt, QTimer, Signal
 from graphica.models.project import ProjectModel
@@ -107,6 +107,7 @@ from graphica.gui.builders import canvas_area
 from graphica.gui.builders import dataset_panel
 from graphica.gui.builders import property_sections
 from graphica.gui import dock_layout
+from graphica.gui.shell.side_pages import populate_side_pages
 from graphica.gui.shell.tab_shell import build_tab_shell
 from graphica.gui.builders.common import (  # noqa: F401
     DATASET_TREE_VISIBILITY_COLUMN_WIDTH, DOCK_LAYOUT_VERSION, DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, COLORMAP_CHOICES, TOOLBAR_ICON_SIZE, _svg_icon, _DatasetTreeSelectionDelegate, _ClickableMathPreviewLabel, _insert_form_row_after,
@@ -192,15 +193,6 @@ def plugin_search_paths():
         paths.append(bundled)
     paths.append(get_user_plugins_dir())
     return paths
-
-
-# core は Qt に依存しないので、area の文字列から Qt の値への変換はここでする
-_PLUGIN_PANEL_AREA_MAP = {
-    "right": Qt.DockWidgetArea.RightDockWidgetArea,
-    "left": Qt.DockWidgetArea.LeftDockWidgetArea,
-    "top": Qt.DockWidgetArea.TopDockWidgetArea,
-    "bottom": Qt.DockWidgetArea.BottomDockWidgetArea,
-}
 
 
 
@@ -455,9 +447,9 @@ class PlotterApp(QMainWindow, UISetupMixin,
         # プラグインへの窓口は (このタブ, プラグイン) ごとに1つ。
         self._plugin_contexts = {}
 
-        # プラグインのパネル。メニューに表示切替を足すのは _create_menu_bar() なので、
-        # ドックはそれより前に作る。1つ失敗しても他のパネルとタブの起動は続ける。
-        self._plugin_panel_docks = {}
+        # プラグインのパネル。左端の帯の「プラグイン」のページに入れる(GUI 刷新。以前はドック)。メニューに
+        # 開く項目を足すのは _create_menu_bar() なので、それより前に作る。1つ失敗しても他のパネルとタブの起動は続ける。
+        self._plugin_panels = {}
         for panel in self.plugin_api.get_panels():
             try:
                 widget = panel.widget_factory(self.plugin_context(panel.plugin_name))
@@ -469,12 +461,9 @@ class PlotterApp(QMainWindow, UISetupMixin,
                     panel.plugin_name, panel.name, e,
                 )
                 continue
-            dock = QDockWidget(panel.name, self)
-            dock.setObjectName(f"PluginPanel_{panel.name}")
-            dock.setWidget(widget)
-            self.addDockWidget(_PLUGIN_PANEL_AREA_MAP.get(panel.area, Qt.DockWidgetArea.RightDockWidgetArea), dock)
-            dock.hide()  # 表示するかはドック配置の復元に任せる
-            self._plugin_panel_docks[panel.name] = dock
+            widget.setObjectName(f"PluginPanel_{panel.name}")
+            self.plugin_page.add_panel(panel.name, widget)
+            self._plugin_panels[panel.name] = widget
 
         # フォーカスのあるドックの枠を強調する(プラグインのドックも含め、全部に効く)
         theme.install_dock_focus_highlight(self)
@@ -486,6 +475,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._connect_signals()
 
         self._create_menu_bar()
+        populate_side_pages(self)
 
         # クイックアクセスのピン留めを戻す。プラグインのものを含めて全メニューができた後であること
         self._restore_quick_access_actions()
@@ -783,6 +773,11 @@ class PlotterApp(QMainWindow, UISetupMixin,
     @property
     def dataset_host(self):
         return self._dataset_host
+
+    def show_plugin_panel(self, name):
+        """左端の帯の「プラグイン」のページを開き、そのパネルを出す。"""
+        self.activity_rail.select_page("plugins")
+        self.plugin_page.show_panel(name)
 
     def plugin_context(self, plugin_name):
         context = self._plugin_contexts.get(plugin_name)
