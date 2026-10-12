@@ -347,7 +347,7 @@
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 2
+      "toggled(bool)": 3
      }
     },
     {

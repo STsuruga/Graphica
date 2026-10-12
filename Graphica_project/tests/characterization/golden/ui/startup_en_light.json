@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "dc726082bd57596d1255d99d8cba7125553bb7b0afa2ac01775c12a52bbaa4ff",
+  "stylesheet_sha256": "91c1e1d78edf28ef2695bcc60d47da2d7ffe374104e24c5b824546485ea7f96c",
   "palette": {
    "Window": "#fff1f2f4",
    "WindowText": "#ff191d1f",
@@ -86,70 +86,108 @@
   {
    "name": "plot_toolbar",
    "title": "Plot",
-   "visible": true,
+   "visible": false,
    "area": null,
    "actions": [
     {
-     "text": "Data Cursor",
+     "text": "Cursor",
      "tooltip": "Data Cursor",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
+     "text": "Annotations",
      "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "Edit Layout (Free layout only: drag to move/resize plots)",
-     "tooltip": "Edit Layout (Free layout only: drag to move/resize plots)",
-     "enabled": false,
-     "visible": true,
-     "checked": false
-    },
-    {
-     "text": "Range Select (mask the dragged range of the current dataset)",
+     "text": "Range Select",
      "tooltip": "Range Select (mask the dragged range of the current dataset)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
+     "text": "Peaks",
      "tooltip": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
-     "tooltip": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
-     "enabled": true,
-     "visible": true,
-     "checked": false
-    },
-    {
-     "text": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
+     "text": "Region",
      "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "Reset View (undo zoom/pan)",
-     "tooltip": "Reset View (undo zoom/pan)",
+     "text": "Slice",
+     "tooltip": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
      "enabled": true,
-     "visible": true
+     "visible": true,
+     "checked": false
+    },
+    {
+     "text": "Arrangement",
+     "tooltip": "Edit Layout (Free layout only: drag to move/resize plots)",
+     "enabled": false,
+     "visible": true,
+     "checked": false
     },
     {
      "separator": true
     },
     {
-     "text": "",
-     "tooltip": "",
+     "text": "Fitting",
+     "tooltip": "Curve Fit...",
+     "enabled": true,
+     "visible": true
+    },
+    {
+     "text": "Smoothing",
+     "tooltip": "Savitzky-Golay Filter...",
+     "enabled": true,
+     "visible": true
+    }
+   ]
+  },
+  {
+   "name": "plot_tool_rail",
+   "title": "Tools",
+   "visible": true,
+   "area": null,
+   "actions": [
+    {
+     "text": "Cursor",
+     "tooltip": "Data Cursor",
+     "enabled": true,
+     "visible": true,
+     "checked": false
+    },
+    {
+     "text": "Annotations",
+     "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
+     "enabled": true,
+     "visible": true,
+     "checked": false
+    },
+    {
+     "text": "Range Select",
+     "tooltip": "Range Select (mask the dragged range of the current dataset)",
+     "enabled": true,
+     "visible": true,
+     "checked": false
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "Fitting",
+     "tooltip": "Curve Fit...",
      "enabled": true,
      "visible": true
     }
@@ -497,7 +535,7 @@
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 2
+      "toggled(bool)": 3
      }
     },
     {
@@ -6875,7 +6913,7 @@
                         "checked": false,
                         "visible": false,
                         "enabled": false,
-                        "tooltip": "Edit Layout (Free layout only: drag to move/resize plots)",
+                        "tooltip": "Arrangement",
                         "receivers": {
                          "clicked(bool)": 1,
                          "clicked()": 1
@@ -6978,7 +7016,7 @@
                         "checked": false,
                         "visible": false,
                         "enabled": true,
-                        "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
+                        "tooltip": "Annotations",
                         "receivers": {
                          "clicked(bool)": 1,
                          "clicked()": 1
@@ -6991,7 +7029,7 @@
                         "checked": false,
                         "visible": false,
                         "enabled": true,
-                        "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
+                        "tooltip": "Region",
                         "receivers": {
                          "clicked(bool)": 1,
                          "clicked()": 1
@@ -7004,7 +7042,7 @@
                         "checked": false,
                         "visible": false,
                         "enabled": true,
-                        "tooltip": "Range Select (mask the dragged range of the current dataset)",
+                        "tooltip": "Range Select",
                         "receivers": {
                          "clicked(bool)": 1,
                          "clicked()": 1
@@ -7766,14 +7804,230 @@
                 "enabled": true,
                 "children": [
                  {
+                  "class": "QLabel",
+                  "name": "card_title",
+                  "text": "Subplot 1",
+                  "visible": true,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QLabel",
+                  "name": "card_meta",
+                  "text": "0 series",
+                  "visible": true,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QLabel",
+                  "name": "card_meta",
+                  "text": "Subplot 1 / 1",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QToolButton",
+                  "name": "card_button",
+                  "text": "",
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "Reset View (undo zoom/pan)",
+                  "receivers": {
+                   "pressed()": 1,
+                   "released()": 1,
+                   "clicked(bool)": 1,
+                   "clicked()": 1
+                  }
+                 },
+                 {
+                  "class": "QToolButton",
+                  "name": "card_button",
+                  "text": "",
+                  "checked": true,
+                  "visible": false,
+                  "enabled": true,
+                  "tooltip": "Minimap",
+                  "receivers": {
+                   "pressed()": 1,
+                   "released()": 1,
+                   "clicked(bool)": 1,
+                   "clicked()": 1
+                  }
+                 },
+                 {
+                  "class": "QToolButton",
+                  "name": "card_button",
+                  "text": "",
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "Detach Canvas to a Window",
+                  "receivers": {
+                   "pressed()": 1,
+                   "released()": 1,
+                   "clicked(bool)": 1,
+                   "clicked()": 1
+                  }
+                 },
+                 {
                   "class": "QToolBar",
                   "name": "plot_toolbar",
+                  "visible": false,
+                  "enabled": true,
+                  "receivers": {
+                   "orientationChanged(Qt::Orientation)": 2,
+                   "iconSizeChanged(QSize)": 9,
+                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 9
+                  },
+                  "children": [
+                   {
+                    "class": "QToolButton",
+                    "name": "qt_toolbar_ext_button",
+                    "text": "",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1
+                    },
+                    "children": [
+                     {
+                      "class": "QMenu",
+                      "visible": false,
+                      "enabled": true
+                     }
+                    ]
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Cursor",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Data Cursor",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Annotations",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Range Select",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Range Select (mask the dragged range of the current dataset)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Peaks",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Region",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Slice",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Arrangement",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": false,
+                    "tooltip": "Edit Layout (Free layout only: drag to move/resize plots)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QWidget",
+                    "visible": false,
+                    "enabled": true
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Fitting",
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Curve Fit...",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "Smoothing",
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Savitzky-Golay Filter...",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QToolBar",
+                  "name": "plot_tool_rail",
                   "visible": true,
                   "enabled": true,
                   "receivers": {
                    "orientationChanged(Qt::Orientation)": 2,
-                   "iconSizeChanged(QSize)": 8,
-                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 8
+                   "iconSizeChanged(QSize)": 4,
+                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 4
                   },
                   "children": [
                    {
@@ -7797,7 +8051,7 @@
                    },
                    {
                     "class": "QToolButton",
-                    "text": "Data Cursor",
+                    "text": "Cursor",
                     "checked": false,
                     "visible": true,
                     "enabled": true,
@@ -7810,7 +8064,7 @@
                    },
                    {
                     "class": "QToolButton",
-                    "text": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
+                    "text": "Annotations",
                     "checked": false,
                     "visible": true,
                     "enabled": true,
@@ -7823,75 +8077,11 @@
                    },
                    {
                     "class": "QToolButton",
-                    "text": "Edit Layout (Free layout only: drag to move/resize plots)",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": false,
-                    "tooltip": "Edit Layout (Free layout only: drag to move/resize plots)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Range Select (mask the dragged range of the current dataset)",
+                    "text": "Range Select",
                     "checked": false,
                     "visible": true,
                     "enabled": true,
                     "tooltip": "Range Select (mask the dragged range of the current dataset)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Reset View (undo zoom/pan)",
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "Reset View (undo zoom/pan)",
                     "receivers": {
                      "pressed()": 1,
                      "released()": 1,
@@ -7905,50 +8095,17 @@
                    },
                    {
                     "class": "QToolButton",
-                    "text": "",
+                    "text": "Fitting",
                     "visible": true,
                     "enabled": true,
-                    "tooltip": "Statistics (summary of the Y column of the selected dataset)",
+                    "tooltip": "Curve Fit...",
                     "receivers": {
                      "pressed()": 1,
-                     "released()": 1
-                    },
-                    "children": [
-                     {
-                      "class": "QMenu",
-                      "visible": false,
-                      "enabled": true,
-                      "children": [
-                       {
-                        "class": "QWidget",
-                        "visible": false,
-                        "enabled": true,
-                        "children": [
-                         {
-                          "class": "QLabel",
-                          "text": "Statistics (Y)",
-                          "visible": false,
-                          "enabled": true
-                         },
-                         {
-                          "class": "QLabel",
-                          "text": "-",
-                          "visible": false,
-                          "enabled": true
-                         }
-                        ]
-                       }
-                      ]
-                     }
-                    ]
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
                    }
                   ]
-                 },
-                 {
-                  "class": "QFrame",
-                  "name": "canvas_separator",
-                  "visible": true,
-                  "enabled": true
                  },
                  {
                   "class": "MplCanvas",
