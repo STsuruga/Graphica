@@ -2344,25 +2344,6 @@
             ]
            }
           ]
-         },
-         {
-          "class": "QLabel",
-          "text": "フィット情報",
-          "visible": false,
-          "enabled": false
-         },
-         {
-          "class": "QTextEdit",
-          "visible": false,
-          "enabled": false,
-          "children": [
-           {
-            "class": "QWidget",
-            "name": "qt_scrollarea_viewport",
-            "visible": false,
-            "enabled": false
-           }
-          ]
          }
         ]
        }
