@@ -135,7 +135,7 @@ def test_toggle_cursor_mode_off_disconnects_and_clears_pending_annotation(tmp_pa
     assert window.cursor_connection_id is None
     assert window.cursor_annotation is None
     assert fake_annotation.axes is None  # remove()済み
-    assert window.coordinate_label.text() == "X= ---, Y= ---"
+    assert window.coordinate_label.text() == "X = ---　Y = ---"
 
 
 def test_toggle_cursor_mode_off_without_pending_annotation_is_noop(tmp_path, monkeypatch):
@@ -160,7 +160,7 @@ def test_on_mouse_move_updates_label_with_primary_axis_prefix(tmp_path, monkeypa
 
     window._on_mouse_move(SimpleNamespace(inaxes=ax, xdata=1.23456, ydata=9.8765))
 
-    assert window.coordinate_label.text() == "P1: X= 1.235, Y= 9.877"
+    assert window.coordinate_label.text() == "P1 · X = 1.235　Y = 9.877"
 
 
 def test_on_mouse_move_updates_label_with_secondary_axis_prefix(tmp_path, monkeypatch):
@@ -171,7 +171,7 @@ def test_on_mouse_move_updates_label_with_secondary_axis_prefix(tmp_path, monkey
 
     window._on_mouse_move(SimpleNamespace(inaxes=sec_ax, xdata=2.0, ydata=3.0))
 
-    assert window.coordinate_label.text() == "P1(Y2): X= 2, Y= 3"
+    assert window.coordinate_label.text() == "P1(Y2) · X = 2　Y = 3"
 
 
 def test_on_mouse_move_updates_label_with_unknown_axis_prefix(tmp_path, monkeypatch):
@@ -180,7 +180,7 @@ def test_on_mouse_move_updates_label_with_unknown_axis_prefix(tmp_path, monkeypa
     stray_fig, stray_ax = plt.subplots()
     try:
         window._on_mouse_move(SimpleNamespace(inaxes=stray_ax, xdata=5.0, ydata=6.0))
-        assert window.coordinate_label.text() == "?: X= 5, Y= 6"
+        assert window.coordinate_label.text() == "? · X = 5　Y = 6"
     finally:
         plt.close(stray_fig)
 
@@ -188,22 +188,22 @@ def test_on_mouse_move_updates_label_with_unknown_axis_prefix(tmp_path, monkeypa
 def test_on_mouse_move_outside_axes_resets_label_when_cursor_mode_off(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.cursor_mode_enabled = False
-    window.coordinate_label.setText("P1: X= 1, Y= 2")
+    window.coordinate_label.setText("P1 · X = 1　Y = 2")
 
     window._on_mouse_move(SimpleNamespace(inaxes=None, xdata=None, ydata=None))
 
-    assert window.coordinate_label.text() == "X= ---, Y= ---"
+    assert window.coordinate_label.text() == "X = ---　Y = ---"
 
 
 def test_on_mouse_move_outside_axes_keeps_label_when_cursor_mode_on(tmp_path, monkeypatch):
     """カーソルモードON中にAxes外へ出ても、最後の座標表示を保持し続ける"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     window.cursor_mode_enabled = True
-    window.coordinate_label.setText("P1: X= 1, Y= 2")
+    window.coordinate_label.setText("P1 · X = 1　Y = 2")
 
     window._on_mouse_move(SimpleNamespace(inaxes=None, xdata=None, ydata=None))
 
-    assert window.coordinate_label.text() == "P1: X= 1, Y= 2"
+    assert window.coordinate_label.text() == "P1 · X = 1　Y = 2"
 
 
 # --------------------------------------------------------------------
