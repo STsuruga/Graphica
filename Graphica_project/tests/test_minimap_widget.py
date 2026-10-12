@@ -273,9 +273,10 @@ def test_minimap_widget_created_and_added_to_plot_container(tmp_path, monkeypatc
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
 
     assert isinstance(window.minimap, MinimapWidget)
-    layout = window.ui.plot_container.layout()
-    assert layout.indexOf(window.minimap) >= 0
-    assert layout.indexOf(window.minimap_separator) >= 0
+    # グラフのカードの中、キャンバスと同じ列(キャンバスを切り離すときに戻す並び)の、キャンバスより後ろ
+    assert window.ui.plot_container.isAncestorOf(window.minimap)
+    layout = window._plot_layout
+    assert layout.indexOf(window.canvas) < layout.indexOf(window.minimap_separator) < layout.indexOf(window.minimap)
 
 
 def test_minimap_range_selection_updates_all_subplot_xlims(tmp_path, monkeypatch):

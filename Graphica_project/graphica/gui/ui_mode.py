@@ -17,6 +17,11 @@ MODE_LABELS = {LITE: "シンプル", ADVANCED: "アドバンスド"}
 MODE_ONLY_ELEMENTS = (
     ("coordinate_label", ADVANCED),
     ("dataset_stats_advanced_row", ADVANCED),
+    # グラフの道具: シンプルは左に縦のアイコン、アドバンスドはプロットの上に文字付き(同じ QAction)
+    ("plot_tool_rail", LITE),
+    ("plot_toolbar", ADVANCED),
+    ("card_subplot_label", ADVANCED),
+    ("card_minimap_button", ADVANCED),
 )
 
 

@@ -107,6 +107,7 @@ from graphica.gui.builders import canvas_area
 from graphica.gui.builders import dataset_panel
 from graphica.gui.builders import property_sections
 from graphica.gui import dock_layout
+from graphica.gui import ui_mode
 from graphica.gui.shell.side_pages import populate_side_pages
 from graphica.gui.shell.tab_shell import build_tab_shell
 from graphica.gui.builders.common import (  # noqa: F401
@@ -255,6 +256,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._connect_and_initialize()
         # 英語表示のとき、組み立てた画面の文字をまとめて訳す(Designer の部品にも効かせる)
         translate_widget_texts(self)
+        # 単独で作ったタブ(テストなど)はアドバンスドの見た目。MainAppWindow に入れると、そのモードで当て直す
+        ui_mode.apply_ui_mode(self, ui_mode.ADVANCED)
 
     def _load_designer_ui(self):
         self.ui = Ui_MainWindow()
@@ -476,6 +479,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
 
         self._create_menu_bar()
         populate_side_pages(self)
+        canvas_area.finish_card(self)
 
         # クイックアクセスのピン留めを戻す。プラグインのものを含めて全メニューができた後であること
         self._restore_quick_access_actions()

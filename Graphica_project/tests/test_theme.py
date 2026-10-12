@@ -657,18 +657,15 @@ class TestArrowIconSizesMatch:
         assert spin_up == spin_down == combo_down
 
 
-def test_generated_qss_removes_border_from_plot_container():
-    """
-    実機フィードバック「プロットパネルの枠線も消して」の回帰テスト。
-    背景・角丸は維持しつつborderプロパティが無いことを確認する。
-    """
+def test_plot_container_is_the_mockups_card():
+    """グラフのカード(GUI 刷新の見本): 面の色、細い枠、角丸 14px。"""
     qss = theme.build_qss(theme.LIGHT_TOKENS)
     match = re.search(r"QWidget#plot_container\s*\{([^}]*)\}", qss)
     assert match, "QWidget#plot_container のルールが見つかりません"
     body = match.group(1)
-    assert "border:" not in body
-    assert "background:" in body
-    assert "border-radius:" in body
+    assert "background: " + theme.LIGHT_TOKENS["surface"] in body
+    assert "border: 1px solid " + theme.LIGHT_TOKENS["border"] in body
+    assert "border-radius: 14px" in body
 
 
 def test_flat_theme_proxy_style_suppresses_tab_bar_base_frame(qapp):
@@ -697,7 +694,8 @@ def test_flat_theme_proxy_style_suppresses_tab_bar_base_frame(qapp):
 def _qss_block(qss, selector):
     """セレクタの宣言ブロックを返す。QSSコメントは落とす(説明文に書いた
     色名に反応して誤検出するのを避けるため)。"""
-    match = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", qss)
+    # 行の頭から探す(「QToolBar#plot_toolbar QToolButton:checked」のような子孫の規則に当たらないように)
+    match = re.search(r"(?m)^" + re.escape(selector) + r"\s*\{([^}]*)\}", qss)
     assert match, f"{selector} の規則が見つからない"
     return re.sub(r"/\*.*?\*/", "", match.group(1), flags=re.S)
 

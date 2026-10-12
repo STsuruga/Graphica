@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "dc726082bd57596d1255d99d8cba7125553bb7b0afa2ac01775c12a52bbaa4ff",
+  "stylesheet_sha256": "91c1e1d78edf28ef2695bcc60d47da2d7ffe374104e24c5b824546485ea7f96c",
   "palette": {
    "Window": "#fff1f2f4",
    "WindowText": "#ff191d1f",
@@ -86,70 +86,108 @@
   {
    "name": "plot_toolbar",
    "title": "プロット",
-   "visible": true,
+   "visible": false,
    "area": null,
    "actions": [
     {
-     "text": "データカーソル",
+     "text": "カーソル",
      "tooltip": "データカーソル",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+     "text": "注釈",
      "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
-     "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
-     "enabled": false,
-     "visible": true,
-     "checked": false
-    },
-    {
-     "text": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+     "text": "範囲選択",
      "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
+     "text": "ピーク",
      "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
-     "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
-     "enabled": true,
-     "visible": true,
-     "checked": false
-    },
-    {
-     "text": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+     "text": "領域",
      "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
      "enabled": true,
      "visible": true,
      "checked": false
     },
     {
-     "text": "表示をリセット (拡大/パンを元に戻す)",
-     "tooltip": "表示をリセット (拡大/パンを元に戻す)",
+     "text": "スライス",
+     "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
      "enabled": true,
-     "visible": true
+     "visible": true,
+     "checked": false
+    },
+    {
+     "text": "配置",
+     "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
+     "enabled": false,
+     "visible": true,
+     "checked": false
     },
     {
      "separator": true
     },
     {
-     "text": "",
-     "tooltip": "",
+     "text": "フィット",
+     "tooltip": "曲線フィット...",
+     "enabled": true,
+     "visible": true
+    },
+    {
+     "text": "平滑化",
+     "tooltip": "Savitzky-Golayフィルタ...",
+     "enabled": true,
+     "visible": true
+    }
+   ]
+  },
+  {
+   "name": "plot_tool_rail",
+   "title": "道具",
+   "visible": true,
+   "area": null,
+   "actions": [
+    {
+     "text": "カーソル",
+     "tooltip": "データカーソル",
+     "enabled": true,
+     "visible": true,
+     "checked": false
+    },
+    {
+     "text": "注釈",
+     "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+     "enabled": true,
+     "visible": true,
+     "checked": false
+    },
+    {
+     "text": "範囲選択",
+     "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+     "enabled": true,
+     "visible": true,
+     "checked": false
+    },
+    {
+     "separator": true
+    },
+    {
+     "text": "フィット",
+     "tooltip": "曲線フィット...",
      "enabled": true,
      "visible": true
     }
@@ -497,7 +535,7 @@
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 2
+      "toggled(bool)": 3
      }
     },
     {
@@ -6875,7 +6913,7 @@
                         "checked": false,
                         "visible": false,
                         "enabled": false,
-                        "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
+                        "tooltip": "配置",
                         "receivers": {
                          "clicked(bool)": 1,
                          "clicked()": 1
@@ -6978,7 +7016,7 @@
                         "checked": false,
                         "visible": false,
                         "enabled": true,
-                        "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+                        "tooltip": "注釈",
                         "receivers": {
                          "clicked(bool)": 1,
                          "clicked()": 1
@@ -6991,7 +7029,7 @@
                         "checked": false,
                         "visible": false,
                         "enabled": true,
-                        "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+                        "tooltip": "領域",
                         "receivers": {
                          "clicked(bool)": 1,
                          "clicked()": 1
@@ -7004,7 +7042,7 @@
                         "checked": false,
                         "visible": false,
                         "enabled": true,
-                        "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                        "tooltip": "範囲選択",
                         "receivers": {
                          "clicked(bool)": 1,
                          "clicked()": 1
@@ -7766,14 +7804,230 @@
                 "enabled": true,
                 "children": [
                  {
+                  "class": "QLabel",
+                  "name": "card_title",
+                  "text": "サブプロット 1",
+                  "visible": true,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QLabel",
+                  "name": "card_meta",
+                  "text": "0 系列",
+                  "visible": true,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QLabel",
+                  "name": "card_meta",
+                  "text": "サブプロット 1 / 1",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QToolButton",
+                  "name": "card_button",
+                  "text": "",
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "表示をリセット (拡大/パンを元に戻す)",
+                  "receivers": {
+                   "pressed()": 1,
+                   "released()": 1,
+                   "clicked(bool)": 1,
+                   "clicked()": 1
+                  }
+                 },
+                 {
+                  "class": "QToolButton",
+                  "name": "card_button",
+                  "text": "",
+                  "checked": true,
+                  "visible": false,
+                  "enabled": true,
+                  "tooltip": "ミニマップ",
+                  "receivers": {
+                   "pressed()": 1,
+                   "released()": 1,
+                   "clicked(bool)": 1,
+                   "clicked()": 1
+                  }
+                 },
+                 {
+                  "class": "QToolButton",
+                  "name": "card_button",
+                  "text": "",
+                  "visible": true,
+                  "enabled": true,
+                  "tooltip": "キャンバスを別ウィンドウに切り離す",
+                  "receivers": {
+                   "pressed()": 1,
+                   "released()": 1,
+                   "clicked(bool)": 1,
+                   "clicked()": 1
+                  }
+                 },
+                 {
                   "class": "QToolBar",
                   "name": "plot_toolbar",
+                  "visible": false,
+                  "enabled": true,
+                  "receivers": {
+                   "orientationChanged(Qt::Orientation)": 2,
+                   "iconSizeChanged(QSize)": 9,
+                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 9
+                  },
+                  "children": [
+                   {
+                    "class": "QToolButton",
+                    "name": "qt_toolbar_ext_button",
+                    "text": "",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1
+                    },
+                    "children": [
+                     {
+                      "class": "QMenu",
+                      "visible": false,
+                      "enabled": true
+                     }
+                    ]
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "カーソル",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "データカーソル",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "注釈",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "範囲選択",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "ピーク",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "領域",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "スライス",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "配置",
+                    "checked": false,
+                    "visible": false,
+                    "enabled": false,
+                    "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QWidget",
+                    "visible": false,
+                    "enabled": true
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "フィット",
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "曲線フィット...",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   },
+                   {
+                    "class": "QToolButton",
+                    "text": "平滑化",
+                    "visible": false,
+                    "enabled": true,
+                    "tooltip": "Savitzky-Golayフィルタ...",
+                    "receivers": {
+                     "pressed()": 1,
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QToolBar",
+                  "name": "plot_tool_rail",
                   "visible": true,
                   "enabled": true,
                   "receivers": {
                    "orientationChanged(Qt::Orientation)": 2,
-                   "iconSizeChanged(QSize)": 8,
-                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 8
+                   "iconSizeChanged(QSize)": 4,
+                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 4
                   },
                   "children": [
                    {
@@ -7797,7 +8051,7 @@
                    },
                    {
                     "class": "QToolButton",
-                    "text": "データカーソル",
+                    "text": "カーソル",
                     "checked": false,
                     "visible": true,
                     "enabled": true,
@@ -7810,7 +8064,7 @@
                    },
                    {
                     "class": "QToolButton",
-                    "text": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+                    "text": "注釈",
                     "checked": false,
                     "visible": true,
                     "enabled": true,
@@ -7823,75 +8077,11 @@
                    },
                    {
                     "class": "QToolButton",
-                    "text": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": false,
-                    "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                    "text": "範囲選択",
                     "checked": false,
                     "visible": true,
                     "enabled": true,
                     "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "表示をリセット (拡大/パンを元に戻す)",
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "表示をリセット (拡大/パンを元に戻す)",
                     "receivers": {
                      "pressed()": 1,
                      "released()": 1,
@@ -7905,50 +8095,17 @@
                    },
                    {
                     "class": "QToolButton",
-                    "text": "",
+                    "text": "フィット",
                     "visible": true,
                     "enabled": true,
-                    "tooltip": "統計情報 (選択中データセットのY列の要約統計量)",
+                    "tooltip": "曲線フィット...",
                     "receivers": {
                      "pressed()": 1,
-                     "released()": 1
-                    },
-                    "children": [
-                     {
-                      "class": "QMenu",
-                      "visible": false,
-                      "enabled": true,
-                      "children": [
-                       {
-                        "class": "QWidget",
-                        "visible": false,
-                        "enabled": true,
-                        "children": [
-                         {
-                          "class": "QLabel",
-                          "text": "統計 (Y列)",
-                          "visible": false,
-                          "enabled": true
-                         },
-                         {
-                          "class": "QLabel",
-                          "text": "-",
-                          "visible": false,
-                          "enabled": true
-                         }
-                        ]
-                       }
-                      ]
-                     }
-                    ]
+                     "released()": 1,
+                     "triggered(QAction*)": 1
+                    }
                    }
                   ]
-                 },
-                 {
-                  "class": "QFrame",
-                  "name": "canvas_separator",
-                  "visible": true,
-                  "enabled": true
                  },
                  {
                   "class": "MplCanvas",

@@ -122,14 +122,14 @@ class UISetupMixin:
         """
         from graphica.gui.main_window import _svg_icon
 
-        if hasattr(self, 'cursor_action'):
-            self.cursor_action.setIcon(_svg_icon("pointer"))
-        if hasattr(self, 'annotation_action'):
-            self.annotation_action.setIcon(_svg_icon("message-2"))
-        if hasattr(self, 'layout_edit_action'):
-            self.layout_edit_action.setIcon(_svg_icon("layout-grid"))
-        if hasattr(self, 'reset_zoom_action'):
-            self.reset_zoom_action.setIcon(_svg_icon("refresh"))
+        from graphica.gui.builders.canvas_area import TOOL_ACTION_ICONS
+        for attr, icon_name in TOOL_ACTION_ICONS:
+            if hasattr(self, attr):
+                getattr(self, attr).setIcon(_svg_icon(icon_name))
+        for button in (getattr(self, name, None) for name in ('card_reset_button', 'card_minimap_button',
+                                                                'card_detach_button')):
+            if button is not None:
+                button.setIcon(_svg_icon(button.property("iconName")))
         if hasattr(self, 'stats_toolbar_button'):
             self.stats_toolbar_button.setIcon(_svg_icon("chart-histogram"))
         if hasattr(self, 'manage_palette_action'):
