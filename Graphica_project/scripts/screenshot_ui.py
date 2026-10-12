@@ -57,6 +57,8 @@ def main():
     parser.add_argument("out_dir")
     parser.add_argument("--theme-color", default=None)
     parser.add_argument("--size", default="1440x900")
+    parser.add_argument("--pages", action="store_true",
+                        help="左パネルの各ページ(帯の切り替え先)も撮る(帯と左パネルの所だけ)")
     args = parser.parse_args()
     os.makedirs(args.out_dir, exist_ok=True)
     width, height = (int(v) for v in args.size.lower().split("x"))
@@ -109,6 +111,20 @@ def main():
             path = os.path.join(args.out_dir, f"{'dark' if dark else 'light'}{suffix}.png")
             window.grab().save(path)
             saved.append(path)
+    if args.pages and hasattr(tab, "activity_rail"):
+        from PySide6.QtCore import QPoint, QRect
+        for dark in (False, True):
+            tab._on_toggle_dark_mode(dark)
+            for key in ("datasets", "analysis", "notes", "plugins", "layout"):
+                tab.activity_rail.select_page(key)
+                settle()
+                top_left = tab.activity_rail.mapTo(window, QPoint(0, 0))
+                width = tab.activity_rail.width() + tab.left_panel.width()
+                rect = QRect(top_left.x(), top_left.y(), width, tab.activity_rail.height())
+                path = os.path.join(args.out_dir, f"page_{key}_{'dark' if dark else 'light'}.png")
+                window.grab(rect).save(path)
+                saved.append(path)
+        tab.activity_rail.select_page("datasets")
     for path in saved:
         print(path, flush=True)
     # 終了処理(自動保存や設定の書き込み)は要らないので、そのまま抜ける
