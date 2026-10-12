@@ -69,6 +69,8 @@ _LIGHT_BASE_TOKENS = {
     "bg": "#F1F2F4", "surface": "#FFFFFF", "surface_2": "#F3F5F7",
     # 上部バー・帯・ステータスバー
     "chrome": "#E4E7EA",
+    # surface_2 の地の上に浮かせる面(セグメントの選んだもの)
+    "raised": "#FFFFFF",
     "border": "#E0E3E6", "border_strong": "#CBD0D5",
     "text_primary": "#191D1F", "text_secondary": "#56606A", "text_muted": "#8A939B",
     "success": "#22A06B", "danger": "#D1453B",
@@ -78,6 +80,7 @@ _LIGHT_BASE_TOKENS = {
 _DARK_BASE_TOKENS = {
     "bg": "#111417", "surface": "#181B1F", "surface_2": "#1F2328",
     "chrome": "#0E1013",
+    "raised": "#373E46",
     "border": "#272C32", "border_strong": "#373E46",
     "text_primary": "#E6E9EC", "text_secondary": "#A0A9B1", "text_muted": "#69737B",
     "success": "#5BD39A", "danger": "#F1857C",
@@ -629,6 +632,109 @@ QScrollBar::handle:horizontal:hover, QScrollBar::handle:horizontal:pressed {{
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
     width: 0;
 }}
+
+/* --- GUI 刷新の部品(gui/widgets/)。寸法は見本 docs/dev/mockups/gui_redesign/ のまま --- */
+/* セグメント: 塗りの地の中に、選んだものだけ面の色で浮かせる */
+QFrame#segmented_control {{
+    background: {surface_2};
+    border: none;
+    border-radius: 7px;
+}}
+QToolButton#segment {{
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    padding: 3px 8px;
+    color: {text_secondary};
+}}
+QToolButton#segment:hover {{
+    color: {text_primary};
+}}
+QToolButton#segment:checked {{
+    background: {raised};
+    color: {text_primary};
+    font-weight: 600;
+}}
+QToolButton#segment:focus {{
+    border: none;
+}}
+/* グラフの種類のタイル(アイコン+文字) */
+QToolButton#type_tile {{
+    background: {surface};
+    border: 1px solid {border};
+    border-radius: 9px;
+    padding: 4px 2px;
+    color: {text_secondary};
+    font-size: 11px;
+}}
+QToolButton#type_tile:hover {{
+    border-color: {border_strong};
+    background: {surface};
+}}
+QToolButton#type_tile:checked {{
+    border-color: {accent};
+    background: {accent_soft};
+    color: {accent_fg};
+    font-weight: 600;
+}}
+/* スライダー(線の太さ・透明度)。数値は横の今のスピンボックス */
+QSlider#slider_spin_slider::groove:horizontal {{
+    height: 4px;
+    background: {border_strong};
+    border-radius: 2px;
+}}
+QSlider#slider_spin_slider::sub-page:horizontal {{
+    background: {accent};
+    border-radius: 2px;
+}}
+QSlider#slider_spin_slider::handle:horizontal {{
+    background: #FFFFFF;
+    border: 2px solid {accent};
+    width: 8px;
+    height: 8px;
+    margin: -4px 0;
+    border-radius: 6px;
+}}
+QSlider#slider_spin_slider::sub-page:horizontal:disabled {{
+    background: {border_strong};
+}}
+QSlider#slider_spin_slider::handle:horizontal:disabled {{
+    border-color: {border_strong};
+}}
+/* スライダーの横の数値(矢印なし) */
+QDoubleSpinBox[sliderValue="true"], QSpinBox[sliderValue="true"] {{
+    padding: 3px 4px;
+}}
+/* 統計のカード */
+QFrame#stat_card {{
+    background: {surface_2};
+    border: none;
+    border-radius: 9px;
+}}
+QLabel#stat_card_label {{
+    color: {text_muted};
+    font-size: 11px;
+    background: transparent;
+}}
+QLabel#stat_card_value {{
+    color: {text_primary};
+    font-size: 14px;
+    font-weight: 600;
+    background: transparent;
+}}
+/* 開閉できる節の見出し(右に状態の要約。要約は SectionHeader が text_muted で描く) */
+QToolButton#section_header {{
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 9px 0 5px 0;
+    text-align: left;
+    font-weight: 600;
+    color: {text_primary};
+}}
+QToolButton#section_header:hover {{
+    color: {accent_fg};
+}}
 """
 
 
@@ -717,9 +823,20 @@ class _FlatThemeProxyStyle(QProxyStyle):
             return self._close_pixmap
         return super().standardPixmap(standard_pixmap, option, widget)
 
+    def pixelMetric(self, metric, option=None, widget=None):
+        if widget is not None and widget.property(TOGGLE_SWITCH_PROPERTY):
+            if metric == QStyle.PixelMetric.PM_IndicatorWidth:
+                return TOGGLE_SWITCH_SIZE[0]
+            if metric == QStyle.PixelMetric.PM_IndicatorHeight:
+                return TOGGLE_SWITCH_SIZE[1]
+        return super().pixelMetric(metric, option, widget)
+
     def drawPrimitive(self, element, option, painter, widget=None):
         if element == QStyle.PrimitiveElement.PE_IndicatorCheckBox:
-            self._draw_checkbox_indicator(option, painter)
+            if widget is not None and widget.property(TOGGLE_SWITCH_PROPERTY):
+                self._draw_toggle_switch(option, painter)
+            else:
+                self._draw_checkbox_indicator(option, painter)
             return
         if element == QStyle.PrimitiveElement.PE_FrameTabBarBase:
             # タブにしたドックの上に出る灰色の線(Fusion が描く、QSS では消せない)を描かない
@@ -774,6 +891,45 @@ class _FlatThemeProxyStyle(QProxyStyle):
             painter.drawPath(path)
 
         painter.restore()
+
+    def _draw_toggle_switch(self, option, painter):
+        """オン・オフのスイッチ。オンは強調の色の地につまみが右、オフは灰色の地につまみが左。"""
+        tokens = self._tokens
+        checked = bool(option.state & QStyle.StateFlag.State_On)
+        enabled = bool(option.state & QStyle.StateFlag.State_Enabled)
+        track = QColor(tokens["accent"] if checked else tokens["border_strong"])
+        if not enabled:
+            track.setAlphaF(0.45)
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        rect = QRectF(option.rect)
+        height = min(rect.height(), TOGGLE_SWITCH_SIZE[1])
+        rect = QRectF(rect.x(), rect.center().y() - height / 2, min(rect.width(), TOGGLE_SWITCH_SIZE[0]), height)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(track)
+        painter.drawRoundedRect(rect, height / 2, height / 2)
+        margin = 2.5
+        knob = height - 2 * margin
+        knob_x = rect.right() - margin - knob if checked else rect.left() + margin
+        painter.setBrush(QColor("#FFFFFF"))
+        painter.drawEllipse(QRectF(knob_x, rect.top() + margin, knob, knob))
+        painter.restore()
+
+
+# チェックボックスをスイッチの見た目にする目印(値は今のチェックボックスのまま。make_toggle_switch() で付ける)
+TOGGLE_SWITCH_PROPERTY = "toggleSwitch"
+TOGGLE_SWITCH_SIZE = (30, 17)
+
+
+def make_toggle_switch(checkbox):
+    """QCheckBox をスイッチの見た目にする。部品を差し替えないので、値の対応(バインディング)はそのまま。"""
+    checkbox.setProperty(TOGGLE_SWITCH_PROPERTY, True)
+    style = checkbox.style()
+    style.unpolish(checkbox)
+    style.polish(checkbox)
+    checkbox.updateGeometry()
+    return checkbox
 
 
 def apply_theme(app, dark: bool, theme_color: str = None):
