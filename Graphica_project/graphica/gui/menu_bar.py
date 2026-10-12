@@ -259,7 +259,7 @@ def _add_plugin_menu(app, menu_bar, keep):
     api = app.plugin_api
     processors = api.get_processors()
     analyzers = api.get_analyzers()
-    if not (api.menu_actions or processors or analyzers or app._plugin_panel_docks):
+    if not (api.menu_actions or processors or analyzers or app._plugin_panels):
         return
     plugin_menu = menu_bar.addMenu(tr("プラグイン(&P)"))
     _hold_menu(app, plugin_menu, "_plugin_menu", None, keep)
@@ -296,14 +296,15 @@ def _add_plugin_menu(app, menu_bar, keep):
             action.triggered.connect(lambda checked=False, a=analyzer: app.plugin_runs.run_analyzer(a))
             keep.append(action)
 
-    if app._plugin_panel_docks:
+    if app._plugin_panels:
         if api.menu_actions or processors or analyzers:
             plugin_menu.addSeparator()
         panel_menu = plugin_menu.addMenu(tr("パネル"))
         _hold_menu(app, panel_menu, None, None, keep)
-        for name in sorted(app._plugin_panel_docks.keys()):
-            action = app._plugin_panel_docks[name].toggleViewAction()
-            panel_menu.addAction(action)
+        # パネルは左端の帯の「プラグイン」のページにある。選ぶと、そのページでそのパネルを出す
+        for name in sorted(app._plugin_panels.keys()):
+            action = panel_menu.addAction(name)
+            action.triggered.connect(lambda checked=False, n=name: app.show_plugin_panel(n))
             keep.append(action)
 
 

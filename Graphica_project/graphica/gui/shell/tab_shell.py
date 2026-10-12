@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QWidget
 from graphica.core.i18n import tr
 from graphica.gui.shell.dataset_page import LEFT_PANEL_WIDTH, DatasetPage
 from graphica.gui.shell.rail import ActivityRail
+from graphica.gui.shell.side_pages import PluginPage
 
 
 def build_tab_shell(app):
@@ -20,9 +21,16 @@ def build_tab_shell(app):
     app.left_panel.setFixedWidth(LEFT_PANEL_WIDTH)
     app.dataset_page = DatasetPage(app)
     app.left_panel.addWidget(app.dataset_page)
-    app._left_panel_pages = {"datasets": app.dataset_page}
+    # プラグインのパネルは、この後 _connect_and_initialize がプラグインを読んでから足す。解析・注釈・レイアウトの
+    # ページはメニューの QAction を使うので、メニューを作った後に side_pages.populate_side_pages() が足す
+    app.plugin_page = PluginPage(app)
+    app.left_panel.addWidget(app.plugin_page)
+    app._left_panel_pages = {"datasets": app.dataset_page, "plugins": app.plugin_page}
 
-    app.activity_rail.add_page("datasets", "database", tr("データセット"))
+    for key, icon_name, tooltip in (("datasets", "database", "データセット"), ("analysis", "math-function", "解析"),
+                                    ("notes", "message-2", "注釈"), ("plugins", "puzzle", "プラグイン"),
+                                    ("layout", "layout-grid", "レイアウト")):
+        app.activity_rail.add_page(key, icon_name, tr(tooltip))
     app.activity_rail.page_requested.connect(
         lambda key: app.left_panel.setCurrentWidget(app._left_panel_pages[key]))
     app.activity_rail.add_bottom_button(
