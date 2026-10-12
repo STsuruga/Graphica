@@ -102,6 +102,7 @@ class ProjectIOMixin:
             default_style_template=current_default_template,
             wheel_zoom_speed=current_wheel_zoom_speed,
             theme_color=theme.current_theme_color(),
+            on_check_plugin_updates=self._on_check_plugin_updates,
         )
         if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
             return

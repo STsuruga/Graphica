@@ -99,6 +99,7 @@ import pandas as pd  # noqa: F401
 from PySide6.QtWidgets import QMessageBox  # noqa: F401
 from graphica.core.app_paths import get_app_data_dir  # noqa: F401
 from graphica.gui import project_files
+from graphica.gui import plugin_update_flow
 from graphica.gui.data_import_flow import (  # noqa: F401
     SUPPORTED_DATA_FILE_EXTENSIONS, find_unevaluated_formula_cells)
 from graphica.gui.project_files import (  # noqa: F401
@@ -309,6 +310,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._batch_export_task_runner = None
         self._update_check_task_runner = None
         self._update_download_runner = None
+        self._plugin_update_runner = None
         # 複数ファイルをまとめて読み込むときの待ち行列と進捗
         self._data_load_queue = []
         self._data_load_queue_total = 0
@@ -548,6 +550,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
             # 新しい版の確認は上の2つの邪魔をしないよう少し遅らせる。公開 API への匿名の GET 1回だけで、
             # 新しい版があるときだけ知らせ、失敗しても何も出さない
             QTimer.singleShot(1500, self, self._start_startup_update_check)
+            # プラグインの新しい版の確認は1日1回(入れたプラグインが無ければ通信しない)
+            QTimer.singleShot(3000, self, lambda: plugin_update_flow.start_startup_check(self))
 
         # 項目の間の余白を広げる。フォームが全部できた最後に
         apply_form_spacing(self)
@@ -606,6 +610,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
             self._update_download_runner.wait()
             self._update_download_runner.deleteLater()
             self._update_download_runner = None
+
+        plugin_update_flow.stop(self)
 
         if self._run_startup_checks:
             app_settings.CLEAN_EXIT.write(self.settings, True)

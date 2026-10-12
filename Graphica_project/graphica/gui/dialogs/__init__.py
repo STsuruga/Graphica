@@ -83,6 +83,7 @@ from graphica.gui.dialogs.app import (
     QuickAccessManagerDialog,
     AutosaveHistoryDialog,
     PluginParamDialog,
+    PluginUpdatesDialog,
     UpdateDialog,
 )
 
@@ -124,6 +125,7 @@ __all__ = [
     "OutlierDetectionDialog",
     "PeakSettingsDialog",
     "PluginParamDialog",
+    "PluginUpdatesDialog",
     "PreferencesDialog",
     "QuickAccessManagerDialog",
     "ReplicateErrorDialog",

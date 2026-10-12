@@ -179,6 +179,7 @@ HELP_MENU = TopMenu("ヘルプ(&H)", "_help_menu", (
     SEPARATOR,
     Item("診断情報をエクスポート...", "_on_export_diagnostic_bundle"),
     Item("アップデートを確認...", "_on_check_for_update"),
+    Item("プラグインの更新を確認...", "_on_check_plugin_updates"),
     SEPARATOR,
     Item("{app} について...", "_on_show_about"),
 ))
