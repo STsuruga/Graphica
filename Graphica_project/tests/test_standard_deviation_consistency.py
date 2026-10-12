@@ -73,7 +73,7 @@ def test_summary_and_popup_show_the_same_value_as_the_anchor_label(window):
     window.property_panel.update_stats_summary_label(_dataset())
     expected = f"{SAMPLE_SD:.4g}"
     assert f"標準偏差: {expected}" in window.stats_summary_label.text()
-    assert f"SD={expected}" in window.dataset_mini_stats_label.text()
+    assert window.dataset_page.cards["sd"].value() == expected
 
 
 def test_single_point_summary_shows_a_dash_instead_of_zero(window):

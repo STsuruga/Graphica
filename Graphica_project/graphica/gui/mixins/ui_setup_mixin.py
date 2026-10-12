@@ -139,6 +139,10 @@ class UISetupMixin:
 
         for button, (icon_name, _label) in getattr(self, '_dataset_action_button_icons', {}).items():
             button.setIcon(_svg_icon(icon_name, size=18))
+        # 左端の帯と左パネル(色の違うアイコンがあるので、それぞれが作り直す)
+        for part in ('activity_rail', 'dataset_page'):
+            if hasattr(self, part):
+                getattr(self, part).refresh_icons()
         for button, icon_name in getattr(self, '_field_icon_buttons', {}).items():
             button.setIcon(_svg_icon(icon_name, size=16))
         for toggle_button in getattr(self, '_collapsible_toggle_buttons', []):

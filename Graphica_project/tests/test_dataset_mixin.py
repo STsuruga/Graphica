@@ -3687,7 +3687,9 @@ def test_stats_summary_all_nan_shows_placeholder(tmp_path, monkeypatch):
     _add_and_select_dataset(window, ds)
 
     assert window.stats_summary_label.text() == "-"
-    assert window.dataset_mini_stats_label.text() == "allnan"
+    assert window.dataset_page.stats_name.text() == "allnan"
+    assert window.dataset_page.cards["n"].value() == "-"
+    assert window.dataset_page.cards["missing"].value() == "3"
 
 
 def test_stats_summary_non_numeric_column_shows_placeholder(tmp_path, monkeypatch):
@@ -3697,7 +3699,8 @@ def test_stats_summary_non_numeric_column_shows_placeholder(tmp_path, monkeypatc
     _add_and_select_dataset(window, ds)
 
     assert window.stats_summary_label.text() == "-"
-    assert window.dataset_mini_stats_label.text() == "textcol"
+    assert window.dataset_page.stats_name.text() == "textcol"
+    assert window.dataset_page.cards["n"].value() == "-"
 
 
 # =============================================================================

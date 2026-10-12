@@ -107,6 +107,7 @@ from graphica.gui.builders import canvas_area
 from graphica.gui.builders import dataset_panel
 from graphica.gui.builders import property_sections
 from graphica.gui import dock_layout
+from graphica.gui.shell.tab_shell import build_tab_shell
 from graphica.gui.builders.common import (  # noqa: F401
     DATASET_TREE_VISIBILITY_COLUMN_WIDTH, DOCK_LAYOUT_VERSION, DATASET_PROPERTY_SECTIONS, PLOT_TYPE_COMBO_MIN_CHARS, COLORMAP_CHOICES, TOOLBAR_ICON_SIZE, _svg_icon, _DatasetTreeSelectionDelegate, _ClickableMathPreviewLabel, _insert_form_row_after,
     disable_wheel_tab_switching)
@@ -257,6 +258,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._build_label_editors()
         self._add_subplot_target_row()
         self._arrange_property_docks()
+        self._build_tab_shell()
         self._rebuild_label_tab()
         self._connect_and_initialize()
         # 英語表示のとき、組み立てた画面の文字をまとめて訳す(Designer の部品にも効かせる)
@@ -425,6 +427,9 @@ class PlotterApp(QMainWindow, UISetupMixin,
     def _arrange_property_docks(self):
         return dock_layout.arrange_property_docks(self)
 
+    def _build_tab_shell(self):
+        return build_tab_shell(self)
+
     def _rebuild_label_tab(self):
         return axis_panel.rebuild_label_tab(self)
 
@@ -492,8 +497,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self._set_initial_ui_state()
         # 生成物の ui_main_window.py のラベルには末尾に「：」が付いている。.ui が無く作り直せないので、ここで取る
         _strip_trailing_colon_from_labels(self)
-        # 下の1行の統計値の分だけ、一覧の高さの上限を控えめにする
-        self.ui.dataset_list_widget.setMaximumHeight(175)
 
         spacing_value = 6
         if self.ui.formLayout_3: self.ui.formLayout_3.setSpacing(spacing_value)

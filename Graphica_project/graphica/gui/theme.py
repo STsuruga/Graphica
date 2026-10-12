@@ -532,6 +532,9 @@ QTreeWidget#dataset_list_widget::item:selected {{
 /* --- データセットの検索欄の枠線を消す --- */
 QLineEdit#dataset_search_edit {{
     border: none;
+    background: {surface_2};
+    border-radius: 7px;
+    padding: 5px 9px;
 }}
 
 /* --- タブ --- */
@@ -562,12 +565,11 @@ QTabBar::tab:selected {{
    (QProxyStyle で差し替えても効かない)。見た目は _FlatThemeProxyStyle で決める。 */
 
 QToolButton#add_tab_button {{
-    margin: 3px 6px 3px 2px;
-    border-radius: 13px;
-    padding: 5px;
+    border-radius: 7px;
+    padding: 4px;
 }}
 QToolButton#add_tab_button:hover {{
-    background: {accent_soft};
+    background: {surface};
 }}
 
 /* --- チェックボックスとラジオボタン: QCheckBox::indicator には何も指定しない。何か1つでも指定すると
@@ -722,6 +724,159 @@ QLabel#stat_card_value {{
     font-weight: 600;
     background: transparent;
 }}
+/* --- 画面の骨組み(gui/shell/): 上部バー・帯・左パネル --- */
+QWidget#app_header {{
+    background: {chrome};
+    border-bottom: 1px solid {border};
+}}
+QLabel#header_title {{
+    font-weight: 600;
+    background: transparent;
+}}
+QFrame#header_separator {{
+    background: {border_strong};
+    border: none;
+}}
+QToolButton#header_button {{
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    padding: 4px;
+}}
+QToolButton#header_button:hover {{
+    background: {surface};
+}}
+QToolButton#header_button:disabled {{
+    background: transparent;
+}}
+QTabBar#project_tab_bar {{
+    background: transparent;
+}}
+QTabBar#project_tab_bar::tab {{
+    height: 32px;
+    padding: 0 8px 0 12px;
+    margin: 0 2px 0 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: {text_secondary};
+    font-weight: 400;
+}}
+QTabBar#project_tab_bar::tab:hover {{
+    background: {surface_2};
+    color: {text_primary};
+}}
+QTabBar#project_tab_bar::tab:selected {{
+    background: {surface};
+    color: {text_primary};
+    border: none;
+    font-weight: 600;
+}}
+QPushButton#command_search {{
+    background: {surface};
+    border: 1px solid {border};
+    border-radius: 7px;
+    padding: 0;
+    text-align: left;
+}}
+QPushButton#command_search:hover {{
+    border-color: {border_strong};
+    background: {surface};
+}}
+QLabel#command_search_text {{
+    color: {text_muted};
+    background: transparent;
+}}
+QLabel#kbd_hint {{
+    color: {text_secondary};
+    background: transparent;
+    border: 1px solid {border_strong};
+    border-radius: 4px;
+    padding: 0 5px;
+    font-size: 10.5px;
+}}
+QPushButton[primaryButton="true"] {{
+    background: {accent};
+    border: 1px solid {accent};
+    border-radius: 7px;
+    color: {on_accent};
+    font-weight: 600;
+    padding: 5px 12px;
+}}
+QPushButton[primaryButton="true"]:hover {{
+    background: {accent};
+    border-color: {accent_fg};
+}}
+QPushButton[primaryButton="true"]:pressed {{
+    background: {accent_fg};
+}}
+QPushButton[primaryButton="true"]:disabled {{
+    background: {border_strong};
+    border-color: {border_strong};
+    color: {surface};
+}}
+QPushButton[ghostButton="true"], QToolButton[ghostButton="true"] {{
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    padding: 4px;
+}}
+QPushButton[ghostButton="true"]:hover, QToolButton[ghostButton="true"]:hover {{
+    background: {surface_2};
+}}
+QPushButton[ghostButton="true"]:pressed, QToolButton[ghostButton="true"]:pressed {{
+    background: {accent_soft};
+}}
+QStackedWidget#quick_access_slot, QStackedWidget#quick_access_slot QToolBar {{
+    background: transparent;
+    border: none;
+    padding: 0;
+    spacing: 2px;
+}}
+QWidget#activity_rail {{
+    background: {chrome};
+    border-right: 1px solid {border};
+}}
+QToolButton#rail_button {{
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+}}
+QToolButton#rail_button:hover {{
+    background: {surface_2};
+}}
+QToolButton#rail_button:checked {{
+    background: {accent};
+}}
+QStackedWidget#left_panel, QWidget#dataset_page {{
+    background: {surface};
+}}
+QStackedWidget#left_panel {{
+    border-right: 1px solid {border};
+}}
+QLabel#panel_title {{
+    font-size: 15px;
+    font-weight: 600;
+    background: transparent;
+}}
+QLabel#count_pill {{
+    background: {surface_2};
+    color: {text_secondary};
+    border-radius: 9px;
+    padding: 0 7px;
+    font-size: 11px;
+}}
+QLabel#stats_target_label {{
+    color: {text_secondary};
+    font-size: 12px;
+    background: transparent;
+}}
+QFrame#panel_foot {{
+    background: transparent;
+    border: none;
+    border-top: 1px solid {border};
+}}
+
 /* 開閉できる節の見出し(右に状態の要約。要約は SectionHeader が text_muted で描く) */
 QToolButton#section_header {{
     background: transparent;

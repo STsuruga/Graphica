@@ -17,7 +17,8 @@
     "example_plugin"
    ],
    "wheel_zoom_speed": "normal",
-   "theme_color": "#0F4C5C"
+   "theme_color": "#0F4C5C",
+   "ui_mode": ""
   }
  },
  "export_modals": [

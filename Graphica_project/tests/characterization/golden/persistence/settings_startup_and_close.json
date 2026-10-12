@@ -4,23 +4,25 @@
   "clean_exit": false,
   "dark_mode": false,
   "has_shown_welcome": true,
-  "language": "ja"
+  "language": "ja",
+  "ui_mode": "lite"
  },
  "after_close": {
   "autosave_dir": "<CASE>/autosave",
   "canvas_was_detached": false,
   "clean_exit": true,
   "dark_mode": false,
-  "dock_layout_version": 4,
+  "dock_layout_version": 5,
   "has_shown_welcome": true,
   "language": "ja",
+  "ui_mode": "lite",
   "window_geometry": {
    "bytes_sha256": "8f9f776e48073b52",
    "len": 66
   },
   "window_state": {
-   "bytes_sha256": "75feb3bd4a38ca8e",
-   "len": 422
+   "bytes_sha256": "b12172c762029079",
+   "len": 353
   }
  },
  "modals": [
