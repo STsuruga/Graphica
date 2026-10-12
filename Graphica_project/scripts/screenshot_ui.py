@@ -57,6 +57,8 @@ def main():
     parser.add_argument("out_dir")
     parser.add_argument("--theme-color", default=None)
     parser.add_argument("--size", default="1440x900")
+    parser.add_argument("--inspector", action="store_true",
+                        help="右のインスペクタの各タブも撮る(アドバンスド、インスペクタの所だけ)")
     parser.add_argument("--pages", action="store_true",
                         help="左パネルの各ページ(帯の切り替え先)も撮る(帯と左パネルの所だけ)")
     args = parser.parse_args()
@@ -125,6 +127,22 @@ def main():
                 window.grab(rect).save(path)
                 saved.append(path)
         tab.activity_rail.select_page("datasets")
+    if args.inspector and hasattr(tab, "inspector"):
+        from PySide6.QtCore import QPoint, QRect
+        if hasattr(window, "set_ui_mode"):
+            window.set_ui_mode("advanced")
+        dock = tab.properties_dock_widget
+        for dark in (False, True):
+            tab._on_toggle_dark_mode(dark)
+            for key in ("properties", "axes", "legend", "export"):
+                tab.inspector.show_page(key)
+                settle()
+                top_left = dock.mapTo(window, QPoint(0, 0))
+                rect = QRect(top_left.x(), top_left.y(), dock.width(), dock.height())
+                path = os.path.join(args.out_dir, f"inspector_{key}_{'dark' if dark else 'light'}.png")
+                window.grab(rect).save(path)
+                saved.append(path)
+        tab.inspector.show_page("properties")
     for path in saved:
         print(path, flush=True)
     # 終了処理(自動保存や設定の書き込み)は要らないので、そのまま抜ける

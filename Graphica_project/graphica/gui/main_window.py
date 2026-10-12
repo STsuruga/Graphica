@@ -50,7 +50,7 @@ def _strip_trailing_colon_from_labels(widget):
 
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
-CONTROL_DOCK_WIDTH = 472  # 縦スクロールバーの分まで含めた幅。狭めると横スクロールバーが出る
+CONTROL_DOCK_WIDTH = 340  # 右のインスペクタの幅(見本どおり)。軸の設定の長い行は名前を上に折り返して収める
 SPIN_BOX_MAX_DECIMALS = 16
 
 
@@ -778,6 +778,11 @@ class PlotterApp(QMainWindow, UISetupMixin,
     def dataset_host(self):
         return self._dataset_host
 
+    def show_export_preview(self):
+        """右のインスペクタの「エクスポート」のタブを開く(表示メニュー)。"""
+        self.properties_dock_widget.show()
+        self.inspector.show_page("export")
+
     def show_plugin_panel(self, name):
         """左端の帯の「プラグイン」のページを開き、そのパネルを出す。"""
         self.activity_rail.select_page("plugins")
@@ -1032,8 +1037,6 @@ class PlotterApp(QMainWindow, UISetupMixin,
             self.data_editor_dialog.dataset, self.data_editor_dialog.get_selected_master_indices()
         )
 
-    def _wrap_in_collapsible_section(self, group_box, title):
-        return property_sections.wrap_in_collapsible_section(self, group_box, title)
 
 
     def _build_dataset_property_sections(self):

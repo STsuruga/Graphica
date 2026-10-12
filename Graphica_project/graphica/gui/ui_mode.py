@@ -25,6 +25,12 @@ MODE_ONLY_ELEMENTS = (
 )
 
 
+# インスペクタのタブ(キー, 出すモード)
+MODE_ONLY_INSPECTOR_PAGES = (
+    ("legend", ADVANCED),
+)
+
+
 def mode_label(mode):
     return tr(MODE_LABELS[mode])
 
@@ -59,4 +65,8 @@ def apply_ui_mode(app, mode):
         widget = _resolve(app, dotted_name)
         if widget is not None:
             widget.setVisible(mode == only_in)
+    inspector = getattr(app, 'inspector', None)
+    if inspector is not None:
+        for key, only_in in MODE_ONLY_INSPECTOR_PAGES:
+            inspector.set_page_visible(key, mode == only_in)
     app.ui_mode = mode
