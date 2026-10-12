@@ -392,7 +392,7 @@ TRANSLATIONS = {
     "誤差の表示形式": "Error display",
     "エラーバー": "Error bars",
     "誤差バンド": "Error band",
-    "2Dグリッドデータとして扱う(ヒートマップ)": "Treat as 2D grid data (heat map)",
+    "2Dグリッドとして扱う(ヒートマップ)": "Treat as 2D grid (heat map)",
     "カラーマップ": "Colormap",
     "表示方式": "Display",
     "ヒートマップ": "Heat map",
@@ -639,4 +639,9 @@ TRANSLATIONS = {
     "サブプロット {n}": "Subplot {n}",
     "{n} 系列": "{n} series",
     "サブプロット {i} / {n}": "Subplot {i} / {n}",
+    "データセットを選んでください": "Select a dataset",
+    "軸": "Axes",
+    "凡例": "Legend",
+    "オン": "On",
+    "オフ": "Off",
 }

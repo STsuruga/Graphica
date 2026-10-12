@@ -6,7 +6,8 @@ from PySide6.QtWidgets import (
     QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
 from graphica.core.i18n import tr
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
-from graphica.gui.builders.common import _ClickableMathPreviewLabel, _insert_form_row_after, _svg_icon
+from graphica.gui.builders.common import (
+    _ClickableMathPreviewLabel, _insert_form_row_after, _svg_icon, cap_combo_width)
 from graphica.gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
 from graphica.gui.tools.layout_edit import MIN_FREE_RECT_SIZE
 
@@ -157,7 +158,8 @@ def build_tick_grid_and_colorbar_controls(app):
     # QDoubleSpinBox を2つ並べると最小幅が約306pxになり、フォームの列幅を広げてドックに横スクロールが出る
     # (tests/test_main_window.py が検出)。すぐ上の目盛方向の欄と同じ幅に揃える
     for _tick_length_spin in (app.major_tick_length_spinbox, app.minor_tick_length_spinbox):
-        _tick_length_spin.setMinimumWidth(app.major_tick_direction_combo.minimumSizeHint().width())
+        # 「自動 pt」が切れない幅は確保する(幅 340px のインスペクタでも2つ並ぶ)
+        _tick_length_spin.setMinimumWidth(max(app.major_tick_direction_combo.minimumSizeHint().width(), 78))
     tick_length_layout = QHBoxLayout()
     tick_length_layout.addWidget(app.major_tick_length_spinbox)
     tick_length_layout.addWidget(app.minor_tick_length_spinbox)
@@ -200,6 +202,7 @@ def build_tick_format_controls(app):
     app.x_tick_format_label = QLabel(tr("目盛り表記"))
     app.x_tick_format_combo = QComboBox()
     app.x_tick_format_combo.addItems(tick_format_choices)
+    cap_combo_width(app.x_tick_format_combo)
     app.ui.formLayout.addRow(app.x_tick_format_label, app.x_tick_format_combo)
 
     # 目盛線と目盛数値の表示は X/Y で別々なので、それぞれの軸のタブに置く
@@ -260,6 +263,7 @@ def build_tick_format_controls(app):
     app.y_tick_format_label = QLabel(tr("目盛り表記"))
     app.y_tick_format_combo = QComboBox()
     app.y_tick_format_combo.addItems(tick_format_choices)
+    cap_combo_width(app.y_tick_format_combo)
     app.ui.formLayout_2.addRow(app.y_tick_format_label, app.y_tick_format_combo)
 
     app.y_ticks_visible_checkbox = QCheckBox(tr("目盛を表示"))

@@ -57,7 +57,8 @@ class SectionHeader(QToolButton):
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        if not self._state_text:
+        # 開いているときは中身が見えるので出さない(見本も閉じた節だけ)
+        if not self._state_text or (self.isCheckable() and self.isChecked()):
             return
         painter = QPainter(self)
         font = painter.font()

@@ -11,7 +11,7 @@ from graphica.core.marker_style import (
     MARKER_FILL_SOLID)
 from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
-    _svg_icon)
+    _svg_icon, cap_combo_width)
 from graphica.gui.color_picker_widget import ColorPickerWidget
 from graphica.gui.dataset_bindings import MARKER_CHOICES
 from graphica.gui.dataset_style_icon import (
@@ -125,27 +125,27 @@ def build_marker_style_controls(app):
         else:
             combo.addItem(icon, tr(label), marker)
 
-    style_form = app._prop_form('style')
+    marker_form = app._prop_form('marker')
     app.marker_fill_label = QLabel(tr("マーカーの塗り"))
     app.marker_fill_combo = QComboBox()
     app.marker_fill_combo.addItem(tr("塗りつぶし"), MARKER_FILL_SOLID)
     app.marker_fill_combo.addItem(tr("白抜き"), MARKER_FILL_HOLLOW)
     app.marker_fill_combo.addItem(tr("色を指定"), MARKER_FILL_COLOR)
-    style_form.addRow(app.marker_fill_label, app.marker_fill_combo)
+    marker_form.addRow(app.marker_fill_label, app.marker_fill_combo)
 
     app.marker_face_color_label = QLabel(tr("塗りの色"))
     app.marker_face_color_picker = ColorPickerWidget(app.settings, app, initial_color='#ffffff')
-    style_form.addRow(app.marker_face_color_label, app.marker_face_color_picker)
+    marker_form.addRow(app.marker_face_color_label, app.marker_face_color_picker)
 
     app.marker_edge_label = QLabel(tr("マーカーの枠線"))
     app.marker_edge_combo = QComboBox()
     app.marker_edge_combo.addItem(tr("系列の色"), MARKER_EDGE_SAME)
     app.marker_edge_combo.addItem(tr("色を指定"), MARKER_EDGE_COLOR)
-    style_form.addRow(app.marker_edge_label, app.marker_edge_combo)
+    marker_form.addRow(app.marker_edge_label, app.marker_edge_combo)
 
     app.marker_edge_color_label = QLabel(tr("枠線の色"))
     app.marker_edge_color_picker = ColorPickerWidget(app.settings, app, initial_color='#000000')
-    style_form.addRow(app.marker_edge_color_label, app.marker_edge_color_picker)
+    marker_form.addRow(app.marker_edge_color_label, app.marker_edge_color_picker)
 
     app.marker_edge_width_label = QLabel(tr("枠線の太さ"))
     app.marker_edge_width_spinbox = QDoubleSpinBox()
@@ -153,7 +153,7 @@ def build_marker_style_controls(app):
     app.marker_edge_width_spinbox.setSingleStep(0.5)
     app.marker_edge_width_spinbox.setDecimals(1)
     app.marker_edge_width_spinbox.setValue(DEFAULT_MARKER_EDGE_WIDTH)
-    style_form.addRow(app.marker_edge_width_label, app.marker_edge_width_spinbox)
+    marker_form.addRow(app.marker_edge_width_label, app.marker_edge_width_spinbox)
 
 
 def build_dataset_style_controls(app):
@@ -202,6 +202,7 @@ def build_dataset_style_controls(app):
     app.waterfall_offset_mode_combo = QComboBox()
     app.waterfall_offset_mode_combo.addItem(tr("段ごとの間隔(段の番号 × オフセット)"), WATERFALL_OFFSET_STEP)
     app.waterfall_offset_mode_combo.addItem(tr("ずらし量をそのまま"), WATERFALL_OFFSET_ABSOLUTE)
+    cap_combo_width(app.waterfall_offset_mode_combo)
     app._prop_form('waterfall').addRow(app.waterfall_offset_mode_label, app.waterfall_offset_mode_combo)
 
     app.waterfall_offset_x_label = QLabel(tr("Xオフセット"))
@@ -266,7 +267,7 @@ def build_dataset_style_controls(app):
     app._prop_form('extra').addRow(app.hide_from_legend_checkbox)
 
     # X/Y/Z 列の長形式を2Dマップとして描く。関係する欄の出し入れは property_panel.update_2d_controls_visibility
-    app.data_2d_checkbox = QCheckBox(tr("2Dグリッドデータとして扱う(ヒートマップ)"))
+    app.data_2d_checkbox = QCheckBox(tr("2Dグリッドとして扱う(ヒートマップ)"))
     app._prop_form('map').addRow(app.data_2d_checkbox)
 
     app.z_col_label = QLabel(tr("Z軸の列"))
@@ -354,10 +355,15 @@ def build_fit_info_and_stats(app):
     app.stats_summary_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
 
+Y2_SPINBOX_MIN_WIDTH = 100
+
+
 def _y2_value_spinbox(decimals=2):
     spinbox = QDoubleSpinBox()
     spinbox.setRange(-2147483648.0, 2147483648.0)
     spinbox.setDecimals(decimals)
+    # 既定の最小幅は範囲の桁数(-2147483648.00)で決まり、右のインスペクタ(340px)からはみ出す
+    spinbox.setMinimumWidth(Y2_SPINBOX_MIN_WIDTH)
     return spinbox
 
 
