@@ -317,7 +317,7 @@ a:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:
 
 <h2 id="modes"><span class="n">4</span>Lite と Advanced の仕組み</h2>
 <ul>
-  <li><b>設定:</b> <code>UI_MODE = Setting("ui_mode", …, str, export_as=str)</code> と <code>THEME_ACCENT_COLOR = Setting("theme_accent_color", "#0F4C5C", str, export_as=str)</code> を <code>gui/app_settings.py</code> に足します。既定のモードは、初めて起動した人は Lite、今の利用者は Advanced です(<a href="#open">9 の 1</a>)。設定に <code>ui_mode</code> が無いとき、<code>has_shown_welcome</code> が真なら今の利用者とみなして Advanced を書き込みます。画面の表示名は日本語が「シンプル / 詳細」、英語が Lite / Advanced です。</li>
+  <li><b>設定:</b> <code>UI_MODE = Setting("ui_mode", …, str, export_as=str)</code> と <code>THEME_COLOR = Setting("theme_color", "#0F4C5C", str, export_as=str)</code>(PR 1 で追加済み) を <code>gui/app_settings.py</code> に足します。既定のモードは、初めて起動した人は Lite、今の利用者は Advanced です(<a href="#open">9 の 1</a>)。設定に <code>ui_mode</code> が無いとき、<code>has_shown_welcome</code> が真なら今の利用者とみなして Advanced を書き込みます。画面の表示名は日本語が「シンプル / アドバンスド」、英語が Lite / Advanced です。</li>
   <li><b>表:</b> <code>gui/ui_mode.py</code> に、部品の名前(タブの属性名)と出すモードの組を並べます。例: <code>('stats_row_advanced', ADVANCED)</code>、<code>('type_tiles', LITE)</code>、<code>('bottom_panel', ADVANCED)</code>。<code>apply_ui_mode(app, mode)</code> がこの表を見て <code>setVisible()</code> します。</li>
   <li><b>プロパティの行:</b> <code>DATASET_PROPERTY_BINDINGS</code> の各行に「Lite でも出すか」の列を足します。表示の判定は「今の条件 かつ モードの条件」です。</li>
   <li><b>全タブで同時に:</b> モードとテーマカラーはアプリ全体の設定です。<code>MainAppWindow</code> が全タブに知らせます。後から開いたタブは、作るときに今のモードで組み立てます。</li>
@@ -436,7 +436,7 @@ a:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:
 <div class="tw"><table class="q">
 <tr><th>#</th><th>こと</th><th>決定</th><th>関わる PR</th></tr>
 <tr><td>1</td><td>既定のモード(初めて起動した人・今の利用者)</td><td class="rec">初めての人は Lite、今の利用者は Advanced(更新した人の手元で項目が消えないように)</td><td>3</td></tr>
-<tr><td>2</td><td>モードの表示名</td><td class="rec">日本語は「シンプル / 詳細」、英語は Lite / Advanced(「ライト」はテーマのライトと紛らわしい)</td><td>3</td></tr>
+<tr><td>2</td><td>モードの表示名</td><td class="rec">日本語は「シンプル / アドバンスド」、英語は Lite / Advanced(「ライト」はテーマのライトと紛らわしい。「詳細」から変更)</td><td>3</td></tr>
 <tr><td>3</td><td>クイックアクセス(ピン留め)の置き場所。モックアップには無い</td><td class="rec">上部バーの「元に戻す・やり直す」の右に、アイコンで並べる</td><td>3</td></tr>
 <tr><td>4</td><td>≡ にまとめたメニュー</td><td class="rec">Windows は ≡ のみ。macOS はネイティブのメニューバーも残す</td><td>3</td></tr>
 <tr><td>5</td><td>ドックを動かす・切り離す機能と「ドックレイアウト」のプリセットを残すか</td><td class="rec">左・右・下のパネルは固定にし、プリセットの機能はやめる(新しい構成では使い道が少ない)。キャンバスの切り離しは残す</td><td>3〜7</td></tr>

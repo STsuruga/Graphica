@@ -40,7 +40,7 @@ def build_gallery():
 
     mode = SegmentedControl()
     mode.addItem("シンプル", "lite")
-    mode.addItem("詳細", "advanced")
+    mode.addItem("アドバンスド", "advanced")
     mode.setCurrentIndex(1)
     outer.addWidget(QLabel("モードの切り替え(上部バー)"))
     outer.addWidget(mode)
