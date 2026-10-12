@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "9dc30d51d20573f860b01fa4cd399dc445be14acce033f29907ff71ea56a8248",
+  "stylesheet_sha256": "e5f6a6d6782062b9656cd4b4da741dbe507c4448fc0bb5bb2e51725c81a0d5e9",
   "palette": {
    "Window": "#ff111417",
    "WindowText": "#ffe6e9ec",
@@ -493,20 +493,22 @@
      "text": "ミニマップ(レンジスライダー)",
      "checked": true,
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
      "text": "キャンバスを別ウィンドウに切り離す",
      "checked": false,
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
@@ -514,10 +516,11 @@
      "checked": false,
      "tooltip": "パネルラベルを自動表示 ((a)(b)(c))",
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
@@ -6735,6 +6738,66 @@
                 "class": "QToolButton",
                 "name": "rail_button",
                 "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "解析",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "rail_button",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "注釈",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "rail_button",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "プラグイン",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "rail_button",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "レイアウト",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "rail_button",
+                "text": "",
                 "visible": true,
                 "enabled": true,
                 "tooltip": "ダークモード",
@@ -6767,6 +6830,516 @@
               "visible": true,
               "enabled": true,
               "children": [
+               {
+                "class": "ActionListPage",
+                "name": "side_page",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QLabel",
+                  "name": "panel_title",
+                  "text": "レイアウト",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QScrollArea",
+                  "name": "side_page_scroll",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "name": "qt_scrollarea_viewport",
+                    "visible": false,
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QWidget",
+                      "name": "side_page_body",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "配置",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "レイアウト編集(自由配置のとき)",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": false,
+                        "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "サブプロットの数・並び(軸の設定)",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "表示",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "ミニマップ",
+                        "checked": true,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "ミニマップ(レンジスライダー)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "キャンバスを別ウィンドウに切り離す",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "キャンバスを別ウィンドウに切り離す",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               },
+               {
+                "class": "ActionListPage",
+                "name": "side_page",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QLabel",
+                  "name": "panel_title",
+                  "text": "注釈",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QScrollArea",
+                  "name": "side_page_scroll",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "name": "qt_scrollarea_viewport",
+                    "visible": false,
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QWidget",
+                      "name": "side_page_body",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "グラフに描く",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "注釈",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "領域ハイライト",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "範囲選択",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "表示",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "パネルラベルを自動表示",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "パネルラベルを自動表示 ((a)(b)(c)...)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               },
+               {
+                "class": "ActionListPage",
+                "name": "side_page",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QLabel",
+                  "name": "panel_title",
+                  "text": "解析",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QScrollArea",
+                  "name": "side_page_scroll",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "name": "qt_scrollarea_viewport",
+                    "visible": false,
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QWidget",
+                      "name": "side_page_body",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "フィット",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "曲線フィット...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "一括フィット...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "多峰フィット...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "フィット結果を表示",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "ピーク",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "ピーク検出...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "ピークにラベルを付ける",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "データ処理",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "規格化(ノーマライズ)...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Savitzky-Golayフィルタ...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "ベースライン補正...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "区間積分...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "累積積分...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "共通X格子へのリサンプリング/補間...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "外れ値検出...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               },
+               {
+                "class": "PluginPage",
+                "name": "side_page",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QLabel",
+                  "name": "panel_title",
+                  "text": "プラグイン",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QComboBox",
+                  "name": "plugin_panel_selector",
+                  "items": [],
+                  "current": -1,
+                  "visible": false,
+                  "enabled": true,
+                  "receivers": {
+                   "currentIndexChanged(int)": 1
+                  },
+                  "children": [
+                   {
+                    "class": "QFrame",
+                    "visible": false,
+                    "enabled": true,
+                    "receivers": {
+                     "itemSelected(QModelIndex)": 1,
+                     "resetButton()": 1
+                    },
+                    "children": [
+                     {
+                      "class": "QListView",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "doScroll(int)": 1
+                      }
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "doScroll(int)": 1
+                      }
+                     }
+                    ]
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QStackedWidget",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "visible": false,
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QLabel",
+                      "name": "side_page_note",
+                      "text": "プラグインのパネルはありません。プラグインは環境設定から追加できます。",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QPushButton",
+                      "text": "環境設定を開く...",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "clicked(bool)": 1,
+                       "clicked()": 1
+                      }
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               },
                {
                 "class": "DatasetPage",
                 "name": "dataset_page",

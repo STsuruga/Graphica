@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "83ca45a0e1bb08d9fe81bbef88ddd8a328e966e000348c02708bd8614100824e",
+  "stylesheet_sha256": "dc726082bd57596d1255d99d8cba7125553bb7b0afa2ac01775c12a52bbaa4ff",
   "palette": {
    "Window": "#fff1f2f4",
    "WindowText": "#ff191d1f",
@@ -493,20 +493,22 @@
      "text": "Minimap (Range Slider)",
      "checked": true,
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
      "text": "Detach Canvas to a Window",
      "checked": false,
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
@@ -514,10 +516,11 @@
      "checked": false,
      "tooltip": "Automatic Panel Labels ((a)(b)(c))",
      "receivers": {
+      "changed()": 1,
       "triggered(bool)": 1,
       "triggered()": 1,
       "hovered()": 1,
-      "toggled(bool)": 1
+      "toggled(bool)": 2
      }
     },
     {
@@ -6735,6 +6738,66 @@
                 "class": "QToolButton",
                 "name": "rail_button",
                 "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "Analysis",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "rail_button",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "Annotations",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "rail_button",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "Plugins",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "rail_button",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "Layout",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1,
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "rail_button",
+                "text": "",
                 "visible": true,
                 "enabled": true,
                 "tooltip": "Dark Mode",
@@ -6767,6 +6830,516 @@
               "visible": true,
               "enabled": true,
               "children": [
+               {
+                "class": "ActionListPage",
+                "name": "side_page",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QLabel",
+                  "name": "panel_title",
+                  "text": "Layout",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QScrollArea",
+                  "name": "side_page_scroll",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "name": "qt_scrollarea_viewport",
+                    "visible": false,
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QWidget",
+                      "name": "side_page_body",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "Arrangement",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Edit layout (free layout)",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": false,
+                        "tooltip": "Edit Layout (Free layout only: drag to move/resize plots)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Subplot grid (axis settings)",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "View",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Minimap",
+                        "checked": true,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "Minimap (Range Slider)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Detach Canvas to a Window",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "Detach Canvas to a Window",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               },
+               {
+                "class": "ActionListPage",
+                "name": "side_page",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QLabel",
+                  "name": "panel_title",
+                  "text": "Annotations",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QScrollArea",
+                  "name": "side_page_scroll",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "name": "qt_scrollarea_viewport",
+                    "visible": false,
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QWidget",
+                      "name": "side_page_body",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "Draw on the plot",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Annotations",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Region Highlight",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Range Select",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "Range Select (mask the dragged range of the current dataset)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "View",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Auto panel labels",
+                        "checked": false,
+                        "visible": false,
+                        "enabled": true,
+                        "tooltip": "Automatic Panel Labels ((a)(b)(c)...)",
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               },
+               {
+                "class": "ActionListPage",
+                "name": "side_page",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QLabel",
+                  "name": "panel_title",
+                  "text": "Analysis",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QScrollArea",
+                  "name": "side_page_scroll",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "name": "qt_scrollarea_viewport",
+                    "visible": false,
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QWidget",
+                      "name": "side_page_body",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "Fitting",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Curve Fit...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Batch Fit...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Multi-peak Fit...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Show Fit Result",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "Peaks",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Find Peaks...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Label Peaks",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QLabel",
+                        "name": "side_page_section",
+                        "text": "Data Processing",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Normalize...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Savitzky-Golay Filter...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Baseline Correction...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Interval Integral...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Cumulative Integral...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Resample/Interpolate onto a Common X Grid...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       },
+                       {
+                        "class": "QPushButton",
+                        "name": "side_page_row",
+                        "text": "Outlier Detection...",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "clicked(bool)": 1,
+                         "clicked()": 1
+                        }
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               },
+               {
+                "class": "PluginPage",
+                "name": "side_page",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QLabel",
+                  "name": "panel_title",
+                  "text": "Plugins",
+                  "visible": false,
+                  "enabled": true
+                 },
+                 {
+                  "class": "QComboBox",
+                  "name": "plugin_panel_selector",
+                  "items": [],
+                  "current": -1,
+                  "visible": false,
+                  "enabled": true,
+                  "receivers": {
+                   "currentIndexChanged(int)": 1
+                  },
+                  "children": [
+                   {
+                    "class": "QFrame",
+                    "visible": false,
+                    "enabled": true,
+                    "receivers": {
+                     "itemSelected(QModelIndex)": 1,
+                     "resetButton()": 1
+                    },
+                    "children": [
+                     {
+                      "class": "QListView",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "doScroll(int)": 1
+                      }
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "doScroll(int)": 1
+                      }
+                     }
+                    ]
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QStackedWidget",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "visible": false,
+                    "enabled": true,
+                    "children": [
+                     {
+                      "class": "QLabel",
+                      "name": "side_page_note",
+                      "text": "No plugin panels. You can add plugins in Preferences.",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QPushButton",
+                      "text": "Open Preferences...",
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "clicked(bool)": 1,
+                       "clicked()": 1
+                      }
+                     }
+                    ]
+                   }
+                  ]
+                 }
+                ]
+               },
                {
                 "class": "DatasetPage",
                 "name": "dataset_page",
