@@ -685,6 +685,8 @@ TRANSLATIONS = {
     "ローズ": "Rose",
     "オレンジ": "Orange",
     "イエロー": "Yellow",
+    "無題のプロジェクト": "Untitled project",
+    "無題のプロジェクト(復元)": "Untitled project (recovered)",
     "フィットした曲線か、フィットしたデータセットを選ぶと、ここに式とパラメータが出ます。": "Select a fitted curve or a dataset that has been fitted to see its formula and parameters here.",
     "このウィンドウを開いてからのログがここに出ます(全部は graphica.log)。": "Messages logged since this window opened appear here (the full log is graphica.log).",
 }
