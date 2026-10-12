@@ -5194,6 +5194,74 @@
   },
   "modals": []
  },
+ "PluginUpdatesDialog": {
+  "tree": {
+   "class": "PluginUpdatesDialog",
+   "window_title": "プラグインの更新",
+   "visible": false,
+   "enabled": true,
+   "children": [
+    {
+     "class": "QLabel",
+     "text": "新しい版が出ているプラグインがあります。更新するものを選んでください。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QListWidget",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QTextBrowser",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QWidget",
+       "name": "qt_scrollarea_viewport",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    },
+    {
+     "class": "QLabel",
+     "text": "更新したプラグインは、Graphica を起動し直すと使われます。",
+     "visible": true,
+     "enabled": true
+    },
+    {
+     "class": "QDialogButtonBox",
+     "visible": true,
+     "enabled": true,
+     "children": [
+      {
+       "class": "QPushButton",
+       "text": "選んだものを更新",
+       "visible": true,
+       "enabled": true
+      },
+      {
+       "class": "QPushButton",
+       "text": "あとで",
+       "visible": true,
+       "enabled": true
+      }
+     ]
+    }
+   ]
+  },
+  "modals": []
+ },
  "PreferencesDialog": {
   "tree": {
    "class": "PreferencesDialog",
@@ -5226,6 +5294,12 @@
           {
            "class": "QPushButton",
            "text": "プラグインフォルダを開く",
+           "visible": false,
+           "enabled": true
+          },
+          {
+           "class": "QPushButton",
+           "text": "更新を確認...",
            "visible": false,
            "enabled": true
           },

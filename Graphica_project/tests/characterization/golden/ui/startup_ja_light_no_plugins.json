@@ -480,6 +480,15 @@
      }
     },
     {
+     "text": "プラグインの更新を確認...",
+     "tooltip": "プラグインの更新を確認",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
      "separator": true
     },
     {
