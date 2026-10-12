@@ -303,8 +303,9 @@ def _dock_tab_bars(tab):
             for bar in tab.findChildren(QTabBar) if bar.parent() is tab]
 
 
-def test_every_tab_starts_with_properties_and_export_preview_side_by_side(tmp_path, monkeypatch):
-    """エクスポートプレビューはプロパティと同じ場所にタブで並ぶ。前面はプロパティで、プレビューは後ろにある間は描かない。"""
+def test_every_tab_starts_with_properties_and_export_preview_in_the_inspector(tmp_path, monkeypatch):
+    """エクスポートプレビューは右のインスペクタの「エクスポート」のタブ(GUI 刷新)。前面はプロパティで、
+    プレビューは後ろにある間は描かない。"""
     import graphica.gui.export_preview_panel as export_preview_module
 
     renders = []
@@ -322,19 +323,17 @@ def test_every_tab_starts_with_properties_and_export_preview_side_by_side(tmp_pa
         window.tab_widget.setCurrentWidget(tab)
         for _ in range(5):
             app.processEvents()
-        props, preview = tab.ui.control_dock_widget, tab.export_preview_dock_widget
-        assert not preview.isFloating()
-        assert preview in tab.tabifiedDockWidgets(props)
-        assert _dock_tab_bars(tab) == [(0, [props.windowTitle(), preview.windowTitle()])]
-        assert preview.visibleRegion().isEmpty()
+        assert tab.inspector.current_page() == "properties"
+        assert tab.export_preview_panel.visibleRegion().isEmpty()
 
         tab.redraw()
         _wait_for_preview_debounce(app)
         assert tab.export_preview_panel not in renders  # 後ろにある間は描かない
 
-        preview.raise_()
+        tab.show_export_preview()
         _wait_for_preview_debounce(app)
         assert tab.export_preview_panel in renders  # 前に出したら描く
+        tab.inspector.show_page("properties")
 
 
 def _wait_for_preview_debounce(app):
