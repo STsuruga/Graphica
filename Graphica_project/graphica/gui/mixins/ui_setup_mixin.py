@@ -6,6 +6,7 @@ from graphica.gui.theme import apply_theme
 from graphica.gui.dialogs import CommandPaletteDialog
 from graphica.gui.datasets.actions_menu import populate_dataset_actions_menu
 from graphica.gui.menu_bar import build_menu_bar
+from graphica.gui.shell import bottom_panel
 
 
 class UISetupMixin:
@@ -143,6 +144,7 @@ class UISetupMixin:
                 getattr(self, part).refresh_icons()
         for button, icon_name in getattr(self, '_field_icon_buttons', {}).items():
             button.setIcon(_svg_icon(icon_name, size=16))
+        bottom_panel.refresh_theme(self)
         if hasattr(self, 'lite_more_icon'):
             self.lite_more_icon.setPixmap(_svg_icon("lock", size=15).pixmap(15, 15))
         # プロパティ欄の節の見出しも同じ矢印
@@ -164,9 +166,6 @@ class UISetupMixin:
             self.tick_direction_y2_label.setVisible(False)
             self.major_tick_direction_y2_combo.setVisible(False)
             self.minor_tick_direction_y2_combo.setVisible(False)
-
-            self.fit_info_label.setVisible(False)
-            self.fit_info_textedit.setVisible(False)
 
             self.ui.grid_visible_checkbox.setChecked(False)
             self.ui.minor_grid_visible_checkbox.setChecked(False)

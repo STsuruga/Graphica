@@ -74,6 +74,8 @@ _LIGHT_BASE_TOKENS = {
     "border": "#E0E3E6", "border_strong": "#CBD0D5",
     "text_primary": "#191D1F", "text_secondary": "#56606A", "text_muted": "#8A939B",
     "success": "#22A06B", "danger": "#D1453B",
+    # 良い状態のバッジ(フィットの R²)の地と文字
+    "success_soft": "rgba(34, 160, 107, 0.14)", "success_fg": "#1A7F55",
     # 欠損値のセル。強調の色と被らない
     "warning_soft": "#FDF1D8",
 }
@@ -84,6 +86,7 @@ _DARK_BASE_TOKENS = {
     "border": "#272C32", "border_strong": "#373E46",
     "text_primary": "#E6E9EC", "text_secondary": "#A0A9B1", "text_muted": "#69737B",
     "success": "#5BD39A", "danger": "#F1857C",
+    "success_soft": "rgba(91, 211, 154, 0.14)", "success_fg": "#5BD39A",
     "warning_soft": "rgba(250, 204, 21, 0.16)",
 }
 
@@ -182,6 +185,78 @@ QWidget#plot_container {{
     background: {surface};
     border: 1px solid {border};
     border-radius: 14px;
+}}
+/* グラフの下のパネル(GUI 刷新、アドバンスド): カードと同じ角丸。上にアイコン付きのタブ */
+QFrame#bottom_panel {{
+    background: {surface};
+    border: 1px solid {border};
+    border-radius: 14px;
+}}
+QWidget#bottom_panel_header {{
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid {border};
+}}
+QToolButton#bottom_tab {{
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    padding: 4px 10px;
+    color: {text_secondary};
+}}
+QToolButton#bottom_tab:hover {{
+    color: {text_primary};
+}}
+QToolButton#bottom_tab:checked {{
+    background: {surface_2};
+    color: {text_primary};
+    font-weight: 600;
+}}
+QLabel#bottom_badge {{
+    background: {surface_2};
+    color: {text_secondary};
+    border-radius: 5px;
+    padding: 0 6px;
+    font-size: 10.5px;
+}}
+QLabel#bottom_badge[ok="true"] {{
+    background: {success_soft};
+    color: {success_fg};
+}}
+QLabel#bottom_panel_meta {{
+    color: {text_muted};
+    font-size: 11.5px;
+    background: transparent;
+    margin-right: 4px;
+}}
+QStackedWidget#bottom_panel_stack, QStackedWidget#bottom_panel_stack > QWidget {{
+    background: transparent;
+    border: none;
+}}
+QTableView#bottom_data_table {{
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    selection-background-color: {accent_soft};
+    selection-color: {text_primary};
+    gridline-color: {border};
+}}
+QTableView#bottom_data_table::item {{
+    border-bottom: 1px solid {border};
+    padding: 0 14px;
+}}
+QTableView#bottom_data_table QHeaderView::section {{
+    padding: 4px 14px;
+    font-weight: 600;
+}}
+QPlainTextEdit#bottom_log, QTextEdit#fit_info_textedit {{
+    background: transparent;
+    border: none;
+    padding: 6px 10px;
+}}
+QPlainTextEdit#bottom_log {{
+    font-family: "Consolas", "Menlo", monospace;
+    font-size: 11.5px;
 }}
 /* グラフのカード(GUI 刷新): ミニマップとの間は線を引かず、すき間だけ */
 QFrame#canvas_separator {{

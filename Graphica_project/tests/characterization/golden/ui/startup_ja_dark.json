@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "2d6d1c62b88873ee8f810039426a41253234fac61120086f5b0f719306eef6c3",
+  "stylesheet_sha256": "5df0073529fc805e502c011dfee0c4b744d949977218631fb92e82a035ed39c6",
   "palette": {
    "Window": "#ff111417",
    "WindowText": "#ffe6e9ec",
@@ -41,24 +41,6 @@
   }
  ],
  "tab_docks": [
-  {
-   "name": "ResidualDockWidget",
-   "title": "残差プロット",
-   "area": "BottomDockWidgetArea",
-   "floating": false,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
-  {
-   "name": "ProvenanceDockWidget",
-   "title": "処理履歴",
-   "area": "RightDockWidgetArea",
-   "floating": false,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
   {
    "name": "control_dock_widget",
    "title": "プロパティ",
@@ -497,8 +479,7 @@
      }
     },
     {
-     "text": "残差プロット",
-     "checked": false,
+     "text": "データ表",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -506,8 +487,31 @@
      }
     },
     {
-     "text": "処理履歴",
-     "checked": false,
+     "text": "フィット結果",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "残差",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "来歴",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "ログ",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -1073,139 +1077,6 @@
               "class": "QSizeGrip",
               "visible": false,
               "enabled": true
-             }
-            ]
-           },
-           {
-            "class": "QDockWidget",
-            "name": "ResidualDockWidget",
-            "visible": false,
-            "enabled": true,
-            "children": [
-             {
-              "class": "QAbstractButton",
-              "name": "qt_dockwidget_floatbutton",
-              "text": "",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "QAbstractButton",
-              "name": "qt_dockwidget_closebutton",
-              "text": "",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "ResidualPanel",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QLabel",
-                "text": "曲線フィットの結果を持つデータセットを選択すると、\nここに残差(実測値 - フィット値)が表示されます。",
-                "visible": false,
-                "enabled": true
-               },
-               {
-                "class": "FigureCanvasQTAgg",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           },
-           {
-            "class": "QDockWidget",
-            "name": "ProvenanceDockWidget",
-            "visible": false,
-            "enabled": true,
-            "children": [
-             {
-              "class": "QAbstractButton",
-              "name": "qt_dockwidget_floatbutton",
-              "text": "",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "QAbstractButton",
-              "name": "qt_dockwidget_closebutton",
-              "text": "",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "ProvenancePanel",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QLabel",
-                "text": "処理履歴(フィット・ベースライン補正・平滑化等で生成された\nデータセット)を選択すると、ここに処理の流れが表示されます。",
-                "visible": false,
-                "enabled": true
-               },
-               {
-                "class": "QTreeWidget",
-                "visible": false,
-                "enabled": true,
-                "receivers": {
-                 "pressed(QModelIndex)": 1,
-                 "clicked(QModelIndex)": 1,
-                 "doubleClicked(QModelIndex)": 1,
-                 "activated(QModelIndex)": 1,
-                 "entered(QModelIndex)": 1,
-                 "expanded(QModelIndex)": 1,
-                 "collapsed(QModelIndex)": 1
-                },
-                "children": [
-                 {
-                  "class": "QWidget",
-                  "name": "qt_scrollarea_viewport",
-                  "visible": false,
-                  "enabled": true
-                 },
-                 {
-                  "class": "QHeaderView",
-                  "visible": false,
-                  "enabled": true,
-                  "receivers": {
-                   "sectionMoved(int,int,int)": 1,
-                   "sectionResized(int,int,int)": 1,
-                   "sectionCountChanged(int,int)": 1,
-                   "sectionHandleDoubleClicked(int)": 1,
-                   "geometriesChanged()": 1
-                  },
-                  "children": [
-                   {
-                    "class": "QWidget",
-                    "name": "qt_scrollarea_viewport",
-                    "visible": false,
-                    "enabled": true
-                   }
-                  ]
-                 }
-                ]
-               }
-              ]
              }
             ]
            },
@@ -2266,351 +2137,670 @@
               "children": [
                {
                 "class": "QWidget",
-                "name": "plot_container",
+                "visible": true,
+                "enabled": true
+               },
+               {
+                "class": "QFrame",
+                "name": "button_row_separator",
+                "visible": true,
+                "enabled": true
+               },
+               {
+                "class": "QFrame",
+                "name": "button_row_separator",
+                "visible": true,
+                "enabled": true
+               },
+               {
+                "class": "CenterSplitter",
+                "name": "center_splitter",
                 "visible": true,
                 "enabled": true,
                 "children": [
                  {
-                  "class": "QLabel",
-                  "name": "card_title",
-                  "text": "サブプロット 1",
-                  "visible": true,
-                  "enabled": true
-                 },
-                 {
-                  "class": "QLabel",
-                  "name": "card_meta",
-                  "text": "0 系列",
-                  "visible": true,
-                  "enabled": true
-                 },
-                 {
-                  "class": "QLabel",
-                  "name": "card_meta",
-                  "text": "サブプロット 1 / 1",
-                  "visible": false,
-                  "enabled": true
-                 },
-                 {
-                  "class": "QToolButton",
-                  "name": "card_button",
-                  "text": "",
-                  "visible": true,
-                  "enabled": true,
-                  "tooltip": "表示をリセット (拡大/パンを元に戻す)",
-                  "receivers": {
-                   "pressed()": 1,
-                   "released()": 1,
-                   "clicked(bool)": 1,
-                   "clicked()": 1
-                  }
-                 },
-                 {
-                  "class": "QToolButton",
-                  "name": "card_button",
-                  "text": "",
-                  "checked": true,
+                  "class": "BottomPanel",
+                  "name": "bottom_panel",
                   "visible": false,
                   "enabled": true,
-                  "tooltip": "ミニマップ",
-                  "receivers": {
-                   "pressed()": 1,
-                   "released()": 1,
-                   "clicked(bool)": 1,
-                   "clicked()": 1
-                  }
-                 },
-                 {
-                  "class": "QToolButton",
-                  "name": "card_button",
-                  "text": "",
-                  "visible": true,
-                  "enabled": true,
-                  "tooltip": "キャンバスを別ウィンドウに切り離す",
-                  "receivers": {
-                   "pressed()": 1,
-                   "released()": 1,
-                   "clicked(bool)": 1,
-                   "clicked()": 1
-                  }
-                 },
-                 {
-                  "class": "QToolBar",
-                  "name": "plot_toolbar",
-                  "visible": false,
-                  "enabled": true,
-                  "receivers": {
-                   "orientationChanged(Qt::Orientation)": 2,
-                   "iconSizeChanged(QSize)": 9,
-                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 9
-                  },
                   "children": [
                    {
-                    "class": "QToolButton",
-                    "name": "qt_toolbar_ext_button",
-                    "text": "",
-                    "checked": false,
+                    "class": "QWidget",
+                    "name": "bottom_panel_header",
                     "visible": false,
                     "enabled": true,
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1
-                    },
                     "children": [
                      {
-                      "class": "QMenu",
+                      "class": "QLabel",
+                      "name": "bottom_panel_meta",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "card_button",
+                      "text": "",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "畳む",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "toggled(bool)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "データ表",
+                      "checked": true,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "フィット結果",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "残差",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "来歴",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "ログ",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
                       "visible": false,
                       "enabled": true
                      }
                     ]
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "カーソル",
-                    "checked": false,
+                    "class": "QStackedWidget",
+                    "name": "bottom_panel_stack",
                     "visible": false,
                     "enabled": true,
-                    "tooltip": "データカーソル",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
+                    "children": [
+                     {
+                      "class": "LogView",
+                      "name": "bottom_log",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "ProvenancePanel",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "text": "処理履歴(フィット・ベースライン補正・平滑化等で生成された\nデータセット)を選択すると、ここに処理の流れが表示されます。",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QTreeWidget",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "pressed(QModelIndex)": 1,
+                         "clicked(QModelIndex)": 1,
+                         "doubleClicked(QModelIndex)": 1,
+                         "activated(QModelIndex)": 1,
+                         "entered(QModelIndex)": 1,
+                         "expanded(QModelIndex)": 1,
+                         "collapsed(QModelIndex)": 1
+                        },
+                        "children": [
+                         {
+                          "class": "QWidget",
+                          "name": "qt_scrollarea_viewport",
+                          "visible": false,
+                          "enabled": true
+                         },
+                         {
+                          "class": "QHeaderView",
+                          "visible": false,
+                          "enabled": true,
+                          "receivers": {
+                           "sectionMoved(int,int,int)": 1,
+                           "sectionResized(int,int,int)": 1,
+                           "sectionCountChanged(int,int)": 1,
+                           "sectionHandleDoubleClicked(int)": 1,
+                           "geometriesChanged()": 1
+                          },
+                          "children": [
+                           {
+                            "class": "QWidget",
+                            "name": "qt_scrollarea_viewport",
+                            "visible": false,
+                            "enabled": true
+                           }
+                          ]
+                         }
+                        ]
+                       }
+                      ]
+                     },
+                     {
+                      "class": "ResidualPanel",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "text": "曲線フィットの結果を持つデータセットを選択すると、\nここに残差(実測値 - フィット値)が表示されます。",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "FigureCanvasQTAgg",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QTextEdit",
+                      "name": "fit_info_textedit",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QTableView",
+                      "name": "bottom_data_table",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QHeaderView",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "sectionMoved(int,int,int)": 1,
+                         "sectionResized(int,int,int)": 1,
+                         "sectionPressed(int)": 1,
+                         "sectionEntered(int)": 1,
+                         "sectionCountChanged(int,int)": 1,
+                         "sectionHandleDoubleClicked(int)": 1,
+                         "geometriesChanged()": 1
+                        },
+                        "children": [
+                         {
+                          "class": "QWidget",
+                          "name": "qt_scrollarea_viewport",
+                          "visible": false,
+                          "enabled": true
+                         }
+                        ]
+                       },
+                       {
+                        "class": "QHeaderView",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "sectionMoved(int,int,int)": 1,
+                         "sectionResized(int,int,int)": 1,
+                         "sectionPressed(int)": 1,
+                         "sectionEntered(int)": 1,
+                         "sectionCountChanged(int,int)": 1,
+                         "sectionHandleDoubleClicked(int)": 1,
+                         "geometriesChanged()": 1
+                        },
+                        "children": [
+                         {
+                          "class": "QWidget",
+                          "name": "qt_scrollarea_viewport",
+                          "visible": false,
+                          "enabled": true
+                         }
+                        ]
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QWidget",
+                  "name": "plot_container",
+                  "visible": true,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QLabel",
+                    "name": "card_title",
+                    "text": "サブプロット 1",
+                    "visible": true,
+                    "enabled": true
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "注釈",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
+                    "class": "QLabel",
+                    "name": "card_meta",
+                    "text": "0 系列",
+                    "visible": true,
+                    "enabled": true
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "範囲選択",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "ピーク",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "領域",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "スライス",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "配置",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": false,
-                    "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QWidget",
+                    "class": "QLabel",
+                    "name": "card_meta",
+                    "text": "サブプロット 1 / 1",
                     "visible": false,
                     "enabled": true
                    },
                    {
                     "class": "QToolButton",
-                    "text": "フィット",
-                    "visible": false,
+                    "name": "card_button",
+                    "text": "",
+                    "visible": true,
                     "enabled": true,
-                    "tooltip": "曲線フィット...",
+                    "tooltip": "表示をリセット (拡大/パンを元に戻す)",
                     "receivers": {
                      "pressed()": 1,
                      "released()": 1,
-                     "triggered(QAction*)": 1
+                     "clicked(bool)": 1,
+                     "clicked()": 1
                     }
                    },
                    {
                     "class": "QToolButton",
-                    "text": "平滑化",
+                    "name": "card_button",
+                    "text": "",
+                    "checked": true,
                     "visible": false,
                     "enabled": true,
-                    "tooltip": "Savitzky-Golayフィルタ...",
+                    "tooltip": "ミニマップ",
                     "receivers": {
                      "pressed()": 1,
                      "released()": 1,
-                     "triggered(QAction*)": 1
+                     "clicked(bool)": 1,
+                     "clicked()": 1
                     }
-                   }
-                  ]
-                 },
-                 {
-                  "class": "QToolBar",
-                  "name": "plot_tool_rail",
-                  "visible": true,
-                  "enabled": true,
-                  "receivers": {
-                   "orientationChanged(Qt::Orientation)": 2,
-                   "iconSizeChanged(QSize)": 4,
-                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 4
-                  },
-                  "children": [
+                   },
                    {
                     "class": "QToolButton",
-                    "name": "qt_toolbar_ext_button",
+                    "name": "card_button",
                     "text": "",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": false,
+                    "visible": true,
+                    "enabled": true,
+                    "tooltip": "キャンバスを別ウィンドウに切り離す",
                     "receivers": {
                      "pressed()": 1,
-                     "released()": 1
+                     "released()": 1,
+                     "clicked(bool)": 1,
+                     "clicked()": 1
+                    }
+                   },
+                   {
+                    "class": "QToolBar",
+                    "name": "plot_toolbar",
+                    "visible": false,
+                    "enabled": true,
+                    "receivers": {
+                     "orientationChanged(Qt::Orientation)": 2,
+                     "iconSizeChanged(QSize)": 9,
+                     "toolButtonStyleChanged(Qt::ToolButtonStyle)": 9
                     },
                     "children": [
                      {
-                      "class": "QMenu",
+                      "class": "QToolButton",
+                      "name": "qt_toolbar_ext_button",
+                      "text": "",
+                      "checked": false,
                       "visible": false,
-                      "enabled": false
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      },
+                      "children": [
+                       {
+                        "class": "QMenu",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "カーソル",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "データカーソル",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "注釈",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "範囲選択",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "ピーク",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "領域",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "領域ハイライト (横ドラッグ:縦帯 / 縦ドラッグ:横帯 / 右クリック:削除)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "スライス",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "スライス抽出 (2Dマップ上でドラッグした線分に沿って1Dデータを抽出)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "配置",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": false,
+                      "tooltip": "レイアウト編集 (自由配置レイアウト時のみ: ドラッグでプロットを移動/リサイズ)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "フィット",
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "曲線フィット...",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "平滑化",
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Savitzky-Golayフィルタ...",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
                      }
                     ]
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "カーソル",
-                    "checked": false,
+                    "class": "QToolBar",
+                    "name": "plot_tool_rail",
                     "visible": true,
                     "enabled": true,
-                    "tooltip": "データカーソル",
                     "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
+                     "orientationChanged(Qt::Orientation)": 2,
+                     "iconSizeChanged(QSize)": 4,
+                     "toolButtonStyleChanged(Qt::ToolButtonStyle)": 4
+                    },
+                    "children": [
+                     {
+                      "class": "QToolButton",
+                      "name": "qt_toolbar_ext_button",
+                      "text": "",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": false,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      },
+                      "children": [
+                       {
+                        "class": "QMenu",
+                        "visible": false,
+                        "enabled": false
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "カーソル",
+                      "checked": false,
+                      "visible": true,
+                      "enabled": true,
+                      "tooltip": "データカーソル",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "注釈",
+                      "checked": false,
+                      "visible": true,
+                      "enabled": true,
+                      "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "範囲選択",
+                      "checked": false,
+                      "visible": true,
+                      "enabled": true,
+                      "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": true,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "フィット",
+                      "visible": true,
+                      "enabled": true,
+                      "tooltip": "曲線フィット...",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     }
+                    ]
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "注釈",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "範囲選択",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QWidget",
+                    "class": "MplCanvas",
                     "visible": true,
                     "enabled": true
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "フィット",
+                    "class": "QFrame",
+                    "name": "canvas_separator",
+                    "visible": true,
+                    "enabled": true
+                   },
+                   {
+                    "class": "MinimapWidget",
                     "visible": true,
                     "enabled": true,
-                    "tooltip": "曲線フィット...",
                     "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
+                     "range_selected(double,double)": 1
                     }
                    }
                   ]
                  },
                  {
-                  "class": "MplCanvas",
-                  "visible": true,
+                  "class": "_GripHandle",
+                  "name": "qt_splithandle_plot_container",
+                  "visible": false,
                   "enabled": true
                  },
                  {
-                  "class": "QFrame",
-                  "name": "canvas_separator",
-                  "visible": true,
+                  "class": "_GripHandle",
+                  "name": "qt_splithandle_bottom_panel",
+                  "visible": false,
                   "enabled": true
-                 },
-                 {
-                  "class": "MinimapWidget",
-                  "visible": true,
-                  "enabled": true,
-                  "receivers": {
-                   "range_selected(double,double)": 1
-                  }
                  }
                 ]
-               },
-               {
-                "class": "QWidget",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QFrame",
-                "name": "button_row_separator",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QFrame",
-                "name": "button_row_separator",
-                "visible": true,
-                "enabled": true
                }
               ]
              }
@@ -8389,25 +8579,6 @@
                                     }
                                    }
                                   ]
-                                 }
-                                ]
-                               },
-                               {
-                                "class": "QLabel",
-                                "text": "フィット情報",
-                                "visible": false,
-                                "enabled": false
-                               },
-                               {
-                                "class": "QTextEdit",
-                                "visible": false,
-                                "enabled": false,
-                                "children": [
-                                 {
-                                  "class": "QWidget",
-                                  "name": "qt_scrollarea_viewport",
-                                  "visible": false,
-                                  "enabled": false
                                  }
                                 ]
                                }

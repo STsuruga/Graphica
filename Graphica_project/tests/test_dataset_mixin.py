@@ -3642,7 +3642,7 @@ def test_select_fit_dataset_refreshes_residual_panel(tmp_path, monkeypatch):
     }
     _add_and_select_dataset(window, ds)
 
-    # ★ residual_dock_widgetは既定で非表示のため、その祖先を含めた
+    # ★ 残差は下のパネル(アドバンスドだけ)のタブで、単独のタブでは見えていないことがあるため、その祖先を含めた
     # isVisible()ではなくisVisibleTo(親)でパネル内部の表示状態だけを見る
     # (ドック自体を開くかどうかはユーザー操作であり、ここで検証したいのは
     # 「開いた場合に中身が正しく切り替わるか」というロジックのみ)。
@@ -3675,9 +3675,11 @@ def test_deselecting_dataset_resets_residual_panel_to_placeholder(tmp_path, monk
     assert window.residual_panel.canvas.isVisibleTo(window.residual_panel) is False
 
 
-def test_residual_dock_widget_exists_and_hidden_by_default(tmp_path, monkeypatch):
+def test_residual_plot_is_a_tab_of_the_bottom_panel(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    assert window.residual_dock_widget.isHidden() is True
+    assert window.bottom_panel.stack.indexOf(window.residual_panel) >= 0
+    window.show_bottom_page("residual")
+    assert window.bottom_panel.current_page() == "residual"
 
 
 def test_stats_summary_all_nan_shows_placeholder(tmp_path, monkeypatch):

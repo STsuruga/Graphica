@@ -2,6 +2,7 @@
 from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QWidget
 
 from graphica.core.i18n import tr
+from graphica.gui.shell.bottom_panel import build_bottom_panel
 from graphica.gui.shell.dataset_page import LEFT_PANEL_WIDTH, DatasetPage
 from graphica.gui.shell.rail import ActivityRail
 from graphica.gui.shell.side_pages import PluginPage
@@ -37,6 +38,9 @@ def build_tab_shell(app):
         "moon", tr("ダークモード"), lambda: app.dark_mode_action.trigger())
     app.activity_rail.add_bottom_button(
         "settings", tr("環境設定"), lambda: app._on_show_preferences())
+
+    # グラフのカードの下のパネル(アドバンスドだけ)。残差・来歴のドックはここのタブになった
+    build_bottom_panel(app)
 
     shell = QWidget()
     shell.setObjectName("tab_shell")

@@ -4,6 +4,7 @@ import numpy as np
 from matplotlib.patches import Rectangle
 
 from graphica.gui import theme
+from graphica.gui.shell import bottom_panel
 from graphica.gui.ui_mode import ADVANCED
 
 logger = logging.getLogger(__name__)
@@ -247,8 +248,11 @@ class CursorTool:
             self._remove_cursor_annotation()
 
             ax = artist.axes
-            text = cursor_label_text(owning_dataset, data_x, data_y, z, self._picked_row_number(owning_dataset, ind),
+            row_number = self._picked_row_number(owning_dataset, ind)
+            text = cursor_label_text(owning_dataset, data_x, data_y, z, row_number,
                                      getattr(self._app, 'ui_mode', ADVANCED))
+            # 下のパネルのデータ表でも、その行に印を付ける
+            bottom_panel.highlight_table_row(self._app, owning_dataset, row_number)
             tokens = theme.tokens_for(self._app.canvas.dark_mode, theme.current_theme_color())
             self.cursor_annotation = ax.annotate(text,
                 xy=(x, y),

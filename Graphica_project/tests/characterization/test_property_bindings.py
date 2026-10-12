@@ -29,7 +29,7 @@ PANEL_WIDGETS = (
     "z_col_label", "z_col_combo", "colormap_label", "colormap_combo", "color_range_auto_checkbox", "vmin_label",
     "vmin_spinbox", "vmax_label", "vmax_spinbox", "map_display_mode_label", "map_display_mode_combo",
     "contour_levels_label", "contour_levels_spinbox", "grid_interp_method_label", "grid_interp_method_combo",
-    "x_col_combo", "y_col_combo", "x_err_col_combo", "y_err_col_combo", "fit_info_label", "fit_info_textedit",
+    "x_col_combo", "y_col_combo", "x_err_col_combo", "y_err_col_combo", "fit_info_textedit",
     "stats_summary_label", "dataset_page.stats_name", "ui.remove_dataset_button", "duplicate_dataset_button",
     "view_edit_data_button", "auto_color_button", "fit_curve_button", "find_peaks_button",
 )

@@ -26,6 +26,8 @@ MODE_ONLY_ELEMENTS = (
     ("_plot_type_tiles_row", LITE),
     ("lite_more_box", LITE),
     ("color_picker_widget.hex_edit", ADVANCED),
+    # グラフの下のパネル(データ表・フィット結果・残差・来歴・ログ)
+    ("bottom_panel", ADVANCED),
 )
 
 # シンプルで隠すプロパティの行(欄の属性の名前。名前の欄も一緒に隠す)。種類などによる今の出し入れより強い

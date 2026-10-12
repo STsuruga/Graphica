@@ -12,7 +12,7 @@
   "canvas_was_detached": false,
   "clean_exit": true,
   "dark_mode": false,
-  "dock_layout_version": 5,
+  "dock_layout_version": 6,
   "has_shown_welcome": true,
   "language": "ja",
   "ui_mode": "lite",
@@ -21,8 +21,8 @@
    "len": 66
   },
   "window_state": {
-   "bytes_sha256": "a5d1da53911347d7",
-   "len": 258
+   "bytes_sha256": "e4780b5c29bec5df",
+   "len": 120
   }
  },
  "modals": [

@@ -322,8 +322,7 @@
      }
     },
     {
-     "text": "残差プロット",
-     "checked": false,
+     "text": "データ表",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -331,8 +330,31 @@
      }
     },
     {
-     "text": "処理履歴",
-     "checked": false,
+     "text": "フィット結果",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "残差",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "来歴",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "ログ",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -514,24 +536,6 @@
   }
  ],
  "tab_docks": [
-  {
-   "name": "ResidualDockWidget",
-   "title": "残差プロット",
-   "area": "BottomDockWidgetArea",
-   "floating": false,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
-  {
-   "name": "ProvenanceDockWidget",
-   "title": "処理履歴",
-   "area": "RightDockWidgetArea",
-   "floating": false,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
   {
    "name": "control_dock_widget",
    "title": "プロパティ",

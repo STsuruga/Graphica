@@ -137,9 +137,9 @@ def test_the_original_form_layout_is_left_empty(window):
 
 def test_every_property_row_lives_in_exactly_one_section(window):
     """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行、+ ウォーターフォールのオフセットの指定1行、+ 凡例の表示名と「凡例に表示しない」2行、
-    + マーカーの塗りと枠線5行、+ シンプルの種類のタイル1行)が過不足なく節に分配されていること。"""
+    + マーカーの塗りと枠線5行、+ シンプルの種類のタイル1行、- 下のパネルへ移したフィット情報1行)が過不足なく節に分配されていること。"""
     total = sum(window._prop_form(key).rowCount() for key, _ in DATASET_PROPERTY_SECTIONS)
-    assert total == 49
+    assert total == 48
 
 
 def test_no_property_widget_is_orphaned_from_every_layout(window):
@@ -198,7 +198,6 @@ def test_no_property_widget_is_orphaned_from_every_layout(window):
     ('extra', 'error_display_combo'),
     ('place', 'use_secondary_y_checkbox'),
     ('place', 'subplot_target_combo'),
-    ('place', 'fit_info_textedit'),
 ])
 def test_widget_is_in_its_declared_section(window, section_key, widget_attr):
     widget = getattr(window, widget_attr)
@@ -226,19 +225,6 @@ def test_smoothing_checkbox_sits_directly_above_its_method_combo(window):
     i_label = widgets.index(window.smoothing_method_label)
     assert i_label == i_check + 1
 
-
-def test_fit_info_is_the_last_row_of_its_section(window):
-    """
-    フィットが無いときは隠れる100px高の欄なので、セクションの先頭にあると
-    フィットするたびに下の項目が押し下げられる。末尾に置く。
-    """
-    form = window._prop_form('place')
-    last_row = form.rowCount() - 1
-    item = form.itemAt(last_row, QFormLayout.ItemRole.FieldRole)         or form.itemAt(last_row, QFormLayout.ItemRole.SpanningRole)
-    assert item.widget() is window.fit_info_textedit
-
-
-# --- 見出しのトグル ---
 
 def test_subsection_toggles_use_their_own_object_name(window):
     """節の見出しは theme.py の property_subsection_toggle の規則で描く(SectionHeader 既定の名前ではない)。"""

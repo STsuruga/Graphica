@@ -782,6 +782,12 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self.properties_dock_widget.show()
         self.inspector.show_page("export")
 
+    def show_bottom_page(self, key):
+        """グラフの下のパネルのタブを開く(表示メニュー)。シンプルでは出ないので、アドバンスドに切り替える。"""
+        if getattr(self, 'ui_mode', None) != ui_mode.ADVANCED:
+            self.show_advanced_mode()
+        self.bottom_panel.show_page(key)
+
     def show_advanced_mode(self):
         """アドバンスドに切り替える(シンプルのプロパティの案内から)。ウィンドウに入っていれば全部のタブに当てて保存する。"""
         main_window = self.window()

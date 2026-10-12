@@ -344,12 +344,11 @@ def build_dataset_style_controls(app):
 
 
 def build_fit_info_and_stats(app):
-    app.fit_info_label = QLabel("フィット情報")
+    # フィットの結果の文。置き場所は下のパネルの「フィット結果」のタブ(shell/bottom_panel.py)
     app.fit_info_textedit = QTextEdit()
+    app.fit_info_textedit.setObjectName("fit_info_textedit")
     app.fit_info_textedit.setReadOnly(True)
-    app.fit_info_textedit.setFixedHeight(100)
-    # 節の最後(描画先の後ろ)に置く(_add_subplot_target_row)。フィットが無いと隠れる欄なので、
-    # 先頭に置くとフィットのたびに下の項目が押し下げられる
+    app.fit_info_textedit.setPlaceholderText(tr("フィットした曲線か、フィットしたデータセットを選ぶと、ここに式とパラメータが出ます。"))
 
     # 統計の1行(件数・平均・標準偏差・最小・最大)。選択が変わるたびに property_panel.update_stats_summary_label が
     # 更新する。画面には左パネルの統計カードを出す(GUI 刷新の決定 10 でツールバーの統計ボタンはやめた)
@@ -423,8 +422,6 @@ def add_subplot_target_row(app):
     app.subplot_target_label = QLabel("描画先プロット")
     app.subplot_target_combo = QComboBox()
     app._prop_form('place').addRow(app.subplot_target_label, app.subplot_target_combo)
-    # フィット情報欄 (上で構築済み) は、このセクションの最後に置く
-    app._prop_form('place').addRow(app.fit_info_label, app.fit_info_textedit)
 
 
 class DatasetTreeWidget(QTreeWidget):

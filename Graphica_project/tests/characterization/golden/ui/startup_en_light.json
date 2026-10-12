@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "318e521142691442def7116c84b41d390b677c466f751705e879047ad1ab8425",
+  "stylesheet_sha256": "f04ab599928b87eea99d19171b688f7f2d8737e1d58ca4fc55aeaa90ddc7699d",
   "palette": {
    "Window": "#fff1f2f4",
    "WindowText": "#ff191d1f",
@@ -41,24 +41,6 @@
   }
  ],
  "tab_docks": [
-  {
-   "name": "ResidualDockWidget",
-   "title": "Residual Plot",
-   "area": "BottomDockWidgetArea",
-   "floating": false,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
-  {
-   "name": "ProvenanceDockWidget",
-   "title": "Processing History",
-   "area": "RightDockWidgetArea",
-   "floating": false,
-   "visible": false,
-   "features": "DockWidgetClosable|DockWidgetMovable|DockWidgetFloatable",
-   "tabified_with": []
-  },
   {
    "name": "control_dock_widget",
    "title": "Properties",
@@ -497,8 +479,7 @@
      }
     },
     {
-     "text": "Residual Plot",
-     "checked": false,
+     "text": "Data",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -506,8 +487,31 @@
      }
     },
     {
-     "text": "Processing History",
-     "checked": false,
+     "text": "Fit results",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "Residuals",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "History",
+     "receivers": {
+      "triggered(bool)": 2,
+      "triggered()": 2,
+      "hovered()": 1
+     }
+    },
+    {
+     "text": "Log",
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
@@ -1073,139 +1077,6 @@
               "class": "QSizeGrip",
               "visible": false,
               "enabled": true
-             }
-            ]
-           },
-           {
-            "class": "QDockWidget",
-            "name": "ResidualDockWidget",
-            "visible": false,
-            "enabled": true,
-            "children": [
-             {
-              "class": "QAbstractButton",
-              "name": "qt_dockwidget_floatbutton",
-              "text": "",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "QAbstractButton",
-              "name": "qt_dockwidget_closebutton",
-              "text": "",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "ResidualPanel",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QLabel",
-                "text": "Select a dataset with a curve-fit result to see\nits residuals (measured - fitted) here.",
-                "visible": false,
-                "enabled": true
-               },
-               {
-                "class": "FigureCanvasQTAgg",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           },
-           {
-            "class": "QDockWidget",
-            "name": "ProvenanceDockWidget",
-            "visible": false,
-            "enabled": true,
-            "children": [
-             {
-              "class": "QAbstractButton",
-              "name": "qt_dockwidget_floatbutton",
-              "text": "",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "QAbstractButton",
-              "name": "qt_dockwidget_closebutton",
-              "text": "",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "ProvenancePanel",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QLabel",
-                "text": "Select a dataset created by processing (fitting, baseline\ncorrection, smoothing, ...) to see its history here.",
-                "visible": false,
-                "enabled": true
-               },
-               {
-                "class": "QTreeWidget",
-                "visible": false,
-                "enabled": true,
-                "receivers": {
-                 "pressed(QModelIndex)": 1,
-                 "clicked(QModelIndex)": 1,
-                 "doubleClicked(QModelIndex)": 1,
-                 "activated(QModelIndex)": 1,
-                 "entered(QModelIndex)": 1,
-                 "expanded(QModelIndex)": 1,
-                 "collapsed(QModelIndex)": 1
-                },
-                "children": [
-                 {
-                  "class": "QWidget",
-                  "name": "qt_scrollarea_viewport",
-                  "visible": false,
-                  "enabled": true
-                 },
-                 {
-                  "class": "QHeaderView",
-                  "visible": false,
-                  "enabled": true,
-                  "receivers": {
-                   "sectionMoved(int,int,int)": 1,
-                   "sectionResized(int,int,int)": 1,
-                   "sectionCountChanged(int,int)": 1,
-                   "sectionHandleDoubleClicked(int)": 1,
-                   "geometriesChanged()": 1
-                  },
-                  "children": [
-                   {
-                    "class": "QWidget",
-                    "name": "qt_scrollarea_viewport",
-                    "visible": false,
-                    "enabled": true
-                   }
-                  ]
-                 }
-                ]
-               }
-              ]
              }
             ]
            },
@@ -2266,351 +2137,670 @@
               "children": [
                {
                 "class": "QWidget",
-                "name": "plot_container",
+                "visible": true,
+                "enabled": true
+               },
+               {
+                "class": "QFrame",
+                "name": "button_row_separator",
+                "visible": true,
+                "enabled": true
+               },
+               {
+                "class": "QFrame",
+                "name": "button_row_separator",
+                "visible": true,
+                "enabled": true
+               },
+               {
+                "class": "CenterSplitter",
+                "name": "center_splitter",
                 "visible": true,
                 "enabled": true,
                 "children": [
                  {
-                  "class": "QLabel",
-                  "name": "card_title",
-                  "text": "Subplot 1",
-                  "visible": true,
-                  "enabled": true
-                 },
-                 {
-                  "class": "QLabel",
-                  "name": "card_meta",
-                  "text": "0 series",
-                  "visible": true,
-                  "enabled": true
-                 },
-                 {
-                  "class": "QLabel",
-                  "name": "card_meta",
-                  "text": "Subplot 1 / 1",
-                  "visible": false,
-                  "enabled": true
-                 },
-                 {
-                  "class": "QToolButton",
-                  "name": "card_button",
-                  "text": "",
-                  "visible": true,
-                  "enabled": true,
-                  "tooltip": "Reset View (undo zoom/pan)",
-                  "receivers": {
-                   "pressed()": 1,
-                   "released()": 1,
-                   "clicked(bool)": 1,
-                   "clicked()": 1
-                  }
-                 },
-                 {
-                  "class": "QToolButton",
-                  "name": "card_button",
-                  "text": "",
-                  "checked": true,
+                  "class": "BottomPanel",
+                  "name": "bottom_panel",
                   "visible": false,
                   "enabled": true,
-                  "tooltip": "Minimap",
-                  "receivers": {
-                   "pressed()": 1,
-                   "released()": 1,
-                   "clicked(bool)": 1,
-                   "clicked()": 1
-                  }
-                 },
-                 {
-                  "class": "QToolButton",
-                  "name": "card_button",
-                  "text": "",
-                  "visible": true,
-                  "enabled": true,
-                  "tooltip": "Detach Canvas to a Window",
-                  "receivers": {
-                   "pressed()": 1,
-                   "released()": 1,
-                   "clicked(bool)": 1,
-                   "clicked()": 1
-                  }
-                 },
-                 {
-                  "class": "QToolBar",
-                  "name": "plot_toolbar",
-                  "visible": false,
-                  "enabled": true,
-                  "receivers": {
-                   "orientationChanged(Qt::Orientation)": 2,
-                   "iconSizeChanged(QSize)": 9,
-                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 9
-                  },
                   "children": [
                    {
-                    "class": "QToolButton",
-                    "name": "qt_toolbar_ext_button",
-                    "text": "",
-                    "checked": false,
+                    "class": "QWidget",
+                    "name": "bottom_panel_header",
                     "visible": false,
                     "enabled": true,
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1
-                    },
                     "children": [
                      {
-                      "class": "QMenu",
+                      "class": "QLabel",
+                      "name": "bottom_panel_meta",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "card_button",
+                      "text": "",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Collapse",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "toggled(bool)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "Data",
+                      "checked": true,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "Fit results",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "Residuals",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "History",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "name": "bottom_tab",
+                      "text": "Log",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      }
+                     },
+                     {
+                      "class": "QLabel",
+                      "name": "bottom_badge",
+                      "text": "",
                       "visible": false,
                       "enabled": true
                      }
                     ]
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "Cursor",
-                    "checked": false,
+                    "class": "QStackedWidget",
+                    "name": "bottom_panel_stack",
                     "visible": false,
                     "enabled": true,
-                    "tooltip": "Data Cursor",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
+                    "children": [
+                     {
+                      "class": "LogView",
+                      "name": "bottom_log",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "ProvenancePanel",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "text": "Select a dataset created by processing (fitting, baseline\ncorrection, smoothing, ...) to see its history here.",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QTreeWidget",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "pressed(QModelIndex)": 1,
+                         "clicked(QModelIndex)": 1,
+                         "doubleClicked(QModelIndex)": 1,
+                         "activated(QModelIndex)": 1,
+                         "entered(QModelIndex)": 1,
+                         "expanded(QModelIndex)": 1,
+                         "collapsed(QModelIndex)": 1
+                        },
+                        "children": [
+                         {
+                          "class": "QWidget",
+                          "name": "qt_scrollarea_viewport",
+                          "visible": false,
+                          "enabled": true
+                         },
+                         {
+                          "class": "QHeaderView",
+                          "visible": false,
+                          "enabled": true,
+                          "receivers": {
+                           "sectionMoved(int,int,int)": 1,
+                           "sectionResized(int,int,int)": 1,
+                           "sectionCountChanged(int,int)": 1,
+                           "sectionHandleDoubleClicked(int)": 1,
+                           "geometriesChanged()": 1
+                          },
+                          "children": [
+                           {
+                            "class": "QWidget",
+                            "name": "qt_scrollarea_viewport",
+                            "visible": false,
+                            "enabled": true
+                           }
+                          ]
+                         }
+                        ]
+                       }
+                      ]
+                     },
+                     {
+                      "class": "ResidualPanel",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QLabel",
+                        "text": "Select a dataset with a curve-fit result to see\nits residuals (measured - fitted) here.",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "FigureCanvasQTAgg",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QTextEdit",
+                      "name": "fit_info_textedit",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QTableView",
+                      "name": "bottom_data_table",
+                      "visible": false,
+                      "enabled": true,
+                      "children": [
+                       {
+                        "class": "QWidget",
+                        "name": "qt_scrollarea_viewport",
+                        "visible": false,
+                        "enabled": true
+                       },
+                       {
+                        "class": "QHeaderView",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "sectionMoved(int,int,int)": 1,
+                         "sectionResized(int,int,int)": 1,
+                         "sectionPressed(int)": 1,
+                         "sectionEntered(int)": 1,
+                         "sectionCountChanged(int,int)": 1,
+                         "sectionHandleDoubleClicked(int)": 1,
+                         "geometriesChanged()": 1
+                        },
+                        "children": [
+                         {
+                          "class": "QWidget",
+                          "name": "qt_scrollarea_viewport",
+                          "visible": false,
+                          "enabled": true
+                         }
+                        ]
+                       },
+                       {
+                        "class": "QHeaderView",
+                        "visible": false,
+                        "enabled": true,
+                        "receivers": {
+                         "sectionMoved(int,int,int)": 1,
+                         "sectionResized(int,int,int)": 1,
+                         "sectionPressed(int)": 1,
+                         "sectionEntered(int)": 1,
+                         "sectionCountChanged(int,int)": 1,
+                         "sectionHandleDoubleClicked(int)": 1,
+                         "geometriesChanged()": 1
+                        },
+                        "children": [
+                         {
+                          "class": "QWidget",
+                          "name": "qt_scrollarea_viewport",
+                          "visible": false,
+                          "enabled": true
+                         }
+                        ]
+                       }
+                      ]
+                     }
+                    ]
+                   }
+                  ]
+                 },
+                 {
+                  "class": "QWidget",
+                  "name": "plot_container",
+                  "visible": true,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QLabel",
+                    "name": "card_title",
+                    "text": "Subplot 1",
+                    "visible": true,
+                    "enabled": true
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "Annotations",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
+                    "class": "QLabel",
+                    "name": "card_meta",
+                    "text": "0 series",
+                    "visible": true,
+                    "enabled": true
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "Range Select",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "Range Select (mask the dragged range of the current dataset)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Peaks",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Region",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Slice",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": true,
-                    "tooltip": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Arrangement",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": false,
-                    "tooltip": "Edit Layout (Free layout only: drag to move/resize plots)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QWidget",
+                    "class": "QLabel",
+                    "name": "card_meta",
+                    "text": "Subplot 1 / 1",
                     "visible": false,
                     "enabled": true
                    },
                    {
                     "class": "QToolButton",
-                    "text": "Fitting",
-                    "visible": false,
+                    "name": "card_button",
+                    "text": "",
+                    "visible": true,
                     "enabled": true,
-                    "tooltip": "Curve Fit...",
+                    "tooltip": "Reset View (undo zoom/pan)",
                     "receivers": {
                      "pressed()": 1,
                      "released()": 1,
-                     "triggered(QAction*)": 1
+                     "clicked(bool)": 1,
+                     "clicked()": 1
                     }
                    },
                    {
                     "class": "QToolButton",
-                    "text": "Smoothing",
+                    "name": "card_button",
+                    "text": "",
+                    "checked": true,
                     "visible": false,
                     "enabled": true,
-                    "tooltip": "Savitzky-Golay Filter...",
+                    "tooltip": "Minimap",
                     "receivers": {
                      "pressed()": 1,
                      "released()": 1,
-                     "triggered(QAction*)": 1
+                     "clicked(bool)": 1,
+                     "clicked()": 1
                     }
-                   }
-                  ]
-                 },
-                 {
-                  "class": "QToolBar",
-                  "name": "plot_tool_rail",
-                  "visible": true,
-                  "enabled": true,
-                  "receivers": {
-                   "orientationChanged(Qt::Orientation)": 2,
-                   "iconSizeChanged(QSize)": 4,
-                   "toolButtonStyleChanged(Qt::ToolButtonStyle)": 4
-                  },
-                  "children": [
+                   },
                    {
                     "class": "QToolButton",
-                    "name": "qt_toolbar_ext_button",
+                    "name": "card_button",
                     "text": "",
-                    "checked": false,
-                    "visible": false,
-                    "enabled": false,
+                    "visible": true,
+                    "enabled": true,
+                    "tooltip": "Detach Canvas to a Window",
                     "receivers": {
                      "pressed()": 1,
-                     "released()": 1
+                     "released()": 1,
+                     "clicked(bool)": 1,
+                     "clicked()": 1
+                    }
+                   },
+                   {
+                    "class": "QToolBar",
+                    "name": "plot_toolbar",
+                    "visible": false,
+                    "enabled": true,
+                    "receivers": {
+                     "orientationChanged(Qt::Orientation)": 2,
+                     "iconSizeChanged(QSize)": 9,
+                     "toolButtonStyleChanged(Qt::ToolButtonStyle)": 9
                     },
                     "children": [
                      {
-                      "class": "QMenu",
+                      "class": "QToolButton",
+                      "name": "qt_toolbar_ext_button",
+                      "text": "",
+                      "checked": false,
                       "visible": false,
-                      "enabled": false
+                      "enabled": true,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      },
+                      "children": [
+                       {
+                        "class": "QMenu",
+                        "visible": false,
+                        "enabled": true
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Cursor",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Data Cursor",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Annotations",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Range Select",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Range Select (mask the dragged range of the current dataset)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Peaks",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Region",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Region Highlight (drag horizontally: vertical band / vertically: horizontal band / right-click: remove)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Slice",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Slice Extraction (extract 1D data along a line dragged on a 2D map)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Arrangement",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": false,
+                      "tooltip": "Edit Layout (Free layout only: drag to move/resize plots)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": false,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Fitting",
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Curve Fit...",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Smoothing",
+                      "visible": false,
+                      "enabled": true,
+                      "tooltip": "Savitzky-Golay Filter...",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
                      }
                     ]
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "Cursor",
-                    "checked": false,
+                    "class": "QToolBar",
+                    "name": "plot_tool_rail",
                     "visible": true,
                     "enabled": true,
-                    "tooltip": "Data Cursor",
                     "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
+                     "orientationChanged(Qt::Orientation)": 2,
+                     "iconSizeChanged(QSize)": 4,
+                     "toolButtonStyleChanged(Qt::ToolButtonStyle)": 4
+                    },
+                    "children": [
+                     {
+                      "class": "QToolButton",
+                      "name": "qt_toolbar_ext_button",
+                      "text": "",
+                      "checked": false,
+                      "visible": false,
+                      "enabled": false,
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1
+                      },
+                      "children": [
+                       {
+                        "class": "QMenu",
+                        "visible": false,
+                        "enabled": false
+                       }
+                      ]
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Cursor",
+                      "checked": false,
+                      "visible": true,
+                      "enabled": true,
+                      "tooltip": "Data Cursor",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Annotations",
+                      "checked": false,
+                      "visible": true,
+                      "enabled": true,
+                      "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Range Select",
+                      "checked": false,
+                      "visible": true,
+                      "enabled": true,
+                      "tooltip": "Range Select (mask the dragged range of the current dataset)",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     },
+                     {
+                      "class": "QWidget",
+                      "visible": true,
+                      "enabled": true
+                     },
+                     {
+                      "class": "QToolButton",
+                      "text": "Fitting",
+                      "visible": true,
+                      "enabled": true,
+                      "tooltip": "Curve Fit...",
+                      "receivers": {
+                       "pressed()": 1,
+                       "released()": 1,
+                       "triggered(QAction*)": 1
+                      }
+                     }
+                    ]
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "Annotations",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "Annotation (Click: text / Drag: arrow / Right-click: delete)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QToolButton",
-                    "text": "Range Select",
-                    "checked": false,
-                    "visible": true,
-                    "enabled": true,
-                    "tooltip": "Range Select (mask the dragged range of the current dataset)",
-                    "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
-                    }
-                   },
-                   {
-                    "class": "QWidget",
+                    "class": "MplCanvas",
                     "visible": true,
                     "enabled": true
                    },
                    {
-                    "class": "QToolButton",
-                    "text": "Fitting",
+                    "class": "QFrame",
+                    "name": "canvas_separator",
+                    "visible": true,
+                    "enabled": true
+                   },
+                   {
+                    "class": "MinimapWidget",
                     "visible": true,
                     "enabled": true,
-                    "tooltip": "Curve Fit...",
                     "receivers": {
-                     "pressed()": 1,
-                     "released()": 1,
-                     "triggered(QAction*)": 1
+                     "range_selected(double,double)": 1
                     }
                    }
                   ]
                  },
                  {
-                  "class": "MplCanvas",
-                  "visible": true,
+                  "class": "_GripHandle",
+                  "name": "qt_splithandle_plot_container",
+                  "visible": false,
                   "enabled": true
                  },
                  {
-                  "class": "QFrame",
-                  "name": "canvas_separator",
-                  "visible": true,
+                  "class": "_GripHandle",
+                  "name": "qt_splithandle_bottom_panel",
+                  "visible": false,
                   "enabled": true
-                 },
-                 {
-                  "class": "MinimapWidget",
-                  "visible": true,
-                  "enabled": true,
-                  "receivers": {
-                   "range_selected(double,double)": 1
-                  }
                  }
                 ]
-               },
-               {
-                "class": "QWidget",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QFrame",
-                "name": "button_row_separator",
-                "visible": true,
-                "enabled": true
-               },
-               {
-                "class": "QFrame",
-                "name": "button_row_separator",
-                "visible": true,
-                "enabled": true
                }
               ]
              }
@@ -8389,25 +8579,6 @@
                                     }
                                    }
                                   ]
-                                 }
-                                ]
-                               },
-                               {
-                                "class": "QLabel",
-                                "text": "Fit information",
-                                "visible": false,
-                                "enabled": false
-                               },
-                               {
-                                "class": "QTextEdit",
-                                "visible": false,
-                                "enabled": false,
-                                "children": [
-                                 {
-                                  "class": "QWidget",
-                                  "name": "qt_scrollarea_viewport",
-                                  "visible": false,
-                                  "enabled": false
                                  }
                                 ]
                                }

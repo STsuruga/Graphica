@@ -8,6 +8,7 @@ from graphica.core.label_utils import infer_axis_label_from_column_name
 from graphica.core.marker_style import MARKER_EDGE_COLOR, MARKER_FILL_COLOR, marker_is_unfilled
 from graphica.gui.binding import Binder
 from graphica.gui.builders import property_sections, property_widgets
+from graphica.gui.shell import bottom_panel
 from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL, NO_MARKER
 from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES
 
@@ -365,20 +366,8 @@ class DatasetPropertyPanel:
                 self._app.z_col_combo.setCurrentText(dataset.z_col_name)
             self._app.z_col_combo.blockSignals(False)
 
-            if dataset.fit_info:
-                self._app.fit_info_label.setVisible(True)
-                self._app.fit_info_textedit.setVisible(True)
-                self._app.fit_info_textedit.setText(dataset.fit_info)
-            else:
-                self._app.fit_info_label.setVisible(False)
-                self._app.fit_info_textedit.setVisible(False)
-                self._app.fit_info_textedit.clear()
-
             self.update_stats_summary_label(dataset)
-
-            self._app.residual_panel.refresh(dataset)
-
-            self._app.provenance_panel.refresh(dataset, self._app.project)
+            bottom_panel.refresh_bottom_panel(self._app, dataset)
 
         else:
             # 空にするのは表示だけ。信号を出すと、フォルダを今の項目にしたままデータセットを選んでいるとき
@@ -391,11 +380,7 @@ class DatasetPropertyPanel:
                 combo.blockSignals(False)
             self.update_2d_controls_visibility()
 
-            self._app.fit_info_label.setVisible(False)
-            self._app.fit_info_textedit.setVisible(False)
-            self._app.fit_info_textedit.clear()
-            self._app.residual_panel.refresh(None)
-            self._app.provenance_panel.refresh(None, self._app.project)
+            bottom_panel.refresh_bottom_panel(self._app, None)
 
             self._app.gradient_checkbox.setVisible(False)
             self._app.gradient_color2_label.setVisible(False)

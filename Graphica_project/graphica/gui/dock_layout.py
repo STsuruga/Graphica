@@ -2,16 +2,14 @@
 import base64
 import json
 import logging
-from PySide6.QtCore import QByteArray, Qt
+from PySide6.QtCore import QByteArray
 from PySide6.QtWidgets import QDockWidget, QFormLayout, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, notify
 from graphica.gui.builders.common import DOCK_LAYOUT_VERSION
 from graphica.gui.export_preview_panel import ExportPreviewPanel
-from graphica.gui.provenance_panel import ProvenancePanel
 from graphica.gui.shell.inspector import (INSPECTOR_PAGES, Inspector, TargetHeader, scroll_page,
                                           section_state_texts, wrap_long_rows)
-from graphica.gui.residual_panel import ResidualPanel
 
 logger = logging.getLogger(__name__)
 
@@ -67,22 +65,6 @@ def arrange_property_docks(app):
 
     # 選んでいるデータセットの見出しと節の状態は、描き直すたびに合わせる(選択・名前・種類の変更をまとめて拾える)
     app.canvas.mpl_connect('draw_event', lambda _event: refresh_inspector(app))
-
-    # 選んだデータセットのフィットの残差。既定では隠し、開くときはキャンバスの下に付ける
-    app.residual_panel = ResidualPanel(app)
-    app.residual_dock_widget = QDockWidget(tr("残差プロット"), app)
-    app.residual_dock_widget.setObjectName("ResidualDockWidget")
-    app.residual_dock_widget.setWidget(app.residual_panel)
-    app.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, app.residual_dock_widget)
-    app.residual_dock_widget.hide()
-
-    # 選んだデータセットの処理の履歴。既定では隠す
-    app.provenance_panel = ProvenancePanel(app)
-    app.provenance_dock_widget = QDockWidget(tr("処理履歴"), app)
-    app.provenance_dock_widget.setObjectName("ProvenanceDockWidget")
-    app.provenance_dock_widget.setWidget(app.provenance_panel)
-    app.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, app.provenance_dock_widget)
-    app.provenance_dock_widget.hide()
 
 
 # 凡例のタブに移す行(軸の設定の formLayout_3 から)。表示のチェックは格子の表示と同じ行の中なので、それも取り出す
