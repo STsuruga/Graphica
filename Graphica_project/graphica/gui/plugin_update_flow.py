@@ -6,10 +6,12 @@
 import datetime
 import logging
 import os
+import zipfile
 
 from graphica.core.app_paths import get_user_plugins_dir
 from graphica.core.i18n import tr
-from graphica.core.plugin_install import install_plugin_zip
+from graphica.core.plugin_install import PluginInstallError, install_plugin_zip
+from graphica.core.plugin_manifest import PluginManifestError
 from graphica.core.plugin_updates import check_plugin_updates, check_update_zip
 from graphica.gui import app_settings, notify
 from graphica.gui.task_runner import TaskRunner
@@ -103,7 +105,8 @@ def download_and_install(updates, plugins_dir, download_dir, report_progress=Non
             check_update_zip(path, update['folder'])
             install_plugin_zip(path, plugins_dir)
             results.append((update, None))
-        except Exception as e:  # 1件の失敗でほかを止めない(理由は結果に出す)
+        except (OSError, ValueError, zipfile.BadZipFile, PluginManifestError, PluginInstallError) as e:
+            # 1件の失敗でほかを止めない(理由は結果に出す)
             logger.warning("プラグイン %s の更新に失敗しました", update['name'], exc_info=True)
             results.append((update, str(e)))
         finally:

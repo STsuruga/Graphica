@@ -115,7 +115,8 @@ def find_plugin_updates(installed: Iterable[dict[str, str]], index: list[dict[st
             continue
         try:
             release = fetch_release(entry['repo'])
-        except Exception:  # 1つのリポジトリの失敗(消された・通信)でほかを止めない
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            # 1つのリポジトリの失敗(消された・通信・想定外の応答)でほかを止めない
             continue
         if release.get('zip') is None or not is_newer_version(release['version'], plugin['version']):
             continue
