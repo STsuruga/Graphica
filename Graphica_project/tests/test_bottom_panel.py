@@ -99,6 +99,27 @@ def test_collapsing_keeps_only_the_header_and_opening_a_tab_expands(tab):
     assert not panel.is_collapsed() and not panel.stack.isHidden()
 
 
+def test_collapsing_gives_the_height_to_the_plot_and_expanding_restores_it(main_window, tab):
+    main_window.resize(1200, 800)
+    main_window.show()
+    _pump()
+    splitter, panel = tab.center_splitter, tab.bottom_panel
+    total = sum(splitter.sizes())
+    splitter.setSizes([total - 260, 260])
+    panel.set_collapsed(True)
+    _pump()
+    assert splitter.sizes()[1] == bottom_panel.HEADER_HEIGHT + 2
+    assert splitter.sizes()[0] == total - bottom_panel.HEADER_HEIGHT - 2
+    panel.set_collapsed(False)
+    _pump()
+    assert splitter.sizes()[1] == 260
+    # 開いたままタブを押しても、ドラッグで決めた高さは変えない
+    splitter.setSizes([total - 300, 300])
+    panel.show_page("log")
+    _pump()
+    assert splitter.sizes()[1] == 300
+
+
 # --- データ表 ---
 
 def test_the_table_shows_the_visible_rows_with_their_original_row_numbers(tab):

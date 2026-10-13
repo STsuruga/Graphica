@@ -165,21 +165,31 @@ class BottomPanel(QFrame):
         return self.collapse_button.isChecked()
 
     def set_collapsed(self, collapsed):
-        """畳むと見出しの行だけを残す(仕切りは見出しの高さで止まる)。"""
+        """畳むと見出しの行だけを残し、空いた高さはグラフに回す(仕切りは見出しの高さで止まる)。"""
         if self.collapse_button.isChecked() != collapsed:
             self.collapse_button.setChecked(collapsed)
             return
-        if collapsed and self.height() > HEADER_HEIGHT + 2:
-            self._restore_height = self.height()
+        collapsed_height = HEADER_HEIGHT + 2
+        splitter = self.parentWidget()
+        if not isinstance(splitter, QSplitter):
+            splitter = None
+        if collapsed:
+            # パネルの高さではなく仕切りの持ち分で覚える(見出しだけの高さに縮んだ後でも正しい)
+            own = splitter.sizes()[splitter.indexOf(self)] if splitter is not None else self.height()
+            if own > collapsed_height:
+                self._restore_height = own
         self.stack.setVisible(not collapsed)
-        self.setMaximumHeight(HEADER_HEIGHT + 2 if collapsed else 16777215)
+        self.setMaximumHeight(collapsed_height if collapsed else 16777215)
         self.collapse_button.setIcon(_svg_icon("chevron-right" if collapsed else "chevron-down", size=16))
         self.collapse_button.setToolTip(tr("広げる") if collapsed else tr("畳む"))
-        splitter = self.parentWidget()
-        if not collapsed and isinstance(splitter, QSplitter) and self.height() <= HEADER_HEIGHT + 2:
-            sizes = splitter.sizes()
-            total = sum(sizes)
-            splitter.setSizes([max(0, total - self._restore_height), self._restore_height])
+        if splitter is None:
+            return
+        sizes = splitter.sizes()
+        if not collapsed and sizes[splitter.indexOf(self)] > collapsed_height:
+            return  # 開いたまま(タブを押しただけ)なら、ドラッグで決めた高さを変えない
+        panel_height = collapsed_height if collapsed else self._restore_height
+        total = sum(sizes)
+        splitter.setSizes([max(0, total - panel_height), panel_height])
 
     def refresh_icons(self):
         for key, button in self._buttons.items():

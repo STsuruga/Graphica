@@ -126,7 +126,8 @@ class AppHeader(QWidget):
         inner.addWidget(self.search_icon)
         inner.addWidget(text)
         inner.addStretch(1)
-        inner.addWidget(shortcut)
+        # 検索欄の高さいっぱいに伸ばさず、文字の高さで真ん中に置く
+        inner.addWidget(shortcut, 0, Qt.AlignmentFlag.AlignVCenter)
         return button
 
     def set_mode(self, mode):

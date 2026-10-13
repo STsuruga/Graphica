@@ -910,6 +910,10 @@ QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed {{
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0;
 }}
+/* 幅だけ取っておくスクロールバー(インスペクタ)で、スクロールするものが無いとき */
+QScrollBar[scrollIdle="true"]::handle:vertical {{
+    background: transparent;
+}}
 QScrollBar:horizontal {{
     background: transparent;
     height: 11px;
@@ -1079,12 +1083,13 @@ QLabel#command_search_text {{
     color: {text_muted};
     background: transparent;
 }}
+/* ショートカットの表示は枠線を引かず、薄い地色だけで控えめに */
 QLabel#kbd_hint {{
-    color: {text_secondary};
-    background: transparent;
-    border: 1px solid {border_strong};
+    color: {text_muted};
+    background: {surface_2};
+    border: none;
     border-radius: 4px;
-    padding: 0 5px;
+    padding: 1px 5px;
     font-size: 10.5px;
 }}
 QPushButton[primaryButton="true"] {{

@@ -35,6 +35,7 @@ class ExportPreviewPanel(QWidget):
         self._current_pixmap = None
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 9, 8, 9)
 
         form = QFormLayout()
         self.width_spinbox = QDoubleSpinBox()
@@ -103,6 +104,8 @@ class ExportPreviewPanel(QWidget):
         layout.addWidget(self.preview_label, 1)
 
         button_row = QHBoxLayout()
+        # インスペクタは縦のスクロールバーの幅をいつも取っておくので、この行が入るように少し詰める
+        button_row.setSpacing(4)
         # SVG はベクター画像を受け付けるアプリ(Illustrator、Inkscape など)に貼れる
         self.copy_format_combo = QComboBox()
         self.copy_format_combo.addItems(["PNG", "SVG"])

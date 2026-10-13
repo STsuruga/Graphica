@@ -34,7 +34,7 @@ MODE_ONLY_ELEMENTS = (
 
 # シンプルで隠すプロパティの行(欄の属性の名前。名前の欄も一緒に隠す)。種類などによる今の出し入れより強い
 LITE_HIDDEN_PROPERTY_FIELDS = (
-    "x_err_col_combo", "y_err_col_combo", "nan_policy_combo",
+    "use_secondary_y_checkbox", "x_err_col_combo", "y_err_col_combo", "nan_policy_combo",
     "ui.plot_type_combo", "alpha_slider", "ui.smoothing_checkbox", "smoothing_method_combo",
 )
 # シンプルで出すプロパティの節(ほかの節は見出しごと隠す)

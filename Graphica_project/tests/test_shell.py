@@ -292,6 +292,38 @@ def test_graph_tools_follow_the_mode(main_window):
     assert tab.cursor_action in tab.plot_tool_rail.actions() and tab.cursor_action in tab.plot_toolbar.actions()
 
 
+def test_the_advanced_toolbar_drops_its_texts_when_too_narrow(qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QAction
+    from graphica.gui.builders.canvas_area import AdaptiveToolBar
+    toolbar = AdaptiveToolBar("t")
+    toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+    for name in ("カーソル", "注釈", "範囲選択", "ピーク", "領域"):
+        toolbar.addAction(QAction(name, toolbar))
+    toolbar.show()
+    full = toolbar.sizeHint().width()
+    toolbar.resize(full // 2, toolbar.height())
+    _pump()
+    assert toolbar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+    toolbar.resize(full + 10, toolbar.height())
+    _pump()
+    assert toolbar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    toolbar.close()
+
+
+def test_the_inspector_keeps_room_for_its_scroll_bar(main_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QScrollArea
+    tab = main_window.tab_widget.currentWidget()
+    scroll = tab.findChild(QScrollArea, "inspector_scroll_properties")
+    assert scroll.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+    bar = scroll.verticalScrollBar()
+    bar.setRange(0, 0)
+    assert bar.property("scrollIdle") is True
+    bar.setRange(0, 100)
+    assert bar.property("scrollIdle") is False
+
+
 def test_lite_tools_are_the_mockups_four(main_window):
     tab = main_window.tab_widget.currentWidget()
     actions = [a for a in tab.plot_tool_rail.actions() if not a.isSeparator()]

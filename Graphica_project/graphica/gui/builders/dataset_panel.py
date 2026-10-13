@@ -409,7 +409,8 @@ def _build_secondary_y_axis_group(app):
 
 def build_secondary_y_controls(app):
     app.use_secondary_y_checkbox = QCheckBox("第2Y軸 (右側) を使用")
-    app._prop_form('place').addRow(app.use_secondary_y_checkbox)
+    # どの Y 軸に描くかは Y の列と一緒に決めるので、「Y軸の列」の行のすぐ下に置く
+    _insert_form_row_after(app._prop_form('data'), app.y_col_combo, app.use_secondary_y_checkbox)
 
     app.y2_label_text_label = QLabel("第2Y軸ラベル")
     app.y2_label_text_edit = QLineEdit()

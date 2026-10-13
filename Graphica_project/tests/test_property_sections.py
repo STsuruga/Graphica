@@ -196,7 +196,7 @@ def test_no_property_widget_is_orphaned_from_every_layout(window):
     ('extra', 'point_labels_limit_note'),
     ('extra', 'point_label_col_combo'),
     ('extra', 'error_display_combo'),
-    ('place', 'use_secondary_y_checkbox'),
+    ('data', 'use_secondary_y_checkbox'),
     ('place', 'subplot_target_combo'),
 ])
 def test_widget_is_in_its_declared_section(window, section_key, widget_attr):
@@ -211,7 +211,7 @@ def test_data_section_row_order(window):
     addRow への機械的な置換ではここが逆転する。
     """
     assert _visible_row_labels(window, 'data') == [
-        "X軸の列", "Y軸の列", "X誤差列", "Y誤差列", "欠損値の扱い",
+        "X軸の列", "Y軸の列", "第2Y軸 (右側) を使用", "X誤差列", "Y誤差列", "欠損値の扱い",
     ]
 
 

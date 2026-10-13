@@ -1,7 +1,7 @@
 """キャンバス・ツールバー・ミニマップ・ステータスバーの組み立て。"""
 import logging
 import time
-from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel, QToolBar, QToolButton,
                                QVBoxLayout, QWidget)
@@ -76,9 +76,49 @@ def _create_mode_actions(app):
     app.smoothing_tool_action.triggered.connect(lambda _checked=False: app.processing.savgol_smooth())
 
 
+class AdaptiveToolBar(QToolBar):
+    """文字付きで並べきれない幅になったら、アイコンだけに切り替える(名前はツールチップに出る)。
+
+    文字付きのときの幅を覚えておき、それ以上の幅に戻ったら文字付きに戻す。
+    アイコンだけでも収まらないときは、QToolBar の » から残りを選べる。
+    """
+
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
+        self._text_width = None
+
+    def setToolButtonStyle(self, style):
+        self._preferred_style = style
+        super().setToolButtonStyle(style)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange, QEvent.Type.LanguageChange):
+            # 文字の幅が変わりうるので測り直す
+            self._text_width = None
+            self._fit_to_width()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_to_width()
+
+    def _fit_to_width(self):
+        preferred = getattr(self, '_preferred_style', Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        if preferred == Qt.ToolButtonStyle.ToolButtonIconOnly:
+            return
+        if self._text_width is None:
+            current = self.toolButtonStyle()
+            super().setToolButtonStyle(preferred)
+            self._text_width = self.sizeHint().width()
+            super().setToolButtonStyle(current)
+        style = preferred if self.width() >= self._text_width else Qt.ToolButtonStyle.ToolButtonIconOnly
+        if self.toolButtonStyle() != style:
+            super().setToolButtonStyle(style)
+
+
 def _build_advanced_toolbar(app):
     """アドバンスドの、プロットの上の文字付きの道具。モードの7つは1つの塊に見せる(QSS の toolSegment)。"""
-    toolbar = QToolBar(tr("プロット"), app)
+    toolbar = AdaptiveToolBar(tr("プロット"), app)
     toolbar.setObjectName("plot_toolbar")
     toolbar.setIconSize(QSize(TOOLBAR_ICON_SIZE - 3, TOOLBAR_ICON_SIZE - 3))
     toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)

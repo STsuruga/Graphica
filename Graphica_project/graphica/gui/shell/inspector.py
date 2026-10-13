@@ -21,8 +21,22 @@ def scroll_page(widget, object_name):
     scroll.setObjectName(object_name)
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    # 出し入れすると中の幅が変わって欄が並び直すので、縦のスクロールバーの幅はいつも取っておき、
+    # スクロールするものが無いときはつまみを見せない(QSS の scrollIdle)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+    bar = scroll.verticalScrollBar()
+    bar.rangeChanged.connect(lambda minimum, maximum: _set_scroll_idle(bar, maximum <= minimum))
+    _set_scroll_idle(bar, True)
     scroll.setWidget(widget)
     return scroll
+
+
+def _set_scroll_idle(bar, idle):
+    if bar.property("scrollIdle") == idle:
+        return
+    bar.setProperty("scrollIdle", idle)
+    bar.style().unpolish(bar)
+    bar.style().polish(bar)
 
 
 def wrap_long_rows(widget):

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication
 import graphica.gui.app_settings as app_settings_module
 from graphica.core.dataset import Dataset
 from graphica.gui import ui_mode
+from graphica.gui.builders import property_widgets
 from graphica.gui.dataset_bindings import NO_MARKER
 from test_main_app_window import _make_isolated_main_app_window
 
@@ -82,10 +83,27 @@ def test_smoothing_checkbox_is_drawn_as_a_switch(tab):
 def test_a_quick_color_chip_sets_the_dataset_color(tab):
     dataset = _select_new(tab, "a", color="#123456")
     row = tab.color_picker_widget.quick_colors_row
-    assert row.colors() == [c.upper() for c in tab.colors.active_color_cycle()[:4]]
+    assert row.colors() == [c.upper() for c in tab.colors.active_color_cycle()[:property_widgets.QUICK_COLOR_COUNT]]
     row.chips[1].click()
     assert dataset.color.upper() == row.colors()[1]
     assert row.chips[1].isChecked()
+
+
+def test_the_quick_colors_sit_under_the_swatch_and_code(tab):
+    picker = tab.color_picker_widget
+    _select_new(tab, "a")
+    _pump()
+    row = picker.quick_colors_row
+    assert len(row.chips) == property_widgets.QUICK_COLOR_COUNT
+    # 1段目(見本と #RRGGBB)の下の段
+    outer = picker.layout()
+    assert outer.indexOf(row) > 0 and outer.itemAt(0).layout().indexOf(picker.hex_edit) >= 0
+
+
+def test_the_secondary_y_switch_is_right_under_the_y_column(tab):
+    form = tab._prop_form('data')
+    y_row, _ = form.getWidgetPosition(tab.y_col_combo)
+    assert form.getWidgetPosition(tab.use_secondary_y_checkbox)[0] == y_row + 1
 
 
 # --- シンプルの種類のタイル ---
@@ -123,7 +141,8 @@ def _section_shown(tab, key):
 def test_lite_hides_advanced_rows_and_sections_and_advanced_brings_them_back(main_window, tab):
     _select_new(tab, "a", plot_type="Line")
     main_window.set_ui_mode(ui_mode.LITE)
-    for name in ("x_err_col_combo", "nan_policy_combo", "alpha_slider", "smoothing_method_combo"):
+    for name in ("use_secondary_y_checkbox", "x_err_col_combo", "nan_policy_combo", "alpha_slider",
+                 "smoothing_method_combo"):
         assert getattr(tab, name).isHidden(), name
     assert tab.ui.plot_type_combo.isHidden() and tab.ui.smoothing_checkbox.isHidden()
     assert tab.color_picker_widget.hex_edit.isHidden()
@@ -133,7 +152,8 @@ def test_lite_hides_advanced_rows_and_sections_and_advanced_brings_them_back(mai
         assert not _section_shown(tab, key), key
 
     main_window.set_ui_mode(ui_mode.ADVANCED)
-    for name in ("x_err_col_combo", "nan_policy_combo", "alpha_slider", "smoothing_method_combo"):
+    for name in ("use_secondary_y_checkbox", "x_err_col_combo", "nan_policy_combo", "alpha_slider",
+                 "smoothing_method_combo"):
         assert not getattr(tab, name).isHidden(), name
     # 平滑化は線の種類でだけ出す(今の条件は残る)
     assert not tab.ui.smoothing_checkbox.isHidden()
