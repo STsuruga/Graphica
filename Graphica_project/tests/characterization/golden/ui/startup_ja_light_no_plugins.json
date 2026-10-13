@@ -406,7 +406,7 @@
     },
     {
      "text": "クイックアクセスツールバー",
-     "checked": true,
+     "checked": false,
      "receivers": {
       "triggered(bool)": 2,
       "triggered()": 2,
