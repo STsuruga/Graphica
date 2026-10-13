@@ -11,6 +11,7 @@ from graphica.gui import app_settings, theme
 from graphica.gui.builders.common import TOOLBAR_ICON_SIZE, _svg_icon
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.minimap_widget import MinimapWidget
+from graphica.gui.shell.icons import checkable_icon
 from graphica.gui.tools.cursor import COORDINATE_EMPTY_TEXT
 from graphica.gui.theme_color import theme_color_or_default
 
@@ -56,9 +57,19 @@ TOOL_ACTION_ICONS = tuple((entry[0], entry[1]) for entry in _MODE_ACTIONS) + (
 LITE_MODE_ACTIONS = ("cursor_action", "annotation_action", "range_select_action")
 
 
+_MODE_ACTION_ATTRS = frozenset(entry[0] for entry in _MODE_ACTIONS)
+
+
+def tool_action_icon(attr, icon_name):
+    """道具の QAction のアイコン。モードは選ぶと強調の色で塗るので、選んだときは白抜きにする。"""
+    if attr in _MODE_ACTION_ATTRS:
+        return checkable_icon(icon_name, size=20)
+    return _svg_icon(icon_name)
+
+
 def _create_mode_actions(app):
     for attr, icon_name, label, description, toggle in _MODE_ACTIONS:
-        action = QAction(_svg_icon(icon_name), tr(label), app)
+        action = QAction(tool_action_icon(attr, icon_name), tr(label), app)
         action.setToolTip(tr(description))
         action.setCheckable(True)
         action.triggered.connect(getattr(app, toggle))

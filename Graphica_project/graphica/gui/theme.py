@@ -328,11 +328,15 @@ QToolBar#plot_toolbar QToolButton[toolSegment="middle"]:hover,
 QToolBar#plot_toolbar QToolButton[toolSegment="last"]:hover {{
     color: {accent_fg};
 }}
+/* 選んでいるモードは強調の色で塗って白抜きにし(左の帯と同じ)、塊の中では角を丸めない */
 QToolBar#plot_toolbar QToolButton:checked {{
-    background: {raised};
-    color: {accent_fg};
+    background: {accent};
+    color: {on_accent};
     border: none;
     font-weight: 600;
+}}
+QToolBar#plot_toolbar QToolButton[toolSegment="middle"]:checked {{
+    border-radius: 0;
 }}
 /* シンプルの道具: グラフの左に浮かせた縦の並び */
 QToolBar#plot_tool_rail {{
@@ -351,7 +355,7 @@ QToolBar#plot_tool_rail QToolButton:hover {{
     background: {surface_2};
 }}
 QToolBar#plot_tool_rail QToolButton:checked {{
-    background: {accent_soft};
+    background: {accent};
     border: none;
 }}
 
