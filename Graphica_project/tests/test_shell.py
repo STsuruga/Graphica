@@ -129,11 +129,12 @@ def test_mode_switch_in_the_header_applies_to_every_tab(main_window):
     second = main_window.add_new_project_tab()
     _pump()
     switch = main_window.header.mode_switch
-    switch.setCurrentIndex(switch.findData(ui_mode.LITE))
-    assert main_window.ui_mode == ui_mode.LITE
+    main_window.set_ui_mode(ui_mode.ADVANCED)
+    switch.toggle()
+    assert main_window.ui_mode == ui_mode.LITE and not switch.switch.isChecked()
     for index in range(main_window.tab_widget.count()):
         assert main_window.tab_widget.widget(index).ui_mode == ui_mode.LITE
-    switch.setCurrentIndex(switch.findData(ui_mode.ADVANCED))
+    switch.toggle()
     assert second.ui_mode == ui_mode.ADVANCED
     third = main_window.add_new_project_tab()
     assert third.ui_mode == ui_mode.ADVANCED

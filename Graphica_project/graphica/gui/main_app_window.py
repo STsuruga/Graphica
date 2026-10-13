@@ -106,8 +106,7 @@ class MainAppWindow(QMainWindow):
         header.search_button.clicked.connect(lambda: self._trigger_on_current_tab("command_palette_action"))
         header.quick_access_menu.aboutToShow.connect(self._fill_quick_access_menu)
         header.set_mode(self.ui_mode)
-        header.mode_switch.currentIndexChanged.connect(
-            lambda index: self.set_ui_mode(header.mode_switch.itemData(index)))
+        header.mode_switch.mode_changed.connect(self.set_ui_mode)
 
     def _fill_quick_access_menu(self):
         """★ の一覧: 表示中のタブのピン留め(ピン留めした順)と、管理の項目。"""

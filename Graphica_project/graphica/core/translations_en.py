@@ -605,6 +605,7 @@ TRANSLATIONS = {
     "コマンドを検索": "Search commands",
     "上書き保存": "Save",
     "シンプル": "Lite",
+    "シンプル / アドバンスドを切り替える": "Switch between Lite and Advanced",
     "アドバンスド": "Advanced",
     "Undo履歴": "Undo History",
     "新規作成...": "New...",

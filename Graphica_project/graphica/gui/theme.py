@@ -1121,6 +1121,16 @@ QLabel#kbd_hint {{
     padding: 1px 5px;
     font-size: 10.5px;
 }}
+/* 上部バーのモードの切り替え: 今のモードの名前だけ濃く太く */
+QLabel#mode_label {{
+    color: {text_muted};
+    background: transparent;
+}}
+QLabel#mode_label_active {{
+    color: {text_primary};
+    background: transparent;
+    font-weight: 600;
+}}
 QPushButton[primaryButton="true"] {{
     background: {accent};
     border: 1px solid {accent};
@@ -1128,6 +1138,10 @@ QPushButton[primaryButton="true"] {{
     color: {on_accent};
     font-weight: 600;
     padding: 5px 12px;
+}}
+/* アイコンだけのエクスポート: 大きさは Python 側の setFixedSize、余白でアイコンが切れないように */
+QPushButton#header_export_button {{
+    padding: 0;
 }}
 QPushButton[primaryButton="true"]:hover {{
     background: {accent};

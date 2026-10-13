@@ -3,20 +3,73 @@
 
 押したときの行き先(表示中のタブ)は MainAppWindow がつなぐ。ここは部品と並びだけを持つ。
 """
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QToolButton, QWidget
+from PySide6.QtWidgets import QCheckBox, QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QToolButton, QWidget
 
 from graphica.core.i18n import tr
 from graphica.gui import ui_mode
 from graphica.gui.shell.icons import themed_icon
 from graphica.gui.shell.rail import RAIL_WIDTH
-from graphica.gui.widgets import SegmentedControl
+from graphica.gui.theme import make_toggle_switch
 
 HEADER_HEIGHT = 48
 HEADER_BUTTON_SIZE = 30
 SEARCH_WIDTH = 300
 COMMAND_PALETTE_SHORTCUT_TEXT = "Ctrl+Shift+P"
+EXPORT_ICON = "file-export"
+
+
+class ModeToggle(QWidget):
+    """「シンプル (スイッチ) アドバンスド」。どこを押しても切り替わり、今のモードの名前を濃く見せる。
+
+    mode_changed は利用者の操作でだけ出る(set_mode では出ない)。
+    """
+
+    mode_changed = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("mode_switch")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(tr("シンプル / アドバンスドを切り替える"))
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 0, 4, 0)
+        layout.setSpacing(6)
+        self.lite_label = QLabel(ui_mode.mode_label(ui_mode.LITE))
+        self.advanced_label = QLabel(ui_mode.mode_label(ui_mode.ADVANCED))
+        self.switch = QCheckBox()
+        # 押すのはこの部品全体(スイッチだけが押しを受けると、名前を押しても切り替わらない)
+        self.switch.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.switch.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        make_toggle_switch(self.switch)
+        layout.addWidget(self.lite_label)
+        layout.addWidget(self.switch)
+        layout.addWidget(self.advanced_label)
+        self.refresh()
+
+    def mode(self):
+        return ui_mode.ADVANCED if self.switch.isChecked() else ui_mode.LITE
+
+    def set_mode(self, mode):
+        self.switch.setChecked(mode == ui_mode.ADVANCED)
+        self.refresh()
+
+    def toggle(self):
+        self.set_mode(ui_mode.LITE if self.mode() == ui_mode.ADVANCED else ui_mode.ADVANCED)
+        self.mode_changed.emit(self.mode())
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.toggle()
+        super().mouseReleaseEvent(event)
+
+    def refresh(self):
+        for label, active in ((self.lite_label, self.mode() == ui_mode.LITE),
+                              (self.advanced_label, self.mode() == ui_mode.ADVANCED)):
+            label.setObjectName("mode_label_active" if active else "mode_label")
+            label.style().unpolish(label)
+            label.style().polish(label)
 
 
 def _header_button(name, tooltip):
@@ -73,16 +126,13 @@ class AppHeader(QWidget):
         self.add_tab_button.setObjectName("add_tab_button")
         layout.addWidget(self.add_tab_button)
 
+        # 検索は右側(モードの切り替えの左)に寄せる。タブが増えても動かない
         layout.addStretch(1)
         self.search_button = self._make_search_button()
         layout.addWidget(self.search_button)
-        layout.addStretch(1)
+        layout.addSpacing(10)
 
-        self.mode_switch = SegmentedControl()
-        self.mode_switch.setObjectName("mode_switch")
-        for mode in ui_mode.MODES:
-            self.mode_switch.addItem(ui_mode.mode_label(mode), mode)
-        self.mode_switch.setFixedWidth(190)
+        self.mode_switch = ModeToggle()
         layout.addWidget(self.mode_switch)
         layout.addWidget(_separator())
 
@@ -102,13 +152,16 @@ class AppHeader(QWidget):
         self.quick_access_button.setMenu(self.quick_access_menu)
         layout.addWidget(self.quick_access_button)
 
-        self.export_button = QPushButton(tr("エクスポート"))
+        # エクスポートはアイコンだけ(名前はツールチップ)。強調の色で塗って、ほかのボタンと見分ける
+        self.export_button = QPushButton()
         self.export_button.setObjectName("header_export_button")
         self.export_button.setProperty("primaryButton", True)
+        self.export_button.setToolTip(tr("エクスポート"))
         self.export_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.export_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.export_button.setIconSize(QSize(16, 16))
-        self.export_button.setIcon(themed_icon("download", size=16, token="on_accent"))
+        self.export_button.setFixedSize(34, 30)
+        self.export_button.setIconSize(QSize(17, 17))
+        self.export_button.setIcon(themed_icon(EXPORT_ICON, size=17, token="on_accent"))
         layout.addWidget(self.export_button)
 
     def _make_search_button(self):
@@ -137,9 +190,7 @@ class AppHeader(QWidget):
         return button
 
     def set_mode(self, mode):
-        blocked = self.mode_switch.blockSignals(True)
-        self.mode_switch.setCurrentIndex(self.mode_switch.findData(mode))
-        self.mode_switch.blockSignals(blocked)
+        self.mode_switch.set_mode(mode)
 
     def refresh_icons(self):
         for button in self.findChildren(QToolButton, "header_button") + [self.add_tab_button]:
@@ -147,4 +198,5 @@ class AppHeader(QWidget):
             if name:
                 button.setIcon(themed_icon(name))
         self.search_icon.setPixmap(themed_icon("search", size=15, token="text_muted").pixmap(15, 15))
-        self.export_button.setIcon(themed_icon("download", size=16, token="on_accent"))
+        self.export_button.setIcon(themed_icon(EXPORT_ICON, size=17, token="on_accent"))
+        self.mode_switch.refresh()
