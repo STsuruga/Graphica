@@ -11,9 +11,11 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton, QSizePo
 from graphica.core.i18n import tr
 from graphica.gui import ui_mode
 from graphica.gui.shell.icons import themed_icon
+from graphica.gui.shell.rail import RAIL_WIDTH
 from graphica.gui.widgets import SegmentedControl
 
 HEADER_HEIGHT = 48
+HEADER_BUTTON_SIZE = 30
 SEARCH_WIDTH = 300
 COMMAND_PALETTE_SHORTCUT_TEXT = "Ctrl+Shift+P"
 
@@ -23,7 +25,7 @@ def _header_button(name, tooltip):
     button.setObjectName("header_button")
     button.setToolTip(tooltip)
     button.setIconSize(QSize(18, 18))
-    button.setFixedSize(30, 30)
+    button.setFixedSize(HEADER_BUTTON_SIZE, HEADER_BUTTON_SIZE)
     button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
     button.setCursor(Qt.CursorShape.PointingHandCursor)
     button.setProperty("iconName", name)
@@ -47,7 +49,8 @@ class AppHeader(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedHeight(HEADER_HEIGHT)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 0, 12, 0)
+        # ≡ を左の帯のアイコンと同じ縦の列に置く(帯の幅の真ん中に ≡ の真ん中)
+        layout.setContentsMargins((RAIL_WIDTH - HEADER_BUTTON_SIZE) // 2, 0, 12, 0)
         layout.setSpacing(6)
 
         self.menu_button = _header_button("menu-2", tr("メニュー"))

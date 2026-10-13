@@ -5,13 +5,14 @@ import tempfile
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QPixmap
-from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QCheckBox, QComboBox,
-                               QProxyStyle, QStyle, QStyleFactory)
+from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractSpinBox, QApplication, QCheckBox, QComboBox, QFrame,
+                               QProxyStyle, QStyle, QStyledItemDelegate, QStyleFactory)
 
 from graphica.gui.icon_utils import icon as _svg_icon
 from graphica.gui.theme_color import DEFAULT_THEME_COLOR, derive_accent, normalize_hex
 
 _wheel_value_change_disabled = False
+_original_show_combo_popup = None
 _current_proxy_style = None
 _current_tokens = None
 _current_theme_color = DEFAULT_THEME_COLOR
@@ -760,6 +761,10 @@ QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
     width: 12px;
     height: 12px;
 }}
+QComboBox {{
+    /* 一覧はメニュー風ではなくリストで出す(メニュー風だと外側に四角い枠が描かれ、角丸にならない) */
+    combobox-popup: 0;
+}}
 QComboBox::drop-down {{
     border: none;
     width: 20px;
@@ -770,12 +775,32 @@ QComboBox::down-arrow {{
     width: 12px;
     height: 12px;
 }}
+/* 開いた一覧: 箱の角丸はプルダウンと同じ 6px(外側の器は透明にする。install_rounded_combo_popups) */
+QComboBoxPrivateContainer {{
+    background: transparent;
+    border: none;
+}}
 QComboBox QAbstractItemView {{
     background: {surface};
     border: 1px solid {border};
+    border-radius: 6px;
+    padding: 4px;
     selection-background-color: {accent_soft};
-    selection-color: {text_primary};
+    selection-color: {accent_fg};
     outline: none;
+}}
+QComboBox QAbstractItemView::item {{
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 5px;
+    color: {text_primary};
+}}
+QComboBox QAbstractItemView::item:hover {{
+    background: {surface_2};
+}}
+QComboBox QAbstractItemView::item:selected {{
+    background: {accent_soft};
+    color: {accent_fg};
 }}
 
 /* --- リスト / ツリー / テーブル --- */
@@ -1050,7 +1075,7 @@ QTabBar#project_tab_bar {{
 }}
 QTabBar#project_tab_bar::tab {{
     height: 32px;
-    padding: 0 8px 0 12px;
+    padding: 0 12px 0 12px;
     margin: 0 2px 0 0;
     border: none;
     border-radius: 8px;
@@ -1449,6 +1474,7 @@ def apply_theme(app, dark: bool, theme_color: str = None):
         base_style = QStyleFactory.create('Fusion')
         _current_proxy_style = _FlatThemeProxyStyle(base_style, tokens)
         app.setStyle(_current_proxy_style)
+        install_rounded_combo_popups()
     else:
         _current_proxy_style.update_tokens(tokens)
     app.setPalette(build_palette(tokens))
@@ -1516,6 +1542,35 @@ def apply_form_spacing(widget, spacing=12):
     for form_layout in widget.findChildren(QFormLayout):
         if form_layout.verticalSpacing() < spacing:
             form_layout.setVerticalSpacing(spacing)
+
+
+def install_rounded_combo_popups():
+    """コンボの一覧を、角丸の箱と余白のある行で出す(QSS の QComboBox QAbstractItemView)。
+
+    角の外を透かすには一覧の窓を初めて出す前に半透明にする必要があり、行に QSS を効かせるには Fusion の
+    メニュー風のデリゲートを替える必要がある。どちらもコンボごとなので、開くときに1回だけ行う。
+    """
+    global _original_show_combo_popup
+    if _original_show_combo_popup is not None:
+        return
+    _original_show_combo_popup = QComboBox.showPopup
+
+    def _show_popup(self):
+        container = self.view().window()
+        if not container.property("roundedPopup"):
+            container.setProperty("roundedPopup", True)
+            container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            # 窓の影は四角いので、角丸の外に影の角が出ないよう消す
+            container.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
+            # Qt の内部のメニュー風デリゲート(Python からは基底の型に見える)のときだけ替える。
+            # プラグインなどが付けたデリゲートは残す
+            if type(self.itemDelegate()) is QAbstractItemDelegate:
+                self.setItemDelegate(QStyledItemDelegate(self))
+        # 外側の器の四角い枠(スタイルが替わると付け直されるので、開くたびに外す)
+        container.setFrameShape(QFrame.Shape.NoFrame)
+        _original_show_combo_popup(self)
+
+    QComboBox.showPopup = _show_popup
 
 
 def disable_scroll_value_change():

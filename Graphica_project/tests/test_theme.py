@@ -705,3 +705,24 @@ def test_subsection_hover_text_stays_readable():
     qss = theme.build_qss(theme.LIGHT_TOKENS)
     body = _qss_block(qss, "QToolButton#property_subsection_toggle:hover")
     assert theme.LIGHT_TOKENS["on_accent"] not in body
+
+
+def test_combo_popups_open_as_a_rounded_list(qapp):
+    from PySide6.QtWidgets import QStyledItemDelegate
+    theme.apply_theme(qapp, False)
+    theme.install_rounded_combo_popups()
+    combo = QComboBox()
+    combo.addItems(["a", "b"])
+    custom = QComboBox()
+    custom.addItems(["c"])
+    own_delegate = QStyledItemDelegate(custom)
+    custom.setItemDelegate(own_delegate)
+    for box in (combo, custom):
+        box.show()
+        box.showPopup()
+        container = box.view().window()
+        assert container.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        box.hidePopup()
+        box.close()
+    assert isinstance(combo.itemDelegate(), QStyledItemDelegate)
+    assert custom.itemDelegate() is own_delegate  # 付けてあるデリゲートは替えない
