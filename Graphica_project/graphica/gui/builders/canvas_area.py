@@ -192,6 +192,8 @@ def _build_card(app):
     app.card_series_label.setObjectName("card_meta")
     app.card_subplot_label = QLabel()
     app.card_subplot_label.setObjectName("card_meta")
+    # グラフ全体のレイアウト(行数・列数・自由配置)のポップアップ。中身ができた後に finish_card() がつなぐ
+    app.card_layout_button = _card_button("layout-grid", tr("グラフ全体のレイアウト"))
     app.card_reset_button = _card_button("refresh", app.reset_zoom_action.text())
     app.card_reset_button.clicked.connect(lambda _checked=False: app.reset_zoom_action.trigger())
     # ミニマップと切り離しの QAction はメニューと同じもので、メニューを作った後に finish_card() がつなぐ
@@ -200,7 +202,8 @@ def _build_card(app):
     title_row.addWidget(app.card_title_label)
     title_row.addWidget(app.card_series_label)
     title_row.addStretch(1)
-    for widget in (app.card_subplot_label, app.card_reset_button, app.card_minimap_button, app.card_detach_button):
+    for widget in (app.card_subplot_label, app.card_layout_button, app.card_reset_button, app.card_minimap_button,
+                   app.card_detach_button):
         title_row.addWidget(widget)
     card_layout.addLayout(title_row)
     card_layout.addWidget(app.plot_toolbar)
@@ -245,6 +248,10 @@ def finish_card(app):
     app.card_minimap_button.clicked.connect(lambda _checked=False: app.minimap_action.trigger())
     app.minimap_action.toggled.connect(app.card_minimap_button.setChecked)
     app.card_detach_button.clicked.connect(lambda _checked=False: app.canvas_detach_action.trigger())
+    from graphica.gui.shell.layout_popover import LayoutPopover, toggle_layout_popover
+    app.layout_popover = LayoutPopover(app, app.figure_layout_panel, app)
+    app.card_layout_button.clicked.connect(
+        lambda _checked=False: toggle_layout_popover(app, app.card_layout_button))
     refresh_card_title(app)
 
 

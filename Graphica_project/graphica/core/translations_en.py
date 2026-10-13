@@ -60,7 +60,7 @@ TRANSLATIONS = {
     "パレット管理...": "Manage Palettes...",
     "新しいフォルダ": "New Folder",
     "データセットのプロパティ": "Dataset Properties",
-    "グラフ全体レイアウト": "Overall Plot Layout",
+    "グラフ全体のレイアウト": "Overall Plot Layout",
     "行数": "Rows",
     "列数": "Columns",
     "自由配置レイアウト(ドラッグで配置)": "Free Layout (drag to arrange)",
@@ -567,6 +567,8 @@ TRANSLATIONS = {
     "書式テンプレートを開く...": "Open Style Template...",
     "選択したファイルを開く": "Open Selected File",
     "クイックアクセス": "Quick Access",
+    "ピン留めした項目はありません(メニューの項目を右クリックで追加)":
+        "Nothing pinned yet (right-click a menu item to add it)",
     "クイックアクセスの管理": "Manage Quick Access",
     "クイックアクセスの管理...": "Manage Quick Access...",
     "クイックアクセスツールバー": "Quick Access Toolbar",

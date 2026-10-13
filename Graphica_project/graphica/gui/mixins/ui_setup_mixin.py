@@ -127,7 +127,8 @@ class UISetupMixin:
         for attr, icon_name in TOOL_ACTION_ICONS:
             if hasattr(self, attr):
                 getattr(self, attr).setIcon(tool_action_icon(attr, icon_name))
-        for button in (getattr(self, name, None) for name in ('card_reset_button', 'card_minimap_button',
+        for button in (getattr(self, name, None) for name in ('card_layout_button', 'card_reset_button',
+                                                                'card_minimap_button',
                                                                 'card_detach_button')):
             if button is not None:
                 button.setIcon(_svg_icon(button.property("iconName")))
