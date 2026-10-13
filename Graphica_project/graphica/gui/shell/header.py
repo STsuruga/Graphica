@@ -5,8 +5,7 @@
 """
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QStackedWidget, QToolButton,
-                               QWidget)
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QPushButton, QToolButton, QWidget
 
 from graphica.core.i18n import tr
 from graphica.gui import ui_mode
@@ -93,11 +92,15 @@ class AppHeader(QWidget):
         for button in (self.undo_button, self.redo_button, self.save_button):
             layout.addWidget(button)
 
-        # 表示中のタブのクイックアクセス(ピン留め)。タブごとのツールバーを重ねて、前のタブのものだけを見せる
-        self.quick_access_stack = QStackedWidget()
-        self.quick_access_stack.setObjectName("quick_access_slot")
-        self.quick_access_stack.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        layout.addWidget(self.quick_access_stack)
+        # クイックアクセス(ピン留め)は ★ の一覧にまとめる(いくつ増やしても上部バーの幅を取らない)。
+        # 中身は開くたびに表示中のタブのピン留めから作る(MainAppWindow)
+        self.quick_access_button = _header_button("star", tr("クイックアクセス"))
+        self.quick_access_button.setObjectName("header_button")
+        self.quick_access_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.quick_access_button.setStyleSheet("QToolButton::menu-indicator { image: none; width: 0; }")
+        self.quick_access_menu = QMenu(self.quick_access_button)
+        self.quick_access_button.setMenu(self.quick_access_menu)
+        layout.addWidget(self.quick_access_button)
 
         self.export_button = QPushButton(tr("エクスポート"))
         self.export_button.setObjectName("header_export_button")

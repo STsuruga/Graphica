@@ -175,23 +175,26 @@ def test_menu_bar_is_hidden_but_shortcuts_still_reach_the_tab(main_window):
     assert tab.command_palette_action in tab.actions()
 
 
-def test_quick_access_toolbar_lives_in_the_header_and_follows_the_tab(main_window):
+def test_the_star_menu_lists_the_current_tabs_pins(main_window):
     first = main_window.tab_widget.widget(0)
     second = main_window.add_new_project_tab()
     _pump()
-    stack = main_window.header.quick_access_stack
-    assert stack.currentWidget() is second.quick_access_toolbar
-    assert second.quick_access_manage_action not in second.quick_access_toolbar.actions()
-    main_window.tab_widget.setCurrentIndex(0)
-    assert stack.currentWidget() is first.quick_access_toolbar
+    path, action = second._collect_menu_actions()[0]
+    second.pin_quick_access_action("/".join(path), action)
+    menu = main_window.header.quick_access_menu
+    menu.aboutToShow.emit()
+    assert action in menu.actions() and second.quick_access_manage_action in menu.actions()
+    assert second.quick_access_toolbar.isHidden()
+    main_window.tab_widget.setCurrentIndex(main_window.tab_widget.indexOf(first))
+    menu.aboutToShow.emit()
+    assert action not in menu.actions()
+    assert first.quick_access_manage_action in menu.actions()
 
 
 def test_closing_a_tab_drops_its_header_parts(main_window):
     second = main_window.add_new_project_tab()
     _pump()
-    count = main_window.header.quick_access_stack.count()
     main_window._on_tab_close_requested(main_window.tab_widget.indexOf(second))
-    assert main_window.header.quick_access_stack.count() == count - 1
     assert second not in main_window._tab_menus
 
 

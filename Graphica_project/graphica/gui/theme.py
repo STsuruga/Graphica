@@ -1153,12 +1153,6 @@ QPushButton[ghostButton="true"]:hover, QToolButton[ghostButton="true"]:hover {{
 QPushButton[ghostButton="true"]:pressed, QToolButton[ghostButton="true"]:pressed {{
     background: {accent_soft};
 }}
-QStackedWidget#quick_access_slot, QStackedWidget#quick_access_slot QToolBar {{
-    background: transparent;
-    border: none;
-    padding: 0;
-    spacing: 2px;
-}}
 QWidget#activity_rail {{
     background: {chrome};
     border-right: 1px solid {border};
