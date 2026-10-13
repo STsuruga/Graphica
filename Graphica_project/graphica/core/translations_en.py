@@ -638,7 +638,7 @@ TRANSLATIONS = {
     "グラフに描く": "Draw on the plot",
     "表示": "View",
     "配置": "Arrangement",
-    "サブプロットの数・並び(軸の設定)": "Subplot grid (axis settings)",
+    "サブプロットの数・並び": "Subplot grid",
     "プラグインのパネルはありません。プラグインは環境設定から追加できます。": "No plugin panels. You can add plugins in Preferences.",
     "環境設定を開く...": "Open Preferences...",
     "Savitzky-Golayフィルタ": "Savitzky-Golay Filter",

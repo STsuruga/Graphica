@@ -144,17 +144,16 @@ def build_layout_page(app):
     page = ActionListPage("レイアウト")
     page.add_section("配置")
     page.add_action(app.layout_edit_action, "レイアウト編集(自由配置のとき)")
-    page.add_command("サブプロットの数・並び(軸の設定)", lambda: _open_axis_settings(app))
+    page.add_command("サブプロットの数・並び", lambda: _open_layout_popover(app))
     page.add_section("表示")
     page.add_action(app.minimap_action, "ミニマップ")
     page.add_action(app.canvas_detach_action, "キャンバスを別ウィンドウに切り離す")
     return page
 
 
-def _open_axis_settings(app):
-    """サブプロットの行と列は、右のプロパティの「プロットのプロパティ」にある。そこを見せる。"""
-    app.properties_dock_widget.show()
-    app.properties_dock_widget.raise_()
+def _open_layout_popover(app):
+    """サブプロットの行と列は、グラフのカードのレイアウトのボタンで開くポップアップにある。それを開く。"""
+    app.layout_popover.open_below(app.card_layout_button)
 
 
 class PluginPage(QWidget):
