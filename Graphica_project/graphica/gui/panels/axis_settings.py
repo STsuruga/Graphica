@@ -10,6 +10,7 @@ from graphica.gui import notify
 from graphica.core.axis_settings import AXIS_SETTING_DEFAULTS, axis_setting
 from graphica.gui import log_axis_notes, theme
 from graphica.gui.axis_bindings import CARRIED_AXIS_KEYS
+from graphica.gui.builders.axis_format_sections import refresh_axis_format_widgets
 from graphica.gui.color_history import get_color_with_history
 from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
 
@@ -350,20 +351,21 @@ class AxisSettingsPanel:
     def _refresh_grid_state(self):
         is_visible = self._app.ui.grid_visible_checkbox.isChecked()
 
+        sections = getattr(self._app, '_axis_sections', None)
+        grid_form = sections['grid']['form'] if sections is not None else None
         self._app.ui.minor_grid_visible_checkbox.setEnabled(is_visible)
+        if grid_form is not None:
+            grid_form.setRowVisible(self._app.ui.minor_grid_visible_checkbox, is_visible)
 
-        # 主のグリッドの欄はグリッドの表示に、補助の欄はさらに補助グリッドの表示にも従う
+        # 主のグリッドの欄はグリッドの表示に、補助の欄はさらに補助グリッドの表示にも従う。
+        # 使わない欄は灰色で並べず隠す(名前も一緒に)
         is_minor_visible = is_visible and self._app.ui.minor_grid_visible_checkbox.isChecked()
-        for widget in (
-            self._app.x_major_grid_linestyle_combo, self._app.x_major_grid_width_spinbox, self._app.x_major_grid_alpha_spinbox,
-            self._app.y_major_grid_linestyle_combo, self._app.y_major_grid_width_spinbox, self._app.y_major_grid_alpha_spinbox,
-        ):
-            widget.setEnabled(is_visible)
-        for widget in (
-            self._app.x_minor_grid_linestyle_combo, self._app.x_minor_grid_width_spinbox, self._app.x_minor_grid_alpha_spinbox,
-            self._app.y_minor_grid_linestyle_combo, self._app.y_minor_grid_width_spinbox, self._app.y_minor_grid_alpha_spinbox,
-        ):
-            widget.setEnabled(is_minor_visible)
+        for prefix, shown in (("x_major", is_visible), ("y_major", is_visible),
+                              ("x_minor", is_minor_visible), ("y_minor", is_minor_visible)):
+            for suffix in ("grid_linestyle_combo", "grid_width_spinbox", "grid_alpha_spinbox"):
+                getattr(self._app, f"{prefix}_{suffix}").setEnabled(shown)
+            if grid_form is not None:
+                grid_form.setRowVisible(getattr(self._app, f"{prefix}_grid_style_label"), shown)
 
 
     def _warn_if_font_family_unavailable_for_graph(self, font):
@@ -557,6 +559,7 @@ class AxisSettingsPanel:
             self._block_all_signals(True)
 
             self._app._axis_binder.restore(settings, axis_setting)
+            refresh_axis_format_widgets(self._app)
 
             # 復元では _on_x_autoscale_changed(今の表示範囲を欄に入れる)を呼ばない。
             # 呼ぶと、オートスケールを切って保存した範囲が今の表示範囲で上書きされる。

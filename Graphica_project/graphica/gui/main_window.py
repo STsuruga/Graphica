@@ -104,6 +104,7 @@ from graphica.gui.data_import_flow import (  # noqa: F401
     SUPPORTED_DATA_FILE_EXTENSIONS, find_unevaluated_formula_cells)
 from graphica.gui.project_files import (  # noqa: F401
     AUTOSAVE_GENERATIONS, MAX_RECENT_FILES, UNSAVED_CHANGES_PROMPT_ENV, _unsaved_changes_prompt_enabled)
+from graphica.gui.builders import axis_format_sections
 from graphica.gui.builders import axis_panel
 from graphica.gui.builders import canvas_area
 from graphica.gui.builders import dataset_panel
@@ -904,9 +905,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
             full_resolution=full_resolution,
         )
 
-        self.tick_direction_y2_label.setVisible(is_secondary_visible_global)
-        self.major_tick_direction_y2_combo.setVisible(is_secondary_visible_global)
-        self.minor_tick_direction_y2_combo.setVisible(is_secondary_visible_global)
+        axis_format_sections.set_y2_tick_direction_visible(self, is_secondary_visible_global)
         self.y2_label_text_label.setVisible(is_secondary_visible_global)
         self.y2_label_text_edit.setVisible(is_secondary_visible_global)
 

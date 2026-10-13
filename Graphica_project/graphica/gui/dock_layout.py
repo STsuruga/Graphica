@@ -2,9 +2,10 @@
 import logging
 from PySide6.QtWidgets import QDockWidget, QFormLayout, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
-from graphica.gui import app_settings
+from graphica.gui import app_settings, theme
 from graphica.gui.builders.common import DOCK_LAYOUT_VERSION
 from graphica.gui.export_preview_panel import ExportPreviewPanel
+from graphica.gui.builders.axis_format_sections import build_axis_format_sections
 from graphica.gui.shell.inspector import (INSPECTOR_PAGES, Inspector, TargetHeader, scroll_page,
                                           section_state_texts, wrap_long_rows)
 
@@ -28,6 +29,7 @@ def arrange_property_docks(app):
         logger.warning("control_dock_widget の中身が見つかりません。")
         plot_properties = QWidget()
     legend_page = _take_legend_rows(app)
+    build_axis_format_sections(app)
     app.ui.properties_groupbox.setTitle("")
     # theme.py はグループボックスのタイトル用に上の余白を取る。タイトルが無いので、それを 0 にする目印
     app.ui.properties_groupbox.setProperty("collapsibleBody", True)
@@ -59,6 +61,8 @@ def arrange_property_docks(app):
         app.inspector.add_page(key, title, scroll_page(widget, f"inspector_scroll_{key}"))
     app.inspector.tab_bar.currentChanged.connect(lambda _index: _on_inspector_page_changed(app))
     dock.setWidget(app.inspector)
+    # 機能のオン/オフ(1行を占めるチェックボックス)はスイッチにする
+    theme.make_option_rows_switches(app.inspector)
 
     # 選んでいるデータセットの見出しと節の状態は、描き直すたびに合わせる(選択・名前・種類の変更をまとめて拾える)
     app.canvas.mpl_connect('draw_event', lambda _event: refresh_inspector(app))

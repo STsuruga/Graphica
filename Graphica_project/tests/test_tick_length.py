@@ -138,8 +138,9 @@ def window(tmp_path, monkeypatch):
 
 
 def test_length_row_sits_right_after_tick_width(window):
-    form = window.ui.formLayout_3
-    width_row, _ = form.getWidgetPosition(window.ui.tick_width_spinbox)
+    # 「軸」タブの「目盛」の節。目盛の太さはスライダーに取り込まれているので、名前の行で見る
+    form = window._axis_sections['ticks']['form']
+    width_row, _ = form.getWidgetPosition(window.ui.tick_width_label)
     length_row, _ = form.getWidgetPosition(window.tick_length_label)
     assert length_row == width_row + 1
     field = form.itemAt(length_row, QFormLayout.ItemRole.FieldRole).layout()
@@ -176,3 +177,15 @@ def test_changing_the_length_redraws_the_plot(window):
     window.minor_tick_length_spinbox.setValue(MINOR_TICK_LENGTH_AUTO)
     QApplication.instance().processEvents()
     assert _tick_length(window.canvas.all_axes[0].xaxis, "major") == pytest.approx(10.0)
+
+
+def test_tick_direction_segments_write_the_combos_and_follow_a_restore(window):
+    from graphica.gui.builders.axis_format_sections import refresh_axis_format_widgets
+    segments = window.tick_direction_mirrors[0].view
+    segments.setCurrentIndex(segments.findData("in"))
+    assert window.major_tick_direction_combo.currentText() == "in"
+    blocked = window.major_tick_direction_combo.blockSignals(True)
+    window.major_tick_direction_combo.setCurrentText("inout")
+    window.major_tick_direction_combo.blockSignals(blocked)
+    refresh_axis_format_widgets(window)
+    assert segments.currentData() == "inout"

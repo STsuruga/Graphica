@@ -164,9 +164,8 @@ class UISetupMixin:
 
             self.y2_label_text_label.setVisible(False)
             self.y2_label_text_edit.setVisible(False)
-            self.tick_direction_y2_label.setVisible(False)
-            self.major_tick_direction_y2_combo.setVisible(False)
-            self.minor_tick_direction_y2_combo.setVisible(False)
+            from graphica.gui.builders.axis_format_sections import set_y2_tick_direction_visible
+            set_y2_tick_direction_visible(self, False)
 
             self.ui.grid_visible_checkbox.setChecked(False)
             self.ui.minor_grid_visible_checkbox.setChecked(False)

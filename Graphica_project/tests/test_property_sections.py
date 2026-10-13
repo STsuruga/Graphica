@@ -238,11 +238,12 @@ def test_subsection_toggles_use_their_own_object_name(window):
 
 
 def test_all_sections_are_expanded_by_default(window):
-    """ユーザー決定: 既定は全展開(初回起動の見え方は従来と実質同じ)。"""
+    """ユーザー決定: 既定は全展開(初回起動の見え方は従来と実質同じ)。見出しのスイッチがオフの節は中身を出さない。"""
     for key, _title in DATASET_PROPERTY_SECTIONS:
         entry = window._prop_sections[key]
         assert entry['toggle'].isChecked() is True
-        assert entry['body'].isHidden() is False
+        switch = entry.get('switch')
+        assert entry['body'].isHidden() is (switch is not None and not switch.isChecked())
 
 
 def test_collapsing_a_section_hides_its_body_but_keeps_the_header(window):

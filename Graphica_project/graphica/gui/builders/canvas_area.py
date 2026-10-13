@@ -250,6 +250,7 @@ def finish_card(app):
     app.card_detach_button.clicked.connect(lambda _checked=False: app.canvas_detach_action.trigger())
     from graphica.gui.shell.layout_popover import LayoutPopover, toggle_layout_popover
     app.layout_popover = LayoutPopover(app, app.figure_layout_panel, app)
+    theme.make_option_rows_switches(app.figure_layout_panel)
     app.card_layout_button.clicked.connect(
         lambda _checked=False: toggle_layout_popover(app, app.card_layout_button))
     refresh_card_title(app)

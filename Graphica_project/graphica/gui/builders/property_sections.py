@@ -23,47 +23,12 @@ def build_dataset_property_sections(app):
 
     collapsed = app._load_collapsed_property_sections()
 
-    for key, title in DATASET_PROPERTY_SECTIONS:
-        body = QWidget()
-        body.setObjectName("property_section_body")
-        form = QFormLayout(body)
-        # 見本どおり、見出しより 20px 字下げし、名前と欄の間 10px、行の間 4px
-        form.setContentsMargins(20, 0, 0, 6)
-        form.setHorizontalSpacing(10)
-        form.setVerticalSpacing(4)
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
-
-        # 閉じていても今の状態(「オフ」など)が右に出る見出し(GUI 刷新)
-        toggle_button = SectionHeader(tr(title))
-        toggle_button.setIcon(_svg_icon("chevron-down", size=13))
-        toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        # 上の2つの開閉ボタンとは別の名前(theme.py で控えめに描き、2つだけであることをテストが確かめる)
-        toggle_button.setObjectName("property_subsection_toggle")
-        toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        toggle_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        # QToolButton は文字幅なので、区切りの罫線が見出しの下にしか引かれない
-        toggle_button.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        toggle_button.setChecked(key not in collapsed)
-        # 1本目は親の見出しのすぐ下なので、罫線が二重に見える
-        if key == DATASET_PROPERTY_SECTIONS[0][0]:
-            toggle_button.setProperty("firstSection", True)
-
-        section = QWidget()
-        section_layout = QVBoxLayout(section)
-        section_layout.setContentsMargins(0, 0, 0, 0)
-        section_layout.setSpacing(0)
-        section_layout.addWidget(toggle_button)
-        section_layout.addWidget(body)
-        body.setVisible(toggle_button.isChecked())
-
-        toggle_button.toggled.connect(
+    for index, (key, title) in enumerate(DATASET_PROPERTY_SECTIONS):
+        entry = build_section(tr(title), opened=key not in collapsed, first=(index == 0))
+        entry['toggle'].toggled.connect(
             lambda checked, k=key: app._on_property_section_toggled(k, checked))
-
-        container_layout.addWidget(section)
-        app._prop_sections[key] = {
-            'form': form, 'body': body, 'toggle': toggle_button, 'section': section,
-        }
+        container_layout.addWidget(entry['section'])
+        app._prop_sections[key] = entry
 
     # 空の formLayout_4 は生成物の構造なので残し、余白だけ潰す
     for row in range(app.ui.formLayout_4.rowCount() - 1, -1, -1):
@@ -101,13 +66,67 @@ def build_dataset_property_sections(app):
 SECTION_SWITCH_TOP_OFFSET = {False: 1, True: 9}
 
 
+def build_section(title, opened=True, first=False):
+    """開閉できる節(見出しと、QFormLayout の中身)。{'form', 'body', 'toggle', 'section'} を返す。
+
+    プロパティの節と「軸」タブの節が同じ見た目になるよう、ここで作る。
+    """
+    body = QWidget()
+    body.setObjectName("property_section_body")
+    form = QFormLayout(body)
+    # 見本どおり、見出しより 20px 字下げし、名前と欄の間 10px、行の間 4px
+    form.setContentsMargins(20, 0, 0, 6)
+    form.setHorizontalSpacing(10)
+    form.setVerticalSpacing(4)
+    form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+
+    # 閉じていても今の状態(「オフ」など)が右に出る見出し(GUI 刷新)
+    toggle_button = SectionHeader(title)
+    toggle_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+    # 上の2つの開閉ボタンとは別の名前(theme.py で控えめに描く)
+    toggle_button.setObjectName("property_subsection_toggle")
+    toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
+    toggle_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    # QToolButton は文字幅なので、区切りの罫線が見出しの下にしか引かれない
+    toggle_button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    toggle_button.setChecked(opened)
+    # 1本目は親の見出しのすぐ下なので、罫線が二重に見える
+    if first:
+        toggle_button.setProperty("firstSection", True)
+
+    section = QWidget()
+    section_layout = QVBoxLayout(section)
+    section_layout.setContentsMargins(0, 0, 0, 0)
+    section_layout.setSpacing(0)
+    section_layout.addWidget(toggle_button)
+    section_layout.addWidget(body)
+
+    entry = {'form': form, 'body': body, 'toggle': toggle_button, 'section': section}
+
+    def refresh_body(_checked=None):
+        # 見出しのスイッチがある節は、オフの間は中身を出さない(オフでは中の欄を使わない)
+        switch = entry.get('switch')
+        shown = toggle_button.isChecked() and (switch is None or switch.isChecked())
+        body.setVisible(shown)
+        toggle_button.setIcon(_svg_icon("chevron-down" if shown else "chevron-right", size=13))
+
+    entry['refresh_body'] = refresh_body
+    toggle_button.toggled.connect(refresh_body)
+    refresh_body()
+    return entry
+
+
 def put_switch_in_section_header(app, section_key, checkbox):
+    """プロパティの節の見出しに、その機能のオン/オフのスイッチを置く(attach_header_switch)。"""
+    attach_header_switch(app._prop_sections[section_key], checkbox)
+
+
+def attach_header_switch(entry, checkbox):
     """節の見出しの右端に、その機能のオン/オフのスイッチを置く(節を開かなくてもオンにできる)。
 
     スイッチは元のチェックボックスそのもの(バインディングと変更の処理はそのまま)。オンにしたら節を開く。
     見出しに置くので、その節は中の行が全部隠れていてもスイッチが出ていれば見出しを出す。
     """
-    entry = app._prop_sections[section_key]
     header = entry['toggle']
     checkbox.setToolTip(checkbox.text())
     checkbox.setText("")
@@ -127,6 +146,8 @@ def put_switch_in_section_header(app, section_key, checkbox):
     align_with_title(header.isChecked())
     checkbox.clicked.connect(lambda checked: header.setChecked(True) if checked else None)
     entry['switch'] = checkbox
+    checkbox.toggled.connect(entry['refresh_body'])
+    entry['refresh_body']()
 
 
 def prop_form(app, section_key):
@@ -181,9 +202,7 @@ def on_property_section_toggled(app, section_key, checked):
     entry = app._prop_sections.get(section_key)
     if entry is None:
         return
-    entry['body'].setVisible(checked)
-    entry['toggle'].setIcon(
-        _svg_icon("chevron-down" if checked else "chevron-right", size=13))
+    entry['refresh_body']()
 
     collapsed = sorted(
         key for key, _ in DATASET_PROPERTY_SECTIONS

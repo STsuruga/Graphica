@@ -1460,6 +1460,20 @@ def make_toggle_switch(checkbox):
     return checkbox
 
 
+def make_option_rows_switches(root):
+    """root の中のフォームで、1行を丸ごと占めるチェックボックス(機能のオン/オフ)をスイッチの見た目にする。
+
+    名前の横や欄の中に並んだ小さなチェックは対象にしない(行の形で見分ける)。
+    """
+    from PySide6.QtWidgets import QFormLayout
+    for form in root.findChildren(QFormLayout):
+        for row in range(form.rowCount()):
+            item = form.itemAt(row, QFormLayout.ItemRole.SpanningRole)
+            widget = item.widget() if item is not None else None
+            if isinstance(widget, QCheckBox) and not _is_toggle_switch(widget):
+                make_toggle_switch(widget)
+
+
 def apply_theme(app, dark: bool, theme_color: str = None):
     """ライトでもダークでも Fusion を使い、パレットだけ替える(スタイルを替えるとボタンの大きさや余白まで変わる)。
 
