@@ -15,6 +15,7 @@ from graphica.gui.theme import make_toggle_switch
 
 HEADER_HEIGHT = 48
 HEADER_BUTTON_SIZE = 30
+LOGO_SIZE = 26
 SEARCH_WIDTH = 300
 COMMAND_PALETTE_SHORTCUT_TEXT = "Ctrl+Shift+P"
 EXPORT_ICON = "file-export"
@@ -90,20 +91,30 @@ class AppHeader(QWidget):
         # 上の帯の色を QSS で塗るため(素の QWidget は背景を描かない)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedHeight(HEADER_HEIGHT)
-        layout = QHBoxLayout(self)
-        # ≡ を左の帯のアイコンと同じ縦の列に置く(帯の幅の真ん中に ≡ の真ん中)
-        layout.setContentsMargins((RAIL_WIDTH - HEADER_BUTTON_SIZE) // 2, 0, 12, 0)
-        layout.setSpacing(6)
+        outer = QHBoxLayout(self)
+        outer.setContentsMargins(0, 0, 12, 0)
+        outer.setSpacing(0)
 
+        # ≡ は左の帯と同じ幅の箱の真ん中(帯のアイコンと同じ縦の列)。ロゴはその右、左パネルの白い所の左端から
         self.menu_button = _header_button("menu-2", tr("メニュー"))
         self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         # ▼の印を出さない(≡ だけ)
         self.menu_button.setStyleSheet("QToolButton::menu-indicator { image: none; width: 0; }")
-        layout.addWidget(self.menu_button)
+        rail_column = QWidget()
+        rail_column.setFixedWidth(RAIL_WIDTH)
+        rail_column_layout = QHBoxLayout(rail_column)
+        rail_column_layout.setContentsMargins(0, 0, 0, 0)
+        rail_column_layout.addWidget(self.menu_button, 0, Qt.AlignmentFlag.AlignCenter)
+        outer.addWidget(rail_column)
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        outer.addLayout(layout, 1)
 
         self.logo = QLabel()
         self.logo.setObjectName("header_logo")
-        self.logo.setPixmap(QIcon(app_icon_path).pixmap(22, 22))
+        self.logo.setPixmap(QIcon(app_icon_path).pixmap(LOGO_SIZE, LOGO_SIZE))
         layout.addWidget(self.logo)
         self.title_label = QLabel("Graphica")
         self.title_label.setObjectName("header_title")

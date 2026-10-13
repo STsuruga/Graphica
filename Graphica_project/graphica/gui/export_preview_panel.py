@@ -48,7 +48,7 @@ class ExportPreviewPanel(QWidget):
         self._current_pixmap = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 9, 8, 9)
+        layout.setContentsMargins(14, 9, 14, 9)
 
         form = QFormLayout()
         self.width_spinbox = QDoubleSpinBox()

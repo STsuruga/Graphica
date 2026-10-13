@@ -1,5 +1,5 @@
 """スライダー+今のスピンボックス。値の持ち主はスピンボックスのまま(バインディングはそちらを見る)。"""
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtWidgets import QAbstractSpinBox, QHBoxLayout, QSlider, QWidget
 
 SPIN_WIDTH = 56
@@ -37,7 +37,14 @@ class SliderSpin(QWidget):
         spinbox.setFixedWidth(SPIN_WIDTH)
         self.slider.valueChanged.connect(self._on_slider_moved)
         spinbox.valueChanged.connect(lambda _value: self.refresh())
+        # 行の出し入れは数値の欄(値の持ち主)に対して行われるので、それに合わせてスライダーごと出し入れする
+        spinbox.installEventFilter(self)
         self.refresh()
+
+    def eventFilter(self, watched, event):
+        if watched is self.spinbox and event.type() in (QEvent.Type.HideToParent, QEvent.Type.ShowToParent):
+            self.setVisible(event.type() == QEvent.Type.ShowToParent)
+        return super().eventFilter(watched, event)
 
     def refresh(self):
         blocked = self.slider.blockSignals(True)

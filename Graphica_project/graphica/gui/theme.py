@@ -298,7 +298,7 @@ QToolBar#plot_toolbar {{
 QToolBar#plot_toolbar QToolButton {{
     border: none;
     border-radius: 6px;
-    padding: 3px 7px;
+    padding: 3px 6px;
     margin: 0 2px 0 0;
     color: {text_primary};
     font-size: 12px;
@@ -309,7 +309,7 @@ QToolBar#plot_toolbar QToolButton[toolSegment="last"] {{
     background: {surface_2};
     border-radius: 0;
     margin: 0;
-    padding: 4px 8px;
+    padding: 4px 7px;
 }}
 QToolBar#plot_toolbar QToolButton[toolSegment="first"] {{
     border-top-left-radius: 8px;
@@ -337,6 +337,13 @@ QToolBar#plot_toolbar QToolButton:checked {{
 }}
 QToolBar#plot_toolbar QToolButton[toolSegment="middle"]:checked {{
     border-radius: 0;
+}}
+/* 選んでいるものにマウスを乗せても、文字は白抜きのまま(上の :hover の強調の色だと塗りと同じ色で消える) */
+QToolBar#plot_toolbar QToolButton[toolSegment="first"]:checked:hover,
+QToolBar#plot_toolbar QToolButton[toolSegment="middle"]:checked:hover,
+QToolBar#plot_toolbar QToolButton[toolSegment="last"]:checked:hover {{
+    background: {accent};
+    color: {on_accent};
 }}
 /* シンプルの道具: グラフの左に浮かせた縦の並び */
 QToolBar#plot_tool_rail {{
@@ -1596,6 +1603,8 @@ def install_rounded_combo_popups():
             container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
             # 窓の影は四角いので、角丸の外に影の角が出ないよう消す
             container.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
+            # Windows では枠なしの印が無いと、半透明にしても角の外が四角く塗られる
+            container.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
             # Qt の内部のメニュー風デリゲート(Python からは基底の型に見える)のときだけ替える。
             # プラグインなどが付けたデリゲートは残す
             if type(self.itemDelegate()) is QAbstractItemDelegate:

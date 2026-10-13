@@ -50,7 +50,7 @@ def _strip_trailing_colon_from_labels(widget):
 
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 800
-CONTROL_DOCK_WIDTH = 340  # 右のインスペクタの幅(見本どおり)。軸の設定の長い行は名前を上に折り返して収める
+CONTROL_DOCK_WIDTH = 372  # 右のインスペクタの幅(見本どおり)。軸の設定の長い行は名前を上に折り返して収める
 PROPERTY_LABEL_WIDTH = 92  # プロパティの名前の列(見本どおり)。長い名前は折り返す
 SPIN_BOX_MAX_DECIMALS = 16
 

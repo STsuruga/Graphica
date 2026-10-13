@@ -10,7 +10,7 @@ from graphica.core.i18n import tr
 from graphica.gui.dataset_bindings import MARKER_CHOICES, NO_MARKER
 from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES, make_dataset_style_icon
 
-INSPECTOR_WIDTH = 340
+INSPECTOR_WIDTH = 372
 # (キー, タブの名前)。並びは見本どおり
 INSPECTOR_PAGES = (("properties", "プロパティ"), ("axes", "軸"), ("legend", "凡例"), ("export", "エクスポート"))
 

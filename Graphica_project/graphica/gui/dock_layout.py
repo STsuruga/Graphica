@@ -48,9 +48,9 @@ def arrange_property_docks(app):
     plot_properties.setObjectName("inspector_axes_content")
     wrap_long_rows(plot_properties)
     # 見本どおり左右 16px の余白(欄が欄の端に付かないように)
-    app.ui.gridLayout_4.setContentsMargins(16, 0, 16, 8)
+    app.ui.gridLayout_4.setContentsMargins(16, 0, INSPECTOR_RIGHT_MARGIN, 8)
     if plot_properties.layout() is not None:
-        plot_properties.layout().setContentsMargins(16, 8, 16, 8)
+        plot_properties.layout().setContentsMargins(16, 8, INSPECTOR_RIGHT_MARGIN, 8)
 
     # エクスポートのプレビュー。見えている間だけ描く(ExportPreviewPanel.refresh_preview)ので、裏のタブにあれば重くならない
     app.export_preview_panel = ExportPreviewPanel(app)
@@ -68,6 +68,10 @@ def arrange_property_docks(app):
     app.canvas.mpl_connect('draw_event', lambda _event: refresh_inspector(app))
 
 
+# インスペクタの中身の右の余白。縦のスクロールバーの手前に少し空ける(左の 16px より広め)
+INSPECTOR_RIGHT_MARGIN = 22
+
+
 # 凡例のタブに移す行(軸の設定の formLayout_3 から)。表示のチェックは格子の表示と同じ行の中なので、それも取り出す
 _LEGEND_FIELDS = ("legend_loc_combo", "legend_font_button", "legend_color_button", "legend_order_button")
 
@@ -76,7 +80,7 @@ def _take_legend_rows(app):
     page = QWidget()
     page.setObjectName("inspector_legend_content")
     form = QFormLayout(page)
-    form.setContentsMargins(16, 10, 16, 10)
+    form.setContentsMargins(16, 10, INSPECTOR_RIGHT_MARGIN, 10)
     form.setSpacing(6)
     form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
     visible_checkbox = app.ui.legend_visible_checkbox
