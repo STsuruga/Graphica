@@ -147,6 +147,9 @@ class Inspector(QWidget):
         """タブを見せる・隠す(アドバンスドだけの「凡例」)。隠したタブを開いていたら最初のタブへ。"""
         index = self.page_index(key)
         self.tab_bar.setTabVisible(index, visible)
+        # タブを出し直しても QTabBar は自分の幅の目安を知らせないので、並びの幅が前のまま残り、
+        # 「エクスポート」が切れて ‹ › が出る(シンプル → アドバンスドで凡例のタブを出したとき)
+        self.tab_bar.updateGeometry()
         if not visible and self.tab_bar.currentIndex() == index:
             self.tab_bar.setCurrentIndex(0)
 

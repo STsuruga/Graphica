@@ -353,3 +353,15 @@ def test_card_minimap_button_uses_the_menu_action(main_window):
     assert tab.minimap_action.isChecked() is not before
     assert tab.card_minimap_button.isChecked() is tab.minimap_action.isChecked()
     tab.card_minimap_button.click()
+
+
+def test_inspector_tabs_fit_after_switching_back_to_advanced(main_window):
+    main_window.resize(1440, 900)
+    main_window.show()
+    tab = main_window.tab_widget.currentWidget()
+    main_window.set_ui_mode(ui_mode.LITE)
+    _pump()
+    main_window.set_ui_mode(ui_mode.ADVANCED)
+    _pump()
+    tab_bar = tab.inspector.tab_bar
+    assert tab_bar.width() >= tab_bar.sizeHint().width()
