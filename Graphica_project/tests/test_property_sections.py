@@ -75,7 +75,9 @@ def _section_widgets(window, key):
 
     見た目の部品に取り込んだ値の持ち主(線の種類のコンボ・スライダーの数値の欄)も、その欄の後に数える。"""
     form = window._prop_form(key)
-    out = []
+    # 見出しのスイッチ(グラデーション・ウォーターフォールのオン/オフ)はその節の先頭に数える
+    switch = window._prop_sections[key].get('switch')
+    out = [switch] if switch is not None else []
     for row in range(form.rowCount()):
         for role in (QFormLayout.ItemRole.LabelRole,
                      QFormLayout.ItemRole.FieldRole,
@@ -137,9 +139,10 @@ def test_the_original_form_layout_is_left_empty(window):
 
 def test_every_property_row_lives_in_exactly_one_section(window):
     """39行(+ v1.4.2 で足したデータ点ラベルの上限超過の説明1行、+ ウォーターフォールのオフセットの指定1行、+ 凡例の表示名と「凡例に表示しない」2行、
-    + マーカーの塗りと枠線5行、+ シンプルの種類のタイル1行、- 下のパネルへ移したフィット情報1行)が過不足なく節に分配されていること。"""
+    + マーカーの塗りと枠線5行、+ シンプルの種類のタイル1行、- 下のパネルへ移したフィット情報1行、
+    - 節の見出しのスイッチへ移したグラデーションとウォーターフォールのオン/オフ2行)が過不足なく節に分配されていること。"""
     total = sum(window._prop_form(key).rowCount() for key, _ in DATASET_PROPERTY_SECTIONS)
-    assert total == 48
+    assert total == 46
 
 
 def test_no_property_widget_is_orphaned_from_every_layout(window):
@@ -631,3 +634,19 @@ def test_waterfall_offset_accepts_large_negative_and_exponent_values(window, tex
     _pump()
     assert spin.value() == pytest.approx(expected)
     assert dataset.waterfall_offset_y == pytest.approx(expected)
+
+
+def test_a_section_switch_turns_the_feature_on_and_opens_the_section(window):
+    dataset = Dataset(name="a", df=pd.DataFrame({"x": [0.0, 1.0], "y": [1.0, 2.0]}), x_col_name="x",
+                      y_col_name="y", plot_type="Line")
+    window._add_dataset(dataset)
+    window.ui.dataset_list_widget.setCurrentItem(window._get_dataset_tree_item(dataset))
+    toggle = window._prop_sections['gradient']['toggle']
+    toggle.setChecked(False)
+    assert window._prop_sections['gradient']['switch'] is window.gradient_checkbox
+    window.gradient_checkbox.click()
+    assert dataset.gradient_enabled and toggle.isChecked()
+    # 中の行が全部隠れていても(オフ)、スイッチがあるので見出しは出す
+    window.gradient_checkbox.click()
+    assert not dataset.gradient_enabled
+    assert not window._prop_sections['gradient']['section'].isHidden()

@@ -1,9 +1,9 @@
 """データセットのプロパティ欄の節(折りたたみ・開閉の保存・見出しの出し入れ・ラベル列の幅)。"""
 import json
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFormLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
-from graphica.gui import app_settings, ui_mode
+from graphica.gui import app_settings, theme, ui_mode
 from graphica.gui.builders.common import DATASET_PROPERTY_SECTIONS, _svg_icon, cap_combo_width
 from graphica.gui.widgets import SectionHeader
 
@@ -95,6 +95,38 @@ def build_dataset_property_sections(app):
     marker_form.addRow(app.ui.makersize_label, app.ui.markersize_spinbox)
 
     cap_combo_width(app.ui.plot_type_combo)
+
+
+# 見出しの文字の真ん中に合わせる、スイッチの上の余白(閉じているとき, 開いているとき)。QSS の余白から決めた値
+SECTION_SWITCH_TOP_OFFSET = {False: 1, True: 9}
+
+
+def put_switch_in_section_header(app, section_key, checkbox):
+    """節の見出しの右端に、その機能のオン/オフのスイッチを置く(節を開かなくてもオンにできる)。
+
+    スイッチは元のチェックボックスそのもの(バインディングと変更の処理はそのまま)。オンにしたら節を開く。
+    見出しに置くので、その節は中の行が全部隠れていてもスイッチが出ていれば見出しを出す。
+    """
+    entry = app._prop_sections[section_key]
+    header = entry['toggle']
+    checkbox.setToolTip(checkbox.text())
+    checkbox.setText("")
+    checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
+    theme.make_toggle_switch(checkbox)
+    row = QHBoxLayout(header)
+    row.addStretch(1)
+    row.addWidget(checkbox, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    def align_with_title(opened):
+        # 見出しの文字は上下の余白が違う(QSS の property_subsection_toggle: 開くと上に罫線と余白)ので、
+        # スイッチの縦の真ん中を文字に合わせる
+        row.setContentsMargins(0, SECTION_SWITCH_TOP_OFFSET[opened], 2, 0)
+
+    header.toggled.connect(align_with_title)
+    align_with_title(header.isChecked())
+    checkbox.clicked.connect(lambda checked: header.setChecked(True) if checked else None)
+    entry['switch'] = checkbox
 
 
 def prop_form(app, section_key):
@@ -193,7 +225,8 @@ def update_property_section_visibility(app):
         if entry is None:
             continue
         form = entry['form']
-        has_visible = False
+        switch = entry.get('switch')
+        has_visible = switch is not None and not switch.isHidden()
         for row in range(form.rowCount()):
             for role in (QFormLayout.ItemRole.LabelRole,
                          QFormLayout.ItemRole.FieldRole,

@@ -104,7 +104,8 @@ def refresh_inspector(app):
     for key, entry in getattr(app, '_prop_sections', {}).items():
         toggle = entry['toggle']
         if hasattr(toggle, 'set_state_text'):
-            toggle.set_state_text(states.get(key, ""))
+            # スイッチのある節は、スイッチがオン/オフを見せる
+            toggle.set_state_text("" if 'switch' in entry else states.get(key, ""))
 
 
 def restore_dock_layout(app):

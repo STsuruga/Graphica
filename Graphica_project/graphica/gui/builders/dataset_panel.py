@@ -10,6 +10,7 @@ from graphica.core.marker_style import (
     DEFAULT_MARKER_EDGE_WIDTH, MARKER_EDGE_COLOR, MARKER_EDGE_SAME, MARKER_FILL_COLOR, MARKER_FILL_HOLLOW,
     MARKER_FILL_SOLID)
 from graphica.gui.builders import property_widgets
+from graphica.gui.builders.property_sections import put_switch_in_section_header
 from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
     _svg_icon, cap_combo_width)
@@ -180,7 +181,7 @@ def build_dataset_style_controls(app):
 
     # グラデーション(線・面の塗り)。出し入れは property_panel.update_gradient_controls_visibility
     app.gradient_checkbox = QCheckBox(tr("グラデーションを適用"))
-    app._prop_form('gradient').addRow(app.gradient_checkbox)
+    put_switch_in_section_header(app, 'gradient', app.gradient_checkbox)
 
     app.gradient_color2_label = QLabel(tr("終端色"))
     app.gradient_color2_picker = ColorPickerWidget(app.settings, app, initial_color='#ffffff')
@@ -196,7 +197,7 @@ def build_dataset_style_controls(app):
     # ウォーターフォールは種類ではなく、どの種類とも組み合わせられるオプション。
     # 出し入れは property_panel.update_waterfall_controls_visibility
     app.waterfall_checkbox = QCheckBox(tr("ウォーターフォール表示(積み重ね)"))
-    app._prop_form('waterfall').addRow(app.waterfall_checkbox)
+    put_switch_in_section_header(app, 'waterfall', app.waterfall_checkbox)
 
     # オフセットの欄は大きな値や指数表記(1.5E6)も入れられる(main_window の _enable_scientific_notation_input)
     app.waterfall_offset_mode_label = QLabel(tr("オフセットの指定"))
