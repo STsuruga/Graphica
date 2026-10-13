@@ -21,7 +21,7 @@ EXPORT_ICON = "file-export"
 
 
 class ModeToggle(QWidget):
-    """「シンプル (スイッチ) アドバンスド」。どこを押しても切り替わり、今のモードの名前を濃く見せる。
+    """「アドバンスド (スイッチ)」。オンでアドバンスド、オフでシンプル。名前を押しても切り替わる。
 
     mode_changed は利用者の操作でだけ出る(set_mode では出ない)。
     """
@@ -32,28 +32,25 @@ class ModeToggle(QWidget):
         super().__init__(parent)
         self.setObjectName("mode_switch")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip(tr("シンプル / アドバンスドを切り替える"))
+        self.setToolTip(tr("オンでアドバンスド(すべての設定)、オフでシンプル"))
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 0, 4, 0)
-        layout.setSpacing(6)
-        self.lite_label = QLabel(ui_mode.mode_label(ui_mode.LITE))
-        self.advanced_label = QLabel(ui_mode.mode_label(ui_mode.ADVANCED))
+        layout.setSpacing(8)
+        self.label = QLabel(ui_mode.mode_label(ui_mode.ADVANCED))
+        self.label.setObjectName("mode_label")
         self.switch = QCheckBox()
         # 押すのはこの部品全体(スイッチだけが押しを受けると、名前を押しても切り替わらない)
         self.switch.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.switch.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         make_toggle_switch(self.switch)
-        layout.addWidget(self.lite_label)
+        layout.addWidget(self.label)
         layout.addWidget(self.switch)
-        layout.addWidget(self.advanced_label)
-        self.refresh()
 
     def mode(self):
         return ui_mode.ADVANCED if self.switch.isChecked() else ui_mode.LITE
 
     def set_mode(self, mode):
         self.switch.setChecked(mode == ui_mode.ADVANCED)
-        self.refresh()
 
     def toggle(self):
         self.set_mode(ui_mode.LITE if self.mode() == ui_mode.ADVANCED else ui_mode.ADVANCED)
@@ -63,13 +60,6 @@ class ModeToggle(QWidget):
         if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
             self.toggle()
         super().mouseReleaseEvent(event)
-
-    def refresh(self):
-        for label, active in ((self.lite_label, self.mode() == ui_mode.LITE),
-                              (self.advanced_label, self.mode() == ui_mode.ADVANCED)):
-            label.setObjectName("mode_label_active" if active else "mode_label")
-            label.style().unpolish(label)
-            label.style().polish(label)
 
 
 def _header_button(name, tooltip):
@@ -199,4 +189,3 @@ class AppHeader(QWidget):
                 button.setIcon(themed_icon(name))
         self.search_icon.setPixmap(themed_icon("search", size=15, token="text_muted").pixmap(15, 15))
         self.export_button.setIcon(themed_icon(EXPORT_ICON, size=17, token="on_accent"))
-        self.mode_switch.refresh()

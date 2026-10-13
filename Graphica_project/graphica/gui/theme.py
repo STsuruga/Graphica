@@ -961,29 +961,41 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 }}
 
 /* --- GUI 刷新の部品(gui/widgets/)。寸法は見本 docs/dev/mockups/gui_redesign/ のまま --- */
-/* セグメント: 塗りの地の中に、選んだものだけ面の色で浮かせる */
+/* セグメント: 丸い枠の中に区切り線で並べ、選んだものを強調の薄い色で塗る */
 QFrame#segmented_control {{
-    background: {surface_2};
-    border: none;
-    border-radius: 7px;
+    background: {surface};
+    border: 1px solid {border_strong};
+    border-radius: 14px;
 }}
 QToolButton#segment {{
     background: transparent;
     border: none;
-    border-radius: 5px;
-    padding: 3px 8px;
-    color: {text_secondary};
+    border-left: 1px solid {border_strong};
+    border-radius: 0;
+    padding: 0 8px;
+    color: {text_primary};
+}}
+QToolButton#segment[segmentPosition="first"], QToolButton#segment[segmentPosition="only"] {{
+    border-left: none;
+    border-top-left-radius: 13px;
+    border-bottom-left-radius: 13px;
+}}
+QToolButton#segment[segmentPosition="last"], QToolButton#segment[segmentPosition="only"] {{
+    border-top-right-radius: 13px;
+    border-bottom-right-radius: 13px;
 }}
 QToolButton#segment:hover {{
-    color: {text_primary};
+    background: {surface_2};
 }}
 QToolButton#segment:checked {{
-    background: {raised};
-    color: {text_primary};
+    background: {accent_soft};
+    color: {accent_fg};
     font-weight: 600;
 }}
 QToolButton#segment:focus {{
-    border: none;
+    border-top: none;
+    border-bottom: none;
+    border-right: none;
 }}
 /* グラフの種類のタイル(アイコン+文字) */
 QToolButton#type_tile {{
@@ -1121,12 +1133,8 @@ QLabel#kbd_hint {{
     padding: 1px 5px;
     font-size: 10.5px;
 }}
-/* 上部バーのモードの切り替え: 今のモードの名前だけ濃く太く */
+/* 上部バーのモードの切り替え(「アドバンスド」とスイッチ) */
 QLabel#mode_label {{
-    color: {text_muted};
-    background: transparent;
-}}
-QLabel#mode_label_active {{
     color: {text_primary};
     background: transparent;
     font-weight: 600;
