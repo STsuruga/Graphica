@@ -13,8 +13,13 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-14): v2.5.0(新しい画面の手直し)を出す
+## 現在地(2026-10-14): v2.5.0(新しい画面の手直し)を公開した
 
+- **v2.5.0 を公開済み**(タグ `v2.5.0` = `8e40e8f`、PR #156)。PyPI に `graphica-plot` 2.5.0(wheel・sdist)、GitHub Releases に
+  `Graphica-2.5.0-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(zip 2つに `LICENSE` と `THIRD_PARTY_LICENSES.md`)。
+  `update_check` は 2.4.0 から v2.5.0 を更新ありと判定し、3つの添付と SHA-256 を拾う。
+- PR の CI で `test-macos (2)` が記録なしでキャンセルされた(ランナー側)。流し直しで通った。手元のフルスイートでは
+  `test_named_colors`/`test_notify` の組でアクセス違反が1回あったが、単独・coverage 付きで計5回再現しなかった。
 - ユーザーが v2.4.0 の画面を使って出した指摘を、ブランチ `fix/toolbar-narrow-and-kbd-hint` でまとめて直した(CHANGELOG の v2.5.0)。
   上部バー(「アドバンスド」のスイッチ・検索を右に固定・エクスポートはアイコン・クイックアクセスは ★ の一覧)、グラフのカードの
   レイアウトのポップアップ(行数・列数・軸の共有・自由配置を「軸」タブから移した)、「軸 › ラベル/書式」の節分け
