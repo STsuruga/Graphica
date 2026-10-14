@@ -29,8 +29,9 @@ _DEFAULT_MARKER = "o"
 # スライダーの範囲(よく使う範囲。数値の欄はこれより外の値も受け付ける)
 LINEWIDTH_SLIDER_RANGE = (0.0, 5.0)
 ALPHA_SLIDER_RANGE = (0.0, 1.0)
+MARKERSIZE_SLIDER_RANGE = (0.0, 20.0)
 
-QUICK_COLOR_COUNT = 4
+QUICK_COLOR_COUNT = 5
 
 
 class _TypeTileMirror(ComboMirror):
@@ -91,6 +92,8 @@ def build_property_widgets(app):
     # 線の太さ・透明度: スライダー+数値(数値の欄は今のスピンボックス)
     app.linewidth_slider = _slider_field(style_form, app.ui.linewidth_spinbox, *LINEWIDTH_SLIDER_RANGE)
     app.alpha_slider = _slider_field(style_form, app.alpha_spinbox, *ALPHA_SLIDER_RANGE)
+    app.markersize_slider = _slider_field(app._prop_form('marker'), app.ui.markersize_spinbox,
+                                          *MARKERSIZE_SLIDER_RANGE)
 
     # 平滑化: 部品は替えず、描き方だけスイッチに
     theme.make_toggle_switch(app.ui.smoothing_checkbox)
@@ -160,4 +163,5 @@ def refresh_property_widgets(app):
     app.plot_type_tiles_mirror.refresh()
     app.linewidth_slider.refresh()
     app.alpha_slider.refresh()
+    app.markersize_slider.refresh()
     app.color_picker_widget.show_quick_colors(quick_colors(app))

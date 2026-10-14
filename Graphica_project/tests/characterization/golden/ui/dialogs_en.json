@@ -101,16 +101,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -270,16 +260,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -347,16 +327,6 @@
                "enabled": true
               }
              ]
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
             }
            ]
           }
@@ -580,16 +550,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -738,16 +698,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -862,16 +812,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -1027,16 +967,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -1135,16 +1065,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -1341,16 +1261,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       },
@@ -1420,16 +1330,6 @@
              "enabled": true
             }
            ]
-          },
-          {
-           "class": "QWidget",
-           "visible": false,
-           "enabled": true
-          },
-          {
-           "class": "QWidget",
-           "visible": false,
-           "enabled": true
           }
          ]
         }
@@ -1591,16 +1491,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -1640,16 +1530,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -1719,16 +1599,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -1778,16 +1648,6 @@
                "enabled": true
               }
              ]
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
             }
            ]
           }
@@ -1914,16 +1774,6 @@
                "enabled": true
               }
              ]
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
             }
            ]
           }
@@ -2033,16 +1883,6 @@
                "enabled": true
               }
              ]
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
             }
            ]
           }
@@ -2077,16 +1917,6 @@
                "enabled": true
               }
              ]
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
             }
            ]
           }
@@ -2121,16 +1951,6 @@
                "enabled": true
               }
              ]
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
             }
            ]
           }
@@ -2314,16 +2134,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -2420,16 +2230,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -2528,16 +2328,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -2696,16 +2486,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -2788,16 +2568,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -2955,16 +2725,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -3051,16 +2811,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -3121,16 +2871,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -3385,16 +3125,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -3580,16 +3310,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -3628,16 +3348,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -3894,16 +3604,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -3999,16 +3699,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -4298,16 +3988,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -4347,16 +4027,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -4706,16 +4376,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -4829,16 +4489,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -4978,16 +4628,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -5143,16 +4783,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -5430,16 +5060,6 @@
                    "enabled": true
                   }
                  ]
-                },
-                {
-                 "class": "QWidget",
-                 "visible": false,
-                 "enabled": true
-                },
-                {
-                 "class": "QWidget",
-                 "visible": false,
-                 "enabled": true
                 }
                ]
               }
@@ -5578,16 +5198,6 @@
                    "enabled": true
                   }
                  ]
-                },
-                {
-                 "class": "QWidget",
-                 "visible": false,
-                 "enabled": true
-                },
-                {
-                 "class": "QWidget",
-                 "visible": false,
-                 "enabled": true
                 }
                ]
               }
@@ -5847,16 +5457,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -5949,16 +5549,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -6076,16 +5666,6 @@
                "enabled": true
               }
              ]
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
-            },
-            {
-             "class": "QWidget",
-             "visible": false,
-             "enabled": true
             }
            ]
           }
@@ -6128,16 +5708,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }
@@ -6323,16 +5893,6 @@
            "enabled": true
           }
          ]
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
-        },
-        {
-         "class": "QWidget",
-         "visible": false,
-         "enabled": true
         }
        ]
       }

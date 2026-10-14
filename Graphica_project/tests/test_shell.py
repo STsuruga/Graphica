@@ -129,11 +129,12 @@ def test_mode_switch_in_the_header_applies_to_every_tab(main_window):
     second = main_window.add_new_project_tab()
     _pump()
     switch = main_window.header.mode_switch
-    switch.setCurrentIndex(switch.findData(ui_mode.LITE))
-    assert main_window.ui_mode == ui_mode.LITE
+    main_window.set_ui_mode(ui_mode.ADVANCED)
+    switch.toggle()
+    assert main_window.ui_mode == ui_mode.LITE and not switch.switch.isChecked()
     for index in range(main_window.tab_widget.count()):
         assert main_window.tab_widget.widget(index).ui_mode == ui_mode.LITE
-    switch.setCurrentIndex(switch.findData(ui_mode.ADVANCED))
+    switch.toggle()
     assert second.ui_mode == ui_mode.ADVANCED
     third = main_window.add_new_project_tab()
     assert third.ui_mode == ui_mode.ADVANCED
@@ -175,23 +176,26 @@ def test_menu_bar_is_hidden_but_shortcuts_still_reach_the_tab(main_window):
     assert tab.command_palette_action in tab.actions()
 
 
-def test_quick_access_toolbar_lives_in_the_header_and_follows_the_tab(main_window):
+def test_the_star_menu_lists_the_current_tabs_pins(main_window):
     first = main_window.tab_widget.widget(0)
     second = main_window.add_new_project_tab()
     _pump()
-    stack = main_window.header.quick_access_stack
-    assert stack.currentWidget() is second.quick_access_toolbar
-    assert second.quick_access_manage_action not in second.quick_access_toolbar.actions()
-    main_window.tab_widget.setCurrentIndex(0)
-    assert stack.currentWidget() is first.quick_access_toolbar
+    path, action = second._collect_menu_actions()[0]
+    second.pin_quick_access_action("/".join(path), action)
+    menu = main_window.header.quick_access_menu
+    menu.aboutToShow.emit()
+    assert action in menu.actions() and second.quick_access_manage_action in menu.actions()
+    assert second.quick_access_toolbar.isHidden()
+    main_window.tab_widget.setCurrentIndex(main_window.tab_widget.indexOf(first))
+    menu.aboutToShow.emit()
+    assert action not in menu.actions()
+    assert first.quick_access_manage_action in menu.actions()
 
 
 def test_closing_a_tab_drops_its_header_parts(main_window):
     second = main_window.add_new_project_tab()
     _pump()
-    count = main_window.header.quick_access_stack.count()
     main_window._on_tab_close_requested(main_window.tab_widget.indexOf(second))
-    assert main_window.header.quick_access_stack.count() == count - 1
     assert second not in main_window._tab_menus
 
 
@@ -292,6 +296,38 @@ def test_graph_tools_follow_the_mode(main_window):
     assert tab.cursor_action in tab.plot_tool_rail.actions() and tab.cursor_action in tab.plot_toolbar.actions()
 
 
+def test_the_advanced_toolbar_drops_its_texts_when_too_narrow(qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QAction
+    from graphica.gui.builders.canvas_area import AdaptiveToolBar
+    toolbar = AdaptiveToolBar("t")
+    toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+    for name in ("カーソル", "注釈", "範囲選択", "ピーク", "領域"):
+        toolbar.addAction(QAction(name, toolbar))
+    toolbar.show()
+    full = toolbar.sizeHint().width()
+    toolbar.resize(full // 2, toolbar.height())
+    _pump()
+    assert toolbar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+    toolbar.resize(full + 10, toolbar.height())
+    _pump()
+    assert toolbar.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    toolbar.close()
+
+
+def test_the_inspector_keeps_room_for_its_scroll_bar(main_window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QScrollArea
+    tab = main_window.tab_widget.currentWidget()
+    scroll = tab.findChild(QScrollArea, "inspector_scroll_properties")
+    assert scroll.verticalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+    bar = scroll.verticalScrollBar()
+    bar.setRange(0, 0)
+    assert bar.property("scrollIdle") is True
+    bar.setRange(0, 100)
+    assert bar.property("scrollIdle") is False
+
+
 def test_lite_tools_are_the_mockups_four(main_window):
     tab = main_window.tab_widget.currentWidget()
     actions = [a for a in tab.plot_tool_rail.actions() if not a.isSeparator()]
@@ -317,3 +353,15 @@ def test_card_minimap_button_uses_the_menu_action(main_window):
     assert tab.minimap_action.isChecked() is not before
     assert tab.card_minimap_button.isChecked() is tab.minimap_action.isChecked()
     tab.card_minimap_button.click()
+
+
+def test_inspector_tabs_fit_after_switching_back_to_advanced(main_window):
+    main_window.resize(1440, 900)
+    main_window.show()
+    tab = main_window.tab_widget.currentWidget()
+    main_window.set_ui_mode(ui_mode.LITE)
+    _pump()
+    main_window.set_ui_mode(ui_mode.ADVANCED)
+    _pump()
+    tab_bar = tab.inspector.tab_bar
+    assert tab_bar.width() >= tab_bar.sizeHint().width()

@@ -5,13 +5,14 @@ import tempfile
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen, QPixmap
-from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QCheckBox, QComboBox,
-                               QProxyStyle, QStyle, QStyleFactory)
+from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractSpinBox, QApplication, QCheckBox, QComboBox, QFrame,
+                               QProxyStyle, QStyle, QStyledItemDelegate, QStyleFactory)
 
 from graphica.gui.icon_utils import icon as _svg_icon
 from graphica.gui.theme_color import DEFAULT_THEME_COLOR, derive_accent, normalize_hex
 
 _wheel_value_change_disabled = False
+_original_show_combo_popup = None
 _current_proxy_style = None
 _current_tokens = None
 _current_theme_color = DEFAULT_THEME_COLOR
@@ -297,7 +298,7 @@ QToolBar#plot_toolbar {{
 QToolBar#plot_toolbar QToolButton {{
     border: none;
     border-radius: 6px;
-    padding: 3px 7px;
+    padding: 3px 6px;
     margin: 0 2px 0 0;
     color: {text_primary};
     font-size: 12px;
@@ -308,7 +309,7 @@ QToolBar#plot_toolbar QToolButton[toolSegment="last"] {{
     background: {surface_2};
     border-radius: 0;
     margin: 0;
-    padding: 4px 8px;
+    padding: 4px 7px;
 }}
 QToolBar#plot_toolbar QToolButton[toolSegment="first"] {{
     border-top-left-radius: 8px;
@@ -327,11 +328,22 @@ QToolBar#plot_toolbar QToolButton[toolSegment="middle"]:hover,
 QToolBar#plot_toolbar QToolButton[toolSegment="last"]:hover {{
     color: {accent_fg};
 }}
+/* 選んでいるモードは強調の色で塗って白抜きにし(左の帯と同じ)、塊の中では角を丸めない */
 QToolBar#plot_toolbar QToolButton:checked {{
-    background: {raised};
-    color: {accent_fg};
+    background: {accent};
+    color: {on_accent};
     border: none;
     font-weight: 600;
+}}
+QToolBar#plot_toolbar QToolButton[toolSegment="middle"]:checked {{
+    border-radius: 0;
+}}
+/* 選んでいるものにマウスを乗せても、文字は白抜きのまま(上の :hover の強調の色だと塗りと同じ色で消える) */
+QToolBar#plot_toolbar QToolButton[toolSegment="first"]:checked:hover,
+QToolBar#plot_toolbar QToolButton[toolSegment="middle"]:checked:hover,
+QToolBar#plot_toolbar QToolButton[toolSegment="last"]:checked:hover {{
+    background: {accent};
+    color: {on_accent};
 }}
 /* シンプルの道具: グラフの左に浮かせた縦の並び */
 QToolBar#plot_tool_rail {{
@@ -350,7 +362,7 @@ QToolBar#plot_tool_rail QToolButton:hover {{
     background: {surface_2};
 }}
 QToolBar#plot_tool_rail QToolButton:checked {{
-    background: {accent_soft};
+    background: {accent};
     border: none;
 }}
 
@@ -760,6 +772,10 @@ QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
     width: 12px;
     height: 12px;
 }}
+QComboBox {{
+    /* 一覧はメニュー風ではなくリストで出す(メニュー風だと外側に四角い枠が描かれ、角丸にならない) */
+    combobox-popup: 0;
+}}
 QComboBox::drop-down {{
     border: none;
     width: 20px;
@@ -770,12 +786,32 @@ QComboBox::down-arrow {{
     width: 12px;
     height: 12px;
 }}
+/* 開いた一覧: 箱の角丸はプルダウンと同じ 6px(外側の器は透明にする。install_rounded_combo_popups) */
+QComboBoxPrivateContainer {{
+    background: transparent;
+    border: none;
+}}
 QComboBox QAbstractItemView {{
     background: {surface};
     border: 1px solid {border};
+    border-radius: 6px;
+    padding: 4px;
     selection-background-color: {accent_soft};
-    selection-color: {text_primary};
+    selection-color: {accent_fg};
     outline: none;
+}}
+QComboBox QAbstractItemView::item {{
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 5px;
+    color: {text_primary};
+}}
+QComboBox QAbstractItemView::item:hover {{
+    background: {surface_2};
+}}
+QComboBox QAbstractItemView::item:selected {{
+    background: {accent_soft};
+    color: {accent_fg};
 }}
 
 /* --- リスト / ツリー / テーブル --- */
@@ -910,6 +946,10 @@ QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed {{
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
     height: 0;
 }}
+/* 幅だけ取っておくスクロールバー(インスペクタ)で、スクロールするものが無いとき */
+QScrollBar[scrollIdle="true"]::handle:vertical {{
+    background: transparent;
+}}
 QScrollBar:horizontal {{
     background: transparent;
     height: 11px;
@@ -928,29 +968,41 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 }}
 
 /* --- GUI 刷新の部品(gui/widgets/)。寸法は見本 docs/dev/mockups/gui_redesign/ のまま --- */
-/* セグメント: 塗りの地の中に、選んだものだけ面の色で浮かせる */
+/* セグメント: 丸い枠の中に区切り線で並べ、選んだものを強調の薄い色で塗る */
 QFrame#segmented_control {{
-    background: {surface_2};
-    border: none;
-    border-radius: 7px;
+    background: {surface};
+    border: 1px solid {border_strong};
+    border-radius: 14px;
 }}
 QToolButton#segment {{
     background: transparent;
     border: none;
-    border-radius: 5px;
-    padding: 3px 8px;
-    color: {text_secondary};
+    border-left: 1px solid {border_strong};
+    border-radius: 0;
+    padding: 0 8px;
+    color: {text_primary};
+}}
+QToolButton#segment[segmentPosition="first"], QToolButton#segment[segmentPosition="only"] {{
+    border-left: none;
+    border-top-left-radius: 13px;
+    border-bottom-left-radius: 13px;
+}}
+QToolButton#segment[segmentPosition="last"], QToolButton#segment[segmentPosition="only"] {{
+    border-top-right-radius: 13px;
+    border-bottom-right-radius: 13px;
 }}
 QToolButton#segment:hover {{
-    color: {text_primary};
+    background: {surface_2};
 }}
 QToolButton#segment:checked {{
-    background: {raised};
-    color: {text_primary};
+    background: {accent_soft};
+    color: {accent_fg};
     font-weight: 600;
 }}
 QToolButton#segment:focus {{
-    border: none;
+    border-top: none;
+    border-bottom: none;
+    border-right: none;
 }}
 /* グラフの種類のタイル(アイコン+文字) */
 QToolButton#type_tile {{
@@ -1046,7 +1098,7 @@ QTabBar#project_tab_bar {{
 }}
 QTabBar#project_tab_bar::tab {{
     height: 32px;
-    padding: 0 8px 0 12px;
+    padding: 0 12px 0 12px;
     margin: 0 2px 0 0;
     border: none;
     border-radius: 8px;
@@ -1079,13 +1131,20 @@ QLabel#command_search_text {{
     color: {text_muted};
     background: transparent;
 }}
+/* ショートカットの表示は枠線を引かず、薄い地色だけで控えめに */
 QLabel#kbd_hint {{
-    color: {text_secondary};
-    background: transparent;
-    border: 1px solid {border_strong};
+    color: {text_muted};
+    background: {surface_2};
+    border: none;
     border-radius: 4px;
-    padding: 0 5px;
+    padding: 1px 5px;
     font-size: 10.5px;
+}}
+/* 上部バーのモードの切り替え(「アドバンスド」とスイッチ) */
+QLabel#mode_label {{
+    color: {text_primary};
+    background: transparent;
+    font-weight: 600;
 }}
 QPushButton[primaryButton="true"] {{
     background: {accent};
@@ -1094,6 +1153,10 @@ QPushButton[primaryButton="true"] {{
     color: {on_accent};
     font-weight: 600;
     padding: 5px 12px;
+}}
+/* アイコンだけのエクスポート: 大きさは Python 側の setFixedSize、余白でアイコンが切れないように */
+QPushButton#header_export_button {{
+    padding: 0;
 }}
 QPushButton[primaryButton="true"]:hover {{
     background: {accent};
@@ -1118,12 +1181,6 @@ QPushButton[ghostButton="true"]:hover, QToolButton[ghostButton="true"]:hover {{
 }}
 QPushButton[ghostButton="true"]:pressed, QToolButton[ghostButton="true"]:pressed {{
     background: {accent_soft};
-}}
-QStackedWidget#quick_access_slot, QStackedWidget#quick_access_slot QToolBar {{
-    background: transparent;
-    border: none;
-    padding: 0;
-    spacing: 2px;
 }}
 QWidget#activity_rail {{
     background: {chrome};
@@ -1418,6 +1475,20 @@ def make_toggle_switch(checkbox):
     return checkbox
 
 
+def make_option_rows_switches(root):
+    """root の中のフォームで、1行を丸ごと占めるチェックボックス(機能のオン/オフ)をスイッチの見た目にする。
+
+    名前の横や欄の中に並んだ小さなチェックは対象にしない(行の形で見分ける)。
+    """
+    from PySide6.QtWidgets import QFormLayout
+    for form in root.findChildren(QFormLayout):
+        for row in range(form.rowCount()):
+            item = form.itemAt(row, QFormLayout.ItemRole.SpanningRole)
+            widget = item.widget() if item is not None else None
+            if isinstance(widget, QCheckBox) and not _is_toggle_switch(widget):
+                make_toggle_switch(widget)
+
+
 def apply_theme(app, dark: bool, theme_color: str = None):
     """ライトでもダークでも Fusion を使い、パレットだけ替える(スタイルを替えるとボタンの大きさや余白まで変わる)。
 
@@ -1444,6 +1515,7 @@ def apply_theme(app, dark: bool, theme_color: str = None):
         base_style = QStyleFactory.create('Fusion')
         _current_proxy_style = _FlatThemeProxyStyle(base_style, tokens)
         app.setStyle(_current_proxy_style)
+        install_rounded_combo_popups()
     else:
         _current_proxy_style.update_tokens(tokens)
     app.setPalette(build_palette(tokens))
@@ -1511,6 +1583,37 @@ def apply_form_spacing(widget, spacing=12):
     for form_layout in widget.findChildren(QFormLayout):
         if form_layout.verticalSpacing() < spacing:
             form_layout.setVerticalSpacing(spacing)
+
+
+def install_rounded_combo_popups():
+    """コンボの一覧を、角丸の箱と余白のある行で出す(QSS の QComboBox QAbstractItemView)。
+
+    角の外を透かすには一覧の窓を初めて出す前に半透明にする必要があり、行に QSS を効かせるには Fusion の
+    メニュー風のデリゲートを替える必要がある。どちらもコンボごとなので、開くときに1回だけ行う。
+    """
+    global _original_show_combo_popup
+    if _original_show_combo_popup is not None:
+        return
+    _original_show_combo_popup = QComboBox.showPopup
+
+    def _show_popup(self):
+        container = self.view().window()
+        if not container.property("roundedPopup"):
+            container.setProperty("roundedPopup", True)
+            container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            # 窓の影は四角いので、角丸の外に影の角が出ないよう消す
+            container.setWindowFlag(Qt.WindowType.NoDropShadowWindowHint, True)
+            # Windows では枠なしの印が無いと、半透明にしても角の外が四角く塗られる
+            container.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+            # Qt の内部のメニュー風デリゲート(Python からは基底の型に見える)のときだけ替える。
+            # プラグインなどが付けたデリゲートは残す
+            if type(self.itemDelegate()) is QAbstractItemDelegate:
+                self.setItemDelegate(QStyledItemDelegate(self))
+        # 外側の器の四角い枠(スタイルが替わると付け直されるので、開くたびに外す)
+        container.setFrameShape(QFrame.Shape.NoFrame)
+        _original_show_combo_popup(self)
+
+    QComboBox.showPopup = _show_popup
 
 
 def disable_scroll_value_change():

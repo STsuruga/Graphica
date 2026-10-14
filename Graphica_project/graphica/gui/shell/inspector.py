@@ -10,7 +10,7 @@ from graphica.core.i18n import tr
 from graphica.gui.dataset_bindings import MARKER_CHOICES, NO_MARKER
 from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES, make_dataset_style_icon
 
-INSPECTOR_WIDTH = 340
+INSPECTOR_WIDTH = 372
 # (キー, タブの名前)。並びは見本どおり
 INSPECTOR_PAGES = (("properties", "プロパティ"), ("axes", "軸"), ("legend", "凡例"), ("export", "エクスポート"))
 
@@ -21,8 +21,22 @@ def scroll_page(widget, object_name):
     scroll.setObjectName(object_name)
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    # 出し入れすると中の幅が変わって欄が並び直すので、縦のスクロールバーの幅はいつも取っておき、
+    # スクロールするものが無いときはつまみを見せない(QSS の scrollIdle)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+    bar = scroll.verticalScrollBar()
+    bar.rangeChanged.connect(lambda minimum, maximum: _set_scroll_idle(bar, maximum <= minimum))
+    _set_scroll_idle(bar, True)
     scroll.setWidget(widget)
     return scroll
+
+
+def _set_scroll_idle(bar, idle):
+    if bar.property("scrollIdle") == idle:
+        return
+    bar.setProperty("scrollIdle", idle)
+    bar.style().unpolish(bar)
+    bar.style().polish(bar)
 
 
 def wrap_long_rows(widget):
@@ -133,6 +147,9 @@ class Inspector(QWidget):
         """タブを見せる・隠す(アドバンスドだけの「凡例」)。隠したタブを開いていたら最初のタブへ。"""
         index = self.page_index(key)
         self.tab_bar.setTabVisible(index, visible)
+        # タブを出し直しても QTabBar は自分の幅の目安を知らせないので、並びの幅が前のまま残り、
+        # 「エクスポート」が切れて ‹ › が出る(シンプル → アドバンスドで凡例のタブを出したとき)
+        self.tab_bar.updateGeometry()
         if not visible and self.tab_bar.currentIndex() == index:
             self.tab_bar.setCurrentIndex(0)
 

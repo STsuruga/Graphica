@@ -2,7 +2,7 @@
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QPushButton, QLineEdit,
-                               QMenu)
+                               QMenu, QVBoxLayout)
 
 from graphica.gui import notify
 from graphica.core.i18n import tr
@@ -27,9 +27,14 @@ class ColorPickerWidget(QWidget):
         self._settings = settings
         self._color = QColor(initial_color)
 
-        layout = QHBoxLayout(self)
+        # 1段目: 色見本と #RRGGBB。今のパレットの色のチップは show_quick_colors で2段目に足す
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
+        layout.setSpacing(4)
+        self._top_row = QHBoxLayout()
+        self._top_row.setContentsMargins(0, 0, 0, 0)
+        self._top_row.setSpacing(6)
+        layout.addLayout(self._top_row)
 
         self.swatch_button = QPushButton(self)
         self.swatch_button.setFixedSize(30, 24)
@@ -43,8 +48,8 @@ class ColorPickerWidget(QWidget):
         self.hex_edit.editingFinished.connect(self._on_hex_edited)
         self.hex_edit.textChanged.connect(self._on_hex_text_changed)
 
-        layout.addWidget(self.swatch_button)
-        layout.addWidget(self.hex_edit, 1)
+        self._top_row.addWidget(self.swatch_button)
+        self._top_row.addWidget(self.hex_edit, 1)
         # 今のパレットの色(show_quick_colors で出す。出さない欄では None のまま)
         self.quick_colors_row = None
 
@@ -71,17 +76,16 @@ class ColorPickerWidget(QWidget):
         self.hex_edit.blockSignals(False)
 
     def show_quick_colors(self, colors):
-        """見本と入力欄の間に、押すとすぐその色になるチップを並べる(色が同じなら作り直さない)。"""
+        """見本と入力欄の下の段に、押すとすぐその色になるチップを並べる(色が同じなら作り直さない)。"""
         from graphica.gui.widgets import ColorChipRow
         if self.quick_colors_row is None:
             self.quick_colors_row = ColorChipRow(chip_size=QUICK_CHIP_SIZE, parent=self)
             self.quick_colors_row.colorPicked.connect(self._apply_color_name)
-            self.layout().insertWidget(1, self.quick_colors_row)
-            # チップが並ぶと幅が足りないので、入力欄は #RRGGBB が入るだけの幅にする
-            # 文字幅に、QSS の入力欄の左右の余白と枠の分を足す
+            self.layout().addWidget(self.quick_colors_row)
+            # 入力欄は #RRGGBB が入るだけの幅にする(文字幅に、QSS の入力欄の左右の余白と枠の分を足す)
             self.hex_edit.setFixedWidth(self.hex_edit.fontMetrics().horizontalAdvance("#DDDDDD") + 30)
-            self.layout().setStretchFactor(self.hex_edit, 0)
-            self.layout().setStretchFactor(self.quick_colors_row, 1)
+            self._top_row.setStretchFactor(self.hex_edit, 0)
+            self._top_row.addStretch(1)
         normalized = [QColor(c).name().upper() for c in colors]
         if normalized != self.quick_colors_row.colors():
             self.quick_colors_row.set_colors(normalized)

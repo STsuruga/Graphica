@@ -1,7 +1,7 @@
 """キャンバス・ツールバー・ミニマップ・ステータスバーの組み立て。"""
 import logging
 import time
-from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel, QToolBar, QToolButton,
                                QVBoxLayout, QWidget)
@@ -11,6 +11,7 @@ from graphica.gui import app_settings, theme
 from graphica.gui.builders.common import TOOLBAR_ICON_SIZE, _svg_icon
 from graphica.gui.canvas import MplCanvas
 from graphica.gui.minimap_widget import MinimapWidget
+from graphica.gui.shell.icons import checkable_icon
 from graphica.gui.tools.cursor import COORDINATE_EMPTY_TEXT
 from graphica.gui.theme_color import theme_color_or_default
 
@@ -56,9 +57,19 @@ TOOL_ACTION_ICONS = tuple((entry[0], entry[1]) for entry in _MODE_ACTIONS) + (
 LITE_MODE_ACTIONS = ("cursor_action", "annotation_action", "range_select_action")
 
 
+_MODE_ACTION_ATTRS = frozenset(entry[0] for entry in _MODE_ACTIONS)
+
+
+def tool_action_icon(attr, icon_name):
+    """道具の QAction のアイコン。モードは選ぶと強調の色で塗るので、選んだときは白抜きにする。"""
+    if attr in _MODE_ACTION_ATTRS:
+        return checkable_icon(icon_name, size=20)
+    return _svg_icon(icon_name)
+
+
 def _create_mode_actions(app):
     for attr, icon_name, label, description, toggle in _MODE_ACTIONS:
-        action = QAction(_svg_icon(icon_name), tr(label), app)
+        action = QAction(tool_action_icon(attr, icon_name), tr(label), app)
         action.setToolTip(tr(description))
         action.setCheckable(True)
         action.triggered.connect(getattr(app, toggle))
@@ -76,9 +87,49 @@ def _create_mode_actions(app):
     app.smoothing_tool_action.triggered.connect(lambda _checked=False: app.processing.savgol_smooth())
 
 
+class AdaptiveToolBar(QToolBar):
+    """文字付きで並べきれない幅になったら、アイコンだけに切り替える(名前はツールチップに出る)。
+
+    文字付きのときの幅を覚えておき、それ以上の幅に戻ったら文字付きに戻す。
+    アイコンだけでも収まらないときは、QToolBar の » から残りを選べる。
+    """
+
+    def __init__(self, title, parent=None):
+        super().__init__(title, parent)
+        self._text_width = None
+
+    def setToolButtonStyle(self, style):
+        self._preferred_style = style
+        super().setToolButtonStyle(style)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange, QEvent.Type.LanguageChange):
+            # 文字の幅が変わりうるので測り直す
+            self._text_width = None
+            self._fit_to_width()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_to_width()
+
+    def _fit_to_width(self):
+        preferred = getattr(self, '_preferred_style', Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        if preferred == Qt.ToolButtonStyle.ToolButtonIconOnly:
+            return
+        if self._text_width is None:
+            current = self.toolButtonStyle()
+            super().setToolButtonStyle(preferred)
+            self._text_width = self.sizeHint().width()
+            super().setToolButtonStyle(current)
+        style = preferred if self.width() >= self._text_width else Qt.ToolButtonStyle.ToolButtonIconOnly
+        if self.toolButtonStyle() != style:
+            super().setToolButtonStyle(style)
+
+
 def _build_advanced_toolbar(app):
     """アドバンスドの、プロットの上の文字付きの道具。モードの7つは1つの塊に見せる(QSS の toolSegment)。"""
-    toolbar = QToolBar(tr("プロット"), app)
+    toolbar = AdaptiveToolBar(tr("プロット"), app)
     toolbar.setObjectName("plot_toolbar")
     toolbar.setIconSize(QSize(TOOLBAR_ICON_SIZE - 3, TOOLBAR_ICON_SIZE - 3))
     toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -141,6 +192,8 @@ def _build_card(app):
     app.card_series_label.setObjectName("card_meta")
     app.card_subplot_label = QLabel()
     app.card_subplot_label.setObjectName("card_meta")
+    # グラフ全体のレイアウト(行数・列数・自由配置)のポップアップ。中身ができた後に finish_card() がつなぐ
+    app.card_layout_button = _card_button("layout-grid", tr("グラフ全体のレイアウト"))
     app.card_reset_button = _card_button("refresh", app.reset_zoom_action.text())
     app.card_reset_button.clicked.connect(lambda _checked=False: app.reset_zoom_action.trigger())
     # ミニマップと切り離しの QAction はメニューと同じもので、メニューを作った後に finish_card() がつなぐ
@@ -149,7 +202,8 @@ def _build_card(app):
     title_row.addWidget(app.card_title_label)
     title_row.addWidget(app.card_series_label)
     title_row.addStretch(1)
-    for widget in (app.card_subplot_label, app.card_reset_button, app.card_minimap_button, app.card_detach_button):
+    for widget in (app.card_subplot_label, app.card_layout_button, app.card_reset_button, app.card_minimap_button,
+                   app.card_detach_button):
         title_row.addWidget(widget)
     card_layout.addLayout(title_row)
     card_layout.addWidget(app.plot_toolbar)
@@ -194,6 +248,11 @@ def finish_card(app):
     app.card_minimap_button.clicked.connect(lambda _checked=False: app.minimap_action.trigger())
     app.minimap_action.toggled.connect(app.card_minimap_button.setChecked)
     app.card_detach_button.clicked.connect(lambda _checked=False: app.canvas_detach_action.trigger())
+    from graphica.gui.shell.layout_popover import LayoutPopover, toggle_layout_popover
+    app.layout_popover = LayoutPopover(app, app.figure_layout_panel, app)
+    theme.make_option_rows_switches(app.figure_layout_panel)
+    app.card_layout_button.clicked.connect(
+        lambda _checked=False: toggle_layout_popover(app, app.card_layout_button))
     refresh_card_title(app)
 
 

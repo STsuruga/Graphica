@@ -364,12 +364,12 @@ def build_label_editors(app):
 
 
 def rebuild_label_tab(app):
-    # 「ラベル/書式」タブの先頭に、グラフ全体のレイアウトと編集対象の軸の欄を入れる
-    layout_group = QGroupBox(tr("グラフ全体レイアウト"))
+    # グラフ全体のレイアウトの欄はグラフのカードのボタンで開くポップアップ(shell/layout_popover.py)に入れ、
+    # 「軸」タブの先頭には編集対象の軸の欄を入れる
+    layout_panel = QWidget()
+    layout_panel.setObjectName("figure_layout_panel")
     layout_form = QFormLayout()
-    sizePolicy = layout_group.sizePolicy()
-    sizePolicy.setVerticalPolicy(QSizePolicy.Policy.Fixed)
-    layout_group.setSizePolicy(sizePolicy)
+    layout_form.setContentsMargins(0, 0, 0, 0)
     app.subplot_rows_spinbox = QSpinBox()
     app.subplot_rows_spinbox.setRange(1, 10)
     app.subplot_rows_spinbox.setValue(1)
@@ -422,7 +422,8 @@ def rebuild_label_tab(app):
     app.free_layout_position_group.setVisible(False)
     layout_form.addRow(app.free_layout_position_group)
 
-    layout_group.setLayout(layout_form)
+    layout_panel.setLayout(layout_form)
+    app.figure_layout_panel = layout_panel
 
     active_axis_group = QGroupBox(tr("編集対象のプロット"))
     active_axis_layout = QVBoxLayout()
@@ -435,14 +436,13 @@ def rebuild_label_tab(app):
 
     grid_layout = app.ui.tab_3.layout()  # QGridLayout
 
-    # 既存の formLayout_3 を (0, 0) から外し、新しい2つの下(2行目)に入れ直す
+    # 既存の formLayout_3 を (0, 0) から外し、編集対象の欄の下(1行目)に入れ直す
     existing_layout_item = grid_layout.itemAtPosition(0, 0)
 
     if existing_layout_item:
         grid_layout.removeItem(existing_layout_item)
 
-    grid_layout.addWidget(layout_group, 0, 0)
-    grid_layout.addWidget(active_axis_group, 1, 0)
+    grid_layout.addWidget(active_axis_group, 0, 0)
 
     if existing_layout_item:
-        grid_layout.addItem(existing_layout_item, 2, 0)
+        grid_layout.addItem(existing_layout_item, 1, 0)

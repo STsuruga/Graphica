@@ -62,8 +62,8 @@ def test_layout_page_follows_the_layout_edit_availability(window):
     assert row.isEnabled() == window.layout_edit_action.isEnabled()
 
 
-def test_layout_page_opens_the_axis_settings(window):
-    window.properties_dock_widget.hide()
+def test_layout_page_opens_the_layout_popover(window):
     page = window._left_panel_pages["layout"]
-    page.rows[page.row_texts().index("サブプロットの数・並び(軸の設定)")].click()
-    assert not window.properties_dock_widget.isHidden()
+    page.rows[page.row_texts().index("サブプロットの数・並び")].click()
+    assert window.layout_popover.isVisible()
+    window.layout_popover.hide()

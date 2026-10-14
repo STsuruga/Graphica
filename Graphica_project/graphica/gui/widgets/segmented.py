@@ -18,6 +18,9 @@ LINE_STYLE_PENS = {
 }
 
 
+SEGMENT_HEIGHT = 28
+
+
 class _LineSegmentButton(QToolButton):
     """文字の代わりに線の見本を描く。色は描くたびにトークンから取るので、テーマを替えても描き直すだけでよい。"""
 
@@ -54,9 +57,11 @@ class SegmentedControl(QFrame):
         self.setObjectName("segmented_control")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        # 丸い枠の中に区切り線で並べる(枠と区切りは QSS。両端のボタンは枠の丸みに合わせる: segmentPosition)
+        self.setFixedHeight(SEGMENT_HEIGHT)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(2)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
         self._group.idClicked.connect(self.setCurrentIndex)
@@ -67,7 +72,7 @@ class SegmentedControl(QFrame):
         button.setObjectName("segment")
         button.setCheckable(True)
         button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         if tooltip:
             button.setToolTip(tooltip)
@@ -75,10 +80,27 @@ class SegmentedControl(QFrame):
         self._items.append((text, data))
         self._group.addButton(button, index)
         self.layout().addWidget(button)
+        self._refresh_positions()
         if self._current < 0:
             # QComboBox と同じく、最初の項目を足した時点でそれを選ぶ
             self.setCurrentIndex(0)
         return index
+
+    def _refresh_positions(self):
+        buttons = self._group.buttons()
+        for index, button in enumerate(buttons):
+            if len(buttons) == 1:
+                position = "only"
+            elif index == 0:
+                position = "first"
+            elif index == len(buttons) - 1:
+                position = "last"
+            else:
+                position = "middle"
+            if button.property("segmentPosition") != position:
+                button.setProperty("segmentPosition", position)
+                button.style().unpolish(button)
+                button.style().polish(button)
 
     def addItem(self, text, data=None, tooltip=""):
         button = QToolButton(self)

@@ -316,3 +316,13 @@ def test_qss_has_rules_for_the_new_widgets(selector):
 def test_checked_segment_is_raised_above_its_track():
     for tokens in (theme.LIGHT_TOKENS, theme.DARK_TOKENS):
         assert tokens["raised"] != tokens["surface_2"]
+
+
+def test_slider_spin_hides_with_its_spinbox(qapp):
+    # 行の出し入れは数値の欄に対して行われる(マーカーの行など)。スライダーだけ残らないこと
+    spinbox = QDoubleSpinBox()
+    slider = SliderSpin(spinbox, 0.0, 5.0)
+    spinbox.setVisible(False)
+    assert slider.isHidden()
+    spinbox.setVisible(True)
+    assert not slider.isHidden()

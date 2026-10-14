@@ -104,9 +104,26 @@ class MainAppWindow(QMainWindow):
         header.save_button.clicked.connect(lambda: self._trigger_on_current_tab("save_project_action"))
         header.export_button.clicked.connect(lambda: self._trigger_on_current_tab("save_action"))
         header.search_button.clicked.connect(lambda: self._trigger_on_current_tab("command_palette_action"))
+        header.quick_access_menu.aboutToShow.connect(self._fill_quick_access_menu)
         header.set_mode(self.ui_mode)
-        header.mode_switch.currentIndexChanged.connect(
-            lambda index: self.set_ui_mode(header.mode_switch.itemData(index)))
+        header.mode_switch.mode_changed.connect(self.set_ui_mode)
+
+    def _fill_quick_access_menu(self):
+        """★ の一覧: 表示中のタブのピン留め(ピン留めした順)と、管理の項目。"""
+        menu = self.header.quick_access_menu
+        menu.clear()
+        tab = self.tab_widget.currentWidget()
+        if tab is None:
+            return
+        pinned = [action for action in tab.quick_access_toolbar.actions() if not action.isSeparator()
+                  and action is not tab.quick_access_manage_action]
+        for action in pinned:
+            menu.addAction(action)
+        if not pinned:
+            hint = menu.addAction(tr("ピン留めした項目はありません(メニューの項目を右クリックで追加)"))
+            hint.setEnabled(False)
+        menu.addSeparator()
+        menu.addAction(tab.quick_access_manage_action)
 
     def _trigger_on_current_tab(self, action_attr):
         tab = self.tab_widget.currentWidget()
@@ -159,19 +176,10 @@ class MainAppWindow(QMainWindow):
             project_window.addActions([action for _path, action in project_window._collect_menu_actions()
                                        if not action.shortcut().isEmpty()])
 
+        # クイックアクセスのツールバーは画面に出さず、ピン留めの並びを持つだけにする(上部バーの ★ が一覧で出す)
         toolbar = project_window.quick_access_toolbar
         project_window.removeToolBar(toolbar)
-        toolbar.removeAction(project_window.quick_access_manage_action)
-        # 管理の項目の後ろの区切り(管理は ≡ に移したので、先頭に残ると空の区切りだけが見える)
-        actions = toolbar.actions()
-        if actions and actions[0].isSeparator():
-            toolbar.removeAction(actions[0])
-        toolbar.setParent(None)
-        toolbar.setIconSize(self.header.save_button.iconSize())
-        toolbar.show()
-        self.header.quick_access_stack.addWidget(toolbar)
-        self._tab_toolbars = getattr(self, "_tab_toolbars", {})
-        self._tab_toolbars[project_window] = toolbar
+        toolbar.hide()
 
         ui_mode.apply_ui_mode(project_window, self.ui_mode)
         project_window.dark_mode_action.toggled.connect(lambda _checked: self.header.refresh_icons())
@@ -253,9 +261,6 @@ class MainAppWindow(QMainWindow):
             menu = self._tab_menus.get(project_window)
             if menu is not None:
                 self.header.menu_button.setMenu(menu)
-            toolbar = getattr(self, "_tab_toolbars", {}).get(project_window)
-            if toolbar is not None:
-                self.header.quick_access_stack.setCurrentWidget(toolbar)
 
     def _on_tab_close_requested(self, index):
         """最後の1つを閉じたら、空のプロジェクトのタブに置き換えてスタートアップ画面を出す。
@@ -271,10 +276,6 @@ class MainAppWindow(QMainWindow):
             # 閉じた直後から履歴パネルの対象に残らないよう、明示的に外す
             self.undo_group.removeStack(project_window.undo_stack)
             self._tab_menus.pop(project_window, None)
-            toolbar = getattr(self, "_tab_toolbars", {}).pop(project_window, None)
-            if toolbar is not None:
-                self.header.quick_access_stack.removeWidget(toolbar)
-                toolbar.deleteLater()
             project_window.close()
             project_window.deleteLater()
         if replacement is not None:

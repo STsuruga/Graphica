@@ -21,11 +21,24 @@ from graphica.gui.canvas import MplCanvas
 from graphica.gui.export_settings import export_rc_params
 from graphica.gui.export_size import ExportSizeFields, confirm_output_size, preview_dpi, preview_too_large_text
 from graphica.gui.theme import apply_form_spacing
+from graphica.gui.widgets import ComboMirror, SegmentedControl
 
 logger = logging.getLogger(__name__)
 
 # 矢印の連打などで毎回重い描き直しが走らないよう、まとめるまでの待ち(ms)
 PREVIEW_DEBOUNCE_MS = 150
+
+
+def _with_hidden_owner(view, owner):
+    """見た目の部品と、隠した値の持ち主(コンボ)を1つの欄にまとめる。"""
+    field = QWidget()
+    layout = QHBoxLayout(field)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
+    layout.addWidget(view, 1)
+    owner.setParent(field)
+    owner.hide()
+    return field
 
 
 class ExportPreviewPanel(QWidget):
@@ -35,6 +48,7 @@ class ExportPreviewPanel(QWidget):
         self._current_pixmap = None
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 9, 14, 9)
 
         form = QFormLayout()
         self.width_spinbox = QDoubleSpinBox()
@@ -53,7 +67,11 @@ class ExportPreviewPanel(QWidget):
         # 値は日本語の元の文字(書き出しの処理がそれで単位を見分ける)。表示だけを訳す
         for unit in ("ピクセル (px)", "インチ (in)", "センチメートル (cm)"):
             self.unit_combo.addItem(tr(unit), unit)
-        form.addRow("単位", self.unit_combo)
+        # 単位は選択肢が少ないのでセグメントで見せる(値の持ち主はコンボのまま)
+        self.unit_segments = SegmentedControl()
+        for unit, short in (("ピクセル (px)", "px"), ("インチ (in)", "in"), ("センチメートル (cm)", "cm")):
+            self.unit_segments.addItem(short, unit, tr(unit))
+        form.addRow("単位", _with_hidden_owner(self.unit_segments, self.unit_combo))
 
         self.dpi_spinbox = QSpinBox()
         self.dpi_spinbox.setRange(50, 1200)
@@ -103,6 +121,8 @@ class ExportPreviewPanel(QWidget):
         layout.addWidget(self.preview_label, 1)
 
         button_row = QHBoxLayout()
+        # インスペクタは縦のスクロールバーの幅をいつも取っておくので、この行が入るように少し詰める
+        button_row.setSpacing(4)
         # SVG はベクター画像を受け付けるアプリ(Illustrator、Inkscape など)に貼れる
         self.copy_format_combo = QComboBox()
         self.copy_format_combo.addItems(["PNG", "SVG"])
@@ -118,6 +138,8 @@ class ExportPreviewPanel(QWidget):
         self.save_button.clicked.connect(self._on_save_clicked)
         button_row.addWidget(self.save_button)
         layout.addLayout(button_row)
+
+        self.unit_mirror = ComboMirror(self.unit_segments, self.unit_combo)
 
         self.width_spinbox.valueChanged.connect(self.refresh_preview)
         self.height_spinbox.valueChanged.connect(self.refresh_preview)
