@@ -292,6 +292,9 @@ TRANSLATIONS = {
     "透過度(アルファ)": "Opacity (alpha)",
     "外枠": "Frame",
     "外枠の太さ": "Frame width",
+    "表示中の範囲を入れる": "Use the shown range",
+    "グラフに表示している範囲(マウスで拡大・移動した範囲も)を最小値・最大値に入れ、自動スケールを切ります":
+        "Put the range shown in the plot (including mouse zoom and pan) into the minimum and maximum, and turn off autoscale",
     "外枠の色": "Frame color",
     "ラベル": "Labels",
     "目盛": "Ticks",

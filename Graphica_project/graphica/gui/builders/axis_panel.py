@@ -298,6 +298,18 @@ def build_tick_format_controls(app):
     app.y_log_note = _log_note_label("y_log_note")
     _insert_form_row_after(app.ui.formLayout_2, app.ui.y_log_checkbox, app.y_log_note)
 
+    # 最大値の欄のすぐ下に、表示中の範囲を欄に入れるボタン(第2Y軸の欄は _build_secondary_y_controls が先に作っている)
+    for axis_key, form, max_spinbox in (('x', app.ui.formLayout, app.ui.x_max_spinbox),
+                                        ('y', app.ui.formLayout_2, app.ui.y_max_spinbox),
+                                        ('y2', app.y2_axis_group.layout(), app.y2_max_spinbox)):
+        button = QPushButton(tr("表示中の範囲を入れる"))
+        button.setToolTip(tr("グラフに表示している範囲(マウスで拡大・移動した範囲も)を最小値・最大値に入れ、"
+                             "自動スケールを切ります"))
+        button.clicked.connect(
+            lambda _checked=False, key=axis_key: app.panels['axis_settings'].fill_range_from_view(key))
+        _insert_form_row_after(form, max_spinbox, button)
+        setattr(app, f'{axis_key}_view_range_button', button)
+
 
 def _log_note_label(name):
     label = QLabel()

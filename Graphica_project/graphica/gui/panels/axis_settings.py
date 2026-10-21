@@ -12,6 +12,7 @@ from graphica.gui import log_axis_notes, theme
 from graphica.gui.axis_bindings import CARRIED_AXIS_KEYS
 from graphica.gui.builders.axis_format_sections import refresh_axis_format_widgets
 from graphica.gui.color_history import get_color_with_history
+from graphica.gui.rendering.appearance import waterfall_x_shift
 from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
 
 logger = logging.getLogger(__name__)
@@ -244,6 +245,37 @@ class AxisSettingsPanel:
             self._seed_min_max_spinboxes(
                 self._app.ui.y_min_spinbox, self._app.ui.y_max_spinbox, axis.get_ylim() if axis is not None else None)
 
+        self._on_axis_setting_changed()
+
+    def fill_range_from_view(self, axis_key):
+        """表示中の範囲(マウスで拡大・移動した範囲も)を最小値・最大値の欄に入れ、自動スケールを切る。axis_key は 'x' / 'y' / 'y2'。"""
+        app = self._app
+        axis_index = app.project.active_axis_index
+        if axis_key == 'y2':
+            secondary_axes = getattr(app.canvas, 'all_secondary_axes', [])
+            target = secondary_axes[axis_index] if 0 <= axis_index < len(secondary_axes) else None
+            autoscale, min_spinbox, max_spinbox = app.y2_autoscale_checkbox, app.y2_min_spinbox, app.y2_max_spinbox
+        else:
+            target = self._current_active_axis()
+            ui = app.ui
+            autoscale = getattr(ui, f'{axis_key}_autoscale_checkbox')
+            min_spinbox, max_spinbox = getattr(ui, f'{axis_key}_min_spinbox'), getattr(ui, f'{axis_key}_max_spinbox')
+        if target is None:
+            return
+        # 反転した軸は get_xlim が (大, 小) を返す。欄には小さい方を最小値に入れる(向きは「軸を反転」が決める)
+        low, high = sorted(target.get_xlim() if axis_key == 'x' else target.get_ylim())
+        if axis_key == 'x':
+            # ウォーターフォールで X をずらしていると、描くときに手動の範囲をその分広げるので、広げる前の範囲に戻す
+            left, right = waterfall_x_shift(app.canvas, axis_index)
+            low, high = low - left, high - right
+        blocked = autoscale.blockSignals(True)
+        autoscale.setChecked(False)
+        autoscale.blockSignals(blocked)
+        if axis_key == 'y2':
+            self._refresh_y2_axis_state()
+        else:
+            getattr(self, f'_refresh_{axis_key}_autoscale_enabled_state')()
+        self._seed_min_max_spinboxes(min_spinbox, max_spinbox, (low, high))
         self._on_axis_setting_changed()
 
     def _on_x_tick_mode_changed(self):
