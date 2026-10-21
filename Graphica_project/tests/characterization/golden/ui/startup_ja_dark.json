@@ -4213,6 +4213,17 @@
                                   }
                                  }
                                 ]
+                               },
+                               {
+                                "class": "QPushButton",
+                                "text": "表示中の範囲を入れる",
+                                "visible": false,
+                                "enabled": true,
+                                "tooltip": "グラフに表示している範囲(マウスで拡大・移動した範囲も)を最小値・最大値に入れ、自動スケールを切ります",
+                                "receivers": {
+                                 "clicked(bool)": 1,
+                                 "clicked()": 1
+                                }
                                }
                               ]
                              },
@@ -4376,6 +4387,17 @@
                               "text": "",
                               "visible": false,
                               "enabled": true
+                             },
+                             {
+                              "class": "QPushButton",
+                              "text": "表示中の範囲を入れる",
+                              "visible": false,
+                              "enabled": true,
+                              "tooltip": "グラフに表示している範囲(マウスで拡大・移動した範囲も)を最小値・最大値に入れ、自動スケールを切ります",
+                              "receivers": {
+                               "clicked(bool)": 1,
+                               "clicked()": 1
+                              }
                              }
                             ]
                            },
@@ -4854,6 +4876,17 @@
                                 ]
                                }
                               ]
+                             },
+                             {
+                              "class": "QPushButton",
+                              "text": "表示中の範囲を入れる",
+                              "visible": false,
+                              "enabled": true,
+                              "tooltip": "グラフに表示している範囲(マウスで拡大・移動した範囲も)を最小値・最大値に入れ、自動スケールを切ります",
+                              "receivers": {
+                               "clicked(bool)": 1,
+                               "clicked()": 1
+                              }
                              }
                             ]
                            },

@@ -4213,6 +4213,17 @@
                                   }
                                  }
                                 ]
+                               },
+                               {
+                                "class": "QPushButton",
+                                "text": "Use the shown range",
+                                "visible": false,
+                                "enabled": true,
+                                "tooltip": "Put the range shown in the plot (including mouse zoom and pan) into the minimum and maximum, and turn off autoscale",
+                                "receivers": {
+                                 "clicked(bool)": 1,
+                                 "clicked()": 1
+                                }
                                }
                               ]
                              },
@@ -4376,6 +4387,17 @@
                               "text": "",
                               "visible": false,
                               "enabled": true
+                             },
+                             {
+                              "class": "QPushButton",
+                              "text": "Use the shown range",
+                              "visible": false,
+                              "enabled": true,
+                              "tooltip": "Put the range shown in the plot (including mouse zoom and pan) into the minimum and maximum, and turn off autoscale",
+                              "receivers": {
+                               "clicked(bool)": 1,
+                               "clicked()": 1
+                              }
                              }
                             ]
                            },
@@ -4854,6 +4876,17 @@
                                 ]
                                }
                               ]
+                             },
+                             {
+                              "class": "QPushButton",
+                              "text": "Use the shown range",
+                              "visible": false,
+                              "enabled": true,
+                              "tooltip": "Put the range shown in the plot (including mouse zoom and pan) into the minimum and maximum, and turn off autoscale",
+                              "receivers": {
+                               "clicked(bool)": 1,
+                               "clicked()": 1
+                              }
                              }
                             ]
                            },
