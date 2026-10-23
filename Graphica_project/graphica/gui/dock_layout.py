@@ -76,7 +76,8 @@ INSPECTOR_RIGHT_MARGIN = 22
 
 
 # 凡例のタブに移す行(軸の設定の formLayout_3 から)。表示のチェックは格子の表示と同じ行の中なので、それも取り出す
-_LEGEND_FIELDS = ("legend_loc_combo", "legend_font_button", "legend_color_button", "legend_order_button")
+_LEGEND_FIELDS = ("legend_loc_combo", "legend_columns_spinbox", "legend_frame_checkbox", "legend_font_button",
+                  "legend_color_button", "legend_order_button")
 
 
 def _take_legend_rows(app):
@@ -132,6 +133,8 @@ def refresh_inspector(app):
     # 系列の数と並び(行数・列数・自由配置)が変わったのも、描き直しで拾う
     if hasattr(app, 'subplot_target_bar'):
         app.subplot_target_bar.refresh()
+    if hasattr(app, 'apply_format_to_all_button'):
+        app.apply_format_to_all_button.setVisible(len(app.project.all_plot_settings) > 1)
     states = section_state_texts(dataset)
     for key, entry in getattr(app, '_prop_sections', {}).items():
         toggle = entry['toggle']

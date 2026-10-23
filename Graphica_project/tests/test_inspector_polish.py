@@ -152,3 +152,68 @@ def test_the_fit_tab_shows_a_table_for_a_fit_and_the_text_otherwise(qapp):
     assert view.table.rowCount() == 2 and view.detail_label.text() == "5 点"
     view.set_result({"fit_type": "plugin", "params": []})
     assert view.stack.currentWidget() is text
+
+
+# --- 読み込んだときの軸ラベル(F01) ---
+
+def test_the_first_import_into_a_subplot_fills_empty_axis_labels_from_the_columns(tab):
+    from graphica.gui.data_import_flow import add_imported_dataset
+    df = pd.DataFrame({"Time (s)": [0.0, 1.0, 2.0], "Temperature (K)": [3.0, 4.0, 5.0]})
+    add_imported_dataset(tab, Dataset(name="a", df=df, x_col_name="Time (s)", y_col_name="Temperature (K)"), None)
+    _pump()
+    assert tab.ui.x_label_text_edit.text() == "Time (s)"
+    assert tab.ui.y_label_text_edit.text() == "Temperature (K)"
+    # 2本目は、ラベルを空にしていても入れない(読み込んだ最初のデータだけ)
+    tab.ui.x_label_text_edit.setText("")
+    other = pd.DataFrame({"Length (m)": [0.0, 1.0], "Mass (kg)": [1.0, 2.0]})
+    add_imported_dataset(tab, Dataset(name="b", df=other, x_col_name="Length (m)", y_col_name="Mass (kg)"), None)
+    _pump()
+    assert tab.ui.x_label_text_edit.text() == ""
+
+
+# --- この書式を全サブプロットに適用(F03) ---
+
+def test_applying_the_format_copies_it_to_the_other_subplots_but_not_the_labels(tab, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    import graphica.gui.notify as notify_module
+    _set_grid(tab, 1, 2)
+    tab.ui.title_text_edit.setText("左")
+    tab.ui.tick_width_spinbox.setValue(2.5)
+    tab.ui.grid_visible_checkbox.setChecked(True)
+    monkeypatch.setattr(notify_module.QMessageBox, "question",
+                        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Ok))
+    tab.panels['axis_settings'].apply_format_to_all_subplots()
+    other = tab.project.all_plot_settings[1]
+    assert other['tick_width'] == 2.5 and other['grid_visible'] is True
+    assert other.get('title', '') == ''
+
+
+# --- 凡例の枠と列数(F04) ---
+
+def test_the_legend_frame_and_columns_reach_the_drawn_legend(tab):
+    _select(tab, _dataset("a"))
+    _select(tab, _dataset("b"))
+    tab.legend_columns_spinbox.setValue(2)
+    tab.legend_frame_checkbox.setChecked(False)
+    _pump()
+    legend = tab.canvas.all_axes[0].get_legend()
+    assert legend is not None
+    assert legend._ncols == 2
+    assert not legend.get_frame_on()
+    settings = tab.project.all_plot_settings[0]
+    assert settings['legend_columns'] == 2 and settings['legend_frame_visible'] is False
+
+
+# --- データ表のコピー(F06) ---
+
+def test_copying_selected_cells_of_the_data_table_gives_tab_separated_values(tab):
+    from PySide6.QtCore import QItemSelectionModel
+    _select(tab, _dataset("a"))
+    table = tab.data_table
+    model = tab.data_table_model
+    selection = table.selectionModel()
+    for row in (1, 2):
+        for column in (1, 2):
+            selection.select(model.index(row, column), QItemSelectionModel.SelectionFlag.Select)
+    tab.data_table_copy_action.trigger()
+    assert QApplication.clipboard().text() == "1.0\t1.0\n2.0\t4.0"

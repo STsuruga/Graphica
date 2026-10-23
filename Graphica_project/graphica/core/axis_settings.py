@@ -49,6 +49,9 @@ AXIS_SETTING_DEFAULTS = {
 
     'legend_visible': True,
     'legend_loc': 'best',
+    # 既定は今までの見た目(枠あり・1列)
+    'legend_frame_visible': True,
+    'legend_columns': 1,
     'grid_visible': False,
     'minor_grid_visible': False,
     'x_major_grid_linestyle': '-',

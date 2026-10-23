@@ -1,9 +1,10 @@
 """軸の設定の部品: 画面の欄と設定の辞書の相互変換、サブプロットの行数と列数、フォントと色の選択、その信号の配線。"""
+import copy
 import functools
 import logging
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QDialog, QFontDialog
+from PySide6.QtWidgets import QDialog, QFontDialog, QMessageBox
 
 from graphica.core.i18n import tr
 from graphica.gui import notify
@@ -72,6 +73,20 @@ def _order_labels(labels, order):
         key=lambda i: (0, order_index[labels[i]]) if labels[i] in order_index else (1, i)
     )
     return [labels[i] for i in indices]
+
+
+# 「この書式を全サブプロットに適用」で写す鍵: ラベル/書式のタブの見た目だけ(文字・範囲・目盛の間隔・凡例は写さない)
+AXIS_FORMAT_KEYS = (
+    'x_label_visible', 'y_label_visible',
+    'tick_font', 'tick_color', 'major_tick_direction', 'minor_tick_direction',
+    'major_tick_direction_y2', 'minor_tick_direction_y2', 'tick_width', 'major_tick_length', 'minor_tick_length',
+    'axis_label_font', 'axis_label_color',
+    'grid_visible', 'minor_grid_visible',
+    *(f'{axis}_{which}_grid_{part}' for axis in ('x', 'y') for which in ('major', 'minor')
+      for part in ('linestyle', 'width', 'alpha')),
+    'spine_width', 'spine_color',
+    'colorbar_enabled', 'colorbar_position', 'colorbar_width_fraction',
+)
 
 
 class AxisSettingsPanel:
@@ -248,6 +263,30 @@ class AxisSettingsPanel:
 
         self._on_axis_setting_changed()
 
+    def apply_format_to_all_subplots(self):
+        """今のサブプロットのラベル/書式(AXIS_FORMAT_KEYS)を、ほかの全サブプロットに写す。軸の設定は Undo できないので確かめる。"""
+        settings_list = self._app.project.all_plot_settings
+        active = self._app.project.active_axis_index
+        others = [index for index in range(len(settings_list)) if index != active]
+        if not others:
+            return
+        answer = notify.question(
+            self._app, tr("書式を全サブプロットに適用"),
+            tr("プロット {number} の書式(フォント・目盛・グリッド・外枠・カラーバー)を、"
+               "ほかの {count} 個のサブプロットに写します。元に戻せません。").format(number=active + 1, count=len(others)),
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        if answer != QMessageBox.StandardButton.Ok:
+            return
+        current = self._gather_settings_from_ui()
+        settings_list[active] = current
+        for index in others:
+            for key in AXIS_FORMAT_KEYS:
+                if key in current:
+                    settings_list[index][key] = copy.deepcopy(current[key])
+        self._app._update_plot_appearance()
+        self._app.statusBar().showMessage(
+            tr("書式を {count} 個のサブプロットに適用しました").format(count=len(others)), 3000)
+
     def fill_range_from_view(self, axis_key):
         """表示中の範囲(マウスで拡大・移動した範囲も)を最小値・最大値の欄に入れ、自動スケールを切る。axis_key は 'x' / 'y' / 'y2'。"""
         app = self._app
@@ -359,6 +398,8 @@ class AxisSettingsPanel:
 
         self._app.legend_loc_label.setEnabled(is_visible)
         self._app.legend_loc_combo.setEnabled(is_visible)
+        for widget in (self._app.legend_columns_label, self._app.legend_columns_spinbox, self._app.legend_frame_checkbox):
+            widget.setEnabled(is_visible)
         self._app.legend_font_label.setEnabled(is_visible)
         self._app.legend_font_button.setEnabled(is_visible)
         self._app.legend_color_label.setEnabled(is_visible)

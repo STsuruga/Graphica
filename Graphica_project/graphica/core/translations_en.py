@@ -770,4 +770,10 @@ TRANSLATIONS = {
     "パラメータの値だけを、タブ区切りの1行で": "Only the parameter values, on one tab-separated line",
     "文章でコピー": "Copy as text",
     "{points} 点": "{points} points",
+    "この書式を全サブプロットに適用": "Apply this format to all subplots",
+    "フォント・目盛・グリッド・外枠・カラーバーの設定を、ほかのサブプロットにも写します": "Copy the font, tick, grid, frame and colorbar settings to the other subplots",
+    "書式を全サブプロットに適用": "Apply format to all subplots",
+    "プロット {number} の書式(フォント・目盛・グリッド・外枠・カラーバー)を、ほかの {count} 個のサブプロットに写します。元に戻せません。": "Copy the format of plot {number} (fonts, ticks, grid, frame, colorbar) to the other {count} subplots. This cannot be undone.",
+    "書式を {count} 個のサブプロットに適用しました": "Applied the format to {count} subplots",
+    "枠を表示": "Show frame",
 }

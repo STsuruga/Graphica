@@ -4,7 +4,7 @@
 値の対応 AXIS_BINDINGS は変わらない)。見た目の部品(スライダー・セグメント)は値の持ち主の欄を取り込むか、
 隠した持ち主と同期する。軸の設定を欄に戻した後(シグナルが止まっている)は refresh_axis_format_widgets() で合わせる。
 """
-from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from graphica.core.i18n import tr
 from graphica.gui import ui_mode
@@ -62,6 +62,16 @@ def build_axis_format_sections(app):
             attach_header_switch(entry, checkbox)
         layout.addWidget(entry['section'])
         app._axis_sections[key] = entry
+
+    # サブプロットが2つ以上あるときだけ出す(dock_layout.refresh_inspector)
+    app.apply_format_to_all_button = QPushButton(tr("この書式を全サブプロットに適用"))
+    app.apply_format_to_all_button.setToolTip(
+        tr("フォント・目盛・グリッド・外枠・カラーバーの設定を、ほかのサブプロットにも写します"))
+    app.apply_format_to_all_button.clicked.connect(
+        lambda _checked=False: app.panels['axis_settings'].apply_format_to_all_subplots())
+    app.apply_format_to_all_button.setVisible(False)
+    layout.addSpacing(10)
+    layout.addWidget(app.apply_format_to_all_button)
 
     # 隣のタブ(X軸・Y軸)のほうが高いと余りの高さが節に配られ、節の間が空くので、余りは末尾で受ける
     layout.addStretch(1)

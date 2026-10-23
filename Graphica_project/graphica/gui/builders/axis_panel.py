@@ -15,6 +15,7 @@ from graphica.gui.widgets.eye_toggle import EYE_TOGGLE_SIZE, EyeToggle
 
 
 GRID_STYLE_SPINBOX_MIN_WIDTH = 80
+LEGEND_MAX_COLUMNS = 10
 
 LEGEND_LOCATION_CHOICES = (
     ("自動(重ならない位置)", "best"),
@@ -35,9 +36,20 @@ def build_legend_location_control(app):
     _insert_form_row_after(app.ui.formLayout_3, app.ui.legend_visible_checkbox,
                            app.legend_loc_label, app.legend_loc_combo)
 
+    # 列数: 系列が多いときに横へ並べる。枠: 消すと図の上に文字だけ載る
+    app.legend_columns_label = QLabel(tr("列数"))
+    app.legend_columns_spinbox = QSpinBox()
+    app.legend_columns_spinbox.setRange(1, LEGEND_MAX_COLUMNS)
+    app.legend_columns_spinbox.setValue(1)
+    _insert_form_row_after(app.ui.formLayout_3, app.legend_loc_combo,
+                           app.legend_columns_label, app.legend_columns_spinbox)
+    app.legend_frame_checkbox = QCheckBox(tr("枠を表示"))
+    app.legend_frame_checkbox.setChecked(True)
+    _insert_form_row_after(app.ui.formLayout_3, app.legend_columns_spinbox, app.legend_frame_checkbox)
+
     app.legend_font_label = QLabel("凡例のフォント")
     app.legend_font_button = QPushButton("フォント選択...")
-    _insert_form_row_after(app.ui.formLayout_3, app.legend_loc_combo,
+    _insert_form_row_after(app.ui.formLayout_3, app.legend_frame_checkbox,
                            app.legend_font_label, app.legend_font_button)
 
     app.legend_color_label = QLabel("凡例の文字色")
