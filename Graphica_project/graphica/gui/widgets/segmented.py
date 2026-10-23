@@ -1,5 +1,5 @@
 """セグメント(横に並んだ排他のボタン)と、今のコンボを値の持ち主にしたままの同期。"""
-from PySide6.QtCore import QPointF, QSize, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QButtonGroup, QFrame, QHBoxLayout, QSizePolicy, QToolButton
 
@@ -19,6 +19,10 @@ LINE_STYLE_PENS = {
 
 
 SEGMENT_HEIGHT = 28
+# 溝の内側の余白と、板どうしの間。板の角丸は QSS の border-radius(溝の丸み 14 から余白を引いた値)
+SEGMENT_TRACK_PADDING = 2
+SEGMENT_RADIUS = 11
+SEGMENT_SHADOW_ALPHA = 36
 
 
 class _LineSegmentButton(QToolButton):
@@ -35,7 +39,12 @@ class _LineSegmentButton(QToolButton):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        pen = QPen(QColor(theme.current_tokens()["text_primary"]))
+        tokens = theme.current_tokens()
+        if not self.isEnabled():
+            color = tokens["text_muted"]
+        else:
+            color = tokens["accent_fg"] if self.isChecked() else tokens["text_secondary"]
+        pen = QPen(QColor(color))
         pen.setWidthF(2.0)
         pen.setStyle(self._pen_style)
         pen.setCapStyle(Qt.PenCapStyle.FlatCap)
@@ -57,11 +66,12 @@ class SegmentedControl(QFrame):
         self.setObjectName("segmented_control")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        # 丸い枠の中に区切り線で並べる(枠と区切りは QSS。両端のボタンは枠の丸みに合わせる: segmentPosition)
+        # 溝と板の色は QSS。板の位置(segmentPosition)は QSS の見分けに残しておく
         self.setFixedHeight(SEGMENT_HEIGHT)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(SEGMENT_TRACK_PADDING, SEGMENT_TRACK_PADDING,
+                                  SEGMENT_TRACK_PADDING, SEGMENT_TRACK_PADDING)
+        layout.setSpacing(SEGMENT_TRACK_PADDING)
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
         self._group.idClicked.connect(self.setCurrentIndex)
@@ -152,7 +162,25 @@ class SegmentedControl(QFrame):
             for button in self._group.buttons():
                 button.setChecked(False)
             self._group.setExclusive(True)
+        self.update()
         self.currentIndexChanged.emit(index)
+
+    def paintEvent(self, event):
+        """溝(QSS)を描いたあと、選んだ板の下に薄い影を落とす(板そのものは子のボタンが上に描く)。"""
+        super().paintEvent(event)
+        button = self._group.button(self._current) if self._current >= 0 else None
+        if button is None or not button.isVisible():
+            return
+        if not self.isEnabled():
+            return
+        shadow = QColor(0, 0, 0, SEGMENT_SHADOW_ALPHA)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(shadow)
+        rect = QRectF(button.geometry()).adjusted(0, 0.5, 0, 1.0)
+        painter.drawRoundedRect(rect, SEGMENT_RADIUS, SEGMENT_RADIUS)
+        painter.end()
 
     def keyPressEvent(self, event):
         step = {Qt.Key.Key_Left: -1, Qt.Key.Key_Up: -1, Qt.Key.Key_Right: 1, Qt.Key.Key_Down: 1}.get(event.key())

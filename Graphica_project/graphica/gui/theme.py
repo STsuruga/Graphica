@@ -27,13 +27,17 @@ DATASET_LIST_ITEM_RADIUS = 8
 _ARROW_ICON_CACHE_DIR = os.path.join(tempfile.gettempdir(), "graphica_theme_icons")
 
 
+# 矢印の PNG の大きさ。QSS では 12px に縮めて出すので、高 DPI の画面でもにじまないよう倍で描く
+ARROW_ICON_SIZE = 28
+
+
 def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
-    """三角の矢印の PNG を(無ければ)作り、QSS の url() に入れられるパスを返す。"""
+    """節の見出しと同じ線のシェブロンの PNG を(無ければ)作り、QSS の url() に入れられるパスを返す。"""
     os.makedirs(_ARROW_ICON_CACHE_DIR, exist_ok=True)
     safe_color = color.lstrip("#")
-    # 大きさをファイル名に入れ、寸法を変えたとき古い PNG を使い回さない
-    size = 14
-    filename = f"spin_arrow_{direction}_{safe_color}_{size}.png"
+    # 形と大きさをファイル名に入れ、描き方を変えたとき古い PNG を使い回さない
+    size = ARROW_ICON_SIZE
+    filename = f"spin_chevron_{direction}_{safe_color}_{size}.png"
     path = os.path.join(_ARROW_ICON_CACHE_DIR, filename)
 
     if not os.path.exists(path):
@@ -41,22 +45,21 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(color))
+        pen = QPen(QColor(color))
+        pen.setWidthF(size * 0.11)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
         cx, cy = size / 2, size / 2
-        aw, ah = 4.4, 3.3
-        arrow_path = QPainterPath()
-        if direction == "up":
-            arrow_path.moveTo(cx - aw, cy + ah * 0.5)
-            arrow_path.lineTo(cx + aw, cy + ah * 0.5)
-            arrow_path.lineTo(cx, cy - ah * 0.5)
-        else:
-            arrow_path.moveTo(cx - aw, cy - ah * 0.5)
-            arrow_path.lineTo(cx + aw, cy - ah * 0.5)
-            arrow_path.lineTo(cx, cy + ah * 0.5)
-        arrow_path.closeSubpath()
-        painter.drawPath(arrow_path)
+        half_width, half_height = size * 0.28, size * 0.14
+        sign = -1 if direction == "up" else 1
+        chevron = QPainterPath()
+        chevron.moveTo(cx - half_width, cy - sign * half_height)
+        chevron.lineTo(cx, cy + sign * half_height)
+        chevron.lineTo(cx + half_width, cy - sign * half_height)
+        painter.drawPath(chevron)
         painter.end()
         pixmap.save(path)
 
@@ -808,6 +811,12 @@ QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
     width: 12px;
     height: 12px;
 }}
+QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled {{
+    image: url({spin_up_arrow_disabled_url});
+}}
+QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled {{
+    image: url({spin_down_arrow_disabled_url});
+}}
 QComboBox {{
     /* 一覧はメニュー風ではなくリストで出す(メニュー風だと外側に四角い枠が描かれ、角丸にならない) */
     combobox-popup: 0;
@@ -821,6 +830,9 @@ QComboBox::down-arrow {{
     image: url({spin_down_arrow_url});
     width: 12px;
     height: 12px;
+}}
+QComboBox::down-arrow:disabled {{
+    image: url({spin_down_arrow_disabled_url});
 }}
 /* 開いた一覧: 箱の角丸はプルダウンと同じ 6px(外側の器は透明にする。install_rounded_combo_popups) */
 QComboBoxPrivateContainer {{
@@ -1004,41 +1016,34 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 }}
 
 /* --- GUI 刷新の部品(gui/widgets/)。寸法は見本 docs/dev/mockups/gui_redesign/ のまま --- */
-/* セグメント: 丸い枠の中に区切り線で並べ、選んだものを強調の薄い色で塗る */
+/* セグメント: くぼんだ溝の上に、選んだものだけ白い板を浮かせる(区切り線なし)。
+   板の下の影は SegmentedControl.paintEvent が描く(QSS には影が無い)。 */
 QFrame#segmented_control {{
-    background: {surface};
-    border: 1px solid {border_strong};
+    background: {surface_2};
+    border: 1px solid {border};
     border-radius: 14px;
 }}
 QToolButton#segment {{
     background: transparent;
     border: none;
-    border-left: 1px solid {border_strong};
-    border-radius: 0;
+    border-radius: 11px;
     padding: 0 8px;
-    color: {text_primary};
-}}
-QToolButton#segment[segmentPosition="first"], QToolButton#segment[segmentPosition="only"] {{
-    border-left: none;
-    border-top-left-radius: 13px;
-    border-bottom-left-radius: 13px;
-}}
-QToolButton#segment[segmentPosition="last"], QToolButton#segment[segmentPosition="only"] {{
-    border-top-right-radius: 13px;
-    border-bottom-right-radius: 13px;
+    color: {text_secondary};
 }}
 QToolButton#segment:hover {{
-    background: {surface_2};
+    color: {text_primary};
 }}
 QToolButton#segment:checked {{
-    background: {accent_soft};
+    background: {raised};
     color: {accent_fg};
     font-weight: 600;
 }}
-QToolButton#segment:focus {{
-    border-top: none;
-    border-bottom: none;
-    border-right: none;
+QToolButton#segment:disabled {{
+    color: {text_muted};
+}}
+QToolButton#segment:checked:disabled {{
+    background: {surface};
+    color: {text_muted};
 }}
 /* グラフの種類のタイル(アイコン+文字) */
 QToolButton#type_tile {{
@@ -1332,8 +1337,10 @@ def heading_point_sizes():
 def build_qss(tokens: dict) -> str:
     """_FLAT_QSS_TEMPLATE の {token} を埋めた QSS。矢印の画像は text_primary の色で作る。"""
     format_args = dict(tokens)
-    format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_primary"])
-    format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_primary"])
+    format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_secondary"])
+    format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_secondary"])
+    format_args["spin_up_arrow_disabled_url"] = _spinbox_arrow_icon_url("up", tokens["text_muted"])
+    format_args["spin_down_arrow_disabled_url"] = _spinbox_arrow_icon_url("down", tokens["text_muted"])
     _heading_pt, subheading_pt = heading_point_sizes()
     format_args["subheading_pt"] = f"{subheading_pt:.1f}"
     return _FLAT_QSS_TEMPLATE.format(**format_args)
