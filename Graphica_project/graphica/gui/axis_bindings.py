@@ -123,7 +123,7 @@ AXIS_BINDINGS = (
 
     check('legend_visible', 'ui.legend_visible_checkbox', _CHANGED + ('_on_legend_visibility_changed',)),
     # ドラッグした位置を消してから書き戻すので、ほかの欄と違う処理につなぐ
-    shown_text('legend_loc', 'legend_loc_combo', ('_on_legend_loc_changed',)),
+    item_data('legend_loc', 'legend_loc_combo', ('_on_legend_loc_changed',)),
     # グリッドのチェックは補助グリッドと詳細の欄の有効/無効も切り替える
     check('grid_visible', 'ui.grid_visible_checkbox', _CHANGED + ('_on_grid_visibility_changed',)),
     check('minor_grid_visible', 'ui.minor_grid_visible_checkbox', _CHANGED + ('_on_grid_visibility_changed',)),

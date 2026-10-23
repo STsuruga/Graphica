@@ -1,6 +1,5 @@
 """軸の設定の欄(凡例の位置・目盛り・グリッド・カラーバー・目盛りの書式・タイトルと軸ラベル・ラベルのタブ)の組み立て。"""
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
@@ -10,23 +9,34 @@ from graphica.gui.builders.common import (
     _ClickableMathPreviewLabel, _insert_form_row_after, _svg_icon, cap_combo_width)
 from graphica.gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
 from graphica.gui.tools.layout_edit import MIN_FREE_RECT_SIZE
+from graphica.gui.widgets.eye_toggle import EYE_TOGGLE_SIZE, EyeToggle
+
+
+LEGEND_LOCATION_CHOICES = (
+    ("自動(重ならない位置)", "best"),
+    ("右上", "upper right"),
+    ("左上", "upper left"),
+    ("左下", "lower left"),
+    ("右下", "lower right"),
+    ("中央", "center"),
+)
 
 
 def build_legend_location_control(app):
     app.legend_loc_label = QLabel("凡例の位置")
     app.legend_loc_combo = QComboBox()
-    app.legend_loc_combo.addItems([
-        "best", "upper right", "upper left", "lower left", "lower right", "center"
-    ])
+    # 保存する値は matplotlib の loc の名前のまま(項目のデータ)。見せるのは日本語
+    for label, loc in LEGEND_LOCATION_CHOICES:
+        app.legend_loc_combo.addItem(tr(label), loc)
     _insert_form_row_after(app.ui.formLayout_3, app.ui.legend_visible_checkbox,
                            app.legend_loc_label, app.legend_loc_combo)
 
-    app.legend_font_label = QLabel("凡例フォント")
+    app.legend_font_label = QLabel("凡例のフォント")
     app.legend_font_button = QPushButton("フォント選択...")
     _insert_form_row_after(app.ui.formLayout_3, app.legend_loc_combo,
                            app.legend_font_label, app.legend_font_button)
 
-    app.legend_color_label = QLabel("凡例 文字色")
+    app.legend_color_label = QLabel("凡例の文字色")
     app.legend_color_button = QPushButton("色選択...")
     _insert_form_row_after(app.ui.formLayout_3, app.legend_font_button,
                            app.legend_color_label, app.legend_color_button)
@@ -138,7 +148,7 @@ def build_tick_grid_and_colorbar_controls(app):
         _grid_style_anchor = _grid_style_label
 
     # 目盛線の長さ(pt)。「目盛の太さ」の直後。補助目盛の最小値(-0.5)は「自動」(主目盛 × MINOR_TICK_LENGTH_RATIO)
-    app.tick_length_label = QLabel(tr("目盛の長さ(主/補助)"))
+    app.tick_length_label = QLabel(tr("目盛の長さ"))
     app.major_tick_length_spinbox = QDoubleSpinBox()
     app.major_tick_length_spinbox.setRange(0.0, 20.0)
     app.major_tick_length_spinbox.setSingleStep(0.5)
@@ -158,8 +168,8 @@ def build_tick_grid_and_colorbar_controls(app):
     # QDoubleSpinBox を2つ並べると最小幅が約306pxになり、フォームの列幅を広げてドックに横スクロールが出る
     # (tests/test_main_window.py が検出)。すぐ上の目盛方向の欄と同じ幅に揃える
     for _tick_length_spin in (app.major_tick_length_spinbox, app.minor_tick_length_spinbox):
-        # 「自動 pt」が切れない幅は確保する(幅 340px のインスペクタでも2つ並ぶ)
-        _tick_length_spin.setMinimumWidth(max(app.major_tick_direction_combo.minimumSizeHint().width(), 78))
+        # 「20.0 pt」が切れない幅(右の上下ボタンの 20px と左右の余白の分を足す)
+        _tick_length_spin.setMinimumWidth(_tick_length_spin.fontMetrics().horizontalAdvance("20.0 pt") + 34)
     tick_length_layout = QHBoxLayout()
     tick_length_layout.addWidget(app.major_tick_length_spinbox)
     tick_length_layout.addWidget(app.minor_tick_length_spinbox)
@@ -193,13 +203,17 @@ def build_tick_grid_and_colorbar_controls(app):
 
 
 def build_tick_format_controls(app):
+    # Designer の名前は言い方がほかの欄とそろっていない
+    app.ui.tick_format_label.setText(tr("目盛の数値"))
+    app.ui.x_minor_tick_interval_label.setText(tr("補助目盛の間隔"))
+    app.ui.y_minor_tick_interval_label.setText(tr("補助目盛の間隔"))
     tick_format_choices = [
         tr("自動"),
         tr("軸端にまとめて指数表記 (×10ⁿ)"),
-        tr("目盛りごとに指数表記 (例: 1.0×10¹⁰)"),
+        tr("目盛ごとに指数表記 (例: 1.0×10¹⁰)"),
         tr("常に小数表記"),
     ]
-    app.x_tick_format_label = QLabel(tr("目盛り表記"))
+    app.x_tick_format_label = QLabel(tr("目盛の表記"))
     app.x_tick_format_combo = QComboBox()
     app.x_tick_format_combo.addItems(tick_format_choices)
     cap_combo_width(app.x_tick_format_combo)
@@ -219,20 +233,20 @@ def build_tick_format_controls(app):
     app.x_tick_decimals_spinbox.setSpecialValueText(tr("自動"))
     app.x_tick_decimals_spinbox.setValue(-1)
     app.x_tick_decimals_spinbox.setToolTip(
-        tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
+        tr("目盛の数値の小数点以下の桁数(「自動」以外を選ぶと指数表記より優先されます)"))
     app.ui.formLayout.addRow(QLabel(tr("小数桁数")), app.x_tick_decimals_spinbox)
 
     # 対数軸で補助目盛を出すときだけ使う(出し入れは _on_x_minor_tick_visibility_changed)。
     # ラベルの列幅は X/Y のタブで揃えるので、長いと両方の入力欄が狭まる。説明はツールチップに回す
     app.x_log_minor_subs_label = QLabel(tr("対数補助目盛"))
-    app.x_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛りをどこに打つか"))
+    app.x_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛をどこに打つか"))
     app.x_log_minor_subs_combo = QComboBox()
     app.x_log_minor_subs_combo.addItem(tr("自動(既定)"), "auto")
     app.x_log_minor_subs_combo.addItem(tr("全て(2〜9)"), "all")
     app.x_log_minor_subs_combo.addItem(tr("少なめ(2, 5)"), "few")
     app.x_log_minor_subs_combo.addItem(tr("最小限(5)"), "one")
     app.ui.formLayout.addRow(app.x_log_minor_subs_label, app.x_log_minor_subs_combo)
-    app.x_log_minor_labels_checkbox = QCheckBox(tr("補助目盛りに数値ラベルを表示"))
+    app.x_log_minor_labels_checkbox = QCheckBox(tr("補助目盛にも数値を表示"))
     app.ui.formLayout.addRow(app.x_log_minor_labels_checkbox)
     app.x_log_minor_subs_label.setVisible(False)
     app.x_log_minor_subs_combo.setVisible(False)
@@ -260,7 +274,7 @@ def build_tick_format_controls(app):
     app.ui.formLayout.addRow(
         app.x_secondary_axis_target_unit_label, app.x_secondary_axis_target_unit_combo)
 
-    app.y_tick_format_label = QLabel(tr("目盛り表記"))
+    app.y_tick_format_label = QLabel(tr("目盛の表記"))
     app.y_tick_format_combo = QComboBox()
     app.y_tick_format_combo.addItems(tick_format_choices)
     cap_combo_width(app.y_tick_format_combo)
@@ -278,19 +292,19 @@ def build_tick_format_controls(app):
     app.y_tick_decimals_spinbox.setSpecialValueText(tr("自動"))
     app.y_tick_decimals_spinbox.setValue(-1)
     app.y_tick_decimals_spinbox.setToolTip(
-        tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
+        tr("目盛の数値の小数点以下の桁数(「自動」以外を選ぶと指数表記より優先されます)"))
     app.ui.formLayout_2.addRow(QLabel(tr("小数桁数")), app.y_tick_decimals_spinbox)
 
     # X 軸と同じく、ラベルは短くして説明はツールチップへ
     app.y_log_minor_subs_label = QLabel(tr("対数補助目盛"))
-    app.y_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛りをどこに打つか"))
+    app.y_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛をどこに打つか"))
     app.y_log_minor_subs_combo = QComboBox()
     app.y_log_minor_subs_combo.addItem(tr("自動(既定)"), "auto")
     app.y_log_minor_subs_combo.addItem(tr("全て(2〜9)"), "all")
     app.y_log_minor_subs_combo.addItem(tr("少なめ(2, 5)"), "few")
     app.y_log_minor_subs_combo.addItem(tr("最小限(5)"), "one")
     app.ui.formLayout_2.addRow(app.y_log_minor_subs_label, app.y_log_minor_subs_combo)
-    app.y_log_minor_labels_checkbox = QCheckBox(tr("補助目盛りに数値ラベルを表示"))
+    app.y_log_minor_labels_checkbox = QCheckBox(tr("補助目盛にも数値を表示"))
     app.ui.formLayout_2.addRow(app.y_log_minor_labels_checkbox)
     app.y_log_minor_subs_label.setVisible(False)
     app.y_log_minor_subs_combo.setVisible(False)
@@ -353,9 +367,9 @@ def build_label_editors(app):
 
         # 軸ラベルだけ、文字を残したまま隠せる(タイトルには付けない)
         if field_key in ('x_label', 'y_label'):
-            visible_checkbox = QCheckBox()
+            visible_checkbox = EyeToggle()
             visible_checkbox.setChecked(True)
-            visible_checkbox.setToolTip(tr("ラベルの表示/非表示(テキスト自体は保持されます)"))
+            visible_checkbox.setToolTip(tr("ラベルを表示(隠しても文字は残ります)"))
             wrapper_layout.addWidget(visible_checkbox)
             setattr(app, f'{field_key}_visible_checkbox', visible_checkbox)
 
@@ -363,11 +377,8 @@ def build_label_editors(app):
         format_button.setText("Aa")
         format_button.setToolTip(tr("タイトル/ラベルを編集(書式・記号入力)"))
         format_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        # パネルの幅が狭いので、ボタンは小さくして欄の幅を取らない
-        format_button.setFixedSize(26, 22)
-        small_font = QFont(format_button.font())
-        small_font.setPointSize(max(7, small_font.pointSize() - 2))
-        format_button.setFont(small_font)
+        format_button.setObjectName("label_format_button")
+        format_button.setFixedSize(EYE_TOGGLE_SIZE, EYE_TOGGLE_SIZE)
         wrapper_layout.addWidget(format_button)
         format_button.clicked.connect(
             lambda checked=False, le=line_edit, dt=dialog_title:

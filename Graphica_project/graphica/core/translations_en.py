@@ -243,7 +243,7 @@ TRANSLATIONS = {
     "Y軸補助目盛": "Y minor ticks",
     "主軸目盛(主/補助)": "Ticks (major/minor)",
     "第2軸目盛(主/補助)": "2nd-axis ticks",
-    "目盛の長さ(主/補助)": "Tick length",
+    "目盛の長さ": "Tick length",
     "主目盛の線の長さ(pt)": "Major tick length (pt)",
     "補助目盛の線の長さ(pt)。「自動」は主目盛の長さの約0.57倍":
         "Minor tick length (pt). \"Auto\" is about 0.57 × the major tick length",
@@ -251,21 +251,22 @@ TRANSLATIONS = {
     "目盛を表示": "Show ticks",
     "目盛の数値を表示": "Show tick labels",
     "目盛数値": "Tick labels",
-    "目盛り表記": "Tick notation",
+    "目盛の数値": "Tick labels",
+    "目盛の表記": "Tick notation",
     "軸端にまとめて指数表記 (×10ⁿ)": "Exponent at the axis end (×10ⁿ)",
-    "目盛りごとに指数表記 (例: 1.0×10¹⁰)": "Exponent on each tick (e.g. 1.0×10¹⁰)",
+    "目盛ごとに指数表記 (例: 1.0×10¹⁰)": "Exponent on each tick (e.g. 1.0×10¹⁰)",
     "常に小数表記": "Always decimal",
     "小数桁数": "Decimal places",
-    "目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)":
+    "目盛の数値の小数点以下の桁数(「自動」以外を選ぶと指数表記より優先されます)":
         "Decimal places of tick labels (anything but \"Auto\" overrides the exponent notation)",
     "0 以下の値の点が {count} 個あり、対数軸では表示されません。": "{count} points are 0 or below and are not shown on a log axis.",
     "最小値が 0 以下なので、対数軸では無視されます。": "The minimum is 0 or below, so it is ignored on a log axis.",
     "対数補助目盛": "Log minor ticks",
-    "対数軸の補助目盛りをどこに打つか": "Where to put minor ticks on a log axis",
+    "対数軸の補助目盛をどこに打つか": "Where to put minor ticks on a log axis",
     "全て(2〜9)": "All (2–9)",
     "少なめ(2, 5)": "Fewer (2, 5)",
     "最小限(5)": "Minimal (5)",
-    "補助目盛りに数値ラベルを表示": "Label minor ticks",
+    "補助目盛にも数値を表示": "Label minor ticks",
     "X軸単位": "X-axis unit",
     "X軸データが表している物理量の単位": "Unit of the quantity on the X axis",
     "第2X軸単位": "2nd X-axis unit",
@@ -317,8 +318,8 @@ TRANSLATIONS = {
     "色選択...": "Choose Color...",
     "凡例を表示": "Show legend",
     "凡例の位置": "Legend position",
-    "凡例フォント": "Legend font",
-    "凡例 文字色": "Legend text color",
+    "凡例のフォント": "Legend font",
+    "凡例の文字色": "Legend text color",
     "凡例の順序...": "Legend Order...",
     "カラーバーを表示": "Show colorbar",
     "カラーバーの位置": "Colorbar position",
@@ -335,7 +336,7 @@ TRANSLATIONS = {
     "Y軸ラベルを編集": "Edit Y-axis label",
     "Y軸ラベルを入力": "Y label",
     "タイトル/ラベルを編集(書式・記号入力)": "Edit title/label (formatting and symbols)",
-    "ラベルの表示/非表示(テキスト自体は保持されます)": "Show/hide the label (the text is kept)",
+    "ラベルを表示(隠しても文字は残ります)": "Show/hide the label (the text is kept)",
     "クリックして編集": "Click to edit",
     "描画先プロット": "Target plot",
     "プロット {number}": "Plot {number}",
@@ -451,7 +452,7 @@ TRANSLATIONS = {
     "統計 (Y列)": "Statistics (Y)",
 
     # --- キャンバスとツールバー ---
-    "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)":
+    "範囲を除外 (ドラッグした範囲の点を、選んでいるデータセットから除外)":
         "Range Select (mask the dragged range of the current dataset)",
     "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)":
         "Peak Placement (click to add a multi-peak fit guess, right-click to remove)",
@@ -477,7 +478,7 @@ TRANSLATIONS = {
     "センチメートル (cm)": "Centimeters (cm)",
     "背景を透過": "Transparent background",
     "文字をアウトライン化する(SVG)": "Convert text to outlines (SVG)",
-    "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。":
+    "SVG保存/コピー時、目盛の数字やラベルの文字をパス(輪郭線)として出力します。":
         "When saving or copying SVG, write tick numbers and label text as paths (outlines).",
     "データを間引かずに保存/コピー": "Save/copy with all data points (no thinning)",
     "「名前を付けて保存」「コピー」で、点数の多い Line(折れ線)データセットや 2D マップ(ヒートマップ/等高線)を、画面表示用に間引かず全データ点で描きます(処理が遅くなる場合があります)。画像の解像度(dpi)とは別の設定です。常に描き直すプレビュー自体は、応答を優先して間引いたまま表示します。":
@@ -724,4 +725,14 @@ TRANSLATIONS = {
     "プラグインを更新できませんでした。": "Could not update the plugins.",
     "フィットした曲線か、フィットしたデータセットを選ぶと、ここに式とパラメータが出ます。": "Select a fitted curve or a dataset that has been fitted to see its formula and parameters here.",
     "このウィンドウを開いてからのログがここに出ます(全部は graphica.log)。": "Messages logged since this window opened appear here (the full log is graphica.log).",
+    "自動(重ならない位置)": "Auto (best)",
+    "右上": "Upper right",
+    "左上": "Upper left",
+    "左下": "Lower left",
+    "右下": "Lower right",
+    "中央": "Center",
+    "範囲を除外": "Exclude range",
+    "平滑化したデータを作る": "Create smoothed data",
+    "平滑化したデータを作る (Savitzky-Golayフィルタ)": "Create smoothed data (Savitzky-Golay filter)",
+    "表示を平滑化": "Smooth the display",
 }

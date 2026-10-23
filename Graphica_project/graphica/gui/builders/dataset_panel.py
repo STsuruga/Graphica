@@ -338,6 +338,8 @@ def build_dataset_style_controls(app):
     app.smoothing_method_combo.addItem(tr("ガウシアンフィルタ"), "gaussian")
     # 「平滑化」のチェックは手法と対なので、_build_dataset_property_sections では移さずここで手法の直前に置く
     # (そうしないと間に「透明度」が挟まる)
+    # 解析の「平滑化したデータを作る」(新しいデータセット)と区別する。こちらは表示だけ
+    app.ui.smoothing_checkbox.setText(tr("表示を平滑化"))
     app._prop_form('style').addRow(app.ui.smoothing_checkbox)
     app._prop_form('style').addRow(app.smoothing_method_label, app.smoothing_method_combo)
 
