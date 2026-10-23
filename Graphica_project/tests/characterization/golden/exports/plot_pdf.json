@@ -1,11 +1,6 @@
 {
  "modals": [
   {
-   "kind": "exec",
-   "class": "ExportDialog",
-   "title": "プロットのエクスポート"
-  },
-  {
    "kind": "QFileDialog.getSaveFileName",
    "caption": "プロットを保存",
    "filter": "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)"
@@ -16,7 +11,7 @@
    "text": "グラデーション塗りが有効なデータセットが含まれています。\nこの部分は画像(ラスタ)として埋め込まれるため、拡大すると他の要素のようにはくっきり表示されません。\n\nエクスポートは続行します。"
   }
  ],
- "status": "",
+ "status": "保存しました: <CASE>/figure.pdf",
  "canvas_size_after": [
   6.53,
   4.18

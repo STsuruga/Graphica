@@ -1,24 +1,19 @@
 {
  "modals": [
   {
-   "kind": "exec",
-   "class": "ExportDialog",
-   "title": "プロットのエクスポート"
-  },
-  {
    "kind": "QFileDialog.getSaveFileName",
    "caption": "プロットを保存",
    "filter": "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)"
   }
  ],
- "status": "",
+ "status": "保存しました: <CASE>/figure.png",
  "canvas_size_after": [
   6.53,
   4.18
  ],
  "image_shape": [
-  706,
-  884,
+  585,
+  785,
   4
  ]
 }
