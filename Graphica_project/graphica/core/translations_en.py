@@ -356,6 +356,7 @@ TRANSLATIONS = {
     "Y誤差列": "Y error column",
     "Z軸の列": "Z column",
     "凡例名": "Legend name",
+    "名前": "Name",
     "種別": "Plot type",
     "色": "Color",
     "色を選択…": "Choose Color…",
@@ -735,4 +736,5 @@ TRANSLATIONS = {
     "平滑化したデータを作る": "Create smoothed data",
     "平滑化したデータを作る (Savitzky-Golayフィルタ)": "Create smoothed data (Savitzky-Golay filter)",
     "表示を平滑化": "Smooth the display",
+    "空なら名前": "Name if empty",
 }

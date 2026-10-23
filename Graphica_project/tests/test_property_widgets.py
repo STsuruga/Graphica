@@ -161,6 +161,14 @@ def test_lite_hides_advanced_rows_and_sections_and_advanced_brings_them_back(mai
     assert _section_shown(tab, "place")
 
 
+def test_the_legend_text_rows_sit_right_under_the_name(tab):
+    form = tab._prop_form('style')
+    name_row, _ = form.getWidgetPosition(tab.ui.legend_name_edit)
+    assert tab.ui.legend_name_label.text() == "名前"
+    assert form.getWidgetPosition(tab.legend_label_edit)[0] == name_row + 1
+    assert form.getWidgetPosition(tab.hide_from_legend_checkbox)[0] == name_row + 2
+
+
 @pytest.mark.parametrize("mode", [ui_mode.LITE, ui_mode.ADVANCED])
 def test_points_show_the_marker_size_and_hide_the_line_rows(main_window, tab, mode):
     main_window.set_ui_mode(mode)
