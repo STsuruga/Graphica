@@ -378,7 +378,8 @@ def test_generated_qss_neutralizes_generic_item_selected_background_for_dataset_
 def test_generated_qss_gives_dock_widgets_border_and_rounded_corners():
     for dark in (False, True):
         qss = theme.build_qss(theme.DARK_TOKENS if dark else theme.LIGHT_TOKENS)
-        assert re.search(r"QDockWidget\s*\{[^}]*border:\s*1px solid[^}]*border-radius:\s*8px[^}]*\}", qss)
+        radius = f"{theme.RADIUS_LG}px"
+        assert re.search(r"QDockWidget\s*\{[^}]*border:\s*1px solid[^}]*border-radius:\s*" + radius + r"[^}]*\}", qss)
 
 
 def test_generated_qss_highlights_active_dock_with_accent_border():
