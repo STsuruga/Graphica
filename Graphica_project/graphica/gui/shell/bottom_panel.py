@@ -4,9 +4,11 @@
 refresh_bottom_panel() が更新する(プロパティ欄の update_ui_state から)。
 """
 import logging
+import math
+import numbers
 
 from PySide6.QtCore import QObject, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QAction, QColor, QGuiApplication, QKeySequence, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QFrame, QHBoxLayout, QHeaderView, QLabel, QPlainTextEdit, QSizePolicy,
     QSplitter, QSplitterHandle, QStackedWidget, QTableView, QToolButton, QVBoxLayout, QWidget)
@@ -245,6 +247,32 @@ class LogView(QPlainTextEdit):
         self.destroyed.connect(lambda *_args, handler=self._handler: logging.getLogger().removeHandler(handler))
 
 
+def _copy_text_of_value(value):
+    """コピーする文字。数は丸めずに(表示は桁を詰めている)、欠損は空に。numpy の数も素の数として書く。"""
+    if isinstance(value, numbers.Integral):
+        return str(int(value))
+    if isinstance(value, numbers.Real):
+        number = float(value)
+        return "" if math.isnan(number) else repr(number)
+    return "" if value is None else str(value)
+
+
+def selected_cells_tsv(table):
+    """選んだセルを、選んだ範囲の行×列のタブ区切りにする(範囲の中の選んでいないセルは空)。"""
+    indexes = table.selectionModel().selectedIndexes()
+    if not indexes:
+        return ""
+    model = table.model()
+    selected = {(index.row(), index.column()) for index in indexes}
+    rows = sorted({row for row, _column in selected})
+    columns = sorted({column for _row, column in selected})
+    lines = []
+    for row in rows:
+        lines.append("\t".join(_copy_text_of_value(model.value(row, column)) if (row, column) in selected else ""
+                               for column in columns))
+    return "\n".join(lines)
+
+
 def _build_data_table(app):
     app.data_table_model = DatasetTableModel(app)
     table = QTableView()
@@ -253,7 +281,16 @@ def _build_data_table(app):
     table.verticalHeader().setVisible(False)
     table.verticalHeader().setDefaultSectionSize(24)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-    table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    # セルを選んで Ctrl+C(右クリックの「コピー」でも)。行・列ごとに選ぶには見出しを押す
+    table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+    table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+    copy_action = QAction(tr("コピー"), table)
+    copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+    copy_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+    copy_action.triggered.connect(lambda _checked=False: QGuiApplication.clipboard().setText(selected_cells_tsv(table)))
+    table.addAction(copy_action)
+    table.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+    app.data_table_copy_action = copy_action
     table.setShowGrid(False)
     table.setWordWrap(False)
     # 見本どおり列は幅を等分(# だけ細い)。数万行でも重くならないよう、中身から幅を測らない
