@@ -28,6 +28,8 @@ _LINESTYLE_TO_QT_PEN = {
 MARKER_PLOT_TYPES = ('Scatter', 'Line+Scatter', 'Density Scatter', COLOR_BY_COLUMN_PLOT_TYPE)
 # マーカーを描かない組み込みの種類(プラグインの種類はマーカーを使うかもしれない)
 NON_MARKER_PLOT_TYPES = ('Line', 'Area', 'Bar', 'Step')
+# 線を描かない組み込みの種類(線の種類・太さの欄を隠す)。プラグインの種類は使うかもしれないので含めない
+NON_LINE_PLOT_TYPES = ('Scatter', 'Bar', 'Density Scatter', COLOR_BY_COLUMN_PLOT_TYPE)
 
 
 def marker_painter_path(marker, size):

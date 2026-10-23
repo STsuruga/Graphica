@@ -161,6 +161,23 @@ def test_lite_hides_advanced_rows_and_sections_and_advanced_brings_them_back(mai
     assert _section_shown(tab, "place")
 
 
+@pytest.mark.parametrize("mode", [ui_mode.LITE, ui_mode.ADVANCED])
+def test_points_show_the_marker_size_and_hide_the_line_rows(main_window, tab, mode):
+    main_window.set_ui_mode(mode)
+    _select_new(tab, "p", plot_type="Scatter", marker="o")
+    assert tab.linestyle_field.isHidden() and tab.ui.linestyle_label.isHidden()
+    assert tab.linewidth_slider.isHidden() and tab.ui.linewidth_label.isHidden()
+    assert _section_shown(tab, "marker")
+    assert not tab.markersize_slider.isHidden() and not tab.ui.marker_combo.isHidden()
+    # 塗りと枠線はアドバンスドだけ
+    assert tab.marker_fill_combo.isHidden() == (mode == ui_mode.LITE)
+    assert tab.marker_edge_width_spinbox.isHidden() == (mode == ui_mode.LITE)
+
+    _select_new(tab, "l", plot_type="Line")
+    assert not tab.linestyle_field.isHidden() and not tab.linewidth_slider.isHidden()
+    assert not _section_shown(tab, "marker")
+
+
 def test_lite_still_hides_rows_after_a_selection_reapplies_the_conditions(main_window, tab):
     main_window.set_ui_mode(ui_mode.LITE)
     _select_new(tab, "a", plot_type="Line")

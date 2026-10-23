@@ -36,9 +36,11 @@ MODE_ONLY_ELEMENTS = (
 LITE_HIDDEN_PROPERTY_FIELDS = (
     "use_secondary_y_checkbox", "x_err_col_combo", "y_err_col_combo", "nan_policy_combo",
     "ui.plot_type_combo", "alpha_slider", "ui.smoothing_checkbox", "smoothing_method_combo",
+    "marker_fill_combo", "marker_face_color_picker", "marker_edge_combo", "marker_edge_color_picker",
+    "marker_edge_width_spinbox",
 )
-# シンプルで出すプロパティの節(ほかの節は見出しごと隠す)
-LITE_PROPERTY_SECTIONS = ("data", "style")
+# シンプルで出すプロパティの節(ほかの節は見出しごと隠す)。マーカーは形と大きさだけ(点の種類のときに出る)
+LITE_PROPERTY_SECTIONS = ("data", "style", "marker")
 
 
 # インスペクタのタブ(キー, 出すモード)

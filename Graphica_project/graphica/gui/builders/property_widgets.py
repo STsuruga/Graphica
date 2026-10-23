@@ -135,7 +135,7 @@ def _build_lite_more_box(app):
     app.lite_more_icon.setObjectName("lite_more_icon")
     app.lite_more_icon.setPixmap(_svg_icon("lock", size=15).pixmap(15, 15))
     app.lite_more_icon.setAlignment(Qt.AlignmentFlag.AlignTop)
-    text = QLabel(tr("誤差・透明度・平滑化・マーカー・グラデーション・ウォーターフォール・2D マップなど"))
+    text = QLabel(tr("誤差・透明度・平滑化・マーカーの塗りと枠線・グラデーション・ウォーターフォール・2D マップなど"))
     text.setObjectName("lite_more_text")
     text.setWordWrap(True)
     row.addWidget(app.lite_more_icon)
