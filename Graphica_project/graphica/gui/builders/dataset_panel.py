@@ -232,7 +232,8 @@ def build_dataset_style_controls(app):
     app.waterfall_depth_checkbox.setChecked(False)
     app._prop_form('waterfall').addRow(app.waterfall_depth_checkbox)
 
-    app.waterfall_depth_ratio_label = QLabel(tr("1段あたりの縮小率"))
+    app.waterfall_depth_ratio_label = QLabel(tr("縮小率"))
+    app.waterfall_depth_ratio_label.setToolTip(tr("1段あたりの縮小率"))
     app.waterfall_depth_ratio_spinbox = QDoubleSpinBox()
     app.waterfall_depth_ratio_spinbox.setRange(0.0, 0.9)
     app.waterfall_depth_ratio_spinbox.setSingleStep(0.01)
@@ -292,7 +293,7 @@ def build_dataset_style_controls(app):
     app.map_display_mode_combo.addItem(tr("ヒートマップ+等高線"), "heatmap_contour")
     app._prop_form('map').addRow(app.map_display_mode_label, app.map_display_mode_combo)
 
-    app.contour_levels_label = QLabel(tr("等高線レベル数"))
+    app.contour_levels_label = QLabel(tr("等高線の数"))
     app.contour_levels_spinbox = QSpinBox()
     app.contour_levels_spinbox.setRange(2, 100)
     app.contour_levels_spinbox.setValue(10)

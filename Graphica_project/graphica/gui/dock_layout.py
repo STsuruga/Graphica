@@ -1,11 +1,13 @@
 """ドックの配置: 右のインスペクタの組み立てと、起動時の復元(パネルは固定で、動かせない)。"""
 import logging
-from PySide6.QtWidgets import QDockWidget, QFormLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDockWidget, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, theme
 from graphica.gui.builders.common import DOCK_LAYOUT_VERSION
 from graphica.gui.export_preview_panel import ExportPreviewPanel
 from graphica.gui.builders.axis_format_sections import build_axis_format_sections
+from graphica.gui.builders.axis_range_sections import build_axis_range_sections
+from graphica.gui.builders.property_sections import attach_header_switch, build_section
 from graphica.gui.shell.inspector import (INSPECTOR_PAGES, Inspector, TargetHeader, scroll_page,
                                           section_state_texts, wrap_long_rows)
 
@@ -30,6 +32,7 @@ def arrange_property_docks(app):
         plot_properties = QWidget()
     legend_page = _take_legend_rows(app)
     build_axis_format_sections(app)
+    build_axis_range_sections(app)
     app.ui.properties_groupbox.setTitle("")
     # theme.py はグループボックスのタイトル用に上の余白を取る。タイトルが無いので、それを 0 にする目印
     app.ui.properties_groupbox.setProperty("collapsibleBody", True)
@@ -77,15 +80,20 @@ _LEGEND_FIELDS = ("legend_loc_combo", "legend_font_button", "legend_color_button
 
 
 def _take_legend_rows(app):
+    """凡例のタブ: ほかのタブと同じ節にし、「凡例を表示」は見出しのスイッチにする(オフなら中身を畳む)。"""
     page = QWidget()
     page.setObjectName("inspector_legend_content")
-    form = QFormLayout(page)
-    form.setContentsMargins(16, 10, INSPECTOR_RIGHT_MARGIN, 10)
-    form.setSpacing(6)
-    form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+    page_layout = QVBoxLayout(page)
+    page_layout.setContentsMargins(16, 8, INSPECTOR_RIGHT_MARGIN, 8)
+    page_layout.setSpacing(0)
+    entry = build_section(tr("凡例"), opened=True, first=True)
+    form = entry['form']
     visible_checkbox = app.ui.legend_visible_checkbox
     visible_checkbox.parentWidget().layout().removeWidget(visible_checkbox)
-    form.addRow(visible_checkbox)
+    attach_header_switch(entry, visible_checkbox)
+    page_layout.addWidget(entry['section'])
+    page_layout.addStretch(1)
+    app.legend_section = entry
     source = app.ui.formLayout_3
     for attr in _LEGEND_FIELDS:
         row, _role = source.getWidgetPosition(getattr(app, attr))
@@ -97,6 +105,19 @@ def _take_legend_rows(app):
         else:
             form.addRow(field or label)
     return page
+
+
+def inspector_forms(app):
+    """インスペクタの名前と欄の並ぶフォームすべて(名前の列の幅をそろえるため)。"""
+    entries = []
+    for attr in ('_prop_sections', '_axis_tab_sections', '_axis_sections'):
+        entries += list(getattr(app, attr, {}).values())
+    if hasattr(app, 'legend_section'):
+        entries.append(app.legend_section)
+    forms = [entry['form'] for entry in entries]
+    if hasattr(app, 'export_preview_panel'):
+        forms += app.export_preview_panel.section_forms()
+    return forms
 
 
 def _on_inspector_page_changed(app):

@@ -105,6 +105,7 @@ from graphica.gui.data_import_flow import (  # noqa: F401
 from graphica.gui.project_files import (  # noqa: F401
     AUTOSAVE_GENERATIONS, MAX_RECENT_FILES, UNSAVED_CHANGES_PROMPT_ENV, _unsaved_changes_prompt_enabled)
 from graphica.gui.builders import axis_format_sections
+from graphica.gui.builders import axis_range_sections
 from graphica.gui.builders import axis_panel
 from graphica.gui.builders import canvas_area
 from graphica.gui.builders import dataset_panel
@@ -500,11 +501,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
         spacing_value = 6
         if self.ui.formLayout_3: self.ui.formLayout_3.setSpacing(spacing_value)
 
-        # 入力欄の左端を揃える(プロパティ欄の7節どうし、X/Y 軸のタブどうし)。ラベルが全部できた後で
-        property_sections.align_form_label_columns(
-            self, [self._prop_form(key) for key, _title in DATASET_PROPERTY_SECTIONS],
-            width=PROPERTY_LABEL_WIDTH)
-        self._align_form_label_columns([self.ui.formLayout, self.ui.formLayout_2])
+        # 入力欄の左端を、インスペクタのどのタブ・どの節でも同じ位置に揃える。ラベルが全部できた後で
+        property_sections.align_form_label_columns(self, dock_layout.inspector_forms(self), width=PROPERTY_LABEL_WIDTH)
 
 
         # 軸の範囲と目盛りの間隔は、指数表記でも入力できるようにする
@@ -906,6 +904,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         )
 
         axis_format_sections.set_y2_tick_direction_visible(self, is_secondary_visible_global)
+        axis_range_sections.set_y2_in_use(self, is_secondary_visible_global)
         self.y2_label_text_label.setVisible(is_secondary_visible_global)
         self.y2_label_text_edit.setVisible(is_secondary_visible_global)
 

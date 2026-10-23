@@ -31,8 +31,8 @@ TICK_DIRECTION_ITEMS = (("out", "外", "外向き"), ("in", "内", "内向き"),
 TICK_DIRECTION_ROWS = (
     ("tick_direction_label", "主目盛の向き", "major_tick_direction_combo"),
     ("minor_tick_direction_label", "補助目盛の向き", "minor_tick_direction_combo"),
-    ("tick_direction_y2_label", "第2軸の主目盛の向き", "major_tick_direction_y2_combo"),
-    ("minor_tick_direction_y2_label", "第2軸の補助目盛の向き", "minor_tick_direction_y2_combo"),
+    ("tick_direction_y2_label", "第2軸の主目盛", "major_tick_direction_y2_combo"),
+    ("minor_tick_direction_y2_label", "第2軸の補助目盛", "minor_tick_direction_y2_combo"),
 )
 Y2_TICK_DIRECTION_LABELS = ("tick_direction_y2_label", "minor_tick_direction_y2_label")
 # スライダーの範囲(よく使う範囲。数値の欄はこれより外の値も受け付ける)
@@ -107,6 +107,7 @@ def _build_axis_format_widgets(app):
             label = QLabel()
             setattr(app, label_attr, label)
         label.setText(tr(text))
+        label.setToolTip(tr("{name}の向き").format(name=tr(text)))
         combo = getattr(app, combo_attr)
         segments = SegmentedControl()
         for value, item_text, tooltip in TICK_DIRECTION_ITEMS:

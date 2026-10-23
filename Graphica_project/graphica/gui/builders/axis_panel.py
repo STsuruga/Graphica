@@ -182,7 +182,8 @@ def build_tick_grid_and_colorbar_controls(app):
     app.colorbar_enabled_checkbox.setChecked(True)
     app.ui.formLayout_3.addRow(app.colorbar_enabled_checkbox)
 
-    app.colorbar_position_label = QLabel(tr("カラーバーの位置"))
+    app.colorbar_position_label = QLabel(tr("位置"))
+    app.colorbar_position_label.setToolTip(tr("カラーバーの位置"))
     app.colorbar_position_combo = QComboBox()
     app.colorbar_position_combo.addItem(tr("右"), "right")
     app.colorbar_position_combo.addItem(tr("左"), "left")
@@ -190,7 +191,8 @@ def build_tick_grid_and_colorbar_controls(app):
     app.colorbar_position_combo.addItem(tr("下"), "bottom")
     app.ui.formLayout_3.addRow(app.colorbar_position_label, app.colorbar_position_combo)
 
-    app.colorbar_width_label = QLabel(tr("カラーバーの幅(割合)"))
+    app.colorbar_width_label = QLabel(tr("幅(割合)"))
+    app.colorbar_width_label.setToolTip(tr("カラーバーの幅(割合)"))
     app.colorbar_width_spinbox = QDoubleSpinBox()
     app.colorbar_width_spinbox.setRange(0.01, 0.5)
     app.colorbar_width_spinbox.setSingleStep(0.01)
@@ -198,7 +200,8 @@ def build_tick_grid_and_colorbar_controls(app):
     app.colorbar_width_spinbox.setValue(0.05)
     app.ui.formLayout_3.addRow(app.colorbar_width_label, app.colorbar_width_spinbox)
 
-    app.colorbar_label_label = QLabel(tr("カラーバーのラベル"))
+    app.colorbar_label_label = QLabel(tr("ラベル"))
+    app.colorbar_label_label.setToolTip(tr("カラーバーのラベル"))
     app.colorbar_label_edit = QLineEdit()
     app.ui.formLayout_3.addRow(app.colorbar_label_label, app.colorbar_label_edit)
 

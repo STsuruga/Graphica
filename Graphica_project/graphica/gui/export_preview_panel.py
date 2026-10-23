@@ -10,7 +10,7 @@ import matplotlib as mpl
 
 from PySide6.QtCore import Qt, QTimer, QByteArray, QMimeData
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                                QLabel, QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox,
                                QPushButton, QApplication)
 
@@ -22,7 +22,7 @@ from graphica.core.plugin_api import get_plugin_api, get_registered_exporters
 from graphica.core.plugin_types import PluginExecutionError
 from graphica.gui.export_settings import export_rc_params, project_has_raster_gradient_fill
 from graphica.gui.export_size import ExportSizeFields, confirm_output_size, preview_dpi, preview_too_large_text
-from graphica.gui.theme import apply_form_spacing
+from graphica.gui.builders.property_sections import build_section
 from graphica.gui.widgets import ComboMirror, SegmentedControl
 
 logger = logging.getLogger(__name__)
@@ -63,9 +63,14 @@ class ExportPreviewPanel(QWidget):
         self._current_pixmap = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 9, 14, 9)
+        # 左はほかのタブと同じ 16px。右は下のボタンの行が入るよう少し狭い
+        layout.setContentsMargins(16, 8, 14, 9)
+        layout.setSpacing(6)
 
-        form = QFormLayout()
+        # ほかのタブと同じ開閉できる節(名前の列の幅もそろう)
+        self._size_section = build_section(tr("大きさ"), opened=True, first=True)
+        self._options_section = build_section(tr("書き出し方"), opened=True)
+        form = self._size_section['form']
         self.size_preset_combo = QComboBox()
         self.size_preset_combo.addItem(tr(SIZE_PRESET_CUSTOM), None)
         for label, width_mm in JOURNAL_COLUMN_WIDTHS_MM:
@@ -101,11 +106,13 @@ class ExportPreviewPanel(QWidget):
         form.addRow("解像度", self.dpi_spinbox)
 
         self.output_size_label = QLabel()
+        self.output_size_label.setProperty("hint", True)
         form.addRow(self.output_size_label)
         # 単位のコンボの描き直しより先に換算が済むよう、ほかの通知をつなぐ前に作る
         self._size_fields = ExportSizeFields(
             self.width_spinbox, self.height_spinbox, self.unit_combo, self.dpi_spinbox, self.output_size_label)
 
+        form = self._options_section['form']
         self.transparent_checkbox = QCheckBox("背景を透過")
         self.transparent_checkbox.setChecked(True)
         form.addRow(self.transparent_checkbox)
@@ -138,8 +145,8 @@ class ExportPreviewPanel(QWidget):
         )
         form.addRow(self.full_resolution_checkbox)
 
-        layout.addLayout(form)
-        apply_form_spacing(self)
+        layout.addWidget(self._size_section['section'])
+        layout.addWidget(self._options_section['section'])
 
         self.preview_label = QLabel("プレビューがここに表示されます")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -182,6 +189,9 @@ class ExportPreviewPanel(QWidget):
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(PREVIEW_DEBOUNCE_MS)
         self._refresh_timer.timeout.connect(self._render_if_shown)
+
+    def section_forms(self):
+        return [self._size_section['form'], self._options_section['form']]
 
     def _on_size_preset_changed(self, _index):
         """「カスタム」なら入力した値をそのまま残す。単位を先に替える(今の幅がミリメートルに換算されてから入れ直す)。"""

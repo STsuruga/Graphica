@@ -30,6 +30,9 @@ MODE_ONLY_ELEMENTS = (
     ("color_picker_widget.hex_edit", ADVANCED),
     # グラフの下のパネル(データ表・フィット結果・残差・来歴・ログ)
     ("bottom_panel", ADVANCED),
+    # 軸: 単位の換算と第2Y軸
+    ("x_unit_section", ADVANCED),
+    ("y2_axis_section", ADVANCED),
 )
 
 # シンプルで隠すプロパティの行(欄の属性の名前。名前の欄も一緒に隠す)。種類などによる今の出し入れより強い
