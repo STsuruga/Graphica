@@ -1385,7 +1385,7 @@ class TestStripTrailingColonFromLabels:
         (回帰テスト)。
         """
         window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-        assert window.ui.legend_name_label.text() == "凡例名"
+        assert window.ui.legend_name_label.text() == "名前"
         assert window.ui.color_label.text() == "色"
 
 
