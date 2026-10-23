@@ -258,6 +258,22 @@ QPlainTextEdit#bottom_log, QTextEdit#fit_info_textedit {{
     border: none;
     padding: 6px 10px;
 }}
+/* フィット結果の表: 桁がそろうよう等幅の数字。下のパネルの枠の中なので表の枠は付けない */
+QTableWidget#fit_result_table {{
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    font-family: "Consolas", "Menlo", monospace;
+    selection-background-color: {accent_soft};
+    selection-color: {text_primary};
+}}
+QTableWidget#fit_result_table::item {{
+    border-bottom: 1px solid {border};
+    padding: 0 10px;
+}}
+QLabel#fit_result_title {{
+    font-weight: 600;
+}}
 /* 下のパネル自体が角丸の枠なので、中の一覧には枠を付けない */
 QTreeWidget#provenance_tree {{
     background: transparent;

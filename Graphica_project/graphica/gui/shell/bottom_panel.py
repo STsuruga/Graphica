@@ -16,6 +16,7 @@ from graphica.gui import theme
 from graphica.gui.builders.common import _svg_icon
 from graphica.gui.data_table_model import DatasetTableModel, fit_dataset_for, fit_result_for
 from graphica.gui.provenance_panel import ProvenancePanel
+from graphica.gui.shell.fit_result_view import FitResultView
 from graphica.gui.residual_panel import ResidualPanel
 
 BOTTOM_PANEL_HEIGHT = 200
@@ -280,8 +281,9 @@ def build_bottom_panel(app):
     for widget in (app.residual_panel, app.provenance_panel):
         widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+    app.fit_result_view = FitResultView(app.fit_info_textedit)
     panel = BottomPanel()
-    pages = {"table": _build_data_table(app), "fit": app.fit_info_textedit, "residual": app.residual_panel,
+    pages = {"table": _build_data_table(app), "fit": app.fit_result_view, "residual": app.residual_panel,
              "provenance": app.provenance_panel, "log": app.bottom_log}
     for key, title, icon_name in BOTTOM_PAGES:
         panel.add_page(key, tr(title), icon_name, pages[key])
@@ -313,6 +315,7 @@ def refresh_bottom_panel(app, dataset):
     fit_text = getattr(fit_dataset, 'fit_info', None) or ""
     if app.fit_info_textedit.toPlainText() != fit_text:
         app.fit_info_textedit.setPlainText(fit_text)
+    app.fit_result_view.set_result(fit_result)
     r_squared = fit_result.get('r_squared') if fit_result else None
     if isinstance(r_squared, (int, float)) and r_squared == r_squared:
         app.bottom_panel.set_badge("fit", f"R² {r_squared:.3f}")
