@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "a0c7b369388a775d9e941b64e80c296e176d0ce296ae2321d9d983176b342fb0",
+  "stylesheet_sha256": "19345577f4d638a74de2dce8761c6bf5534774ab6f75ab4b0214747f5bb69186",
   "palette": {
    "Window": "#ff111417",
    "WindowText": "#ffe6e9ec",
@@ -4047,6 +4047,44 @@
                            },
                            {
                             "class": "QLabel",
+                            "text": "Columns",
+                            "visible": false,
+                            "enabled": true
+                           },
+                           {
+                            "class": "QSpinBox",
+                            "value": "1",
+                            "visible": false,
+                            "enabled": true,
+                            "receivers": {
+                             "valueChanged(int)": 1
+                            },
+                            "children": [
+                             {
+                              "class": "QLineEdit",
+                              "name": "qt_spinbox_lineedit",
+                              "text": "1",
+                              "visible": false,
+                              "enabled": true,
+                              "receivers": {
+                               "textChanged(QString)": 1,
+                               "cursorPositionChanged(int,int)": 2
+                              }
+                             }
+                            ]
+                           },
+                           {
+                            "class": "QCheckBox",
+                            "text": "Show frame",
+                            "checked": true,
+                            "visible": false,
+                            "enabled": true,
+                            "receivers": {
+                             "stateChanged(int)": 1
+                            }
+                           },
+                           {
+                            "class": "QLabel",
                             "text": "Legend font",
                             "visible": false,
                             "enabled": true
@@ -7458,6 +7496,17 @@
                                   ]
                                  }
                                 ]
+                               },
+                               {
+                                "class": "QPushButton",
+                                "text": "Apply this format to all subplots",
+                                "visible": false,
+                                "enabled": true,
+                                "tooltip": "Copy the font, tick, grid, frame and colorbar settings to the other subplots",
+                                "receivers": {
+                                 "clicked(bool)": 1,
+                                 "clicked()": 1
+                                }
                                }
                               ]
                              }

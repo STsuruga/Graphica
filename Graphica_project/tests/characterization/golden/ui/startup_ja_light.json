@@ -12,7 +12,7 @@
  ],
  "theme": {
   "style": "",
-  "stylesheet_sha256": "5a19ed7adafe9e9522e36d9b5649dca6fcf349f2d50b605a21247d64b4403f86",
+  "stylesheet_sha256": "c61c1ea48ccc2eecd663901f77921fdaf4306c415b8e548f3eea0aaec0ff726f",
   "palette": {
    "Window": "#fff1f2f4",
    "WindowText": "#ff191d1f",
@@ -4047,6 +4047,44 @@
                            },
                            {
                             "class": "QLabel",
+                            "text": "列数",
+                            "visible": false,
+                            "enabled": true
+                           },
+                           {
+                            "class": "QSpinBox",
+                            "value": "1",
+                            "visible": false,
+                            "enabled": true,
+                            "receivers": {
+                             "valueChanged(int)": 1
+                            },
+                            "children": [
+                             {
+                              "class": "QLineEdit",
+                              "name": "qt_spinbox_lineedit",
+                              "text": "1",
+                              "visible": false,
+                              "enabled": true,
+                              "receivers": {
+                               "textChanged(QString)": 1,
+                               "cursorPositionChanged(int,int)": 2
+                              }
+                             }
+                            ]
+                           },
+                           {
+                            "class": "QCheckBox",
+                            "text": "枠を表示",
+                            "checked": true,
+                            "visible": false,
+                            "enabled": true,
+                            "receivers": {
+                             "stateChanged(int)": 1
+                            }
+                           },
+                           {
+                            "class": "QLabel",
                             "text": "凡例のフォント",
                             "visible": false,
                             "enabled": true
@@ -7458,6 +7496,17 @@
                                   ]
                                  }
                                 ]
+                               },
+                               {
+                                "class": "QPushButton",
+                                "text": "この書式を全サブプロットに適用",
+                                "visible": false,
+                                "enabled": true,
+                                "tooltip": "フォント・目盛・グリッド・外枠・カラーバーの設定を、ほかのサブプロットにも写します",
+                                "receivers": {
+                                 "clicked(bool)": 1,
+                                 "clicked()": 1
+                                }
                                }
                               ]
                              }
