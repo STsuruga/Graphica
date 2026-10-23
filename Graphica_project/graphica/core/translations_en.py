@@ -744,4 +744,6 @@ TRANSLATIONS = {
     "学術誌 2段 (170mm)": "Journal double column (170 mm)",
     "ライト配色で書き出す": "Export in light colors",
     "ダークモードのときも、書き出し・コピー・印刷はライトの配色(白地に濃い文字)で描きます。": "Even in dark mode, export, copy and print draw the figure in light colors (dark text on white).",
+    "編集するサブプロットを選ぶ": "Choose the subplot to edit",
+    "{series} 系列 · {row} 行 {col} 列": "{series} series · row {row}, column {col}",
 }

@@ -2,13 +2,14 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
+    QSpinBox, QToolButton, QWidget)
 from graphica.core.i18n import tr
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from graphica.gui.builders.common import (
     _ClickableMathPreviewLabel, _insert_form_row_after, _svg_icon, cap_combo_width)
 from graphica.gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
 from graphica.gui.tools.layout_edit import MIN_FREE_RECT_SIZE
+from graphica.gui.shell.subplot_target_bar import SubplotTargetBar
 from graphica.gui.widgets.eye_toggle import EYE_TOGGLE_SIZE, EyeToggle
 
 
@@ -448,24 +449,10 @@ def rebuild_label_tab(app):
     layout_panel.setLayout(layout_form)
     app.figure_layout_panel = layout_panel
 
-    active_axis_group = QGroupBox(tr("編集対象のプロット"))
-    active_axis_layout = QVBoxLayout()
-    sizePolicy = active_axis_group.sizePolicy()
-    sizePolicy.setVerticalPolicy(QSizePolicy.Policy.Fixed)
-    active_axis_group.setSizePolicy(sizePolicy)
+    # 編集するサブプロットは X軸・Y軸・ラベル/書式の3つのタブに効くので、タブの上に1行で置く
     app.active_axis_combo = QComboBox()
-    active_axis_layout.addWidget(app.active_axis_combo)
-    active_axis_group.setLayout(active_axis_layout)
-
-    grid_layout = app.ui.tab_3.layout()  # QGridLayout
-
-    # 既存の formLayout_3 を (0, 0) から外し、編集対象の欄の下(1行目)に入れ直す
-    existing_layout_item = grid_layout.itemAtPosition(0, 0)
-
-    if existing_layout_item:
-        grid_layout.removeItem(existing_layout_item)
-
-    grid_layout.addWidget(active_axis_group, 0, 0)
-
-    if existing_layout_item:
-        grid_layout.addItem(existing_layout_item, 1, 0)
+    app.subplot_target_bar = SubplotTargetBar(app)
+    axis_page_layout = app.ui.gridLayout_6
+    axis_page_layout.removeWidget(app.ui.axis_tab_widget)
+    axis_page_layout.addWidget(app.subplot_target_bar, 0, 0)
+    axis_page_layout.addWidget(app.ui.axis_tab_widget, 1, 0)

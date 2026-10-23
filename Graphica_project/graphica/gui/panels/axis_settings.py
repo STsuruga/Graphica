@@ -185,6 +185,7 @@ class AxisSettingsPanel:
             # 「描画先」の選択はデータセットを選んだときに property_panel.update_ui_state が決める
             self._app.active_axis_combo.blockSignals(False)
             self._app.subplot_target_combo.blockSignals(False)
+            self._app.subplot_target_bar.refresh()
 
 
     def _seed_min_max_spinboxes(self, min_spinbox, max_spinbox, limits):

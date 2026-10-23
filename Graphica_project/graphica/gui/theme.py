@@ -918,6 +918,19 @@ QTabWidget::pane {{
     border: 1px solid {border};
     border-radius: 8px;
 }}
+/* 「軸」のサブタブは下線のタブだけにし、中身を箱で囲まない(インスペクタの中に箱が入れ子になる) */
+QTabWidget#axis_tab_widget::pane {{
+    border: none;
+    border-top: 1px solid {border};
+    border-radius: 0;
+}}
+QLabel#subplot_target_caption, QLabel#subplot_target_detail {{
+    color: {text_secondary};
+    font-size: 11.5px;
+}}
+QLabel#subplot_target_name {{
+    font-weight: 600;
+}}
 QTabBar::tab {{
     background: transparent;
     color: {text_secondary};

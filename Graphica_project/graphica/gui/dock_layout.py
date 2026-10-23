@@ -108,6 +108,9 @@ def refresh_inspector(app):
     """右の見出しと、節の見出しの右の状態の文字を、表示しているデータセットに合わせる。"""
     dataset = app.property_panel.shown_dataset()
     app.inspector_target.set_dataset(dataset)
+    # 系列の数と並び(行数・列数・自由配置)が変わったのも、描き直しで拾う
+    if hasattr(app, 'subplot_target_bar'):
+        app.subplot_target_bar.refresh()
     states = section_state_texts(dataset)
     for key, entry in getattr(app, '_prop_sections', {}).items():
         toggle = entry['toggle']
