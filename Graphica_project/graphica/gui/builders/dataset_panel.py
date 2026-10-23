@@ -1,5 +1,6 @@
 """データセットの一覧とプロパティ欄の欄の組み立て。"""
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox, QHeaderView,
     QLabel, QLineEdit,
@@ -9,11 +10,12 @@ from graphica.core.i18n import tr
 from graphica.core.marker_style import (
     DEFAULT_MARKER_EDGE_WIDTH, MARKER_EDGE_COLOR, MARKER_EDGE_SAME, MARKER_FILL_COLOR, MARKER_FILL_HOLLOW,
     MARKER_FILL_SOLID)
+from graphica.gui import motion
 from graphica.gui.builders import property_widgets
 from graphica.gui.builders.property_sections import put_switch_in_section_header
 from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
-    _svg_icon, cap_combo_width)
+    _svg_icon, cap_combo_width, paint_selection_band)
 from graphica.gui.color_picker_widget import ColorPickerWidget
 from graphica.gui.dataset_bindings import MARKER_CHOICES
 from graphica.gui.dataset_style_icon import (
@@ -439,6 +441,44 @@ class DatasetTreeWidget(QTreeWidget):
     引数は、どの項目も親(フォルダ)が変わらなかったか。
     """
     items_dropped = Signal(bool)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # 1つだけ選び直したとき、選択の帯を前の行から滑らせる(動いている間の位置。止まっていれば None)
+        self.sliding_selection_band = None
+        self.currentItemChanged.connect(self._slide_selection_band)
+
+    def _band_rect(self, item):
+        rect = self.visualItemRect(item)
+        if not rect.isValid():
+            return None
+        return QRectF(0, rect.top(), self.viewport().width() - 1, rect.height())
+
+    def _slide_selection_band(self, current, previous):
+        if current is None or previous is None or len(self.selectedItems()) > 1 or not self.isVisible():
+            return
+        start, end = self._band_rect(previous), self._band_rect(current)
+        if start is None or end is None or not motion.is_enabled():
+            return
+        self.sliding_selection_band = start
+
+        def step(rect):
+            self.sliding_selection_band = rect
+            self.viewport().update()
+
+        def finish():
+            self.sliding_selection_band = None
+            self.viewport().update()
+
+        motion.animate_value(self, "_motion_band", start, end, step, finish)
+
+    def paintEvent(self, event):
+        if self.sliding_selection_band is not None:
+            painter = QPainter(self.viewport())
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            paint_selection_band(painter, self.sliding_selection_band)
+            painter.end()
+        super().paintEvent(event)
 
     def dropEvent(self, event):
         parents = [(item, item.parent()) for item in self._all_items()]

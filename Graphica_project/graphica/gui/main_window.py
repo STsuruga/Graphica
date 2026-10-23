@@ -71,7 +71,7 @@ from graphica.gui import notify
 
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget,
-                               QAbstractSpinBox, QLabel, QTreeWidgetItem)
+                               QAbstractSpinBox, QLabel, QStackedWidget, QTreeWidgetItem)
 from PySide6.QtGui import QFont, QIcon, QValidator, QUndoStack
 from PySide6.QtCore import Qt, QTimer, Signal
 from graphica.models.project import ProjectModel
@@ -104,6 +104,7 @@ from graphica.gui.data_import_flow import (  # noqa: F401
     SUPPORTED_DATA_FILE_EXTENSIONS, find_unevaluated_formula_cells)
 from graphica.gui.project_files import (  # noqa: F401
     AUTOSAVE_GENERATIONS, MAX_RECENT_FILES, UNSAVED_CHANGES_PROMPT_ENV, _unsaved_changes_prompt_enabled)
+from graphica.gui import motion
 from graphica.gui.builders import axis_format_sections
 from graphica.gui.builders import axis_range_sections
 from graphica.gui.builders import axis_panel
@@ -388,6 +389,19 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self.ui.gridLayout_2.setRowStretch(2, 0)  # データセット一覧
         self.ui.gridLayout_2.setRowStretch(3, 0)  # ボタンの行
         disable_wheel_tab_switching(self.ui.axis_tab_widget)
+        # 軸のサブタブも、インスペクタのタブと同じく切り替える。切り替わった後にしか知らせが来ないので、
+        # 押した瞬間(tabBarClicked)に前の絵を撮っておく
+        axis_tabs = self.ui.axis_tab_widget
+        axis_pages = axis_tabs.findChild(QStackedWidget)
+        self._axis_tab_before = None
+        axis_tabs.tabBarClicked.connect(lambda _index: setattr(self, '_axis_tab_before', motion.grab(axis_pages)))
+
+        def _crossfade_axis_tab(_index):
+            motion.crossfade(axis_pages, self._axis_tab_before)
+            self._axis_tab_before = None
+
+        axis_tabs.currentChanged.connect(_crossfade_axis_tab)
+        self.axis_tab_indicator = motion.TabIndicator(axis_tabs.tabBar())
 
     def _build_canvas_and_toolbar(self):
         return canvas_area.build_canvas_and_toolbar(self)

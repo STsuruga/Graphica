@@ -66,6 +66,13 @@ def _svg_icon(name, size=20):
                           color=color, size=size)
 
 
+def paint_selection_band(painter, rect):
+    """データセット一覧の選択の帯(1つの角丸)。"""
+    path = QPainterPath()
+    path.addRoundedRect(rect, theme.DATASET_LIST_ITEM_RADIUS, theme.DATASET_LIST_ITEM_RADIUS)
+    painter.fillPath(path, theme.current_accent_soft_qcolor())
+
+
 class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
     """選択の背景を、アイコンの列と文字の列にまたがる1つの角丸で描く。
 
@@ -77,6 +84,10 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
         opt = QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
 
+        # 選択の帯が滑っている間は、帯は一覧(DatasetTreeWidget.paintEvent)が描く
+        sliding = getattr(opt.widget, 'sliding_selection_band', None) is not None
+        if opt.state & QStyle.StateFlag.State_Selected and sliding:
+            opt.state &= ~QStyle.StateFlag.State_Selected
         if opt.state & QStyle.StateFlag.State_Selected:
             painter.save()
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -90,11 +101,7 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
             rect.setLeft(0)
             if opt.widget is not None:
                 rect.setRight(opt.widget.viewport().width() - 1)
-            path = QPainterPath()
-            path.addRoundedRect(
-                rect, theme.DATASET_LIST_ITEM_RADIUS, theme.DATASET_LIST_ITEM_RADIUS
-            )
-            painter.fillPath(path, theme.current_accent_soft_qcolor())
+            paint_selection_band(painter, rect)
             painter.restore()
             # 標準の選択の背景を重ねないよう落とす(文字とアイコンの色は選択で変わらない)
             opt.state &= ~QStyle.StateFlag.State_Selected

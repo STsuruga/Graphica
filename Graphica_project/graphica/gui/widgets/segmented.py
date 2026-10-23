@@ -3,7 +3,7 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QButtonGroup, QFrame, QHBoxLayout, QSizePolicy, QToolButton
 
-from graphica.gui import theme
+from graphica.gui import motion, theme
 
 # matplotlib の線の種類と、それを描く Qt のペン
 LINE_STYLE_PENS = {
@@ -111,6 +111,8 @@ class SegmentedControl(QFrame):
         self._group.idClicked.connect(self.setCurrentIndex)
         self._items = []  # (text, data)
         self._current = -1
+        # 板が滑っている途中の位置(止まっているときは選んだボタンの位置に描く)
+        self._sliding_plate = None
 
     def _add_button(self, button, text, data, tooltip):
         button.setObjectName("segment")
@@ -197,6 +199,7 @@ class SegmentedControl(QFrame):
     def setCurrentIndex(self, index):
         if index < -1 or index >= len(self._items) or index == self._current:
             return
+        start = self._plate_rect()
         self._current = index
         if index >= 0:
             self._group.button(index).setChecked(True)
@@ -206,23 +209,44 @@ class SegmentedControl(QFrame):
             for button in self._group.buttons():
                 button.setChecked(False)
             self._group.setExclusive(True)
+        end = self._plate_rect()
+        if start is not None and end is not None and self.isVisible() and motion.is_enabled():
+            # 動きは次の刻みから値を出すので、最初の1枚が行き先に描かれないよう、出発点を先に置く
+            self._sliding_plate = start
+            motion.animate_value(self, "_motion_plate", start, end, self._move_plate, self._stop_plate)
+        else:
+            self._stop_plate()
         self.update()
         self.currentIndexChanged.emit(index)
 
-    def paintEvent(self, event):
-        """溝(QSS)を描いたあと、選んだ板の下に薄い影を落とす(板そのものは子のボタンが上に描く)。"""
-        super().paintEvent(event)
+    def _plate_rect(self):
         button = self._group.button(self._current) if self._current >= 0 else None
         if button is None or not button.isVisible():
+            return None
+        return QRectF(button.geometry())
+
+    def _move_plate(self, rect):
+        self._sliding_plate = rect
+        self.update()
+
+    def _stop_plate(self):
+        self._sliding_plate = None
+        self.update()
+
+    def paintEvent(self, event):
+        """溝(QSS)の上に、選んだものの板とその下の薄い影を描く(文字は子のボタンが上に描く)。"""
+        super().paintEvent(event)
+        rect = self._sliding_plate if self._sliding_plate is not None else self._plate_rect()
+        if rect is None:
             return
-        if not self.isEnabled():
-            return
-        shadow = QColor(0, 0, 0, SEGMENT_SHADOW_ALPHA)
+        tokens = theme.current_tokens()
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(shadow)
-        rect = QRectF(button.geometry()).adjusted(0, 0.5, 0, 1.0)
+        if self.isEnabled():
+            painter.setBrush(QColor(0, 0, 0, SEGMENT_SHADOW_ALPHA))
+            painter.drawRoundedRect(rect.adjusted(0, 0.5, 0, 1.0), SEGMENT_RADIUS, SEGMENT_RADIUS)
+        painter.setBrush(QColor(tokens["raised"] if self.isEnabled() else tokens["surface"]))
         painter.drawRoundedRect(rect, SEGMENT_RADIUS, SEGMENT_RADIUS)
         painter.end()
 

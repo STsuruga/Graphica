@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QSplitter, QSplitterHandle, QStackedWidget, QTableView, QToolButton, QVBoxLayout, QWidget)
 
 from graphica.core.i18n import tr
-from graphica.gui import theme
+from graphica.gui import motion, theme
 from graphica.gui.builders.common import _svg_icon
 from graphica.gui.data_table_model import DatasetTableModel, fit_dataset_for, fit_result_for
 from graphica.gui.provenance_panel import ProvenancePanel
@@ -143,7 +143,9 @@ class BottomPanel(QFrame):
         index = self._keys.index(key)
         self._buttons[key].setChecked(True)
         if self.stack.currentIndex() != index:
+            before = motion.grab(self.stack)
             self.stack.setCurrentIndex(index)
+            motion.crossfade(self.stack, before)
             self.page_changed.emit(key)
         self.set_collapsed(False)
 
@@ -176,23 +178,37 @@ class BottomPanel(QFrame):
         splitter = self.parentWidget()
         if not isinstance(splitter, QSplitter):
             splitter = None
-        if collapsed:
+        own = splitter.sizes()[splitter.indexOf(self)] if splitter is not None else self.height()
+        if collapsed and own > collapsed_height:
             # パネルの高さではなく仕切りの持ち分で覚える(見出しだけの高さに縮んだ後でも正しい)
-            own = splitter.sizes()[splitter.indexOf(self)] if splitter is not None else self.height()
-            if own > collapsed_height:
-                self._restore_height = own
-        self.stack.setVisible(not collapsed)
-        self.setMaximumHeight(collapsed_height if collapsed else 16777215)
+            self._restore_height = own
         self.collapse_button.setIcon(_svg_icon("chevron-right" if collapsed else "chevron-down", size=16))
         self.collapse_button.setToolTip(tr("広げる") if collapsed else tr("畳む"))
+
+        total = sum(splitter.sizes()) if splitter is not None else 0
+
+        def set_panel_height(height):
+            height = int(height)
+            splitter.setSizes([max(0, total - height), height])
+
+        def finish(resize=True):
+            self.stack.setVisible(not collapsed)
+            self.setMaximumHeight(collapsed_height if collapsed else 16777215)
+            if splitter is not None and resize:
+                set_panel_height(collapsed_height if collapsed else self._restore_height)
+
         if splitter is None:
+            finish()
             return
-        sizes = splitter.sizes()
-        if not collapsed and sizes[splitter.indexOf(self)] > collapsed_height:
+        if not collapsed and own > collapsed_height:
+            finish(resize=False)
             return  # 開いたまま(タブを押しただけ)なら、ドラッグで決めた高さを変えない
-        panel_height = collapsed_height if collapsed else self._restore_height
-        total = sum(sizes)
-        splitter.setSizes([max(0, total - panel_height), panel_height])
+
+        # 動かす間は中身を出したまま高さだけ変え、止まってから畳んだ形(見出しだけ)にする
+        self.stack.setVisible(True)
+        self.setMaximumHeight(16777215)
+        target = collapsed_height if collapsed else self._restore_height
+        motion.animate_value(self, "_motion_collapse", own, target, set_panel_height, finish, motion.EXPAND_MS)
 
     def refresh_icons(self):
         for key, button in self._buttons.items():
@@ -287,7 +303,13 @@ def _build_data_table(app):
     copy_action = QAction(tr("コピー"), table)
     copy_action.setShortcut(QKeySequence.StandardKey.Copy)
     copy_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
-    copy_action.triggered.connect(lambda _checked=False: QGuiApplication.clipboard().setText(selected_cells_tsv(table)))
+    def copy_cells(_checked=False):
+        text = selected_cells_tsv(table)
+        if text:
+            QGuiApplication.clipboard().setText(text)
+            motion.toast(table, tr("コピーしました"))
+
+    copy_action.triggered.connect(copy_cells)
     table.addAction(copy_action)
     table.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
     app.data_table_copy_action = copy_action

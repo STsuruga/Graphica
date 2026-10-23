@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractSpinBox, QApplica
                                QProxyStyle, QStyle, QStyledItemDelegate, QStyleFactory)
 
 from graphica.gui.icon_utils import icon as _svg_icon
+from graphica.gui import motion
 from graphica.gui.theme_color import DEFAULT_THEME_COLOR, derive_accent, normalize_hex
 
 _wheel_value_change_disabled = False
@@ -220,7 +221,6 @@ QToolButton#bottom_tab:hover {{
 QToolButton#bottom_tab:checked {{
     background: {surface_2};
     color: {text_primary};
-    font-weight: 600;
 }}
 QLabel#bottom_badge {{
     background: {surface_2};
@@ -681,11 +681,11 @@ QTabBar#inspector_tabs::tab:hover {{
     background: transparent;
     color: {text_primary};
 }}
+/* 選んだタブは太字にしない(幅が変わって隣のタブが横にずれる)。色と、滑る下線(motion.TabIndicator)で見せる */
 QTabBar#inspector_tabs::tab:selected {{
     background: transparent;
     border-bottom: 2px solid {accent};
     color: {text_primary};
-    font-weight: 600;
 }}
 QWidget#inspector_target {{
     background: {surface};
@@ -970,7 +970,21 @@ QTabBar::tab:selected {{
     background: {surface};
     border-bottom: 2px solid {accent};
     color: {accent_fg};
-    font-weight: 600;
+}}
+/* 下線を motion.TabIndicator が描くタブ: 選んだタブの下線は消す(線が滑ってくる) */
+QTabBar[slidingIndicator="true"]::tab:selected {{
+    border-bottom-color: transparent;
+}}
+QWidget#tab_indicator {{
+    background: {accent};
+    border: none;
+}}
+/* 右下に出る短い知らせ(motion.Toast) */
+QLabel#toast {{
+    background: {text_primary};
+    color: {surface};
+    border-radius: {radius_md};
+    padding: 8px 14px;
 }}
 /* QTabBar::close-button には何も指定しない。何か1つでも指定するとアイコンが描かれなくなる
    (QProxyStyle で差し替えても効かない)。見た目は _FlatThemeProxyStyle で決める。 */
@@ -1068,8 +1082,9 @@ QToolButton#segment {{
 QToolButton#segment:hover {{
     color: {text_primary};
 }}
+/* 選んだものの板は SegmentedControl が描く(押したとき前の位置から滑らせるため)。ボタンは文字だけ */
 QToolButton#segment:checked {{
-    background: {raised};
+    background: transparent;
     color: {accent_fg};
     font-weight: 600;
 }}
@@ -1077,7 +1092,6 @@ QToolButton#segment:disabled {{
     color: {text_muted};
 }}
 QToolButton#segment:checked:disabled {{
-    background: {surface};
     color: {text_muted};
 }}
 /* グラフの種類のタイル(アイコン+文字) */
@@ -1457,7 +1471,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
     def drawPrimitive(self, element, option, painter, widget=None):
         if element == QStyle.PrimitiveElement.PE_IndicatorCheckBox:
             if _is_toggle_switch(widget):
-                self._draw_toggle_switch(option, painter)
+                self._draw_toggle_switch(option, painter, widget)
             else:
                 self._draw_checkbox_indicator(option, painter)
             return
@@ -1515,12 +1529,19 @@ class _FlatThemeProxyStyle(QProxyStyle):
 
         painter.restore()
 
-    def _draw_toggle_switch(self, option, painter):
-        """オン・オフのスイッチ。オンは強調の色の地につまみが右、オフは灰色の地につまみが左。"""
+    def _draw_toggle_switch(self, option, painter, widget=None):
+        """オン・オフのスイッチ。オンは強調の色の地につまみが右、オフは灰色の地につまみが左。
+
+        切り替えている途中(motion の switchProgress)は、つまみの位置と地の色をその割合で描く。
+        """
         tokens = self._tokens
         checked = bool(option.state & QStyle.StateFlag.State_On)
         enabled = bool(option.state & QStyle.StateFlag.State_Enabled)
-        track = QColor(tokens["accent"] if checked else tokens["border_strong"])
+        progress = widget.property(motion.SWITCH_PROGRESS_PROPERTY) if widget is not None else None
+        progress = (1.0 if checked else 0.0) if progress is None else max(0.0, min(1.0, float(progress)))
+        off_color, on_color = QColor(tokens["border_strong"]), QColor(tokens["accent"])
+        track = QColor.fromRgbF(*(off + (on - off) * progress for off, on in
+                                  zip(off_color.getRgbF(), on_color.getRgbF())))
         if not enabled:
             track.setAlphaF(0.45)
 
@@ -1534,7 +1555,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
         painter.drawRoundedRect(rect, height / 2, height / 2)
         margin = 2.5
         knob = height - 2 * margin
-        knob_x = rect.right() - margin - knob if checked else rect.left() + margin
+        knob_x = rect.left() + margin + (rect.width() - 2 * margin - knob) * progress
         painter.setBrush(QColor("#FFFFFF"))
         painter.drawEllipse(QRectF(knob_x, rect.top() + margin, knob, knob))
         painter.restore()
@@ -1548,6 +1569,7 @@ TOGGLE_SWITCH_SIZE = (30, 17)
 def make_toggle_switch(checkbox):
     """QCheckBox をスイッチの見た目にする。部品を差し替えないので、値の対応(バインディング)はそのまま。"""
     checkbox.setProperty(TOGGLE_SWITCH_PROPERTY, True)
+    motion.attach_switch_motion(checkbox)
     style = checkbox.style()
     style.unpolish(checkbox)
     style.polish(checkbox)

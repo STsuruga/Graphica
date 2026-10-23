@@ -2,6 +2,7 @@
 from PySide6.QtWidgets import QHBoxLayout, QStackedWidget, QWidget
 
 from graphica.core.i18n import tr
+from graphica.gui import motion
 from graphica.gui.shell.bottom_panel import build_bottom_panel
 from graphica.gui.shell.dataset_page import LEFT_PANEL_WIDTH, DatasetPage
 from graphica.gui.shell.rail import ActivityRail
@@ -34,7 +35,7 @@ def build_tab_shell(app):
                                     ("layout", "layout-grid", "レイアウト")):
         app.activity_rail.add_page(key, icon_name, tr(tooltip))
     app.activity_rail.page_requested.connect(
-        lambda key: app.left_panel.setCurrentWidget(app._left_panel_pages[key]))
+        lambda key: _show_left_page(app, key))
     app.activity_rail.add_bottom_button(
         "moon", tr("ダークモード"), lambda: app.dark_mode_action.trigger())
     # ⚙ はテーマカラーのポップアップ(環境設定への入口もその中)
@@ -53,3 +54,11 @@ def build_tab_shell(app):
     layout.addWidget(app.left_panel)
     layout.addWidget(old_central, 1)
     app.setCentralWidget(shell)
+
+
+def _show_left_page(app, key):
+    page = app._left_panel_pages[key]
+    if app.left_panel.currentWidget() is not page:
+        before = motion.grab(app.left_panel)
+        app.left_panel.setCurrentWidget(page)
+        motion.crossfade(app.left_panel, before)

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow, QMenu, QUn
 
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, theme, ui_mode
+from graphica.gui import motion
 from graphica.gui.theme_color import theme_color_or_default
 from graphica.gui.main_window import PlotterApp, resource_path
 from graphica.gui.shell.header import AppHeader
@@ -34,6 +35,7 @@ class MainAppWindow(QMainWindow):
 
         # ウィンドウ全体の大きさと位置はここで持つ
         self._settings = app_settings.open_settings()
+        motion.set_enabled(app_settings.ANIMATIONS.read(self._settings))
         # 最初のタブがスタートアップ画面を見たことにする前に決める(今までの利用者はアドバンスドで始める)
         self.ui_mode = ui_mode.initial_mode(self._settings)
 

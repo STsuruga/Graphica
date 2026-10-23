@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QDialog, QMessageBox
 from datetime import datetime
 from graphica.core.i18n import tr
 from graphica.core.app_paths import get_app_data_dir
-from graphica.gui import app_settings, notify
+from graphica.gui import app_settings, motion, notify
 from graphica.gui import dialog_dirs
 from graphica.gui.builders import canvas_area
 from graphica.gui.dialogs import AutosaveHistoryDialog
@@ -231,6 +231,7 @@ def save_project_to_path(app, filepath):
         app._restored_unsaved = False
         app._saved_content_fingerprint = app.project.content_fingerprint()
         app.statusBar().showMessage(f"保存しました: {filepath}", 3000)
+        motion.toast(app, tr("保存しました"))
         app._add_recent_file(filepath)
         app.project_state_changed.emit()
     except Exception as e:

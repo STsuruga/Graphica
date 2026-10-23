@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QHeaderView, QLab
 
 from graphica.core.fit_models import fit_type_label
 from graphica.core.i18n import tr
+from graphica.gui import motion
 
 # 見せる値は誤差の有効数字に合わせて丸める(コピーは丸めない)
 ERROR_SIGNIFICANT_DIGITS = 2
@@ -151,6 +152,7 @@ class FitResultView(QWidget):
     def _copy(self, text):
         if text:
             QGuiApplication.clipboard().setText(text)
+            motion.toast(self, tr("コピーしました"))
 
     def set_result(self, fit_result):
         """表にできる結果なら表を、そうでなければ文章(フィットが無ければ案内)を出す。"""

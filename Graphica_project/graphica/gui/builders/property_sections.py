@@ -3,7 +3,7 @@ import json
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
-from graphica.gui import app_settings, theme, ui_mode
+from graphica.gui import app_settings, motion, theme, ui_mode
 from graphica.gui.builders.common import DATASET_PROPERTY_SECTIONS, _svg_icon, cap_combo_width
 from graphica.gui.widgets import SectionHeader
 
@@ -107,8 +107,26 @@ def build_section(title, opened=True, first=False):
         # 見出しのスイッチがある節は、オフの間は中身を出さない(オフでは中の欄を使わない)
         switch = entry.get('switch')
         shown = toggle_button.isChecked() and (switch is None or switch.isChecked())
-        body.setVisible(shown)
         toggle_button.setIcon(_svg_icon("chevron-down" if shown else "chevron-right", size=13))
+        # 見えている節を押したときだけ高さを伸び縮みさせる(組み立て・復元・隠れたタブではすぐ切り替える)
+        if not (motion.is_enabled() and section.isVisible()):
+            motion.stop(body, "_motion_expand")
+            body.setMaximumHeight(motion.UNBOUNDED_HEIGHT)
+            body.setVisible(shown)
+            return
+        if shown:
+            start = body.height() if motion.running(body, "_motion_expand") else 0
+            body.setMaximumHeight(start)
+            body.setVisible(True)
+            motion.animate_value(body, "_motion_expand", start, max(1, body.sizeHint().height()),
+                                 lambda value: body.setMaximumHeight(int(value)),
+                                 lambda: body.setMaximumHeight(motion.UNBOUNDED_HEIGHT), motion.EXPAND_MS)
+        elif not body.isHidden():
+            def close():
+                body.setVisible(False)
+                body.setMaximumHeight(motion.UNBOUNDED_HEIGHT)
+            motion.animate_value(body, "_motion_expand", body.height(), 0,
+                                 lambda value: body.setMaximumHeight(int(value)), close, motion.EXPAND_MS)
 
     entry['refresh_body'] = refresh_body
     toggle_button.toggled.connect(refresh_body)

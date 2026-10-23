@@ -776,4 +776,8 @@ TRANSLATIONS = {
     "プロット {number} の書式(フォント・目盛・グリッド・外枠・カラーバー)を、ほかの {count} 個のサブプロットに写します。元に戻せません。": "Copy the format of plot {number} (fonts, ticks, grid, frame, colorbar) to the other {count} subplots. This cannot be undone.",
     "書式を {count} 個のサブプロットに適用しました": "Applied the format to {count} subplots",
     "枠を表示": "Show frame",
+    "画面の動き(タブの切り替え・節の開閉など)": "Motion (tab switching, opening sections and more)",
+    "保存しました": "Saved",
+    "書き出しました": "Exported",
+    "コピーしました": "Copied",
 }

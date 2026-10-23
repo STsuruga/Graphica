@@ -36,6 +36,7 @@ def test_export_list_keeps_the_saved_json_layout():
         ("wheel_zoom_speed", str, "normal"),
         ("theme_color", str, "#0F4C5C"),
         ("ui_mode", str, ""),
+        ("ui_animations", bool, True),
     ]
 
 

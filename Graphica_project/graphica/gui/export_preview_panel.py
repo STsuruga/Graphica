@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                                QPushButton, QApplication)
 
 from graphica.core.i18n import tr
-from graphica.gui import notify
+from graphica.gui import motion, notify
 from graphica.gui import dialog_dirs
 from graphica.gui.canvas import MplCanvas
 from graphica.core.plugin_api import get_plugin_api, get_registered_exporters
@@ -379,6 +379,7 @@ class ExportPreviewPanel(QWidget):
                     mime_data.setImageData(fallback_pixmap.toImage())
             QApplication.clipboard().setMimeData(mime_data)
             self.main_window.statusBar().showMessage("プレビュー画像をSVG形式でクリップボードにコピーしました", 3000)
+            motion.toast(self.main_window, tr("コピーしました"))
         else:
             # 上と同じ理由で透過にしない
             png_bytes = self._render_full_figure_bytes(
@@ -392,6 +393,7 @@ class ExportPreviewPanel(QWidget):
             pixmap.loadFromData(png_bytes)
             QApplication.clipboard().setPixmap(pixmap)
             self.main_window.statusBar().showMessage("プレビュー画像をクリップボードにコピーしました", 3000)
+            motion.toast(self.main_window, tr("コピーしました"))
 
     def _on_save_clicked(self):
         self.save_to_chosen_file()
@@ -462,6 +464,7 @@ class ExportPreviewPanel(QWidget):
                 with mpl.rc_context(export_rc_params(file_ext, options.get("svg_text_as_path", False))):
                     temp_canvas.fig.savefig(file_path, **save_kwargs)
             mw.statusBar().showMessage(f"保存しました: {file_path}", 3000)
+            motion.toast(mw, tr("書き出しました"))
         except Exception as e:
             logger.exception("エクスポートに失敗しました。")
             notify.warning(mw, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")

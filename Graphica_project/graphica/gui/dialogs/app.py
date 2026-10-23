@@ -40,7 +40,7 @@ class PreferencesDialog(QDialog):
                  snap_to_grid_enabled=False, snap_grid_interval_px=10,
                  plugin_records=None, plugin_registration_errors=None, disabled_plugin_names=None,
                  default_style_template="", wheel_zoom_speed="normal", theme_color=DEFAULT_THEME_COLOR,
-                 on_check_plugin_updates=None):
+                 on_check_plugin_updates=None, animations=True):
         """plugin_records=None は一度も読み込んでいない(セーフモードなど)。空のリスト(1つも無い)とは区別して表示する。"""
         super().__init__(parent)
         from graphica.core.i18n import tr, SUPPORTED_LANGUAGES, get_language
@@ -76,6 +76,9 @@ class PreferencesDialog(QDialog):
         theme_row.addWidget(reset_theme_button)
         appearance_layout.addLayout(theme_row)
         self._set_theme_color(theme_color)
+        self.animations_checkbox = QCheckBox(tr("画面の動き(タブの切り替え・節の開閉など)"))
+        self.animations_checkbox.setChecked(bool(animations))
+        appearance_layout.addWidget(self.animations_checkbox)
         layout.addWidget(appearance_group)
 
         # 切り替えは次の起動から(作った画面をその場で訳し直す仕組みは無い)
@@ -406,6 +409,9 @@ class PreferencesDialog(QDialog):
     def get_theme_color(self):
         """#RRGGBB(大文字)。"""
         return self._theme_color
+
+    def get_animations(self):
+        return self.animations_checkbox.isChecked()
 
     def get_wheel_zoom_speed(self):
         """'slow' / 'normal' / 'fast'。"""

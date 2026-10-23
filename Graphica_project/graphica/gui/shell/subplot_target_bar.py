@@ -7,7 +7,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from graphica.core.i18n import tr
-from graphica.gui import theme
+from graphica.gui import motion, theme
 
 # これより多い升目は小さすぎて押せないので、プルダウンにする
 MAX_GRID_CELLS = 9
@@ -24,14 +24,31 @@ class SubplotGrid(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._rows, self._cols, self._current = 1, 1, 0
+        # 選んだ升目の枠が滑っている間の位置(止まっていれば None)
+        self._sliding = None
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
     def set_grid(self, rows, cols, current):
-        if (rows, cols, current) != (self._rows, self._cols, self._current):
-            self._rows, self._cols, self._current = rows, cols, current
-            self.updateGeometry()
-            self.update()
+        if (rows, cols, current) == (self._rows, self._cols, self._current):
+            return
+        same_shape = (rows, cols) == (self._rows, self._cols)
+        start = self._cell_rect(self._current) if same_shape and self.isVisible() else None
+        self._rows, self._cols, self._current = rows, cols, current
+        self.updateGeometry()
+        if start is not None and motion.is_enabled():
+            self._sliding = start
+
+            def step(rect):
+                self._sliding = rect
+                self.update()
+
+            def finish():
+                self._sliding = None
+                self.update()
+
+            motion.animate_value(self, "_motion_cell", start, self._cell_rect(current), step, finish)
+        self.update()
 
     def sizeHint(self):
         return QSize(self._cols * CELL_WIDTH + (self._cols - 1) * CELL_GAP,
@@ -61,11 +78,17 @@ class SubplotGrid(QWidget):
         font = QFont(self.font())
         font.setPointSizeF(max(7.0, font.pointSizeF() - 2))
         for index in range(self._rows * self._cols):
+            painter.setPen(QPen(QColor(tokens["border_strong"]), 1))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(self._cell_rect(index), theme.RADIUS_SM, theme.RADIUS_SM)
+        # 選んだ升目の枠(選び直したときは前の升目から滑ってくる)
+        painter.setPen(QPen(QColor(tokens["accent"]), 1))
+        painter.setBrush(theme.current_accent_soft_qcolor())
+        selected_rect = self._sliding if self._sliding is not None else self._cell_rect(self._current)
+        painter.drawRoundedRect(selected_rect, theme.RADIUS_SM, theme.RADIUS_SM)
+        for index in range(self._rows * self._cols):
             rect = self._cell_rect(index)
             selected = index == self._current
-            painter.setPen(QPen(QColor(tokens["accent"] if selected else tokens["border_strong"]), 1))
-            painter.setBrush(theme.current_accent_soft_qcolor() if selected else Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(rect, theme.RADIUS_SM, theme.RADIUS_SM)
             font.setBold(selected)
             painter.setFont(font)
             painter.setPen(QColor(tokens["accent_fg"] if selected else tokens["text_secondary"]))
