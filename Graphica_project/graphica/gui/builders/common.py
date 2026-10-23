@@ -80,9 +80,16 @@ class _DatasetTreeSelectionDelegate(QStyledItemDelegate):
         if opt.state & QStyle.StateFlag.State_Selected:
             painter.save()
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-            # 展開矢印の字下げの分だけ左が空くので、左端まで塗る(字下げの列には何も描かれない)
+            # どの列も行の全幅の角丸を描き、自分の列の中だけに切り取る。列ごとの矩形で塗ると
+            # 半透明の塗りが重なったり角丸が2つに割れたりする。左端は展開矢印の字下げも含める
+            clip = QRect(opt.rect)
+            if index.column() == 0:
+                clip.setLeft(0)
+            painter.setClipRect(clip)
             rect = QRectF(opt.rect)
             rect.setLeft(0)
+            if opt.widget is not None:
+                rect.setRight(opt.widget.viewport().width() - 1)
             path = QPainterPath()
             path.addRoundedRect(
                 rect, theme.DATASET_LIST_ITEM_RADIUS, theme.DATASET_LIST_ITEM_RADIUS

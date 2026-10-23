@@ -504,7 +504,6 @@ _L = theme.LIGHT_TOKENS
     ("QRadioButton::indicator:checked", "border-color", "accent"),
     ("QPushButton:default", "background", "accent"),
     ("QPushButton:default", "color", "on_accent"),
-    ("QGroupBox::title", "background", "accent_soft"),
 ])
 def test_interaction_states_use_the_theme_color(selector, prop, key):
     qss = theme.build_qss(_L)
@@ -516,7 +515,6 @@ def test_interaction_states_use_the_theme_color(selector, prop, key):
 
 @pytest.mark.parametrize("selector", [
     "QTabBar::tab:selected",
-    "QGroupBox::title",
     "QToolButton#property_subsection_toggle:hover",
 ])
 def test_text_in_the_theme_color_uses_accent_fg(selector):

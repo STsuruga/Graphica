@@ -97,7 +97,7 @@ class ExportPreviewPanel(QWidget):
 
         self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
         self.svg_text_as_path_checkbox.setToolTip(
-            "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
+            "SVG保存/コピー時、目盛の数字やラベルの文字をパス(輪郭線)として出力します。"
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
@@ -116,7 +116,7 @@ class ExportPreviewPanel(QWidget):
         self.preview_label = QLabel("プレビューがここに表示されます")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumSize(200, 150)
-        self.preview_label.setFrameShape(QLabel.Shape.StyledPanel)
+        self.preview_label.setObjectName("export_preview_frame")
         self.preview_label.setWordWrap(True)
         layout.addWidget(self.preview_label, 1)
 
@@ -135,6 +135,7 @@ class ExportPreviewPanel(QWidget):
         button_row.addWidget(self.copy_button)
 
         self.save_button = QPushButton("名前を付けて保存...")
+        self.save_button.setProperty("primaryButton", True)
         self.save_button.clicked.connect(self._on_save_clicked)
         button_row.addWidget(self.save_button)
         layout.addLayout(button_row)

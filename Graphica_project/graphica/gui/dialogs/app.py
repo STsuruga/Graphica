@@ -89,7 +89,7 @@ class PreferencesDialog(QDialog):
             self.language_combo.setCurrentIndex(self._language_codes.index(active_language))
         language_form.addRow(tr("表示言語"), self.language_combo)
         language_note = QLabel(tr("※ 言語の変更は次回起動時に反映されます。"))
-        language_note.setStyleSheet("font-size: 9pt; color: gray;")
+        language_note.setProperty("hint", True)
         language_note.setWordWrap(True)
         language_form.addRow(language_note)
         layout.addWidget(language_group)

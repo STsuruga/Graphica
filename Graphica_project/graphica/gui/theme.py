@@ -255,9 +255,38 @@ QPlainTextEdit#bottom_log, QTextEdit#fit_info_textedit {{
     border: none;
     padding: 6px 10px;
 }}
+/* 下のパネル自体が角丸の枠なので、中の一覧には枠を付けない */
+QTreeWidget#provenance_tree {{
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}}
 QPlainTextEdit#bottom_log {{
     font-family: "Consolas", "Menlo", monospace;
     font-size: 11.5px;
+}}
+/* 欄の下の補足と、中身が空のときの案内。ダークでも読める淡い文字色にする */
+QLabel[hint="true"] {{
+    color: {text_muted};
+    font-size: 9pt;
+    background: transparent;
+}}
+QLabel[emptyNote="true"] {{
+    color: {text_muted};
+    padding: 12px;
+    background: transparent;
+}}
+/* エクスポートのプレビューの枠: 下のパネルやカードと同じく角丸 */
+QLabel#export_preview_frame {{
+    background: {surface_2};
+    border: 1px solid {border};
+    border-radius: 10px;
+    color: {text_muted};
+}}
+/* 縦横のスクロールバーが出たときの右下の角。既定の白い四角を消す */
+QAbstractScrollArea::corner {{
+    background: transparent;
+    border: none;
 }}
 /* グラフのカード(GUI 刷新): ミニマップとの間は線を引かず、すき間だけ */
 QFrame#canvas_separator {{
@@ -509,26 +538,27 @@ QSplitter::handle:hover {{
 }}
 
 /* --- グループボックス / ボタン --- */
+/* インスペクタの節の見出しと同じ形: 上に細い罫線、その下に太字の見出し。見出しは padding の中に置く
+   (margin に置くと罫線が見出しの下に来る)。QFontDialog などの Qt 標準のダイアログでも見切れない。 */
 QGroupBox {{
     background: transparent;
-    border: 1px solid {border};
-    border-radius: 8px;
-    margin-top: 20px;
-    padding-top: 14px;
+    border: none;
+    border-top: 1px solid {border};
+    border-radius: 0;
+    margin-top: 6px;
+    padding-top: 30px;
     font-weight: 500;
 }}
 QGroupBox::title {{
-    subcontrol-origin: margin;
-    left: 10px;
-    /* 枠の外にはみ出さない位置にする。はみ出すと、QFontDialog などの Qt 標準のダイアログでは上の余白が無く見切れる。 */
-    top: 0px;
-    padding: 2px 8px;
-    color: {accent_fg};
-    font-size: 12.5px;
+    subcontrol-origin: padding;
+    subcontrol-position: top left;
+    left: 0;
+    top: 9px;
+    padding: 0;
+    color: {text_primary};
+    font-size: {subheading_pt}pt;
     font-weight: 600;
-    letter-spacing: .02em;
-    background: {accent_soft};
-    border-radius: 5px;
+    background: transparent;
 }}
 
 /* --- ドックの中のグループボックスは枠とチップを付けない(カードの中に箱が入れ子になって窮屈に見える) --- */
@@ -545,11 +575,14 @@ QDockWidget QGroupBox[collapsibleBody="true"] {{
     padding-top: 0px;
 }}
 QDockWidget QGroupBox::title {{
+    subcontrol-origin: margin;
     left: 0;
     /* 上のモーダル側と同じく、枠の外にはみ出さない位置にする */
     top: 0px;
     padding: 0;
     color: {text_secondary};
+    font-size: 12.5px;
+    letter-spacing: .02em;
     background: transparent;
     border-radius: 0;
 }}
@@ -725,6 +758,9 @@ QLabel#mathtext_preview_label {{
 }}
 QLabel#mathtext_preview_label:hover {{
     border-color: {accent};
+}}
+QLabel#mathtext_preview_label[placeholderShown="true"] {{
+    color: {text_muted};
 }}
 
 /* --- スピンボックスの上下ボタン: 矢印は width / height を指定するだけで描かれなくなるので、

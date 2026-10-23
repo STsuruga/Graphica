@@ -578,7 +578,7 @@ class FolderImportDialog(QDialog):
 
         self.preview_label = QLabel("")
         self.preview_label.setWordWrap(True)
-        self.preview_label.setStyleSheet("font-size: 9pt; color: gray;")
+        self.preview_label.setProperty("hint", True)
         layout.addWidget(self.preview_label)
 
         self._first_file_name = file_names[0] if file_names else ""

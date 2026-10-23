@@ -46,7 +46,7 @@ class ColumnCalculatorDialog(QDialog):
         self.formula_edit.setPlaceholderText("例: (A + B) / 2 や log(C)")
 
         help_text = QLabel("列名はそのまま使えます (例: `A`)。\n数値や `log(A)`, `sin(A)` なども利用可能です。")
-        help_text.setStyleSheet("font-size: 9pt; color: gray;")
+        help_text.setProperty("hint", True)
 
         preset_group = QGroupBox("プリセット (対象列を選んでボタンを押すと計算式が自動入力されます)")
         preset_layout = QVBoxLayout()
@@ -291,7 +291,7 @@ class ColumnStringOpsDialog(QDialog):
         extract_form.addRow("正規表現", self.extract_pattern_edit)
         extract_help = QLabel('既定は数値(整数/小数、符号付き)を抽出します。例: "400nm" → 400')
         extract_help.setWordWrap(True)
-        extract_help.setStyleSheet("font-size: 9pt; color: gray;")
+        extract_help.setProperty("hint", True)
         extract_form.addRow(extract_help)
         self.extract_output_edit = QLineEdit()
         extract_form.addRow("出力列名", self.extract_output_edit)
@@ -409,14 +409,14 @@ class RowFilterDialog(QDialog):
             "列名はそのまま使えます(例: y)。比較演算子(>, <, ==, != 等)や\n"
             "and / or / not が使えます(core/safe_eval.pyの安全な数式評価器)。"
         )
-        help_text.setStyleSheet("font-size: 9pt; color: gray;")
+        help_text.setProperty("hint", True)
         help_text.setWordWrap(True)
         layout.addWidget(help_text)
 
         if column_names:
             columns_label = QLabel("利用可能な列: " + ", ".join(column_reference(str(c)) for c in column_names))
             columns_label.setWordWrap(True)
-            columns_label.setStyleSheet("font-size: 9pt; color: gray;")
+            columns_label.setProperty("hint", True)
             layout.addWidget(columns_label)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok |

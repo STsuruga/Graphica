@@ -482,14 +482,13 @@ class AxisSettingsPanel:
             line_edit.setText(dialog.get_text())
 
     def _refresh_label_preview(self, preview_label, text, placeholder):
-        """プレビューを matplotlib で描いた見た目にする。空なら placeholder を text_muted の色で出す。"""
+        """プレビューを matplotlib で描いた見た目にする。空なら placeholder を文字で出す。"""
         from graphica.gui.mathtext_preview import render_mathtext_to_pixmap
 
-        tokens = theme.current_tokens()
-        if text:
-            pixmap = render_mathtext_to_pixmap(text, color=tokens["text_primary"])
-        else:
-            pixmap = render_mathtext_to_pixmap(placeholder, color=tokens["text_muted"])
+        if not text:
+            preview_label.set_placeholder_text(placeholder)
+            return
+        pixmap = render_mathtext_to_pixmap(text, color=theme.current_tokens()["text_primary"])
         # 欄の幅が決まるたびに収まるよう縮める(setPixmap だと、この時点の幅がまだ確定していないとはみ出す)
         preview_label.set_natural_pixmap(pixmap)
 

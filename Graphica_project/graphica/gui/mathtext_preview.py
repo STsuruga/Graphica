@@ -124,7 +124,21 @@ class FitWidthPixmapLabel(QLabel):
 
     def set_natural_pixmap(self, pixmap):
         self._natural_pixmap = pixmap
+        self._set_placeholder_shown(False)
         self._apply_fitted_pixmap()
+
+    def set_placeholder_text(self, text):
+        """空の欄の案内は描いた絵にせず、ほかの欄のプレースホルダーと同じ大きさ・淡さの文字で出す。"""
+        self._natural_pixmap = None
+        self.clear()
+        self.setText(text)
+        self._set_placeholder_shown(True)
+
+    def _set_placeholder_shown(self, shown):
+        if bool(self.property("placeholderShown")) != shown:
+            self.setProperty("placeholderShown", shown)
+            self.style().unpolish(self)
+            self.style().polish(self)
 
     def _apply_fitted_pixmap(self):
         if self._natural_pixmap is None or self._natural_pixmap.isNull():

@@ -82,7 +82,7 @@ class ExportDialog(QDialog):
         # 既定は文字のまま(検索や編集ができる)。フォントの無い環境で化けるのを避けたいときだけパスにする。SVG だけに効く
         self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
         self.svg_text_as_path_checkbox.setToolTip(
-            "SVG出力時、目盛りの数字やラベルの文字をテキスト要素ではなく"
+            "SVG出力時、目盛の数字やラベルの文字をテキスト要素ではなく"
             "パス(輪郭線)として出力します。フォントが無い環境でも見た目が"
             "崩れませんが、テキストとしての検索・編集はできなくなります。"
         )
@@ -236,7 +236,7 @@ class BatchExportDialog(QDialog):
 
         self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
         self.svg_text_as_path_checkbox.setToolTip(
-            "SVG出力時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
+            "SVG出力時、目盛の数字やラベルの文字をパス(輪郭線)として出力します。"
             "PNG/PDF形式には影響しません。"
         )
         form.addRow(self.svg_text_as_path_checkbox)

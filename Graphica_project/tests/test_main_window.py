@@ -1035,17 +1035,20 @@ def test_clicking_label_preview_opens_label_edit_dialog(tmp_path, monkeypatch):
 
 def test_label_preview_pixmap_updates_when_backing_text_changes(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    preview, line_edit, _placeholder = window._label_preview_widgets[0]
+    preview, line_edit, placeholder = window._label_preview_widgets[0]
 
-    empty_pixmap = preview.pixmap()
-    assert empty_pixmap is not None and not empty_pixmap.isNull()
+    # 空のときは描いた絵ではなく、淡い文字のプレースホルダー
+    assert preview.pixmap().isNull()
+    assert preview.text() == placeholder and preview.property("placeholderShown") is True
 
     line_edit.setText("新しいタイトル")
 
     filled_pixmap = preview.pixmap()
     assert filled_pixmap is not None and not filled_pixmap.isNull()
-    # プレースホルダ("タイトルを入力")と同じ文字数なので、フォントによっては大きさまで一致する。中身で比べる
-    assert filled_pixmap.toImage() != empty_pixmap.toImage()
+    assert preview.text() == "" and preview.property("placeholderShown") is False
+
+    line_edit.setText("")
+    assert preview.pixmap().isNull() and preview.text() == placeholder
 
 
 def test_refresh_all_label_previews_updates_every_registered_widget(tmp_path, monkeypatch):
