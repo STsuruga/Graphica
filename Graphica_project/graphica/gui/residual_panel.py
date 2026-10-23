@@ -26,7 +26,7 @@ class ResidualPanel(QWidget):
             "ここに残差(実測値 - フィット値)が表示されます。"
         )
         self.placeholder_label.setWordWrap(True)
-        self.placeholder_label.setStyleSheet("color: gray; padding: 12px;")
+        self.placeholder_label.setProperty("emptyNote", True)
         layout.addWidget(self.placeholder_label)
 
         self.fig = Figure(figsize=(4, 2.2), dpi=dpi, tight_layout=True)
@@ -36,7 +36,7 @@ class ResidualPanel(QWidget):
         layout.addWidget(self.canvas)
         self.canvas.setVisible(False)
 
-    def refresh(self, dataset, fit_result=None):
+    def refresh(self, dataset, fit_result=None, x_label="X"):
         """fit_result を省くと dataset の fit_result。無いか残差が空なら案内の文を出す。"""
         if fit_result is None:
             fit_result = dataset.fit_result if dataset is not None else None
@@ -57,7 +57,7 @@ class ResidualPanel(QWidget):
         self.ax.set_facecolor(tokens['surface'])
         self.ax.axhline(0, color=tokens['border_strong'], linewidth=0.8, linestyle='--')
         self.ax.scatter(residual_x, residuals, s=14, color=tokens['accent'])
-        self.ax.set_xlabel("X", fontsize=8, color=tokens['text_primary'])
+        self.ax.set_xlabel(x_label, fontsize=8, color=tokens['text_primary'], fontfamily=JP_CAPABLE_FONT_FAMILIES)
         # matplotlib の既定の字体には日本語が無い
         self.ax.set_ylabel(tr("残差"), fontsize=8, color=tokens['text_primary'], fontfamily=JP_CAPABLE_FONT_FAMILIES)
         self.ax.tick_params(labelsize=7, colors=tokens['text_primary'])

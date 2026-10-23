@@ -198,6 +198,9 @@ class BottomPanel(QFrame):
         self.collapse_button.setIcon(_svg_icon("chevron-right" if collapsed else "chevron-down", size=16))
 
 
+QUIET_LOGGERS = ("matplotlib.font_manager",)
+
+
 class _LogEmitter(QObject):
     line = Signal(str)
 
@@ -209,6 +212,12 @@ class _PanelLogHandler(logging.Handler):
         super().__init__(level=logging.INFO)
         self._emitter = emitter
         self.setFormatter(logging.Formatter(LOG_FORMAT))
+
+    def filter(self, record):
+        # OS ごとの日本語フォントの候補を順に探すので、見つからない候補の警告が毎回並ぶ(graphica.log には残す)
+        if record.name.startswith(QUIET_LOGGERS) and record.levelno < logging.ERROR:
+            return False
+        return super().filter(record)
 
     def emit(self, record):
         try:
@@ -310,7 +319,7 @@ def refresh_bottom_panel(app, dataset):
     else:
         app.bottom_panel.set_badge("fit", "")
 
-    app.residual_panel.refresh(dataset, fit_result)
+    app.residual_panel.refresh(dataset, fit_result, residual_x_label(dataset, fit_result, datasets))
     app.provenance_panel.refresh(dataset, app.project)
 
 
@@ -320,7 +329,15 @@ def refresh_theme(app):
         return
     app.bottom_panel.refresh_icons()
     shown = app.property_panel.shown_dataset()
-    app.residual_panel.refresh(shown, fit_result_for(shown, app.project.datasets))
+    fit_result = fit_result_for(shown, app.project.datasets)
+    app.residual_panel.refresh(shown, fit_result, residual_x_label(shown, fit_result, app.project.datasets))
+
+
+def residual_x_label(dataset, fit_result, datasets):
+    """フィットした元のデータの X の列名(フィットの曲線の列は x_fit なので、元をたどる)。"""
+    source_id = fit_result.get('source_dataset_id') if fit_result else None
+    source = next((other for other in datasets if source_id and other.dataset_id == source_id), dataset)
+    return str(getattr(source, 'x_col_name', None) or "X")
 
 
 def highlight_table_row(app, dataset, row_number):
