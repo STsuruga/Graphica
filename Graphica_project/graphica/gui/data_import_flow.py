@@ -234,8 +234,7 @@ def import_loaded_dataframe(app, df, file_path):
             name=preview_name, df=final_df, x_col_name=x_col, y_col_name=y_col,
             source_file=os.path.abspath(file_path), source_sheet=source_sheet,
         )
-        app._style_imported_dataset(new_dataset)
-        app._add_dataset(new_dataset, target_folder)
+        add_imported_dataset(app, new_dataset, target_folder)
         added_count += 1
 
     if added_count > 0:
@@ -338,9 +337,19 @@ def on_paste_data_from_clipboard(app):
     x_col, y_col = preview_dialog.get_selected_columns()
     final_df = preview_dialog.get_dataframe()
     new_dataset = Dataset(name=dataset_name, df=final_df, x_col_name=x_col, y_col_name=y_col)
-    app._style_imported_dataset(new_dataset)
-    app._add_dataset(new_dataset, app._get_target_folder_for_new_dataset())
+    add_imported_dataset(app, new_dataset, app._get_target_folder_for_new_dataset())
     app.statusBar().showMessage("クリップボードからデータを貼り付けました", 3000)
+
+
+def add_imported_dataset(app, dataset, folder):
+    """読み込んだデータセットに配色を当てて足す。描画先のサブプロットに初めて入るデータなら、
+    空の軸ラベルを列名から入れる(列を選び直したときと同じ規則。入っているラベルは変えない)。"""
+    first_in_subplot = not any(other.subplot_target == dataset.subplot_target for other in app.project.datasets)
+    app._style_imported_dataset(dataset)
+    app._add_dataset(dataset, folder)
+    if first_in_subplot:
+        app.property_panel.maybe_autofill_axis_label(dataset.subplot_target, 'x_label', dataset.x_col_name)
+        app.property_panel.maybe_autofill_axis_label(dataset.subplot_target, 'y_label', dataset.y_col_name)
 
 
 def on_data_load_failed(app, error_message, file_path):
