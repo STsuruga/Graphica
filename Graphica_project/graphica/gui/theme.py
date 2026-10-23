@@ -19,8 +19,14 @@ _current_theme_color = DEFAULT_THEME_COLOR
 _last_applied_dark = None  # 同じ (明暗, テーマカラー) での apply_theme() は重い処理を省く
 _last_applied_theme_color = None
 
-# 選択の角丸を描くデリゲートが使う。QSS の QTreeWidget の border-radius と同じ値にしておくこと
-DATASET_LIST_ITEM_RADIUS = 8
+# 角丸は5段: 小(バッジ・一覧の項目・小さなボタン)・中(ボタン・入力欄)・大(一覧・メニュー・ポップアップ・タイル)・
+# 特大(グラフのカードと下のパネル)と、丸(高さの半分。スイッチ・セグメント・点)。QSS は {radius_*} で受け取る
+RADIUS_SM = 4
+RADIUS_MD = 7
+RADIUS_LG = 10
+RADIUS_XL = 14
+# 選択の角丸を描くデリゲートが使う(一覧の項目と同じ段)
+DATASET_LIST_ITEM_RADIUS = RADIUS_MD
 
 # スピンボックスの矢印は PNG にして QSS の ::up-arrow / ::down-arrow の image で指定する。
 # 枠を QSS で描いていると、QProxyStyle で矢印を描いても反映されたりされなかったりする。
@@ -131,7 +137,7 @@ QToolTip {{
     color: {text_primary};
     border: 1px solid {border_strong};
     padding: 4px 6px;
-    border-radius: 4px;
+    border-radius: {radius_sm};
 }}
 
 /* --- メニューバー / メニュー --- */
@@ -143,7 +149,7 @@ QMenuBar {{
 QMenuBar::item {{
     background: transparent;
     padding: 4px 10px;
-    border-radius: 4px;
+    border-radius: {radius_sm};
 }}
 QMenuBar::item:selected {{
     background: {accent_soft};
@@ -152,12 +158,12 @@ QMenuBar::item:selected {{
 QMenu {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: {radius_lg};
     padding: 4px;
 }}
 QMenu::item {{
     padding: 6px 24px 6px 12px;
-    border-radius: 6px;
+    border-radius: {radius_sm};
 }}
 QMenu::item:selected {{
     background: {accent_soft};
@@ -188,13 +194,13 @@ QLabel#dataset_mini_stats_label {{
 QWidget#plot_container {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 14px;
+    border-radius: {radius_xl};
 }}
 /* グラフの下のパネル(GUI 刷新、アドバンスド): カードと同じ角丸。上にアイコン付きのタブ */
 QFrame#bottom_panel {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 14px;
+    border-radius: {radius_xl};
 }}
 QWidget#bottom_panel_header {{
     background: transparent;
@@ -204,7 +210,7 @@ QWidget#bottom_panel_header {{
 QToolButton#bottom_tab {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px 10px;
     color: {text_secondary};
 }}
@@ -219,7 +225,7 @@ QToolButton#bottom_tab:checked {{
 QLabel#bottom_badge {{
     background: {surface_2};
     color: {text_secondary};
-    border-radius: 5px;
+    border-radius: {radius_sm};
     padding: 0 6px;
     font-size: 10.5px;
 }}
@@ -299,7 +305,7 @@ QLabel[emptyNote="true"] {{
 QLabel#export_preview_frame {{
     background: {surface_2};
     border: 1px solid {border};
-    border-radius: 10px;
+    border-radius: {radius_lg};
     color: {text_muted};
 }}
 /* 縦横のスクロールバーが出たときの右下の角。既定の白い四角を消す */
@@ -325,7 +331,7 @@ QLabel#card_meta {{
 QToolButton#card_button {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 3px;
 }}
 QToolButton#card_button:hover {{
@@ -345,7 +351,7 @@ QToolBar#plot_toolbar {{
 }}
 QToolBar#plot_toolbar QToolButton {{
     border: none;
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 3px 6px;
     margin: 0 2px 0 0;
     color: {text_primary};
@@ -360,12 +366,12 @@ QToolBar#plot_toolbar QToolButton[toolSegment="last"] {{
     padding: 4px 7px;
 }}
 QToolBar#plot_toolbar QToolButton[toolSegment="first"] {{
-    border-top-left-radius: 8px;
-    border-bottom-left-radius: 8px;
+    border-top-left-radius: {radius_md};
+    border-bottom-left-radius: {radius_md};
 }}
 QToolBar#plot_toolbar QToolButton[toolSegment="last"] {{
-    border-top-right-radius: 8px;
-    border-bottom-right-radius: 8px;
+    border-top-right-radius: {radius_md};
+    border-bottom-right-radius: {radius_md};
     margin-right: 4px;
 }}
 QToolBar#plot_toolbar QToolButton:hover {{
@@ -397,13 +403,13 @@ QToolBar#plot_toolbar QToolButton[toolSegment="last"]:checked:hover {{
 QToolBar#plot_tool_rail {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 13px;
+    border-radius: {radius_xl};
     padding: 4px;
     spacing: 3px;
 }}
 QToolBar#plot_tool_rail QToolButton {{
     border: none;
-    border-radius: 9px;
+    border-radius: {radius_lg};
     padding: 6px;
 }}
 QToolBar#plot_tool_rail QToolButton:hover {{
@@ -425,7 +431,7 @@ QToolBar {{
 QToolButton {{
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 4px;
 }}
 QToolButton:hover {{
@@ -468,7 +474,7 @@ QFrame#status_dot {{
 QFrame#settings_popover {{
     background: {surface};
     border: 1px solid {border_strong};
-    border-radius: 12px;
+    border-radius: {radius_lg};
 }}
 QFrame#settings_popover QLabel {{
     background: transparent;
@@ -495,7 +501,7 @@ QLabel#settings_popover_mono {{
 QLabel#settings_popover_note {{
     color: {text_secondary};
     background: {surface_2};
-    border-radius: 8px;
+    border-radius: {radius_md};
     padding: 6px 8px;
     font-size: 11.5px;
 }}
@@ -521,14 +527,14 @@ QDockWidget {{
     /* 指定しないと OS のパレットの色が透け、背景のトークンが効かない */
     background: {bg};
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: {radius_lg};
 }}
 QDockWidget::title {{
     background: {surface_2};
     padding: 6px 8px;
     border-bottom: 1px solid {border};
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    border-top-left-radius: {radius_lg};
+    border-top-right-radius: {radius_lg};
     font-weight: 600;
     letter-spacing: .01em;
 }}
@@ -698,7 +704,7 @@ QLabel#inspector_target_sub {{
 QFrame#lite_more_box {{
     background: transparent;
     border: 1px dashed {border_strong};
-    border-radius: 10px;
+    border-radius: {radius_lg};
     margin: 12px 0 4px 0;
 }}
 QLabel#lite_more_text, QLabel#lite_more_icon {{
@@ -721,7 +727,7 @@ QPushButton#lite_more_button:hover {{
 QPushButton {{
     background: {surface};
     border: 1px solid {border_strong};
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 5px 14px;
 }}
 QPushButton:hover {{
@@ -755,7 +761,7 @@ QPushButton[iconOnly="true"] {{
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 4px 8px;
     selection-background-color: {accent_soft};
 }}
@@ -772,7 +778,7 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
 QLabel#mathtext_preview_label {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 4px 8px;
 }}
 QLabel#mathtext_preview_label:hover {{
@@ -796,7 +802,7 @@ QSpinBox::up-button, QDoubleSpinBox::up-button {{
     height: 13px;
     margin: 1px 2px 1px 1px;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: {radius_sm};
     background: transparent;
 }}
 QSpinBox::down-button, QDoubleSpinBox::down-button {{
@@ -806,7 +812,7 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {{
     height: 13px;
     margin: 1px 2px 1px 1px;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: {radius_sm};
     background: transparent;
 }}
 QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
@@ -858,7 +864,7 @@ QComboBoxPrivateContainer {{
 QComboBox QAbstractItemView {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 4px;
     selection-background-color: {accent_soft};
     selection-color: {accent_fg};
@@ -867,7 +873,7 @@ QComboBox QAbstractItemView {{
 QComboBox QAbstractItemView::item {{
     min-height: 24px;
     padding: 0 8px;
-    border-radius: 5px;
+    border-radius: {radius_sm};
     color: {text_primary};
 }}
 QComboBox QAbstractItemView::item:hover {{
@@ -882,7 +888,7 @@ QComboBox QAbstractItemView::item:selected {{
 QTreeWidget, QListWidget, QTableWidget {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: {radius_lg};
     alternate-background-color: {surface_2};
 }}
 QHeaderView::section {{
@@ -901,7 +907,7 @@ QTreeWidget::item:selected, QListWidget::item:selected, QTableWidget::item:selec
 }}
 QTreeWidget::item, QListWidget::item {{
     padding: 5px 4px;
-    border-radius: 5px;
+    border-radius: {radius_sm};
 }}
 
 /* --- データセット一覧の選択: 背景は _DatasetTreeSelectionDelegate が1つの角丸で描く
@@ -925,14 +931,14 @@ QTreeWidget#dataset_list_widget::item:selected {{
 QLineEdit#dataset_search_edit {{
     border: none;
     background: {surface_2};
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 5px 9px;
 }}
 
 /* --- タブ --- */
 QTabWidget::pane {{
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: {radius_lg};
 }}
 /* 「軸」のサブタブは下線のタブだけにし、中身を箱で囲まない(インスペクタの中に箱が入れ子になる) */
 QTabWidget#axis_tab_widget::pane {{
@@ -952,8 +958,8 @@ QTabBar::tab {{
     color: {text_secondary};
     padding: 6px 14px;
     margin-right: 2px;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    border-top-left-radius: {radius_md};
+    border-top-right-radius: {radius_md};
     border-bottom: 2px solid transparent;
 }}
 QTabBar::tab:hover {{
@@ -970,7 +976,7 @@ QTabBar::tab:selected {{
    (QProxyStyle で差し替えても効かない)。見た目は _FlatThemeProxyStyle で決める。 */
 
 QToolButton#add_tab_button {{
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px;
 }}
 QToolButton#add_tab_button:hover {{
@@ -995,13 +1001,13 @@ QRadioButton::indicator:checked {{
 /* --- プログレスバー --- */
 QProgressBar {{
     border: 1px solid {border};
-    border-radius: 6px;
+    border-radius: {radius_md};
     text-align: center;
     background: {surface_2};
 }}
 QProgressBar::chunk {{
     background: {accent};
-    border-radius: 6px;
+    border-radius: {radius_md};
 }}
 
 /* --- スクロールバー --- */
@@ -1078,7 +1084,7 @@ QToolButton#segment:checked:disabled {{
 QToolButton#type_tile {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 9px;
+    border-radius: {radius_lg};
     padding: 4px 2px;
     color: {text_secondary};
     font-size: 11px;
@@ -1125,7 +1131,7 @@ QDoubleSpinBox[sliderValue="true"], QSpinBox[sliderValue="true"] {{
 QFrame#stat_card {{
     background: {surface_2};
     border: none;
-    border-radius: 9px;
+    border-radius: {radius_lg};
 }}
 QLabel#stat_card_label {{
     color: {text_muted};
@@ -1154,7 +1160,7 @@ QFrame#header_separator {{
 QToolButton#header_button {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px;
 }}
 QToolButton#header_button:hover {{
@@ -1171,7 +1177,7 @@ QTabBar#project_tab_bar::tab {{
     padding: 0 12px 0 12px;
     margin: 0 2px 0 0;
     border: none;
-    border-radius: 8px;
+    border-radius: {radius_md};
     background: transparent;
     color: {text_secondary};
     font-weight: 400;
@@ -1189,7 +1195,7 @@ QTabBar#project_tab_bar::tab:selected {{
 QPushButton#command_search {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 0;
     text-align: left;
 }}
@@ -1206,7 +1212,7 @@ QLabel#kbd_hint {{
     color: {text_muted};
     background: {surface_2};
     border: none;
-    border-radius: 4px;
+    border-radius: {radius_sm};
     padding: 1px 5px;
     font-size: 10.5px;
 }}
@@ -1219,7 +1225,7 @@ QLabel#mode_label {{
 QPushButton[primaryButton="true"] {{
     background: {accent};
     border: 1px solid {accent};
-    border-radius: 7px;
+    border-radius: {radius_md};
     color: {on_accent};
     font-weight: 600;
     padding: 5px 12px;
@@ -1243,7 +1249,7 @@ QPushButton[primaryButton="true"]:disabled {{
 QPushButton[ghostButton="true"], QToolButton[ghostButton="true"] {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px;
 }}
 QPushButton[ghostButton="true"]:hover, QToolButton[ghostButton="true"]:hover {{
@@ -1259,7 +1265,7 @@ QWidget#activity_rail {{
 QToolButton#rail_button {{
     background: transparent;
     border: none;
-    border-radius: 10px;
+    border-radius: {radius_lg};
 }}
 QToolButton#rail_button:hover {{
     background: {surface_2};
@@ -1308,7 +1314,7 @@ QLabel#side_page_note {{
 QPushButton#side_page_row {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px 8px;
     text-align: left;
     color: {text_primary};
@@ -1372,6 +1378,8 @@ def build_qss(tokens: dict) -> str:
     format_args["spin_down_arrow_disabled_url"] = _spinbox_arrow_icon_url("down", tokens["text_muted"])
     _heading_pt, subheading_pt = heading_point_sizes()
     format_args["subheading_pt"] = f"{subheading_pt:.1f}"
+    for name, value in (("sm", RADIUS_SM), ("md", RADIUS_MD), ("lg", RADIUS_LG), ("xl", RADIUS_XL)):
+        format_args[f"radius_{name}"] = f"{value}px"
     return _FLAT_QSS_TEMPLATE.format(**format_args)
 
 

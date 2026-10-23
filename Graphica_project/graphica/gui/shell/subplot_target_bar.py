@@ -65,7 +65,7 @@ class SubplotGrid(QWidget):
             selected = index == self._current
             painter.setPen(QPen(QColor(tokens["accent"] if selected else tokens["border_strong"]), 1))
             painter.setBrush(theme.current_accent_soft_qcolor() if selected else Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(rect, 4, 4)
+            painter.drawRoundedRect(rect, theme.RADIUS_SM, theme.RADIUS_SM)
             font.setBold(selected)
             painter.setFont(font)
             painter.setPen(QColor(tokens["accent_fg"] if selected else tokens["text_secondary"]))

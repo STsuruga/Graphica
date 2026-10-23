@@ -47,7 +47,7 @@ class EyeToggle(QCheckBox):
         if self.underMouse() and self.isEnabled():
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(tokens["surface_2"]))
-            painter.drawRoundedRect(QRectF(self.rect()), 7, 7)
+            painter.drawRoundedRect(QRectF(self.rect()), theme.RADIUS_MD, theme.RADIUS_MD)
         color = tokens["text_secondary"] if self.isChecked() else tokens["text_muted"]
         icon = _eye_icon(self.isChecked(), color)
         mode = icon.Mode.Normal if self.isEnabled() else icon.Mode.Disabled
