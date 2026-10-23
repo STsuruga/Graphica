@@ -3,11 +3,12 @@
 ラベル/書式の節(axis_format_sections)と同じく、行は Designer と axis_panel が作った QFormLayout から
 takeRow() で移すだけなので、欄の部品と値の対応 AXIS_BINDINGS は変わらない。
 """
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from graphica.core.i18n import tr
 from graphica.gui import ui_mode
 from graphica.gui.builders.property_sections import build_section
+from graphica.gui.widgets import ComboMirror, SegmentedControl
 
 # 節: (キー, 見出し, 移す行(その行の名前か欄の属性の名前、並び順))。{a} は軸の接頭辞(x / y)
 _AXIS_SECTIONS = (
@@ -21,6 +22,10 @@ _AXIS_SECTIONS = (
 )
 X_UNIT_ROWS = ("x_secondary_axis_source_unit_label", "x_secondary_axis_target_unit_label")
 # 第2Y軸の行(名前の無い行は欄の属性で指す)。並びは主の Y軸の「範囲」「目盛」と同じ
+# 主目盛の決め方(選んだ番号で値を持つ index の束ね)
+TICK_MODE_ITEMS = ("自動", "固定間隔")
+TICK_MODE_COMBOS = (("x_ticks", "ui.x_major_tick_mode_combo"), ("y_ticks", "ui.y_major_tick_mode_combo"),
+                    ("y2", "y2_major_tick_mode_combo"))
 Y2_ROWS = ("y2_autoscale_checkbox", "y2_min_spinbox", "y2_max_spinbox", "y2_view_range_button",
            "y2_log_checkbox", "y2_log_note", "y2_invert_checkbox", "y2_major_tick_mode_combo",
            "y2_major_tick_interval_spinbox", "y2_minor_ticks_visible_checkbox", "y2_minor_tick_interval_spinbox")
@@ -59,6 +64,25 @@ def build_axis_range_sections(app):
     app.y2_axis_section = y2['section']
     app._y2_in_use = None
     set_y2_in_use(app, False)
+
+    # 主目盛の 自動/固定間隔 は2択なのでセグメントにする。値の持ち主はコンボのまま(番号をデータにして突き合わせる)
+    app.tick_mode_mirrors = []
+    for section_key, combo_name in TICK_MODE_COMBOS:
+        combo = ui_mode.resolve(app, combo_name)
+        segments = SegmentedControl()
+        for index, text in enumerate(TICK_MODE_ITEMS):
+            combo.setItemData(index, index)
+            segments.addItem(tr(text), index)
+        form = app._axis_tab_sections[section_key]['form']
+        field = QWidget()
+        field_layout = QHBoxLayout(field)
+        field_layout.setContentsMargins(0, 0, 0, 0)
+        field_layout.addWidget(segments, 1)
+        if form.replaceWidget(combo, field) is None:
+            raise ValueError(f"{combo_name} が節のフォームにありません")
+        combo.setParent(field)
+        combo.hide()
+        app.tick_mode_mirrors.append(ComboMirror(segments, combo))
 
     # 隣のタブのほうが高いと余りの高さが節に配られ、節の間が空くので、余りは末尾で受ける
     for layout in (x_layout, y_layout):

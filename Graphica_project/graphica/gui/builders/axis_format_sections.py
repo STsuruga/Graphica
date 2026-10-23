@@ -159,7 +159,8 @@ def refresh_axis_format_widgets(app):
     """軸の設定を欄に戻した後(シグナルが止まっている)、見た目の部品を合わせる。"""
     if not hasattr(app, 'colorbar_width_slider'):
         return
-    for mirror in app.tick_direction_mirrors:
+    for mirror in (*app.tick_direction_mirrors, *getattr(app, 'tick_mode_mirrors', ()),
+                   *getattr(app, 'grid_linestyle_mirrors', ())):
         mirror.refresh()
     app.colorbar_position_mirror.refresh()
     for slider in (app.tick_width_slider, app.spine_width_slider, app.colorbar_width_slider):

@@ -16,7 +16,8 @@ class SliderSpin(QWidget):
     def __init__(self, spinbox, slider_min, slider_max, step=None, parent=None):
         super().__init__(parent)
         self.spinbox = spinbox
-        self._scale = 10 ** spinbox.decimals()
+        # QSpinBox(整数)には decimals() が無い
+        self._scale = 10 ** (spinbox.decimals() if hasattr(spinbox, 'decimals') else 0)
         self.slider = QSlider(Qt.Orientation.Horizontal, self)
         self.slider.setObjectName("slider_spin_slider")
         self.slider.setRange(round(slider_min * self._scale), round(slider_max * self._scale))

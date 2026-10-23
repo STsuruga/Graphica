@@ -2,7 +2,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QSpinBox, QToolButton, QWidget)
+    QSpinBox, QToolButton, QVBoxLayout, QWidget)
 from graphica.core.i18n import tr
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from graphica.gui.builders.common import (
@@ -10,8 +10,11 @@ from graphica.gui.builders.common import (
 from graphica.gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
 from graphica.gui.tools.layout_edit import MIN_FREE_RECT_SIZE
 from graphica.gui.shell.subplot_target_bar import SubplotTargetBar
+from graphica.gui.widgets import ComboMirror, SegmentedControl
 from graphica.gui.widgets.eye_toggle import EYE_TOGGLE_SIZE, EyeToggle
 
+
+GRID_STYLE_SPINBOX_MIN_WIDTH = 80
 
 LEGEND_LOCATION_CHOICES = (
     ("自動(重ならない位置)", "best"),
@@ -87,10 +90,13 @@ def build_tick_grid_and_colorbar_controls(app):
         (tr("実線"), '-'), (tr("破線"), '--'), (tr("点線"), ':'), (tr("一点鎖線"), '-.'),
     ]
 
+    app.grid_linestyle_mirrors = []
+
     def _make_grid_style_row(default_linestyle, default_width):
         linestyle_combo = QComboBox()
-        for choice_label, _code in app.grid_linestyle_choices:
-            linestyle_combo.addItem(choice_label)
+        # 線の絵のセグメントと番号で突き合わせる(値は _grid_linestyle_code が番号から引く)
+        for choice_index, (choice_label, _code) in enumerate(app.grid_linestyle_choices):
+            linestyle_combo.addItem(choice_label, choice_index)
         default_index = next(
             (i for i, (_label, code) in enumerate(app.grid_linestyle_choices) if code == default_linestyle),
             0
@@ -105,9 +111,7 @@ def build_tick_grid_and_colorbar_controls(app):
         width_spinbox.setDecimals(1)
         width_spinbox.setValue(default_width)
         width_spinbox.setToolTip(tr("太さ"))
-        # これより狭いと矢印ボタンと重なって "10.0" のような値が見切れる
-        width_spinbox.setMinimumWidth(60)
-        width_spinbox.setMaximumWidth(78)
+        width_spinbox.setPrefix(tr("太さ") + " ")
 
         alpha_spinbox = QDoubleSpinBox()
         alpha_spinbox.setRange(0.0, 1.0)
@@ -115,22 +119,43 @@ def build_tick_grid_and_colorbar_controls(app):
         alpha_spinbox.setDecimals(2)
         alpha_spinbox.setValue(1.0)
         alpha_spinbox.setToolTip(tr("透過度(アルファ)"))
-        alpha_spinbox.setMinimumWidth(60)
-        alpha_spinbox.setMaximumWidth(78)
+        alpha_spinbox.setPrefix("α ")
 
-        row_layout = QHBoxLayout()
-        row_layout.addWidget(linestyle_combo)
-        row_layout.addWidget(width_spinbox)
-        row_layout.addWidget(alpha_spinbox)
-        return linestyle_combo, width_spinbox, alpha_spinbox, row_layout
+        segments = SegmentedControl()
+        for choice_index, (choice_label, code) in enumerate(app.grid_linestyle_choices):
+            segments.addLineStyleItem(code, choice_index, choice_label)
+        segments_field = QWidget()
+        segments_layout = QHBoxLayout(segments_field)
+        segments_layout.setContentsMargins(0, 0, 0, 0)
+        segments_layout.addWidget(segments, 1)
+        linestyle_combo.setParent(segments_field)
+        linestyle_combo.hide()
+        app.grid_linestyle_mirrors.append(ComboMirror(segments, linestyle_combo))
 
-    (app.x_major_grid_linestyle_combo, app.x_major_grid_width_spinbox,
+        # 線の種類の行の下に、太さと透明度(名前は欄の中の前置きにして、欄の幅を取る)
+        numbers_layout = QHBoxLayout()
+        numbers_layout.setSpacing(6)
+        for spinbox in (width_spinbox, alpha_spinbox):
+            # 前置きの文字の分だけ最小の幅が広がり、行が折り返すので、最小の幅は決めておく
+            spinbox.setMinimumWidth(GRID_STYLE_SPINBOX_MIN_WIDTH)
+            numbers_layout.addWidget(spinbox, 1)
+        row_layout = QVBoxLayout()
+        row_layout.setSpacing(4)
+        row_layout.addWidget(segments_field)
+        row_layout.addLayout(numbers_layout)
+        return linestyle_combo, segments, width_spinbox, alpha_spinbox, row_layout
+
+    (app.x_major_grid_linestyle_combo, app.x_major_grid_linestyle_segments,
+     app.x_major_grid_width_spinbox,
      app.x_major_grid_alpha_spinbox, x_major_grid_layout) = _make_grid_style_row('-', 0.8)
-    (app.x_minor_grid_linestyle_combo, app.x_minor_grid_width_spinbox,
+    (app.x_minor_grid_linestyle_combo, app.x_minor_grid_linestyle_segments,
+     app.x_minor_grid_width_spinbox,
      app.x_minor_grid_alpha_spinbox, x_minor_grid_layout) = _make_grid_style_row('--', 0.5)
-    (app.y_major_grid_linestyle_combo, app.y_major_grid_width_spinbox,
+    (app.y_major_grid_linestyle_combo, app.y_major_grid_linestyle_segments,
+     app.y_major_grid_width_spinbox,
      app.y_major_grid_alpha_spinbox, y_major_grid_layout) = _make_grid_style_row('-', 0.8)
-    (app.y_minor_grid_linestyle_combo, app.y_minor_grid_width_spinbox,
+    (app.y_minor_grid_linestyle_combo, app.y_minor_grid_linestyle_segments,
+     app.y_minor_grid_width_spinbox,
      app.y_minor_grid_alpha_spinbox, y_minor_grid_layout) = _make_grid_style_row('--', 0.5)
 
     app.x_major_grid_style_label = QLabel(tr("X軸主目盛"))

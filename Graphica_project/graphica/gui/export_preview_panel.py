@@ -42,6 +42,7 @@ EXPORT_UNITS = (
     ("ピクセル (px)", "px"), ("インチ (in)", "in"), ("センチメートル (cm)", "cm"), ("ミリメートル (mm)", "mm"),
 )
 MILLIMETRE_UNIT = "ミリメートル (mm)"
+COPY_FORMAT_SEGMENTS_WIDTH = 96
 
 
 def _with_hidden_owner(view, owner):
@@ -161,8 +162,12 @@ class ExportPreviewPanel(QWidget):
         # SVG はベクター画像を受け付けるアプリ(Illustrator、Inkscape など)に貼れる
         self.copy_format_combo = QComboBox()
         self.copy_format_combo.addItems(["PNG", "SVG"])
-        self.copy_format_combo.setToolTip("クリップボードにコピーする形式を選択します")
-        button_row.addWidget(self.copy_format_combo)
+        self.copy_format_segments = SegmentedControl()
+        for fmt in ("PNG", "SVG"):
+            self.copy_format_segments.addItem(fmt, fmt, tr("クリップボードにコピーする形式"))
+        self.copy_format_segments.setFixedWidth(COPY_FORMAT_SEGMENTS_WIDTH)
+        button_row.addWidget(_with_hidden_owner(self.copy_format_segments, self.copy_format_combo))
+        self.copy_format_mirror = ComboMirror(self.copy_format_segments, self.copy_format_combo)
 
         self.copy_button = QPushButton("コピー")
         self.copy_button.setToolTip("現在の設定でレンダリングした画像をクリップボードにコピーします")

@@ -757,4 +757,5 @@ TRANSLATIONS = {
     "幅(割合)": "Width (fraction)",
     "縮小率": "Shrink",
     "等高線の数": "Contour levels",
+    "クリップボードにコピーする形式": "Clipboard format",
 }

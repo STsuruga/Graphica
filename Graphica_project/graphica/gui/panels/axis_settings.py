@@ -395,7 +395,7 @@ class AxisSettingsPanel:
         is_minor_visible = is_visible and self._app.ui.minor_grid_visible_checkbox.isChecked()
         for prefix, shown in (("x_major", is_visible), ("y_major", is_visible),
                               ("x_minor", is_minor_visible), ("y_minor", is_minor_visible)):
-            for suffix in ("grid_linestyle_combo", "grid_width_spinbox", "grid_alpha_spinbox"):
+            for suffix in ("grid_linestyle_combo", "grid_linestyle_segments", "grid_width_spinbox", "grid_alpha_spinbox"):
                 getattr(self._app, f"{prefix}_{suffix}").setEnabled(shown)
             if grid_form is not None:
                 grid_form.setRowVisible(getattr(self._app, f"{prefix}_grid_style_label"), shown)

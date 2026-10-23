@@ -232,9 +232,10 @@ class DatasetPropertyPanel:
         fillable = has_markers and not marker_is_unfilled(marker)
 
         app.marker_fill_label.setVisible(fillable)
-        app.marker_fill_combo.setVisible(fillable)
+        app.marker_fill_field.setVisible(fillable)
         color_item = app.marker_fill_combo.findData(MARKER_FILL_COLOR)
         app.marker_fill_combo.model().item(color_item).setEnabled(not mapped)
+        app.marker_fill_segments.setItemEnabled(app.marker_fill_segments.findData(MARKER_FILL_COLOR), not mapped)
         show_face_color = fillable and not mapped and app.marker_fill_combo.currentData() == MARKER_FILL_COLOR
         app.marker_face_color_label.setVisible(show_face_color)
         app.marker_face_color_picker.setVisible(show_face_color)

@@ -35,6 +35,10 @@ class _LineSegmentButton(QToolButton):
     def sizeHint(self):
         return QSize(40, 24)
 
+    def minimumSizeHint(self):
+        # 線の見本は縮めても見分けられるので、狭い欄(グリッドの行)では詰める
+        return QSize(28, 20)
+
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
@@ -53,6 +57,36 @@ class _LineSegmentButton(QToolButton):
         half = min(15.0, self.width() / 2 - 5)
         center = self.width() / 2
         painter.drawLine(QPointF(center - half, y), QPointF(center + half, y))
+        painter.end()
+
+
+class _FillSegmentButton(QToolButton):
+    """マーカーの塗りの見本(塗った丸か白抜きの丸)。小さいと見分けにくいので、文字より少し大きく描く。"""
+
+    DIAMETER = 13.0
+
+    def __init__(self, filled, parent=None):
+        super().__init__(parent)
+        self._filled = filled
+
+    def sizeHint(self):
+        return QSize(40, 24)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        tokens = theme.current_tokens()
+        if not self.isEnabled():
+            color = QColor(tokens["text_muted"])
+        else:
+            color = QColor(tokens["accent_fg"] if self.isChecked() else tokens["text_secondary"])
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        pen = QPen(color)
+        pen.setWidthF(1.6)
+        painter.setPen(pen)
+        painter.setBrush(color if self._filled else Qt.BrushStyle.NoBrush)
+        radius = self.DIAMETER / 2 - (0 if self._filled else 0.8)
+        painter.drawEllipse(QPointF(self.width() / 2, self.height() / 2), radius, radius)
         painter.end()
 
 
@@ -128,6 +162,16 @@ class SegmentedControl(QFrame):
         """線の見本のボタン。line_style は matplotlib の書き方('-'・'--'・':'・'-.' など)。"""
         button = _LineSegmentButton(LINE_STYLE_PENS[line_style], self)
         return self._add_button(button, "", line_style if data is None else data, tooltip)
+
+    def addMarkerFillItem(self, filled, data=None, tooltip=""):
+        """マーカーの塗りの見本のボタン(filled=True で塗った丸、False で白抜きの丸)。"""
+        return self._add_button(_FillSegmentButton(filled, self), "", data, tooltip)
+
+    def setItemEnabled(self, index, enabled):
+        """コンボの項目を選べなくしたとき(model().item(i).setEnabled)と同じく、そのボタンだけ押せなくする。"""
+        button = self._group.button(index)
+        if button is not None:
+            button.setEnabled(enabled)
 
     def count(self):
         return len(self._items)

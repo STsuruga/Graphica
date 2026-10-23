@@ -178,8 +178,8 @@ def test_points_show_the_marker_size_and_hide_the_line_rows(main_window, tab, mo
     assert _section_shown(tab, "marker")
     assert not tab.markersize_slider.isHidden() and not tab.ui.marker_combo.isHidden()
     # 塗りと枠線はアドバンスドだけ
-    assert tab.marker_fill_combo.isHidden() == (mode == ui_mode.LITE)
-    assert tab.marker_edge_width_spinbox.isHidden() == (mode == ui_mode.LITE)
+    assert tab.marker_fill_field.isHidden() == (mode == ui_mode.LITE)
+    assert tab.marker_edge_width_slider.isHidden() == (mode == ui_mode.LITE)
 
     _select_new(tab, "l", plot_type="Line")
     assert not tab.linestyle_field.isHidden() and not tab.linewidth_slider.isHidden()
