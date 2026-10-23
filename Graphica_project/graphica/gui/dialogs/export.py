@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -25,127 +24,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPixmap
 from graphica.core.i18n import tr
 from graphica.gui import dialog_dirs
-from graphica.gui.export_size import ExportSizeFields
 from graphica.gui.theme import apply_form_spacing
 from graphica.core.cvd_simulation import CVD_TYPE_LABELS
 from graphica.gui.cvd_preview import simulate_qimage
-
-
-class ExportDialog(QDialog):
-    """書き出しの大きさ・単位・解像度。プレビューを作るのは呼び出し側(PlotterApp._generate_preview)。"""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("プロットのエクスポート")
-
-
-        # 学術誌の段組の幅(単段 85mm / 1.5段 114mm / 2段 170mm)。高さは図ごとに違うので決めない
-        self.JOURNAL_PRESET_CUSTOM = "カスタム"
-        self.JOURNAL_PRESETS = {
-            "学術誌 単段 (85mm)": 85.0,
-            "学術誌 1.5段 (114mm)": 114.0,
-            "学術誌 2段 (170mm)": 170.0,
-        }
-        self.journal_preset_combo = QComboBox()
-        self.journal_preset_combo.addItem(self.JOURNAL_PRESET_CUSTOM)
-        self.journal_preset_combo.addItems(self.JOURNAL_PRESETS.keys())
-        self.journal_preset_combo.currentTextChanged.connect(self._on_journal_preset_changed)
-
-        self.width_spinbox = QDoubleSpinBox()
-        self.width_spinbox.setRange(1, 10000)
-        self.width_spinbox.setValue(800)
-        self.width_spinbox.setDecimals(1)     # インチ指定のため小数を許す
-
-        self.height_spinbox = QDoubleSpinBox()
-        self.height_spinbox.setRange(1, 10000)
-        self.height_spinbox.setValue(600)
-        self.height_spinbox.setDecimals(1)
-
-        # 学術誌のプリセットを選ぶとミリメートルに切り替わる
-        self.unit_combo = QComboBox()
-        # 値は日本語の元の文字(書き出しの処理がそれで単位を見分ける)。表示だけを訳す
-        for unit in ("ピクセル (px)", "インチ (in)", "センチメートル (cm)", "ミリメートル (mm)"):
-            self.unit_combo.addItem(tr(unit), unit)
-
-        self.dpi_spinbox = QSpinBox()
-        self.dpi_spinbox.setRange(50, 1200)
-        self.dpi_spinbox.setValue(300)
-        self.dpi_spinbox.setSuffix(" dpi")
-
-        self.output_size_label = QLabel()
-        # 学術誌のプリセットの単位の切り替えも、同じ大きさのまま換算してから幅を入れる
-        self._size_fields = ExportSizeFields(
-            self.width_spinbox, self.height_spinbox, self.unit_combo, self.dpi_spinbox, self.output_size_label)
-
-        self.transparent_checkbox = QCheckBox("背景を透過")
-        self.transparent_checkbox.setChecked(True)
-
-        # 既定は文字のまま(検索や編集ができる)。フォントの無い環境で化けるのを避けたいときだけパスにする。SVG だけに効く
-        self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
-        self.svg_text_as_path_checkbox.setToolTip(
-            "SVG出力時、目盛の数字やラベルの文字をテキスト要素ではなく"
-            "パス(輪郭線)として出力します。フォントが無い環境でも見た目が"
-            "崩れませんが、テキストとしての検索・編集はできなくなります。"
-        )
-
-        # 表示用の間引き(線は 20,000 点超、2D マップは1軸 500 点超)をしない
-        self.full_resolution_checkbox = QCheckBox(tr("データを間引かずにエクスポート"))
-        self.full_resolution_checkbox.setToolTip(tr(
-            "点数の多い Line(折れ線)データセットや 2D マップ(ヒートマップ/等高線)は、画面表示と同じく間引いて描かれます"
-            "。チェックを入れると間引かず、全データ点でエクスポートします(処理が遅くなる場合があります)。画像の解像度(dpi)とは別の設定です。Scatter/Line+Scatter のマーカーは、この設定に関わらず常に全点描きます。"
-        ))
-
-        self.preview_button = QPushButton("プレビュー更新")
-        self.preview_button.setToolTip("現在の設定でプレビュー画像を生成します。")
-        
-        self.preview_label = QLabel("プレビューがここに表示されます")
-        self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setFixedSize(400, 300)
-        self.preview_label.setFrameShape(QLabel.Shape.StyledPanel)
-
-        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | 
-                                    QDialogButtonBox.StandardButton.Cancel)
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-
-
-        form_layout = QFormLayout()
-        form_layout.addRow("サイズプリセット", self.journal_preset_combo)
-        form_layout.addRow("幅", self.width_spinbox)
-        form_layout.addRow("高さ", self.height_spinbox)
-        form_layout.addRow("単位", self.unit_combo)
-        form_layout.addRow("解像度", self.dpi_spinbox)
-        form_layout.addRow(self.output_size_label)
-        form_layout.addRow(self.transparent_checkbox)
-        form_layout.addRow(self.svg_text_as_path_checkbox)
-        form_layout.addRow(self.full_resolution_checkbox)
-
-        main_layout = QVBoxLayout()
-        main_layout.addLayout(form_layout)
-        main_layout.addWidget(self.preview_button)
-        main_layout.addWidget(self.preview_label)
-        main_layout.addWidget(button_box)
-        
-        self.setLayout(main_layout)
-
-        apply_form_spacing(self)
-
-    def _on_journal_preset_changed(self, preset_name):
-        """「カスタム」なら入力した値をそのまま残す。"""
-        if preset_name == self.JOURNAL_PRESET_CUSTOM:
-            return
-        self.unit_combo.setCurrentIndex(self.unit_combo.findData("ミリメートル (mm)"))
-        self.width_spinbox.setValue(self.JOURNAL_PRESETS[preset_name])
-
-    def get_options(self):
-        return {
-            "width": self.width_spinbox.value(),
-            "height": self.height_spinbox.value(),
-            "unit": self.unit_combo.currentData(),
-            "dpi": self.dpi_spinbox.value(),
-            "transparent": self.transparent_checkbox.isChecked(),
-            "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),
-            "full_resolution": self.full_resolution_checkbox.isChecked(),
-        }
 
 
 class BatchExportDialog(QDialog):

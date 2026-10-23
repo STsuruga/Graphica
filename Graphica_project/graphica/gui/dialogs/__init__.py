@@ -54,7 +54,6 @@ from graphica.gui.dialogs.analysis import (
 
 # エクスポート・出力
 from graphica.gui.dialogs.export import (
-    ExportDialog,
     BatchExportDialog,
     CaptionGeneratorDialog,
     CVDSimulationDialog,
@@ -107,7 +106,6 @@ __all__ = [
     "DatasetArithmeticDialog",
     "DuplicateXDialog",
     "ExcelMultiSheetDialog",
-    "ExportDialog",
     "FindReplaceDialog",
     "FitDialog",
     "FolderImportDialog",

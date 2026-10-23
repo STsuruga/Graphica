@@ -212,7 +212,6 @@ def _dialog_factories(tmp_path):
         "DatasetArithmeticDialog": lambda: d.DatasetArithmeticDialog("a", "b"),
         "DuplicateXDialog": lambda: d.DuplicateXDialog("ds", 3),
         "ExcelMultiSheetDialog": lambda: d.ExcelMultiSheetDialog(["Sheet1", "Sheet2"]),
-        "ExportDialog": lambda: d.ExportDialog(),
         "FindReplaceDialog": lambda: d.FindReplaceDialog(columns),
         "FitDialog": lambda: d.FitDialog(x_min=0.0, x_max=10.0),
         "FolderImportDialog": lambda: d.FolderImportDialog(str(tmp_path), ["a.csv", "b.txt"]),

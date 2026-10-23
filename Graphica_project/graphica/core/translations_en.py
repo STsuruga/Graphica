@@ -737,4 +737,11 @@ TRANSLATIONS = {
     "平滑化したデータを作る (Savitzky-Golayフィルタ)": "Create smoothed data (Savitzky-Golay filter)",
     "表示を平滑化": "Smooth the display",
     "空なら名前": "Name if empty",
+    "段幅": "Column width",
+    "学術誌の段の幅に合わせる(単位はミリメートルになる)": "Match a journal column width (switches the unit to millimetres)",
+    "学術誌 単段 (85mm)": "Journal single column (85 mm)",
+    "学術誌 1.5段 (114mm)": "Journal 1.5 columns (114 mm)",
+    "学術誌 2段 (170mm)": "Journal double column (170 mm)",
+    "ライト配色で書き出す": "Export in light colors",
+    "ダークモードのときも、書き出し・コピー・印刷はライトの配色(白地に濃い文字)で描きます。": "Even in dark mode, export, copy and print draw the figure in light colors (dark text on white).",
 }
