@@ -13,18 +13,21 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-24): 手直しリストと画面の動きを master に入れた(未リリース)
+## 現在地(2026-10-24): v2.6.0(手直しリスト・画面の動き・プラグイン API 2.2)を公開した
 
-- ユーザーの「手直しリスト」(Artifact https://claude.ai/artifact/5wJ8XHD3aiA81C5QrretS1 、状態は db の `tasks`)を
-  ブランチ `feat/fill-range-from-view` で実装し、PR で master に入れた。CHANGELOG の「未リリース」。済み: A01〜A11、B01〜B10、
-  F00・F01・F03・F04・F06。見送り(ユーザー判断): F02・F05・F07。見本と説明は https://claude.ai/artifact/2z9MoBr1M9oPQgtFYazrKx 。
-- 画面の動きは `gui/motion.py`(設定 `ui_animations`、offscreen では常に止める)。節の開閉は `SectionClip` の高さだけを動かし、
-  毎コマ外側の入れ物まで計算し直す。ぶれは実際の画面で1コマずつ位置を追って直した(テストは `tests/test_motion.py`)。
-- 見た目と並びを変えたので、特性テストの golden とスタイルの基準画像を作り直した(数値・描画は変わらない。persistence は
-  凡例の設定2つが増えた分)。
-- プラグインのパネルの部品を `graphica.plugin.ui` として公開(プラグイン API 2.2)し、v2.6.0 として出す準備をした
-  (ブランチ `release/v2.6.0`、ユーザーの指示で公開まで進める)。プラグイン開発ハブの P-316・P-901・P-805 の欄に対応を書き、
-  P-316・P-901 の作業の提案を出した。本体の公開の後に Wiki を新しい画面に合わせて直す(ユーザーの指示)。
+- **v2.6.0 を公開済み**(タグ `v2.6.0` = `666ccb0`、準備 PR #159、直前の修正 PR #160・#161)。PyPI に `graphica-plot` 2.6.0(wheel・sdist)、
+  GitHub Releases に `Graphica-2.6.0-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(zip 2つに `LICENSE` と `THIRD_PARTY_LICENSES.md`)。
+  `update_check` は 2.5.0 から v2.6.0 を更新ありと判定し、3つの添付と SHA-256 を拾う。
+- 中身: ユーザーの「手直しリスト」(Artifact https://claude.ai/artifact/5wJ8XHD3aiA81C5QrretS1 、状態は db の `tasks`。済み A01〜A11・B01〜B10・
+  F00・F01・F03・F04・F06、見送り F02・F05・F07)、画面の動き(`gui/motion.py`、設定 `ui_animations`、offscreen では常に止める)、
+  プラグインのパネルの部品 `graphica.plugin.ui`(API 2.2)。
+- 公開の直前に、Wiki の画像を撮り直していて見つけた2つを直した: 「フィット結果を表示」の窓の残差の「残差」が豆腐(#160)、
+  シンプルからアドバンスドに戻すと線のデータセットで枠線の太さのスライダーだけ残る(`SliderSpin.setVisible`、#161)。
+  スタートアップ画面の「はじめの一歩」の文言も今の画面に合わせ、`scripts/screenshot_ui.py` は動きを止めてから撮る。
+- **Wiki を v2.6.0 の画面に書き直した**(17ページ。≡ のメニュー、左端の帯、インスペクタの節、エクスポートのタブ、下のパネル、
+  シンプル/アドバンスド、インストーラー・`.gra`・pip、更新。画像はダイアログを含めて撮り直し)。
+- CI の特性テストの描画の画素が、Windows で2回だけ基準と違って落ちた(#158 でヒートマップ・対数軸、master の 666ccb0 で `rendering[dark]` の対数軸)。どちらも流し直しで通り、同じコードの PR の CI と手元では通る。原因の調査はタスクの提案に出した(ユーザーの判断待ち)。
+- プラグイン開発ハブの P-316・P-901・P-805 に API 2.2 の対応を書き、P-316・P-901 の作業の提案を出した(どちらも作業中)。
 - **残り**: macOS 実機の確認、統合ブランチの片付け(ユーザーの判断待ち)。
 
 ## 以前の現在地(2026-10-14): v2.5.0(新しい画面の手直し)を公開した
