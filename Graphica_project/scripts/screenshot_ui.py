@@ -241,6 +241,9 @@ def main():
     disable_scroll_value_change()
 
     window = MainAppWindow()
+    # 動きの途中(切り替えの重ね絵など)を撮らない。窓を作るときに環境設定の値で入れ直されるので、その後で止める
+    from graphica.gui import motion
+    motion.set_enabled(False)
     window.resize(width, height)
     window.move(-width - 4000, 0)
     window.show()

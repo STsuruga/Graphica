@@ -524,7 +524,9 @@ class ResultDialog(QDialog):
             ax.axhline(0, color=_tokens['border_strong'], linewidth=0.8, linestyle='--')
             ax.scatter(residual_x, residual_y, s=14, color='#1F6F78')
             ax.set_xlabel("X", fontsize=8, color=_tokens['text_primary'])
-            ax.set_ylabel("残差", fontsize=8, color=_tokens['text_primary'])
+            # 日本語の見出しは既定のフォント(DejaVu Sans)では豆腐になる
+            from graphica.gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
+            ax.set_ylabel("残差", fontsize=8, color=_tokens['text_primary'], fontfamily=JP_CAPABLE_FONT_FAMILIES)
             ax.tick_params(labelsize=7, colors=_tokens['text_primary'])
             for spine in ax.spines.values():
                 spine.set_color(_tokens['border_strong'])

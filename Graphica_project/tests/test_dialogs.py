@@ -1122,6 +1122,17 @@ def test_result_dialog_residual_plot_uses_dark_theme_facecolor(qapp):
         theme.apply_theme(qapp, dark=False)
 
 
+def test_result_dialog_residual_label_uses_japanese_capable_font(qapp):
+    """「残差」を既定の DejaVu Sans で描くと豆腐になる(下のパネルの残差と同じフォントにする)。"""
+    from graphica.gui.mathtext_preview import JP_CAPABLE_FONT_FAMILIES
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
+
+    dlg = ResultDialog("フィット結果", "a=1.0", residual_x=[1, 2, 3], residual_y=[0.1, -0.1, 0.05])
+    label = dlg.findChild(FigureCanvasQTAgg).figure.axes[0].yaxis.label
+    assert label.get_text() == "残差"
+    assert label.get_fontfamily() == JP_CAPABLE_FONT_FAMILIES
+
+
 # --- AboutDialog ---
 
 def test_about_dialog_shows_version_and_app_name(qapp):
