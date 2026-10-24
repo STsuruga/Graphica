@@ -1,7 +1,7 @@
 """
-プラグイン向けの公開の入口(プラグイン API 2.0)。
+プラグイン向けの公開の入口(プラグイン API 2.x)。
 
-プラグインが本体から import してよいのは、ここと graphica.plugin.testing だけ。
+プラグインが本体から import してよいのは、ここと graphica.plugin.testing、パネルを作るところでだけ graphica.plugin.ui。
 本体の内部(core / gui / models)は予告なく動くが、ここの名前はプラグイン API の版で守る。
 """
 from graphica.core.dataset import Dataset

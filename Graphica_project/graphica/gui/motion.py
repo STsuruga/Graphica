@@ -23,6 +23,23 @@ LAYOUT_FLUSH_PASSES = 4
 UNBOUNDED_HEIGHT = 16777215
 
 _enabled = True
+# 動いている(動き出す前も含む)ものの一覧。テストが「全部止まるまで待つ」のに使う
+_active = set()
+
+
+def busy():
+    """動いている途中か、動き出しを待っているものがあるか。"""
+    for animation in list(_active):
+        if not shiboken6.isValid(animation):
+            _active.discard(animation)
+    return bool(_active)
+
+
+def _track(animation):
+    _active.add(animation)
+    animation.finished.connect(lambda: _active.discard(animation))
+    animation.destroyed.connect(lambda *_args: _active.discard(animation))
+    return animation
 
 
 def set_enabled(enabled):
@@ -50,6 +67,7 @@ def _keep(owner, name, animation):
     if previous is not None and shiboken6.isValid(previous):
         if hasattr(previous, "stop"):
             previous.stop()
+            _active.discard(previous)
         elif isinstance(previous, QWidget):
             previous.deleteLater()
     setattr(owner, name, animation)
@@ -74,7 +92,7 @@ def crossfade(container, old_pixmap, duration=FADE_MS):
     overlay.setGraphicsEffect(effect)
     overlay.show()
     overlay.raise_()
-    animation = QPropertyAnimation(effect, b"opacity", overlay)
+    animation = _track(QPropertyAnimation(effect, b"opacity", overlay))
     animation.setDuration(duration)
     animation.setStartValue(1.0)
     animation.setEndValue(0.0)
@@ -242,7 +260,7 @@ def fade_in(widget, duration=FADE_MS):
     effect = QGraphicsOpacityEffect(widget)
     effect.setOpacity(0.0)
     widget.setGraphicsEffect(effect)
-    animation = QPropertyAnimation(effect, b"opacity", widget)
+    animation = _track(QPropertyAnimation(effect, b"opacity", widget))
     animation.setDuration(duration)
     animation.setStartValue(0.0)
     animation.setEndValue(1.0)
@@ -260,7 +278,7 @@ def fade_in_window(window, duration=POPUP_MS):
     """ポップアップ(別の窓)を透明から出す。"""
     if not is_enabled() or window is None:
         return
-    animation = QPropertyAnimation(window, b"windowOpacity", window)
+    animation = _track(QPropertyAnimation(window, b"windowOpacity", window))
     animation.setDuration(duration)
     animation.setStartValue(0.0)
     animation.setEndValue(1.0)
@@ -281,7 +299,7 @@ def animate_value(owner, name, start, end, on_value, on_finished=None, duration=
         if on_finished is not None:
             on_finished()
         return None
-    animation = QVariantAnimation(owner)
+    animation = _track(QVariantAnimation(owner))
     animation.setDuration(duration)
     animation.setStartValue(start)
     animation.setEndValue(end)
