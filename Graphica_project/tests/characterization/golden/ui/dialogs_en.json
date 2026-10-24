@@ -4803,6 +4803,13 @@
              "text": "Reset to Default",
              "visible": true,
              "enabled": true
+            },
+            {
+             "class": "QCheckBox",
+             "text": "Motion (tab switching, opening sections and more)",
+             "checked": true,
+             "visible": true,
+             "enabled": true
             }
            ]
           },

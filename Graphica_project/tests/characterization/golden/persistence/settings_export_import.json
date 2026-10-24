@@ -18,7 +18,8 @@
    ],
    "wheel_zoom_speed": "normal",
    "theme_color": "#0F4C5C",
-   "ui_mode": ""
+   "ui_mode": "",
+   "ui_animations": true
   }
  },
  "export_modals": [

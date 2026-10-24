@@ -4803,6 +4803,13 @@
              "text": "既定に戻す",
              "visible": true,
              "enabled": true
+            },
+            {
+             "class": "QCheckBox",
+             "text": "画面の動き(タブの切り替え・節の開閉など)",
+             "checked": true,
+             "visible": true,
+             "enabled": true
             }
            ]
           },
