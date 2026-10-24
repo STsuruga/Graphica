@@ -11,6 +11,16 @@ from test_main_app_window import _make_isolated_main_app_window
 WAIT_MS = max(motion.EXPAND_MS, motion.SLIDE_MS, motion.FADE_MS) + 150
 
 
+def _wait_until_still(owner, name, timeout_ms=3000):
+    """動きが終わるまで待つ(並列で重いときは、決まった時間では終わらないことがある)。"""
+    QTest.qWait(30)
+    waited = 30
+    while motion.running(owner, name) and waited < timeout_ms:
+        QTest.qWait(20)
+        waited += 20
+    QTest.qWait(20)
+
+
 @pytest.fixture
 def moving(monkeypatch):
     monkeypatch.setattr(motion, "is_enabled", lambda: True)
@@ -109,7 +119,7 @@ def test_the_tab_underline_slides_to_the_new_tab(tmp_path, monkeypatch, qapp, mo
     tab = window.tab_widget.currentWidget()
     indicator = tab.inspector.tab_indicator
     tab.inspector.show_page("export")
-    QTest.qWait(WAIT_MS)
+    _wait_until_still(indicator, "_motion_slide")
     target = tab.inspector.tab_bar.tabRect(tab.inspector.page_index("export"))
     # 線はタブの右の余白の手前まで(文字の幅)
     from graphica.gui.shell.inspector import INSPECTOR_TAB_SPACING

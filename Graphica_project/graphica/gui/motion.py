@@ -359,11 +359,16 @@ class TabIndicator(QWidget):
             self.setGeometry(target)
 
     def eventFilter(self, watched, event):
-        if watched is self._tab_bar and event.type() in (QEvent.Type.Resize, QEvent.Type.Show,
-                                                          QEvent.Type.LayoutRequest, QEvent.Type.StyleChange):
-            # タブの幅は表示されてから決まる。動いている途中でなければ行き先へ合わせる
-            if not running(self, "_motion_slide"):
+        if watched is self._tab_bar and not running(self, "_motion_slide"):
+            if event.type() in (QEvent.Type.Resize, QEvent.Type.Show, QEvent.Type.LayoutRequest,
+                                QEvent.Type.StyleChange):
+                # タブの幅は表示されてから決まる。動いている途中でなければ行き先へ合わせる
                 QTimer.singleShot(0, lambda: self.follow(animate=False))
+            elif event.type() == QEvent.Type.Paint:
+                # タブを出し入れしても(凡例のタブなど)上の知らせが来ないことがあるので、描くたびに確かめる
+                target = self._target()
+                if target is not None and target != self.geometry():
+                    QTimer.singleShot(0, lambda: self.follow(animate=False))
         return super().eventFilter(watched, event)
 
 
