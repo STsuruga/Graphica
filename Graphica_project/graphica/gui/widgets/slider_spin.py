@@ -47,6 +47,13 @@ class SliderSpin(QWidget):
             self.setVisible(event.type() == QEvent.Type.ShowToParent)
         return super().eventFilter(watched, event)
 
+    def setVisible(self, visible):
+        # 行ごと出し直されても、数値の欄が隠されたままなら出ない(欄はもう隠れているので、隠す合図が来ない)
+        spinbox = self.spinbox
+        spinbox_hidden = (spinbox.testAttribute(Qt.WidgetAttribute.WA_WState_ExplicitShowHide)
+                          and spinbox.testAttribute(Qt.WidgetAttribute.WA_WState_Hidden))
+        super().setVisible(visible and not spinbox_hidden)
+
     def refresh(self):
         blocked = self.slider.blockSignals(True)
         self.slider.setValue(round(self.spinbox.value() * self._scale))
