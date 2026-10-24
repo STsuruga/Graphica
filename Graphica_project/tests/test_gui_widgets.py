@@ -213,6 +213,19 @@ def test_slider_spin_hides_the_arrows_and_follows_enabled(qapp):
     assert not spin.isEnabled() and not widget.slider.isEnabled()
 
 
+
+def test_slider_spin_stays_hidden_while_its_spinbox_is_hidden(qapp):
+    """行ごと出し直されても(シンプル→アドバンスド)、隠れたままの数値の欄に付いたスライダーは出ない。"""
+    spin = _spin()
+    widget = SliderSpin(spin, 0.0, 5.0)
+    widget.show()
+    spin.setVisible(False)
+    assert widget.isHidden()
+    widget.setVisible(True)
+    assert widget.isHidden()
+    spin.setVisible(True)
+    assert not widget.isHidden() and not spin.isHidden()
+
 # --- スイッチの見た目(チェックボックスのまま) ---
 
 def test_toggle_switch_keeps_the_checkbox_and_its_value(qapp):
