@@ -47,7 +47,7 @@ class SubplotGrid(QWidget):
                 self._sliding = None
                 self.update()
 
-            motion.animate_value(self, "_motion_cell", start, self._cell_rect(current), step, finish)
+            motion.animate_value(self, "_motion_cell", start, self._cell_rect(current), step, finish, after_paint=True)
         self.update()
 
     def sizeHint(self):

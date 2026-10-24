@@ -208,7 +208,8 @@ class BottomPanel(QFrame):
         self.stack.setVisible(True)
         self.setMaximumHeight(16777215)
         target = collapsed_height if collapsed else self._restore_height
-        motion.animate_value(self, "_motion_collapse", own, target, set_panel_height, finish, motion.EXPAND_MS)
+        motion.animate_value(self, "_motion_collapse", own, target, set_panel_height, finish, motion.EXPAND_MS,
+                             motion.EXPAND_EASING)
 
     def refresh_icons(self):
         for key, button in self._buttons.items():

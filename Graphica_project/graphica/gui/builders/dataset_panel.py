@@ -470,7 +470,7 @@ class DatasetTreeWidget(QTreeWidget):
             self.sliding_selection_band = None
             self.viewport().update()
 
-        motion.animate_value(self, "_motion_band", start, end, step, finish)
+        motion.animate_value(self, "_motion_band", start, end, step, finish, after_paint=True)
 
     def paintEvent(self, event):
         if self.sliding_selection_band is not None:

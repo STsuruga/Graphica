@@ -100,6 +100,10 @@ def section_state_texts(dataset):
     }
 
 
+# タブとタブの間(QSS の QTabBar#inspector_tabs::tab の margin-right と同じ値)
+INSPECTOR_TAB_SPACING = 16
+
+
 class Inspector(QWidget):
     """下線のタブと、タブごとのページ。"""
 
@@ -128,7 +132,7 @@ class Inspector(QWidget):
         layout.addWidget(self.stack, 1)
         self._keys = []
         self.tab_bar.currentChanged.connect(self._on_tab_changed)
-        self.tab_indicator = motion.TabIndicator(self.tab_bar)
+        self.tab_indicator = motion.TabIndicator(self.tab_bar, trailing_margin=INSPECTOR_TAB_SPACING)
 
     def _on_tab_changed(self, index):
         before = motion.grab(self.stack)

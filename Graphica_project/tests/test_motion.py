@@ -27,22 +27,28 @@ def test_without_motion_values_jump_to_the_end(qapp):
     assert seen == [10] and done == [True]
 
 
-def test_a_section_grows_open_and_shrinks_closed(qapp, moving):
+def test_a_section_opens_and_closes_by_clipping_its_rows_at_their_full_height(qapp, moving):
     entry = build_section("節", opened=False)
     entry['form'].addRow("名前", QLineEdit())
+    entry['form'].addRow("もう1つ", QLineEdit())
     section = entry['section']
     section.resize(300, 200)
     section.show()
-    body = entry['body']
-    assert body.isHidden()
+    body, clip = entry['body'], entry['clip']
+    assert clip.isHidden()
     entry['toggle'].setChecked(True)
-    assert not body.isHidden() and body.maximumHeight() < body.sizeHint().height()
+    QTest.qWait(motion.EXPAND_MS // 2)
+    # 動いている間、中身は本来の高さのまま(行を詰め直さない)で、外枠だけが低い
+    assert body.height() == body.sizeHint().height() and 0 < clip.height() < body.height()
+    entry['toggle'].setChecked(False)  # 開ききる前に閉じても、今の高さから縮む
+    QTest.qWait(5)
+    height_when_reversed = clip.height()
+    assert height_when_reversed > 0
     QTest.qWait(WAIT_MS)
-    assert body.maximumHeight() == motion.UNBOUNDED_HEIGHT
-    entry['toggle'].setChecked(False)
-    assert not body.isHidden()  # 縮み終わるまでは出したまま
+    assert clip.isHidden() and body.isHidden()
+    entry['toggle'].setChecked(True)
     QTest.qWait(WAIT_MS)
-    assert body.isHidden() and body.maximumHeight() == motion.UNBOUNDED_HEIGHT
+    assert not body.isHidden() and clip.maximumHeight() == motion.UNBOUNDED_HEIGHT
     section.close()
 
 
@@ -105,7 +111,10 @@ def test_the_tab_underline_slides_to_the_new_tab(tmp_path, monkeypatch, qapp, mo
     tab.inspector.show_page("export")
     QTest.qWait(WAIT_MS)
     target = tab.inspector.tab_bar.tabRect(tab.inspector.page_index("export"))
-    assert indicator.geometry().left() == target.left() and indicator.geometry().width() == target.width()
+    # 線はタブの右の余白の手前まで(文字の幅)
+    from graphica.gui.shell.inspector import INSPECTOR_TAB_SPACING
+    assert indicator.geometry().left() == target.left()
+    assert indicator.geometry().width() == target.width() - INSPECTOR_TAB_SPACING
     window.close()
 
 
@@ -190,3 +199,105 @@ def test_the_subplot_cell_highlight_slides(qapp, moving):
     QTest.qWait(WAIT_MS)
     assert grid._sliding is None
     grid.close()
+
+
+def test_the_rail_plate_stretches_on_its_way_to_the_new_button(qapp, moving):
+    from graphica.gui.shell.rail import ActivityRail
+    rail = ActivityRail()
+    for key in ("data", "analysis", "notes"):
+        rail.add_page(key, "database", key)
+    rail.resize(56, 300)
+    rail.show()
+    QTest.qWait(20)
+    start = rail._plate_rect()
+    rail.select_page("notes")
+    end = rail._plate_rect()
+    QTest.qWait(80)
+    # 途中は前のボタンから伸びて、元の四角より縦に長い
+    assert rail._sliding is not None and rail._sliding.height() > start.height()
+    QTest.qWait(400)
+    assert rail._sliding is None and rail._plate_rect() == end
+    rail.close()
+
+
+def test_switching_a_section_on_opens_it_after_its_rows_are_shown(qapp, moving):
+    from PySide6.QtWidgets import QCheckBox
+    from graphica.gui.builders.property_sections import attach_header_switch
+    entry = build_section("節", opened=False)
+    extra = QLineEdit()
+    extra.setVisible(False)
+    entry['form'].addRow("いつも", QLineEdit())
+    entry['form'].addRow("オンで出る", extra)
+    switch = QCheckBox("x")
+    attach_header_switch(entry, switch)
+    # オンにしたら行が出る(グラデーションの詳細の欄のように、同じ知らせで出し入れされる)
+    switch.toggled.connect(extra.setVisible)
+    section = entry['section']
+    section.resize(300, 300)
+    section.show()
+    QTest.qWait(20)
+    switch.click()
+    QTest.qWait(5)
+    # 動き出す時点で、オンで出た行の分まで中身の高さに入っている(止まったときに跳ねない)
+    assert extra.isVisible()
+    full = entry['body'].height()
+    QTest.qWait(WAIT_MS)
+    assert entry['body'].height() == full
+    section.close()
+
+
+def test_switching_a_section_off_shrinks_from_its_full_height_even_though_its_rows_vanish(qapp, moving):
+    from PySide6.QtWidgets import QCheckBox
+    from graphica.gui.builders.property_sections import attach_header_switch
+    entry = build_section("節", opened=True)
+    rows = [QLineEdit() for _ in range(3)]
+    for index, row in enumerate(rows):
+        entry['form'].addRow(f"行{index}", row)
+    switch = QCheckBox("x")
+    switch.setChecked(True)
+    attach_header_switch(entry, switch)
+    # オフにしたら中の行が消える(グラデーションの詳細の欄のように、同じ知らせで出し入れされる)
+    for row in rows:
+        switch.toggled.connect(row.setVisible)
+    section = entry['section']
+    section.resize(300, 300)
+    section.show()
+    QTest.qWait(20)
+    full = entry['clip'].height()
+    switch.click()
+    QTest.qWait(5)
+    clip = entry['clip']
+    # 行はもう隠れているが、外枠は閉じ始めの高さから縮み、その間は中身の絵をかぶせている
+    assert not rows[0].isVisible()
+    assert clip.height() >= full - 2 and clip._close_picture is not None
+    QTest.qWait(WAIT_MS)
+    assert clip.isHidden() and clip._close_picture is None
+    section.close()
+
+
+def test_rows_below_move_in_the_same_step_as_the_section(qapp, moving):
+    from PySide6.QtWidgets import QScrollArea, QVBoxLayout, QWidget
+    page = QWidget()
+    layout = QVBoxLayout(page)
+    first = build_section("上", opened=False)
+    first['form'].addRow("名前", QLineEdit())
+    below = build_section("下", opened=True)
+    below['form'].addRow("名前", QLineEdit())
+    layout.addWidget(first['section'])
+    layout.addWidget(below['section'])
+    layout.addStretch(1)
+    area = QScrollArea()
+    area.setWidgetResizable(True)
+    area.setWidget(page)
+    area.resize(300, 200)
+    area.show()
+    QTest.qWait(20)
+    first['toggle'].setChecked(True)
+    QTest.qWait(5)
+    gaps = set()
+    for _ in range(12):
+        QTest.qWait(16)
+        # 下の節の上端は、いつも上の節の見出し+外枠のすぐ下(途中の回で重ならない・離れない)
+        gaps.add(below['section'].y() - (first['section'].y() + first['section'].height()))
+    assert len(gaps) == 1
+    area.close()

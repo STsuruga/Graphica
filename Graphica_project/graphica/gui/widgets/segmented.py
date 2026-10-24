@@ -213,7 +213,7 @@ class SegmentedControl(QFrame):
         if start is not None and end is not None and self.isVisible() and motion.is_enabled():
             # 動きは次の刻みから値を出すので、最初の1枚が行き先に描かれないよう、出発点を先に置く
             self._sliding_plate = start
-            motion.animate_value(self, "_motion_plate", start, end, self._move_plate, self._stop_plate)
+            motion.animate_value(self, "_motion_plate", start, end, self._move_plate, self._stop_plate, after_paint=True)
         else:
             self._stop_plate()
         self.update()

@@ -401,7 +401,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
             self._axis_tab_before = None
 
         axis_tabs.currentChanged.connect(_crossfade_axis_tab)
-        self.axis_tab_indicator = motion.TabIndicator(axis_tabs.tabBar())
+        # 下線はタブの右の 2px の余白(QSS の QTabBar::tab の margin-right)の手前まで
+        self.axis_tab_indicator = motion.TabIndicator(axis_tabs.tabBar(), trailing_margin=2)
 
     def _build_canvas_and_toolbar(self):
         return canvas_area.build_canvas_and_toolbar(self)

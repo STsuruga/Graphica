@@ -631,11 +631,6 @@ QToolButton#property_subsection_toggle[firstSection="true"] {{
     border-top: none;
     margin-top: 0;
 }}
-QToolButton#property_subsection_toggle:!checked {{
-    padding-top: 7px;
-    padding-bottom: 7px;
-    margin-top: 0;
-}}
 QToolButton#property_subsection_toggle:hover {{
     background: transparent;
     /* on_accent はライトでは白なので、薄い背景のホバーでは消える。文字用の accent_fg で強調する */
@@ -1284,8 +1279,9 @@ QToolButton#rail_button {{
 QToolButton#rail_button:hover {{
     background: {surface_2};
 }}
+/* 選んだボタンの四角は ActivityRail が描く(選び直すと、伸び縮みしながら次のボタンへ移る) */
 QToolButton#rail_button:checked {{
-    background: {accent};
+    background: transparent;
 }}
 QStackedWidget#left_panel, QWidget#dataset_page {{
     background: {surface};

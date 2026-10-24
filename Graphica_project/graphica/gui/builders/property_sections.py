@@ -1,6 +1,6 @@
 """データセットのプロパティ欄の節(折りたたみ・開閉の保存・見出しの出し入れ・ラベル列の幅)。"""
 import json
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 from graphica.core.i18n import tr
 from graphica.gui import app_settings, motion, theme, ui_mode
@@ -62,8 +62,9 @@ def build_dataset_property_sections(app):
     cap_combo_width(app.ui.plot_type_combo)
 
 
-# 見出しの文字の真ん中に合わせる、スイッチの上の余白(閉じているとき, 開いているとき)。QSS の余白から決めた値
-SECTION_SWITCH_TOP_OFFSET = {False: 1, True: 9}
+# 見出しの文字の真ん中に合わせる、スイッチの上の余白。QSS の見出しの余白から決めた値
+# (見出しの余白は開閉で変えない。変えると押した瞬間に文字とスイッチが跳ねる)
+SECTION_SWITCH_TOP_OFFSET = 9
 
 
 def build_section(title, opened=True, first=False):
@@ -99,9 +100,10 @@ def build_section(title, opened=True, first=False):
     section_layout.setContentsMargins(0, 0, 0, 0)
     section_layout.setSpacing(0)
     section_layout.addWidget(toggle_button)
-    section_layout.addWidget(body)
+    clip = motion.SectionClip(body, section)
+    section_layout.addWidget(clip)
 
-    entry = {'form': form, 'body': body, 'toggle': toggle_button, 'section': section}
+    entry = {'form': form, 'body': body, 'toggle': toggle_button, 'section': section, 'clip': clip}
 
     def refresh_body(_checked=None):
         # 見出しのスイッチがある節は、オフの間は中身を出さない(オフでは中の欄を使わない)
@@ -110,23 +112,32 @@ def build_section(title, opened=True, first=False):
         toggle_button.setIcon(_svg_icon("chevron-down" if shown else "chevron-right", size=13))
         # 見えている節を押したときだけ高さを伸び縮みさせる(組み立て・復元・隠れたタブではすぐ切り替える)
         if not (motion.is_enabled() and section.isVisible()):
-            motion.stop(body, "_motion_expand")
-            body.setMaximumHeight(motion.UNBOUNDED_HEIGHT)
-            body.setVisible(shown)
+            motion.stop(clip, "_motion_expand")
+            for widget in (body, clip):
+                widget.setMinimumHeight(0)
+                widget.setMaximumHeight(motion.UNBOUNDED_HEIGHT)
+                widget.setVisible(shown)
             return
-        if shown:
-            start = body.height() if motion.running(body, "_motion_expand") else 0
-            body.setMaximumHeight(start)
-            body.setVisible(True)
-            motion.animate_value(body, "_motion_expand", start, max(1, body.sizeHint().height()),
-                                 lambda value: body.setMaximumHeight(int(value)),
-                                 lambda: body.setMaximumHeight(motion.UNBOUNDED_HEIGHT), motion.EXPAND_MS)
-        elif not body.isHidden():
-            def close():
-                body.setVisible(False)
-                body.setMaximumHeight(motion.UNBOUNDED_HEIGHT)
-            motion.animate_value(body, "_motion_expand", body.height(), 0,
-                                 lambda value: body.setMaximumHeight(int(value)), close, motion.EXPAND_MS)
+        # スイッチでオンにしたとき(グラデーションなど)は、同じ知らせで中の行が出し入れされる。
+        # 開くときは行が出そろってから高さを測るよう、動き出すのは次の回にする。
+        # 閉じるときは行が消える前に、今の中身のまま止めておく
+        if not shown and not clip.isHidden():
+            # 中の行が消えるのはスイッチをオフにしたときだけ。そのときだけ絵を撮っておく
+            motion.freeze_for_close(clip, keep_picture=switch is not None and not switch.isChecked())
+        if not entry.get('_motion_pending'):
+            entry['_motion_pending'] = True
+            QTimer.singleShot(0, start_motion)
+
+    def start_motion():
+        entry['_motion_pending'] = False
+        switch = entry.get('switch')
+        shown = toggle_button.isChecked() and (switch is None or switch.isChecked())
+        moving = motion.running(clip, "_motion_expand")
+        # 動いている途中なら、その行き先(開くか閉じるか)と比べる
+        heading_open = entry.get('_opening', False) if moving else not clip.isHidden()
+        if shown != heading_open:
+            entry['_opening'] = shown
+            motion.animate_section(clip, shown)
 
     entry['refresh_body'] = refresh_body
     toggle_button.toggled.connect(refresh_body)
@@ -152,16 +163,9 @@ def attach_header_switch(entry, checkbox):
     checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
     theme.make_toggle_switch(checkbox)
     row = QHBoxLayout(header)
+    row.setContentsMargins(0, SECTION_SWITCH_TOP_OFFSET, 2, 0)
     row.addStretch(1)
     row.addWidget(checkbox, 0, Qt.AlignmentFlag.AlignVCenter)
-
-    def align_with_title(opened):
-        # 見出しの文字は上下の余白が違う(QSS の property_subsection_toggle: 開くと上に罫線と余白)ので、
-        # スイッチの縦の真ん中を文字に合わせる
-        row.setContentsMargins(0, SECTION_SWITCH_TOP_OFFSET[opened], 2, 0)
-
-    header.toggled.connect(align_with_title)
-    align_with_title(header.isChecked())
     checkbox.clicked.connect(lambda checked: header.setChecked(True) if checked else None)
     entry['switch'] = checkbox
     checkbox.toggled.connect(entry['refresh_body'])
