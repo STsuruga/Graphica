@@ -81,6 +81,10 @@ class MinimapWidget(FigureCanvas):
         fig_face, axes_face, _ = minimap_colors(self.dark_mode)
         self.fig.set_facecolor(fig_face)
         self.ax.set_facecolor(axes_face)
+        # matplotlib の既定の黒い目盛はダークの地では見えない
+        tokens = theme.tokens_for(self.dark_mode, theme.current_theme_color())
+        self.ax.tick_params(axis='x', colors=tokens['text_secondary'], labelsize=7)
+        self.ax.spines['bottom'].set_color(tokens['border_strong'])
 
     def _on_select(self, xmin, xmax):
         if xmin == xmax:

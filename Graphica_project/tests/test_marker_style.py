@@ -182,11 +182,11 @@ def _shown(widget):
 
 def test_marker_rows_follow_the_plot_type_and_choices(window):
     ds = _add(window, plot_type='Line')
-    assert not _shown(window.marker_fill_combo) and not _shown(window.marker_edge_width_spinbox)
+    assert not _shown(window.marker_fill_field) and not _shown(window.marker_edge_width_spinbox)
 
     window.ui.plot_type_combo.setCurrentText('Scatter')
     assert ds.plot_type == 'Scatter'
-    assert _shown(window.marker_fill_combo) and _shown(window.marker_edge_width_spinbox)
+    assert _shown(window.marker_fill_field) and _shown(window.marker_edge_width_spinbox)
     assert not _shown(window.marker_face_color_picker) and not _shown(window.marker_edge_color_picker)
 
     window.marker_fill_combo.setCurrentIndex(window.marker_fill_combo.findData('color'))
@@ -194,7 +194,7 @@ def test_marker_rows_follow_the_plot_type_and_choices(window):
     assert _shown(window.marker_face_color_picker) and _shown(window.marker_edge_color_picker)
 
     window.ui.marker_combo.setCurrentIndex(window.ui.marker_combo.findData('+'))
-    assert not _shown(window.marker_fill_combo) and not _shown(window.marker_face_color_picker)
+    assert not _shown(window.marker_fill_field) and not _shown(window.marker_face_color_picker)
     assert _shown(window.marker_edge_combo)
 
 
@@ -243,7 +243,7 @@ def test_marker_shape_and_size_rows_only_for_types_that_draw_markers(window, plo
 def test_plugin_plot_types_keep_the_marker_rows(window):
     """プラグインの種類はマーカーを使うかもしれない。"""
     _add(window, plot_type='SomePluginType')
-    assert _shown(window.ui.marker_combo) and _shown(window.marker_fill_combo)
+    assert _shown(window.ui.marker_combo) and _shown(window.marker_fill_field)
 
 
 def test_marker_choices_show_names_and_keep_the_saved_symbols(window):

@@ -19,10 +19,11 @@ class ProvenancePanel(QWidget):
             "データセット)を選択すると、ここに処理の流れが表示されます。"
         )
         self.placeholder_label.setWordWrap(True)
-        self.placeholder_label.setStyleSheet("color: gray; padding: 12px;")
+        self.placeholder_label.setProperty("emptyNote", True)
         layout.addWidget(self.placeholder_label)
 
         self.tree = QTreeWidget()
+        self.tree.setObjectName("provenance_tree")
         self.tree.setHeaderHidden(True)
         layout.addWidget(self.tree)
         self.tree.setVisible(False)

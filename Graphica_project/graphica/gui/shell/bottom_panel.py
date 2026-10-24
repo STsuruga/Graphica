@@ -4,18 +4,21 @@
 refresh_bottom_panel() が更新する(プロパティ欄の update_ui_state から)。
 """
 import logging
+import math
+import numbers
 
 from PySide6.QtCore import QObject, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QAction, QColor, QGuiApplication, QKeySequence, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QFrame, QHBoxLayout, QHeaderView, QLabel, QPlainTextEdit, QSizePolicy,
     QSplitter, QSplitterHandle, QStackedWidget, QTableView, QToolButton, QVBoxLayout, QWidget)
 
 from graphica.core.i18n import tr
-from graphica.gui import theme
+from graphica.gui import motion, theme
 from graphica.gui.builders.common import _svg_icon
 from graphica.gui.data_table_model import DatasetTableModel, fit_dataset_for, fit_result_for
 from graphica.gui.provenance_panel import ProvenancePanel
+from graphica.gui.shell.fit_result_view import FitResultView
 from graphica.gui.residual_panel import ResidualPanel
 
 BOTTOM_PANEL_HEIGHT = 200
@@ -140,7 +143,9 @@ class BottomPanel(QFrame):
         index = self._keys.index(key)
         self._buttons[key].setChecked(True)
         if self.stack.currentIndex() != index:
+            before = motion.grab(self.stack)
             self.stack.setCurrentIndex(index)
+            motion.crossfade(self.stack, before)
             self.page_changed.emit(key)
         self.set_collapsed(False)
 
@@ -173,29 +178,47 @@ class BottomPanel(QFrame):
         splitter = self.parentWidget()
         if not isinstance(splitter, QSplitter):
             splitter = None
-        if collapsed:
+        own = splitter.sizes()[splitter.indexOf(self)] if splitter is not None else self.height()
+        if collapsed and own > collapsed_height:
             # パネルの高さではなく仕切りの持ち分で覚える(見出しだけの高さに縮んだ後でも正しい)
-            own = splitter.sizes()[splitter.indexOf(self)] if splitter is not None else self.height()
-            if own > collapsed_height:
-                self._restore_height = own
-        self.stack.setVisible(not collapsed)
-        self.setMaximumHeight(collapsed_height if collapsed else 16777215)
+            self._restore_height = own
         self.collapse_button.setIcon(_svg_icon("chevron-right" if collapsed else "chevron-down", size=16))
         self.collapse_button.setToolTip(tr("広げる") if collapsed else tr("畳む"))
+
+        total = sum(splitter.sizes()) if splitter is not None else 0
+
+        def set_panel_height(height):
+            height = int(height)
+            splitter.setSizes([max(0, total - height), height])
+
+        def finish(resize=True):
+            self.stack.setVisible(not collapsed)
+            self.setMaximumHeight(collapsed_height if collapsed else 16777215)
+            if splitter is not None and resize:
+                set_panel_height(collapsed_height if collapsed else self._restore_height)
+
         if splitter is None:
+            finish()
             return
-        sizes = splitter.sizes()
-        if not collapsed and sizes[splitter.indexOf(self)] > collapsed_height:
+        if not collapsed and own > collapsed_height:
+            finish(resize=False)
             return  # 開いたまま(タブを押しただけ)なら、ドラッグで決めた高さを変えない
-        panel_height = collapsed_height if collapsed else self._restore_height
-        total = sum(sizes)
-        splitter.setSizes([max(0, total - panel_height), panel_height])
+
+        # 動かす間は中身を出したまま高さだけ変え、止まってから畳んだ形(見出しだけ)にする
+        self.stack.setVisible(True)
+        self.setMaximumHeight(16777215)
+        target = collapsed_height if collapsed else self._restore_height
+        motion.animate_value(self, "_motion_collapse", own, target, set_panel_height, finish, motion.EXPAND_MS,
+                             motion.EXPAND_EASING)
 
     def refresh_icons(self):
         for key, button in self._buttons.items():
             button.setIcon(_svg_icon(self._icons[key], size=14))
         collapsed = self.collapse_button.isChecked()
         self.collapse_button.setIcon(_svg_icon("chevron-right" if collapsed else "chevron-down", size=16))
+
+
+QUIET_LOGGERS = ("matplotlib.font_manager",)
 
 
 class _LogEmitter(QObject):
@@ -209,6 +232,12 @@ class _PanelLogHandler(logging.Handler):
         super().__init__(level=logging.INFO)
         self._emitter = emitter
         self.setFormatter(logging.Formatter(LOG_FORMAT))
+
+    def filter(self, record):
+        # OS ごとの日本語フォントの候補を順に探すので、見つからない候補の警告が毎回並ぶ(graphica.log には残す)
+        if record.name.startswith(QUIET_LOGGERS) and record.levelno < logging.ERROR:
+            return False
+        return super().filter(record)
 
     def emit(self, record):
         try:
@@ -235,6 +264,32 @@ class LogView(QPlainTextEdit):
         self.destroyed.connect(lambda *_args, handler=self._handler: logging.getLogger().removeHandler(handler))
 
 
+def _copy_text_of_value(value):
+    """コピーする文字。数は丸めずに(表示は桁を詰めている)、欠損は空に。numpy の数も素の数として書く。"""
+    if isinstance(value, numbers.Integral):
+        return str(int(value))
+    if isinstance(value, numbers.Real):
+        number = float(value)
+        return "" if math.isnan(number) else repr(number)
+    return "" if value is None else str(value)
+
+
+def selected_cells_tsv(table):
+    """選んだセルを、選んだ範囲の行×列のタブ区切りにする(範囲の中の選んでいないセルは空)。"""
+    indexes = table.selectionModel().selectedIndexes()
+    if not indexes:
+        return ""
+    model = table.model()
+    selected = {(index.row(), index.column()) for index in indexes}
+    rows = sorted({row for row, _column in selected})
+    columns = sorted({column for _row, column in selected})
+    lines = []
+    for row in rows:
+        lines.append("\t".join(_copy_text_of_value(model.value(row, column)) if (row, column) in selected else ""
+                               for column in columns))
+    return "\n".join(lines)
+
+
 def _build_data_table(app):
     app.data_table_model = DatasetTableModel(app)
     table = QTableView()
@@ -243,7 +298,22 @@ def _build_data_table(app):
     table.verticalHeader().setVisible(False)
     table.verticalHeader().setDefaultSectionSize(24)
     table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-    table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+    # セルを選んで Ctrl+C(右クリックの「コピー」でも)。行・列ごとに選ぶには見出しを押す
+    table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+    table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+    copy_action = QAction(tr("コピー"), table)
+    copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+    copy_action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+    def copy_cells(_checked=False):
+        text = selected_cells_tsv(table)
+        if text:
+            QGuiApplication.clipboard().setText(text)
+            motion.toast(table, tr("コピーしました"))
+
+    copy_action.triggered.connect(copy_cells)
+    table.addAction(copy_action)
+    table.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+    app.data_table_copy_action = copy_action
     table.setShowGrid(False)
     table.setWordWrap(False)
     # 見本どおり列は幅を等分(# だけ細い)。数万行でも重くならないよう、中身から幅を測らない
@@ -271,8 +341,9 @@ def build_bottom_panel(app):
     for widget in (app.residual_panel, app.provenance_panel):
         widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+    app.fit_result_view = FitResultView(app.fit_info_textedit)
     panel = BottomPanel()
-    pages = {"table": _build_data_table(app), "fit": app.fit_info_textedit, "residual": app.residual_panel,
+    pages = {"table": _build_data_table(app), "fit": app.fit_result_view, "residual": app.residual_panel,
              "provenance": app.provenance_panel, "log": app.bottom_log}
     for key, title, icon_name in BOTTOM_PAGES:
         panel.add_page(key, tr(title), icon_name, pages[key])
@@ -304,13 +375,14 @@ def refresh_bottom_panel(app, dataset):
     fit_text = getattr(fit_dataset, 'fit_info', None) or ""
     if app.fit_info_textedit.toPlainText() != fit_text:
         app.fit_info_textedit.setPlainText(fit_text)
+    app.fit_result_view.set_result(fit_result)
     r_squared = fit_result.get('r_squared') if fit_result else None
     if isinstance(r_squared, (int, float)) and r_squared == r_squared:
         app.bottom_panel.set_badge("fit", f"R² {r_squared:.3f}")
     else:
         app.bottom_panel.set_badge("fit", "")
 
-    app.residual_panel.refresh(dataset, fit_result)
+    app.residual_panel.refresh(dataset, fit_result, residual_x_label(dataset, fit_result, datasets))
     app.provenance_panel.refresh(dataset, app.project)
 
 
@@ -320,7 +392,15 @@ def refresh_theme(app):
         return
     app.bottom_panel.refresh_icons()
     shown = app.property_panel.shown_dataset()
-    app.residual_panel.refresh(shown, fit_result_for(shown, app.project.datasets))
+    fit_result = fit_result_for(shown, app.project.datasets)
+    app.residual_panel.refresh(shown, fit_result, residual_x_label(shown, fit_result, app.project.datasets))
+
+
+def residual_x_label(dataset, fit_result, datasets):
+    """フィットした元のデータの X の列名(フィットの曲線の列は x_fit なので、元をたどる)。"""
+    source_id = fit_result.get('source_dataset_id') if fit_result else None
+    source = next((other for other in datasets if source_id and other.dataset_id == source_id), dataset)
+    return str(getattr(source, 'x_col_name', None) or "X")
 
 
 def highlight_table_row(app, dataset, row_number):

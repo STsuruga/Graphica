@@ -79,253 +79,261 @@
         }
        },
        {
-        "class": "QWidget",
-        "name": "property_section_body",
+        "class": "SectionClip",
         "visible": true,
         "enabled": true,
         "children": [
          {
-          "class": "QLabel",
-          "text": "X軸の列",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "x",
-           "y",
-           "z"
-          ],
-          "current": 0,
+          "class": "QWidget",
+          "name": "property_section_body",
           "visible": true,
           "enabled": true,
-          "receivers": {
-           "currentTextChanged(QString)": 1
-          },
           "children": [
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QLabel",
+            "text": "X軸の列",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "x",
+             "y",
+             "z"
+            ],
+            "current": 0,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "currentTextChanged(QString)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
             ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "Y軸の列",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "x",
-           "y",
-           "z"
-          ],
-          "current": 1,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "currentTextChanged(QString)": 1
-          },
-          "children": [
+           },
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QLabel",
+            "text": "Y軸の列",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "x",
+             "y",
+             "z"
+            ],
+            "current": 1,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "currentTextChanged(QString)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
             ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "X誤差列",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "(なし)",
-           "x",
-           "y",
-           "z"
-          ],
-          "current": 0,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "currentTextChanged(QString)": 1
-          },
-          "children": [
+           },
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QLabel",
+            "text": "X誤差列",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "(なし)",
+             "x",
+             "y",
+             "z"
+            ],
+            "current": 0,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "currentTextChanged(QString)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
             ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "Y誤差列",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "(なし)",
-           "x",
-           "y",
-           "z"
-          ],
-          "current": 0,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "currentTextChanged(QString)": 1
-          },
-          "children": [
+           },
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QLabel",
+            "text": "Y誤差列",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "(なし)",
+             "x",
+             "y",
+             "z"
+            ],
+            "current": 0,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "currentTextChanged(QString)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
             ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "欠損値の扱い",
-          "visible": true,
-          "enabled": true,
-          "tooltip": "欠損値(NaN)を含む点の描画方法"
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "線を切る(既定)",
-           "前の値で埋める",
-           "無視してつなぐ"
-          ],
-          "current": 0,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 1
-          },
-          "children": [
+           },
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QLabel",
+            "text": "欠損値の扱い",
+            "visible": true,
+            "enabled": true,
+            "tooltip": "欠損値(NaN)を含む点の描画方法"
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "線を切る(既定)",
+             "前の値で埋める",
+             "無視してつなぐ"
+            ],
+            "current": 0,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "currentIndexChanged(int)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
             ]
+           },
+           {
+            "class": "QCheckBox",
+            "text": "第2Y軸 (右側) を使用",
+            "checked": false,
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "toggled(bool)": 1,
+             "stateChanged(int)": 1
+            }
            }
           ]
-         },
-         {
-          "class": "QCheckBox",
-          "text": "第2Y軸 (右側) を使用",
-          "checked": false,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "stateChanged(int)": 1
-          }
          }
         ]
        }
@@ -350,421 +358,1095 @@
         }
        },
        {
-        "class": "QWidget",
-        "name": "property_section_body",
+        "class": "SectionClip",
         "visible": true,
         "enabled": true,
         "children": [
          {
           "class": "QWidget",
-          "visible": false,
+          "name": "property_section_body",
+          "visible": true,
           "enabled": true,
           "children": [
            {
-            "class": "TypeTileGroup",
+            "class": "QWidget",
             "visible": false,
             "enabled": true,
-            "receivers": {
-             "currentIndexChanged(int)": 1
-            },
             "children": [
              {
-              "class": "_TypeTile",
-              "name": "type_tile",
-              "text": "線",
-              "checked": true,
+              "class": "TypeTileGroup",
               "visible": false,
               "enabled": true,
               "receivers": {
-               "pressed()": 1,
-               "released()": 1
-              }
-             },
-             {
-              "class": "_TypeTile",
-              "name": "type_tile",
-              "text": "点",
-              "checked": false,
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "pressed()": 1,
-               "released()": 1
-              }
-             },
-             {
-              "class": "_TypeTile",
-              "name": "type_tile",
-              "text": "線+点",
-              "checked": false,
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "pressed()": 1,
-               "released()": 1
-              }
-             },
-             {
-              "class": "_TypeTile",
-              "name": "type_tile",
-              "text": "棒",
-              "checked": false,
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "pressed()": 1,
-               "released()": 1
-              }
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "name": "legend_name_label",
-          "text": "凡例名",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QLineEdit",
-          "name": "legend_name_edit",
-          "text": "b",
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "editingFinished()": 1
-          }
-         },
-         {
-          "class": "QLabel",
-          "name": "plot_type_label",
-          "text": "種別",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "name": "plot_type_combo",
-          "items": [
-           "Line",
-           "Scatter",
-           "Line+Scatter",
-           "Area",
-           "Bar",
-           "Step",
-           "Density Scatter",
-           "Z-Color Scatter"
-          ],
-          "current": 0,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 1,
-           "currentTextChanged(QString)": 5
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
+               "currentIndexChanged(int)": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "_TypeTile",
+                "name": "type_tile",
+                "text": "線",
+                "checked": true,
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               },
+               {
+                "class": "_TypeTile",
+                "name": "type_tile",
+                "text": "点",
+                "checked": false,
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               },
+               {
+                "class": "_TypeTile",
+                "name": "type_tile",
+                "text": "線+点",
+                "checked": false,
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               },
+               {
+                "class": "_TypeTile",
+                "name": "type_tile",
+                "text": "棒",
+                "checked": false,
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
                }
               ]
              }
             ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "name": "color_label",
-          "text": "色",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "ColorPickerWidget",
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "colorChanged(QString)": 1
-          },
-          "children": [
+           },
            {
-            "class": "QPushButton",
-            "text": "",
+            "class": "QLabel",
+            "name": "legend_name_label",
+            "text": "名前",
             "visible": true,
-            "enabled": true,
-            "tooltip": "クリックしてパレットを開く",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
+            "enabled": true
            },
            {
             "class": "QLineEdit",
-            "text": "#1f77b4",
+            "name": "legend_name_edit",
+            "text": "b",
             "visible": true,
             "enabled": true,
             "receivers": {
-             "textChanged(QString)": 1,
              "editingFinished()": 1
             }
            },
            {
-            "class": "ColorChipRow",
+            "class": "QLabel",
+            "name": "plot_type_label",
+            "text": "種別",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "name": "plot_type_combo",
+            "items": [
+             "Line",
+             "Scatter",
+             "Line+Scatter",
+             "Area",
+             "Bar",
+             "Step",
+             "Density Scatter",
+             "Z-Color Scatter"
+            ],
+            "current": 0,
             "visible": true,
             "enabled": true,
             "receivers": {
-             "colorPicked(QString)": 1
+             "currentIndexChanged(int)": 1,
+             "currentTextChanged(QString)": 5
             },
             "children": [
              {
-              "class": "ColorChip",
-              "text": "",
-              "checked": true,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "#1F77B4",
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "ColorChip",
-              "text": "",
-              "checked": false,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "#FF7F0E",
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "ColorChip",
-              "text": "",
-              "checked": false,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "#2CA02C",
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "ColorChip",
-              "text": "",
-              "checked": false,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "#D62728",
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             },
-             {
-              "class": "ColorChip",
-              "text": "",
-              "checked": false,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "#9467BD",
-              "receivers": {
-               "clicked(bool)": 1,
-               "clicked()": 1
-              }
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "name": "linestyle_label",
-          "text": "線の種類",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QLabel",
-          "name": "linewidth_label",
-          "text": "線の太さ",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QLabel",
-          "text": "透明度",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QCheckBox",
-          "name": "smoothing_checkbox",
-          "text": "平滑化",
-          "checked": false,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "stateChanged(int)": 2
-          }
-         },
-         {
-          "class": "QLabel",
-          "text": "平滑化の手法",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "CubicSpline(既定)",
-           "移動平均",
-           "中央値フィルタ",
-           "ガウシアンフィルタ"
-          ],
-          "current": 0,
-          "visible": true,
-          "enabled": false,
-          "receivers": {
-           "currentIndexChanged(int)": 1
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": false,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
-              "enabled": false,
+              "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": false
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "name": "color_label",
+            "text": "色",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "ColorPickerWidget",
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "colorChanged(QString)": 1
+            },
+            "children": [
+             {
+              "class": "QPushButton",
+              "text": "",
+              "visible": true,
+              "enabled": true,
+              "tooltip": "クリックしてパレットを開く",
+              "receivers": {
+               "clicked(bool)": 1,
+               "clicked()": 1
+              }
+             },
+             {
+              "class": "QLineEdit",
+              "text": "#1f77b4",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "textChanged(QString)": 1,
+               "editingFinished()": 1
+              }
+             },
+             {
+              "class": "ColorChipRow",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "colorPicked(QString)": 1
+              },
+              "children": [
+               {
+                "class": "ColorChip",
+                "text": "",
+                "checked": true,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "#1F77B4",
+                "receivers": {
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "ColorChip",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "#FF7F0E",
+                "receivers": {
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "ColorChip",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "#2CA02C",
+                "receivers": {
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "ColorChip",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "#D62728",
+                "receivers": {
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               },
+               {
+                "class": "ColorChip",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "#9467BD",
+                "receivers": {
+                 "clicked(bool)": 1,
+                 "clicked()": 1
+                }
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "name": "linestyle_label",
+            "text": "線の種類",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QLabel",
+            "name": "linewidth_label",
+            "text": "線の太さ",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QLabel",
+            "text": "透明度",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QLabel",
+            "text": "凡例の表示名",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QLineEdit",
+            "text": "",
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "editingFinished()": 1
+            }
+           },
+           {
+            "class": "QCheckBox",
+            "text": "凡例に表示しない",
+            "checked": false,
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "toggled(bool)": 2
+            }
+           },
+           {
+            "class": "QCheckBox",
+            "name": "smoothing_checkbox",
+            "text": "表示を平滑化",
+            "checked": false,
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "toggled(bool)": 1,
+             "stateChanged(int)": 2
+            }
+           },
+           {
+            "class": "QLabel",
+            "text": "平滑化の手法",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "CubicSpline(既定)",
+             "移動平均",
+             "中央値フィルタ",
+             "ガウシアンフィルタ"
+            ],
+            "current": 0,
+            "visible": true,
+            "enabled": false,
+            "receivers": {
+             "currentIndexChanged(int)": 1
+            },
+            "children": [
+             {
+              "class": "QFrame",
+              "visible": false,
+              "enabled": false,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
+              "children": [
+               {
+                "class": "QListView",
+                "visible": false,
+                "enabled": false,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": false
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QWidget",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QWidget",
+            "visible": true,
+            "enabled": true,
+            "children": [
+             {
+              "class": "SegmentedControl",
+              "name": "segmented_control",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "currentIndexChanged(int)": 1
+              },
+              "children": [
+               {
+                "class": "_LineSegmentButton",
+                "name": "segment",
+                "text": "",
+                "checked": true,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "実線",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               },
+               {
+                "class": "_LineSegmentButton",
+                "name": "segment",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "破線",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               },
+               {
+                "class": "_LineSegmentButton",
+                "name": "segment",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "点線",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               },
+               {
+                "class": "_LineSegmentButton",
+                "name": "segment",
+                "text": "",
+                "checked": false,
+                "visible": true,
+                "enabled": true,
+                "tooltip": "一点鎖線",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               }
+              ]
+             },
+             {
+              "class": "QComboBox",
+              "name": "linestyle_combo",
+              "items": [
+               "solid",
+               "dashed",
+               "dotted",
+               "dashdot"
+              ],
+              "current": 0,
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "currentIndexChanged(int)": 1,
+               "currentTextChanged(QString)": 1
+              },
+              "children": [
+               {
+                "class": "QFrame",
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "itemSelected(QModelIndex)": 1,
+                 "resetButton()": 1
+                },
+                "children": [
+                 {
+                  "class": "QListView",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "name": "qt_scrollarea_viewport",
+                    "visible": false,
+                    "enabled": true
+                   }
+                  ]
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QWidget",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "SliderSpin",
+            "visible": true,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QSlider",
+              "name": "slider_spin_slider",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(int)": 1
+              }
+             },
+             {
+              "class": "QDoubleSpinBox",
+              "name": "linewidth_spinbox",
+              "value": "1.50",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(double)": 2
+              },
+              "children": [
+               {
+                "class": "QLineEdit",
+                "name": "qt_spinbox_lineedit",
+                "text": "1.50",
+                "visible": true,
+                "enabled": true,
+                "receivers": {
+                 "textChanged(QString)": 1,
+                 "cursorPositionChanged(int,int)": 2
+                }
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QWidget",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "SliderSpin",
+            "visible": true,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QSlider",
+              "name": "slider_spin_slider",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(int)": 1
+              }
+             },
+             {
+              "class": "QDoubleSpinBox",
+              "value": "1.00",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(double)": 2
+              },
+              "children": [
+               {
+                "class": "QLineEdit",
+                "name": "qt_spinbox_lineedit",
+                "text": "1.00",
+                "visible": true,
+                "enabled": true,
+                "receivers": {
+                 "textChanged(QString)": 1,
+                 "cursorPositionChanged(int,int)": 2
+                }
                }
               ]
              }
             ]
            }
           ]
-         },
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "class": "QWidget",
+      "visible": false,
+      "enabled": true,
+      "children": [
+       {
+        "class": "SectionHeader",
+        "name": "property_subsection_toggle",
+        "text": "マーカー",
+        "checked": true,
+        "visible": false,
+        "enabled": true,
+        "receivers": {
+         "pressed()": 1,
+         "released()": 1,
+         "toggled(bool)": 2
+        }
+       },
+       {
+        "class": "SectionClip",
+        "visible": false,
+        "enabled": true,
+        "children": [
          {
           "class": "QWidget",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QWidget",
-          "visible": true,
+          "name": "property_section_body",
+          "visible": false,
           "enabled": true,
           "children": [
            {
-            "class": "SegmentedControl",
-            "name": "segmented_control",
-            "visible": true,
-            "enabled": true,
-            "receivers": {
-             "currentIndexChanged(int)": 1
-            },
-            "children": [
-             {
-              "class": "_LineSegmentButton",
-              "name": "segment",
-              "text": "",
-              "checked": true,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "実線",
-              "receivers": {
-               "pressed()": 1,
-               "released()": 1
-              }
-             },
-             {
-              "class": "_LineSegmentButton",
-              "name": "segment",
-              "text": "",
-              "checked": false,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "破線",
-              "receivers": {
-               "pressed()": 1,
-               "released()": 1
-              }
-             },
-             {
-              "class": "_LineSegmentButton",
-              "name": "segment",
-              "text": "",
-              "checked": false,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "点線",
-              "receivers": {
-               "pressed()": 1,
-               "released()": 1
-              }
-             },
-             {
-              "class": "_LineSegmentButton",
-              "name": "segment",
-              "text": "",
-              "checked": false,
-              "visible": true,
-              "enabled": true,
-              "tooltip": "一点鎖線",
-              "receivers": {
-               "pressed()": 1,
-               "released()": 1
-              }
-             }
-            ]
+            "class": "QLabel",
+            "name": "marker_label",
+            "text": "マーカー",
+            "visible": false,
+            "enabled": true
            },
            {
             "class": "QComboBox",
-            "name": "linestyle_combo",
+            "name": "marker_combo",
             "items": [
-             "solid",
-             "dashed",
-             "dotted",
-             "dashdot"
+             "円",
+             "四角",
+             "三角(上)",
+             "三角(下)",
+             "ひし形",
+             "三角(左)",
+             "三角(右)",
+             "五角形",
+             "六角形",
+             "星",
+             "十字",
+             "バツ",
+             "点",
+             "なし"
             ],
             "current": 0,
             "visible": false,
             "enabled": true,
             "receivers": {
-             "currentIndexChanged(int)": 1,
-             "currentTextChanged(QString)": 1
+             "currentIndexChanged(int)": 2
+            },
+            "children": [
+             {
+              "class": "QFrame",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
+              "children": [
+               {
+                "class": "QListView",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "name": "makersize_label",
+            "text": "マーカーサイズ",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QLabel",
+            "text": "マーカーの塗り",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QLabel",
+            "text": "塗りの色",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "ColorPickerWidget",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "colorChanged(QString)": 1
+            },
+            "children": [
+             {
+              "class": "QPushButton",
+              "text": "",
+              "visible": false,
+              "enabled": true,
+              "tooltip": "クリックしてパレットを開く",
+              "receivers": {
+               "clicked(bool)": 1,
+               "clicked()": 1
+              }
+             },
+             {
+              "class": "QLineEdit",
+              "text": "#ffffff",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "textChanged(QString)": 1,
+               "editingFinished()": 1
+              }
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "text": "マーカーの枠線",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "系列の色",
+             "色を指定"
+            ],
+            "current": 0,
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "currentIndexChanged(int)": 2
+            },
+            "children": [
+             {
+              "class": "QFrame",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
+              "children": [
+               {
+                "class": "QListView",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "text": "枠線の色",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "ColorPickerWidget",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "colorChanged(QString)": 1
+            },
+            "children": [
+             {
+              "class": "QPushButton",
+              "text": "",
+              "visible": false,
+              "enabled": true,
+              "tooltip": "クリックしてパレットを開く",
+              "receivers": {
+               "clicked(bool)": 1,
+               "clicked()": 1
+              }
+             },
+             {
+              "class": "QLineEdit",
+              "text": "#000000",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "textChanged(QString)": 1,
+               "editingFinished()": 1
+              }
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "text": "枠線の太さ",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QWidget",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "SliderSpin",
+            "visible": false,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QSlider",
+              "name": "slider_spin_slider",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(int)": 1
+              }
+             },
+             {
+              "class": "QDoubleSpinBox",
+              "name": "markersize_spinbox",
+              "value": "6.00",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(double)": 2
+              },
+              "children": [
+               {
+                "class": "QLineEdit",
+                "name": "qt_spinbox_lineedit",
+                "text": "6.00",
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "textChanged(QString)": 1,
+                 "cursorPositionChanged(int,int)": 2
+                }
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QWidget",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QWidget",
+            "visible": false,
+            "enabled": true,
+            "children": [
+             {
+              "class": "SegmentedControl",
+              "name": "segmented_control",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "currentIndexChanged(int)": 1
+              },
+              "children": [
+               {
+                "class": "_FillSegmentButton",
+                "name": "segment",
+                "text": "",
+                "checked": true,
+                "visible": false,
+                "enabled": true,
+                "tooltip": "塗りつぶし",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               },
+               {
+                "class": "_FillSegmentButton",
+                "name": "segment",
+                "text": "",
+                "checked": false,
+                "visible": false,
+                "enabled": true,
+                "tooltip": "白抜き",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               },
+               {
+                "class": "QToolButton",
+                "name": "segment",
+                "text": "色を指定",
+                "checked": false,
+                "visible": false,
+                "enabled": true,
+                "tooltip": "色を指定",
+                "receivers": {
+                 "pressed()": 1,
+                 "released()": 1
+                }
+               }
+              ]
+             },
+             {
+              "class": "QComboBox",
+              "items": [
+               "塗りつぶし",
+               "白抜き",
+               "色を指定"
+              ],
+              "current": 0,
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "currentIndexChanged(int)": 3
+              },
+              "children": [
+               {
+                "class": "QFrame",
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "itemSelected(QModelIndex)": 1,
+                 "resetButton()": 1
+                },
+                "children": [
+                 {
+                  "class": "QListView",
+                  "visible": false,
+                  "enabled": true,
+                  "children": [
+                   {
+                    "class": "QWidget",
+                    "name": "qt_scrollarea_viewport",
+                    "visible": false,
+                    "enabled": true
+                   }
+                  ]
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QWidget",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "SliderSpin",
+            "visible": false,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QSlider",
+              "name": "slider_spin_slider",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(int)": 1
+              }
+             },
+             {
+              "class": "QDoubleSpinBox",
+              "value": "1.0",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(double)": 2
+              },
+              "children": [
+               {
+                "class": "QLineEdit",
+                "name": "qt_spinbox_lineedit",
+                "text": "1.0",
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "textChanged(QString)": 1,
+                 "cursorPositionChanged(int,int)": 2
+                }
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "class": "QWidget",
+      "visible": true,
+      "enabled": true,
+      "children": [
+       {
+        "class": "SectionHeader",
+        "name": "property_subsection_toggle",
+        "text": "グラデーション",
+        "checked": true,
+        "visible": true,
+        "enabled": true,
+        "receivers": {
+         "pressed()": 1,
+         "released()": 1,
+         "toggled(bool)": 2
+        },
+        "children": [
+         {
+          "class": "QCheckBox",
+          "text": "",
+          "checked": false,
+          "visible": true,
+          "enabled": true,
+          "tooltip": "グラデーションを適用",
+          "receivers": {
+           "clicked(bool)": 1,
+           "clicked()": 1,
+           "toggled(bool)": 4
+          }
+         }
+        ]
+       },
+       {
+        "class": "SectionClip",
+        "visible": false,
+        "enabled": true,
+        "children": [
+         {
+          "class": "QWidget",
+          "name": "property_section_body",
+          "visible": false,
+          "enabled": true,
+          "children": [
+           {
+            "class": "QLabel",
+            "text": "終端色",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "ColorPickerWidget",
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "colorChanged(QString)": 1
+            },
+            "children": [
+             {
+              "class": "QPushButton",
+              "text": "",
+              "visible": false,
+              "enabled": true,
+              "tooltip": "クリックしてパレットを開く",
+              "receivers": {
+               "clicked(bool)": 1,
+               "clicked()": 1
+              }
+             },
+             {
+              "class": "QLineEdit",
+              "text": "#ffffff",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "textChanged(QString)": 1,
+               "editingFinished()": 1
+              }
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "text": "対象",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "線",
+             "塗り",
+             "両方"
+            ],
+            "current": 0,
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "currentIndexChanged(int)": 1
             },
             "children": [
              {
@@ -794,550 +1476,6 @@
             ]
            }
           ]
-         },
-         {
-          "class": "QWidget",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "SliderSpin",
-          "visible": true,
-          "enabled": true,
-          "children": [
-           {
-            "class": "QSlider",
-            "name": "slider_spin_slider",
-            "visible": true,
-            "enabled": true,
-            "receivers": {
-             "valueChanged(int)": 1
-            }
-           },
-           {
-            "class": "QDoubleSpinBox",
-            "name": "linewidth_spinbox",
-            "value": "1.50",
-            "visible": true,
-            "enabled": true,
-            "receivers": {
-             "valueChanged(double)": 2
-            },
-            "children": [
-             {
-              "class": "QLineEdit",
-              "name": "qt_spinbox_lineedit",
-              "text": "1.50",
-              "visible": true,
-              "enabled": true,
-              "receivers": {
-               "textChanged(QString)": 1,
-               "cursorPositionChanged(int,int)": 2
-              }
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QWidget",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "SliderSpin",
-          "visible": true,
-          "enabled": true,
-          "children": [
-           {
-            "class": "QSlider",
-            "name": "slider_spin_slider",
-            "visible": true,
-            "enabled": true,
-            "receivers": {
-             "valueChanged(int)": 1
-            }
-           },
-           {
-            "class": "QDoubleSpinBox",
-            "value": "1.00",
-            "visible": true,
-            "enabled": true,
-            "receivers": {
-             "valueChanged(double)": 2
-            },
-            "children": [
-             {
-              "class": "QLineEdit",
-              "name": "qt_spinbox_lineedit",
-              "text": "1.00",
-              "visible": true,
-              "enabled": true,
-              "receivers": {
-               "textChanged(QString)": 1,
-               "cursorPositionChanged(int,int)": 2
-              }
-             }
-            ]
-           }
-          ]
-         }
-        ]
-       }
-      ]
-     },
-     {
-      "class": "QWidget",
-      "visible": false,
-      "enabled": true,
-      "children": [
-       {
-        "class": "SectionHeader",
-        "name": "property_subsection_toggle",
-        "text": "マーカー",
-        "checked": true,
-        "visible": false,
-        "enabled": true,
-        "receivers": {
-         "pressed()": 1,
-         "released()": 1,
-         "toggled(bool)": 2
-        }
-       },
-       {
-        "class": "QWidget",
-        "name": "property_section_body",
-        "visible": false,
-        "enabled": true,
-        "children": [
-         {
-          "class": "QLabel",
-          "name": "marker_label",
-          "text": "マーカー",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "name": "marker_combo",
-          "items": [
-           "円",
-           "四角",
-           "三角(上)",
-           "三角(下)",
-           "ひし形",
-           "三角(左)",
-           "三角(右)",
-           "五角形",
-           "六角形",
-           "星",
-           "十字",
-           "バツ",
-           "点",
-           "なし"
-          ],
-          "current": 0,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 2
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "name": "makersize_label",
-          "text": "マーカーサイズ",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QLabel",
-          "text": "マーカーの塗り",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "塗りつぶし",
-           "白抜き",
-           "色を指定"
-          ],
-          "current": 0,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 2
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "塗りの色",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "ColorPickerWidget",
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "colorChanged(QString)": 1
-          },
-          "children": [
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": false,
-            "enabled": true,
-            "tooltip": "クリックしてパレットを開く",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QLineEdit",
-            "text": "#ffffff",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "textChanged(QString)": 1,
-             "editingFinished()": 1
-            }
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "マーカーの枠線",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "系列の色",
-           "色を指定"
-          ],
-          "current": 0,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 2
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "枠線の色",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "ColorPickerWidget",
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "colorChanged(QString)": 1
-          },
-          "children": [
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": false,
-            "enabled": true,
-            "tooltip": "クリックしてパレットを開く",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QLineEdit",
-            "text": "#000000",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "textChanged(QString)": 1,
-             "editingFinished()": 1
-            }
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "枠線の太さ",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QDoubleSpinBox",
-          "value": "1.0",
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "valueChanged(double)": 1
-          },
-          "children": [
-           {
-            "class": "QLineEdit",
-            "name": "qt_spinbox_lineedit",
-            "text": "1.0",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "textChanged(QString)": 1,
-             "cursorPositionChanged(int,int)": 2
-            }
-           }
-          ]
-         },
-         {
-          "class": "QWidget",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "SliderSpin",
-          "visible": false,
-          "enabled": true,
-          "children": [
-           {
-            "class": "QSlider",
-            "name": "slider_spin_slider",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "valueChanged(int)": 1
-            }
-           },
-           {
-            "class": "QDoubleSpinBox",
-            "name": "markersize_spinbox",
-            "value": "6.00",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "valueChanged(double)": 2
-            },
-            "children": [
-             {
-              "class": "QLineEdit",
-              "name": "qt_spinbox_lineedit",
-              "text": "6.00",
-              "visible": false,
-              "enabled": true,
-              "receivers": {
-               "textChanged(QString)": 1,
-               "cursorPositionChanged(int,int)": 2
-              }
-             }
-            ]
-           }
-          ]
-         }
-        ]
-       }
-      ]
-     },
-     {
-      "class": "QWidget",
-      "visible": true,
-      "enabled": true,
-      "children": [
-       {
-        "class": "SectionHeader",
-        "name": "property_subsection_toggle",
-        "text": "グラデーション",
-        "checked": true,
-        "visible": true,
-        "enabled": true,
-        "receivers": {
-         "pressed()": 1,
-         "released()": 1,
-         "toggled(bool)": 3
-        },
-        "children": [
-         {
-          "class": "QCheckBox",
-          "text": "",
-          "checked": false,
-          "visible": true,
-          "enabled": true,
-          "tooltip": "グラデーションを適用",
-          "receivers": {
-           "clicked(bool)": 1,
-           "clicked()": 1,
-           "toggled(bool)": 3
-          }
-         }
-        ]
-       },
-       {
-        "class": "QWidget",
-        "name": "property_section_body",
-        "visible": false,
-        "enabled": true,
-        "children": [
-         {
-          "class": "QLabel",
-          "text": "終端色",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "ColorPickerWidget",
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "colorChanged(QString)": 1
-          },
-          "children": [
-           {
-            "class": "QPushButton",
-            "text": "",
-            "visible": false,
-            "enabled": true,
-            "tooltip": "クリックしてパレットを開く",
-            "receivers": {
-             "clicked(bool)": 1,
-             "clicked()": 1
-            }
-           },
-           {
-            "class": "QLineEdit",
-            "text": "#ffffff",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "textChanged(QString)": 1,
-             "editingFinished()": 1
-            }
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "対象",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "線",
-           "塗り",
-           "両方"
-          ],
-          "current": 0,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 1
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           }
-          ]
          }
         ]
        }
@@ -1358,7 +1496,7 @@
         "receivers": {
          "pressed()": 1,
          "released()": 1,
-         "toggled(bool)": 3
+         "toggled(bool)": 2
         },
         "children": [
          {
@@ -1371,163 +1509,192 @@
           "receivers": {
            "clicked(bool)": 1,
            "clicked()": 1,
-           "toggled(bool)": 3
+           "toggled(bool)": 4
           }
          }
         ]
        },
        {
-        "class": "QWidget",
-        "name": "property_section_body",
+        "class": "SectionClip",
         "visible": true,
         "enabled": true,
         "children": [
          {
-          "class": "QLabel",
-          "text": "オフセットの指定",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "段ごとの間隔(段の番号 × オフセット)",
-           "ずらし量をそのまま"
-          ],
-          "current": 0,
+          "class": "QWidget",
+          "name": "property_section_body",
           "visible": true,
           "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 1
-          },
           "children": [
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QLabel",
+            "text": "オフセットの指定",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "段ごとの間隔(段の番号 × オフセット)",
+             "ずらし量をそのまま"
+            ],
+            "current": 0,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "currentIndexChanged(int)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
             ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "Xオフセット",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QDoubleSpinBox",
-          "value": "0",
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "valueChanged(double)": 1
-          },
-          "children": [
+           },
            {
-            "class": "QLineEdit",
-            "name": "qt_spinbox_lineedit",
-            "text": "0",
+            "class": "QLabel",
+            "text": "Xオフセット",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QDoubleSpinBox",
+            "value": "0",
             "visible": true,
             "enabled": true,
             "receivers": {
-             "textChanged(QString)": 1,
-             "cursorPositionChanged(int,int)": 2
-            }
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "Yオフセット",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QDoubleSpinBox",
-          "value": "1",
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "valueChanged(double)": 1
-          },
-          "children": [
+             "valueChanged(double)": 1
+            },
+            "children": [
+             {
+              "class": "QLineEdit",
+              "name": "qt_spinbox_lineedit",
+              "text": "0",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "textChanged(QString)": 1,
+               "cursorPositionChanged(int,int)": 2
+              }
+             }
+            ]
+           },
            {
-            "class": "QLineEdit",
-            "name": "qt_spinbox_lineedit",
-            "text": "1",
+            "class": "QLabel",
+            "text": "Yオフセット",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QDoubleSpinBox",
+            "value": "1",
             "visible": true,
             "enabled": true,
             "receivers": {
-             "textChanged(QString)": 1,
-             "cursorPositionChanged(int,int)": 2
-            }
-           }
-          ]
-         },
-         {
-          "class": "QCheckBox",
-          "text": "背面のトレースを隠す(オクルージョン)",
-          "checked": true,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "toggled(bool)": 1
-          }
-         },
-         {
-          "class": "QCheckBox",
-          "text": "奥行き効果(奥のトレースをわずかに縮小)",
-          "checked": false,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "toggled(bool)": 2
-          }
-         },
-         {
-          "class": "QLabel",
-          "text": "1段あたりの縮小率",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QDoubleSpinBox",
-          "value": "0.030",
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "valueChanged(double)": 1
-          },
-          "children": [
+             "valueChanged(double)": 1
+            },
+            "children": [
+             {
+              "class": "QLineEdit",
+              "name": "qt_spinbox_lineedit",
+              "text": "1",
+              "visible": true,
+              "enabled": true,
+              "receivers": {
+               "textChanged(QString)": 1,
+               "cursorPositionChanged(int,int)": 2
+              }
+             }
+            ]
+           },
            {
-            "class": "QLineEdit",
-            "name": "qt_spinbox_lineedit",
-            "text": "0.030",
+            "class": "QCheckBox",
+            "text": "背面のトレースを隠す(オクルージョン)",
+            "checked": true,
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "toggled(bool)": 2
+            }
+           },
+           {
+            "class": "QCheckBox",
+            "text": "奥行き効果(奥のトレースをわずかに縮小)",
+            "checked": false,
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "toggled(bool)": 3
+            }
+           },
+           {
+            "class": "QLabel",
+            "text": "縮小率",
             "visible": false,
             "enabled": true,
-            "receivers": {
-             "textChanged(QString)": 1,
-             "cursorPositionChanged(int,int)": 2
-            }
+            "tooltip": "1段あたりの縮小率"
+           },
+           {
+            "class": "QWidget",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "SliderSpin",
+            "visible": false,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QSlider",
+              "name": "slider_spin_slider",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(int)": 1
+              }
+             },
+             {
+              "class": "QDoubleSpinBox",
+              "value": "0.030",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(double)": 2
+              },
+              "children": [
+               {
+                "class": "QLineEdit",
+                "name": "qt_spinbox_lineedit",
+                "text": "0.030",
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "textChanged(QString)": 1,
+                 "cursorPositionChanged(int,int)": 2
+                }
+               }
+              ]
+             }
+            ]
            }
           ]
          }
@@ -1554,309 +1721,337 @@
         }
        },
        {
-        "class": "QWidget",
-        "name": "property_section_body",
+        "class": "SectionClip",
         "visible": true,
         "enabled": true,
         "children": [
          {
-          "class": "QCheckBox",
-          "text": "2Dグリッドとして扱う(ヒートマップ)",
-          "checked": false,
+          "class": "QWidget",
+          "name": "property_section_body",
           "visible": true,
           "enabled": true,
-          "receivers": {
-           "toggled(bool)": 1
-          }
-         },
-         {
-          "class": "QLabel",
-          "text": "Z軸の列",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "x",
-           "y",
-           "z"
-          ],
-          "current": 0,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "currentTextChanged(QString)": 1
-          },
           "children": [
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QCheckBox",
+            "text": "2Dグリッドとして扱う(ヒートマップ)",
+            "checked": false,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "カラーマップ",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "viridis",
-           "plasma",
-           "inferno",
-           "magma",
-           "cividis",
-           "coolwarm",
-           "RdBu",
-           "seismic",
-           "jet",
-           "turbo",
-           "gray",
-           "Blues",
-           "Greens",
-           "Reds",
-           "YlOrRd"
-          ],
-          "current": 0,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "currentTextChanged(QString)": 1
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "表示方式",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "ヒートマップ",
-           "等高線(線)",
-           "等高線(塗りつぶし)",
-           "ヒートマップ+等高線"
-          ],
-          "current": 0,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 1
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "等高線レベル数",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QSpinBox",
-          "value": "10",
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "valueChanged(int)": 1
-          },
-          "children": [
-           {
-            "class": "QLineEdit",
-            "name": "qt_spinbox_lineedit",
-            "text": "10",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "textChanged(QString)": 1,
-             "cursorPositionChanged(int,int)": 2
+             "toggled(bool)": 2
             }
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "補間方法",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "linear",
-           "cubic",
-           "nearest"
-          ],
-          "current": 0,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "currentTextChanged(QString)": 1
-          },
-          "children": [
+           },
            {
-            "class": "QFrame",
+            "class": "QLabel",
+            "text": "Z軸の列",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "x",
+             "y",
+             "z"
+            ],
+            "current": 0,
             "visible": false,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "currentTextChanged(QString)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
             ]
-           }
-          ]
-         },
-         {
-          "class": "QCheckBox",
-          "text": "値域を自動",
-          "checked": true,
-          "visible": false,
-          "enabled": true,
-          "receivers": {
-           "toggled(bool)": 1
-          }
-         },
-         {
-          "class": "QLabel",
-          "text": "値域の最小",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QDoubleSpinBox",
-          "value": "0.0000",
-          "visible": false,
-          "enabled": false,
-          "receivers": {
-           "valueChanged(double)": 1
-          },
-          "children": [
+           },
            {
-            "class": "QLineEdit",
-            "name": "qt_spinbox_lineedit",
-            "text": "0.0000",
+            "class": "QLabel",
+            "text": "カラーマップ",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "viridis",
+             "plasma",
+             "inferno",
+             "magma",
+             "cividis",
+             "coolwarm",
+             "RdBu",
+             "seismic",
+             "jet",
+             "turbo",
+             "gray",
+             "Blues",
+             "Greens",
+             "Reds",
+             "YlOrRd"
+            ],
+            "current": 0,
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "currentTextChanged(QString)": 1
+            },
+            "children": [
+             {
+              "class": "QFrame",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
+              "children": [
+               {
+                "class": "QListView",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "text": "表示方式",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "ヒートマップ",
+             "等高線(線)",
+             "等高線(塗りつぶし)",
+             "ヒートマップ+等高線"
+            ],
+            "current": 0,
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "currentIndexChanged(int)": 1
+            },
+            "children": [
+             {
+              "class": "QFrame",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
+              "children": [
+               {
+                "class": "QListView",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "text": "等高線の数",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QLabel",
+            "text": "補間方法",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "linear",
+             "cubic",
+             "nearest"
+            ],
+            "current": 0,
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "currentTextChanged(QString)": 1
+            },
+            "children": [
+             {
+              "class": "QFrame",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
+              "children": [
+               {
+                "class": "QListView",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QCheckBox",
+            "text": "値域を自動",
+            "checked": true,
+            "visible": false,
+            "enabled": true,
+            "receivers": {
+             "toggled(bool)": 2
+            }
+           },
+           {
+            "class": "QLabel",
+            "text": "値域の最小",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QDoubleSpinBox",
+            "value": "0.0000",
             "visible": false,
             "enabled": false,
             "receivers": {
-             "textChanged(QString)": 1,
-             "cursorPositionChanged(int,int)": 2
-            }
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "値域の最大",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QDoubleSpinBox",
-          "value": "1.0000",
-          "visible": false,
-          "enabled": false,
-          "receivers": {
-           "valueChanged(double)": 1
-          },
-          "children": [
+             "valueChanged(double)": 1
+            },
+            "children": [
+             {
+              "class": "QLineEdit",
+              "name": "qt_spinbox_lineedit",
+              "text": "0.0000",
+              "visible": false,
+              "enabled": false,
+              "receivers": {
+               "textChanged(QString)": 1,
+               "cursorPositionChanged(int,int)": 2
+              }
+             }
+            ]
+           },
            {
-            "class": "QLineEdit",
-            "name": "qt_spinbox_lineedit",
-            "text": "1.0000",
+            "class": "QLabel",
+            "text": "値域の最大",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QDoubleSpinBox",
+            "value": "1.0000",
             "visible": false,
             "enabled": false,
             "receivers": {
-             "textChanged(QString)": 1,
-             "cursorPositionChanged(int,int)": 2
-            }
+             "valueChanged(double)": 1
+            },
+            "children": [
+             {
+              "class": "QLineEdit",
+              "name": "qt_spinbox_lineedit",
+              "text": "1.0000",
+              "visible": false,
+              "enabled": false,
+              "receivers": {
+               "textChanged(QString)": 1,
+               "cursorPositionChanged(int,int)": 2
+              }
+             }
+            ]
+           },
+           {
+            "class": "QWidget",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "SliderSpin",
+            "visible": false,
+            "enabled": true,
+            "children": [
+             {
+              "class": "QSlider",
+              "name": "slider_spin_slider",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(int)": 1
+              }
+             },
+             {
+              "class": "QSpinBox",
+              "value": "10",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "valueChanged(int)": 2
+              },
+              "children": [
+               {
+                "class": "QLineEdit",
+                "name": "qt_spinbox_lineedit",
+                "text": "10",
+                "visible": false,
+                "enabled": true,
+                "receivers": {
+                 "textChanged(QString)": 1,
+                 "cursorPositionChanged(int,int)": 2
+                }
+               }
+              ]
+             }
+            ]
            }
           ]
          }
@@ -1883,145 +2078,127 @@
         }
        },
        {
-        "class": "QWidget",
-        "name": "property_section_body",
+        "class": "SectionClip",
         "visible": true,
         "enabled": true,
         "children": [
          {
-          "class": "QCheckBox",
-          "text": "データ点にラベルを表示",
-          "checked": false,
+          "class": "QWidget",
+          "name": "property_section_body",
           "visible": true,
           "enabled": true,
-          "receivers": {
-           "toggled(bool)": 1
-          }
-         },
-         {
-          "class": "QLabel",
-          "name": "point_labels_limit_note",
-          "text": "",
-          "visible": false,
-          "enabled": true
-         },
-         {
-          "class": "QLabel",
-          "text": "ラベルの内容",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "Y値",
-           "x",
-           "y",
-           "z"
-          ],
-          "current": 0,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "currentTextChanged(QString)": 1
-          },
           "children": [
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QCheckBox",
+            "text": "データ点にラベルを表示",
+            "checked": false,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "toggled(bool)": 2
+            }
+           },
+           {
+            "class": "QLabel",
+            "name": "point_labels_limit_note",
+            "text": "",
+            "visible": false,
+            "enabled": true
+           },
+           {
+            "class": "QLabel",
+            "text": "ラベルの内容",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "Y値",
+             "x",
+             "y",
+             "z"
+            ],
+            "current": 0,
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "currentTextChanged(QString)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           },
+           {
+            "class": "QLabel",
+            "text": "誤差の表示形式",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "エラーバー",
+             "誤差バンド",
+             "両方"
+            ],
+            "current": 0,
+            "visible": true,
+            "enabled": true,
+            "receivers": {
+             "currentIndexChanged(int)": 1
+            },
+            "children": [
+             {
+              "class": "QFrame",
+              "visible": false,
+              "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
+              "children": [
+               {
+                "class": "QListView",
+                "visible": false,
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
             ]
            }
           ]
-         },
-         {
-          "class": "QLabel",
-          "text": "誤差の表示形式",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "エラーバー",
-           "誤差バンド",
-           "両方"
-          ],
-          "current": 0,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 1
-          },
-          "children": [
-           {
-            "class": "QFrame",
-            "visible": false,
-            "enabled": true,
-            "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
-            },
-            "children": [
-             {
-              "class": "QListView",
-              "visible": false,
-              "enabled": true,
-              "children": [
-               {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
-                "visible": false,
-                "enabled": true
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "class": "QLabel",
-          "text": "凡例の表示名",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QLineEdit",
-          "text": "",
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "editingFinished()": 1
-          }
-         },
-         {
-          "class": "QCheckBox",
-          "text": "凡例に表示しない",
-          "checked": false,
-          "visible": true,
-          "enabled": true,
-          "receivers": {
-           "toggled(bool)": 1
-          }
          }
         ]
        }
@@ -2046,48 +2223,55 @@
         }
        },
        {
-        "class": "QWidget",
-        "name": "property_section_body",
+        "class": "SectionClip",
         "visible": true,
         "enabled": true,
         "children": [
          {
-          "class": "QLabel",
-          "text": "描画先プロット",
-          "visible": true,
-          "enabled": true
-         },
-         {
-          "class": "QComboBox",
-          "items": [
-           "プロット 1"
-          ],
-          "current": 0,
+          "class": "QWidget",
+          "name": "property_section_body",
           "visible": true,
           "enabled": true,
-          "receivers": {
-           "currentIndexChanged(int)": 1
-          },
           "children": [
            {
-            "class": "QFrame",
-            "visible": false,
+            "class": "QLabel",
+            "text": "描画先プロット",
+            "visible": true,
+            "enabled": true
+           },
+           {
+            "class": "QComboBox",
+            "items": [
+             "プロット 1"
+            ],
+            "current": 0,
+            "visible": true,
             "enabled": true,
             "receivers": {
-             "itemSelected(QModelIndex)": 1,
-             "resetButton()": 1
+             "currentIndexChanged(int)": 1
             },
             "children": [
              {
-              "class": "QListView",
+              "class": "QFrame",
               "visible": false,
               "enabled": true,
+              "receivers": {
+               "itemSelected(QModelIndex)": 1,
+               "resetButton()": 1
+              },
               "children": [
                {
-                "class": "QWidget",
-                "name": "qt_scrollarea_viewport",
+                "class": "QListView",
                 "visible": false,
-                "enabled": true
+                "enabled": true,
+                "children": [
+                 {
+                  "class": "QWidget",
+                  "name": "qt_scrollarea_viewport",
+                  "visible": false,
+                  "enabled": true
+                 }
+                ]
                }
               ]
              }
@@ -2115,7 +2299,7 @@
        {
         "class": "QLabel",
         "name": "lite_more_text",
-        "text": "誤差・透明度・平滑化・マーカー・グラデーション・ウォーターフォール・2D マップなど",
+        "text": "誤差・透明度・平滑化・マーカーの塗りと枠線・グラデーション・ウォーターフォール・2D マップなど",
         "visible": false,
         "enabled": true
        },

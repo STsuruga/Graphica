@@ -4,7 +4,7 @@
 値の対応 AXIS_BINDINGS は変わらない)。見た目の部品(スライダー・セグメント)は値の持ち主の欄を取り込むか、
 隠した持ち主と同期する。軸の設定を欄に戻した後(シグナルが止まっている)は refresh_axis_format_widgets() で合わせる。
 """
-from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from graphica.core.i18n import tr
 from graphica.gui import ui_mode
@@ -31,8 +31,8 @@ TICK_DIRECTION_ITEMS = (("out", "外", "外向き"), ("in", "内", "内向き"),
 TICK_DIRECTION_ROWS = (
     ("tick_direction_label", "主目盛の向き", "major_tick_direction_combo"),
     ("minor_tick_direction_label", "補助目盛の向き", "minor_tick_direction_combo"),
-    ("tick_direction_y2_label", "第2軸の主目盛の向き", "major_tick_direction_y2_combo"),
-    ("minor_tick_direction_y2_label", "第2軸の補助目盛の向き", "minor_tick_direction_y2_combo"),
+    ("tick_direction_y2_label", "第2軸の主目盛", "major_tick_direction_y2_combo"),
+    ("minor_tick_direction_y2_label", "第2軸の補助目盛", "minor_tick_direction_y2_combo"),
 )
 Y2_TICK_DIRECTION_LABELS = ("tick_direction_y2_label", "minor_tick_direction_y2_label")
 # スライダーの範囲(よく使う範囲。数値の欄はこれより外の値も受け付ける)
@@ -62,6 +62,16 @@ def build_axis_format_sections(app):
             attach_header_switch(entry, checkbox)
         layout.addWidget(entry['section'])
         app._axis_sections[key] = entry
+
+    # サブプロットが2つ以上あるときだけ出す(dock_layout.refresh_inspector)
+    app.apply_format_to_all_button = QPushButton(tr("この書式を全サブプロットに適用"))
+    app.apply_format_to_all_button.setToolTip(
+        tr("フォント・目盛・グリッド・外枠・カラーバーの設定を、ほかのサブプロットにも写します"))
+    app.apply_format_to_all_button.clicked.connect(
+        lambda _checked=False: app.panels['axis_settings'].apply_format_to_all_subplots())
+    app.apply_format_to_all_button.setVisible(False)
+    layout.addSpacing(10)
+    layout.addWidget(app.apply_format_to_all_button)
 
     # 隣のタブ(X軸・Y軸)のほうが高いと余りの高さが節に配られ、節の間が空くので、余りは末尾で受ける
     layout.addStretch(1)
@@ -107,6 +117,7 @@ def _build_axis_format_widgets(app):
             label = QLabel()
             setattr(app, label_attr, label)
         label.setText(tr(text))
+        label.setToolTip(tr("{name}の向き").format(name=tr(text)))
         combo = getattr(app, combo_attr)
         segments = SegmentedControl()
         for value, item_text, tooltip in TICK_DIRECTION_ITEMS:
@@ -158,7 +169,8 @@ def refresh_axis_format_widgets(app):
     """軸の設定を欄に戻した後(シグナルが止まっている)、見た目の部品を合わせる。"""
     if not hasattr(app, 'colorbar_width_slider'):
         return
-    for mirror in app.tick_direction_mirrors:
+    for mirror in (*app.tick_direction_mirrors, *getattr(app, 'tick_mode_mirrors', ()),
+                   *getattr(app, 'grid_linestyle_mirrors', ())):
         mirror.refresh()
     app.colorbar_position_mirror.refresh()
     for slider in (app.tick_width_slider, app.spine_width_slider, app.colorbar_width_slider):

@@ -97,6 +97,8 @@ SNAP_TO_GRID_ENABLED = Setting("snap_to_grid_enabled", DEFAULT_SNAP_TO_GRID_ENAB
 SNAP_GRID_INTERVAL_PX = Setting("snap_grid_interval_px", DEFAULT_SNAP_GRID_INTERVAL_PX, int, export_as=int)
 # 軸の上のホイールで拡大する速さ: "slow" / "normal" / "fast"(gui/tools/view_navigation.WHEEL_ZOOM_BASES)
 WHEEL_ZOOM_SPEED = Setting("wheel_zoom_speed", "normal", str, export_as=str)
+# タブの切り替え・節の開閉などの短い動き(gui/motion.py)
+ANIMATIONS = Setting("ui_animations", True, bool, export_as=bool)
 CUSTOM_COLOR_PALETTES = Setting(COLOR_PALETTES_SETTINGS_KEY, "", export_as=str)
 # 画面の既定は配色パレットのダイアログの既定の名前(読む側が渡す)。書き出しでは空
 ACTIVE_COLOR_PALETTE = Setting(ACTIVE_PALETTE_SETTINGS_KEY, None, export_as=str, export_default="")
@@ -119,7 +121,7 @@ CANVAS_DETACHED_GEOMETRY = Setting(CANVAS_DETACHED_GEOMETRY_KEY)
 EXPORTED_SETTINGS: tuple[Setting, ...] = (
     LANGUAGE, DARK_MODE, AUTOSAVE_INTERVAL_MIN, POINT_LABEL_MAX_POINTS, SNAP_TO_GRID_ENABLED, SNAP_GRID_INTERVAL_PX,
     CUSTOM_COLOR_PALETTES, ACTIVE_COLOR_PALETTE, QUICK_ACCESS_PINNED_ACTIONS, DISABLED_PLUGINS,
-    WHEEL_ZOOM_SPEED, THEME_COLOR, UI_MODE,
+    WHEEL_ZOOM_SPEED, THEME_COLOR, UI_MODE, ANIMATIONS,
 )
 
 

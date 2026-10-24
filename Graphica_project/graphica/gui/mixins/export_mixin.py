@@ -1,4 +1,5 @@
 """画像・PDF・SVG への書き出し、印刷、クリップボード、書き出しのプレビュー。"""
+import contextlib
 import copy
 import datetime
 import io
@@ -16,10 +17,10 @@ from matplotlib.backends.backend_pdf import PdfPages
 from graphica.gui import notify
 from graphica.gui import dialog_dirs
 from graphica.core.axis_settings import axis_setting
-from graphica.gui.dialogs import ExportDialog, BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
-from graphica.gui.canvas import _HeadlessRenderCanvas, fit_tight_layout
+from graphica.gui.dialogs import BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
+from graphica.gui.canvas import _HeadlessRenderCanvas
 from graphica.gui.export_settings import export_rc_params
-from graphica.gui.export_size import confirm_output_size, preview_dpi, preview_too_large_text, size_in_inches
+from graphica.gui.export_size import size_in_inches
 from graphica.gui.task_runner import TaskRunner
 from graphica.models.project import ProjectModel
 from graphica.core.plugin_api import get_plugin_api, get_registered_exporters
@@ -30,14 +31,6 @@ from graphica.core.report_export import collect_methods_sections, generate_html_
 
 logger = logging.getLogger(__name__)
 
-def _project_has_raster_gradient_fill(project):
-    """グラデーションの塗り(imshow で描くのでベクター形式でもラスタになる)を使う系列があるか。"""
-    return any(
-        ds.plot_type == 'Area' and ds.gradient_enabled and ds.gradient_target in ('fill', 'both')
-        for ds in project.datasets
-    )
-
-
 CLIPBOARD_COPY_DPI = 150
 
 PRINT_RENDER_DPI = 200
@@ -46,10 +39,31 @@ BATCH_EXPORT_FIGSIZE = (8, 6)
 
 
 class ExportMixin:
+    def output_dark_mode(self):
+        """書き出し・コピー・印刷の図をダークの配色で描くか。エクスポートのタブの「ライト配色で書き出す」が既定でオン。"""
+        panel = getattr(self, 'export_preview_panel', None)
+        light = panel is None or panel.light_colors_checkbox.isChecked()
+        return self.canvas.dark_mode and not light
+
+    @contextlib.contextmanager
+    def _screen_figure_in_output_colors(self):
+        """画面の図をそのまま保存する経路のため、ダークのまま書き出さないときだけ、その間ライトで描き直しておく。"""
+        if self.output_dark_mode() == self.canvas.dark_mode:
+            yield
+            return
+        self.canvas.dark_mode = False
+        self._update_plot(light=True)
+        try:
+            yield
+        finally:
+            self.canvas.dark_mode = True
+            self._update_plot(light=True)
+
     def _on_copy_plot_to_clipboard(self):
         buf = io.BytesIO()
         try:
-            self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
+            with self._screen_figure_in_output_colors():
+                self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
         except Exception as e:
             logger.exception("グラフのクリップボードコピーに失敗しました。")
             notify.warning(self, "コピーエラー", f"グラフのコピー中にエラーが発生しました:\n{e}")
@@ -66,7 +80,8 @@ class ExportMixin:
         """今のグラフを1回だけ PNG にし、ダイアログはその画像を変換して見せる(グラフは描き直さない)。"""
         buf = io.BytesIO()
         try:
-            self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
+            with self._screen_figure_in_output_colors():
+                self.canvas.fig.savefig(buf, format='png', dpi=CLIPBOARD_COPY_DPI, bbox_inches='tight')
         except Exception as e:
             logger.exception("色覚シミュレーションプレビュー用の画像生成に失敗しました。")
             notify.warning(self, "プレビューエラー", f"プレビュー画像の生成中にエラーが発生しました:\n{e}")
@@ -88,7 +103,8 @@ class ExportMixin:
 
         buf = io.BytesIO()
         try:
-            self.canvas.fig.savefig(buf, format='png', dpi=PRINT_RENDER_DPI, bbox_inches='tight')
+            with self._screen_figure_in_output_colors():
+                self.canvas.fig.savefig(buf, format='png', dpi=PRINT_RENDER_DPI, bbox_inches='tight')
         except Exception as e:
             logger.exception("印刷用画像の生成に失敗しました。")
             notify.warning(self, "印刷エラー", f"印刷用の画像生成中にエラーが発生しました:\n{e}")
@@ -135,6 +151,8 @@ class ExportMixin:
             return
 
         options = dialog.get_common_options()
+        # 別スレッドではタブの欄を読まないので、配色もここで決めておく
+        options['dark_mode'] = self.output_dark_mode()
         if not options['output_dir']:
             notify.warning(self, "バッチエクスポート", "出力先フォルダを指定してください。")
             return
@@ -240,7 +258,7 @@ class ExportMixin:
                     for ds in self.project.datasets if ds.subplot_target == idx
                 ]
                 temp_canvas = _HeadlessRenderCanvas(width=BATCH_EXPORT_FIGSIZE[0], height=BATCH_EXPORT_FIGSIZE[1], dpi=options['dpi'])
-                temp_canvas.dark_mode = self.canvas.dark_mode
+                temp_canvas.dark_mode = options.get('dark_mode', self.canvas.dark_mode)
                 visible_range = options.get('view_overrides', {}).get(idx)
                 if visible_range:
                     temp_canvas.view_overrides = {0: dict(visible_range)}
@@ -281,7 +299,7 @@ class ExportMixin:
                     fig_width, fig_height = BATCH_EXPORT_FIGSIZE[0] * cols, BATCH_EXPORT_FIGSIZE[1] * rows
 
                 temp_canvas = _HeadlessRenderCanvas(width=fig_width, height=fig_height, dpi=options['dpi'])
-                temp_canvas.dark_mode = self.canvas.dark_mode
+                temp_canvas.dark_mode = options.get('dark_mode', self.canvas.dark_mode)
                 temp_canvas.redraw_all(
                     temp_project.datasets, rows, cols, temp_project.all_plot_settings, layout_mode=layout_mode,
                     panel_labels_enabled=temp_project.panel_labels_enabled,
@@ -350,14 +368,15 @@ class ExportMixin:
         methods_sections = collect_methods_sections(self.project)
 
         try:
-            if file_ext == '.pdf':
-                self._write_pdf_report(file_path, title, methods_sections)
-            else:
-                buf = io.BytesIO()
-                self.canvas.fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-                html_text = generate_html_report(buf.getvalue(), methods_sections, title=title)
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(html_text)
+            with self._screen_figure_in_output_colors():
+                if file_ext == '.pdf':
+                    self._write_pdf_report(file_path, title, methods_sections)
+                else:
+                    buf = io.BytesIO()
+                    self.canvas.fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+                    html_text = generate_html_report(buf.getvalue(), methods_sections, title=title)
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(html_text)
         except Exception as e:
             logger.exception("実験レポートの生成中にエラーが発生しました。")
             notify.warning(self, "保存エラー", f"実験レポートの生成中にエラーが発生しました:\n{e}")
@@ -386,145 +405,9 @@ class ExportMixin:
             pdf.savefig(text_fig)
 
     def _on_export_plot(self):
-            dialog = ExportDialog(self)
-
-            dialog.preview_button.clicked.connect(
-                lambda: self._generate_preview(dialog)
-            )
-
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                options = dialog.get_options()
-
-                filter_parts = ["PNG (*.png)", "PDF (*.pdf)", "SVG (*.svg)"]
-                for exp in get_registered_exporters():
-                    filter_parts.append(f"{exp.format_name} (*{exp.extension})")
-                file_path, _ = dialog_dirs.get_save_file_name(
-                    self, dialog_dirs.EXPORT, "プロットを保存", dialog_dirs.project_stem(self), ";;".join(filter_parts),
-                    preferred_dir=dialog_dirs.output_dir(self)
-                )
-                if not file_path:
-                    return
-
-                # グラデーションの塗りはベクター形式でもラスタで埋め込まれる。書き出しは続け、知らせるだけ
-                export_ext = os.path.splitext(file_path)[1].lower()
-                if export_ext in ('.svg', '.pdf') and _project_has_raster_gradient_fill(self.project):
-                    notify.warning(
-                        self, "ベクター出力時の注意",
-                        "グラデーション塗りが有効なデータセットが含まれています。\n"
-                        "この部分は画像(ラスタ)として埋め込まれるため、拡大すると"
-                        "他の要素のようにはくっきり表示されません。\n\n"
-                        "エクスポートは続行します。"
-                    )
-
-                width_in, height_in = self._calculate_size_in_inches(options)
-                if export_ext not in ('.pdf', '.svg') and not confirm_output_size(
-                        self, width_in, height_in, options["dpi"]):
-                    return
-
-                # フル解像度なら間引かずに描き直してから保存する(finally で画面用に戻す)
-                full_resolution = options.get('full_resolution', False)
-                if full_resolution:
-                    self._update_plot(full_resolution=True)
-
-                original_size = self.canvas.fig.get_size_inches()
-
-                self.canvas.fig.set_size_inches(width_in, height_in)
-
-                try:
-                    file_ext = os.path.splitext(file_path)[1].lower()
-
-                    api = get_plugin_api()
-                    exporter = api.get_exporter_for_extension(file_ext) if api is not None else None
-                    if exporter is not None:
-                        try:
-                            exporter.writer(self.canvas.fig, file_path)
-                        except Exception as e:
-                            raise PluginExecutionError(
-                                exporter.name, f"「{file_path}」への書き出しに失敗しました: {e}"
-                            ) from e
-                        return
-
-                    save_kwargs = {'transparent': options.get('transparent', True)}
-                    save_kwargs['bbox_inches'] = 'tight'
-
-                    if file_ext in ['.pdf', '.svg']:
-                        pass
-                    else:
-                        save_kwargs['dpi'] = options["dpi"]
-
-                    with mpl.rc_context(export_rc_params(file_ext, options.get('svg_text_as_path', False))):
-                        self.canvas.fig.savefig(file_path, **save_kwargs)
-                except Exception as e:
-                    logger.exception("エクスポートに失敗しました")
-                    notify.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
-                finally:
-                    # 失敗しても画面の大きさに戻す
-                    self.canvas.fig.set_size_inches(original_size)
-                    if full_resolution:
-                        self._update_plot(full_resolution=False)
-                    self.canvas.draw_idle()
-
-    def _generate_preview(self, dialog):
-            """今の軸だけを、書き出しの大きさの一時的な Figure に描いて見せる。"""
-
-            options = dialog.get_options()
-
-            width_in, height_in = self._calculate_size_in_inches(options)
-
-            # 書き出しの大きさのまま描くと、大きな値で固まる。欄に合う解像度で描く
-            dpi = preview_dpi(width_in, height_in, 100,
-                              dialog.preview_label.width(), dialog.preview_label.height())
-            if dpi is None:
-                dialog.preview_label.setPixmap(QPixmap())
-                dialog.preview_label.setText(preview_too_large_text(width_in, height_in, options["dpi"]))
-                return
-            temp_fig = Figure(figsize=(width_in, height_in), dpi=dpi)
-            temp_ax = temp_fig.add_subplot(111)
-
-            active_index = self.project.active_axis_index
-            if active_index >= len(self.project.all_plot_settings):
-                logger.warning("プレビュー生成時、アクティブな軸設定が見つかりません。")
-                return
-
-            active_settings = self.project.all_plot_settings[active_index]
-
-            # _draw_data は第2Y軸をこの一時的な Figure に作って all_secondary_axes に入れる。
-            # 失敗しても必ず戻さないと、画面の第2Y軸がプレビューの軸を指したままになる。
-            original_secondary = self.canvas.all_secondary_axes.copy()
-            try:
-                while len(self.canvas.all_secondary_axes) <= active_index:
-                    self.canvas.all_secondary_axes.append(None)
-
-                self.canvas._draw_data(
-                    temp_ax, active_index, self.project.datasets,
-                    full_resolution=options.get('full_resolution', False),
-                )
-                self.canvas._apply_appearance(temp_ax, active_index, active_settings)
-            except Exception:
-                logger.exception("エクスポートのプレビューを描画できませんでした")
-            finally:
-                self.canvas.all_secondary_axes = original_secondary
-
-            try:
-                fit_tight_layout(temp_fig)
-            except ValueError:
-                pass
-
-            buf = io.BytesIO()
-            temp_fig.savefig(buf, format='png', dpi=dpi)
-            buf.seek(0)
-
-            pixmap = QPixmap()
-            pixmap.loadFromData(buf.read())
-
-            dialog.preview_label.setPixmap(
-                pixmap.scaled(dialog.preview_label.size(),
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation)
-            )
-
-            buf.close()
-            del temp_fig
+        """メニューと上部バーの書き出し。インスペクタの「エクスポート」タブの設定で保存し、その設定をタブで見せる。"""
+        self.show_export_preview()
+        self.export_preview_panel.save_to_chosen_file()
 
     def _calculate_size_in_inches(self, options):
             """ダイアログの幅と高さをインチにする。"""

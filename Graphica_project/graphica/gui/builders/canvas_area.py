@@ -39,7 +39,7 @@ _MODE_ACTIONS = (
     ("cursor_action", "pointer", "カーソル", "データカーソル", "_toggle_cursor_mode"),
     ("annotation_action", "message-2", "注釈", "注釈 (クリック:テキスト / ドラッグ:矢印 / 右クリック:削除)",
      "_toggle_annotation_mode"),
-    ("range_select_action", "select-all", "範囲選択", "範囲選択 (ドラッグした範囲のカレントデータセットをマスク)",
+    ("range_select_action", "select-all", "範囲を除外", "範囲を除外 (ドラッグした範囲の点を、選んでいるデータセットから除外)",
      "_toggle_range_select_mode"),
     ("peak_placement_action", "mountain", "ピーク",
      "ピーク配置 (クリックで多峰分離フィットの初期値を追加、右クリックで削除)", "_toggle_peak_placement_mode"),
@@ -82,8 +82,10 @@ def _create_mode_actions(app):
     app.fit_tool_action = QAction(_svg_icon("math-function"), tr("フィット"), app)
     app.fit_tool_action.setToolTip(tr("曲線フィット..."))
     app.fit_tool_action.triggered.connect(lambda _checked=False: app.fitting.fit_current_dataset())
-    app.smoothing_tool_action = QAction(_svg_icon("chart-line"), tr("平滑化"), app)
-    app.smoothing_tool_action.setToolTip(tr("Savitzky-Golayフィルタ") + "...")
+    # 表示だけの「表示を平滑化」(プロパティ)と違い、平滑化した新しいデータセットを作る。道具の文字は短く
+    app.smoothing_tool_action = QAction(_svg_icon("chart-line"), tr("平滑化したデータを作る"), app)
+    app.smoothing_tool_action.setIconText(tr("平滑化"))
+    app.smoothing_tool_action.setToolTip(tr("平滑化したデータを作る (Savitzky-Golayフィルタ)") + "...")
     app.smoothing_tool_action.triggered.connect(lambda _checked=False: app.processing.savgol_smooth())
 
 

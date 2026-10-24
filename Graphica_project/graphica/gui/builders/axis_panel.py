@@ -1,32 +1,58 @@
 """軸の設定の欄(凡例の位置・目盛り・グリッド・カラーバー・目盛りの書式・タイトルと軸ラベル・ラベルのタブ)の組み立て。"""
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QSizePolicy, QSpinBox, QToolButton, QVBoxLayout, QWidget)
+    QSpinBox, QToolButton, QVBoxLayout, QWidget)
 from graphica.core.i18n import tr
 from graphica.core.unit_conversion import X_AXIS_UNIT_CHOICES, X_AXIS_UNIT_LABELS
 from graphica.gui.builders.common import (
     _ClickableMathPreviewLabel, _insert_form_row_after, _svg_icon, cap_combo_width)
 from graphica.gui.canvas import DEFAULT_MAJOR_TICK_LENGTH, MINOR_TICK_LENGTH_AUTO
 from graphica.gui.tools.layout_edit import MIN_FREE_RECT_SIZE
+from graphica.gui.shell.subplot_target_bar import SubplotTargetBar
+from graphica.gui.widgets import ComboMirror, SegmentedControl
+from graphica.gui.widgets.eye_toggle import EYE_TOGGLE_SIZE, EyeToggle
+
+
+GRID_STYLE_SPINBOX_MIN_WIDTH = 80
+LEGEND_MAX_COLUMNS = 10
+
+LEGEND_LOCATION_CHOICES = (
+    ("自動(重ならない位置)", "best"),
+    ("右上", "upper right"),
+    ("左上", "upper left"),
+    ("左下", "lower left"),
+    ("右下", "lower right"),
+    ("中央", "center"),
+)
 
 
 def build_legend_location_control(app):
     app.legend_loc_label = QLabel("凡例の位置")
     app.legend_loc_combo = QComboBox()
-    app.legend_loc_combo.addItems([
-        "best", "upper right", "upper left", "lower left", "lower right", "center"
-    ])
+    # 保存する値は matplotlib の loc の名前のまま(項目のデータ)。見せるのは日本語
+    for label, loc in LEGEND_LOCATION_CHOICES:
+        app.legend_loc_combo.addItem(tr(label), loc)
     _insert_form_row_after(app.ui.formLayout_3, app.ui.legend_visible_checkbox,
                            app.legend_loc_label, app.legend_loc_combo)
 
-    app.legend_font_label = QLabel("凡例フォント")
-    app.legend_font_button = QPushButton("フォント選択...")
+    # 列数: 系列が多いときに横へ並べる。枠: 消すと図の上に文字だけ載る
+    app.legend_columns_label = QLabel(tr("列数"))
+    app.legend_columns_spinbox = QSpinBox()
+    app.legend_columns_spinbox.setRange(1, LEGEND_MAX_COLUMNS)
+    app.legend_columns_spinbox.setValue(1)
     _insert_form_row_after(app.ui.formLayout_3, app.legend_loc_combo,
+                           app.legend_columns_label, app.legend_columns_spinbox)
+    app.legend_frame_checkbox = QCheckBox(tr("枠を表示"))
+    app.legend_frame_checkbox.setChecked(True)
+    _insert_form_row_after(app.ui.formLayout_3, app.legend_columns_spinbox, app.legend_frame_checkbox)
+
+    app.legend_font_label = QLabel("凡例のフォント")
+    app.legend_font_button = QPushButton("フォント選択...")
+    _insert_form_row_after(app.ui.formLayout_3, app.legend_frame_checkbox,
                            app.legend_font_label, app.legend_font_button)
 
-    app.legend_color_label = QLabel("凡例 文字色")
+    app.legend_color_label = QLabel("凡例の文字色")
     app.legend_color_button = QPushButton("色選択...")
     _insert_form_row_after(app.ui.formLayout_3, app.legend_font_button,
                            app.legend_color_label, app.legend_color_button)
@@ -76,10 +102,13 @@ def build_tick_grid_and_colorbar_controls(app):
         (tr("実線"), '-'), (tr("破線"), '--'), (tr("点線"), ':'), (tr("一点鎖線"), '-.'),
     ]
 
+    app.grid_linestyle_mirrors = []
+
     def _make_grid_style_row(default_linestyle, default_width):
         linestyle_combo = QComboBox()
-        for choice_label, _code in app.grid_linestyle_choices:
-            linestyle_combo.addItem(choice_label)
+        # 線の絵のセグメントと番号で突き合わせる(値は _grid_linestyle_code が番号から引く)
+        for choice_index, (choice_label, _code) in enumerate(app.grid_linestyle_choices):
+            linestyle_combo.addItem(choice_label, choice_index)
         default_index = next(
             (i for i, (_label, code) in enumerate(app.grid_linestyle_choices) if code == default_linestyle),
             0
@@ -94,9 +123,7 @@ def build_tick_grid_and_colorbar_controls(app):
         width_spinbox.setDecimals(1)
         width_spinbox.setValue(default_width)
         width_spinbox.setToolTip(tr("太さ"))
-        # これより狭いと矢印ボタンと重なって "10.0" のような値が見切れる
-        width_spinbox.setMinimumWidth(60)
-        width_spinbox.setMaximumWidth(78)
+        width_spinbox.setPrefix(tr("太さ") + " ")
 
         alpha_spinbox = QDoubleSpinBox()
         alpha_spinbox.setRange(0.0, 1.0)
@@ -104,22 +131,43 @@ def build_tick_grid_and_colorbar_controls(app):
         alpha_spinbox.setDecimals(2)
         alpha_spinbox.setValue(1.0)
         alpha_spinbox.setToolTip(tr("透過度(アルファ)"))
-        alpha_spinbox.setMinimumWidth(60)
-        alpha_spinbox.setMaximumWidth(78)
+        alpha_spinbox.setPrefix("α ")
 
-        row_layout = QHBoxLayout()
-        row_layout.addWidget(linestyle_combo)
-        row_layout.addWidget(width_spinbox)
-        row_layout.addWidget(alpha_spinbox)
-        return linestyle_combo, width_spinbox, alpha_spinbox, row_layout
+        segments = SegmentedControl()
+        for choice_index, (choice_label, code) in enumerate(app.grid_linestyle_choices):
+            segments.addLineStyleItem(code, choice_index, choice_label)
+        segments_field = QWidget()
+        segments_layout = QHBoxLayout(segments_field)
+        segments_layout.setContentsMargins(0, 0, 0, 0)
+        segments_layout.addWidget(segments, 1)
+        linestyle_combo.setParent(segments_field)
+        linestyle_combo.hide()
+        app.grid_linestyle_mirrors.append(ComboMirror(segments, linestyle_combo))
 
-    (app.x_major_grid_linestyle_combo, app.x_major_grid_width_spinbox,
+        # 線の種類の行の下に、太さと透明度(名前は欄の中の前置きにして、欄の幅を取る)
+        numbers_layout = QHBoxLayout()
+        numbers_layout.setSpacing(6)
+        for spinbox in (width_spinbox, alpha_spinbox):
+            # 前置きの文字の分だけ最小の幅が広がり、行が折り返すので、最小の幅は決めておく
+            spinbox.setMinimumWidth(GRID_STYLE_SPINBOX_MIN_WIDTH)
+            numbers_layout.addWidget(spinbox, 1)
+        row_layout = QVBoxLayout()
+        row_layout.setSpacing(4)
+        row_layout.addWidget(segments_field)
+        row_layout.addLayout(numbers_layout)
+        return linestyle_combo, segments, width_spinbox, alpha_spinbox, row_layout
+
+    (app.x_major_grid_linestyle_combo, app.x_major_grid_linestyle_segments,
+     app.x_major_grid_width_spinbox,
      app.x_major_grid_alpha_spinbox, x_major_grid_layout) = _make_grid_style_row('-', 0.8)
-    (app.x_minor_grid_linestyle_combo, app.x_minor_grid_width_spinbox,
+    (app.x_minor_grid_linestyle_combo, app.x_minor_grid_linestyle_segments,
+     app.x_minor_grid_width_spinbox,
      app.x_minor_grid_alpha_spinbox, x_minor_grid_layout) = _make_grid_style_row('--', 0.5)
-    (app.y_major_grid_linestyle_combo, app.y_major_grid_width_spinbox,
+    (app.y_major_grid_linestyle_combo, app.y_major_grid_linestyle_segments,
+     app.y_major_grid_width_spinbox,
      app.y_major_grid_alpha_spinbox, y_major_grid_layout) = _make_grid_style_row('-', 0.8)
-    (app.y_minor_grid_linestyle_combo, app.y_minor_grid_width_spinbox,
+    (app.y_minor_grid_linestyle_combo, app.y_minor_grid_linestyle_segments,
+     app.y_minor_grid_width_spinbox,
      app.y_minor_grid_alpha_spinbox, y_minor_grid_layout) = _make_grid_style_row('--', 0.5)
 
     app.x_major_grid_style_label = QLabel(tr("X軸主目盛"))
@@ -138,7 +186,7 @@ def build_tick_grid_and_colorbar_controls(app):
         _grid_style_anchor = _grid_style_label
 
     # 目盛線の長さ(pt)。「目盛の太さ」の直後。補助目盛の最小値(-0.5)は「自動」(主目盛 × MINOR_TICK_LENGTH_RATIO)
-    app.tick_length_label = QLabel(tr("目盛の長さ(主/補助)"))
+    app.tick_length_label = QLabel(tr("目盛の長さ"))
     app.major_tick_length_spinbox = QDoubleSpinBox()
     app.major_tick_length_spinbox.setRange(0.0, 20.0)
     app.major_tick_length_spinbox.setSingleStep(0.5)
@@ -158,8 +206,8 @@ def build_tick_grid_and_colorbar_controls(app):
     # QDoubleSpinBox を2つ並べると最小幅が約306pxになり、フォームの列幅を広げてドックに横スクロールが出る
     # (tests/test_main_window.py が検出)。すぐ上の目盛方向の欄と同じ幅に揃える
     for _tick_length_spin in (app.major_tick_length_spinbox, app.minor_tick_length_spinbox):
-        # 「自動 pt」が切れない幅は確保する(幅 340px のインスペクタでも2つ並ぶ)
-        _tick_length_spin.setMinimumWidth(max(app.major_tick_direction_combo.minimumSizeHint().width(), 78))
+        # 「20.0 pt」が切れない幅(右の上下ボタンの 20px と左右の余白の分を足す)
+        _tick_length_spin.setMinimumWidth(_tick_length_spin.fontMetrics().horizontalAdvance("20.0 pt") + 34)
     tick_length_layout = QHBoxLayout()
     tick_length_layout.addWidget(app.major_tick_length_spinbox)
     tick_length_layout.addWidget(app.minor_tick_length_spinbox)
@@ -171,7 +219,8 @@ def build_tick_grid_and_colorbar_controls(app):
     app.colorbar_enabled_checkbox.setChecked(True)
     app.ui.formLayout_3.addRow(app.colorbar_enabled_checkbox)
 
-    app.colorbar_position_label = QLabel(tr("カラーバーの位置"))
+    app.colorbar_position_label = QLabel(tr("位置"))
+    app.colorbar_position_label.setToolTip(tr("カラーバーの位置"))
     app.colorbar_position_combo = QComboBox()
     app.colorbar_position_combo.addItem(tr("右"), "right")
     app.colorbar_position_combo.addItem(tr("左"), "left")
@@ -179,7 +228,8 @@ def build_tick_grid_and_colorbar_controls(app):
     app.colorbar_position_combo.addItem(tr("下"), "bottom")
     app.ui.formLayout_3.addRow(app.colorbar_position_label, app.colorbar_position_combo)
 
-    app.colorbar_width_label = QLabel(tr("カラーバーの幅(割合)"))
+    app.colorbar_width_label = QLabel(tr("幅(割合)"))
+    app.colorbar_width_label.setToolTip(tr("カラーバーの幅(割合)"))
     app.colorbar_width_spinbox = QDoubleSpinBox()
     app.colorbar_width_spinbox.setRange(0.01, 0.5)
     app.colorbar_width_spinbox.setSingleStep(0.01)
@@ -187,19 +237,24 @@ def build_tick_grid_and_colorbar_controls(app):
     app.colorbar_width_spinbox.setValue(0.05)
     app.ui.formLayout_3.addRow(app.colorbar_width_label, app.colorbar_width_spinbox)
 
-    app.colorbar_label_label = QLabel(tr("カラーバーのラベル"))
+    app.colorbar_label_label = QLabel(tr("ラベル"))
+    app.colorbar_label_label.setToolTip(tr("カラーバーのラベル"))
     app.colorbar_label_edit = QLineEdit()
     app.ui.formLayout_3.addRow(app.colorbar_label_label, app.colorbar_label_edit)
 
 
 def build_tick_format_controls(app):
+    # Designer の名前は言い方がほかの欄とそろっていない
+    app.ui.tick_format_label.setText(tr("目盛の数値"))
+    app.ui.x_minor_tick_interval_label.setText(tr("補助目盛の間隔"))
+    app.ui.y_minor_tick_interval_label.setText(tr("補助目盛の間隔"))
     tick_format_choices = [
         tr("自動"),
         tr("軸端にまとめて指数表記 (×10ⁿ)"),
-        tr("目盛りごとに指数表記 (例: 1.0×10¹⁰)"),
+        tr("目盛ごとに指数表記 (例: 1.0×10¹⁰)"),
         tr("常に小数表記"),
     ]
-    app.x_tick_format_label = QLabel(tr("目盛り表記"))
+    app.x_tick_format_label = QLabel(tr("目盛の表記"))
     app.x_tick_format_combo = QComboBox()
     app.x_tick_format_combo.addItems(tick_format_choices)
     cap_combo_width(app.x_tick_format_combo)
@@ -219,20 +274,20 @@ def build_tick_format_controls(app):
     app.x_tick_decimals_spinbox.setSpecialValueText(tr("自動"))
     app.x_tick_decimals_spinbox.setValue(-1)
     app.x_tick_decimals_spinbox.setToolTip(
-        tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
+        tr("目盛の数値の小数点以下の桁数(「自動」以外を選ぶと指数表記より優先されます)"))
     app.ui.formLayout.addRow(QLabel(tr("小数桁数")), app.x_tick_decimals_spinbox)
 
     # 対数軸で補助目盛を出すときだけ使う(出し入れは _on_x_minor_tick_visibility_changed)。
     # ラベルの列幅は X/Y のタブで揃えるので、長いと両方の入力欄が狭まる。説明はツールチップに回す
     app.x_log_minor_subs_label = QLabel(tr("対数補助目盛"))
-    app.x_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛りをどこに打つか"))
+    app.x_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛をどこに打つか"))
     app.x_log_minor_subs_combo = QComboBox()
     app.x_log_minor_subs_combo.addItem(tr("自動(既定)"), "auto")
     app.x_log_minor_subs_combo.addItem(tr("全て(2〜9)"), "all")
     app.x_log_minor_subs_combo.addItem(tr("少なめ(2, 5)"), "few")
     app.x_log_minor_subs_combo.addItem(tr("最小限(5)"), "one")
     app.ui.formLayout.addRow(app.x_log_minor_subs_label, app.x_log_minor_subs_combo)
-    app.x_log_minor_labels_checkbox = QCheckBox(tr("補助目盛りに数値ラベルを表示"))
+    app.x_log_minor_labels_checkbox = QCheckBox(tr("補助目盛にも数値を表示"))
     app.ui.formLayout.addRow(app.x_log_minor_labels_checkbox)
     app.x_log_minor_subs_label.setVisible(False)
     app.x_log_minor_subs_combo.setVisible(False)
@@ -260,7 +315,7 @@ def build_tick_format_controls(app):
     app.ui.formLayout.addRow(
         app.x_secondary_axis_target_unit_label, app.x_secondary_axis_target_unit_combo)
 
-    app.y_tick_format_label = QLabel(tr("目盛り表記"))
+    app.y_tick_format_label = QLabel(tr("目盛の表記"))
     app.y_tick_format_combo = QComboBox()
     app.y_tick_format_combo.addItems(tick_format_choices)
     cap_combo_width(app.y_tick_format_combo)
@@ -278,25 +333,37 @@ def build_tick_format_controls(app):
     app.y_tick_decimals_spinbox.setSpecialValueText(tr("自動"))
     app.y_tick_decimals_spinbox.setValue(-1)
     app.y_tick_decimals_spinbox.setToolTip(
-        tr("目盛りの数値を表示する小数点以下の桁数(「自動」以外を選ぶと指数表記モードより優先されます)"))
+        tr("目盛の数値の小数点以下の桁数(「自動」以外を選ぶと指数表記より優先されます)"))
     app.ui.formLayout_2.addRow(QLabel(tr("小数桁数")), app.y_tick_decimals_spinbox)
 
     # X 軸と同じく、ラベルは短くして説明はツールチップへ
     app.y_log_minor_subs_label = QLabel(tr("対数補助目盛"))
-    app.y_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛りをどこに打つか"))
+    app.y_log_minor_subs_label.setToolTip(tr("対数軸の補助目盛をどこに打つか"))
     app.y_log_minor_subs_combo = QComboBox()
     app.y_log_minor_subs_combo.addItem(tr("自動(既定)"), "auto")
     app.y_log_minor_subs_combo.addItem(tr("全て(2〜9)"), "all")
     app.y_log_minor_subs_combo.addItem(tr("少なめ(2, 5)"), "few")
     app.y_log_minor_subs_combo.addItem(tr("最小限(5)"), "one")
     app.ui.formLayout_2.addRow(app.y_log_minor_subs_label, app.y_log_minor_subs_combo)
-    app.y_log_minor_labels_checkbox = QCheckBox(tr("補助目盛りに数値ラベルを表示"))
+    app.y_log_minor_labels_checkbox = QCheckBox(tr("補助目盛にも数値を表示"))
     app.ui.formLayout_2.addRow(app.y_log_minor_labels_checkbox)
     app.y_log_minor_subs_label.setVisible(False)
     app.y_log_minor_subs_combo.setVisible(False)
     app.y_log_minor_labels_checkbox.setVisible(False)
     app.y_log_note = _log_note_label("y_log_note")
     _insert_form_row_after(app.ui.formLayout_2, app.ui.y_log_checkbox, app.y_log_note)
+
+    # 最大値の欄のすぐ下に、表示中の範囲を欄に入れるボタン(第2Y軸の欄は _build_secondary_y_controls が先に作っている)
+    for axis_key, form, max_spinbox in (('x', app.ui.formLayout, app.ui.x_max_spinbox),
+                                        ('y', app.ui.formLayout_2, app.ui.y_max_spinbox),
+                                        ('y2', app.y2_axis_group.layout(), app.y2_max_spinbox)):
+        button = QPushButton(tr("表示中の範囲を入れる"))
+        button.setToolTip(tr("グラフに表示している範囲(マウスで拡大・移動した範囲も)を最小値・最大値に入れ、"
+                             "自動スケールを切ります"))
+        button.clicked.connect(
+            lambda _checked=False, key=axis_key: app.panels['axis_settings'].fill_range_from_view(key))
+        _insert_form_row_after(form, max_spinbox, button)
+        setattr(app, f'{axis_key}_view_range_button', button)
 
 
 def _log_note_label(name):
@@ -341,9 +408,9 @@ def build_label_editors(app):
 
         # 軸ラベルだけ、文字を残したまま隠せる(タイトルには付けない)
         if field_key in ('x_label', 'y_label'):
-            visible_checkbox = QCheckBox()
+            visible_checkbox = EyeToggle()
             visible_checkbox.setChecked(True)
-            visible_checkbox.setToolTip(tr("ラベルの表示/非表示(テキスト自体は保持されます)"))
+            visible_checkbox.setToolTip(tr("ラベルを表示(隠しても文字は残ります)"))
             wrapper_layout.addWidget(visible_checkbox)
             setattr(app, f'{field_key}_visible_checkbox', visible_checkbox)
 
@@ -351,11 +418,8 @@ def build_label_editors(app):
         format_button.setText("Aa")
         format_button.setToolTip(tr("タイトル/ラベルを編集(書式・記号入力)"))
         format_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        # パネルの幅が狭いので、ボタンは小さくして欄の幅を取らない
-        format_button.setFixedSize(26, 22)
-        small_font = QFont(format_button.font())
-        small_font.setPointSize(max(7, small_font.pointSize() - 2))
-        format_button.setFont(small_font)
+        format_button.setObjectName("label_format_button")
+        format_button.setFixedSize(EYE_TOGGLE_SIZE, EYE_TOGGLE_SIZE)
         wrapper_layout.addWidget(format_button)
         format_button.clicked.connect(
             lambda checked=False, le=line_edit, dt=dialog_title:
@@ -425,24 +489,10 @@ def rebuild_label_tab(app):
     layout_panel.setLayout(layout_form)
     app.figure_layout_panel = layout_panel
 
-    active_axis_group = QGroupBox(tr("編集対象のプロット"))
-    active_axis_layout = QVBoxLayout()
-    sizePolicy = active_axis_group.sizePolicy()
-    sizePolicy.setVerticalPolicy(QSizePolicy.Policy.Fixed)
-    active_axis_group.setSizePolicy(sizePolicy)
+    # 編集するサブプロットは X軸・Y軸・ラベル/書式の3つのタブに効くので、タブの上に1行で置く
     app.active_axis_combo = QComboBox()
-    active_axis_layout.addWidget(app.active_axis_combo)
-    active_axis_group.setLayout(active_axis_layout)
-
-    grid_layout = app.ui.tab_3.layout()  # QGridLayout
-
-    # 既存の formLayout_3 を (0, 0) から外し、編集対象の欄の下(1行目)に入れ直す
-    existing_layout_item = grid_layout.itemAtPosition(0, 0)
-
-    if existing_layout_item:
-        grid_layout.removeItem(existing_layout_item)
-
-    grid_layout.addWidget(active_axis_group, 0, 0)
-
-    if existing_layout_item:
-        grid_layout.addItem(existing_layout_item, 1, 0)
+    app.subplot_target_bar = SubplotTargetBar(app)
+    axis_page_layout = app.ui.gridLayout_6
+    axis_page_layout.removeWidget(app.ui.axis_tab_widget)
+    axis_page_layout.addWidget(app.subplot_target_bar, 0, 0)
+    axis_page_layout.addWidget(app.ui.axis_tab_widget, 1, 0)

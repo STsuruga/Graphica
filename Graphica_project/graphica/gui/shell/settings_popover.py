@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QAbstractButton, QColorDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QToolButton, QVBoxLayout)
 
 from graphica.core.i18n import tr
+from graphica.gui import motion
 from graphica.gui import theme
 from graphica.gui.builders.common import _svg_icon
 from graphica.gui.theme_color import DEFAULT_THEME_COLOR, THEME_COLOR_PRESETS, derive_accent, normalize_hex
@@ -228,6 +229,7 @@ class SettingsPopover(QFrame):
         bottom_right = anchor.mapToGlobal(QPoint(anchor.width() + 8, anchor.height()))
         self.move(bottom_right.x(), bottom_right.y() - self.sizeHint().height())
         self.show()
+        motion.fade_in_window(self)
 
 
 def toggle_settings_popover(app, anchor):

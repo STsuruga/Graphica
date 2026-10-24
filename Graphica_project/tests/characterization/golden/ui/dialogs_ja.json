@@ -737,7 +737,7 @@
      "checked": false,
      "visible": true,
      "enabled": true,
-     "tooltip": "SVG出力時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。PNG/PDF形式には影響しません。"
+     "tooltip": "SVG出力時、目盛の数字やラベルの文字をパス(輪郭線)として出力します。PNG/PDF形式には影響しません。"
     },
     {
      "class": "QCheckBox",
@@ -2429,221 +2429,6 @@
       {
        "class": "QPushButton",
        "text": "OK",
-       "visible": true,
-       "enabled": true
-      },
-      {
-       "class": "QPushButton",
-       "text": "Cancel",
-       "visible": true,
-       "enabled": true
-      }
-     ]
-    }
-   ]
-  },
-  "modals": []
- },
- "ExportDialog": {
-  "tree": {
-   "class": "ExportDialog",
-   "window_title": "プロットのエクスポート",
-   "visible": false,
-   "enabled": true,
-   "children": [
-    {
-     "class": "QLabel",
-     "text": "サイズプリセット",
-     "visible": true,
-     "enabled": true
-    },
-    {
-     "class": "QComboBox",
-     "items": [
-      "カスタム",
-      "学術誌 単段 (85mm)",
-      "学術誌 1.5段 (114mm)",
-      "学術誌 2段 (170mm)"
-     ],
-     "current": 0,
-     "visible": true,
-     "enabled": true,
-     "children": [
-      {
-       "class": "QFrame",
-       "visible": false,
-       "enabled": true,
-       "children": [
-        {
-         "class": "QListView",
-         "visible": false,
-         "enabled": true,
-         "children": [
-          {
-           "class": "QWidget",
-           "name": "qt_scrollarea_viewport",
-           "visible": false,
-           "enabled": true
-          }
-         ]
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "class": "QLabel",
-     "text": "幅",
-     "visible": true,
-     "enabled": true
-    },
-    {
-     "class": "QDoubleSpinBox",
-     "value": "800",
-     "visible": true,
-     "enabled": true,
-     "children": [
-      {
-       "class": "QLineEdit",
-       "name": "qt_spinbox_lineedit",
-       "text": "800",
-       "visible": true,
-       "enabled": true
-      }
-     ]
-    },
-    {
-     "class": "QLabel",
-     "text": "高さ",
-     "visible": true,
-     "enabled": true
-    },
-    {
-     "class": "QDoubleSpinBox",
-     "value": "600",
-     "visible": true,
-     "enabled": true,
-     "children": [
-      {
-       "class": "QLineEdit",
-       "name": "qt_spinbox_lineedit",
-       "text": "600",
-       "visible": true,
-       "enabled": true
-      }
-     ]
-    },
-    {
-     "class": "QLabel",
-     "text": "単位",
-     "visible": true,
-     "enabled": true
-    },
-    {
-     "class": "QComboBox",
-     "items": [
-      "ピクセル (px)",
-      "インチ (in)",
-      "センチメートル (cm)",
-      "ミリメートル (mm)"
-     ],
-     "current": 0,
-     "visible": true,
-     "enabled": true,
-     "children": [
-      {
-       "class": "QFrame",
-       "visible": false,
-       "enabled": true,
-       "children": [
-        {
-         "class": "QListView",
-         "visible": false,
-         "enabled": true,
-         "children": [
-          {
-           "class": "QWidget",
-           "name": "qt_scrollarea_viewport",
-           "visible": false,
-           "enabled": true
-          }
-         ]
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "class": "QLabel",
-     "text": "解像度",
-     "visible": true,
-     "enabled": true
-    },
-    {
-     "class": "QSpinBox",
-     "value": "300 dpi",
-     "visible": true,
-     "enabled": true,
-     "children": [
-      {
-       "class": "QLineEdit",
-       "name": "qt_spinbox_lineedit",
-       "text": "300 dpi",
-       "visible": true,
-       "enabled": true
-      }
-     ]
-    },
-    {
-     "class": "QLabel",
-     "text": "画像にすると 約 800 × 600 px",
-     "visible": true,
-     "enabled": true
-    },
-    {
-     "class": "QCheckBox",
-     "text": "背景を透過",
-     "checked": true,
-     "visible": true,
-     "enabled": true
-    },
-    {
-     "class": "QCheckBox",
-     "text": "文字をアウトライン化する(SVG)",
-     "checked": false,
-     "visible": true,
-     "enabled": true,
-     "tooltip": "SVG出力時、目盛りの数字やラベルの文字をテキスト要素ではなくパス(輪郭線)として出力します。フォントが無い環境でも見た目が崩れませんが、テキストとしての検索・編集はできなくなります。"
-    },
-    {
-     "class": "QCheckBox",
-     "text": "データを間引かずにエクスポート",
-     "checked": false,
-     "visible": true,
-     "enabled": true,
-     "tooltip": "点数の多い Line(折れ線)データセットや 2D マップ(ヒートマップ/等高線)は、画面表示と同じく間引いて描かれます。チェックを入れると間引かず、全データ点でエクスポートします(処理が遅くなる場合があります)。画像の解像度(dpi)とは別の設定です。Scatter/Line+Scatter のマーカーは、この設定に関わらず常に全点描きます。"
-    },
-    {
-     "class": "QPushButton",
-     "text": "プレビュー更新",
-     "visible": true,
-     "enabled": true,
-     "tooltip": "現在の設定でプレビュー画像を生成します。"
-    },
-    {
-     "class": "QLabel",
-     "text": "プレビューがここに表示されます",
-     "visible": true,
-     "enabled": true
-    },
-    {
-     "class": "QDialogButtonBox",
-     "visible": true,
-     "enabled": true,
-     "children": [
-      {
-       "class": "QPushButton",
-       "text": "Save",
        "visible": true,
        "enabled": true
       },
@@ -5016,6 +4801,13 @@
             {
              "class": "QPushButton",
              "text": "既定に戻す",
+             "visible": true,
+             "enabled": true
+            },
+            {
+             "class": "QCheckBox",
+             "text": "画面の動き(タブの切り替え・節の開閉など)",
+             "checked": true,
              "visible": true,
              "enabled": true
             }

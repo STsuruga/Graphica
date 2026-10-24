@@ -231,6 +231,9 @@ def apply_legend(canvas, ax, secondary_ax, settings):
         style=legend_font_dict.get('style'),
         stretch=legend_font_dict.get('stretch')
     )
+    legend_style = {'loc': loc_code, 'prop': legend_font_prop,
+                    'ncols': max(1, int(axis_setting(settings, 'legend_columns'))),
+                    'frameon': bool(axis_setting(settings, 'legend_frame_visible'))}
     # 凡例の並びは描画順とは別に指定できる
     legend_order = axis_setting(settings, 'legend_order')
     legend_obj = None
@@ -238,13 +241,13 @@ def apply_legend(canvas, ax, secondary_ax, settings):
         combined_lines, combined_labels = _apply_legend_order(
             lines_primary + lines_secondary, labels_primary + labels_secondary, legend_order
         )
-        legend_obj = ax.legend(combined_lines, combined_labels, loc=loc_code, prop=legend_font_prop)
+        legend_obj = ax.legend(combined_lines, combined_labels, **legend_style)
     elif has_primary_data:
         ordered_lines, ordered_labels = _apply_legend_order(lines_primary, labels_primary, legend_order)
-        legend_obj = ax.legend(ordered_lines, ordered_labels, loc=loc_code, prop=legend_font_prop)
+        legend_obj = ax.legend(ordered_lines, ordered_labels, **legend_style)
     elif secondary_ax and has_secondary_data:
         ordered_lines, ordered_labels = _apply_legend_order(lines_secondary, labels_secondary, legend_order)
-        legend_obj = secondary_ax.legend(ordered_lines, ordered_labels, loc=loc_code, prop=legend_font_prop)
+        legend_obj = secondary_ax.legend(ordered_lines, ordered_labels, **legend_style)
 
     if legend_obj:
         for text in legend_obj.get_texts(): text.set_color(legend_color)

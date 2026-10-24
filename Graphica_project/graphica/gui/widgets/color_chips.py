@@ -31,12 +31,12 @@ class ColorChip(QAbstractButton):
             ring.setWidthF(2.0)
             painter.setPen(ring)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawRoundedRect(inner.adjusted(-3, -3, 3, 3), 8, 8)
+            painter.drawRoundedRect(inner.adjusted(-3, -3, 3, 3), theme.RADIUS_LG, theme.RADIUS_LG)
         edge = QColor(tokens["text_primary"])
         edge.setAlphaF(0.12)
         painter.setPen(QPen(edge, 1))
         painter.setBrush(self.color)
-        painter.drawRoundedRect(inner, 6, 6)
+        painter.drawRoundedRect(inner, theme.RADIUS_MD, theme.RADIUS_MD)
         painter.end()
 
 

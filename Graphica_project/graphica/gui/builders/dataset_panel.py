@@ -1,5 +1,6 @@
 """データセットの一覧とプロパティ欄の欄の組み立て。"""
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QRectF, Qt, Signal
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout, QGroupBox, QHeaderView,
     QLabel, QLineEdit,
@@ -9,11 +10,12 @@ from graphica.core.i18n import tr
 from graphica.core.marker_style import (
     DEFAULT_MARKER_EDGE_WIDTH, MARKER_EDGE_COLOR, MARKER_EDGE_SAME, MARKER_FILL_COLOR, MARKER_FILL_HOLLOW,
     MARKER_FILL_SOLID)
+from graphica.gui import motion
 from graphica.gui.builders import property_widgets
 from graphica.gui.builders.property_sections import put_switch_in_section_header
 from graphica.gui.builders.common import (
     COLORMAP_CHOICES, DATASET_TREE_VISIBILITY_COLUMN_WIDTH, _DatasetTreeSelectionDelegate, _insert_form_row_after,
-    _svg_icon, cap_combo_width)
+    _svg_icon, cap_combo_width, paint_selection_band)
 from graphica.gui.color_picker_widget import ColorPickerWidget
 from graphica.gui.dataset_bindings import MARKER_CHOICES
 from graphica.gui.dataset_style_icon import (
@@ -232,7 +234,8 @@ def build_dataset_style_controls(app):
     app.waterfall_depth_checkbox.setChecked(False)
     app._prop_form('waterfall').addRow(app.waterfall_depth_checkbox)
 
-    app.waterfall_depth_ratio_label = QLabel(tr("1段あたりの縮小率"))
+    app.waterfall_depth_ratio_label = QLabel(tr("縮小率"))
+    app.waterfall_depth_ratio_label.setToolTip(tr("1段あたりの縮小率"))
     app.waterfall_depth_ratio_spinbox = QDoubleSpinBox()
     app.waterfall_depth_ratio_spinbox.setRange(0.0, 0.9)
     app.waterfall_depth_ratio_spinbox.setSingleStep(0.01)
@@ -260,13 +263,16 @@ def build_dataset_style_controls(app):
     app.error_display_combo.addItem(tr("両方"), "both")
     app._prop_form('extra').addRow(app.error_display_label, app.error_display_combo)
 
-    # 凡例名(= データセット名)を変えずに凡例の文字だけ変える。空ならデータセット名
+    # Designer の「凡例名」の中身はデータセットの名前。凡例に出る文字は、そのすぐ下の「凡例の表示名」で決める
+    app.ui.legend_name_label.setText(tr("名前"))
+    # 名前を変えずに凡例の文字だけ変える。空なら名前
     app.legend_label_label = QLabel(tr("凡例の表示名"))
     app.legend_label_edit = QLineEdit()
-    app.legend_label_edit.setPlaceholderText(tr("空ならデータセット名"))
-    app._prop_form('extra').addRow(app.legend_label_label, app.legend_label_edit)
+    app.legend_label_edit.setPlaceholderText(tr("空なら名前"))
+    _insert_form_row_after(app._prop_form('style'), app.ui.legend_name_edit, app.legend_label_label,
+                           app.legend_label_edit)
     app.hide_from_legend_checkbox = QCheckBox(tr("凡例に表示しない"))
-    app._prop_form('extra').addRow(app.hide_from_legend_checkbox)
+    _insert_form_row_after(app._prop_form('style'), app.legend_label_edit, app.hide_from_legend_checkbox)
 
     # X/Y/Z 列の長形式を2Dマップとして描く。関係する欄の出し入れは property_panel.update_2d_controls_visibility
     app.data_2d_checkbox = QCheckBox(tr("2Dグリッドとして扱う(ヒートマップ)"))
@@ -289,7 +295,7 @@ def build_dataset_style_controls(app):
     app.map_display_mode_combo.addItem(tr("ヒートマップ+等高線"), "heatmap_contour")
     app._prop_form('map').addRow(app.map_display_mode_label, app.map_display_mode_combo)
 
-    app.contour_levels_label = QLabel(tr("等高線レベル数"))
+    app.contour_levels_label = QLabel(tr("等高線の数"))
     app.contour_levels_spinbox = QSpinBox()
     app.contour_levels_spinbox.setRange(2, 100)
     app.contour_levels_spinbox.setValue(10)
@@ -338,6 +344,8 @@ def build_dataset_style_controls(app):
     app.smoothing_method_combo.addItem(tr("ガウシアンフィルタ"), "gaussian")
     # 「平滑化」のチェックは手法と対なので、_build_dataset_property_sections では移さずここで手法の直前に置く
     # (そうしないと間に「透明度」が挟まる)
+    # 解析の「平滑化したデータを作る」(新しいデータセット)と区別する。こちらは表示だけ
+    app.ui.smoothing_checkbox.setText(tr("表示を平滑化"))
     app._prop_form('style').addRow(app.ui.smoothing_checkbox)
     app._prop_form('style').addRow(app.smoothing_method_label, app.smoothing_method_combo)
 
@@ -433,6 +441,44 @@ class DatasetTreeWidget(QTreeWidget):
     引数は、どの項目も親(フォルダ)が変わらなかったか。
     """
     items_dropped = Signal(bool)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # 1つだけ選び直したとき、選択の帯を前の行から滑らせる(動いている間の位置。止まっていれば None)
+        self.sliding_selection_band = None
+        self.currentItemChanged.connect(self._slide_selection_band)
+
+    def _band_rect(self, item):
+        rect = self.visualItemRect(item)
+        if not rect.isValid():
+            return None
+        return QRectF(0, rect.top(), self.viewport().width() - 1, rect.height())
+
+    def _slide_selection_band(self, current, previous):
+        if current is None or previous is None or len(self.selectedItems()) > 1 or not self.isVisible():
+            return
+        start, end = self._band_rect(previous), self._band_rect(current)
+        if start is None or end is None or not motion.is_enabled():
+            return
+        self.sliding_selection_band = start
+
+        def step(rect):
+            self.sliding_selection_band = rect
+            self.viewport().update()
+
+        def finish():
+            self.sliding_selection_band = None
+            self.viewport().update()
+
+        motion.animate_value(self, "_motion_band", start, end, step, finish, after_paint=True)
+
+    def paintEvent(self, event):
+        if self.sliding_selection_band is not None:
+            painter = QPainter(self.viewport())
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            paint_selection_band(painter, self.sliding_selection_band)
+            painter.end()
+        super().paintEvent(event)
 
     def dropEvent(self, event):
         parents = [(item, item.parent()) for item in self._all_items()]

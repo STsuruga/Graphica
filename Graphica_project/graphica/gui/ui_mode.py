@@ -30,15 +30,20 @@ MODE_ONLY_ELEMENTS = (
     ("color_picker_widget.hex_edit", ADVANCED),
     # グラフの下のパネル(データ表・フィット結果・残差・来歴・ログ)
     ("bottom_panel", ADVANCED),
+    # 軸: 単位の換算と第2Y軸
+    ("x_unit_section", ADVANCED),
+    ("y2_axis_section", ADVANCED),
 )
 
 # シンプルで隠すプロパティの行(欄の属性の名前。名前の欄も一緒に隠す)。種類などによる今の出し入れより強い
 LITE_HIDDEN_PROPERTY_FIELDS = (
     "use_secondary_y_checkbox", "x_err_col_combo", "y_err_col_combo", "nan_policy_combo",
     "ui.plot_type_combo", "alpha_slider", "ui.smoothing_checkbox", "smoothing_method_combo",
+    "marker_fill_field", "marker_face_color_picker", "marker_edge_combo", "marker_edge_color_picker",
+    "marker_edge_width_slider", "legend_label_edit", "hide_from_legend_checkbox",
 )
-# シンプルで出すプロパティの節(ほかの節は見出しごと隠す)
-LITE_PROPERTY_SECTIONS = ("data", "style")
+# シンプルで出すプロパティの節(ほかの節は見出しごと隠す)。マーカーは形と大きさだけ(点の種類のときに出る)
+LITE_PROPERTY_SECTIONS = ("data", "style", "marker")
 
 
 # インスペクタのタブ(キー, 出すモード)

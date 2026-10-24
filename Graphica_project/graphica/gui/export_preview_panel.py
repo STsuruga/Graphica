@@ -10,23 +10,39 @@ import matplotlib as mpl
 
 from PySide6.QtCore import Qt, QTimer, QByteArray, QMimeData
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                                QLabel, QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox,
                                QPushButton, QApplication)
 
 from graphica.core.i18n import tr
-from graphica.gui import notify
+from graphica.gui import motion, notify
 from graphica.gui import dialog_dirs
 from graphica.gui.canvas import MplCanvas
-from graphica.gui.export_settings import export_rc_params
+from graphica.core.plugin_api import get_plugin_api, get_registered_exporters
+from graphica.core.plugin_types import PluginExecutionError
+from graphica.gui.export_settings import export_rc_params, project_has_raster_gradient_fill
 from graphica.gui.export_size import ExportSizeFields, confirm_output_size, preview_dpi, preview_too_large_text
-from graphica.gui.theme import apply_form_spacing
+from graphica.gui.builders.property_sections import build_section
 from graphica.gui.widgets import ComboMirror, SegmentedControl
 
 logger = logging.getLogger(__name__)
 
 # 矢印の連打などで毎回重い描き直しが走らないよう、まとめるまでの待ち(ms)
 PREVIEW_DEBOUNCE_MS = 150
+
+# 学術誌の段組の幅(mm)。高さは図ごとに違うので決めない
+SIZE_PRESET_CUSTOM = "カスタム"
+JOURNAL_COLUMN_WIDTHS_MM = (
+    ("学術誌 単段 (85mm)", 85.0),
+    ("学術誌 1.5段 (114mm)", 114.0),
+    ("学術誌 2段 (170mm)", 170.0),
+)
+# 値は日本語の元の文字(書き出しの処理がそれで単位を見分ける)、見せるのは短い記号
+EXPORT_UNITS = (
+    ("ピクセル (px)", "px"), ("インチ (in)", "in"), ("センチメートル (cm)", "cm"), ("ミリメートル (mm)", "mm"),
+)
+MILLIMETRE_UNIT = "ミリメートル (mm)"
+COPY_FORMAT_SEGMENTS_WIDTH = 96
 
 
 def _with_hidden_owner(view, owner):
@@ -48,9 +64,21 @@ class ExportPreviewPanel(QWidget):
         self._current_pixmap = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 9, 14, 9)
+        # 左はほかのタブと同じ 16px。右は下のボタンの行が入るよう少し狭い
+        layout.setContentsMargins(16, 8, 14, 9)
+        layout.setSpacing(6)
 
-        form = QFormLayout()
+        # ほかのタブと同じ開閉できる節(名前の列の幅もそろう)
+        self._size_section = build_section(tr("大きさ"), opened=True, first=True)
+        self._options_section = build_section(tr("書き出し方"), opened=True)
+        form = self._size_section['form']
+        self.size_preset_combo = QComboBox()
+        self.size_preset_combo.addItem(tr(SIZE_PRESET_CUSTOM), None)
+        for label, width_mm in JOURNAL_COLUMN_WIDTHS_MM:
+            self.size_preset_combo.addItem(tr(label), width_mm)
+        self.size_preset_combo.setToolTip(tr("学術誌の段の幅に合わせる(単位はミリメートルになる)"))
+        form.addRow(tr("段幅"), self.size_preset_combo)
+
         self.width_spinbox = QDoubleSpinBox()
         self.width_spinbox.setRange(1, 10000)
         self.width_spinbox.setDecimals(1)
@@ -64,12 +92,11 @@ class ExportPreviewPanel(QWidget):
         form.addRow("高さ", self.height_spinbox)
 
         self.unit_combo = QComboBox()
-        # 値は日本語の元の文字(書き出しの処理がそれで単位を見分ける)。表示だけを訳す
-        for unit in ("ピクセル (px)", "インチ (in)", "センチメートル (cm)"):
+        for unit, _short in EXPORT_UNITS:
             self.unit_combo.addItem(tr(unit), unit)
         # 単位は選択肢が少ないのでセグメントで見せる(値の持ち主はコンボのまま)
         self.unit_segments = SegmentedControl()
-        for unit, short in (("ピクセル (px)", "px"), ("インチ (in)", "in"), ("センチメートル (cm)", "cm")):
+        for unit, short in EXPORT_UNITS:
             self.unit_segments.addItem(short, unit, tr(unit))
         form.addRow("単位", _with_hidden_owner(self.unit_segments, self.unit_combo))
 
@@ -80,14 +107,23 @@ class ExportPreviewPanel(QWidget):
         form.addRow("解像度", self.dpi_spinbox)
 
         self.output_size_label = QLabel()
+        self.output_size_label.setProperty("hint", True)
         form.addRow(self.output_size_label)
         # 単位のコンボの描き直しより先に換算が済むよう、ほかの通知をつなぐ前に作る
         self._size_fields = ExportSizeFields(
             self.width_spinbox, self.height_spinbox, self.unit_combo, self.dpi_spinbox, self.output_size_label)
 
+        form = self._options_section['form']
         self.transparent_checkbox = QCheckBox("背景を透過")
         self.transparent_checkbox.setChecked(True)
         form.addRow(self.transparent_checkbox)
+
+        # ダークのまま書き出すと、透過した白い紙に明るい文字と目盛が乗って読めない図になる
+        self.light_colors_checkbox = QCheckBox(tr("ライト配色で書き出す"))
+        self.light_colors_checkbox.setChecked(True)
+        self.light_colors_checkbox.setToolTip(tr(
+            "ダークモードのときも、書き出し・コピー・印刷はライトの配色(白地に濃い文字)で描きます。"))
+        form.addRow(self.light_colors_checkbox)
 
         # 「名前を付けてエクスポート」は画面の図をそのまま書き出すので、既定はそれと同じ範囲にする
         self.visible_range_checkbox = QCheckBox("表示中の範囲で書き出す")
@@ -97,7 +133,7 @@ class ExportPreviewPanel(QWidget):
 
         self.svg_text_as_path_checkbox = QCheckBox("文字をアウトライン化する(SVG)")
         self.svg_text_as_path_checkbox.setToolTip(
-            "SVG保存/コピー時、目盛りの数字やラベルの文字をパス(輪郭線)として出力します。"
+            "SVG保存/コピー時、目盛の数字やラベルの文字をパス(輪郭線)として出力します。"
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
@@ -110,13 +146,13 @@ class ExportPreviewPanel(QWidget):
         )
         form.addRow(self.full_resolution_checkbox)
 
-        layout.addLayout(form)
-        apply_form_spacing(self)
+        layout.addWidget(self._size_section['section'])
+        layout.addWidget(self._options_section['section'])
 
         self.preview_label = QLabel("プレビューがここに表示されます")
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumSize(200, 150)
-        self.preview_label.setFrameShape(QLabel.Shape.StyledPanel)
+        self.preview_label.setObjectName("export_preview_frame")
         self.preview_label.setWordWrap(True)
         layout.addWidget(self.preview_label, 1)
 
@@ -126,8 +162,12 @@ class ExportPreviewPanel(QWidget):
         # SVG はベクター画像を受け付けるアプリ(Illustrator、Inkscape など)に貼れる
         self.copy_format_combo = QComboBox()
         self.copy_format_combo.addItems(["PNG", "SVG"])
-        self.copy_format_combo.setToolTip("クリップボードにコピーする形式を選択します")
-        button_row.addWidget(self.copy_format_combo)
+        self.copy_format_segments = SegmentedControl()
+        for fmt in ("PNG", "SVG"):
+            self.copy_format_segments.addItem(fmt, fmt, tr("クリップボードにコピーする形式"))
+        self.copy_format_segments.setFixedWidth(COPY_FORMAT_SEGMENTS_WIDTH)
+        button_row.addWidget(_with_hidden_owner(self.copy_format_segments, self.copy_format_combo))
+        self.copy_format_mirror = ComboMirror(self.copy_format_segments, self.copy_format_combo)
 
         self.copy_button = QPushButton("コピー")
         self.copy_button.setToolTip("現在の設定でレンダリングした画像をクリップボードにコピーします")
@@ -135,25 +175,39 @@ class ExportPreviewPanel(QWidget):
         button_row.addWidget(self.copy_button)
 
         self.save_button = QPushButton("名前を付けて保存...")
+        self.save_button.setProperty("primaryButton", True)
         self.save_button.clicked.connect(self._on_save_clicked)
         button_row.addWidget(self.save_button)
         layout.addLayout(button_row)
 
         self.unit_mirror = ComboMirror(self.unit_segments, self.unit_combo)
+        self.size_preset_combo.currentIndexChanged.connect(self._on_size_preset_changed)
 
         self.width_spinbox.valueChanged.connect(self.refresh_preview)
         self.height_spinbox.valueChanged.connect(self.refresh_preview)
         self.unit_combo.currentIndexChanged.connect(self.refresh_preview)
         self.dpi_spinbox.valueChanged.connect(self.refresh_preview)
         self.visible_range_checkbox.toggled.connect(self.refresh_preview)
+        self.light_colors_checkbox.toggled.connect(self.refresh_preview)
 
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.setInterval(PREVIEW_DEBOUNCE_MS)
         self._refresh_timer.timeout.connect(self._render_if_shown)
 
+    def section_forms(self):
+        return [self._size_section['form'], self._options_section['form']]
+
+    def _on_size_preset_changed(self, _index):
+        """「カスタム」なら入力した値をそのまま残す。単位を先に替える(今の幅がミリメートルに換算されてから入れ直す)。"""
+        width_mm = self.size_preset_combo.currentData()
+        if width_mm is None:
+            return
+        self.unit_combo.setCurrentIndex(self.unit_combo.findData(MILLIMETRE_UNIT))
+        self.width_spinbox.setValue(width_mm)
+
     def get_options(self):
-        """ExportDialog と同じ形の設定(_calculate_size_in_inches で使える)。"""
+        """書き出しの設定(_calculate_size_in_inches で使える)。"""
         return {
             "width": self.width_spinbox.value(),
             "height": self.height_spinbox.value(),
@@ -235,7 +289,7 @@ class ExportPreviewPanel(QWidget):
                 return None
 
         temp_canvas = MplCanvas(width=width_in, height=height_in, dpi=dpi)
-        temp_canvas.dark_mode = mw.canvas.dark_mode
+        temp_canvas.dark_mode = mw.output_dark_mode()
         if self.visible_range_checkbox.isChecked():
             # 当て直すときに設定と合わない範囲を消すので、画面の記録を写して渡す
             temp_canvas.view_overrides = copy.deepcopy(mw.canvas.view_overrides)
@@ -325,6 +379,7 @@ class ExportPreviewPanel(QWidget):
                     mime_data.setImageData(fallback_pixmap.toImage())
             QApplication.clipboard().setMimeData(mime_data)
             self.main_window.statusBar().showMessage("プレビュー画像をSVG形式でクリップボードにコピーしました", 3000)
+            motion.toast(self.main_window, tr("コピーしました"))
         else:
             # 上と同じ理由で透過にしない
             png_bytes = self._render_full_figure_bytes(
@@ -338,19 +393,28 @@ class ExportPreviewPanel(QWidget):
             pixmap.loadFromData(png_bytes)
             QApplication.clipboard().setPixmap(pixmap)
             self.main_window.statusBar().showMessage("プレビュー画像をクリップボードにコピーしました", 3000)
+            motion.toast(self.main_window, tr("コピーしました"))
 
     def _on_save_clicked(self):
-        options = self.get_options()
-        width_in, height_in = self.main_window._calculate_size_in_inches(options)
+        self.save_to_chosen_file()
 
-        layout_mode = getattr(self.main_window.project, 'layout_mode', 'grid')
+    def save_to_chosen_file(self):
+        """保存先を聞いて、このタブの設定で書き出す(メニューと上部バーの「エクスポート」もここを通る)。
+
+        形式は拡張子で決める。プラグインの書き出しの拡張子なら、その writer に図を渡す。
+        """
+        mw = self.main_window
+        options = self.get_options()
+        width_in, height_in = mw._calculate_size_in_inches(options)
+
+        layout_mode = getattr(mw.project, 'layout_mode', 'grid')
         if layout_mode == 'free':
-            if not self.main_window.project.all_plot_settings:
+            if not mw.project.all_plot_settings:
                 notify.warning(self, "保存エラー", "有効なプロットがありません。")
                 return
         else:
-            rows = self.main_window.subplot_rows_spinbox.value()
-            cols = self.main_window.subplot_cols_spinbox.value()
+            rows = mw.subplot_rows_spinbox.value()
+            cols = mw.subplot_cols_spinbox.value()
             if rows * cols == 0:
                 notify.warning(self, "保存エラー", "有効なプロットがありません。")
                 return
@@ -358,15 +422,26 @@ class ExportPreviewPanel(QWidget):
         if not confirm_output_size(self, width_in, height_in, options["dpi"]):
             return
 
-        mw = self.main_window
+        filter_parts = ["PNG (*.png)", "PDF (*.pdf)", "SVG (*.svg)"]
+        filter_parts += [f"{exp.format_name} (*{exp.extension})" for exp in get_registered_exporters()]
         file_path, _ = dialog_dirs.get_save_file_name(
-            self, dialog_dirs.EXPORT, "プロットを保存", dialog_dirs.project_stem(mw),
-            "PNG (*.png);;PDF (*.pdf);;SVG (*.svg)", preferred_dir=dialog_dirs.output_dir(mw)
+            mw, dialog_dirs.EXPORT, "プロットを保存", dialog_dirs.project_stem(mw), ";;".join(filter_parts),
+            preferred_dir=dialog_dirs.output_dir(mw)
         )
         if not file_path:
             return
 
-        file_ext = os.path.splitext(file_path)[1].lower().lstrip('.')
+        file_ext = os.path.splitext(file_path)[1].lower()
+        # グラデーションの塗りはベクター形式でもラスタで埋め込まれる。書き出しは続け、知らせるだけ
+        if file_ext in ('.svg', '.pdf') and project_has_raster_gradient_fill(mw.project):
+            notify.warning(
+                mw, "ベクター出力時の注意",
+                "グラデーション塗りが有効なデータセットが含まれています。\n"
+                "この部分は画像(ラスタ)として埋め込まれるため、拡大すると"
+                "他の要素のようにはくっきり表示されません。\n\n"
+                "エクスポートは続行します。"
+            )
+
         temp_canvas = self._make_temp_canvas_for_full_figure(
             width_in, height_in, options["dpi"], full_resolution=options["full_resolution"]
         )
@@ -374,14 +449,24 @@ class ExportPreviewPanel(QWidget):
             notify.warning(self, "保存エラー", "有効なプロットがありません。")
             return
         try:
-            save_kwargs = {'transparent': options["transparent"], 'bbox_inches': 'tight'}
-            if file_ext not in ('pdf', 'svg'):
-                save_kwargs['dpi'] = options["dpi"]
-            with mpl.rc_context(export_rc_params(file_ext, options.get("svg_text_as_path", False))):
-                temp_canvas.fig.savefig(file_path, **save_kwargs)
-            self.main_window.statusBar().showMessage(f"保存しました: {file_path}", 3000)
+            api = get_plugin_api()
+            exporter = api.get_exporter_for_extension(file_ext) if api is not None else None
+            if exporter is not None:
+                try:
+                    exporter.writer(temp_canvas.fig, file_path)
+                except Exception as e:
+                    raise PluginExecutionError(
+                        exporter.name, f"「{file_path}」への書き出しに失敗しました: {e}") from e
+            else:
+                save_kwargs = {'transparent': options["transparent"], 'bbox_inches': 'tight'}
+                if file_ext not in ('.pdf', '.svg'):
+                    save_kwargs['dpi'] = options["dpi"]
+                with mpl.rc_context(export_rc_params(file_ext, options.get("svg_text_as_path", False))):
+                    temp_canvas.fig.savefig(file_path, **save_kwargs)
+            mw.statusBar().showMessage(f"保存しました: {file_path}", 3000)
+            motion.toast(mw, tr("書き出しました"))
         except Exception as e:
-            logger.exception("エクスポートプレビューパネルからの保存に失敗しました。")
-            notify.warning(self, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
+            logger.exception("エクスポートに失敗しました。")
+            notify.warning(mw, "保存エラー", f"エクスポート中にエラーが発生しました:\n{e}")
         finally:
             temp_canvas.deleteLater()

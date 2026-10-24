@@ -6,6 +6,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QToolButton, QVBoxLayout
 
 from graphica.core.i18n import tr
+from graphica.gui import motion
 from graphica.gui.builders.common import _svg_icon
 
 POPOVER_WIDTH = 300
@@ -47,6 +48,7 @@ class LayoutPopover(QFrame):
         bottom_right = anchor.mapToGlobal(QPoint(anchor.width(), anchor.height() + 6))
         self.move(bottom_right.x() - self.width(), bottom_right.y())
         self.show()
+        motion.fade_in_window(self)
 
 
 def toggle_layout_popover(app, anchor):

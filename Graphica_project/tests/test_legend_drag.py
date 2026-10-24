@@ -114,7 +114,7 @@ def test_dragged_position_survives_changing_another_axis_setting(window):
 
 def test_choosing_a_location_again_discards_the_dragged_position(window):
     _drag_legend(window)
-    window.legend_loc_combo.setCurrentText("lower left")
+    window.legend_loc_combo.setCurrentIndex(window.legend_loc_combo.findData("lower left"))
     _pump()
     assert window.project.all_plot_settings[0].get("legend_position") is None
     assert window.canvas.all_axes[0].get_legend()._loc == 3  # 'lower left'

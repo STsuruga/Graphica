@@ -65,6 +65,9 @@ def _patch_preferences_dialog(monkeypatch, accepted=True, settings_tuple=None, d
         def get_wheel_zoom_speed(self):
             return captured['kwargs'].get('wheel_zoom_speed', "normal")
 
+        def get_animations(self):
+            return captured['kwargs'].get('animations', True)
+
         def get_theme_color(self):
             # 指定が無ければ開いたときの色のまま(変えていない)
             return theme_color or captured['kwargs'].get('theme_color')

@@ -189,7 +189,12 @@ def _emit_appearance_calls(lines: list[str], ax_var: str, settings: dict[str, An
     if axis_setting(settings, 'grid_visible'):
         lines.append(f"{ax_var}.grid(True)")
     if axis_setting(settings, 'legend_visible'):
-        lines.append(f"{ax_var}.legend()")
+        legend_args = []
+        if axis_setting(settings, 'legend_columns') != 1:
+            legend_args.append(f"ncols={int(axis_setting(settings, 'legend_columns'))}")
+        if not axis_setting(settings, 'legend_frame_visible'):
+            legend_args.append("frameon=False")
+        lines.append(f"{ax_var}.legend({', '.join(legend_args)})")
 
     if mesh_var is not None and axis_setting(settings, 'colorbar_enabled'):
         position = axis_setting(settings, 'colorbar_position')

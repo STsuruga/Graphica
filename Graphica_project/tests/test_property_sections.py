@@ -444,7 +444,7 @@ def test_map_section_shows_the_shared_rows_for_a_z_color_scatter(window):
     assert "Z軸の列" in shown
     assert "カラーマップ" in shown
     assert "表示方式" not in shown
-    assert "等高線レベル数" not in shown
+    assert "等高線の数" not in shown
 
 
 def test_switching_plot_type_no_longer_moves_rows_across_sections(window):

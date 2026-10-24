@@ -1,9 +1,10 @@
 """軸の設定の部品: 画面の欄と設定の辞書の相互変換、サブプロットの行数と列数、フォントと色の選択、その信号の配線。"""
+import copy
 import functools
 import logging
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QDialog, QFontDialog
+from PySide6.QtWidgets import QDialog, QFontDialog, QMessageBox
 
 from graphica.core.i18n import tr
 from graphica.gui import notify
@@ -12,6 +13,7 @@ from graphica.gui import log_axis_notes, theme
 from graphica.gui.axis_bindings import CARRIED_AXIS_KEYS
 from graphica.gui.builders.axis_format_sections import refresh_axis_format_widgets
 from graphica.gui.color_history import get_color_with_history
+from graphica.gui.rendering.appearance import waterfall_x_shift
 from graphica.gui.dialogs import LegendOrderDialog, LabelEditDialog
 
 logger = logging.getLogger(__name__)
@@ -71,6 +73,20 @@ def _order_labels(labels, order):
         key=lambda i: (0, order_index[labels[i]]) if labels[i] in order_index else (1, i)
     )
     return [labels[i] for i in indices]
+
+
+# 「この書式を全サブプロットに適用」で写す鍵: ラベル/書式のタブの見た目だけ(文字・範囲・目盛の間隔・凡例は写さない)
+AXIS_FORMAT_KEYS = (
+    'x_label_visible', 'y_label_visible',
+    'tick_font', 'tick_color', 'major_tick_direction', 'minor_tick_direction',
+    'major_tick_direction_y2', 'minor_tick_direction_y2', 'tick_width', 'major_tick_length', 'minor_tick_length',
+    'axis_label_font', 'axis_label_color',
+    'grid_visible', 'minor_grid_visible',
+    *(f'{axis}_{which}_grid_{part}' for axis in ('x', 'y') for which in ('major', 'minor')
+      for part in ('linestyle', 'width', 'alpha')),
+    'spine_width', 'spine_color',
+    'colorbar_enabled', 'colorbar_position', 'colorbar_width_fraction',
+)
 
 
 class AxisSettingsPanel:
@@ -184,6 +200,7 @@ class AxisSettingsPanel:
             # 「描画先」の選択はデータセットを選んだときに property_panel.update_ui_state が決める
             self._app.active_axis_combo.blockSignals(False)
             self._app.subplot_target_combo.blockSignals(False)
+            self._app.subplot_target_bar.refresh()
 
 
     def _seed_min_max_spinboxes(self, min_spinbox, max_spinbox, limits):
@@ -244,6 +261,61 @@ class AxisSettingsPanel:
             self._seed_min_max_spinboxes(
                 self._app.ui.y_min_spinbox, self._app.ui.y_max_spinbox, axis.get_ylim() if axis is not None else None)
 
+        self._on_axis_setting_changed()
+
+    def apply_format_to_all_subplots(self):
+        """今のサブプロットのラベル/書式(AXIS_FORMAT_KEYS)を、ほかの全サブプロットに写す。軸の設定は Undo できないので確かめる。"""
+        settings_list = self._app.project.all_plot_settings
+        active = self._app.project.active_axis_index
+        others = [index for index in range(len(settings_list)) if index != active]
+        if not others:
+            return
+        answer = notify.question(
+            self._app, tr("書式を全サブプロットに適用"),
+            tr("プロット {number} の書式(フォント・目盛・グリッド・外枠・カラーバー)を、"
+               "ほかの {count} 個のサブプロットに写します。元に戻せません。").format(number=active + 1, count=len(others)),
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        if answer != QMessageBox.StandardButton.Ok:
+            return
+        current = self._gather_settings_from_ui()
+        settings_list[active] = current
+        for index in others:
+            for key in AXIS_FORMAT_KEYS:
+                if key in current:
+                    settings_list[index][key] = copy.deepcopy(current[key])
+        self._app._update_plot_appearance()
+        self._app.statusBar().showMessage(
+            tr("書式を {count} 個のサブプロットに適用しました").format(count=len(others)), 3000)
+
+    def fill_range_from_view(self, axis_key):
+        """表示中の範囲(マウスで拡大・移動した範囲も)を最小値・最大値の欄に入れ、自動スケールを切る。axis_key は 'x' / 'y' / 'y2'。"""
+        app = self._app
+        axis_index = app.project.active_axis_index
+        if axis_key == 'y2':
+            secondary_axes = getattr(app.canvas, 'all_secondary_axes', [])
+            target = secondary_axes[axis_index] if 0 <= axis_index < len(secondary_axes) else None
+            autoscale, min_spinbox, max_spinbox = app.y2_autoscale_checkbox, app.y2_min_spinbox, app.y2_max_spinbox
+        else:
+            target = self._current_active_axis()
+            ui = app.ui
+            autoscale = getattr(ui, f'{axis_key}_autoscale_checkbox')
+            min_spinbox, max_spinbox = getattr(ui, f'{axis_key}_min_spinbox'), getattr(ui, f'{axis_key}_max_spinbox')
+        if target is None:
+            return
+        # 反転した軸は get_xlim が (大, 小) を返す。欄には小さい方を最小値に入れる(向きは「軸を反転」が決める)
+        low, high = sorted(target.get_xlim() if axis_key == 'x' else target.get_ylim())
+        if axis_key == 'x':
+            # ウォーターフォールで X をずらしていると、描くときに手動の範囲をその分広げるので、広げる前の範囲に戻す
+            left, right = waterfall_x_shift(app.canvas, axis_index)
+            low, high = low - left, high - right
+        blocked = autoscale.blockSignals(True)
+        autoscale.setChecked(False)
+        autoscale.blockSignals(blocked)
+        if axis_key == 'y2':
+            self._refresh_y2_axis_state()
+        else:
+            getattr(self, f'_refresh_{axis_key}_autoscale_enabled_state')()
+        self._seed_min_max_spinboxes(min_spinbox, max_spinbox, (low, high))
         self._on_axis_setting_changed()
 
     def _on_x_tick_mode_changed(self):
@@ -326,6 +398,8 @@ class AxisSettingsPanel:
 
         self._app.legend_loc_label.setEnabled(is_visible)
         self._app.legend_loc_combo.setEnabled(is_visible)
+        for widget in (self._app.legend_columns_label, self._app.legend_columns_spinbox, self._app.legend_frame_checkbox):
+            widget.setEnabled(is_visible)
         self._app.legend_font_label.setEnabled(is_visible)
         self._app.legend_font_button.setEnabled(is_visible)
         self._app.legend_color_label.setEnabled(is_visible)
@@ -362,7 +436,7 @@ class AxisSettingsPanel:
         is_minor_visible = is_visible and self._app.ui.minor_grid_visible_checkbox.isChecked()
         for prefix, shown in (("x_major", is_visible), ("y_major", is_visible),
                               ("x_minor", is_minor_visible), ("y_minor", is_minor_visible)):
-            for suffix in ("grid_linestyle_combo", "grid_width_spinbox", "grid_alpha_spinbox"):
+            for suffix in ("grid_linestyle_combo", "grid_linestyle_segments", "grid_width_spinbox", "grid_alpha_spinbox"):
                 getattr(self._app, f"{prefix}_{suffix}").setEnabled(shown)
             if grid_form is not None:
                 grid_form.setRowVisible(getattr(self._app, f"{prefix}_grid_style_label"), shown)
@@ -450,14 +524,13 @@ class AxisSettingsPanel:
             line_edit.setText(dialog.get_text())
 
     def _refresh_label_preview(self, preview_label, text, placeholder):
-        """プレビューを matplotlib で描いた見た目にする。空なら placeholder を text_muted の色で出す。"""
+        """プレビューを matplotlib で描いた見た目にする。空なら placeholder を文字で出す。"""
         from graphica.gui.mathtext_preview import render_mathtext_to_pixmap
 
-        tokens = theme.current_tokens()
-        if text:
-            pixmap = render_mathtext_to_pixmap(text, color=tokens["text_primary"])
-        else:
-            pixmap = render_mathtext_to_pixmap(placeholder, color=tokens["text_muted"])
+        if not text:
+            preview_label.set_placeholder_text(placeholder)
+            return
+        pixmap = render_mathtext_to_pixmap(text, color=theme.current_tokens()["text_primary"])
         # 欄の幅が決まるたびに収まるよう縮める(setPixmap だと、この時点の幅がまだ確定していないとはみ出す)
         preview_label.set_natural_pixmap(pixmap)
 

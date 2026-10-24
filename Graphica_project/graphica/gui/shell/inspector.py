@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QFormLayout, QHBoxLayout, QLabel, QScrollArea, QS
                                QWidget)
 
 from graphica.core.i18n import tr
+from graphica.gui import motion
 from graphica.gui.dataset_bindings import MARKER_CHOICES, NO_MARKER
 from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES, make_dataset_style_icon
 
@@ -99,6 +100,10 @@ def section_state_texts(dataset):
     }
 
 
+# タブとタブの間(QSS の QTabBar#inspector_tabs::tab の margin-right と同じ値)
+INSPECTOR_TAB_SPACING = 16
+
+
 class Inspector(QWidget):
     """下線のタブと、タブごとのページ。"""
 
@@ -126,7 +131,13 @@ class Inspector(QWidget):
         self.stack = QStackedWidget()
         layout.addWidget(self.stack, 1)
         self._keys = []
-        self.tab_bar.currentChanged.connect(self.stack.setCurrentIndex)
+        self.tab_bar.currentChanged.connect(self._on_tab_changed)
+        self.tab_indicator = motion.TabIndicator(self.tab_bar, trailing_margin=INSPECTOR_TAB_SPACING)
+
+    def _on_tab_changed(self, index):
+        before = motion.grab(self.stack)
+        self.stack.setCurrentIndex(index)
+        motion.crossfade(self.stack, before)
 
     def add_page(self, key, title, widget):
         self._keys.append(key)

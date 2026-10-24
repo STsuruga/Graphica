@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QAbstractItemDelegate, QAbstractSpinBox, QApplica
                                QProxyStyle, QStyle, QStyledItemDelegate, QStyleFactory)
 
 from graphica.gui.icon_utils import icon as _svg_icon
+from graphica.gui import motion
 from graphica.gui.theme_color import DEFAULT_THEME_COLOR, derive_accent, normalize_hex
 
 _wheel_value_change_disabled = False
@@ -19,21 +20,31 @@ _current_theme_color = DEFAULT_THEME_COLOR
 _last_applied_dark = None  # 同じ (明暗, テーマカラー) での apply_theme() は重い処理を省く
 _last_applied_theme_color = None
 
-# 選択の角丸を描くデリゲートが使う。QSS の QTreeWidget の border-radius と同じ値にしておくこと
-DATASET_LIST_ITEM_RADIUS = 8
+# 角丸は5段: 小(バッジ・一覧の項目・小さなボタン)・中(ボタン・入力欄)・大(一覧・メニュー・ポップアップ・タイル)・
+# 特大(グラフのカードと下のパネル)と、丸(高さの半分。スイッチ・セグメント・点)。QSS は {radius_*} で受け取る
+RADIUS_SM = 4
+RADIUS_MD = 7
+RADIUS_LG = 10
+RADIUS_XL = 14
+# 選択の角丸を描くデリゲートが使う(一覧の項目と同じ段)
+DATASET_LIST_ITEM_RADIUS = RADIUS_MD
 
 # スピンボックスの矢印は PNG にして QSS の ::up-arrow / ::down-arrow の image で指定する。
 # 枠を QSS で描いていると、QProxyStyle で矢印を描いても反映されたりされなかったりする。
 _ARROW_ICON_CACHE_DIR = os.path.join(tempfile.gettempdir(), "graphica_theme_icons")
 
 
+# 矢印の PNG の大きさ。QSS では 12px に縮めて出すので、高 DPI の画面でもにじまないよう倍で描く
+ARROW_ICON_SIZE = 28
+
+
 def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
-    """三角の矢印の PNG を(無ければ)作り、QSS の url() に入れられるパスを返す。"""
+    """節の見出しと同じ線のシェブロンの PNG を(無ければ)作り、QSS の url() に入れられるパスを返す。"""
     os.makedirs(_ARROW_ICON_CACHE_DIR, exist_ok=True)
     safe_color = color.lstrip("#")
-    # 大きさをファイル名に入れ、寸法を変えたとき古い PNG を使い回さない
-    size = 14
-    filename = f"spin_arrow_{direction}_{safe_color}_{size}.png"
+    # 形と大きさをファイル名に入れ、描き方を変えたとき古い PNG を使い回さない
+    size = ARROW_ICON_SIZE
+    filename = f"spin_chevron_{direction}_{safe_color}_{size}.png"
     path = os.path.join(_ARROW_ICON_CACHE_DIR, filename)
 
     if not os.path.exists(path):
@@ -41,22 +52,21 @@ def _spinbox_arrow_icon_url(direction: str, color: str) -> str:
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(color))
+        pen = QPen(QColor(color))
+        pen.setWidthF(size * 0.11)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
 
         cx, cy = size / 2, size / 2
-        aw, ah = 4.4, 3.3
-        arrow_path = QPainterPath()
-        if direction == "up":
-            arrow_path.moveTo(cx - aw, cy + ah * 0.5)
-            arrow_path.lineTo(cx + aw, cy + ah * 0.5)
-            arrow_path.lineTo(cx, cy - ah * 0.5)
-        else:
-            arrow_path.moveTo(cx - aw, cy - ah * 0.5)
-            arrow_path.lineTo(cx + aw, cy - ah * 0.5)
-            arrow_path.lineTo(cx, cy + ah * 0.5)
-        arrow_path.closeSubpath()
-        painter.drawPath(arrow_path)
+        half_width, half_height = size * 0.28, size * 0.14
+        sign = -1 if direction == "up" else 1
+        chevron = QPainterPath()
+        chevron.moveTo(cx - half_width, cy - sign * half_height)
+        chevron.lineTo(cx, cy + sign * half_height)
+        chevron.lineTo(cx + half_width, cy - sign * half_height)
+        painter.drawPath(chevron)
         painter.end()
         pixmap.save(path)
 
@@ -128,7 +138,7 @@ QToolTip {{
     color: {text_primary};
     border: 1px solid {border_strong};
     padding: 4px 6px;
-    border-radius: 4px;
+    border-radius: {radius_sm};
 }}
 
 /* --- メニューバー / メニュー --- */
@@ -140,7 +150,7 @@ QMenuBar {{
 QMenuBar::item {{
     background: transparent;
     padding: 4px 10px;
-    border-radius: 4px;
+    border-radius: {radius_sm};
 }}
 QMenuBar::item:selected {{
     background: {accent_soft};
@@ -149,12 +159,12 @@ QMenuBar::item:selected {{
 QMenu {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: {radius_lg};
     padding: 4px;
 }}
 QMenu::item {{
     padding: 6px 24px 6px 12px;
-    border-radius: 6px;
+    border-radius: {radius_sm};
 }}
 QMenu::item:selected {{
     background: {accent_soft};
@@ -185,13 +195,13 @@ QLabel#dataset_mini_stats_label {{
 QWidget#plot_container {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 14px;
+    border-radius: {radius_xl};
 }}
 /* グラフの下のパネル(GUI 刷新、アドバンスド): カードと同じ角丸。上にアイコン付きのタブ */
 QFrame#bottom_panel {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 14px;
+    border-radius: {radius_xl};
 }}
 QWidget#bottom_panel_header {{
     background: transparent;
@@ -201,7 +211,7 @@ QWidget#bottom_panel_header {{
 QToolButton#bottom_tab {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px 10px;
     color: {text_secondary};
 }}
@@ -211,12 +221,11 @@ QToolButton#bottom_tab:hover {{
 QToolButton#bottom_tab:checked {{
     background: {surface_2};
     color: {text_primary};
-    font-weight: 600;
 }}
 QLabel#bottom_badge {{
     background: {surface_2};
     color: {text_secondary};
-    border-radius: 5px;
+    border-radius: {radius_sm};
     padding: 0 6px;
     font-size: 10.5px;
 }}
@@ -255,9 +264,54 @@ QPlainTextEdit#bottom_log, QTextEdit#fit_info_textedit {{
     border: none;
     padding: 6px 10px;
 }}
+/* フィット結果の表: 桁がそろうよう等幅の数字。下のパネルの枠の中なので表の枠は付けない */
+QTableWidget#fit_result_table {{
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    font-family: "Consolas", "Menlo", monospace;
+    selection-background-color: {accent_soft};
+    selection-color: {text_primary};
+}}
+QTableWidget#fit_result_table::item {{
+    border-bottom: 1px solid {border};
+    padding: 0 10px;
+}}
+QLabel#fit_result_title {{
+    font-weight: 600;
+}}
+/* 下のパネル自体が角丸の枠なので、中の一覧には枠を付けない */
+QTreeWidget#provenance_tree {{
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}}
 QPlainTextEdit#bottom_log {{
     font-family: "Consolas", "Menlo", monospace;
     font-size: 11.5px;
+}}
+/* 欄の下の補足と、中身が空のときの案内。ダークでも読める淡い文字色にする */
+QLabel[hint="true"] {{
+    color: {text_muted};
+    font-size: 9pt;
+    background: transparent;
+}}
+QLabel[emptyNote="true"] {{
+    color: {text_muted};
+    padding: 12px;
+    background: transparent;
+}}
+/* エクスポートのプレビューの枠: 下のパネルやカードと同じく角丸 */
+QLabel#export_preview_frame {{
+    background: {surface_2};
+    border: 1px solid {border};
+    border-radius: {radius_lg};
+    color: {text_muted};
+}}
+/* 縦横のスクロールバーが出たときの右下の角。既定の白い四角を消す */
+QAbstractScrollArea::corner {{
+    background: transparent;
+    border: none;
 }}
 /* グラフのカード(GUI 刷新): ミニマップとの間は線を引かず、すき間だけ */
 QFrame#canvas_separator {{
@@ -277,7 +331,7 @@ QLabel#card_meta {{
 QToolButton#card_button {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 3px;
 }}
 QToolButton#card_button:hover {{
@@ -297,7 +351,7 @@ QToolBar#plot_toolbar {{
 }}
 QToolBar#plot_toolbar QToolButton {{
     border: none;
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 3px 6px;
     margin: 0 2px 0 0;
     color: {text_primary};
@@ -312,12 +366,12 @@ QToolBar#plot_toolbar QToolButton[toolSegment="last"] {{
     padding: 4px 7px;
 }}
 QToolBar#plot_toolbar QToolButton[toolSegment="first"] {{
-    border-top-left-radius: 8px;
-    border-bottom-left-radius: 8px;
+    border-top-left-radius: {radius_md};
+    border-bottom-left-radius: {radius_md};
 }}
 QToolBar#plot_toolbar QToolButton[toolSegment="last"] {{
-    border-top-right-radius: 8px;
-    border-bottom-right-radius: 8px;
+    border-top-right-radius: {radius_md};
+    border-bottom-right-radius: {radius_md};
     margin-right: 4px;
 }}
 QToolBar#plot_toolbar QToolButton:hover {{
@@ -349,13 +403,13 @@ QToolBar#plot_toolbar QToolButton[toolSegment="last"]:checked:hover {{
 QToolBar#plot_tool_rail {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 13px;
+    border-radius: {radius_xl};
     padding: 4px;
     spacing: 3px;
 }}
 QToolBar#plot_tool_rail QToolButton {{
     border: none;
-    border-radius: 9px;
+    border-radius: {radius_lg};
     padding: 6px;
 }}
 QToolBar#plot_tool_rail QToolButton:hover {{
@@ -377,7 +431,7 @@ QToolBar {{
 QToolButton {{
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 4px;
 }}
 QToolButton:hover {{
@@ -420,7 +474,7 @@ QFrame#status_dot {{
 QFrame#settings_popover {{
     background: {surface};
     border: 1px solid {border_strong};
-    border-radius: 12px;
+    border-radius: {radius_lg};
 }}
 QFrame#settings_popover QLabel {{
     background: transparent;
@@ -447,7 +501,7 @@ QLabel#settings_popover_mono {{
 QLabel#settings_popover_note {{
     color: {text_secondary};
     background: {surface_2};
-    border-radius: 8px;
+    border-radius: {radius_md};
     padding: 6px 8px;
     font-size: 11.5px;
 }}
@@ -473,14 +527,14 @@ QDockWidget {{
     /* 指定しないと OS のパレットの色が透け、背景のトークンが効かない */
     background: {bg};
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: {radius_lg};
 }}
 QDockWidget::title {{
     background: {surface_2};
     padding: 6px 8px;
     border-bottom: 1px solid {border};
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    border-top-left-radius: {radius_lg};
+    border-top-right-radius: {radius_lg};
     font-weight: 600;
     letter-spacing: .01em;
 }}
@@ -509,26 +563,27 @@ QSplitter::handle:hover {{
 }}
 
 /* --- グループボックス / ボタン --- */
+/* インスペクタの節の見出しと同じ形: 上に細い罫線、その下に太字の見出し。見出しは padding の中に置く
+   (margin に置くと罫線が見出しの下に来る)。QFontDialog などの Qt 標準のダイアログでも見切れない。 */
 QGroupBox {{
     background: transparent;
-    border: 1px solid {border};
-    border-radius: 8px;
-    margin-top: 20px;
-    padding-top: 14px;
+    border: none;
+    border-top: 1px solid {border};
+    border-radius: 0;
+    margin-top: 6px;
+    padding-top: 30px;
     font-weight: 500;
 }}
 QGroupBox::title {{
-    subcontrol-origin: margin;
-    left: 10px;
-    /* 枠の外にはみ出さない位置にする。はみ出すと、QFontDialog などの Qt 標準のダイアログでは上の余白が無く見切れる。 */
-    top: 0px;
-    padding: 2px 8px;
-    color: {accent_fg};
-    font-size: 12.5px;
+    subcontrol-origin: padding;
+    subcontrol-position: top left;
+    left: 0;
+    top: 9px;
+    padding: 0;
+    color: {text_primary};
+    font-size: {subheading_pt}pt;
     font-weight: 600;
-    letter-spacing: .02em;
-    background: {accent_soft};
-    border-radius: 5px;
+    background: transparent;
 }}
 
 /* --- ドックの中のグループボックスは枠とチップを付けない(カードの中に箱が入れ子になって窮屈に見える) --- */
@@ -545,11 +600,14 @@ QDockWidget QGroupBox[collapsibleBody="true"] {{
     padding-top: 0px;
 }}
 QDockWidget QGroupBox::title {{
+    subcontrol-origin: margin;
     left: 0;
     /* 上のモーダル側と同じく、枠の外にはみ出さない位置にする */
     top: 0px;
     padding: 0;
     color: {text_secondary};
+    font-size: 12.5px;
+    letter-spacing: .02em;
     background: transparent;
     border-radius: 0;
 }}
@@ -571,11 +629,6 @@ QToolButton#property_subsection_toggle {{
 }}
 QToolButton#property_subsection_toggle[firstSection="true"] {{
     border-top: none;
-    margin-top: 0;
-}}
-QToolButton#property_subsection_toggle:!checked {{
-    padding-top: 7px;
-    padding-bottom: 7px;
     margin-top: 0;
 }}
 QToolButton#property_subsection_toggle:hover {{
@@ -623,11 +676,11 @@ QTabBar#inspector_tabs::tab:hover {{
     background: transparent;
     color: {text_primary};
 }}
+/* 選んだタブは太字にしない(幅が変わって隣のタブが横にずれる)。色と、滑る下線(motion.TabIndicator)で見せる */
 QTabBar#inspector_tabs::tab:selected {{
     background: transparent;
     border-bottom: 2px solid {accent};
     color: {text_primary};
-    font-weight: 600;
 }}
 QWidget#inspector_target {{
     background: {surface};
@@ -646,7 +699,7 @@ QLabel#inspector_target_sub {{
 QFrame#lite_more_box {{
     background: transparent;
     border: 1px dashed {border_strong};
-    border-radius: 10px;
+    border-radius: {radius_lg};
     margin: 12px 0 4px 0;
 }}
 QLabel#lite_more_text, QLabel#lite_more_icon {{
@@ -669,7 +722,7 @@ QPushButton#lite_more_button:hover {{
 QPushButton {{
     background: {surface};
     border: 1px solid {border_strong};
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 5px 14px;
 }}
 QPushButton:hover {{
@@ -703,7 +756,7 @@ QPushButton[iconOnly="true"] {{
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 4px 8px;
     selection-background-color: {accent_soft};
 }}
@@ -720,11 +773,14 @@ QLineEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled, QComboBox:disabl
 QLabel#mathtext_preview_label {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 4px 8px;
 }}
 QLabel#mathtext_preview_label:hover {{
     border-color: {accent};
+}}
+QLabel#mathtext_preview_label[placeholderShown="true"] {{
+    color: {text_muted};
 }}
 
 /* --- スピンボックスの上下ボタン: 矢印は width / height を指定するだけで描かれなくなるので、
@@ -741,7 +797,7 @@ QSpinBox::up-button, QDoubleSpinBox::up-button {{
     height: 13px;
     margin: 1px 2px 1px 1px;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: {radius_sm};
     background: transparent;
 }}
 QSpinBox::down-button, QDoubleSpinBox::down-button {{
@@ -751,7 +807,7 @@ QSpinBox::down-button, QDoubleSpinBox::down-button {{
     height: 13px;
     margin: 1px 2px 1px 1px;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: {radius_sm};
     background: transparent;
 }}
 QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
@@ -772,6 +828,12 @@ QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {{
     width: 12px;
     height: 12px;
 }}
+QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled {{
+    image: url({spin_up_arrow_disabled_url});
+}}
+QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled {{
+    image: url({spin_down_arrow_disabled_url});
+}}
 QComboBox {{
     /* 一覧はメニュー風ではなくリストで出す(メニュー風だと外側に四角い枠が描かれ、角丸にならない) */
     combobox-popup: 0;
@@ -786,6 +848,9 @@ QComboBox::down-arrow {{
     width: 12px;
     height: 12px;
 }}
+QComboBox::down-arrow:disabled {{
+    image: url({spin_down_arrow_disabled_url});
+}}
 /* 開いた一覧: 箱の角丸はプルダウンと同じ 6px(外側の器は透明にする。install_rounded_combo_popups) */
 QComboBoxPrivateContainer {{
     background: transparent;
@@ -794,7 +859,7 @@ QComboBoxPrivateContainer {{
 QComboBox QAbstractItemView {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 6px;
+    border-radius: {radius_md};
     padding: 4px;
     selection-background-color: {accent_soft};
     selection-color: {accent_fg};
@@ -803,7 +868,7 @@ QComboBox QAbstractItemView {{
 QComboBox QAbstractItemView::item {{
     min-height: 24px;
     padding: 0 8px;
-    border-radius: 5px;
+    border-radius: {radius_sm};
     color: {text_primary};
 }}
 QComboBox QAbstractItemView::item:hover {{
@@ -818,7 +883,7 @@ QComboBox QAbstractItemView::item:selected {{
 QTreeWidget, QListWidget, QTableWidget {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: {radius_lg};
     alternate-background-color: {surface_2};
 }}
 QHeaderView::section {{
@@ -837,7 +902,7 @@ QTreeWidget::item:selected, QListWidget::item:selected, QTableWidget::item:selec
 }}
 QTreeWidget::item, QListWidget::item {{
     padding: 5px 4px;
-    border-radius: 5px;
+    border-radius: {radius_sm};
 }}
 
 /* --- データセット一覧の選択: 背景は _DatasetTreeSelectionDelegate が1つの角丸で描く
@@ -861,22 +926,35 @@ QTreeWidget#dataset_list_widget::item:selected {{
 QLineEdit#dataset_search_edit {{
     border: none;
     background: {surface_2};
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 5px 9px;
 }}
 
 /* --- タブ --- */
 QTabWidget::pane {{
     border: 1px solid {border};
-    border-radius: 8px;
+    border-radius: {radius_lg};
+}}
+/* 「軸」のサブタブは下線のタブだけにし、中身を箱で囲まない(インスペクタの中に箱が入れ子になる) */
+QTabWidget#axis_tab_widget::pane {{
+    border: none;
+    border-top: 1px solid {border};
+    border-radius: 0;
+}}
+QLabel#subplot_target_caption, QLabel#subplot_target_detail {{
+    color: {text_secondary};
+    font-size: 11.5px;
+}}
+QLabel#subplot_target_name {{
+    font-weight: 600;
 }}
 QTabBar::tab {{
     background: transparent;
     color: {text_secondary};
     padding: 6px 14px;
     margin-right: 2px;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    border-top-left-radius: {radius_md};
+    border-top-right-radius: {radius_md};
     border-bottom: 2px solid transparent;
 }}
 QTabBar::tab:hover {{
@@ -887,13 +965,27 @@ QTabBar::tab:selected {{
     background: {surface};
     border-bottom: 2px solid {accent};
     color: {accent_fg};
-    font-weight: 600;
+}}
+/* 下線を motion.TabIndicator が描くタブ: 選んだタブの下線は消す(線が滑ってくる) */
+QTabBar[slidingIndicator="true"]::tab:selected {{
+    border-bottom-color: transparent;
+}}
+QWidget#tab_indicator {{
+    background: {accent};
+    border: none;
+}}
+/* 右下に出る短い知らせ(motion.Toast) */
+QLabel#toast {{
+    background: {text_primary};
+    color: {surface};
+    border-radius: {radius_md};
+    padding: 8px 14px;
 }}
 /* QTabBar::close-button には何も指定しない。何か1つでも指定するとアイコンが描かれなくなる
    (QProxyStyle で差し替えても効かない)。見た目は _FlatThemeProxyStyle で決める。 */
 
 QToolButton#add_tab_button {{
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px;
 }}
 QToolButton#add_tab_button:hover {{
@@ -918,13 +1010,13 @@ QRadioButton::indicator:checked {{
 /* --- プログレスバー --- */
 QProgressBar {{
     border: 1px solid {border};
-    border-radius: 6px;
+    border-radius: {radius_md};
     text-align: center;
     background: {surface_2};
 }}
 QProgressBar::chunk {{
     background: {accent};
-    border-radius: 6px;
+    border-radius: {radius_md};
 }}
 
 /* --- スクロールバー --- */
@@ -968,47 +1060,40 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
 }}
 
 /* --- GUI 刷新の部品(gui/widgets/)。寸法は見本 docs/dev/mockups/gui_redesign/ のまま --- */
-/* セグメント: 丸い枠の中に区切り線で並べ、選んだものを強調の薄い色で塗る */
+/* セグメント: くぼんだ溝の上に、選んだものだけ白い板を浮かせる(区切り線なし)。
+   板の下の影は SegmentedControl.paintEvent が描く(QSS には影が無い)。 */
 QFrame#segmented_control {{
-    background: {surface};
-    border: 1px solid {border_strong};
+    background: {surface_2};
+    border: 1px solid {border};
     border-radius: 14px;
 }}
 QToolButton#segment {{
     background: transparent;
     border: none;
-    border-left: 1px solid {border_strong};
-    border-radius: 0;
+    border-radius: 11px;
     padding: 0 8px;
-    color: {text_primary};
-}}
-QToolButton#segment[segmentPosition="first"], QToolButton#segment[segmentPosition="only"] {{
-    border-left: none;
-    border-top-left-radius: 13px;
-    border-bottom-left-radius: 13px;
-}}
-QToolButton#segment[segmentPosition="last"], QToolButton#segment[segmentPosition="only"] {{
-    border-top-right-radius: 13px;
-    border-bottom-right-radius: 13px;
+    color: {text_secondary};
 }}
 QToolButton#segment:hover {{
-    background: {surface_2};
+    color: {text_primary};
 }}
+/* 選んだものの板は SegmentedControl が描く(押したとき前の位置から滑らせるため)。ボタンは文字だけ */
 QToolButton#segment:checked {{
-    background: {accent_soft};
+    background: transparent;
     color: {accent_fg};
     font-weight: 600;
 }}
-QToolButton#segment:focus {{
-    border-top: none;
-    border-bottom: none;
-    border-right: none;
+QToolButton#segment:disabled {{
+    color: {text_muted};
+}}
+QToolButton#segment:checked:disabled {{
+    color: {text_muted};
 }}
 /* グラフの種類のタイル(アイコン+文字) */
 QToolButton#type_tile {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 9px;
+    border-radius: {radius_lg};
     padding: 4px 2px;
     color: {text_secondary};
     font-size: 11px;
@@ -1055,7 +1140,7 @@ QDoubleSpinBox[sliderValue="true"], QSpinBox[sliderValue="true"] {{
 QFrame#stat_card {{
     background: {surface_2};
     border: none;
-    border-radius: 9px;
+    border-radius: {radius_lg};
 }}
 QLabel#stat_card_label {{
     color: {text_muted};
@@ -1084,7 +1169,7 @@ QFrame#header_separator {{
 QToolButton#header_button {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px;
 }}
 QToolButton#header_button:hover {{
@@ -1101,7 +1186,7 @@ QTabBar#project_tab_bar::tab {{
     padding: 0 12px 0 12px;
     margin: 0 2px 0 0;
     border: none;
-    border-radius: 8px;
+    border-radius: {radius_md};
     background: transparent;
     color: {text_secondary};
     font-weight: 400;
@@ -1119,7 +1204,7 @@ QTabBar#project_tab_bar::tab:selected {{
 QPushButton#command_search {{
     background: {surface};
     border: 1px solid {border};
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 0;
     text-align: left;
 }}
@@ -1136,7 +1221,7 @@ QLabel#kbd_hint {{
     color: {text_muted};
     background: {surface_2};
     border: none;
-    border-radius: 4px;
+    border-radius: {radius_sm};
     padding: 1px 5px;
     font-size: 10.5px;
 }}
@@ -1149,7 +1234,7 @@ QLabel#mode_label {{
 QPushButton[primaryButton="true"] {{
     background: {accent};
     border: 1px solid {accent};
-    border-radius: 7px;
+    border-radius: {radius_md};
     color: {on_accent};
     font-weight: 600;
     padding: 5px 12px;
@@ -1173,7 +1258,7 @@ QPushButton[primaryButton="true"]:disabled {{
 QPushButton[ghostButton="true"], QToolButton[ghostButton="true"] {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px;
 }}
 QPushButton[ghostButton="true"]:hover, QToolButton[ghostButton="true"]:hover {{
@@ -1189,13 +1274,14 @@ QWidget#activity_rail {{
 QToolButton#rail_button {{
     background: transparent;
     border: none;
-    border-radius: 10px;
+    border-radius: {radius_lg};
 }}
 QToolButton#rail_button:hover {{
     background: {surface_2};
 }}
+/* 選んだボタンの四角は ActivityRail が描く(選び直すと、伸び縮みしながら次のボタンへ移る) */
 QToolButton#rail_button:checked {{
-    background: {accent};
+    background: transparent;
 }}
 QStackedWidget#left_panel, QWidget#dataset_page {{
     background: {surface};
@@ -1238,7 +1324,7 @@ QLabel#side_page_note {{
 QPushButton#side_page_row {{
     background: transparent;
     border: none;
-    border-radius: 7px;
+    border-radius: {radius_md};
     padding: 4px 8px;
     text-align: left;
     color: {text_primary};
@@ -1296,10 +1382,14 @@ def heading_point_sizes():
 def build_qss(tokens: dict) -> str:
     """_FLAT_QSS_TEMPLATE の {token} を埋めた QSS。矢印の画像は text_primary の色で作る。"""
     format_args = dict(tokens)
-    format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_primary"])
-    format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_primary"])
+    format_args["spin_up_arrow_url"] = _spinbox_arrow_icon_url("up", tokens["text_secondary"])
+    format_args["spin_down_arrow_url"] = _spinbox_arrow_icon_url("down", tokens["text_secondary"])
+    format_args["spin_up_arrow_disabled_url"] = _spinbox_arrow_icon_url("up", tokens["text_muted"])
+    format_args["spin_down_arrow_disabled_url"] = _spinbox_arrow_icon_url("down", tokens["text_muted"])
     _heading_pt, subheading_pt = heading_point_sizes()
     format_args["subheading_pt"] = f"{subheading_pt:.1f}"
+    for name, value in (("sm", RADIUS_SM), ("md", RADIUS_MD), ("lg", RADIUS_LG), ("xl", RADIUS_XL)):
+        format_args[f"radius_{name}"] = f"{value}px"
     return _FLAT_QSS_TEMPLATE.format(**format_args)
 
 
@@ -1377,7 +1467,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
     def drawPrimitive(self, element, option, painter, widget=None):
         if element == QStyle.PrimitiveElement.PE_IndicatorCheckBox:
             if _is_toggle_switch(widget):
-                self._draw_toggle_switch(option, painter)
+                self._draw_toggle_switch(option, painter, widget)
             else:
                 self._draw_checkbox_indicator(option, painter)
             return
@@ -1435,12 +1525,19 @@ class _FlatThemeProxyStyle(QProxyStyle):
 
         painter.restore()
 
-    def _draw_toggle_switch(self, option, painter):
-        """オン・オフのスイッチ。オンは強調の色の地につまみが右、オフは灰色の地につまみが左。"""
+    def _draw_toggle_switch(self, option, painter, widget=None):
+        """オン・オフのスイッチ。オンは強調の色の地につまみが右、オフは灰色の地につまみが左。
+
+        切り替えている途中(motion の switchProgress)は、つまみの位置と地の色をその割合で描く。
+        """
         tokens = self._tokens
         checked = bool(option.state & QStyle.StateFlag.State_On)
         enabled = bool(option.state & QStyle.StateFlag.State_Enabled)
-        track = QColor(tokens["accent"] if checked else tokens["border_strong"])
+        progress = widget.property(motion.SWITCH_PROGRESS_PROPERTY) if widget is not None else None
+        progress = (1.0 if checked else 0.0) if progress is None else max(0.0, min(1.0, float(progress)))
+        off_color, on_color = QColor(tokens["border_strong"]), QColor(tokens["accent"])
+        track = QColor.fromRgbF(*(off + (on - off) * progress for off, on in
+                                  zip(off_color.getRgbF(), on_color.getRgbF())))
         if not enabled:
             track.setAlphaF(0.45)
 
@@ -1454,7 +1551,7 @@ class _FlatThemeProxyStyle(QProxyStyle):
         painter.drawRoundedRect(rect, height / 2, height / 2)
         margin = 2.5
         knob = height - 2 * margin
-        knob_x = rect.right() - margin - knob if checked else rect.left() + margin
+        knob_x = rect.left() + margin + (rect.width() - 2 * margin - knob) * progress
         painter.setBrush(QColor("#FFFFFF"))
         painter.drawEllipse(QRectF(knob_x, rect.top() + margin, knob, knob))
         painter.restore()
@@ -1468,6 +1565,7 @@ TOGGLE_SWITCH_SIZE = (30, 17)
 def make_toggle_switch(checkbox):
     """QCheckBox をスイッチの見た目にする。部品を差し替えないので、値の対応(バインディング)はそのまま。"""
     checkbox.setProperty(TOGGLE_SWITCH_PROPERTY, True)
+    motion.attach_switch_motion(checkbox)
     style = checkbox.style()
     style.unpolish(checkbox)
     style.polish(checkbox)

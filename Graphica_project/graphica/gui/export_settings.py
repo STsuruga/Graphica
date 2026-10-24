@@ -1,4 +1,4 @@
-"""書き出すときだけ当てる matplotlib の rcParams。書き出しの経路(4つ)はすべてこれを使うこと。"""
+"""書き出しの経路で共有するもの。matplotlib の rcParams は、書き出しの経路すべてがこれを使うこと。"""
 
 
 def export_rc_params(fmt, svg_text_as_path=False):
@@ -14,3 +14,11 @@ def export_rc_params(fmt, svg_text_as_path=False):
     if fmt in ('pdf', 'ps', 'eps'):
         return {'pdf.fonttype': 42, 'ps.fonttype': 42}
     return {}
+
+
+def project_has_raster_gradient_fill(project):
+    """グラデーションの塗り(imshow で描くのでベクター形式でもラスタになる)を使う系列があるか。"""
+    return any(
+        ds.plot_type == 'Area' and ds.gradient_enabled and ds.gradient_target in ('fill', 'both')
+        for ds in project.datasets
+    )

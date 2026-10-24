@@ -166,6 +166,18 @@ def test_the_fit_tab_shows_the_fit_text_and_r_squared_for_the_source_and_the_cur
     assert fit_result_for(plain, tab.project.datasets) is None
 
 
+def test_the_residual_plot_names_its_x_axis_after_the_source_column(tab):
+    source = _dataset()
+    source.df = source.df.rename(columns={"x": "温度 (K)"})
+    source.x_col_name = "温度 (K)"
+    fit_dataset = _linear_fit_of(source)
+    tab._add_dataset(source)
+    tab._add_dataset(fit_dataset)
+    for selected in (source, fit_dataset):
+        _select(tab, selected)
+        assert tab.residual_panel.ax.get_xlabel() == "温度 (K)"
+
+
 @pytest.mark.parametrize("waterfall", [False, True])
 def test_the_cursor_row_matches_the_table_row_with_masked_rows(tab, waterfall):
     dataset = _dataset(n=8, waterfall_enabled=waterfall, waterfall_offset_x=0.5, waterfall_offset_y=3.0)
@@ -215,6 +227,15 @@ def test_a_2d_map_leaves_the_table_empty(qapp):
 def test_the_log_tab_shows_new_log_lines(tab):
     logging.getLogger("graphica.test_bottom_panel").warning("下のパネルに出す行")
     assert "下のパネルに出す行" in tab.bottom_log.toPlainText()
+
+
+def test_the_log_tab_leaves_out_font_manager_warnings_but_keeps_its_errors(tab):
+    font_logger = logging.getLogger("matplotlib.font_manager")
+    font_logger.warning("findfont: Font family 'Hiragino Sans' not found.")
+    font_logger.error("フォントの読み込みに失敗")
+    text = tab.bottom_log.toPlainText()
+    assert "Hiragino Sans" not in text
+    assert "フォントの読み込みに失敗" in text
 
 
 def test_destroying_the_log_view_removes_its_handler(main_window):

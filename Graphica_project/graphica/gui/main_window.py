@@ -71,7 +71,7 @@ from graphica.gui import notify
 
 
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget,
-                               QAbstractSpinBox, QLabel, QTreeWidgetItem)
+                               QAbstractSpinBox, QLabel, QStackedWidget, QTreeWidgetItem)
 from PySide6.QtGui import QFont, QIcon, QValidator, QUndoStack
 from PySide6.QtCore import Qt, QTimer, Signal
 from graphica.models.project import ProjectModel
@@ -104,7 +104,9 @@ from graphica.gui.data_import_flow import (  # noqa: F401
     SUPPORTED_DATA_FILE_EXTENSIONS, find_unevaluated_formula_cells)
 from graphica.gui.project_files import (  # noqa: F401
     AUTOSAVE_GENERATIONS, MAX_RECENT_FILES, UNSAVED_CHANGES_PROMPT_ENV, _unsaved_changes_prompt_enabled)
+from graphica.gui import motion
 from graphica.gui.builders import axis_format_sections
+from graphica.gui.builders import axis_range_sections
 from graphica.gui.builders import axis_panel
 from graphica.gui.builders import canvas_area
 from graphica.gui.builders import dataset_panel
@@ -387,6 +389,20 @@ class PlotterApp(QMainWindow, UISetupMixin,
         self.ui.gridLayout_2.setRowStretch(2, 0)  # データセット一覧
         self.ui.gridLayout_2.setRowStretch(3, 0)  # ボタンの行
         disable_wheel_tab_switching(self.ui.axis_tab_widget)
+        # 軸のサブタブも、インスペクタのタブと同じく切り替える。切り替わった後にしか知らせが来ないので、
+        # 押した瞬間(tabBarClicked)に前の絵を撮っておく
+        axis_tabs = self.ui.axis_tab_widget
+        axis_pages = axis_tabs.findChild(QStackedWidget)
+        self._axis_tab_before = None
+        axis_tabs.tabBarClicked.connect(lambda _index: setattr(self, '_axis_tab_before', motion.grab(axis_pages)))
+
+        def _crossfade_axis_tab(_index):
+            motion.crossfade(axis_pages, self._axis_tab_before)
+            self._axis_tab_before = None
+
+        axis_tabs.currentChanged.connect(_crossfade_axis_tab)
+        # 下線はタブの右の 2px の余白(QSS の QTabBar::tab の margin-right)の手前まで
+        self.axis_tab_indicator = motion.TabIndicator(axis_tabs.tabBar(), trailing_margin=2)
 
     def _build_canvas_and_toolbar(self):
         return canvas_area.build_canvas_and_toolbar(self)
@@ -500,11 +516,8 @@ class PlotterApp(QMainWindow, UISetupMixin,
         spacing_value = 6
         if self.ui.formLayout_3: self.ui.formLayout_3.setSpacing(spacing_value)
 
-        # 入力欄の左端を揃える(プロパティ欄の7節どうし、X/Y 軸のタブどうし)。ラベルが全部できた後で
-        property_sections.align_form_label_columns(
-            self, [self._prop_form(key) for key, _title in DATASET_PROPERTY_SECTIONS],
-            width=PROPERTY_LABEL_WIDTH)
-        self._align_form_label_columns([self.ui.formLayout, self.ui.formLayout_2])
+        # 入力欄の左端を、インスペクタのどのタブ・どの節でも同じ位置に揃える。ラベルが全部できた後で
+        property_sections.align_form_label_columns(self, dock_layout.inspector_forms(self), width=PROPERTY_LABEL_WIDTH)
 
 
         # 軸の範囲と目盛りの間隔は、指数表記でも入力できるようにする
@@ -906,6 +919,7 @@ class PlotterApp(QMainWindow, UISetupMixin,
         )
 
         axis_format_sections.set_y2_tick_direction_visible(self, is_secondary_visible_global)
+        axis_range_sections.set_y2_in_use(self, is_secondary_visible_global)
         self.y2_label_text_label.setVisible(is_secondary_visible_global)
         self.y2_label_text_edit.setVisible(is_secondary_visible_global)
 

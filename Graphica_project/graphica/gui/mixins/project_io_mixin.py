@@ -3,6 +3,7 @@ import json
 import logging
 
 from graphica.gui import notify
+from graphica.gui import motion
 from graphica.gui import dialog_dirs
 from graphica.gui import app_settings
 from graphica.gui import theme
@@ -103,6 +104,7 @@ class ProjectIOMixin:
             wheel_zoom_speed=current_wheel_zoom_speed,
             theme_color=theme.current_theme_color(),
             on_check_plugin_updates=self._on_check_plugin_updates,
+            animations=app_settings.ANIMATIONS.read(self.settings),
         )
         if dlg.exec() != PreferencesDialog.DialogCode.Accepted:
             return
@@ -129,6 +131,12 @@ class ProjectIOMixin:
         new_wheel_zoom_speed = dlg.get_wheel_zoom_speed()
         if new_wheel_zoom_speed != current_wheel_zoom_speed:
             app_settings.WHEEL_ZOOM_SPEED.write(self.settings, new_wheel_zoom_speed)
+
+        # 動きは開いている全部のタブに同時に効く(gui/motion.py の1つの切り替え)
+        new_animations = dlg.get_animations()
+        if new_animations != app_settings.ANIMATIONS.read(self.settings):
+            app_settings.ANIMATIONS.write(self.settings, new_animations)
+            motion.set_enabled(new_animations)
 
         new_theme_color = dlg.get_theme_color()
         if new_theme_color != normalize_hex(theme.current_theme_color()):

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLay
 
 from graphica.core.i18n import tr
 from graphica.gui import theme
+from graphica.core.marker_style import MARKER_FILL_COLOR, MARKER_FILL_HOLLOW, MARKER_FILL_SOLID
 from graphica.gui.builders.common import _svg_icon
 from graphica.gui.dataset_bindings import NO_MARKER
 from graphica.gui.widgets import ComboMirror, SegmentedControl, SliderSpin, TypeTileGroup
@@ -28,6 +29,10 @@ _DEFAULT_MARKER = "o"
 
 # スライダーの範囲(よく使う範囲。数値の欄はこれより外の値も受け付ける)
 LINEWIDTH_SLIDER_RANGE = (0.0, 5.0)
+MARKER_EDGE_WIDTH_SLIDER_RANGE = (0.0, 5.0)
+# 縮小率は大きくするとすぐ奥が潰れるので、よく使う範囲だけスライダーにする(欄には 0.9 まで打てる)
+WATERFALL_DEPTH_RATIO_SLIDER_RANGE = (0.0, 0.2)
+CONTOUR_LEVELS_SLIDER_RANGE = (2, 40)
 ALPHA_SLIDER_RANGE = (0.0, 1.0)
 MARKERSIZE_SLIDER_RANGE = (0.0, 20.0)
 
@@ -95,6 +100,25 @@ def build_property_widgets(app):
     app.markersize_slider = _slider_field(app._prop_form('marker'), app.ui.markersize_spinbox,
                                           *MARKERSIZE_SLIDER_RANGE)
 
+    # マーカーの塗り: 塗り・白抜きは丸の絵、色の指定は文字のセグメント(値の持ち主はコンボのまま)
+    marker_form = app._prop_form('marker')
+    app.marker_fill_segments = SegmentedControl()
+    app.marker_fill_segments.addMarkerFillItem(True, MARKER_FILL_SOLID, tr("塗りつぶし"))
+    app.marker_fill_segments.addMarkerFillItem(False, MARKER_FILL_HOLLOW, tr("白抜き"))
+    app.marker_fill_segments.addItem(tr("色を指定"), MARKER_FILL_COLOR, tr("色を指定"))
+    placeholder = QWidget()
+    _swap_field(marker_form, app.marker_fill_combo, placeholder)
+    app.marker_fill_field = _hidden_owner_row(app.marker_fill_segments, app.marker_fill_combo)
+    _swap_field(marker_form, placeholder, app.marker_fill_field)
+    placeholder.deleteLater()
+    app.marker_fill_mirror = ComboMirror(app.marker_fill_segments, app.marker_fill_combo)
+    app.marker_edge_width_slider = _slider_field(marker_form, app.marker_edge_width_spinbox,
+                                                 *MARKER_EDGE_WIDTH_SLIDER_RANGE)
+    app.waterfall_depth_ratio_slider = _slider_field(app._prop_form('waterfall'), app.waterfall_depth_ratio_spinbox,
+                                                     *WATERFALL_DEPTH_RATIO_SLIDER_RANGE)
+    app.contour_levels_slider = _slider_field(app._prop_form('map'), app.contour_levels_spinbox,
+                                              *CONTOUR_LEVELS_SLIDER_RANGE)
+
     # 平滑化: 部品は替えず、描き方だけスイッチに
     theme.make_toggle_switch(app.ui.smoothing_checkbox)
 
@@ -135,7 +159,7 @@ def _build_lite_more_box(app):
     app.lite_more_icon.setObjectName("lite_more_icon")
     app.lite_more_icon.setPixmap(_svg_icon("lock", size=15).pixmap(15, 15))
     app.lite_more_icon.setAlignment(Qt.AlignmentFlag.AlignTop)
-    text = QLabel(tr("誤差・透明度・平滑化・マーカー・グラデーション・ウォーターフォール・2D マップなど"))
+    text = QLabel(tr("誤差・透明度・平滑化・マーカーの塗りと枠線・グラデーション・ウォーターフォール・2D マップなど"))
     text.setObjectName("lite_more_text")
     text.setWordWrap(True)
     row.addWidget(app.lite_more_icon)
@@ -164,4 +188,7 @@ def refresh_property_widgets(app):
     app.linewidth_slider.refresh()
     app.alpha_slider.refresh()
     app.markersize_slider.refresh()
+    app.marker_fill_mirror.refresh()
+    for slider in (app.marker_edge_width_slider, app.waterfall_depth_ratio_slider, app.contour_levels_slider):
+        slider.refresh()
     app.color_picker_widget.show_quick_colors(quick_colors(app))

@@ -10,7 +10,7 @@ from graphica.gui.binding import Binder
 from graphica.gui.builders import canvas_area, property_sections, property_widgets
 from graphica.gui.shell import bottom_panel
 from graphica.gui.dataset_bindings import DATASET_PROPERTY_BINDINGS, NO_ERROR_COLUMN_LABEL, NO_MARKER
-from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES
+from graphica.gui.dataset_style_icon import NON_LINE_PLOT_TYPES, NON_MARKER_PLOT_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +211,7 @@ class DatasetPropertyPanel:
 
     def update_marker_controls_visibility(self):
         """
+        線の種類・太さの欄は、線を描かない組み込みの種類(点・棒・密度・値で色分け)では隠す。
         マーカーの欄は、マーカーを描かない組み込みの種類(Line・Area・Bar・Step)では隠す(プラグインの種類は使うかもしれないので出す)。
         線だけの形(+ ×)には塗りが無いので塗りの欄を隠す。
         値で色分けする種類は塗りを色の対応が受け持つので、塗りの「色を指定」を選べなくする(保存済みの値は変えない)。
@@ -219,6 +220,10 @@ class DatasetPropertyPanel:
         dataset = app._get_current_dataset()
         plot_type = dataset.plot_type if dataset is not None else app.ui.plot_type_combo.currentText()
         marker = app.ui.marker_combo.currentData()
+        uses_lines = plot_type not in NON_LINE_PLOT_TYPES
+        # 線の太さのスライダーは数値の欄の出し入れに付いてくる
+        for widget in (app.ui.linestyle_label, app.linestyle_field, app.ui.linewidth_label, app.ui.linewidth_spinbox):
+            widget.setVisible(uses_lines)
         uses_markers = plot_type not in NON_MARKER_PLOT_TYPES
         for widget in (app.ui.marker_label, app.ui.marker_combo, app.ui.makersize_label, app.ui.markersize_spinbox):
             widget.setVisible(uses_markers)
@@ -227,9 +232,10 @@ class DatasetPropertyPanel:
         fillable = has_markers and not marker_is_unfilled(marker)
 
         app.marker_fill_label.setVisible(fillable)
-        app.marker_fill_combo.setVisible(fillable)
+        app.marker_fill_field.setVisible(fillable)
         color_item = app.marker_fill_combo.findData(MARKER_FILL_COLOR)
         app.marker_fill_combo.model().item(color_item).setEnabled(not mapped)
+        app.marker_fill_segments.setItemEnabled(app.marker_fill_segments.findData(MARKER_FILL_COLOR), not mapped)
         show_face_color = fillable and not mapped and app.marker_fill_combo.currentData() == MARKER_FILL_COLOR
         app.marker_face_color_label.setVisible(show_face_color)
         app.marker_face_color_picker.setVisible(show_face_color)

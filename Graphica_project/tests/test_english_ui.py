@@ -120,13 +120,13 @@ def test_preferences_dialog_is_english(english):
 
 
 def test_export_units_keep_their_japanese_value_while_shown_in_english(english):
-    from graphica.gui.dialogs import ExportDialog
+    from graphica.gui.export_preview_panel import ExportPreviewPanel
 
-    dialog = ExportDialog()
-    shown = [dialog.unit_combo.itemText(i) for i in range(dialog.unit_combo.count())]
+    panel = ExportPreviewPanel(None)
+    shown = [panel.unit_combo.itemText(i) for i in range(panel.unit_combo.count())]
     assert "Inches (in)" in shown
-    dialog.unit_combo.setCurrentIndex(shown.index("Inches (in)"))
-    assert dialog.get_options()["unit"] == "インチ (in)"
+    panel.unit_combo.setCurrentIndex(shown.index("Inches (in)"))
+    assert panel.get_options()["unit"] == "インチ (in)"
 
 
 def test_japanese_mode_leaves_the_texts_alone():

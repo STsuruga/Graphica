@@ -27,7 +27,8 @@ from graphica.core.plugin_api import GraphicaPluginAPI
 from graphica.core.plugin_types import PluginExecutionError
 from graphica.gui.main_window import PlotterApp
 from graphica.gui.mixins.export_mixin import ExportMixin
-from graphica.gui.dialogs import ExportDialog, BatchExportDialog
+from graphica.gui.dialogs import BatchExportDialog
+from graphica.gui.export_settings import project_has_raster_gradient_fill
 
 
 @pytest.fixture(autouse=True)
@@ -586,48 +587,30 @@ def test_batch_export_project_files_reports_failure_for_missing_file(tmp_path, m
 
 # --- _on_export_plot ---
 
-def _patch_export_dialog(monkeypatch, *, accepted=True, width=None, height=None, unit=None,
-                          dpi=None, transparent=None, svg_text_as_path=None, full_resolution=None):
-    class FakeExportDialog(ExportDialog):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            # 単位を切り替えると今の数字が換算されるので、単位を先に決める
-            if unit is not None:
-                self.unit_combo.setCurrentText(unit)
-            if width is not None:
-                self.width_spinbox.setValue(width)
-            if height is not None:
-                self.height_spinbox.setValue(height)
-            if dpi is not None:
-                self.dpi_spinbox.setValue(dpi)
-            if transparent is not None:
-                self.transparent_checkbox.setChecked(transparent)
-            if svg_text_as_path is not None:
-                self.svg_text_as_path_checkbox.setChecked(svg_text_as_path)
-            if full_resolution is not None:
-                self.full_resolution_checkbox.setChecked(full_resolution)
-
-        def exec(self):
-            return QDialog.DialogCode.Accepted if accepted else QDialog.DialogCode.Rejected
-
-    monkeypatch.setattr(export_mixin_module, "ExportDialog", FakeExportDialog)
-
-
-def test_export_plot_cancelled_dialog_writes_nothing(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    _add_dataset(window)
-    _patch_export_dialog(monkeypatch, accepted=False)
-
-    window._on_export_plot()
-
-    assert list(tmp_path.iterdir()) == []
+def _set_export_options(window, *, width=None, height=None, unit=None,
+                        dpi=None, transparent=None, svg_text_as_path=None, full_resolution=None):
+    panel = window.export_preview_panel
+    # 単位を切り替えると今の数字が換算されるので、単位を先に決める
+    if unit is not None:
+        panel.unit_combo.setCurrentIndex(panel.unit_combo.findData(unit))
+    if width is not None:
+        panel.width_spinbox.setValue(width)
+    if height is not None:
+        panel.height_spinbox.setValue(height)
+    if dpi is not None:
+        panel.dpi_spinbox.setValue(dpi)
+    if transparent is not None:
+        panel.transparent_checkbox.setChecked(transparent)
+    if svg_text_as_path is not None:
+        panel.svg_text_as_path_checkbox.setChecked(svg_text_as_path)
+    if full_resolution is not None:
+        panel.full_resolution_checkbox.setChecked(full_resolution)
 
 
 def test_export_plot_cancelled_save_file_dialog_writes_nothing(tmp_path, monkeypatch):
-    """エクスポート設定ダイアログはOKされたが、続く保存先ダイアログでキャンセルした場合"""
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
-    _patch_export_dialog(monkeypatch, accepted=True)
+    _set_export_options(window)
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: ("", "")))
 
@@ -641,7 +624,7 @@ def test_export_plot_writes_png_with_requested_size(tmp_path, monkeypatch):
     _add_dataset(window)
     out_path = tmp_path / "out.png"
     original_size = tuple(window.canvas.fig.get_size_inches())
-    _patch_export_dialog(monkeypatch, accepted=True, width=400, height=300, unit="ピクセル (px)", dpi=100)
+    _set_export_options(window, width=400, height=300, unit="ピクセル (px)", dpi=100)
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
 
@@ -656,7 +639,7 @@ def test_export_plot_writes_svg_with_text_as_path_option(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     out_path = tmp_path / "out.svg"
-    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)", svg_text_as_path=True)
+    _set_export_options(window, width=4, height=3, unit="インチ (in)", svg_text_as_path=True)
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "SVG (*.svg)")))
 
@@ -684,7 +667,7 @@ def test_project_has_raster_gradient_fill_true_for_area_fill_gradient():
     )
     project = ProjectModel()
     project.datasets.append(ds)
-    assert export_mixin_module._project_has_raster_gradient_fill(project) is True
+    assert project_has_raster_gradient_fill(project) is True
 
 
 def test_project_has_raster_gradient_fill_false_for_line_gradient_only():
@@ -695,7 +678,7 @@ def test_project_has_raster_gradient_fill_false_for_line_gradient_only():
     )
     project = ProjectModel()
     project.datasets.append(ds)
-    assert export_mixin_module._project_has_raster_gradient_fill(project) is False
+    assert project_has_raster_gradient_fill(project) is False
 
 
 def test_project_has_raster_gradient_fill_false_for_non_area_plot_type():
@@ -705,14 +688,14 @@ def test_project_has_raster_gradient_fill_false_for_non_area_plot_type():
     )
     project = ProjectModel()
     project.datasets.append(ds)
-    assert export_mixin_module._project_has_raster_gradient_fill(project) is False
+    assert project_has_raster_gradient_fill(project) is False
 
 
 def test_export_plot_warns_on_svg_with_gradient_fill_area_dataset(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_gradient_fill_area_dataset(window)
     out_path = tmp_path / "out.svg"
-    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)")
+    _set_export_options(window, width=4, height=3, unit="インチ (in)")
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "SVG (*.svg)")))
     warn_calls = []
@@ -730,7 +713,7 @@ def test_export_plot_no_warning_on_png_even_with_gradient_fill(tmp_path, monkeyp
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_gradient_fill_area_dataset(window)
     out_path = tmp_path / "out.png"
-    _patch_export_dialog(monkeypatch, accepted=True, width=400, height=300, unit="ピクセル (px)", dpi=100)
+    _set_export_options(window, width=400, height=300, unit="ピクセル (px)", dpi=100)
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
     warn_calls = []
@@ -747,7 +730,7 @@ def test_export_plot_no_warning_on_svg_without_gradient_fill(tmp_path, monkeypat
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)  # 通常のLineデータセット
     out_path = tmp_path / "out.svg"
-    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)")
+    _set_export_options(window, width=4, height=3, unit="インチ (in)")
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "SVG (*.svg)")))
     warn_calls = []
@@ -759,57 +742,39 @@ def test_export_plot_no_warning_on_svg_without_gradient_fill(tmp_path, monkeypat
     assert warn_calls == []
 
 
-def test_export_plot_full_resolution_option_redraws_full_and_restores_display(tmp_path, monkeypatch):
-    """「フル解像度でエクスポート」が有効な場合、savefig前に
-    _update_plot(full_resolution=True)で全点再描画してから保存し、保存後は
-    画面表示を通常の間引き済み状態(full_resolution=False)へ確実に戻すこと。"""
+@pytest.mark.parametrize("full_resolution", [True, False])
+def test_export_plot_passes_full_resolution_to_the_figure_it_saves_without_redrawing_the_screen(
+        tmp_path, monkeypatch, full_resolution):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     out_path = tmp_path / "out.png"
-    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)", full_resolution=True)
+    _set_export_options(window, width=4, height=3, unit="インチ (in)", full_resolution=full_resolution)
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
+    panel = window.export_preview_panel
+    made = []
+    original_make = panel._make_temp_canvas_for_full_figure
 
-    calls = []
-    original_update_plot = window._update_plot
+    def spy_make(*args, **kwargs):
+        made.append(kwargs.get('full_resolution', False))
+        return original_make(*args, **kwargs)
 
-    def spy_update_plot(*args, **kwargs):
-        calls.append(kwargs.get('full_resolution', False))
-        return original_update_plot(*args, **kwargs)
-
-    monkeypatch.setattr(window, "_update_plot", spy_update_plot)
+    monkeypatch.setattr(panel, "_make_temp_canvas_for_full_figure", spy_make)
+    redraws = []
+    monkeypatch.setattr(window, "_update_plot", lambda *a, **k: redraws.append(k))
 
     window._on_export_plot()
 
     assert out_path.exists()
-    assert calls == [True, False]  # フル解像度で再描画→保存後に通常表示へ復帰
-
-
-def test_export_plot_without_full_resolution_option_does_not_touch_update_plot(tmp_path, monkeypatch):
-    """フル解像度オプションが無効な場合(既定)、_update_plotは一切呼ばれない
-    (通常の間引き済み画面表示をそのままsavefigするだけで済むため、余計な
-    再描画は行わない)。"""
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    _add_dataset(window)
-    out_path = tmp_path / "out.png"
-    _patch_export_dialog(monkeypatch, accepted=True, width=4, height=3, unit="インチ (in)", full_resolution=False)
-    monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
-                         staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
-
-    calls = []
-    monkeypatch.setattr(window, "_update_plot", lambda *a, **k: calls.append(True))
-
-    window._on_export_plot()
-
-    assert out_path.exists()
-    assert calls == []
+    assert made == [full_resolution]
+    assert redraws == []
 
 
 def test_export_plot_writes_pdf_with_truetype_fonts(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     out_path = tmp_path / "out.pdf"
-    _patch_export_dialog(monkeypatch, accepted=True, width=10, height=8, unit="センチメートル (cm)")
+    _set_export_options(window, width=10, height=8, unit="センチメートル (cm)")
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PDF (*.pdf)")))
 
@@ -828,7 +793,7 @@ def test_export_plot_uses_registered_plugin_exporter_for_matching_extension(tmp_
     api.register_exporter("MyFormat", ".myf", lambda fig, p: calls.append(p), name="MyPlugin")
     plugin_api_module._singleton_api = api
 
-    _patch_export_dialog(monkeypatch, accepted=True)
+    _set_export_options(window)
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "MyFormat (*.myf)")))
 
@@ -843,14 +808,14 @@ def test_export_plot_shows_warning_and_restores_size_on_savefig_failure(tmp_path
     _add_dataset(window)
     out_path = tmp_path / "out.png"
     original_size = tuple(window.canvas.fig.get_size_inches())
-    _patch_export_dialog(monkeypatch, accepted=True)
+    _set_export_options(window)
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                          staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
 
     def broken_savefig(*a, **k):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(window.canvas.fig, "savefig", broken_savefig)
+    monkeypatch.setattr(Figure, "savefig", broken_savefig)
     warn_calls = []
     monkeypatch.setattr(notify_module.QMessageBox, "warning",
                          staticmethod(lambda *a, **k: warn_calls.append(a)))
@@ -859,45 +824,6 @@ def test_export_plot_shows_warning_and_restores_size_on_savefig_failure(tmp_path
 
     assert len(warn_calls) == 1
     assert tuple(window.canvas.fig.get_size_inches()) == pytest.approx(original_size)
-
-
-# --- _generate_preview ---
-
-def test_generate_preview_sets_pixmap_on_dialog_label(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    _add_dataset(window)
-    dialog = ExportDialog(window)
-
-    window._generate_preview(dialog)
-
-    assert not dialog.preview_label.pixmap().isNull()
-
-
-def test_generate_preview_logs_warning_when_active_axis_out_of_range(tmp_path, monkeypatch):
-    """active_axis_indexがall_plot_settingsの範囲外の場合、例外を出さず早期リターンすること"""
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    _add_dataset(window)
-    dialog = ExportDialog(window)
-    window.project.active_axis_index = 99
-
-    window._generate_preview(dialog)  # 例外が出ないことを確認する
-
-
-def test_generate_preview_restores_secondary_axes_when_drawing_fails(tmp_path, monkeypatch):
-    """プレビューは第2Y軸の参照を一時的な Figure の軸に差し替えて描く。失敗しても元に戻すこと。"""
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    _add_dataset(window)
-    dialog = ExportDialog(window)
-    before = list(window.canvas.all_secondary_axes)
-
-    def _draw_then_fail(ax, index, *a, **k):
-        window.canvas.all_secondary_axes[index] = ax.twinx()
-        raise RuntimeError("draw failed")
-
-    monkeypatch.setattr(window.canvas, "_draw_data", _draw_then_fail)
-    window._generate_preview(dialog)
-
-    assert window.canvas.all_secondary_axes == before
 
 
 # --- _calculate_size_in_inches ---
@@ -1174,26 +1100,27 @@ def test_generate_caption_handles_empty_title(tmp_path, monkeypatch):
 
 # --- 単位の切り替え・大きすぎる画像・プレビューの解像度 ---
 
-def test_export_dialog_converts_numbers_when_the_unit_changes():
-    dialog = ExportDialog()
-    dialog.unit_combo.setCurrentIndex(dialog.unit_combo.findData("インチ (in)"))
-    assert dialog.width_spinbox.value() == pytest.approx(800 / 300, abs=0.01)
-    assert dialog.height_spinbox.value() == pytest.approx(2.0)
-    assert "801 × 600 px" in dialog.output_size_label.text()  # 2.67 in(小数2桁)× 300 dpi
+def test_export_tab_converts_numbers_when_the_unit_changes(tmp_path, monkeypatch):
+    panel = _make_isolated_plotter_app(tmp_path, monkeypatch).export_preview_panel
+    panel.unit_combo.setCurrentIndex(panel.unit_combo.findData("インチ (in)"))
+    assert panel.width_spinbox.value() == pytest.approx(800 / 150, abs=0.01)
+    assert panel.height_spinbox.value() == pytest.approx(4.0)
 
 
-def test_export_dialog_journal_preset_keeps_the_height_when_switching_to_mm():
-    dialog = ExportDialog()
-    dialog.journal_preset_combo.setCurrentText("学術誌 単段 (85mm)")
-    assert dialog.width_spinbox.value() == pytest.approx(85.0)
-    assert dialog.height_spinbox.value() == pytest.approx(600 / 300 * 25.4, abs=0.1)
+def test_export_tab_journal_preset_switches_to_mm_and_keeps_the_height(tmp_path, monkeypatch):
+    panel = _make_isolated_plotter_app(tmp_path, monkeypatch).export_preview_panel
+    panel.size_preset_combo.setCurrentIndex(panel.size_preset_combo.findData(85.0))
+    assert panel.unit_combo.currentData() == "ミリメートル (mm)"
+    assert panel.unit_segments.currentData() == "ミリメートル (mm)"
+    assert panel.width_spinbox.value() == pytest.approx(85.0)
+    assert panel.height_spinbox.value() == pytest.approx(600 / 150 * 25.4, abs=0.1)
 
 
 def test_export_plot_refuses_a_png_too_large_to_draw(tmp_path, monkeypatch):
     window = _make_isolated_plotter_app(tmp_path, monkeypatch)
     _add_dataset(window)
     out_path = tmp_path / "huge.png"
-    _patch_export_dialog(monkeypatch, accepted=True, width=100, height=3, unit="インチ (in)", dpi=1200)
+    _set_export_options(window, width=100, height=3, unit="インチ (in)", dpi=1200)
     monkeypatch.setattr(notify_module.QFileDialog, "getSaveFileName",
                         staticmethod(lambda *a, **k: (str(out_path), "PNG (*.png)")))
     warnings = []
@@ -1205,42 +1132,6 @@ def test_export_plot_refuses_a_png_too_large_to_draw(tmp_path, monkeypatch):
     assert not out_path.exists()
     assert len(warnings) == 1
     assert tuple(window.canvas.fig.get_size_inches()) == pytest.approx(original_size)
-
-
-def test_generate_preview_of_a_huge_size_shows_a_message_instead(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    _add_dataset(window)
-    dialog = ExportDialog(window)
-    dialog.unit_combo.setCurrentIndex(dialog.unit_combo.findData("センチメートル (cm)"))
-    dialog.width_spinbox.setValue(800)
-    dialog.height_spinbox.setValue(600)
-
-    window._generate_preview(dialog)
-
-    assert "プレビューを表示しません" in dialog.preview_label.text()
-
-
-def test_generate_preview_of_a_large_size_uses_a_reduced_dpi(tmp_path, monkeypatch):
-    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
-    _add_dataset(window)
-    dialog = ExportDialog(window)
-    dialog.unit_combo.setCurrentIndex(dialog.unit_combo.findData("インチ (in)"))
-    dialog.width_spinbox.setValue(10)
-    dialog.height_spinbox.setValue(8)
-    made = []
-
-    class SpyFigure(Figure):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            made.append(self)
-    monkeypatch.setattr(export_mixin_module, "Figure", SpyFigure)
-
-    window._generate_preview(dialog)
-
-    width_px, height_px = made[0].get_size_inches() * made[0].dpi
-    assert width_px <= dialog.preview_label.width() * 2 + 1
-    assert height_px <= dialog.preview_label.height() * 2 + 1
-    assert not dialog.preview_label.pixmap().isNull()
 
 
 # --- 表示中の範囲で書き出す(バッチエクスポート) ---
@@ -1276,3 +1167,48 @@ def test_batch_export_subplots_uses_the_visible_range(tmp_path, monkeypatch, vis
         assert saved[0] == pytest.approx(expected)
     # 書き出しで画面の記録は変わらない
     assert 'x' in window.canvas.view_overrides[0]
+
+
+# --- ライト配色で書き出す ---
+
+def _dark_window(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    window.canvas.dark_mode = True
+    window._update_plot(light=True)
+    return window
+
+
+@pytest.mark.parametrize("light, expected_dark", [(True, False), (False, True)])
+def test_the_export_tab_draws_its_figure_in_light_colors_unless_turned_off(tmp_path, monkeypatch, light,
+                                                                          expected_dark):
+    window = _dark_window(tmp_path, monkeypatch)
+    panel = window.export_preview_panel
+    panel.light_colors_checkbox.setChecked(light)
+    assert window.output_dark_mode() is expected_dark
+    temp_canvas = panel._make_temp_canvas_for_full_figure(4, 3, 50)
+    assert temp_canvas.dark_mode is expected_dark
+
+
+def test_copying_the_screen_figure_in_dark_mode_draws_it_light_and_restores_the_screen(tmp_path, monkeypatch):
+    window = _dark_window(tmp_path, monkeypatch)
+    seen = []
+    original_savefig = window.canvas.fig.savefig
+
+    def spy_savefig(*args, **kwargs):
+        seen.append(window.canvas.dark_mode)
+        return original_savefig(*args, **kwargs)
+
+    monkeypatch.setattr(window.canvas.fig, "savefig", spy_savefig)
+    window._on_copy_plot_to_clipboard()
+    assert seen == [False]
+    assert window.canvas.dark_mode is True
+
+
+def test_copying_in_light_mode_does_not_redraw_the_screen(tmp_path, monkeypatch):
+    window = _make_isolated_plotter_app(tmp_path, monkeypatch)
+    _add_dataset(window)
+    redraws = []
+    monkeypatch.setattr(window, "_update_plot", lambda *a, **k: redraws.append(k))
+    window._on_copy_plot_to_clipboard()
+    assert redraws == []

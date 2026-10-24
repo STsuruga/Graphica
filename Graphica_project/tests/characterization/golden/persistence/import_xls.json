@@ -122,7 +122,7 @@
  "all_plot_settings": [
   {
    "title": "",
-   "x_label": "",
+   "x_label": "時間 (s)",
    "y_label": "",
    "x_label_visible": true,
    "y_label_visible": true,
@@ -157,6 +157,8 @@
    "y_tick_decimals": -1,
    "legend_visible": true,
    "legend_loc": "best",
+   "legend_frame_visible": true,
+   "legend_columns": 1,
    "grid_visible": false,
    "minor_grid_visible": false,
    "x_major_grid_linestyle": "-",

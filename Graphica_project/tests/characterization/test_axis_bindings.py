@@ -273,7 +273,7 @@ EDITS = (
     ("y_tick_decimals_spinbox", lambda w: w.setValue(1)),
     ("ui.legend_visible_checkbox", lambda w: w.setChecked(not w.isChecked())),
     ("ui.legend_visible_checkbox", lambda w: w.setChecked(not w.isChecked())),
-    ("legend_loc_combo", lambda w: w.setCurrentText("upper left")),
+    ("legend_loc_combo", lambda w: w.setCurrentIndex(w.findData("upper left"))),
     ("ui.grid_visible_checkbox", lambda w: w.setChecked(not w.isChecked())),
     ("ui.minor_grid_visible_checkbox", lambda w: w.setChecked(not w.isChecked())),
     ("x_major_grid_linestyle_combo", lambda w: w.setCurrentIndex(2)),

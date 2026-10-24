@@ -134,7 +134,7 @@ def build_notes_page(app):
     page.add_section("グラフに描く")
     page.add_action(app.annotation_action, "注釈")
     page.add_action(app.region_highlight_action, "領域ハイライト")
-    page.add_action(app.range_select_action, "範囲選択")
+    page.add_action(app.range_select_action, "範囲を除外")
     page.add_section("表示")
     page.add_action(app.panel_labels_action, "パネルラベルを自動表示")
     return page

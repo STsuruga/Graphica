@@ -192,6 +192,8 @@
    "y_tick_decimals": -1,
    "legend_visible": true,
    "legend_loc": "best",
+   "legend_frame_visible": true,
+   "legend_columns": 1,
    "grid_visible": false,
    "minor_grid_visible": false,
    "x_major_grid_linestyle": "-",
@@ -294,7 +296,7 @@
  ],
  "undo_count": 0,
  "file": {
-  "sha256": "1f5c904dfac36c264a3c2ef546ea7d0f82284bd6ce308039856c5a678bf4c624",
+  "sha256": "9a1a2ae33084d431d3356fb65860fbb2b51f88ecda73f95a1dc7266d2d8e8aad",
   "content": {
    "format_version": 1,
    "datasets": [
@@ -464,6 +466,8 @@
      "y_tick_decimals": -1,
      "legend_visible": true,
      "legend_loc": "best",
+     "legend_frame_visible": true,
+     "legend_columns": 1,
      "grid_visible": false,
      "minor_grid_visible": false,
      "x_major_grid_linestyle": "-",

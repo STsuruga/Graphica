@@ -13,7 +13,18 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-10-14): v2.5.0(新しい画面の手直し)を公開した
+## 現在地(2026-10-24): 手直しリストと画面の動きを master に入れた(未リリース)
+
+- ユーザーの「手直しリスト」(Artifact https://claude.ai/artifact/5wJ8XHD3aiA81C5QrretS1 、状態は db の `tasks`)を
+  ブランチ `feat/fill-range-from-view` で実装し、PR で master に入れた。CHANGELOG の「未リリース」。済み: A01〜A11、B01〜B10、
+  F00・F01・F03・F04・F06。見送り(ユーザー判断): F02・F05・F07。見本と説明は https://claude.ai/artifact/2z9MoBr1M9oPQgtFYazrKx 。
+- 画面の動きは `gui/motion.py`(設定 `ui_animations`、offscreen では常に止める)。節の開閉は `SectionClip` の高さだけを動かし、
+  毎コマ外側の入れ物まで計算し直す。ぶれは実際の画面で1コマずつ位置を追って直した(テストは `tests/test_motion.py`)。
+- 見た目と並びを変えたので、特性テストの golden とスタイルの基準画像を作り直した(数値・描画は変わらない。persistence は
+  凡例の設定2つが増えた分)。
+- **残り**: リリースはユーザーの指示を待つ。macOS 実機の確認、ユーザー向け Wiki の更新、統合ブランチの片付け(ユーザーの判断待ち)。
+
+## 以前の現在地(2026-10-14): v2.5.0(新しい画面の手直し)を公開した
 
 - **v2.5.0 を公開済み**(タグ `v2.5.0` = `8e40e8f`、PR #156)。PyPI に `graphica-plot` 2.5.0(wheel・sdist)、GitHub Releases に
   `Graphica-2.5.0-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(zip 2つに `LICENSE` と `THIRD_PARTY_LICENSES.md`)。
