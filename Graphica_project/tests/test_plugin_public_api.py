@@ -18,11 +18,21 @@ from graphica.core.plugin_manifest import PLUGIN_API_VERSION
 from graphica.core.plugin_types import AnalysisResult, PluginMenuAction
 
 SNAPSHOT = {
-    "version": "2.1",
+    "version": "2.2",
     "graphica.plugin": ["AnalysisResult", "Dataset", "GraphicaPluginAPI", "PLUGIN_API_VERSION",
                         "PluginContext", "PluginExecutionError"],
     "graphica.plugin.testing": ["FakeGraphicaPluginAPI", "FakePluginContext", "PluginInstallError",
                                 "install_zip_like_graphica", "load_plugin_like_graphica"],
+    # 2.2: パネルの部品
+    "graphica.plugin.ui": ["SegmentedControl", "make_switch", "section", "show_toast", "theme_color"],
+    "ui": {
+        "section": ["title", "opened", "switch"],
+        "make_switch": ["checkbox"],
+        "theme_color": ["name"],
+        "show_toast": ["widget", "text"],
+        "SegmentedControl": ["addItem", "count", "currentData", "currentIndex", "findData", "itemData",
+                             "itemText", "setCurrentIndex", "setItemEnabled"],
+    },
     "register": {
         "register_analyzer": ["name", "fn", "output_kind", "param_schema"],
         "register_exporter": ["format_name", "extension", "writer", "name"],
@@ -109,6 +119,22 @@ def test_public_modules_export_exactly_the_snapshot():
         assert not added, f"{name} に増えた {sorted(added)}: {ADDITION}"
         for export in module.__all__:
             assert hasattr(module, export)
+
+
+def test_the_panel_parts_match_the_snapshot(qapp):
+    import graphica.plugin.ui as public_ui
+    name = "graphica.plugin.ui"
+    missing = set(SNAPSHOT[name]) - set(public_ui.__all__)
+    added = set(public_ui.__all__) - set(SNAPSHOT[name])
+    assert not missing, f"{name} から消えた {sorted(missing)}: {BREAKING}"
+    assert not added, f"{name} に増えた {sorted(added)}: {ADDITION}"
+    for function_name, params in SNAPSHOT["ui"].items():
+        member = getattr(public_ui, function_name)
+        if inspect.isclass(member):
+            methods = sorted(n for n in params if hasattr(member, n))
+            assert methods == sorted(params), f"{function_name} のメソッドが減った: {BREAKING}"
+        else:
+            assert _params(member) == params, f"{function_name} の引数が変わった: {BREAKING}"
 
 
 def test_register_hooks_match_the_snapshot():

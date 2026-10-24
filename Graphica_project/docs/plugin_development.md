@@ -148,7 +148,7 @@ Graphica は起動時(1日1回)と **ヘルプ ▸ プラグインの更新を�
 - `version` (必須): プラグイン自身のバージョン文字列(任意の書式。Graphica側は
   中身を検証しません)。
 - `api_version` (必須): このプラグインが対応するGraphicaプラグインAPIの
-  バージョン。現在の値は **`"2.1"`**(`core/plugin_manifest.py` の
+  バージョン。現在の値は **`"2.2"`**(`core/plugin_manifest.py` の
   `PLUGIN_API_VERSION`)。ここが一致しないプラグインは、`__init__.py` を
   importすることすら無く、ロード前に安全にスキップされます。
   **主番号が本体と同じで、小番号が本体以下なら読み込まれます**(下の「版の方針」)。
@@ -182,6 +182,7 @@ Graphica は起動時(1日1回)と **ヘルプ ▸ プラグインの更新を�
 
 | 版 | 増えたもの |
 |---|---|
+| 2.2 | パネルの部品 `graphica.plugin.ui`(節・スイッチ・選択肢のボタン・テーマの色・知らせ。「プラグイン製パネルのスタイルガイド」) |
 | 2.1 | `ctx.undo_group(description)`、`ctx.set_active_color_palette(name)` |
 | 2.0 | 窓口 `PluginContext`(「1.0 からの移行」) |
 
@@ -756,8 +757,47 @@ Graphicaのプラグイン機構は「1箇所の失敗が全体を巻き込ま�
 
 `register_panel` で追加するパネルには、本体のテーマ(`gui/theme.py` の QSS)が
 アプリ全体に適用されるため、**標準の Qt ウィジェットをそのまま使えば本体と同じ見た目・
-ダークモードになります。** ウィジェット個別に `setStyleSheet` で色を直書きすると、
-ダークモードで読めなくなるので避けてください。
+ダークモードになります**(ボタン・プルダウン・数値の欄・スクロールバーの角丸や矢印も本体と同じ)。
+ウィジェット個別に `setStyleSheet` で色を直書きすると、ダークモードで読めなくなるので避けてください。
+
+パネルは左端の帯の「プラグイン」ページ(幅 280px)に入ります。横に長い行は入らないので、
+ボタンは縦に並べるか、名前を短くしてください。
+
+### 本体と同じ部品(`graphica.plugin.ui`、プラグイン API 2.2)
+
+インスペクタと同じ節・スイッチ・選択肢のボタンを、プラグインのパネルでも使えます。
+画面の部品を読み込むので、`import` はパネルを作る関数の中で行ってください
+(計算だけの単体テストでは読み込まれないように)。
+
+```python
+def make_panel(ctx):
+    from PySide6.QtWidgets import QCheckBox, QSpinBox, QVBoxLayout, QWidget
+    from graphica.plugin import ui
+
+    panel = QWidget()
+    layout = QVBoxLayout(panel)
+    smoothing = QCheckBox("平滑化")                 # 見出しのスイッチ(オフの間は中身を畳む)
+    box, form = ui.section("前処理", switch=smoothing)
+    form.addRow("窓の幅", QSpinBox())
+    mode = ui.SegmentedControl()                     # QComboBox と同じ呼び方ができる選択肢のボタン
+    for label, value in (("線", "line"), ("点", "point")):
+        mode.addItem(label, value)
+    form.addRow("表示", mode)
+    form.addRow(ui.make_switch(QCheckBox("ピークに名前を付ける")))
+    layout.addWidget(box)
+    layout.addStretch(1)
+    return panel
+```
+
+| 名前 | 使い方 |
+|---|---|
+| `section(title, opened=True, switch=None)` | 見出しを押して開閉できる節。`(節の部品, 中身の QFormLayout)` を返す。`switch` に QCheckBox を渡すと見出しの右端のスイッチになる |
+| `make_switch(checkbox)` | QCheckBox をスイッチの見た目にする(値と `toggled` はそのまま) |
+| `SegmentedControl` | 選択肢のボタン。`addItem(text, data, tooltip)`・`currentIndex()`・`currentData()`・`setCurrentIndex()`・`currentIndexChanged` |
+| `theme_color(name)` | 今のテーマの色(`"accent"`、`"text_muted"`、`"surface"` など。`ui.THEME_COLOR_NAMES`)。自前で描く部品は、描くたびにこれで色を読む |
+| `show_toast(widget, text)` | ウィンドウの右下に短い知らせを出して消す(「書き出しました」など) |
+
+開閉やスイッチの動きは本体と同じく、環境設定の「画面の動き」に従います。
 
 ---
 
