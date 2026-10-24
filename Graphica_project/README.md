@@ -14,7 +14,7 @@ A desktop app for turning CSV/Excel measurement data into publication-quality pl
 ![Graphica のメイン画面](https://github.com/STsuruga/Graphica/raw/master/Graphica_project/docs/images/main_window.png)
 
 - **公式サイト**: https://stsuruga.github.io/Graphica/ (機能の紹介・作例・ダウンロード・プラグイン)
-- **ダウンロード**: [最新版(Releases)](https://github.com/STsuruga/Graphica/releases/latest) から、Windows / macOS の zip を入手できます(インストール不要)。
+- **ダウンロード**: [最新版(Releases)](https://github.com/STsuruga/Graphica/releases/latest) から、Windows のインストーラーか zip、macOS の zip を入手できます(zip は展開するだけで使えます)。
 - **使い方**: [Wiki](https://github.com/STsuruga/Graphica/wiki) に、最初のグラフを作るチュートリアルから解析機能まで、画面写真付きでまとめています。
 - **不具合の報告・要望**: [Issues](https://github.com/STsuruga/Graphica/issues/new/choose) / 開発に参加する方は [CONTRIBUTING.md](https://github.com/STsuruga/Graphica/blob/master/CONTRIBUTING.md)
 
@@ -201,7 +201,7 @@ Windows では上部バーの ≡ にまとめています(macOS では画面上
 * **最近使ったファイル / スタートアップ画面**: 直近のファイルをすばやく開き直せます。
 * **書式テンプレートを保存 / 適用**: グラフの外観設定だけ(データは含まない)を `.graphica-style` ファイルとして保存・適用します。**編集 ▸ 環境設定** の「既定の書式テンプレート」に指定しておくと、新しいタブ・プロジェクトに最初から当たり、そのタブで読み込んだデータセットにもテンプレートのスタイルが読み込んだ順に当たります(開いたプロジェクトには当てません)。
 * **エクスポート** サブメニュー:
-    * **名前を付けてエクスポート**: 画像(PNG)・PDF・SVG として保存します。サイズや解像度、背景の透過、SVG の文字のパス化、データを間引かずに書き出すかどうか(点数の多い線や 2D マップを全データ点で描く。解像度とは別の設定)などを指定できます。単位(px / in / cm / mm)を切り替えると、同じ大きさのまま数字が換算されます。画像にしたときの画素数が欄の下に表示され、とても大きい画像は保存の前に確認します(1辺が 65,535 px を超える画像は描けません)。PDF にはフォントを TrueType として埋め込みます(Illustrator などで文字を編集できます)。
+    * **名前を付けてエクスポート**: インスペクタの「エクスポート」タブで、プレビューを見ながら画像(PNG)・PDF・SVG として保存します(上部バーのエクスポートのボタンも同じ)。サイズや解像度、背景の透過、SVG の文字のパス化、データを間引かずに書き出すかどうか(点数の多い線や 2D マップを全データ点で描く。解像度とは別の設定)などを指定できます。単位(px / in / cm / mm)を切り替えると、同じ大きさのまま数字が換算されます。画像にしたときの画素数が欄の下に表示され、とても大きい画像は保存の前に確認します(1辺が 65,535 px を超える画像は描けません)。PDF にはフォントを TrueType として埋め込みます(Illustrator などで文字を編集できます)。
     * **グラフをコピー / 印刷 / バッチエクスポート / Pythonスクリプトとしてエクスポート / LaTeX/Word用キャプションを生成 / 実験レポートを生成 (HTML/PDF)**
 * **オートセーブ**: 自動保存の間隔(分、0で無効)を設定します。自動保存は既定でユーザーごとのフォルダ(Windows では `%LOCALAPPDATA%\Graphica`)に保存され、保存先は環境設定で変更できます。**自動バックアップ履歴から復元** で過去の世代に戻せます。
 * **設定・スタイルをエクスポート / インポート**: 環境設定やパレットなどを別の PC へ持ち運べます。
@@ -238,7 +238,7 @@ Windows では上部バーの ≡ にまとめています(macOS では画面上
 ### 7.1 ビルド済みの実行ファイルを使う
 
 [Releases](https://github.com/STsuruga/Graphica/releases) から、お使いのOSの
-ファイルをダウンロードしてください。インストール作業は不要です。
+ファイルをダウンロードしてください。
 
 * **Windows**: インストーラー(`Graphica-<版>-setup.exe`)で入れるか、zip を展開して中の `Graphica.exe` を実行します。
   インストーラーは管理者権限なしで入れられ、`.gra` と `.graphica` のファイルをダブルクリックで開けるようにします
