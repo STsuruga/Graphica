@@ -44,6 +44,16 @@ def cap_combo_width(combo):
     combo.setMinimumContentsLength(PLOT_TYPE_COMBO_MIN_CHARS)
 
 
+def discard_widget(widget):
+    """組み立ての途中で要らなくなった部品(欄の差し替えの仮の部品・古い入れ物など)を捨てる。
+
+    deleteLater() はイベントループが回るまで消さず、その間は親の左上に残って下の部品のクリックを
+    横取りする(目盛のフォント・色のボタンが押せなかった)。先に隠しておく。
+    """
+    widget.hide()
+    widget.deleteLater()
+
+
 COLORMAP_CHOICES = [
     'viridis', 'plasma', 'inferno', 'magma', 'cividis',
     'coolwarm', 'RdBu', 'seismic', 'jet', 'turbo',

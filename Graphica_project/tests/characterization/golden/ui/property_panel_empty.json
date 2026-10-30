@@ -700,7 +700,7 @@
            },
            {
             "class": "QWidget",
-            "visible": true,
+            "visible": false,
             "enabled": false
            },
            {
@@ -818,7 +818,7 @@
            },
            {
             "class": "QWidget",
-            "visible": true,
+            "visible": false,
             "enabled": false
            },
            {
@@ -862,7 +862,7 @@
            },
            {
             "class": "QWidget",
-            "visible": true,
+            "visible": false,
             "enabled": false
            },
            {
@@ -1990,7 +1990,7 @@
            },
            {
             "class": "QWidget",
-            "visible": true,
+            "visible": false,
             "enabled": false
            },
            {

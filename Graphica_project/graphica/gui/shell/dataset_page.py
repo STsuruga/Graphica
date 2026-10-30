@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QLabel, QSizePo
 
 from graphica.core.analysis import sample_standard_deviation
 from graphica.core.i18n import tr
+from graphica.gui.builders.common import discard_widget
 from graphica.gui.dataset_style_icon import make_dataset_style_icon
 from graphica.gui.shell.icons import themed_icon
 from graphica.gui.widgets import StatCard
@@ -51,7 +52,7 @@ def _take_all(layout):
         item = layout.takeAt(0)
         widget = item.widget()
         if widget is not None and widget.objectName() == "button_row_separator":
-            widget.deleteLater()
+            discard_widget(widget)
 
 
 def _dataset_items(tree):
@@ -72,7 +73,7 @@ class DatasetPage(QWidget):
         old_container = tree.parentWidget()
         app.ui.gridLayout_2.removeWidget(old_container)
         _take_all(old_container.layout())
-        old_container.deleteLater()
+        discard_widget(old_container)
         _take_all(app.ui.horizontalLayout_3)
         app.ui.gridLayout_2.removeItem(app.ui.horizontalLayout_3)
 

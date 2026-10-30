@@ -2122,19 +2122,19 @@
               "children": [
                {
                 "class": "QWidget",
-                "visible": true,
+                "visible": false,
                 "enabled": true
                },
                {
                 "class": "QFrame",
                 "name": "button_row_separator",
-                "visible": true,
+                "visible": false,
                 "enabled": true
                },
                {
                 "class": "QFrame",
                 "name": "button_row_separator",
-                "visible": true,
+                "visible": false,
                 "enabled": true
                },
                {
@@ -8503,7 +8503,7 @@
                                  },
                                  {
                                   "class": "QWidget",
-                                  "visible": true,
+                                  "visible": false,
                                   "enabled": false
                                  },
                                  {
@@ -8621,7 +8621,7 @@
                                  },
                                  {
                                   "class": "QWidget",
-                                  "visible": true,
+                                  "visible": false,
                                   "enabled": false
                                  },
                                  {
@@ -8665,7 +8665,7 @@
                                  },
                                  {
                                   "class": "QWidget",
-                                  "visible": true,
+                                  "visible": false,
                                   "enabled": false
                                  },
                                  {

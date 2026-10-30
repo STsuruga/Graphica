@@ -217,3 +217,40 @@ def test_copying_selected_cells_of_the_data_table_gives_tab_separated_values(tab
             selection.select(model.index(row, column), QItemSelectionModel.SelectionFlag.Select)
     tab.data_table_copy_action.trigger()
     assert QApplication.clipboard().text() == "1.0\t1.0\n2.0\t4.0"
+
+
+def _laid_out_widgets(layout, found):
+    for index in range(layout.count()):
+        item = layout.itemAt(index)
+        if item.widget() is not None:
+            found.add(item.widget())
+        elif item.layout() is not None:
+            _laid_out_widgets(item.layout(), found)
+    return found
+
+
+def test_no_discarded_widget_sits_over_the_screen_before_the_event_loop(main_window, tab):
+    """組み立てで捨てた部品(欄の差し替えの仮の部品・古い入れ物)は、deleteLater が効く前から隠れている。
+
+    残っていると親の左上でクリックを横取りし、目盛のフォント・色のボタンが押せなかった。
+    """
+    from PySide6.QtWidgets import QAbstractScrollArea, QSplitter, QStackedWidget, QTabBar, QToolBar, QWidget
+
+    main_window.show()
+    tab.inspector.show_page("axes")
+    tab.ui.axis_tab_widget.setCurrentIndex(tab.ui.axis_tab_widget.indexOf(tab.ui.tab_3))
+    _pump()
+    managed_by_parent = (QAbstractScrollArea, QSplitter, QStackedWidget, QTabBar, QToolBar)
+    strays = []
+    for widget in main_window.findChildren(QWidget):
+        parent = widget.parentWidget()
+        if parent is None or widget.isWindow() or widget.isHidden() or parent.layout() is None:
+            continue
+        if isinstance(parent, managed_by_parent) or isinstance(parent.parentWidget(), QAbstractScrollArea):
+            continue
+        if widget not in _laid_out_widgets(parent.layout(), set()):
+            strays.append((type(widget).__name__, widget.objectName(), parent.objectName()))
+    assert strays == []
+    for button in (tab.ui.tick_font_button, tab.ui.tick_color_button):
+        assert button.isVisible()
+        assert button.parentWidget().childAt(button.geometry().center()) is button
