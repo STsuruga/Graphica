@@ -1,6 +1,6 @@
 # テストカバレッジ詳細
 
-計測日: 2026-10-24  
+計測日: 2026-10-31  
 要約は [`COVERAGE.md`](COVERAGE.md)。このファイルも `bash scripts/run_coverage.sh` が自動生成する。
 ソースと並べた色付き表示は https://stsuruga.github.io/Graphica/coverage/ (CI が master の push ごとに更新)。
 
@@ -26,7 +26,7 @@
 | `graphica/gui/panels/axis_settings.py` | 439 | 47 | 85.4% | 116 | 16 | 70.7% |
 | `graphica/gui/datasets/operations/fitting.py` | 240 | 29 | 86.6% | 52 | 4 | 80.8% |
 | `graphica/gui/shell/layout_popover.py` | 44 | 4 | 87.0% | 2 | 0 | 0.0% |
-| `graphica/gui/motion.py` | 320 | 31 | 87.6% | 84 | 15 | 77.4% |
+| `graphica/gui/motion.py` | 332 | 32 | 87.6% | 88 | 16 | 77.3% |
 | `graphica/core/plugin_updates.py` | 96 | 12 | 88.1% | 30 | 3 | 90.0% |
 | `graphica/gui/tools/slice_extraction.py` | 131 | 13 | 88.6% | 36 | 6 | 83.3% |
 | `graphica/gui/mathtext_preview.py` | 109 | 11 | 88.7% | 24 | 2 | 83.3% |
@@ -47,7 +47,7 @@
 | `graphica/gui/splash.py` | 60 | 4 | 91.9% | 2 | 1 | 50.0% |
 | `graphica/gui/mixins/help_mixin.py` | 142 | 9 | 92.0% | 32 | 3 | 84.4% |
 | `graphica/core/diagnostics.py` | 58 | 4 | 92.1% | 18 | 2 | 88.9% |
-| `graphica/gui/builders/axis_format_sections.py` | 140 | 5 | 92.4% | 44 | 9 | 79.5% |
+| `graphica/gui/builders/axis_format_sections.py` | 141 | 5 | 92.4% | 44 | 9 | 79.5% |
 | `graphica/gui/rendering/data_2d.py` | 37 | 3 | 92.5% | 16 | 1 | 93.8% |
 | `graphica/core/excel_utils.py` | 36 | 2 | 92.6% | 18 | 2 | 88.9% |
 | `graphica/gui/tools/peak_placement.py` | 81 | 6 | 92.7% | 28 | 2 | 92.9% |
@@ -101,19 +101,19 @@
 | `graphica/gui/dialogs/app.py` | 786 | 11 | 97.3% | 140 | 14 | 90.0% |
 | `graphica/gui/main_window.py` | 785 | 17 | 97.3% | 118 | 7 | 94.1% |
 | `graphica/gui/export_preview_panel.py` | 312 | 4 | 97.4% | 70 | 6 | 91.4% |
-| `graphica/gui/builders/common.py` | 101 | 2 | 97.5% | 18 | 1 | 94.4% |
 | `graphica/gui/plugin_context.py` | 102 | 2 | 97.5% | 18 | 1 | 94.4% |
+| `graphica/gui/builders/common.py` | 104 | 2 | 97.5% | 18 | 1 | 94.4% |
 | `graphica/gui/updater.py` | 73 | 2 | 97.7% | 14 | 0 | 100.0% |
 | `graphica/gui/shell/inspector.py` | 119 | 2 | 97.7% | 12 | 1 | 91.7% |
 | `graphica/gui/dialogs/export.py` | 204 | 3 | 97.7% | 16 | 0 | 87.5% |
 | `graphica/gui/plot_type_drawers.py` | 71 | 1 | 97.8% | 20 | 1 | 95.0% |
 | `graphica/gui/theme.py` | 296 | 3 | 97.8% | 74 | 5 | 93.2% |
 | `graphica/core/plugin_testing.py` | 150 | 4 | 97.9% | 38 | 0 | 100.0% |
-| `graphica/gui/widgets/slider_spin.py` | 43 | 0 | 97.9% | 4 | 1 | 75.0% |
+| `graphica/gui/widgets/slider_spin.py` | 47 | 0 | 98.0% | 4 | 1 | 75.0% |
 | `graphica/core/plugin_api.py` | 221 | 3 | 98.1% | 46 | 2 | 95.7% |
 | `graphica/gui/axis_bindings.py` | 48 | 0 | 98.1% | 6 | 1 | 83.3% |
 | `graphica/gui/mixins/quick_access_mixin.py` | 122 | 0 | 98.2% | 42 | 3 | 92.9% |
-| `graphica/gui/dialogs/analysis.py` | 886 | 7 | 98.4% | 84 | 9 | 89.3% |
+| `graphica/gui/dialogs/analysis.py` | 887 | 7 | 98.4% | 84 | 9 | 89.3% |
 | `graphica/gui/builders/canvas_area.py` | 237 | 2 | 98.5% | 30 | 2 | 93.3% |
 | `graphica/gui/theme_color.py` | 61 | 0 | 98.5% | 6 | 1 | 83.3% |
 | `graphica/gui/rendering/appearance.py` | 255 | 1 | 98.6% | 92 | 4 | 95.7% |
@@ -175,7 +175,7 @@
 | `graphica/gui/residual_panel.py` | 46 | 0 | 100.0% | 6 | 0 | 100.0% |
 | `graphica/gui/resources.py` | 8 | 0 | 100.0% | 0 | 0 | — |
 | `graphica/gui/shell/__init__.py` | 0 | 0 | 100.0% | 0 | 0 | — |
-| `graphica/gui/shell/dataset_page.py` | 198 | 0 | 100.0% | 34 | 0 | 100.0% |
+| `graphica/gui/shell/dataset_page.py` | 199 | 0 | 100.0% | 34 | 0 | 100.0% |
 | `graphica/gui/shell/icons.py` | 13 | 0 | 100.0% | 2 | 0 | 100.0% |
 | `graphica/gui/shell/tab_shell.py` | 40 | 0 | 100.0% | 4 | 0 | 100.0% |
 | `graphica/gui/task_runner.py` | 22 | 0 | 100.0% | 0 | 0 | — |
@@ -267,7 +267,7 @@
 
 ### `graphica/gui/builders/axis_format_sections.py` (5 行)
 
-94, 161, 163, 171, 200
+95, 162, 164, 172, 201
 
 ### `graphica/gui/builders/axis_range_sections.py` (3 行)
 
@@ -279,7 +279,7 @@
 
 ### `graphica/gui/builders/common.py` (2 行)
 
-144-145
+154-155
 
 ### `graphica/gui/builders/dataset_panel.py` (1 行)
 
@@ -355,7 +355,7 @@
 
 ### `graphica/gui/dialogs/analysis.py` (7 行)
 
-248, 381-384, 560, 1227
+248, 381-384, 562, 1229
 
 ### `graphica/gui/dialogs/app.py` (11 行)
 
@@ -425,9 +425,9 @@
 
 65-66, 90, 95, 108, 110
 
-### `graphica/gui/motion.py` (31 行)
+### `graphica/gui/motion.py` (32 行)
 
-34, 127, 130, 150-152, 240-249, 251-253, 255-256, 263-269, 445, 455, 462
+34, 51, 145, 148, 168-170, 258-267, 269-271, 273-274, 281-287, 463, 473, 480
 
 ### `graphica/gui/notify.py` (2 行)
 

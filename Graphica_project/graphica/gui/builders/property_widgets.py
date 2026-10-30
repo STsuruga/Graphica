@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLay
 from graphica.core.i18n import tr
 from graphica.gui import theme
 from graphica.core.marker_style import MARKER_FILL_COLOR, MARKER_FILL_HOLLOW, MARKER_FILL_SOLID
-from graphica.gui.builders.common import _svg_icon
+from graphica.gui.builders.common import _svg_icon, discard_widget
 from graphica.gui.dataset_bindings import NO_MARKER
 from graphica.gui.widgets import ComboMirror, SegmentedControl, SliderSpin, TypeTileGroup
 
@@ -91,7 +91,7 @@ def build_property_widgets(app):
     _swap_field(style_form, app.ui.linestyle_combo, placeholder)
     app.linestyle_field = _hidden_owner_row(app.linestyle_segments, app.ui.linestyle_combo)
     _swap_field(style_form, placeholder, app.linestyle_field)
-    placeholder.deleteLater()
+    discard_widget(placeholder)
     app.linestyle_mirror = ComboMirror(app.linestyle_segments, app.ui.linestyle_combo)
 
     # 線の太さ・透明度: スライダー+数値(数値の欄は今のスピンボックス)
@@ -110,7 +110,7 @@ def build_property_widgets(app):
     _swap_field(marker_form, app.marker_fill_combo, placeholder)
     app.marker_fill_field = _hidden_owner_row(app.marker_fill_segments, app.marker_fill_combo)
     _swap_field(marker_form, placeholder, app.marker_fill_field)
-    placeholder.deleteLater()
+    discard_widget(placeholder)
     app.marker_fill_mirror = ComboMirror(app.marker_fill_segments, app.marker_fill_combo)
     app.marker_edge_width_slider = _slider_field(marker_form, app.marker_edge_width_spinbox,
                                                  *MARKER_EDGE_WIDTH_SLIDER_RANGE)
@@ -141,7 +141,7 @@ def _slider_field(form, spinbox, slider_min, slider_max):
     _swap_field(form, spinbox, placeholder)
     slider = SliderSpin(spinbox, slider_min, slider_max)
     _swap_field(form, placeholder, slider)
-    placeholder.deleteLater()
+    discard_widget(placeholder)
     return slider
 
 

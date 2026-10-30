@@ -1,6 +1,6 @@
 # テストカバレッジ
 
-計測日: 2026-10-24  
+計測日: 2026-10-31  
 対象: `graphica`(設定は `pyproject.toml` の `[tool.coverage.*]`)
 
 このファイルは `bash scripts/run_coverage.sh` が自動生成する。手で編集しても次回の実行で上書きされる。
@@ -12,8 +12,8 @@ CI が master への push ごとに更新する。このファイルの数字は
 
 | 指標 | 値 |
 |---|---|
-| 行カバレッジ | **94.8%** (21,549 / 22,392 行) |
-| 分岐カバレッジ | 89.2% (4,888 / 5,482) |
+| 行カバレッジ | **94.8%** (21,570 / 22,414 行) |
+| 分岐カバレッジ | 89.2% (4,891 / 5,486) |
 | 対象ファイル数 | 172 |
 
 ## パッケージ別
@@ -34,7 +34,7 @@ CI が master への push ごとに更新する。このファイルの数字は
 | `graphica/gui/rendering` | 6 | 98.8% |
 | `graphica/gui/shell` | 14 | 96.8% |
 | `graphica/gui/tools` | 11 | 92.9% |
-| `graphica/gui/widgets` | 7 | 95.3% |
+| `graphica/gui/widgets` | 7 | 95.4% |
 | `graphica/models` | 2 | 99.2% |
 | `graphica/plugin` | 3 | 97.8% |
 | `graphica/plugins/example_plugin` | 1 | 66.7% |

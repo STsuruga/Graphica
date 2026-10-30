@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QPushButton, QVB
 
 from graphica.core.i18n import tr
 from graphica.gui import ui_mode
+from graphica.gui.builders.common import discard_widget
 from graphica.gui.builders.property_sections import attach_header_switch, build_section
 from graphica.gui.widgets import ComboMirror, SegmentedControl, SliderSpin
 
@@ -200,5 +201,5 @@ def _slider_in_form(form: QFormLayout, spinbox, slider_min, slider_max):
         raise ValueError("欄がフォームに見つからない")
     slider = SliderSpin(spinbox, slider_min, slider_max)
     form.replaceWidget(placeholder, slider)
-    placeholder.deleteLater()
+    discard_widget(placeholder)
     return slider
