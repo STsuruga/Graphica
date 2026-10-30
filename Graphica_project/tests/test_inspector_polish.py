@@ -220,6 +220,9 @@ def test_copying_selected_cells_of_the_data_table_gives_tab_separated_values(tab
 
 
 def _laid_out_widgets(layout, found):
+    if layout.menuBar() is not None:
+        # macOS ではメニューバーを隠さない(画面の上のメニューバーになる)。レイアウトは itemAt でなく menuBar で持つ
+        found.add(layout.menuBar())
     for index in range(layout.count()):
         item = layout.itemAt(index)
         if item.widget() is not None:
