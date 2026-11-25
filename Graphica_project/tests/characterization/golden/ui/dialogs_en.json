@@ -741,6 +741,14 @@
     },
     {
      "class": "QCheckBox",
+     "text": "Remove clipping masks at the plot frame (SVG)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "In SVG, removes the clipping mask that hides anything outside the plot frame from series that fit inside it (easier to edit in Illustrator and similar tools). Series with data outside the frame keep their mask so the figure looks the same. PNG/PDF are not affected."
+    },
+    {
+     "class": "QCheckBox",
      "text": "Export with all data points (no thinning)",
      "checked": false,
      "visible": true,

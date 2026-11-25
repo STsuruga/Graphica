@@ -236,7 +236,9 @@
    "y2_major_tick_mode": 0,
    "y2_major_tick_interval": 1.0,
    "y2_minor_ticks_visible": false,
-   "y2_minor_tick_interval": 0.5
+   "y2_minor_tick_interval": 0.5,
+   "y2_ticks_visible": true,
+   "y2_tick_labels_visible": true
   }
  ],
  "layout": [
