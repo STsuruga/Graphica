@@ -118,9 +118,15 @@ def _file_hashes(files):
     return {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
 
 
-def check_file_hashes(name, files):
-    """バイト列のハッシュ。画素と同じく、ピンした環境でだけ比べる。"""
+def check_file_hashes(name, files, embeds_system_fonts=False):
+    """バイト列のハッシュ。画素と同じく、ピンした環境でだけ比べる。
+
+    PDF は OS の字形のファイルを埋め込むので、パッケージの版が同じでも OS の更新で変わる(GitHub の Windows の
+    実行環境の更新で一致しなくなった)。そうしたものは基準を作った機械でだけ比べる。
+    """
     if not recorder.pixel_environment_matches():
+        return
+    if embeds_system_fonts and not recorder.numeric_machine_matches():
         return
     recorder.check(f"{name}.bytes", _file_hashes(files))
 
@@ -143,7 +149,7 @@ def test_export_plot(app_env, modal_log, normalizer, tmp_path, fmt):
         check_file_hashes(f"exports/plot_{fmt}", {"file": normalize_svg(data.decode("utf-8")).encode("utf-8")})
     else:
         record["pdf_pages"] = data.count(b"/Type /Page\n") + data.count(b"/Type /Page ")
-        check_file_hashes(f"exports/plot_{fmt}", {"file": normalize_pdf(data)})
+        check_file_hashes(f"exports/plot_{fmt}", {"file": normalize_pdf(data)}, embeds_system_fonts=True)
     recorder.check(f"exports/plot_{fmt}", record, normalizer)
 
 
