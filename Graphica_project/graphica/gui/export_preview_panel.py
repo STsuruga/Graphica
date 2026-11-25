@@ -20,7 +20,8 @@ from graphica.gui import dialog_dirs
 from graphica.gui.canvas import MplCanvas
 from graphica.core.plugin_api import get_plugin_api, get_registered_exporters
 from graphica.core.plugin_types import PluginExecutionError
-from graphica.gui.export_settings import export_rc_params, project_has_raster_gradient_fill
+from graphica.gui.export_settings import (export_rc_params, is_svg, plot_clip_masks_removed,
+                                          project_has_raster_gradient_fill)
 from graphica.gui.export_size import ExportSizeFields, confirm_output_size, preview_dpi, preview_too_large_text
 from graphica.gui.builders.property_sections import build_section
 from graphica.gui.widgets import ComboMirror, SegmentedControl
@@ -137,6 +138,10 @@ class ExportPreviewPanel(QWidget):
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
+        self.svg_remove_clip_masks_checkbox = QCheckBox("枠の外を隠すマスクを外す(SVG)")
+        self.svg_remove_clip_masks_checkbox.setToolTip("SVG で、プロット枠の外を隠すクリッピングマスクを、枠の中に収まる系列から外します(Illustrator などで編集しやすくなります)。枠の外にはみ出すデータを持つ系列は、見た目が変わらないようマスクを残します。PNG/PDF には影響しません。")
+        form.addRow(self.svg_remove_clip_masks_checkbox)
+
         # プレビューは応答を優先して常に間引いて描く。このチェックは保存とコピーだけに効く
         # 解像度(dpi)の設定と取り違えられたので、「間引かない」ことを名前にする
         self.full_resolution_checkbox = QCheckBox("データを間引かずに保存/コピー")
@@ -215,6 +220,7 @@ class ExportPreviewPanel(QWidget):
             "dpi": self.dpi_spinbox.value(),
             "transparent": self.transparent_checkbox.isChecked(),
             "svg_text_as_path": self.svg_text_as_path_checkbox.isChecked(),
+            "svg_remove_clip_masks": self.svg_remove_clip_masks_checkbox.isChecked(),
             "full_resolution": self.full_resolution_checkbox.isChecked(),
             "visible_range": self.visible_range_checkbox.isChecked(),
         }
@@ -324,7 +330,7 @@ class ExportPreviewPanel(QWidget):
             return None
 
     def _render_full_figure_bytes(self, width_in, height_in, dpi, fmt, transparent, svg_text_as_path=False,
-                                   full_resolution=False):
+                                   full_resolution=False, svg_remove_clip_masks=False):
         """'png' か 'svg' で書いたバイト列(保存とコピーで共有)。"""
         try:
             temp_canvas = self._make_temp_canvas_for_full_figure(width_in, height_in, dpi, full_resolution=full_resolution)
@@ -335,7 +341,7 @@ class ExportPreviewPanel(QWidget):
                 save_kwargs = {'format': fmt, 'bbox_inches': 'tight', 'transparent': transparent}
                 if fmt != 'svg':
                     save_kwargs['dpi'] = dpi
-                with mpl.rc_context(export_rc_params(fmt, svg_text_as_path)):
+                with mpl.rc_context(export_rc_params(fmt, svg_text_as_path)),                         plot_clip_masks_removed(temp_canvas.fig, svg_remove_clip_masks and is_svg(fmt)):
                     temp_canvas.fig.savefig(buf, **save_kwargs)
                 buf.seek(0)
                 data = buf.read()
@@ -359,7 +365,8 @@ class ExportPreviewPanel(QWidget):
         if self.copy_format_combo.currentText() == "SVG":
             svg_bytes = self._render_full_figure_bytes(
                 width_in, height_in, options["dpi"], fmt='svg', transparent=options["transparent"],
-                svg_text_as_path=options["svg_text_as_path"], full_resolution=options["full_resolution"]
+                svg_text_as_path=options["svg_text_as_path"], full_resolution=options["full_resolution"],
+                svg_remove_clip_masks=options["svg_remove_clip_masks"]
             )
             if svg_bytes is None:
                 notify.warning(self, "コピーエラー", "コピーする画像がありません。")
@@ -461,7 +468,8 @@ class ExportPreviewPanel(QWidget):
                 save_kwargs = {'transparent': options["transparent"], 'bbox_inches': 'tight'}
                 if file_ext not in ('.pdf', '.svg'):
                     save_kwargs['dpi'] = options["dpi"]
-                with mpl.rc_context(export_rc_params(file_ext, options.get("svg_text_as_path", False))):
+                remove_clip = options.get("svg_remove_clip_masks", False) and is_svg(file_ext)
+                with mpl.rc_context(export_rc_params(file_ext, options.get("svg_text_as_path", False))),                         plot_clip_masks_removed(temp_canvas.fig, remove_clip):
                     temp_canvas.fig.savefig(file_path, **save_kwargs)
             mw.statusBar().showMessage(f"保存しました: {file_path}", 3000)
             motion.toast(mw, tr("書き出しました"))

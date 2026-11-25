@@ -122,6 +122,10 @@ class BatchExportDialog(QDialog):
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
+        self.svg_remove_clip_masks_checkbox = QCheckBox(tr("枠の外を隠すマスクを外す(SVG)"))
+        self.svg_remove_clip_masks_checkbox.setToolTip(tr("SVG で、プロット枠の外を隠すクリッピングマスクを、枠の中に収まる系列から外します(Illustrator などで編集しやすくなります)。枠の外にはみ出すデータを持つ系列は、見た目が変わらないようマスクを残します。PNG/PDF には影響しません。"))
+        form.addRow(self.svg_remove_clip_masks_checkbox)
+
         self.full_resolution_checkbox = QCheckBox(tr("データを間引かずにエクスポート"))
         self.full_resolution_checkbox.setToolTip(tr(
             "点数の多い Line(折れ線)データセットや 2D マップ(ヒートマップ/等高線)は、画面表示と同じく間引いて描かれます"
@@ -178,6 +182,7 @@ class BatchExportDialog(QDialog):
             'dpi': self.dpi_spinbox.value(),
             'transparent': self.transparent_checkbox.isChecked(),
             'svg_text_as_path': self.svg_text_as_path_checkbox.isChecked(),
+            'svg_remove_clip_masks': self.svg_remove_clip_masks_checkbox.isChecked(),
             'full_resolution': self.full_resolution_checkbox.isChecked(),
         }
 
