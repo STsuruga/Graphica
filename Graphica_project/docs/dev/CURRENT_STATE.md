@@ -13,8 +13,14 @@
   URLが失われていてもファイル自体がリポジトリにあるので、`DATA`配列の`true`/`false`を見れば
   完了状況が分かる)
 
-## 現在地(2026-11-26): v2.7.0(長い名前の見切れ・第2Y軸の目盛・枠の外の切り落とし)を出す
+## 現在地(2026-11-26): v2.7.0(長い名前の見切れ・第2Y軸の目盛・枠の外の切り落とし)を公開した
 
+- **v2.7.0 を公開済み**(タグ `v2.7.0` = `783f4de`、PR #168)。PyPI に `graphica-plot` 2.7.0(wheel・sdist)、GitHub Releases に
+  `Graphica-2.7.0-setup.exe`・`Graphica-windows.zip`・`Graphica-macos.zip`(zip 2つに `LICENSE` と `THIRD_PARTY_LICENSES.md`)。
+  `update_check` は 2.6.1 から v2.7.0 を更新ありと判定し、3つの添付と SHA-256 を拾う。
+- **CI の `exports/plot_pdf.bytes` が master のままでも一致しなくなった**(GitHub の Windows の実行環境の更新で、PDF に埋め込む
+  OS の字形が変わった。workflow_dispatch で master を流して確認)。PDF のバイト列は基準を作った機械でだけ比べるようにした
+  (`check_file_hashes(..., embeds_system_fonts=True)`)。画素のまれな不一致(対数軸・ヒートマップ)は今回も1回出た(流し直しで通過)。
 - ユーザーの依頼3件(PR #168)。
   - 長いデータセット名でインスペクタの中身が右に伸びて見切れていた: 見出しの名前ラベルが名前の幅を最小の幅として主張していた。
     `widgets/ElidedLabel`(幅に収まらない分を「…」、全文はツールチップ、text() は全文)を、名前を出すラベル全部に使う。
