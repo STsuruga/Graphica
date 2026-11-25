@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWi
 
 from graphica.core.i18n import tr
 from graphica.gui import motion, theme
+from graphica.gui.widgets import ElidedLabel
 
 # これより多い升目は小さすぎて押せないので、プルダウンにする
 MAX_GRID_CELLS = 9
@@ -119,9 +120,9 @@ class SubplotTargetBar(QWidget):
         names = QVBoxLayout()
         names.setContentsMargins(0, 0, 0, 0)
         names.setSpacing(0)
-        self.name_label = QLabel()
+        self.name_label = ElidedLabel()
         self.name_label.setObjectName("subplot_target_name")
-        self.detail_label = QLabel()
+        self.detail_label = ElidedLabel()
         self.detail_label.setObjectName("subplot_target_detail")
         names.addWidget(self.name_label)
         names.addWidget(self.detail_label)

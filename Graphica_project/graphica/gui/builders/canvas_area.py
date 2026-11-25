@@ -14,6 +14,7 @@ from graphica.gui.minimap_widget import MinimapWidget
 from graphica.gui.shell.icons import checkable_icon
 from graphica.gui.tools.cursor import COORDINATE_EMPTY_TEXT
 from graphica.gui.theme_color import theme_color_or_default
+from graphica.gui.widgets import ElidedLabel
 
 logger = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ def _build_card(app):
 
     title_row = QHBoxLayout()
     title_row.setSpacing(6)
-    app.card_title_label = QLabel()
+    app.card_title_label = ElidedLabel()
     app.card_title_label.setObjectName("card_title")
     app.card_series_label = QLabel()
     app.card_series_label.setObjectName("card_meta")

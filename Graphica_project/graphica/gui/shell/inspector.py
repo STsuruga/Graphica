@@ -10,6 +10,7 @@ from graphica.core.i18n import tr
 from graphica.gui import motion
 from graphica.gui.dataset_bindings import MARKER_CHOICES, NO_MARKER
 from graphica.gui.dataset_style_icon import NON_MARKER_PLOT_TYPES, make_dataset_style_icon
+from graphica.gui.widgets import ElidedLabel
 
 INSPECTOR_WIDTH = 372
 # (キー, タブの名前)。並びは見本どおり
@@ -60,9 +61,9 @@ class TargetHeader(QWidget):
         self.swatch.setFixedWidth(24)
         texts = QVBoxLayout()
         texts.setSpacing(0)
-        self.name_label = QLabel("-")
+        self.name_label = ElidedLabel("-")
         self.name_label.setObjectName("inspector_target_name")
-        self.sub_label = QLabel("")
+        self.sub_label = ElidedLabel("")
         self.sub_label.setObjectName("inspector_target_sub")
         texts.addWidget(self.name_label)
         texts.addWidget(self.sub_label)

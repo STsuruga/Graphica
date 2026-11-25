@@ -257,3 +257,17 @@ def test_no_discarded_widget_sits_over_the_screen_before_the_event_loop(main_win
     for button in (tab.ui.tick_font_button, tab.ui.tick_color_button):
         assert button.isVisible()
         assert button.parentWidget().childAt(button.geometry().center()) is button
+
+
+def test_a_long_dataset_name_does_not_widen_the_inspector(main_window, tab):
+    """名前は「…」で省き、中身を表示幅より広げない(右が見切れて横にスクロールしていた)。"""
+    from PySide6.QtWidgets import QScrollArea
+
+    main_window.show()
+    name = "とても長いデータセットの名前_" * 6
+    _select(tab, _dataset(name))
+    tab.inspector.show_page("properties")
+    _pump()
+    scroll = tab.findChild(QScrollArea, "inspector_scroll_properties")
+    assert scroll.widget().width() <= scroll.viewport().width()
+    assert scroll.horizontalScrollBar().maximum() == 0
