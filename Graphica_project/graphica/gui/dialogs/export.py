@@ -122,9 +122,9 @@ class BatchExportDialog(QDialog):
         )
         form.addRow(self.svg_text_as_path_checkbox)
 
-        self.svg_remove_clip_masks_checkbox = QCheckBox(tr("枠の外を隠すマスクを外す(SVG)"))
-        self.svg_remove_clip_masks_checkbox.setToolTip(tr("SVG で、プロット枠の外を隠すクリッピングマスクを、枠の中に収まる系列から外します(Illustrator などで編集しやすくなります)。枠の外にはみ出すデータを持つ系列は、見た目が変わらないようマスクを残します。PNG/PDF には影響しません。"))
-        form.addRow(self.svg_remove_clip_masks_checkbox)
+        self.crop_outside_frame_checkbox = QCheckBox(tr("枠の外を切り落とす(SVG/PDF)"))
+        self.crop_outside_frame_checkbox.setToolTip(tr("SVG・PDF で、プロット枠の外にはみ出す線・点・塗りを削って書き出します(クリッピングマスクも使いません)。PowerPoint で「図形に変換」したときなどに、枠の外のデータが出てこなくなります。オフのときは枠の外のデータも残し、マスクで隠します。2D マップは削らずマスクで隠します。"))
+        form.addRow(self.crop_outside_frame_checkbox)
 
         self.full_resolution_checkbox = QCheckBox(tr("データを間引かずにエクスポート"))
         self.full_resolution_checkbox.setToolTip(tr(
@@ -182,7 +182,7 @@ class BatchExportDialog(QDialog):
             'dpi': self.dpi_spinbox.value(),
             'transparent': self.transparent_checkbox.isChecked(),
             'svg_text_as_path': self.svg_text_as_path_checkbox.isChecked(),
-            'svg_remove_clip_masks': self.svg_remove_clip_masks_checkbox.isChecked(),
+            'crop_outside_frame': self.crop_outside_frame_checkbox.isChecked(),
             'full_resolution': self.full_resolution_checkbox.isChecked(),
         }
 

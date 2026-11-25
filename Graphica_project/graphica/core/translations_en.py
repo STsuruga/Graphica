@@ -481,11 +481,11 @@ TRANSLATIONS = {
     "文字をアウトライン化する(SVG)": "Convert text to outlines (SVG)",
     "SVG保存/コピー時、目盛の数字やラベルの文字をパス(輪郭線)として出力します。":
         "When saving or copying SVG, write tick numbers and label text as paths (outlines).",
-    "枠の外を隠すマスクを外す(SVG)": "Remove clipping masks at the plot frame (SVG)",
-    "SVG で、プロット枠の外を隠すクリッピングマスクを、枠の中に収まる系列から外します(Illustrator などで編集しやすくなります)。枠の外にはみ出すデータを持つ系列は、見た目が変わらないようマスクを残します。PNG/PDF には影響しません。":
-        "In SVG, removes the clipping mask that hides anything outside the plot frame from series that fit inside it "
-        "(easier to edit in Illustrator and similar tools). Series with data outside the frame keep their mask so the "
-        "figure looks the same. PNG/PDF are not affected.",
+    "枠の外を切り落とす(SVG/PDF)": "Trim outside the frame (SVG/PDF)",
+    "SVG・PDF で、プロット枠の外にはみ出す線・点・塗りを削って書き出します(クリッピングマスクも使いません)。PowerPoint で「図形に変換」したときなどに、枠の外のデータが出てこなくなります。オフのときは枠の外のデータも残し、マスクで隠します。2D マップは削らずマスクで隠します。":
+        "For SVG and PDF, trims lines, points and fills that stick out of the plot frame (no clipping masks are used). "
+        "Data outside the frame then no longer shows up when the figure is converted to shapes, e.g. in PowerPoint. Whe"
+        "n off, data outside the frame is kept and hidden with a mask. 2D maps are not trimmed; they keep the mask.",
     "データを間引かずに保存/コピー": "Save/copy with all data points (no thinning)",
     "「名前を付けて保存」「コピー」で、点数の多い Line(折れ線)データセットや 2D マップ(ヒートマップ/等高線)を、画面表示用に間引かず全データ点で描きます(処理が遅くなる場合があります)。画像の解像度(dpi)とは別の設定です。常に描き直すプレビュー自体は、応答を優先して間引いたまま表示します。":
         "For \"Save As\" and \"Copy\", draws large Line datasets and 2D maps (heat maps/contours) with every data "
