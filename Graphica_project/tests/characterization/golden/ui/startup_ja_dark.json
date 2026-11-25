@@ -1830,7 +1830,7 @@
                   "enabled": true
                  },
                  {
-                  "class": "QLabel",
+                  "class": "ElidedLabel",
                   "name": "stats_target_label",
                   "text": "-",
                   "visible": true,
@@ -2156,7 +2156,7 @@
                     "enabled": true,
                     "children": [
                      {
-                      "class": "QLabel",
+                      "class": "ElidedLabel",
                       "name": "bottom_panel_meta",
                       "text": "",
                       "visible": false,
@@ -2582,7 +2582,7 @@
                   "enabled": true,
                   "children": [
                    {
-                    "class": "QLabel",
+                    "class": "ElidedLabel",
                     "name": "card_title",
                     "text": "サブプロット 1",
                     "visible": true,
@@ -3837,6 +3837,17 @@
                              },
                              {
                               "class": "QCheckBox",
+                              "text": "枠の外を切り落とす(SVG/PDF)",
+                              "checked": false,
+                              "visible": false,
+                              "enabled": true,
+                              "tooltip": "SVG・PDF で、プロット枠の外にはみ出す線・点・塗りを削って書き出します(クリッピングマスクも使いません)。PowerPoint で「図形に変換」したときなどに、枠の外のデータが出てこなくなります。オフのときは枠の外のデータも残し、マスクで隠します。2D マップは削らずマスクで隠します。",
+                              "receivers": {
+                               "toggled(bool)": 1
+                              }
+                             },
+                             {
+                              "class": "QCheckBox",
                               "text": "データを間引かずに保存/コピー",
                               "checked": false,
                               "visible": false,
@@ -4904,6 +4915,17 @@
                                       }
                                      },
                                      {
+                                      "class": "QCheckBox",
+                                      "text": "目盛を表示",
+                                      "checked": true,
+                                      "visible": false,
+                                      "enabled": true,
+                                      "receivers": {
+                                       "toggled(bool)": 1,
+                                       "stateChanged(int)": 1
+                                      }
+                                     },
+                                     {
                                       "class": "QLabel",
                                       "text": "主目盛",
                                       "visible": false,
@@ -4975,6 +4997,17 @@
                                         }
                                        }
                                       ]
+                                     },
+                                     {
+                                      "class": "QCheckBox",
+                                      "text": "目盛の数値を表示",
+                                      "checked": true,
+                                      "visible": false,
+                                      "enabled": true,
+                                      "receivers": {
+                                       "toggled(bool)": 1,
+                                       "stateChanged(int)": 1
+                                      }
                                      },
                                      {
                                       "class": "QWidget",
@@ -7777,14 +7810,14 @@
                           ]
                          },
                          {
-                          "class": "QLabel",
+                          "class": "ElidedLabel",
                           "name": "subplot_target_name",
                           "text": "",
                           "visible": false,
                           "enabled": true
                          },
                          {
-                          "class": "QLabel",
+                          "class": "ElidedLabel",
                           "name": "subplot_target_detail",
                           "text": "",
                           "visible": false,
@@ -7829,14 +7862,14 @@
                           "enabled": true
                          },
                          {
-                          "class": "QLabel",
+                          "class": "ElidedLabel",
                           "name": "inspector_target_name",
                           "text": "データセットを選んでください",
                           "visible": true,
                           "enabled": true
                          },
                          {
-                          "class": "QLabel",
+                          "class": "ElidedLabel",
                           "name": "inspector_target_sub",
                           "text": "",
                           "visible": true,

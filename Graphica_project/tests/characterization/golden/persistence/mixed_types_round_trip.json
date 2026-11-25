@@ -282,7 +282,9 @@
    "y2_major_tick_mode": 0,
    "y2_major_tick_interval": 1.0,
    "y2_minor_ticks_visible": false,
-   "y2_minor_tick_interval": 0.5
+   "y2_minor_tick_interval": 0.5,
+   "y2_ticks_visible": true,
+   "y2_tick_labels_visible": true
   }
  ],
  "layout": [
@@ -296,7 +298,7 @@
  ],
  "undo_count": 0,
  "file": {
-  "sha256": "9a1a2ae33084d431d3356fb65860fbb2b51f88ecda73f95a1dc7266d2d8e8aad",
+  "sha256": "87dd498808cd3849397da3f25ab9ce44089888f515452a31a01d4a461ca604e2",
   "content": {
    "format_version": 1,
    "datasets": [
@@ -556,7 +558,9 @@
      "y2_major_tick_mode": 0,
      "y2_major_tick_interval": 1.0,
      "y2_minor_ticks_visible": false,
-     "y2_minor_tick_interval": 0.5
+     "y2_minor_tick_interval": 0.5,
+     "y2_ticks_visible": true,
+     "y2_tick_labels_visible": true
     }
    ],
    "active_axis_index": 0,

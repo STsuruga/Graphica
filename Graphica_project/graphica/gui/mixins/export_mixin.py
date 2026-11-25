@@ -19,7 +19,7 @@ from graphica.gui import dialog_dirs
 from graphica.core.axis_settings import axis_setting
 from graphica.gui.dialogs import BatchExportDialog, CaptionGeneratorDialog, CVDSimulationDialog
 from graphica.gui.canvas import _HeadlessRenderCanvas
-from graphica.gui.export_settings import export_rc_params
+from graphica.gui.export_settings import export_rc_params, is_croppable_format, outside_frame_cropped
 from graphica.gui.export_size import size_in_inches
 from graphica.gui.task_runner import TaskRunner
 from graphica.models.project import ProjectModel
@@ -233,7 +233,8 @@ class ExportMixin:
         save_kwargs = {'transparent': options.get('transparent', True), 'bbox_inches': 'tight'}
         if options['format'] not in ('pdf', 'svg'):
             save_kwargs['dpi'] = options['dpi']
-        with mpl.rc_context(export_rc_params(options['format'], options.get('svg_text_as_path', False))):
+        crop = options.get('crop_outside_frame', False) and is_croppable_format(options['format'])
+        with mpl.rc_context(export_rc_params(options['format'], options.get('svg_text_as_path', False))),                 outside_frame_cropped(fig, crop):
             fig.savefig(out_path, **save_kwargs)
 
     def _batch_export_subplots(self, indices, options, report_progress=None, is_cancelled=None):

@@ -14,7 +14,7 @@ from graphica.core.i18n import tr
 from graphica.gui.builders.common import discard_widget
 from graphica.gui.dataset_style_icon import make_dataset_style_icon
 from graphica.gui.shell.icons import themed_icon
-from graphica.gui.widgets import StatCard
+from graphica.gui.widgets import ElidedLabel, StatCard
 
 LEFT_PANEL_WIDTH = 280
 # ボタンの行に残すもの(左から)。曲線フィット・ピーク検出・多峰フィット・新規作成は「…」のメニューへ
@@ -128,7 +128,7 @@ class DatasetPage(QWidget):
         stats_head.setContentsMargins(14, 6, 14, 6)
         stats_head.setSpacing(6)
         self.stats_swatch = QLabel()
-        self.stats_name = QLabel("-")
+        self.stats_name = ElidedLabel("-")
         self.stats_name.setObjectName("stats_target_label")
         stats_head.addWidget(self.stats_swatch)
         stats_head.addWidget(self.stats_name, 1)

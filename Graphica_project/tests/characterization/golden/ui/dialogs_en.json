@@ -741,6 +741,14 @@
     },
     {
      "class": "QCheckBox",
+     "text": "Trim outside the frame (SVG/PDF)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "For SVG and PDF, trims lines, points and fills that stick out of the plot frame (no clipping masks are used). Data outside the frame then no longer shows up when the figure is converted to shapes, e.g. in PowerPoint. When off, data outside the frame is kept and hidden with a mask. 2D maps are not trimmed; they keep the mask."
+    },
+    {
+     "class": "QCheckBox",
      "text": "Export with all data points (no thinning)",
      "checked": false,
      "visible": true,

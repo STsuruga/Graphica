@@ -171,6 +171,10 @@ def _emit_secondary_y_calls(lines: list[str], ax_var: str, settings: dict[str, A
     if axis_setting(settings, 'y2_log'):
         lines.append(f"{ax_var}.set_yscale('log')")
     _emit_range_and_direction(lines, ax_var, settings, 'y2')
+    ticks_visible = axis_setting(settings, 'y2_ticks_visible')
+    labels_visible = axis_setting(settings, 'y2_tick_labels_visible')
+    if not (ticks_visible and labels_visible):
+        lines.append(f"{ax_var}.tick_params(axis='y', which='both', right={ticks_visible!r}, labelright={labels_visible!r})")
 
 
 def _emit_appearance_calls(lines: list[str], ax_var: str, settings: dict[str, Any], mesh_var: str | None = None) -> None:

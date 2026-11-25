@@ -741,6 +741,14 @@
     },
     {
      "class": "QCheckBox",
+     "text": "枠の外を切り落とす(SVG/PDF)",
+     "checked": false,
+     "visible": true,
+     "enabled": true,
+     "tooltip": "SVG・PDF で、プロット枠の外にはみ出す線・点・塗りを削って書き出します(クリッピングマスクも使いません)。PowerPoint で「図形に変換」したときなどに、枠の外のデータが出てこなくなります。オフのときは枠の外のデータも残し、マスクで隠します。2D マップは削らずマスクで隠します。"
+    },
+    {
+     "class": "QCheckBox",
      "text": "データを間引かずにエクスポート",
      "checked": false,
      "visible": true,

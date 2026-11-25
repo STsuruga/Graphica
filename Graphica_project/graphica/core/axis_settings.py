@@ -109,6 +109,8 @@ AXIS_SETTING_DEFAULTS = {
     'y2_major_tick_interval': 1,
     'y2_minor_ticks_visible': False,
     'y2_minor_tick_interval': 0.5,
+    'y2_ticks_visible': True,
+    'y2_tick_labels_visible': True,
 }
 
 # 軸ごとに分ける前の共通キー。新しいキーが無いプロジェクトでは、その値を X/Y 両方に使う。

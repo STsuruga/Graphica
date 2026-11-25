@@ -330,8 +330,13 @@ def apply_secondary_y_axis(canvas, ax, secondary_ax, settings, style):
     for label in secondary_ax.get_yticklabels():
         label.set(**style.tick_font)
         label.set_color(style.tick_color)
-    secondary_ax.tick_params(axis='y', which='major', width=style.tick_width, length=style.major_tick_length, color=style.spine_color, labelcolor=style.tick_color, direction=major_dir_y2)
-    secondary_ax.tick_params(axis='y', which='minor', width=style.tick_width * 0.75, length=style.minor_tick_length, color=style.spine_color, direction=minor_dir_y2)
+    # 主の軸と同じく、表示/非表示は毎回明示する(tick_params の値は描き直しをまたいで残る)
+    y2_ticks_visible = axis_setting(settings, 'y2_ticks_visible')
+    y2_tick_labels_visible = axis_setting(settings, 'y2_tick_labels_visible')
+    secondary_ax.tick_params(axis='y', which='major', width=style.tick_width, length=style.major_tick_length, color=style.spine_color, labelcolor=style.tick_color, direction=major_dir_y2,
+                             right=y2_ticks_visible, labelright=y2_tick_labels_visible)
+    secondary_ax.tick_params(axis='y', which='minor', width=style.tick_width * 0.75, length=style.minor_tick_length, color=style.spine_color, direction=minor_dir_y2,
+                             right=y2_ticks_visible, labelright=y2_tick_labels_visible)
     secondary_ax.spines['right'].set_linewidth(style.spine_width)
     secondary_ax.spines['right'].set_color(style.spine_color)
     secondary_ax.spines['right'].set_visible(True)

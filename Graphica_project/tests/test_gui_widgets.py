@@ -3,11 +3,11 @@ import pytest
 from PySide6.QtCore import QEvent, QPoint, Qt
 from PySide6.QtGui import QColor, QKeyEvent
 from PySide6.QtTest import QSignalSpy, QTest
-from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QStyle
+from PySide6.QtWidgets import QCheckBox, QComboBox, QDoubleSpinBox, QLabel, QStyle
 
 from graphica.gui import theme
-from graphica.gui.widgets import (ColorChipRow, ComboMirror, SectionHeader, SegmentedControl, SliderSpin, StatCard,
-                                  TypeTileGroup)
+from graphica.gui.widgets import (ColorChipRow, ComboMirror, ElidedLabel, SectionHeader, SegmentedControl, SliderSpin,
+                                  StatCard, TypeTileGroup)
 
 
 def _line_segment():
@@ -225,6 +225,24 @@ def test_slider_spin_stays_hidden_while_its_spinbox_is_hidden(qapp):
     assert widget.isHidden()
     spin.setVisible(True)
     assert not widget.isHidden() and not spin.isHidden()
+
+
+# --- ElidedLabel: 長い名前で親の幅を広げない ---
+
+def test_elided_label_keeps_the_full_text_and_shortens_what_it_shows(qapp):
+    name = "とても長いデータセットの名前" * 8
+    label = ElidedLabel(name)
+    assert label.minimumSizeHint().width() == 0
+    assert label.sizeHint().width() > 200
+    label.resize(120, 20)
+    label.show()
+    assert label.text() == name
+    shown = QLabel.text(label)
+    assert shown != name and shown.endswith("…")
+    assert label.toolTip() == name
+
+    label.setText("短い")
+    assert QLabel.text(label) == "短い" and label.toolTip() == ""
 
 # --- スイッチの見た目(チェックボックスのまま) ---
 

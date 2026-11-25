@@ -20,6 +20,7 @@ from graphica.gui.data_table_model import DatasetTableModel, fit_dataset_for, fi
 from graphica.gui.provenance_panel import ProvenancePanel
 from graphica.gui.shell.fit_result_view import FitResultView
 from graphica.gui.residual_panel import ResidualPanel
+from graphica.gui.widgets import ElidedLabel
 
 BOTTOM_PANEL_HEIGHT = 200
 HEADER_HEIGHT = 36
@@ -84,7 +85,8 @@ class BottomPanel(QFrame):
         self._group.idClicked.connect(lambda index: self.show_page(self._keys[index]))
 
         self._header_layout.addStretch(1)
-        self.meta_label = QLabel()
+        self.meta_label = ElidedLabel()
+        self.meta_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.meta_label.setObjectName("bottom_panel_meta")
         self._header_layout.addWidget(self.meta_label)
         self.collapse_button = QToolButton()
