@@ -3837,11 +3837,11 @@
                              },
                              {
                               "class": "QCheckBox",
-                              "text": "Remove clipping masks at the plot frame (SVG)",
+                              "text": "Trim outside the frame (SVG/PDF)",
                               "checked": false,
                               "visible": false,
                               "enabled": true,
-                              "tooltip": "In SVG, removes the clipping mask that hides anything outside the plot frame from series that fit inside it (easier to edit in Illustrator and similar tools). Series with data outside the frame keep their mask so the figure looks the same. PNG/PDF are not affected.",
+                              "tooltip": "For SVG and PDF, trims lines, points and fills that stick out of the plot frame (no clipping masks are used). Data outside the frame then no longer shows up when the figure is converted to shapes, e.g. in PowerPoint. When off, data outside the frame is kept and hidden with a mask. 2D maps are not trimmed; they keep the mask.",
                               "receivers": {
                                "toggled(bool)": 1
                               }
