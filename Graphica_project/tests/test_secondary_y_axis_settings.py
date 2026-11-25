@@ -112,3 +112,49 @@ def test_script_export_writes_the_secondary_axis_settings():
     assert "ax0_secondary.set_yscale('log')" in script
     assert "ax0_secondary.set_ylim(0, 9)" in script
     assert "ax0_secondary.invert_yaxis()" in script
+
+
+def _y2_tick_flags(secondary):
+    """右の目盛の線と数値を描くか(主目盛・補助目盛とも同じであること)。"""
+    flags = {which: (secondary.yaxis.get_tick_params(which=which)['right'],
+                     secondary.yaxis.get_tick_params(which=which)['labelright']) for which in ('major', 'minor')}
+    assert flags['major'] == flags['minor']
+    return flags['major']
+
+
+def test_tick_marks_and_tick_labels_of_the_secondary_axis_can_be_turned_off(window):
+    assert AXIS_SETTING_DEFAULTS["y2_ticks_visible"] is True
+    assert AXIS_SETTING_DEFAULTS["y2_tick_labels_visible"] is True
+    assert _y2_tick_flags(_secondary(window)) == (True, True)
+
+    window.y2_ticks_visible_checkbox.setChecked(False)
+    window._update_plot()
+    assert _y2_tick_flags(_secondary(window)) == (False, True)
+    window.y2_tick_labels_visible_checkbox.setChecked(False)
+    window._update_plot()
+    assert _y2_tick_flags(_secondary(window)) == (False, False)
+
+    settings = window._gather_settings_from_ui()
+    assert (settings["y2_ticks_visible"], settings["y2_tick_labels_visible"]) == (False, False)
+    window._apply_settings_to_ui_controls(dict(settings, y2_ticks_visible=True, y2_tick_labels_visible=True))
+    assert window.y2_ticks_visible_checkbox.isChecked() and window.y2_tick_labels_visible_checkbox.isChecked()
+
+
+def test_the_tick_switches_sit_in_the_secondary_axis_section(window):
+    form = window._axis_tab_sections["y2"]["form"]
+    rows = [form.getWidgetPosition(widget)[0] for widget in (
+        window.y2_invert_checkbox, window.y2_ticks_visible_checkbox, window.y2_minor_ticks_visible_checkbox,
+        window.y2_minor_tick_interval_spinbox, window.y2_tick_labels_visible_checkbox)]
+    assert rows == sorted(rows) and min(rows) >= 0
+
+
+def test_script_export_hides_the_secondary_ticks_only_when_turned_off():
+    project = ProjectModel()
+    project.datasets = [Dataset(name="r", df=pd.DataFrame({"x": [1, 2], "y": [3, 4]}), x_col_name="x",
+                                y_col_name="y", use_secondary_y=True)]
+    project.dataset_group_tree = {"name": "", "children": [{"dataset": project.datasets[0]}]}
+    project.all_plot_settings = [{}]
+    assert "ax0_secondary.tick_params" not in generate_python_script(project)
+    project.all_plot_settings = [{"y2_ticks_visible": True, "y2_tick_labels_visible": False}]
+    assert ("ax0_secondary.tick_params(axis='y', which='both', right=True, labelright=False)"
+            in generate_python_script(project))

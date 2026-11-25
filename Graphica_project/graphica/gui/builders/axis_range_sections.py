@@ -27,8 +27,9 @@ TICK_MODE_ITEMS = ("自動", "固定間隔")
 TICK_MODE_COMBOS = (("x_ticks", "ui.x_major_tick_mode_combo"), ("y_ticks", "ui.y_major_tick_mode_combo"),
                     ("y2", "y2_major_tick_mode_combo"))
 Y2_ROWS = ("y2_autoscale_checkbox", "y2_min_spinbox", "y2_max_spinbox", "y2_view_range_button",
-           "y2_log_checkbox", "y2_log_note", "y2_invert_checkbox", "y2_major_tick_mode_combo",
-           "y2_major_tick_interval_spinbox", "y2_minor_ticks_visible_checkbox", "y2_minor_tick_interval_spinbox")
+           "y2_log_checkbox", "y2_log_note", "y2_invert_checkbox", "y2_ticks_visible_checkbox",
+           "y2_major_tick_mode_combo", "y2_major_tick_interval_spinbox", "y2_minor_ticks_visible_checkbox",
+           "y2_minor_tick_interval_spinbox", "y2_tick_labels_visible_checkbox")
 
 
 def build_axis_range_sections(app):

@@ -400,6 +400,9 @@ def _build_secondary_y_axis_group(app):
     form.addRow(app.y2_log_note)
     app.y2_invert_checkbox = QCheckBox(tr("軸を反転"))
     form.addRow(app.y2_invert_checkbox)
+    app.y2_ticks_visible_checkbox = QCheckBox(tr("目盛を表示"))
+    app.y2_ticks_visible_checkbox.setChecked(True)
+    form.addRow(app.y2_ticks_visible_checkbox)
     app.y2_major_tick_mode_combo = QComboBox()
     # 選んだ番号で値を持つ(index の束ね)ので、表示を訳してよい
     app.y2_major_tick_mode_combo.addItems([tr("自動"), tr("固定間隔")])
@@ -412,6 +415,9 @@ def _build_secondary_y_axis_group(app):
     app.y2_minor_tick_interval_spinbox = _y2_value_spinbox()
     app.y2_minor_tick_interval_spinbox.setValue(0.5)
     form.addRow(tr("補助目盛の間隔"), app.y2_minor_tick_interval_spinbox)
+    app.y2_tick_labels_visible_checkbox = QCheckBox(tr("目盛の数値を表示"))
+    app.y2_tick_labels_visible_checkbox.setChecked(True)
+    form.addRow(app.y2_tick_labels_visible_checkbox)
     layout = app.ui.gridLayout_3
     layout.addWidget(app.y2_axis_group, layout.rowCount(), 0, 1, layout.columnCount() or 1)
 

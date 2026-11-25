@@ -173,4 +173,6 @@ AXIS_BINDINGS = (
     number('y2_major_tick_interval', 'y2_major_tick_interval_spinbox', _CHANGED),
     check('y2_minor_ticks_visible', 'y2_minor_ticks_visible_checkbox', _CHANGED + ('_on_y2_axis_state_changed',)),
     number('y2_minor_tick_interval', 'y2_minor_tick_interval_spinbox', _CHANGED),
+    check('y2_ticks_visible', 'y2_ticks_visible_checkbox', _CHANGED),
+    check('y2_tick_labels_visible', 'y2_tick_labels_visible_checkbox', _CHANGED),
 )
